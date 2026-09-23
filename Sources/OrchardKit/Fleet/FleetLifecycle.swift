@@ -45,18 +45,19 @@ extension FleetEngine {
             try await recordRuntime.provision(id: id, route: RepoRoute.from(config: config))
             try Task.checkCancellation()
 
-            // Phase: booting. Tart waits for the VM's IP; Apple containers
-            // need no IP at all (no SSH — registration goes through exec).
+            // Phase: booting. Runtimes return the address their registration
+            // transport dials (Tart: the VM's IP for SSH); exec transports
+            // (containers) return nil and register without one.
             updateRecord(id) { $0.phase = .booting }
-            let ip: String
-            if let appleRuntime = containerRuntime {
-                ip = try await appleRuntime.awaitRunning(id, timeout: TimeInterval(config.vmBootTimeout))
-                updateRecord(id) { $0.ip = nil }
-                Log.info(id, "container running")
-            } else {
-                ip = try await tart.ip(of: id, timeout: TimeInterval(config.vmBootTimeout))
-                updateRecord(id) { $0.ip = ip }
+            let ip: String? = try await recordRuntime.awaitReady(
+                id: id,
+                timeout: TimeInterval(config.vmBootTimeout)
+            )
+            updateRecord(id) { $0.ip = ip }
+            if let ip {
                 Log.info(id, "booted at \(ip)")
+            } else {
+                Log.info(id, "instance ready (exec transport)")
             }
 
             // Phase: registering — platform- and runtime-specific bootstrap.
@@ -71,58 +72,28 @@ extension FleetEngine {
             }
             let runnerCount = max(1, config.runnersPerVM)
             let result: ShellResult
-            if let appleRuntime = containerRuntime {
-                // Apple-container path: registration executes inside the
-                // container via `container exec` (no SSH, no guest IP).
-                let token: String
-                switch platform {
-                case .github:
-                    token = try await registrationTokens.token { [self] in
-                        let t = try await github.fetchRegistrationToken()
-                        return t.token
-                    }
-                case .gitea:
-                    guard let giteaForge = forge as? GiteaForge else {
-                        throw EngineError.registrationFailed(vm: id, stderr: "gitea forge misconfigured")
-                    }
-                    token = giteaForge.registrationToken
+            // Registration: the runtime produces the script flavor for the
+            // forge and executes it through its own transport (SSH for VMs,
+            // exec for containers) — the engine is transport-agnostic.
+            let token: String
+            switch platform {
+            case .github:
+                token = try await registrationTokens.token { [self] in
+                    let t = try await github.fetchRegistrationToken()
+                    return t.token
                 }
-                let script = try await appleRuntime.registrationScript(
-                    forge: forge, token: token, name: id,
-                    runnerCount: runnerCount, route: RepoRoute.from(config: config),
-                    labels: poolLabels(for: probe)
-                )
-                result = try await appleRuntime.execScript(id, script, timeout: 600)
-            } else {
-                switch platform {
-                case .github:
-                    let token = try await registrationTokens.token { [self] in
-                        let t = try await github.fetchRegistrationToken()
-                        return t.token
-                    }
-                    let script = RunnerBootstrap.registrationScript(
-                        configureURL: github.configureURL,
-                        token: token,
-                        labels: poolLabels(for: probe) ?? config.labels,
-                        ephemeral: config.vm.ephemeral,
-                        name: id,
-                        runnerCount: runnerCount
-                    )
-                    result = try await ssh.exec(vm: id, user: "admin", ip: ip, script: script, timeout: 600)
-                case .gitea:
-                    guard let giteaForge = forge as? GiteaForge else {
-                        throw EngineError.registrationFailed(vm: id, stderr: "gitea forge misconfigured")
-                    }
-                    let script = RunnerBootstrap.giteaRegistrationScript(
-                        instance: giteaForge.registrationURL(),
-                        token: giteaForge.registrationToken,
-                        labels: forge.labels,
-                        name: id,
-                        runnerCount: runnerCount
-                    )
-                    result = try await ssh.exec(vm: id, user: "admin", ip: ip, script: script, timeout: 600)
+            case .gitea:
+                guard let giteaForge = forge as? GiteaForge else {
+                    throw EngineError.registrationFailed(vm: id, stderr: "gitea forge misconfigured")
                 }
+                token = giteaForge.registrationToken
             }
+            let script = try await recordRuntime.registrationScript(
+                forge: forge, token: token, name: id,
+                runnerCount: runnerCount, route: RepoRoute.from(config: config),
+                labels: poolLabels(for: probe)
+            )
+            result = try await recordRuntime.execRegistration(id, ip: ip, script, timeout: 600)
             guard result.succeeded else {
                 throw EngineError.registrationFailed(vm: id, stderr: result.stderr)
             }
@@ -161,7 +132,7 @@ extension FleetEngine {
     /// signal; after a short grace period (in case the next task is already
     /// dispatching) the VM is deleted. Runners that never register trip the
     /// registration timeout, exactly like the GitHub path.
-    func awaitGiteaExit(id: String, ip: String) async throws {
+    func awaitGiteaExit(id: String, ip: String?) async throws {
         let runnerCount = max(1, config.runnersPerVM)
         let expected: [String] = runnerCount == 1
             ? [id]
@@ -225,7 +196,7 @@ extension FleetEngine {
     /// registered at least once and NONE remain — partial deregistration
     /// (one runner's job finished) keeps the VM alive for the others. Runners
     /// that never register trip the registration timeout instead.
-    func awaitEphemeralExit(id: String, ip: String) async throws {
+    func awaitEphemeralExit(id: String, ip: String?) async throws {
         let runnerCount = max(1, config.runnersPerVM)
         let expected: [String] = runnerCount == 1
             ? [id]

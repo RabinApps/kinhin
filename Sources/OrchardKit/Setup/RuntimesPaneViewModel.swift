@@ -34,13 +34,16 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
     public var routingConfigured: Bool
     /// The runtime a container-only fleet uses (single-pool legacy mode).
     public var containerConfigured: Bool
+    /// True when a `docker:` section exists (Docker slot pool).
+    public var dockerConfigured: Bool
 
-    public init(pools: [PoolRow] = [], routes: [RouteRow] = [], defaultRuntime: RuntimeID = .tart, routingConfigured: Bool = false, containerConfigured: Bool = false) {
+    public init(pools: [PoolRow] = [], routes: [RouteRow] = [], defaultRuntime: RuntimeID = .tart, routingConfigured: Bool = false, containerConfigured: Bool = false, dockerConfigured: Bool = false) {
         self.pools = pools
         self.routes = routes
         self.defaultRuntime = defaultRuntime
         self.routingConfigured = routingConfigured
         self.containerConfigured = containerConfigured
+        self.dockerConfigured = dockerConfigured
     }
 
     // MARK: Loading
@@ -61,6 +64,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
         guard let parsed = try? ConfigLoader.parse(configYAML) else { return vm }
 
         vm.containerConfigured = parsed.container != nil
+        vm.dockerConfigured = parsed.docker != nil
         let routing = (try? RuntimesConfigEditor.parsed(from: configYAML)) ?? nil
         let rc = routing ?? parsed.runtimes
         vm.routingConfigured = rc != nil
@@ -72,7 +76,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             config: rc,
             fleetLabels: fleetLabels,
             containerLabels: parsed.container?.labels,
-            containerConfigured: vm.containerConfigured
+            containerConfigured: vm.containerConfigured,
+            dockerConfigured: vm.dockerConfigured
         )
 
         // Capacity: partition math identical to the engine's init.
@@ -84,18 +89,33 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                 weights: rc.budget,
                 defaultRuntime: RuntimeID(rawValue: rc.defaultRuntime) ?? .tart,
                 shape: { id in
-                    id == .appleContainer
-                        ? (parsed.container?.cpus ?? 4, parsed.container?.memoryGB ?? 8)
-                        : (parsed.vm.cpuCount, parsed.vm.memoryGB)
+                    switch id {
+                    case .appleContainer:
+                        return (parsed.container?.cpus ?? 4, parsed.container?.memoryGB ?? 8)
+                    case .docker:
+                        return (parsed.docker?.cpus ?? 2, parsed.docker?.memoryGB ?? 4)
+                    default:
+                        return (parsed.vm.cpuCount, parsed.vm.memoryGB)
+                    }
                 }
             )
             caps = partition.caps
+            if let dockerConfig = parsed.docker, let partitionCap = caps[.docker] {
+                caps[.docker] = min(partitionCap, dockerConfig.maxSlots)
+            }
         } else {
             // Single-pool fleet: the engine's cap is the full Capacity.plan
             // on the primary runtime's shape (no partition).
-            let shapeCPU = vm.containerConfigured ? (parsed.container?.cpus ?? 4) : parsed.vm.cpuCount
-            let shapeMem = vm.containerConfigured ? (parsed.container?.memoryGB ?? 8) : parsed.vm.memoryGB
-            let primary: RuntimeID = vm.containerConfigured ? .appleContainer : .tart
+            let primary: RuntimeID = vm.containerConfigured ? .appleContainer : (vm.dockerConfigured ? .docker : .tart)
+            let (shapeCPU, shapeMem): (Int, Int)
+            switch primary {
+            case .appleContainer:
+                (shapeCPU, shapeMem) = (parsed.container?.cpus ?? 4, parsed.container?.memoryGB ?? 8)
+            case .docker:
+                (shapeCPU, shapeMem) = (parsed.docker?.cpus ?? 2, parsed.docker?.memoryGB ?? 4)
+            default:
+                (shapeCPU, shapeMem) = (parsed.vm.cpuCount, parsed.vm.memoryGB)
+            }
             caps[primary] = Capacity.plan(
                 host: host,
                 vmCPU: shapeCPU,
@@ -165,6 +185,14 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                     )
                     group.addTask { (.appleContainer, await runtime.health()) }
                 }
+            }
+            if poolIDs.contains(.docker), parsed.docker != nil {
+                let runtime = DockerRuntime(
+                    image: parsed.docker?.image ?? "orchard-ci-linux",
+                    cpus: parsed.docker?.cpus ?? 2,
+                    memoryGB: parsed.docker?.memoryGB ?? 4
+                )
+                group.addTask { (.docker, await runtime.health()) }
             }
             var results: [RuntimeID: RuntimeHealth] = [:]
             for await (id, health) in group {

@@ -56,7 +56,7 @@ func helpText() -> String {
         doctor [--json]             Check prerequisites and print the computed capacity (--json: merged machine-readable diagnostics document)
         setup-status [--json]       First-run checklist (pass --json for machine output)
         runtimes [--json]           Pools, capacity, budget, health, and routes (--no-health skips probes)
-        runtimes route add <pat> <rt>   Route a repo (owner/repo) or workflow (owner/repo@Name) to tart|appleContainer
+        runtimes route add <pat> <rt>   Route a repo (owner/repo) or workflow (owner/repo@Name) to tart|appleContainer|docker
         runtimes route remove <pat>     Delete that route; a running daemon reloads routing live
         image prepare [--provision-script <file>]
                                     Build the runner base image (slow, once); the script
@@ -66,6 +66,7 @@ func helpText() -> String {
         image prepare --toolchain <spec> [--stack <name>]
                                     Override the config's toolchains for this prepare
         image prepare --container   Build the Linux container image (apple container)
+        image prepare --docker      Build the Linux container image (Docker Desktop / OrbStack / colima)
         toolchains                  Managed-toolchain catalog, selections, and cache state
         toolchains prune [--dry-run]   Expire stale host-cache entries now
 

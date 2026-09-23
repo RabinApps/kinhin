@@ -63,6 +63,10 @@ public struct OrchardConfig: Sendable, Equatable {
     /// required), with a host-side download cache shared across prepares —
     /// and, opt-in, across runner VMs. nil = feature off, behavior unchanged.
     public var toolchains: ToolchainsConfig? = nil
+    /// Docker runtime (Linux containers inside the provider's shared VM —
+    /// Docker Desktop/OrbStack/colima). Orchard delegates the VM and manages
+    /// nothing; it runs one container per job slot. nil = feature off.
+    public var docker: DockerForgeConfig? = nil
 
     /// Declarative toolchain installs baked by `image prepare`. Every entry
     /// installs exactly its own pieces — nothing is added implicitly. The
@@ -144,6 +148,34 @@ public struct OrchardConfig: Sendable, Equatable {
         enum CodingKeys: String, CodingKey {
             case image, cpus, labels
             case memoryGB = "memory_gb"
+        }
+    }
+
+    /// Docker runtime settings. `max_slots` bounds the container slots this
+    /// fleet may run (capacity is also bounded by the host budget partition
+    /// like every other runtime).
+    public struct DockerForgeConfig: Sendable, Equatable {
+        /// Linux OCI image baked with the runner agents (orchard image
+        /// prepare --docker).
+        public var image: String
+        /// vCPUs per runner container.
+        public var cpus: Int
+        /// RAM (GB) per runner container.
+        public var memoryGB: Int
+        /// Hard upper bound on concurrent container slots.
+        public var maxSlots: Int
+
+        public init(image: String, cpus: Int = 2, memoryGB: Int = 4, maxSlots: Int = 8) {
+            self.image = image
+            self.cpus = cpus
+            self.memoryGB = memoryGB
+            self.maxSlots = maxSlots
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case image, cpus
+            case memoryGB = "memory_gb"
+            case maxSlots = "max_slots"
         }
     }
 
@@ -235,6 +267,7 @@ public struct OrchardConfig: Sendable, Equatable {
         case reserve
         case gitea
         case container
+        case docker
         case runtimes
         case provisionScript = "provision_script"
         case toolchains
@@ -257,7 +290,8 @@ public struct OrchardConfig: Sendable, Equatable {
         container: nil,
         runtimes: nil,
         provisionScript: nil,
-        toolchains: nil
+        toolchains: nil,
+        docker: nil
     )
 }
 
@@ -428,6 +462,26 @@ public struct ConfigLoader {
                 labels: container.labels
             )
         }
+        if let docker = partial.docker {
+            guard let dockerImage = docker.image, !dockerImage.isEmpty else {
+                throw ConfigError.invalid("docker.image must not be empty (a Linux OCI image baked with runner agents)")
+            }
+            if let cpus = docker.cpus, cpus < 1 {
+                throw ConfigError.invalid("docker.cpus must be >= 1")
+            }
+            if let mem = docker.memory_gb, mem < 1 {
+                throw ConfigError.invalid("docker.memory_gb must be >= 1")
+            }
+            if let slots = docker.max_slots, slots < 1 {
+                throw ConfigError.invalid("docker.max_slots must be >= 1")
+            }
+            cfg.docker = OrchardConfig.DockerForgeConfig(
+                image: dockerImage,
+                cpus: docker.cpus ?? 2,
+                memoryGB: docker.memory_gb ?? 4,
+                maxSlots: docker.max_slots ?? 8
+            )
+        }
         if let runtimes = partial.runtimes {
             var budget: [String: Double] = [:]
             if let entries = runtimes.budget {
@@ -465,12 +519,15 @@ public struct ConfigLoader {
                 throw ConfigError.invalid("duplicate runtimes.routes pattern '\(route.pattern)'")
             }
             let referenced = Set(budget.keys).union(routes.map(\.runtime)).union([runtimes.default ?? "tart"])
-            let validRuntimes = Set(["tart", "appleContainer"])
+            let validRuntimes = Set(["tart", "appleContainer", "docker"])
             for name in referenced where !validRuntimes.contains(name) {
-                throw ConfigError.invalid("runtimes: unknown runtime '\(name)' (known: tart, appleContainer)")
+                throw ConfigError.invalid("runtimes: unknown runtime '\(name)' (known: tart, appleContainer, docker)")
             }
             if referenced.contains("appleContainer"), cfg.container == nil {
                 throw ConfigError.invalid("runtimes routes reference 'appleContainer' but no container: section is configured (it needs an image)")
+            }
+            if referenced.contains("docker"), cfg.docker == nil {
+                throw ConfigError.invalid("runtimes routes reference 'docker' but no docker: section is configured (it needs an image)")
             }
             let totalWeight = budget.values.reduce(0, +)
             guard totalWeight <= 1.0001 else {
@@ -717,6 +774,17 @@ public struct ConfigLoader {
         #   image: "orchard-ci-linux"
         #   cpus: 4
         #   memory_gb: 8
+
+        # Optional: run Linux jobs in Docker containers inside your Docker
+        # provider's shared Linux VM (Docker Desktop, OrbStack, or colima).
+        # Orchard delegates the VM to the provider — it only runs one runner
+        # container per job slot. Requires Docker running and a Linux image
+        # baked with the runner agents: orchard image prepare --docker
+        # docker:
+        #   image: "orchard-ci-linux"
+        #   cpus: 2
+        #   memory_gb: 4
+        #   max_slots: 8   # hard cap on concurrent runner containers
         """
     }
 }
@@ -741,6 +809,7 @@ public struct PartialConfig: Decodable {
     var reserve: PartialReserve?
     var gitea: PartialGitea?
     var container: PartialContainer?
+    var docker: PartialDocker?
     var runtimes: PartialRuntimes?
     var provision_script: String?
     var toolchains: PartialToolchains?
@@ -762,6 +831,13 @@ public struct PartialConfig: Decodable {
         var cpus: Int?
         var memory_gb: Int?
         var labels: [String]?
+    }
+
+    struct PartialDocker: Decodable {
+        var image: String?
+        var cpus: Int?
+        var memory_gb: Int?
+        var max_slots: Int?
     }
 
     struct PartialRuntimes: Decodable {

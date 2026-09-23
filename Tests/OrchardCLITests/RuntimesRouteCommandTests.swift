@@ -126,12 +126,36 @@ final class RuntimesRouteCommandTests: XCTestCase {
         let original = try onDiskText()
 
         do {
-            try await runRoute(["add", "acme/api", "docker"])
+            try await runRoute(["add", "acme/api", "kubernetes"])
             XCTFail("unknown runtime must throw")
         } catch is RuntimesCommand.RouteError {}
 
         XCTAssertEqual(try onDiskText(), original)
         try XCTAssertNil(try routedSection())
+    }
+
+    func testAddDockerRouteRequiresDockerConfig() async throws {
+        // Engine validation gates every write: a docker route without a
+        // `docker:` section is rejected (same policy as appleContainer).
+        try installConfig(baseConfig)
+        let original = try onDiskText()
+
+        do {
+            try await runRoute(["add", "acme/api", "docker"])
+            XCTFail("docker route without docker: section must throw")
+        } catch let error as RuntimesCommand.RouteError {
+            XCTAssertTrue(error.message.contains("no docker: section"), error.message)
+        }
+        XCTAssertEqual(try onDiskText(), original)
+    }
+
+    func testAddDockerRoutePersistsRoute() async throws {
+        try installConfig(baseConfig + "\ndocker:\n  image: \"ghcr.io/acme/orchard-ci-linux\"\n")
+        try await runRoute(["add", "acme/api", "docker"])
+
+        let rc = try XCTUnwrap(try routedSection())
+        XCTAssertEqual(rc.routes.first?.pattern, "acme/api")
+        XCTAssertEqual(rc.routes.first?.runtime, "docker")
     }
 
     // MARK: remove

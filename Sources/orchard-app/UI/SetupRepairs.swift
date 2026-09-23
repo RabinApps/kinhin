@@ -37,6 +37,8 @@ extension SetupWindowController {
             startContainerSystem()
         case "prepare_container_image":
             prepareContainerImage()
+        case "prepare_docker_image":
+            prepareDockerImage()
         default:
             Log.error("setup", "no handler for action '\(action)'")
         }
@@ -85,6 +87,17 @@ extension SetupWindowController {
             }
             try await Self.startContainerSystem(shell: Shell())
             let preparer = ContainerImagePreparer(shell: Shell())
+            try await preparer.prepare(image: image, target: image)
+        }
+    }
+
+    /// Bakes the runner agents into the configured Docker image.
+    private func prepareDockerImage() {
+        runLongTask(title: "Preparing docker image (this takes a while)…") {
+            guard let cfg = try? ConfigLoader.load(), let image = cfg.docker?.image else {
+                throw NSError(domain: "orchard", code: 2, userInfo: [NSLocalizedDescriptionKey: "config missing, invalid, or no docker.image set"])
+            }
+            let preparer = DockerImagePreparer(shell: Shell())
             try await preparer.prepare(image: image, target: image)
         }
     }

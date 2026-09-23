@@ -80,6 +80,23 @@ public protocol Runtime: Sendable {
     /// for an id that already exists (recovery path).
     func provision(id: String, route: RepoRoute) async throws
 
+    /// Wait for a provisioned instance to become ready for registration.
+    /// Runtimes reachable over a network return the address the registration
+    /// transport dials (Tart: the VM's IP for SSH); exec-transport runtimes
+    /// (apple container, docker, host) return nil — registration goes
+    /// through `execRegistration` with no address.
+    func awaitReady(id: String, timeout: TimeInterval) async throws -> String?
+
+    /// Execute the registration script inside the instance. Runtimes whose
+    /// `awaitReady` returned an address dial it (SSH); the rest exec locally
+    /// inside the instance (container/docker exec).
+    func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws -> ShellResult
+
+    /// Ids of this runtime's existing instances — the recovery/adopt path
+    /// enumerates every configured runtime through this (no per-runtime
+    /// branch in the engine).
+    func existingInstanceIDs() async -> [String]
+
     /// The bootstrap script that turns the provisioned instance into N
     /// registered runners (GitHub/Gitea scripts today). The engine executes
     /// it inside the instance. `labels` overrides the forge's default label
@@ -103,6 +120,7 @@ public protocol Runtime: Sendable {
 public struct TartRuntime: Runtime {
     public let id: RuntimeID = .tart
     let tart: TartControlling
+    let ssh: SSHExecuting
     let bootTimeout: @Sendable () -> Int
     /// The resolved managed-toolchain selection (cache envs come from here
     /// when `share_cache` mounts the host cache into runner VMs).
@@ -115,9 +133,10 @@ public struct TartRuntime: Runtime {
         return ToolchainCatalog.selection(from: config)
     }
 
-    public init(tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, toolchainsConfig: @escaping @Sendable () -> OrchardConfig.ToolchainsConfig? = { nil }) {
+    public init(tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, ssh: SSHExecuting = SSHExecutor(), toolchainsConfig: @escaping @Sendable () -> OrchardConfig.ToolchainsConfig? = { nil }) {
         self.tart = tart
         self.bootTimeout = bootTimeout
+        self.ssh = ssh
         self.toolchainsConfig = toolchainsConfig
     }
 
@@ -146,6 +165,21 @@ public struct TartRuntime: Runtime {
         try await tart.clone(source: route.image, to: id)
         let mounts = route.cacheMount ? [ToolchainCacheMount.guestPath] : []
         try await tart.run(name: id, mounts: mounts)
+    }
+
+    public func awaitReady(id: String, timeout: TimeInterval) async throws -> String? {
+        try await tart.ip(of: id, timeout: timeout)
+    }
+
+    public func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws -> ShellResult {
+        guard let ip, !ip.isEmpty else {
+            throw TartError.ipNotFound(vm: id)
+        }
+        return try await ssh.exec(vm: id, user: "admin", ip: ip, script: script, timeout: timeout)
+    }
+
+    public func existingInstanceIDs() async -> [String] {
+        (try? await tart.list())?.map(\.name) ?? []
     }
 
     public func registrationScript(forge: Forge, token: String, name: String,

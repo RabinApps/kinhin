@@ -17,18 +17,30 @@ public struct RuntimePool: Sendable, Equatable {
     }
 
     /// The fleet's default label set for this runtime: the config labels
-    /// plus the runtime's marker ("orchard-container" for containers).
+    /// plus the runtime's marker ("orchard-container" for Apple containers,
+    /// "orchard-docker" for Docker slots).
     public static func labelsFor(_ runtime: RuntimeID, fleetLabels: [String], containerExtra: [String]? = nil) -> [String] {
         var labels = fleetLabels
+        if let marker = exclusiveMarker(for: runtime) {
+            if !labels.contains(marker) { labels.append(marker) }
+        }
         if runtime == .appleContainer {
-            for marker in ["orchard-container"] {
-                if !labels.contains(marker) { labels.append(marker) }
-            }
             for extra in containerExtra ?? [] where !labels.contains(extra) {
                 labels.append(extra)
             }
         }
         return labels
+    }
+
+    /// The exclusive `runs-on:` marker a pool registers with, enabling
+    /// per-workflow opt-in without a config route. nil for runtimes that
+    /// serve the fleet's default labels (tart).
+    public static func exclusiveMarker(for runtime: RuntimeID) -> String? {
+        switch runtime {
+        case .appleContainer: return "orchard-container"
+        case .docker: return "orchard-docker"
+        default: return nil
+        }
     }
 }
 
@@ -108,11 +120,13 @@ public enum RuntimeRouter {
             }
         }
 
-        // 3. Label opt-in: jobs requesting a pool's exclusive marker go there.
+        // 3. Label opt-in: jobs requesting a pool's exclusive marker go there
+        // (orchard-container for Apple containers, orchard-docker for Docker).
         for (runtimeID, pool) in pools.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-            if runtimeID == .appleContainer, pool.labels.contains("orchard-container"),
-               Set(job.labels ?? []).contains("orchard-container") {
-                return Decision(pool: pool, via: "label:orchard-container")
+            if let marker = RuntimePool.exclusiveMarker(for: runtimeID),
+               pool.labels.contains(marker),
+               Set(job.labels ?? []).contains(marker) {
+                return Decision(pool: pool, via: "label:\(marker)")
             }
         }
 
@@ -128,11 +142,11 @@ public struct RuntimeConfigModel: Sendable {
     public let pools: [RuntimeID: RuntimePool]
     public let defaultRuntime: RuntimeID
 
-    public init(config: OrchardConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil, containerConfigured: Bool = false) {
+    public init(config: OrchardConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil, containerConfigured: Bool = false, dockerConfigured: Bool = false) {
         if let config {
             // Explicit routing: tart is always available (macOS workloads),
-            // containers join when configured. The default runtime comes
-            // from the config.
+            // containers and Docker slots join when configured. The default
+            // runtime comes from the config.
             self.routes = config.routes
             self.defaultRuntime = RuntimeID(rawValue: config.defaultRuntime) ?? .tart
             var pools: [RuntimeID: RuntimePool] = [:]
@@ -143,12 +157,19 @@ public struct RuntimeConfigModel: Sendable {
                     labels: RuntimePool.labelsFor(.appleContainer, fleetLabels: fleetLabels, containerExtra: containerLabels)
                 )
             }
+            if dockerConfigured {
+                pools[.docker] = RuntimePool(
+                    runtime: .docker,
+                    labels: RuntimePool.labelsFor(.docker, fleetLabels: fleetLabels)
+                )
+            }
             self.pools = pools
         } else {
             // No routing config: the fleet is a single pool on its primary
-            // runtime (containers when configured, else tart) — exactly the
-            // pre-routing behavior.
-            let primary: RuntimeID = containerConfigured ? .appleContainer : .tart
+            // runtime — containers when configured (the established Linux
+            // path), else Docker slots, else tart. Exactly the pre-routing
+            // behavior when only tart/container exist.
+            let primary: RuntimeID = containerConfigured ? .appleContainer : (dockerConfigured ? .docker : .tart)
             self.routes = []
             self.defaultRuntime = primary
             self.pools = [primary: RuntimePool(

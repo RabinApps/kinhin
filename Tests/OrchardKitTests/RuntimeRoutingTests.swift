@@ -22,6 +22,18 @@ final class RuntimeRoutingTests: XCTestCase {
         OrchardConfig.RuntimeConfig(defaultRuntime: defaultRuntime, budget: budget, routes: mixedRoutes())
     }
 
+    private func dockerConfig() -> OrchardConfig {
+        var cfg = makeTestConfig()
+        cfg.repo = "acme"
+        cfg.docker = .init(image: "ghcr.io/acme/orchard-ci-linux", cpus: 2, memoryGB: 4, maxSlots: 8)
+        cfg.runtimes = OrchardConfig.RuntimeConfig(
+            defaultRuntime: "tart",
+            budget: ["tart": 0.5, "docker": 0.5],
+            routes: [OrchardConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "docker")]
+        )
+        return cfg
+    }
+
     private func jobs(_ defs: [(repo: String?, name: String, labels: [String]?)]) -> [ForgeJob] {
         defs.map { ForgeJob(name: $0.name, runnerName: nil, repository: $0.repo, labels: $0.labels) }
     }
@@ -95,6 +107,70 @@ final class RuntimeRoutingTests: XCTestCase {
         let decision = RuntimeRouter.assign(job: job, config: model, defaultPool: defaultPool, pools: pools)
         XCTAssertEqual(decision.pool.runtime, .appleContainer)
         XCTAssertEqual(decision.via, "label:orchard-container")
+    }
+
+    // MARK: - Docker pool
+
+    private func dockerRouter() -> (RuntimeConfigModel, RuntimePool, [RuntimeID: RuntimePool]) {
+        let model = RuntimeConfigModel(
+            config: dockerConfig().runtimes,
+            fleetLabels: fleetLabels,
+            containerConfigured: false,
+            dockerConfigured: true
+        )
+        let defaultPool = model.pools[.tart]!
+        return (model, defaultPool, model.pools)
+    }
+
+    func testDockerPoolJoinsRoutingWhenConfigured() {
+        let (model, _, pools) = dockerRouter()
+        XCTAssertEqual(Set(model.pools.keys), [.tart, .docker])
+        XCTAssertTrue(model.pools[.docker]?.labels.contains("orchard-docker") ?? false)
+        XCTAssertTrue(model.pools[.docker]?.labels.contains("self-hosted") ?? false)
+        _ = pools
+    }
+
+    func testDockerRepoRoutePicksDockerPool() {
+        let (model, defaultPool, pools) = dockerRouter()
+        let job = ForgeJob(name: "build", runnerName: nil, repository: "acme/api", labels: nil)
+        let decision = RuntimeRouter.assign(job: job, config: model, defaultPool: defaultPool, pools: pools)
+        XCTAssertEqual(decision.pool.runtime, .docker)
+        XCTAssertEqual(decision.via, "repo:acme/api")
+    }
+
+    func testDockerLabelOptInRoutesToDockerPool() {
+        let (model, defaultPool, pools) = dockerRouter()
+        let job = ForgeJob(name: "lint", runnerName: nil, repository: "acme/other", labels: ["orchard-docker"])
+        let decision = RuntimeRouter.assign(job: job, config: model, defaultPool: defaultPool, pools: pools)
+        XCTAssertEqual(decision.pool.runtime, .docker)
+        XCTAssertEqual(decision.via, "label:orchard-docker")
+    }
+
+    func testDockerPartitionRespectsMaxSlots() {
+        // Weighted partition gives docker its share; the docker.max_slots
+        // cap then clamps it (engine-side min()).
+        let partition = RuntimeCapacity.partition(
+            hostUsableCPU: 10, hostUsableMemoryGB: 28,
+            weights: ["tart": 0.5, "docker": 0.5],
+            defaultRuntime: .tart,
+            shape: { $0 == .docker ? (2, 4) : (4, 8) }
+        )
+        XCTAssertEqual(partition.caps[.docker], 2, "5 CPU/14 GB → 2×(2 CPU, 4 GB)")
+        XCTAssertEqual(partition.caps[.tart], 1)
+    }
+
+    func testSingleDockerPoolWhenOnlyDockerConfigured() {
+        // Docker without any runtimes: section and without tart images →
+        // the fleet's primary runtime becomes docker (engine precedence).
+        let model = RuntimeConfigModel(
+            config: nil,
+            fleetLabels: fleetLabels,
+            containerConfigured: false,
+            dockerConfigured: true
+        )
+        XCTAssertEqual(model.defaultRuntime, .docker)
+        XCTAssertEqual(model.pools.count, 1)
+        XCTAssertTrue(model.pools[.docker]?.labels.contains("orchard-docker") ?? false)
     }
 
     func testUnroutedJobFallsToDefaultPool() {
@@ -192,9 +268,22 @@ final class RuntimeRoutingTests: XCTestCase {
         runtimes:
           routes:
             - pattern: "acme/api"
-              runtime: docker
+              runtime: kubernetes
         """)) { error in
             XCTAssertTrue("\(error)".contains("unknown runtime"), "got: \(error)")
+        }
+    }
+
+    func testRuntimesRejectsDockerRoutesWithoutDockerConfig() {
+        XCTAssertThrowsError(try ConfigLoader.parse("""
+        repo: "acme"
+        labels: ["orchard"]
+        runtimes:
+          routes:
+            - pattern: "acme/api"
+              runtime: docker
+        """)) { error in
+            XCTAssertTrue("\(error)".contains("no docker: section"), "got: \(error)")
         }
     }
 

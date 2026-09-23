@@ -480,7 +480,8 @@ final class RuntimesWindowController: NSWindowController {
             vmShape: (parsed.vm.cpuCount, parsed.vm.memoryGB),
             containerShape: parsed.container.map { ($0.cpus, $0.memoryGB) },
             weights: budget,
-            defaultRuntime: def
+            defaultRuntime: def,
+            dockerShape: parsed.docker.map { ($0.cpus, $0.memoryGB) }
         )
         // Walk every view in the pane; slider rows and the remainder note
         // are tagged with "cap-<runtime>" / "pct-<runtime>" / "remainder-note".

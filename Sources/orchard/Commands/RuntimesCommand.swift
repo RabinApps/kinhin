@@ -10,6 +10,7 @@ import OrchardKit
 /// gates every write) and notify a running daemon to hot-reload:
 ///
 ///     orchard runtimes route add acme/api appleContainer
+///     orchard runtimes route add acme/api docker
 ///     orchard runtimes route add "acme/web@Nightly" appleContainer
 ///     orchard runtimes route remove acme/api
 enum RuntimesCommand {
@@ -66,7 +67,7 @@ enum RuntimesCommand {
     static func route(_ args: [String], configURL: URL = Paths.config, notifyDaemon: Bool = true) async throws {
         let op = args.first
         guard op == "add" || op == "remove" else {
-            throw RouteError.usage("usage: orchard runtimes route add <owner/repo[@Workflow]> <tart|appleContainer>\n       orchard runtimes route remove <owner/repo[@Workflow]>")
+            throw RouteError.usage("usage: orchard runtimes route add <owner/repo[@Workflow]> <tart|appleContainer|docker>\n       orchard runtimes route remove <owner/repo[@Workflow]>")
         }
 
         let pattern = args.count > 1 ? args[1].trimmingCharacters(in: .whitespaces) : ""
@@ -95,7 +96,7 @@ enum RuntimesCommand {
         case "add":
             let runtimeName = args.count > 2 ? args[2] : ""
             guard !runtimeName.isEmpty, let runtime = RuntimeID(rawValue: runtimeName) else {
-                throw RouteError.usage("unknown or missing runtime '\(runtimeName)' — expected 'tart' or 'appleContainer'")
+                throw RouteError.usage("unknown or missing runtime '\(runtimeName)' — expected 'tart', 'appleContainer', or 'docker'")
             }
             guard !rc.routes.contains(where: { $0.pattern == pattern }) else {
                 throw RouteError.usage("a route for '\(pattern)' already exists — remove it first: orchard runtimes route remove \(pattern)")

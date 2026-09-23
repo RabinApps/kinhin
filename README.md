@@ -295,7 +295,7 @@ orchard doctor [--json]      Prerequisites + computed capacity (--json: host, ru
                              and capacity in one machine-readable document; ready=false until every half passes)
 orchard setup-status [--json] First-run checklist; exit 1 until ready (--json for scripts)
 orchard runtimes [--json]    Pools, capacity, budget split, live health, and routes (--no-health skips probes)
-orchard runtimes route add <pattern> <tart|appleContainer>
+orchard runtimes route add <pattern> <tart|appleContainer|docker>
                              Route a repo (`owner/repo`) or workflow (`owner/repo@Name`) — same validated
                              editor as the Runtimes pane; a running daemon reloads routing live
 orchard runtimes route remove <pattern>
@@ -463,7 +463,7 @@ gitea:
 
 **More forges are planned.** The Forge protocol was designed so new platforms slot in without touching the engine: Forgejo (Gitea's upstream, wire-compatible with the Gitea forge), GitLab (its runner is Docker-executor-oriented, so a macOS host-mode path needs design work), Sourcehut, Buildkite, and others are all candidates. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/OrchardKit/Forge.swift` for the contract.
 
-**Execution runtimes are the second axis** (design: [docs/runtime-abstraction-design.md](docs/runtime-abstraction-design.md)): every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the agent, and tears down. Two backends ship: **Tart** (macOS VMs) and **apple/container** (Linux microVMs); Docker and opt-in host-direct execution are candidates behind the same interface. The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the protocol, so new backends slot in without touching lifecycle code.
+**Execution runtimes are the second axis** (design: [docs/runtime-abstraction-design.md](docs/runtime-abstraction-design.md)): every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the agent, and tears down. Three backends ship: **Tart** (macOS VMs), **apple/container** (Linux microVMs), and **Docker** (Linux containers in your provider's shared VM); opt-in host-direct execution is a candidate behind the same interface. The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the protocol, so new backends slot in without touching lifecycle code.
 
 **Apple `container` is here for Linux jobs** — as an alternative to the planned Docker runtime, Orchard can run Linux jobs in [apple/container](https://github.com/apple/container) microVMs: one lightweight VM per runner container on Apple silicon, no Docker daemon, stronger isolation than a shared Docker VM. Add this to your config and run `orchard image prepare --container` to bake the agents into a Linux image:
 
@@ -475,6 +475,18 @@ container:
 ```
 
 Requires the container CLI (`brew install --cask container && container system start`). macOS jobs still need Tart — containers run Linux workloads only. When `container:` is configured, the setup checklist and `orchard doctor` gain container rows (CLI health, system-service state, image present) with one-click fix actions; without it, the rows never appear. Run `orchard runtimes` (or the menu bar's **Runtimes…** pane) to see the pool, its cap, and its live health once configured.
+
+**Docker is here for Linux jobs too** — Linux runner containers inside your provider's shared Linux VM (Docker Desktop, OrbStack, or colima): one container per job slot with per-slot `--cpus`/`--memory` limits, registration over `docker exec` (no SSH, no guest IP), and the daemon teardown as soon as the job is done. Orchard delegates the VM — it never starts, stops, or configures the provider. Add this to your config and run `orchard image prepare --docker` to bake the agents into a Linux image:
+
+```yaml
+docker:
+  image: "ghcr.io/acme/orchard-ci-linux" # built by: orchard image prepare --docker --target <name>
+  cpus: 2
+  memory_gb: 4
+  max_slots: 8 # hard cap on concurrent container slots
+```
+
+When `docker:` is configured, the checklist and `orchard doctor` gain Docker rows (daemon reachable, image present) exactly like the container rows; without it, they never appear. Docker slots register with an `orchard-docker` label so jobs opt in via `runs-on: [orchard-docker]`, and `max_slots` clamps the budget partition. The toolchain cache mount is a macOS virtiofs share — Linux containers ignore it (use `toolchains:` baked into the image instead).
 
 ### Per-repo & per-workflow runtime routing
 
@@ -493,9 +505,9 @@ runtimes:
       runtime: appleContainer
 ```
 
-Routing precedence: **workflow route → repo route → `runs-on:` label → default**. Container runners always register with an `orchard-container` label (plus optional `container.labels`), so any job can opt into the Linux pool with `runs-on: [orchard-container]` without touching Orchard's config. No route and no label → the `runtimes.default` pool. Capacity is partitioned by the `budget` weights — the tightest density that can still never overcommit your Mac — and `orchard status` reports `capacityByRuntime` so the split is visible. If a split starves a configured route (its runtime's cap hits 0), the pane warns you before you can save it.
+Routing precedence: **workflow route → repo route → `runs-on:` label → default**. Container runners always register with an `orchard-container` label (plus optional `container.labels`), and Docker slots with `orchard-docker`, so any job can opt into a Linux pool with `runs-on: [orchard-container]` or `runs-on: [orchard-docker]` without touching Orchard's config. No route and no label → the `runtimes.default` pool. Capacity is partitioned by the `budget` weights — the tightest density that can still never overcommit your Mac — and `orchard status` reports `capacityByRuntime` so the split is visible. If a split starves a configured route (its runtime's cap hits 0), the pane warns you before you can save it.
 
-In the menu bar app, **Runtimes…** opens a pane showing the pools with their per-runtime caps and budget shares, plus every route (repo and workflow). Each pool card carries a **live health chip** (● ready / ● missing / ● error) from the runtime's own probe — tart launch check, `container system status` — with the fix hint shown alongside any problem. The pane's **Budget** card edits the split directly: a slider per non-default runtime (the default keeps the remainder), a default-runtime picker, a **live cap preview** per row ("3 inst" updates as you drag), and a warning strip when the split on screen would starve a configured route with a cap of zero. The **Labels** card edits the fleet's base label set and `container.labels` (commit on Enter or focus loss; empty label lists are rejected, and the `orchard-container` routing marker is always merged in at pool build). Routes can be added and removed in place. Every change rewrites only the relevant section of `config.yaml` — comments elsewhere are preserved — and lands only if the updated file still passes the engine's full config validation; all of it reaches a running fleet live via `reload_config` (budget weights re-partition capacity, label edits rebuild the forges' demand query — no restart). Prefer the terminal? `orchard runtimes` prints the same pools/caps/budget/routes/health summary (see [Commands](#commands)).
+In the menu bar app, **Runtimes…** opens a pane showing the pools with their per-runtime caps and budget shares, plus every route (repo and workflow). Each pool card carries a **live health chip** (● ready / ● missing / ● error) from the runtime's own probe — tart launch check, `container system status`, `docker info` — with the fix hint shown alongside any problem. The pane's **Budget** card edits the split directly: a slider per non-default runtime (the default keeps the remainder), a default-runtime picker, a **live cap preview** per row ("3 inst" updates as you drag), and a warning strip when the split on screen would starve a configured route with a cap of zero. The **Labels** card edits the fleet's base label set and `container.labels` (commit on Enter or focus loss; empty label lists are rejected, and the `orchard-container` routing marker is always merged in at pool build). Routes can be added and removed in place. Every change rewrites only the relevant section of `config.yaml` — comments elsewhere are preserved — and lands only if the updated file still passes the engine's full config validation; all of it reaches a running fleet live via `reload_config` (budget weights re-partition capacity, label edits rebuild the forges' demand query — no restart). Prefer the terminal? `orchard runtimes` prints the same pools/caps/budget/routes/health summary (see [Commands](#commands)).
 
 ## License
 

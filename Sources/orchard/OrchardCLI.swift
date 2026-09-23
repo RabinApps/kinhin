@@ -40,11 +40,7 @@ struct OrchardCLI {
                 try await SetupStatusCommand.run(args)
 
             case .runtimes:
-                do {
-                    await RuntimesCommand.run(args)
-                } catch let error as RuntimesCommand.RouteError {
-                    fail(error.errorDescription ?? "runtimes command failed")
-                }
+                await RuntimesCommand.run(args)
 
             case .imagePrepare:
                 try await ImageCommand.run(args)

@@ -40,6 +40,20 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let imageFound: Bool
     }
 
+    /// Docker runtime state — present only when config.yaml declares a
+    /// `docker:` section (same shape as the container section).
+    public struct DockerSection: Codable, Equatable, Sendable {
+        /// "ready" | "missing" | "broken".
+        public let state: String
+        public let ok: Bool
+        /// Install/start command or breakage reason, null when ready.
+        public let fix: String?
+        /// The configured Linux OCI image.
+        public let image: String
+        /// Whether that image is available locally.
+        public let imageFound: Bool
+    }
+
     public struct CapacitySection: Codable, Equatable, Sendable {
         /// Upper bound on simultaneous VMs on this host (user max applied).
         public let maxConcurrent: Int
@@ -60,6 +74,9 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     /// Apple-container runtime — present only when config.yaml declares a
     /// `container:` section (mirrors the checklist rows).
     public let container: ContainerSection?
+    /// Docker runtime — present only when config.yaml declares a `docker:`
+    /// section (same presence rule as the checklist's docker rows).
+    public let docker: DockerSection?
     /// Stored-token state for every forge (static, no network probes).
     public let auth: AuthStatusReport
     /// The full first-run checklist (same rows `setup-status --json` emits).
@@ -71,12 +88,14 @@ public struct DoctorReport: Codable, Equatable, Sendable {
 
     public init(
         host: HostResources, clt: CLTSection, tart: TartSection, container: ContainerSection?,
-        auth: AuthStatusReport, checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?
+        docker: DockerSection?, auth: AuthStatusReport, checks: [SetupCheckResult],
+        ready: Bool, capacity: CapacitySection?
     ) {
         self.host = host
         self.clt = clt
         self.tart = tart
         self.container = container
+        self.docker = docker
         self.auth = auth
         self.checks = checks
         self.ready = ready
@@ -101,6 +120,8 @@ public struct DoctorReportBuilder: Sendable {
     let authLoad: @Sendable (ForgeID) -> String?
     let containerHealth: RuntimeHealth?
     let containerImages: [String]?
+    let dockerHealth: RuntimeHealth?
+    let dockerImages: [String]?
 
     public init(
         host: HostResources? = nil,
@@ -110,7 +131,9 @@ public struct DoctorReportBuilder: Sendable {
         config: ConfigScenario = .live,
         authLoad: @escaping @Sendable (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) },
         containerHealth: RuntimeHealth? = nil,
-        containerImages: [String]? = nil
+        containerImages: [String]? = nil,
+        dockerHealth: RuntimeHealth? = nil,
+        dockerImages: [String]? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -120,6 +143,8 @@ public struct DoctorReportBuilder: Sendable {
         self.authLoad = authLoad
         self.containerHealth = containerHealth
         self.containerImages = containerImages
+        self.dockerHealth = dockerHealth
+        self.dockerImages = dockerImages
     }
 
     public func build() async -> DoctorReport {
@@ -155,7 +180,9 @@ public struct DoctorReportBuilder: Sendable {
             tokenStored: authLoad(.github) != nil,
             giteaTokenStored: authLoad(.gitea) != nil,
             containerHealth: containerHealth,
-            containerImages: containerImages
+            containerImages: containerImages,
+            dockerHealth: dockerHealth,
+            dockerImages: dockerImages
         ).compute()
 
         let authReport = AuthStatusReporter.report(config: parsed, load: authLoad)
@@ -201,6 +228,46 @@ public struct DoctorReportBuilder: Sendable {
             )
         }
 
+        // Docker section — same presence rule, health mapping, image matching,
+        // and prepare-command advice as the container section above.
+        var dockerSection: DoctorReport.DockerSection?
+        if let docker = parsed?.docker {
+            let runtime = DockerRuntime(image: docker.image)
+            let resolvedHealth: RuntimeHealth
+            if let dockerHealth {
+                resolvedHealth = dockerHealth
+            } else {
+                resolvedHealth = await runtime.health()
+            }
+            let state: String
+            let ok: Bool
+            var fix: String?
+            switch resolvedHealth {
+            case .ready:
+                state = "ready"; ok = true; fix = nil
+            case .missing(_, let howToFix):
+                state = "missing"; ok = false; fix = howToFix
+            case .broken(let why):
+                state = "broken"; ok = false; fix = why
+            }
+            let wanted = docker.image
+            let listed: [String]
+            if let dockerImages {
+                listed = dockerImages
+            } else if resolvedHealth.isReady {
+                listed = await runtime.localImageNames()
+            } else {
+                listed = []
+            }
+            let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
+            if ok, !imageFound {
+                fix = "orchard image prepare --docker --target \(wanted)"
+            }
+            dockerSection = DoctorReport.DockerSection(
+                state: state, ok: ok, fix: fix, image: wanted, imageFound: imageFound
+            )
+        }
+
         // Capacity — the same math the human doctor prints, plus job slots.
         var capacitySection: DoctorReport.CapacitySection?
         if let cfg = parsed {
@@ -226,6 +293,7 @@ public struct DoctorReportBuilder: Sendable {
             clt: Self.cltSection(from: resolvedCLT),
             tart: Self.tartSection(from: resolvedTart),
             container: containerSection,
+            docker: dockerSection,
             auth: authReport,
             checks: status.checks,
             ready: status.ready && authReport.allGood,

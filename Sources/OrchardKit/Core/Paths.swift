@@ -34,10 +34,13 @@ public enum Paths {
         if let override, !override.isEmpty, FileManager.default.isExecutableFile(atPath: override) {
             return override
         }
-        // Honor the user's PATH first.
+        // Honor the user's PATH first. PATH entries may be absolute (the
+        // common case) or relative — only prefix a slash for relative ones,
+        // or the resolved path doubles the leading slash ("//usr/local/bin/x").
         if let pathVar = ProcessInfo.processInfo.environment["PATH"] {
             for dir in pathVar.split(separator: ":") {
-                let candidate = "/\(dir)/\(name)"
+                let prefix = dir.hasPrefix("/") ? "" : "/"
+                let candidate = "\(prefix)\(dir)/\(name)"
                 if FileManager.default.isExecutableFile(atPath: candidate) {
                     return candidate
                 }

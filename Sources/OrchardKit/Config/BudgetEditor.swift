@@ -96,7 +96,8 @@ public enum BudgetEditor {
         vmShape: (cpu: Int, memoryGB: Int),
         containerShape: (cpu: Int, memoryGB: Int)?,
         weights: [String: Double],
-        defaultRuntime: RuntimeID
+        defaultRuntime: RuntimeID,
+        dockerShape: (cpu: Int, memoryGB: Int)? = nil
     ) -> [RuntimeID: Int] {
         let partition = RuntimeCapacity.partition(
             hostUsableCPU: max(0, host.logicalCores - reserve.cpu),
@@ -104,9 +105,14 @@ public enum BudgetEditor {
             weights: weights,
             defaultRuntime: defaultRuntime,
             shape: { id in
-                id == .appleContainer
-                    ? (containerShape?.cpu ?? vmShape.cpu, containerShape?.memoryGB ?? vmShape.memoryGB)
-                    : vmShape
+                switch id {
+                case .appleContainer:
+                    return (containerShape?.cpu ?? vmShape.cpu, containerShape?.memoryGB ?? vmShape.memoryGB)
+                case .docker:
+                    return (dockerShape?.cpu ?? vmShape.cpu, dockerShape?.memoryGB ?? vmShape.memoryGB)
+                default:
+                    return vmShape
+                }
             }
         )
         return partition.caps

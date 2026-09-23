@@ -30,6 +30,34 @@ enum ImageCommand {
             }
             exit(0)
         }
+        if hasFlag("--docker", in: args) {
+            // Docker runtime path: bake agents into a Linux OCI image via the
+            // docker CLI (Docker Desktop / OrbStack / colima). Same
+            // token-gating as the other prepare paths.
+            let shell = Shell()
+            let dockerHealth = await DockerRuntime(shell: shell, image: "probe").health()
+            switch dockerHealth {
+            case .missing(_, let howToFix):
+                fail("docker is not available. \(howToFix)")
+            case .broken(let why):
+                fail(why)
+            case .ready:
+                break
+            }
+            let image = flag("--docker-image", in: args) ?? "ubuntu:24.04"
+            let target = flag("--target", in: args) ?? "orchard-ci-linux"
+            do {
+                let preparer = DockerImagePreparer(shell: shell)
+                let baked = try await preparer.prepare(image: image, target: target)
+                print("docker image ready: \(baked)")
+                print("set `docker.image: \"\(baked)\"` in your config to use it")
+            } catch let error as ContainerImageError {
+                fail(error.localizedDescription)
+            } catch {
+                fail(error.localizedDescription)
+            }
+            exit(0)
+        }
         do {
             let tart = try TartController(configuredPath: cfg.tartPath)
             let preparer = ImagePreparer(tart: tart, ssh: SSHExecutor())

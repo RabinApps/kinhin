@@ -42,6 +42,9 @@ public final class FleetEngine {
     /// Non-nil when the fleet can run on Apple containers (mixed fleets use
     /// both runtimes, selected per record by the routing model).
     let containerRuntime: AppleContainerRuntime?
+    /// Non-nil when the fleet can run Docker slots (Linux containers in the
+    /// provider's shared VM; selected per record by the routing model).
+    let dockerRuntime: DockerRuntime?
     /// Routing model: label pools + per-repo/per-workflow routes. Built from
     /// the `runtimes:` config (nil → single default pool, legacy behavior).
     /// Reloaded live by applyReloaded(config:) — guarded by routingLock, so
@@ -52,6 +55,10 @@ public final class FleetEngine {
     /// The Tart runtime instance (always available; mixed fleets select it
     /// per record while container-routed records use containerRuntime).
     let tartRuntime: TartRuntime
+    /// Every runtime this fleet can execute on, keyed by id. Lifecycle and
+    /// recovery dispatch through this map — no per-runtime branches in the
+    /// engine. (Future hosted runtimes join here when configured.)
+    let runtimesByRuntime: [RuntimeID: any Runtime]
     /// Daily host-cache sweep task (started/stopped with the engine).
     var cachePruneTask: Task<Void, Never>?
 
@@ -61,20 +68,46 @@ public final class FleetEngine {
         self.githubFactory = GitHubClientFactory { _ in github }
         self.githubInstance = github
         self.forgesByPlatform = ["github": GitHubForge(credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels, client: github)]
+        let tartInstance = TartRuntime(tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh, toolchainsConfig: { [config] in config.toolchains })
         var appleRuntime: AppleContainerRuntime?
         if let containerConfig = config.container {
-            let instance = AppleContainerRuntime(
+            appleRuntime = AppleContainerRuntime(
                 shell: containerShell ?? Shell(),
                 image: containerConfig.image,
                 cpus: containerConfig.cpus,
                 memoryGB: containerConfig.memoryGB
             )
-            appleRuntime = instance
-            self.runtime = instance
+        }
+        var dockerInstance: DockerRuntime?
+        if let dockerConfig = config.docker {
+            dockerInstance = DockerRuntime(
+                shell: containerShell ?? Shell(),
+                image: dockerConfig.image,
+                cpus: dockerConfig.cpus,
+                memoryGB: dockerConfig.memoryGB
+            )
+        }
+        // The fleet's primary runtime (single-pool fleets and the legacy
+        // fleet-cap shape): containers, else Docker slots, else tart — the
+        // established precedence with Docker as the new Linux fallback.
+        if let appleRuntime {
+            self.runtime = appleRuntime
+        } else if let dockerInstance {
+            self.runtime = dockerInstance
         } else {
-            self.runtime = TartRuntime(tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, toolchainsConfig: { [config] in config.toolchains })
+            self.runtime = tartInstance
         }
         self.containerRuntime = appleRuntime
+        self.dockerRuntime = dockerInstance
+        self.tartRuntime = tartInstance
+        var runtimeMap: [RuntimeID: any Runtime] = [.tart: tartInstance]
+        if let appleRuntime {
+            runtimeMap[.appleContainer] = appleRuntime
+        }
+        if let dockerInstance {
+            runtimeMap[.docker] = dockerInstance
+        }
+        self.runtimesByRuntime = runtimeMap
         self.config = config
         self.tart = tart
         self.store = store
@@ -83,21 +116,22 @@ public final class FleetEngine {
         self.statusBox = FleetStatusBox()
         self.capacity = Capacity.plan(
             host: host,
-            vmCPU: config.container?.cpus ?? config.vm.cpuCount,
-            vmMemoryGB: config.container?.memoryGB ?? config.vm.memoryGB,
+            vmCPU: config.container?.cpus ?? config.docker?.cpus ?? config.vm.cpuCount,
+            vmMemoryGB: config.container?.memoryGB ?? config.docker?.memoryGB ?? config.vm.memoryGB,
             reservedCPU: config.reserve.cpu,
             reservedMemoryGB: config.reserve.memoryGB,
             diskPerVMGB: 0,
             userMax: config.maxRunners
         )
-        self.tartRuntime = TartRuntime(tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, toolchainsConfig: { [config] in config.toolchains })
         self.routing = RuntimeConfigModel(
             config: config.runtimes,
             fleetLabels: config.labels,
             containerLabels: config.container?.labels,
-            containerConfigured: config.container != nil
+            containerConfigured: config.container != nil,
+            dockerConfigured: config.docker != nil
         )
-        if config.runtimes != nil, config.container != nil {
+
+        if config.runtimes != nil, config.container != nil || config.docker != nil {
             // Mixed fleet: partition the usable host budget between runtimes
             // by the configured weights (deterministic, no overcommit).
             let partition = RuntimeCapacity.partition(
@@ -106,12 +140,22 @@ public final class FleetEngine {
                 weights: config.runtimes?.budget ?? [:],
                 defaultRuntime: RuntimeID(rawValue: config.runtimes?.defaultRuntime ?? "tart") ?? .tart,
                 shape: { id in
-                    id == .appleContainer
-                        ? (config.container?.cpus ?? 4, config.container?.memoryGB ?? 8)
-                        : (config.vm.cpuCount, config.vm.memoryGB)
+                    switch id {
+                    case .appleContainer:
+                        return (config.container?.cpus ?? 4, config.container?.memoryGB ?? 8)
+                    case .docker:
+                        return (config.docker?.cpus ?? 2, config.docker?.memoryGB ?? 4)
+                    default:
+                        return (config.vm.cpuCount, config.vm.memoryGB)
+                    }
                 }
             )
-            self.capsByRuntime = partition.caps
+            var caps = partition.caps
+            // Docker's hard slot cap applies on top of the budget partition.
+            if let dockerConfig = config.docker, let partitionCap = caps[.docker] {
+                caps[.docker] = min(partitionCap, dockerConfig.maxSlots)
+            }
+            self.capsByRuntime = caps
         } else {
             // Single-pool fleets (legacy tart-only and container-only) keep
             // the fleet cap semantics and the legacy status shape (nil
@@ -303,10 +347,11 @@ public final class FleetEngine {
             config: newConfig.runtimes,
             fleetLabels: newConfig.labels,
             containerLabels: newConfig.container?.labels,
-            containerConfigured: newConfig.container != nil
+            containerConfigured: newConfig.container != nil,
+            dockerConfigured: newConfig.docker != nil
         )
         var caps: [RuntimeID: Int] = [:]
-        if newConfig.runtimes != nil, newConfig.container != nil {
+        if newConfig.runtimes != nil, newConfig.container != nil || newConfig.docker != nil {
             // Same partition the init computes for a mixed fleet.
             let partition = RuntimeCapacity.partition(
                 hostUsableCPU: max(0, host.logicalCores - newConfig.reserve.cpu),
@@ -314,12 +359,20 @@ public final class FleetEngine {
                 weights: newConfig.runtimes?.budget ?? [:],
                 defaultRuntime: RuntimeID(rawValue: newConfig.runtimes?.defaultRuntime ?? "tart") ?? .tart,
                 shape: { id in
-                    id == .appleContainer
-                        ? (newConfig.container?.cpus ?? 4, newConfig.container?.memoryGB ?? 8)
-                        : (newConfig.vm.cpuCount, newConfig.vm.memoryGB)
+                    switch id {
+                    case .appleContainer:
+                        return (newConfig.container?.cpus ?? 4, newConfig.container?.memoryGB ?? 8)
+                    case .docker:
+                        return (newConfig.docker?.cpus ?? 2, newConfig.docker?.memoryGB ?? 4)
+                    default:
+                        return (newConfig.vm.cpuCount, newConfig.vm.memoryGB)
+                    }
                 }
             )
             caps = partition.caps
+            if let dockerConfig = newConfig.docker, let partitionCap = caps[.docker] {
+                caps[.docker] = min(partitionCap, dockerConfig.maxSlots)
+            }
         }
         routingLock.withLock {
             routing = model

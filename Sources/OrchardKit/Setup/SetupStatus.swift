@@ -51,6 +51,7 @@ public enum SetupAction {
         case "install_container_cli": return "Install Apple container"
         case "start_container_system": return "Start container system"
         case "prepare_container_image": return "Prepare Container Image"
+        case "prepare_docker_image": return "Prepare Docker Image"
         case "prepare_image": return "Prepare Image"
         case "repair_provision_script": return "Fix Provision Script…"
         default: return action
@@ -98,6 +99,8 @@ public struct SetupStatusComputer: Sendable {
     let giteaTokenStored: Bool?
     let containerHealth: RuntimeHealth?
     let containerImages: [String]?
+    let dockerHealth: RuntimeHealth?
+    let dockerImages: [String]?
 
     public init(
         host: HostResources? = nil,
@@ -108,7 +111,9 @@ public struct SetupStatusComputer: Sendable {
         tokenStored: Bool? = nil,
         giteaTokenStored: Bool? = nil,
         containerHealth: RuntimeHealth? = nil,
-        containerImages: [String]? = nil
+        containerImages: [String]? = nil,
+        dockerHealth: RuntimeHealth? = nil,
+        dockerImages: [String]? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -119,6 +124,8 @@ public struct SetupStatusComputer: Sendable {
         self.giteaTokenStored = giteaTokenStored
         self.containerHealth = containerHealth
         self.containerImages = containerImages
+        self.dockerHealth = dockerHealth
+        self.dockerImages = dockerImages
     }
 
     /// Loads the parsed config, or nil when missing/invalid.
@@ -312,6 +319,64 @@ public struct SetupStatusComputer: Sendable {
                     ? "run after the container system is running"
                     : (imageFound ? "image '\(wanted)' found" : "image '\(wanted)' not local yet"),
                 action: imageFound ? nil : "prepare_container_image"
+            ))
+        }
+
+        // 8. Docker runtime — rows appear only when the config declares a
+        // `docker:` section, mirroring the container rows above.
+        if case .parsed(let cfg) = evaluation, cfg.docker != nil {
+            let docker = DockerRuntime(image: cfg.docker?.image ?? "orchard-ci-linux")
+            let resolvedHealth: RuntimeHealth
+            if let dockerHealth {
+                resolvedHealth = dockerHealth
+            } else {
+                resolvedHealth = await docker.health()
+            }
+            switch resolvedHealth {
+            case .ready:
+                checks.append(SetupCheckResult(
+                    id: "docker-cli",
+                    title: "Docker",
+                    ok: true,
+                    detail: "installed and the Docker daemon is reachable",
+                    action: nil
+                ))
+            case .missing:
+                checks.append(SetupCheckResult(
+                    id: "docker-cli",
+                    title: "Docker",
+                    ok: false,
+                    detail: "the docker CLI is required for Linux container runners (Docker Desktop, OrbStack, or colima)",
+                    action: "install_container_cli"
+                ))
+            case .broken(let why):
+                checks.append(SetupCheckResult(
+                    id: "docker-cli",
+                    title: "Docker",
+                    ok: false,
+                    detail: why,
+                    action: nil
+                ))
+            }
+
+            let wanted = cfg.docker?.image ?? "orchard-ci-linux"
+            let listed: [String]
+            if let dockerImages {
+                listed = dockerImages
+            } else if resolvedHealth.isReady {
+                listed = await docker.localImageNames()
+            } else {
+                listed = []
+            }
+            let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
+            checks.append(SetupCheckResult(
+                id: "docker-image",
+                title: "Docker image prepared",
+                ok: imageFound,
+                detail: !resolvedHealth.isReady
+                    ? "run after the Docker daemon is reachable"
+                    : (imageFound ? "image '\(wanted)' found" : "image '\(wanted)' not local yet"),
+                action: imageFound ? nil : "prepare_docker_image"
             ))
         }
 

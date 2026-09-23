@@ -10,11 +10,11 @@ extension FleetEngine {
     /// anything orphaned.
     func recoverIfNeeded() async {
         Log.info("engine", "reconciling existing instances after (re)start")
-        let existingNames: [String]
-        if let appleRuntime = containerRuntime {
-            existingNames = (try? await appleRuntime.containerIDs(all: true)) ?? []
-        } else {
-            existingNames = ((try? await tart.list()) ?? []).map(\.name)
+        // Enumerate every configured runtime through the protocol — the map
+        // (not per-runtime branches) is the source of truth.
+        var existingNames: [String] = []
+        for runtimeInstance in runtimesByRuntime.values {
+            existingNames.append(contentsOf: await runtimeInstance.existingInstanceIDs())
         }
         let ours = existingNames.filter { $0.hasPrefix("orchard-") }
         let records = store.all
@@ -250,13 +250,11 @@ extension FleetEngine {
     }
 
     /// The runtime instance executing a record's workload (mixed fleets:
-    /// per-record; legacy: the engine's single runtime).
+    /// per-record; legacy: the engine's single runtime). Dispatches through
+    /// the runtime map; the fallback is the engine's primary runtime.
     func runtime(for record: VMRecord) -> any Runtime {
-        if record.runtime == RuntimeID.appleContainer.rawValue, let containerRuntime {
-            return containerRuntime
-        }
-        if record.runtime == RuntimeID.tart.rawValue {
-            return tartRuntime
+        if let id = RuntimeID(rawValue: record.runtime ?? ""), let instance = runtimesByRuntime[id] {
+            return instance
         }
         return runtime
     }

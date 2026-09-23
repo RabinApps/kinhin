@@ -125,9 +125,24 @@ public struct AppleContainerRuntime: Runtime {
 
     /// Runs a script inside a running container (`container exec`), which
     /// surfaces the script's exit status directly — the container analogue
-    /// of the SSH transport.
+    /// of the SSH transport. Also the runtime's `execRegistration` impl.
     public func execScript(_ id: String, _ script: String, timeout: TimeInterval = 600) async throws -> ShellResult {
         try await run([bin, "exec", id, "/bin/bash", "-lc", script], timeout: timeout)
+    }
+
+    public func awaitReady(id: String, timeout: TimeInterval) async throws -> String? {
+        _ = try await awaitRunning(id, timeout: timeout)
+        return nil
+    }
+
+    public func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws -> ShellResult {
+        try await execScript(id, script, timeout: timeout)
+    }
+
+    /// Ids of all known containers (running + stopped) — the recovery path
+    /// enumerates instances through the runtime, no per-runtime branch.
+    public func existingInstanceIDs() async -> [String] {
+        (try? await containerIDs(all: true)) ?? []
     }
 
     /// The boot-wait analogue of `tart.ip`: polls until the container is
@@ -165,7 +180,7 @@ public struct AppleContainerRuntime: Runtime {
     // MARK: - Internals
 
     /// All container ids known to the CLI (running + stopped).
-    func containerIDs(all: Bool) async throws -> [String] {
+    public func containerIDs(all: Bool) async throws -> [String] {
         let argv: [String] = all
             ? [bin, "list", "--all", "--quiet"]
             : [bin, "list", "--quiet"]
