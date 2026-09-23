@@ -161,6 +161,7 @@ The effective concurrency cap is
 ```
 orchard config init          Write the starter config
 orchard auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
+orchard auth status --json    All forges' stored-token state in one machine-readable document (exit 1 until ready)
 orchard doctor               Prerequisites + computed capacity
 orchard setup-status [--json] First-run checklist; exit 1 until ready (--json for scripts)
 orchard runtimes [--json]    Pools, capacity, budget split, live health, and routes (--no-health skips probes)

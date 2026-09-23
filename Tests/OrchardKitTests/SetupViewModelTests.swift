@@ -98,6 +98,20 @@ final class SetupViewModelTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(SetupWindowLayout.visibleRowCount(), 6)
     }
 
+    /// The checklist can exceed six rows (gitea-token, container rows). The
+    /// window stays at the six-row default and the list scrolls (Runtimes
+    /// pane style) — this pins the pane's visible capacity so overflow is a
+    /// scroll, never clipped content or a resized window.
+    func testDefaultWindowShowsSixRowsAndOverflowScrolls() {
+        let baseHeight = SetupWindowLayout.windowHeight(forRows: 6)
+        XCTAssertEqual(
+            SetupWindowLayout.visibleRowCount(windowHeight: baseHeight), 6,
+            "the fixed default window shows exactly six cards")
+        XCTAssertGreaterThan(
+            SetupWindowLayout.windowHeight(forRows: 9), baseHeight,
+            "nine cards need more height than the pane provides — they must scroll, not resize the window")
+    }
+
     func testLayoutGrowsWindowForMoreRows() {
         let five = SetupWindowLayout.windowHeight(forRows: 5)
         let eight = SetupWindowLayout.windowHeight(forRows: 8)

@@ -2,10 +2,14 @@ import AppKit
 import OrchardKit
 
 /// Guided first-run setup. Renders SetupViewModel (computed in OrchardKit,
-/// unit-tested) as a card checklist with a progress header and a footer.
+/// unit-tested) as a scrollable card checklist with a progress header and a
+/// footer.
 @MainActor
 final class SetupWindowController: NSWindowController {
     var onFinished: (() -> Void)?
+    /// Token checklist rows (enter/replace token, Gitea variants) open the
+    /// shared token settings form; the app injects the opener.
+    var onOpenTokenSettings: ((ForgeID) -> Void)?
 
     private let headerStack = NSStackView()
     private let headlineLabel = NSTextField(labelWithString: "")
@@ -66,12 +70,21 @@ final class SetupWindowController: NSWindowController {
         headerStack.addArrangedSubview(progressBar)
         container.addSubview(headerStack)
 
-        // ---- Card list ----------------------------------------------------
+        // ---- Card list (scrollable, mirroring the Runtimes pane) ----------
         rowsStack.orientation = .vertical
         rowsStack.alignment = .leading
         rowsStack.spacing = SetupWindowLayout.rowSpacing
         rowsStack.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(rowsStack)
+
+        // Optional rows (gitea-token, container rows) grow the checklist past
+        // the six rows the window was sized for — the list scrolls instead of
+        // the window growing.
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        scroll.documentView = rowsStack
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(scroll)
 
         // ---- Footer -------------------------------------------------------
         let terminalButton = NSButton(title: "Run in Terminal", target: self, action: #selector(openTerminal))
@@ -103,9 +116,13 @@ final class SetupWindowController: NSWindowController {
             progressBar.leadingAnchor.constraint(equalTo: headerStack.leadingAnchor),
             progressBar.trailingAnchor.constraint(equalTo: headerStack.trailingAnchor),
 
-            rowsStack.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: SetupWindowLayout.margin),
-            rowsStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: SetupWindowLayout.margin),
-            rowsStack.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -SetupWindowLayout.margin),
+            scroll.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: SetupWindowLayout.margin),
+            scroll.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: SetupWindowLayout.margin),
+            scroll.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -SetupWindowLayout.margin),
+            // Zero gap: the visible area matches SetupWindowLayout's math
+            // (visibleRowCount() == 6 at the default height), so the base
+            // checklist fills the pane exactly and only the overflow scrolls.
+            scroll.bottomAnchor.constraint(equalTo: footer.topAnchor),
 
             footer.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: SetupWindowLayout.margin),
             footer.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -SetupWindowLayout.margin),

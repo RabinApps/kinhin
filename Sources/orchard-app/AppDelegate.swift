@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // so the controller must stay alive for the setup buttons to work.
     var setupController: SetupWindowController?
     var runtimesController: RuntimesWindowController?
+    var tokenSettingsController: TokenSettingsWindowController?
 
     // Engine is either owned here (in-process mode) or reached via RPC.
     var engine: FleetEngine?
@@ -79,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   TartController.isInstalled(configuredPath: cfg.tartPath) {
             do {
                 let tart = try TartController(configuredPath: cfg.tartPath)
-                // Factory-based init so a later "Replace Access Token" swaps
+                // Factory-based init so a later "Token Settings…" swap
                 // the client without an app restart.
                 engine = FleetEngine(
                     config: cfg,

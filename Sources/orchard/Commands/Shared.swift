@@ -51,7 +51,7 @@ func helpText() -> String {
         config init                 Write a starter config file
         auth [set]                  Store (or replace) your GitHub PAT in the Keychain (or: auth set --token)
         auth set --gitea            Store (or replace) your Gitea access token (auth set --gitea --token X)
-        auth status                 Show whether a token is stored and valid
+        auth status [--json]        Show whether a token is stored and valid (--json: all forges, machine output, exit 1 until ready)
         auth clear                  Remove the stored token
         doctor                      Check prerequisites and print the computed capacity
         setup-status [--json]       First-run checklist (pass --json for machine output)

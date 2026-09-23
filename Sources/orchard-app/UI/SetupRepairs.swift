@@ -20,13 +20,13 @@ extension SetupWindowController {
         case "edit_config":
             editConfig()
         case "enter_token":
-            promptForToken()
+            openTokenSettings(.github)
         case "replace_token":
-            promptForToken(replacing: true)
+            openTokenSettings(.github)
         case "enter_gitea_token":
-            promptForGiteaToken()
+            openTokenSettings(.gitea)
         case "replace_gitea_token":
-            promptForGiteaToken(replacing: true)
+            openTokenSettings(.gitea)
         case "prepare_image":
             prepareImage()
         case "install_container_cli":
@@ -157,46 +157,11 @@ extension SetupWindowController {
         Task { await refreshChecks() }
     }
 
-    private func promptForToken(replacing: Bool = false) {
-        let alert = NSAlert()
-        alert.messageText = replacing ? "Replace GitHub Personal Access Token" : "GitHub Personal Access Token"
-        alert.informativeText = replacing
-            ? "The new token is stored in your Keychain, replacing the old one."
-            : "Needs repo scope. Stored in your Keychain, never in a file."
-        let input = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        input.placeholderString = "ghp_…"
-        alert.accessoryView = input
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn, !input.stringValue.isEmpty {
-            do {
-                try KeychainTokenStore.save(input.stringValue)
-            } catch {
-                presentError(error)
-            }
-            Task { await refreshChecks() }
-        }
-    }
-
-    private func promptForGiteaToken(replacing: Bool = false) {
-        let alert = NSAlert()
-        alert.messageText = replacing ? "Replace Gitea Access Token" : "Gitea Access Token"
-        alert.informativeText = replacing
-            ? "The new token is stored in your Keychain, replacing the old one."
-            : "Needs runner-management rights on the configured scope. Stored in your Keychain, never in a file."
-        let input = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        input.placeholderString = "gitea token…"
-        alert.accessoryView = input
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn, !input.stringValue.isEmpty {
-            do {
-                try KeychainTokenStore.save(input.stringValue, forge: .gitea)
-            } catch {
-                presentError(error)
-            }
-            Task { await refreshChecks() }
-        }
+    /// Token rows open the shared token settings form (same surface as the
+    /// status-bar menu); the checklist refreshes after each save.
+    private func openTokenSettings(_ forge: ForgeID) {
+        onOpenTokenSettings?(forge)
+        Task { await refreshChecks() }
     }
 
     private func prepareImage() {

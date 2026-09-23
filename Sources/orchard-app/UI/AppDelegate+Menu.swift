@@ -35,7 +35,7 @@ extension AppDelegate {
         m.addItem(withTitle: "Stop Fleet", action: #selector(stopFleet), keyEquivalent: "k").target = self
         m.addItem(withTitle: "Pause", action: #selector(pauseFleet), keyEquivalent: "p").target = self
         m.addItem(withTitle: "Resume", action: #selector(resumeFleet), keyEquivalent: "r").target = self
-        m.addItem(withTitle: "Replace Access Token…", action: #selector(replaceTokenClicked), keyEquivalent: "t").target = self
+        m.addItem(withTitle: "Token Settings…", action: #selector(replaceTokenClicked), keyEquivalent: "t").target = self
 
         m.addItem(.separator())
         let updateItem = m.addItem(withTitle: "Check for Updates…", action: #selector(updateItemClicked), keyEquivalent: "")
@@ -249,6 +249,11 @@ extension AppDelegate {
                 self?.engine = nil
                 self?.client = nil
                 self?.bootstrapEngine()
+            }
+            // Token rows open the shared settings form (same surface as the
+            // menu's "Token Settings…"), pre-focused on the provider.
+            controller.onOpenTokenSettings = { [weak self] forge in
+                self?.openTokenSettings(focusing: forge)
             }
             setupController = controller
         }

@@ -21,7 +21,7 @@ final class MenuConstructionTests: XCTestCase {
         XCTAssertEqual(titles, [
             "Orchard",
             "Loading…", // statusLine, refreshed by apply(status:)
-            "Start Fleet", "Stop Fleet", "Pause", "Resume", "Replace Access Token…",
+            "Start Fleet", "Stop Fleet", "Pause", "Resume", "Token Settings…",
             "Check for Updates…",
             "  Orchard \(OrchardVersion.current)",
             "Open Setup…", "Runtimes…", "Open Logs", "Quit",
@@ -62,7 +62,7 @@ final class MenuConstructionTests: XCTestCase {
             "Stop Fleet": #selector(AppDelegate.stopFleet),
             "Pause": #selector(AppDelegate.pauseFleet),
             "Resume": #selector(AppDelegate.resumeFleet),
-            "Replace Access Token…": #selector(AppDelegate.replaceTokenClicked),
+            "Token Settings…": #selector(AppDelegate.replaceTokenClicked),
             "Check for Updates…": #selector(AppDelegate.updateItemClicked),
             "Open Setup…": #selector(AppDelegate.openSetup),
             "Runtimes…": #selector(AppDelegate.openRuntimes),
