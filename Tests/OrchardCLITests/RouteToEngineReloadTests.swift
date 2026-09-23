@@ -1,12 +1,16 @@
 import XCTest
 @testable import orchard
-import OrchardKit
+@testable import OrchardKit
 
 /// The full route-editing path, end to end: the CLI subcommand writes a
 /// route through the validated editor onto a scratch config, a live engine
 /// reloads from that same file (the daemon's reload_config flow), and the
 /// engine's demand bucketing sends a matching job to the routed pool — not
 /// the default one.
+///
+/// The OrchardKit test bundle keeps its own fakes, so this suite carries
+/// minimal local doubles for the engine's collaborators. The engine never
+/// reconciles here (no timers), so the doubles only need to exist.
 final class RouteToEngineReloadTests: XCTestCase {
     private let host = HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 200, arm64: true)
 
@@ -26,9 +30,9 @@ final class RouteToEngineReloadTests: XCTestCase {
 
     private var configURL: URL { scratch.appendingPathComponent("config.yaml") }
 
-    /// A config the engine would actually run: macOS VM shape + container
-    /// section (routes to appleContainer are rejected without one), no
-    /// routing yet — exactly the state a single-pool fleet starts in.
+    /// The macOS-side config without routing or budget; `mixedYAML` composes
+    /// the Linux side on top (container routes are rejected without a
+    /// container section).
     private let baseYAML = """
     repo: "acme/widgets"
     labels: ["self-hosted", "macos", "arm64"]
@@ -41,11 +45,54 @@ final class RouteToEngineReloadTests: XCTestCase {
     reserve:
       cpu: 2
       memory_gb: 4
+    """
+
+    private let containerYAML = """
     container:
       image: "orchard-ci-linux"
       cpus: 2
       memory_gb: 4
     """
+
+    /// A true mixed fleet: an even budget split so the reload materializes
+    /// both pools' caps (usable 10 cpu / 28 GB → container 5/14, tart 5/14).
+    private var mixedYAML: String {
+        baseYAML + "\n" + containerYAML + "\nruntimes:\n  default: tart\n  budget: {tart: 0.5, appleContainer: 0.5}\n"
+    }
+
+    // MARK: - Local doubles (Kit fakes live in the other test bundle)
+
+    private final class StubGitHub: GitHubServing, @unchecked Sendable {
+        let configureURL = "https://github.com/acme/widgets"
+        func fetchRegistrationToken() async throws -> RegistrationToken {
+            RegistrationToken(token: "t", expiresAt: .distantFuture)
+        }
+        func listRunners() async throws -> [GHRunner] { [] }
+        func deleteRunner(id: Int) async throws {}
+        func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] { [] }
+        func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] { [] }
+    }
+
+    private struct StubTart: TartControlling {
+        func list() async throws -> [TartVM] { [] }
+        func clone(source: String, to name: String) async throws {}
+        func run(name: String) async throws {}
+        func ip(of name: String, timeout: TimeInterval) async throws -> String { "192.168.64.2" }
+        func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
+            ShellResult(exitCode: 0, stdout: "", stderr: "")
+        }
+        func stop(name: String) async throws {}
+        func delete(name: String) async throws {}
+        func pull(image: String) async throws {}
+    }
+
+    private struct StubSSH: SSHExecuting {
+        func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
+            ShellResult(exitCode: 0, stdout: "", stderr: "")
+        }
+    }
+
+    // MARK: - Helpers
 
     private func installConfig(_ yaml: String) throws {
         try yaml.write(to: configURL, atomically: true, encoding: .utf8)
@@ -55,17 +102,28 @@ final class RouteToEngineReloadTests: XCTestCase {
         try ConfigLoader.parse(String(contentsOf: configURL, encoding: .utf8))
     }
 
-    private func makeEngine(_ config: OrchardConfig) -> (FleetEngine, FakeGitHub) {
-        let github = FakeGitHub()
-        let engine = FleetEngine(
+    private func makeEngine(_ config: OrchardConfig) -> FleetEngine {
+        FleetEngine(
             config: config,
-            github: github,
-            tart: FakeTart(),
-            store: makeTestStore(),
-            ssh: FakeSSH(),
+            github: StubGitHub(),
+            tart: StubTart(),
+            store: FleetStore(directory: scratch.appendingPathComponent("state")),
+            ssh: StubSSH(),
             host: host
         )
-        return (engine, github)
+    }
+
+    private func bucket(
+        _ jobs: [ForgeJob],
+        config: OrchardConfig
+    ) -> [RuntimeID: Int] {
+        RuntimeConfigModel(
+            config: config.runtimes,
+            fleetLabels: config.labels,
+            containerLabels: config.container?.labels,
+            containerConfigured: config.container != nil
+        )
+        .demandByPool(for: jobs, forgeID: .github)
     }
 
     // MARK: - The end-to-end path
@@ -73,72 +131,57 @@ final class RouteToEngineReloadTests: XCTestCase {
     /// CLI `route add` → validated file write → engine reload from that file
     /// → matching job lands in the container pool's demand bucket.
     func testCLIRouteAddReachesEngineDemandBucketing() async throws {
-        installConfig(baseYAML)
-        let (engine, github) = try makeEngine(loadConfig())
+        try installConfig(mixedYAML)
+        let engine = try makeEngine(loadConfig())
 
-        // 1. The CLI writes the route (same call the command makes; the only
-        //    difference from production is the scratch config URL and no
-        //    daemon to notify).
+        // 1. The CLI writes the route (the exact call the command makes; the
+        //    only production difference is the config URL and no daemon to
+        //    notify).
         try await RuntimesCommand.route(
             ["add", "acme/api", "appleContainer"],
             configURL: configURL,
             notifyDaemon: false
         )
 
-        // 2. The on-disk result is exactly what the reload path reads: the
-        //    route exists, and the whole file still passes engine validation
-        //    (the editor already gated it, but assert the parse too).
-        let reloadedConfig = try loadConfig()
-        XCTAssertEqual(reloadedConfig.runtimes?.routes.first?.pattern, "acme/api")
-        XCTAssertEqual(reloadedConfig.runtimes?.routes.first?.runtime, "appleContainer")
-        XCTAssertEqual(reloadedConfig.runtimes?.defaultRuntime, "tart", "route add must not disturb the default")
+        // 2. The on-disk result is what the reload path reads: route present,
+        //    default untouched, and the file still passes engine validation
+        //    (the editor already gated it; parse again to prove it).
+        let reloaded = try loadConfig()
+        XCTAssertEqual(reloaded.runtimes?.routes.first?.pattern, "acme/api")
+        XCTAssertEqual(reloaded.runtimes?.routes.first?.runtime, "appleContainer")
+        XCTAssertEqual(reloaded.runtimes?.defaultRuntime, "tart", "route add must not disturb the default")
 
-        // 3. A live engine adopts the file (reload_config's handler does
-        //    exactly this parse + applyReloaded).
-        engine.applyReloaded(config: reloadedConfig, host: host)
+        // 3. A live engine adopts the file — the daemon's reload_config
+        //    handler performs exactly this parse + applyReloaded.
+        engine.applyReloaded(config: reloaded, host: host)
 
-        // The status shape proves the fleet is now mixed: partitioned caps.
+        // The status shape proves the fleet is now mixed: exact partition
+        // caps from the budget split — container 5cpu/14GB ÷ (2cpu, 4GB) = 2;
+        // tart remainder 5cpu/14GB ÷ (4cpu, 8GB) = 1 (cpu-bound).
         let status = await engine.status()
-        XCTAssertEqual(Set(status.capacityByRuntime?.keys ?? [:].keys), ["tart", "appleContainer"])
+        XCTAssertEqual(status.capacityByRuntime?[RuntimeID.appleContainer.rawValue], "2")
+        XCTAssertEqual(status.capacityByRuntime?[RuntimeID.tart.rawValue], "1")
 
-        // 4. A queued job from the routed repo must bucket into the
-        //    container pool — the same demandByPool call the reconcile loop
-        //    makes on every poll. The job carries no labels, so the route is
-        //    the only signal (repo route precedence).
-        let decision = reloadedConfig.runtimes.map {
-            RuntimeConfigModel(
-                config: $0,
-                fleetLabels: reloadedConfig.labels,
-                containerLabels: reloadedConfig.container?.labels,
-                containerConfigured: true
-            )
-        }
-        let buckets = try XCTUnwrap(decision).demandByPool(
-            for: [ForgeJob(name: "build", runnerName: nil, repository: "acme/api")],
-            forgeID: .github
-        )
-        XCTAssertEqual(buckets[.appleContainer], 1, "routed repo lands in the container pool")
-        XCTAssertEqual(buckets[.tart] ?? 0, 0)
+        // 4. A queued job from the routed repo must bucket into the container
+        //    pool — the same demandByPool call the reconcile loop makes. The
+        //    job carries no labels, so the repo route is the only signal.
+        let routed = bucket([ForgeJob(name: "build", runnerName: nil, repository: "acme/api")], config: reloaded)
+        XCTAssertEqual(routed[.appleContainer], 1, "routed repo lands in the container pool")
+        XCTAssertEqual(routed[.tart] ?? 0, 0)
 
-        // And a job from an unrouted repo goes the other way — the default
-        // pool — proving the route is what moved the first job.
-        let unbuckled = try XCTUnwrap(decision).demandByPool(
-            for: [ForgeJob(name: "build", runnerName: nil, repository: "acme/other")],
-            forgeID: .github
-        )
-        XCTAssertEqual(unbuckled[.tart], 1)
-        XCTAssertEqual(unbuckled[.appleContainer] ?? 0, 0)
-
-        _ = github // engine holds it; no spawn asserted here (fake lifecycle covered elsewhere)
+        // A job from an unrouted repo goes the other way — the default pool —
+        // proving the route is what moved the first job.
+        let unrouted = bucket([ForgeJob(name: "build", runnerName: nil, repository: "acme/other")], config: reloaded)
+        XCTAssertEqual(unrouted[.tart], 1)
+        XCTAssertEqual(unrouted[.appleContainer] ?? 0, 0)
     }
 
     /// Same pipeline for removal: after `route remove`, the previously routed
     /// repo falls back to the default pool.
     func testCLIRouteRemoveFallsBackToDefaultPool() async throws {
-        installConfig(baseYAML)
+        try installConfig(mixedYAML)
         try await RuntimesCommand.route(["add", "acme/api", "appleContainer"], configURL: configURL, notifyDaemon: false)
-
-        let (engine, _) = try makeEngine(loadConfig())
+        let engine = try makeEngine(loadConfig())
 
         // Remove through the CLI, then the running engine picks the file up.
         try await RuntimesCommand.route(["remove", "acme/api"], configURL: configURL, notifyDaemon: false)
@@ -148,18 +191,9 @@ final class RouteToEngineReloadTests: XCTestCase {
         let yaml = try String(contentsOf: configURL, encoding: .utf8)
         XCTAssertTrue(try RuntimesConfigEditor.parsed(from: yaml)!.routes.isEmpty)
 
-        // …and the engine's model agrees: the same job now buckets to tart.
+        // …and demand for the same repo now buckets to tart again.
         let config = try loadConfig()
-        let model = RuntimeConfigModel(
-            config: config.runtimes,
-            fleetLabels: config.labels,
-            containerLabels: config.container?.labels,
-            containerConfigured: true
-        )
-        let buckets = model.demandByPool(
-            for: [ForgeJob(name: "build", runnerName: nil, repository: "acme/api")],
-            forgeID: .github
-        )
+        let buckets = bucket([ForgeJob(name: "build", runnerName: nil, repository: "acme/api")], config: config)
         XCTAssertEqual(buckets[.tart], 1, "after removal the repo uses the default pool")
         XCTAssertEqual(buckets[.appleContainer] ?? 0, 0)
         let status = await engine.status()
@@ -167,40 +201,52 @@ final class RouteToEngineReloadTests: XCTestCase {
     }
 
     /// A workflow-level route (owner/repo@Name) added by the CLI routes only
-    /// jobs from that workflow's job names — the same repo can keep its
-    /// other workflows on the default pool.
+    /// that workflow — the same repo's other workflows stay on the default
+    /// pool. This is the per-workflow half of the routing contract.
     func testCLIWorkflowRouteBucketsOnlyThatWorkflow() async throws {
-        installConfig(baseYAML)
+        try installConfig(mixedYAML)
         try await RuntimesCommand.route(["add", "acme/api@Nightly", "appleContainer"], configURL: configURL, notifyDaemon: false)
 
         let config = try loadConfig()
-        let model = RuntimeConfigModel(
-            config: config.runtimes,
-            fleetLabels: config.labels,
-            containerLabels: config.container?.labels,
-            containerConfigured: true
-        )
-        let buckets = model.demandByPool(
-            for: [
+        let buckets = bucket(
+            [
                 ForgeJob(name: "Nightly", runnerName: nil, repository: "acme/api"),
                 ForgeJob(name: "build", runnerName: nil, repository: "acme/api"),
             ],
-            forgeID: .github
+            config: config
         )
         XCTAssertEqual(buckets[.appleContainer], 1, "only the Nightly workflow is routed")
         XCTAssertEqual(buckets[.tart], 1, "the same repo's other workflow stays on the default pool")
     }
 
-    /// An invalid route (runtime with no container section — the engine's
-    /// own validation) never reaches an engine: the CLI fails and the file
-    /// is byte-identical, so a concurrent reload cannot pick up garbage.
+    /// Route-only reload (no `budget:` weights — what a CLI route add on a
+    /// plain config produces): there is no split to materialize, so the
+    /// default keeps the full-budget cap and other pools carry no cap entry —
+    /// selectRuntime's documented "uncapped within the global desired" case.
+    /// Routing itself must still work exactly the same.
+    func testRouteOnlyReloadCapsTheDefaultAndStillRoutes() async throws {
+        try installConfig(baseYAML + "\n" + containerYAML)
+        try await RuntimesCommand.route(["add", "acme/api", "appleContainer"], configURL: configURL, notifyDaemon: false)
+
+        let engine = try makeEngine(loadConfig())
+        engine.applyReloaded(config: try loadConfig(), host: host)
+
+        let status = await engine.status()
+        XCTAssertEqual(Set(status.capacityByRuntime?.keys ?? [:].keys), ["tart"], "only the default has a cap without budget weights")
+
+        // And the route still buckets demand identically.
+        let buckets = bucket([ForgeJob(name: "build", runnerName: nil, repository: "acme/api")], config: try loadConfig())
+        XCTAssertEqual(buckets[.appleContainer], 1)
+        XCTAssertEqual(buckets[.tart] ?? 0, 0)
+    }
+
+    /// An invalid route (container runtime with no `container:` section — the
+    /// engine's own validation) never reaches an engine: the CLI fails, the
+    /// file is byte-identical, and a concurrent reload cannot pick up garbage.
     func testRejectedRouteNeverReachesTheEngine() async throws {
         // Base config without `container:` — adding an appleContainer route
         // is valid YAML but fails engine validation (image required).
-        installConfig(baseYAML.replacingOccurrences(
-            of: "\ncontainer:\n  image: \"orchard-ci-linux\"\n  cpus: 2\n  memory_gb: 4\n",
-            with: ""
-        ))
+        try installConfig(baseYAML)
         let original = try String(contentsOf: configURL, encoding: .utf8)
 
         do {
@@ -211,8 +257,8 @@ final class RouteToEngineReloadTests: XCTestCase {
         }
 
         XCTAssertEqual(try String(contentsOf: configURL, encoding: .utf8), original, "disk untouched on rejection")
-        // Parsing still yields a routing model with no routes — nothing to
-        // apply, and an engine reloading this file keeps single-pool shape.
+        // Parsing yields a config with no routing section — an engine
+        // reloading this file keeps its single-pool shape.
         let config = try loadConfig()
         XCTAssertNil(config.runtimes)
     }
