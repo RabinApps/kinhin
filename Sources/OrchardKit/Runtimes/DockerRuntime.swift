@@ -8,9 +8,11 @@ import Foundation
 /// the same Linux agent scripts as the Apple-container runtime, executed via
 /// `docker exec` (no SSH, no guest IP).
 ///
-/// The toolchain cache mount (`RepoRoute.cacheMount`) is intentionally
-/// ignored here: the shared cache is a macOS virtiofs share, which Linux
-/// containers cannot mount.
+/// The toolchain cache mount (`RepoRoute.cacheMount`) bind-mounts the same
+/// host cache the VMs and Apple containers use (`docker run -v host:guest`,
+/// guest path `/var/orchard-cache`), and registration scripts get the guarded
+/// Linux cache-env exports — so `npm ci`, `go mod download`, `dotnet restore`,
+/// and friends hit warm downloads on every provider.
 public struct DockerRuntime: Runtime {
     public let id: RuntimeID = .docker
 
@@ -27,19 +29,31 @@ public struct DockerRuntime: Runtime {
     /// Existence probe for the binary (tests inject a constant; production
     /// checks the filesystem).
     let exists: @Sendable (String) -> Bool
+    /// The resolved managed-toolchain selection source (cache envs come from
+    /// here when `share_cache` bind-mounts the host cache into containers).
+    let toolchainsConfig: @Sendable () -> OrchardConfig.ToolchainsConfig?
 
     public init(shell: ShellRunning = Shell(),
                 image: String,
                 cpus: Int = 2,
                 memoryGB: Int = 4,
                 binPath: String? = nil,
-                exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }) {
+                exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
+                toolchainsConfig: @escaping @Sendable () -> OrchardConfig.ToolchainsConfig? = { nil }) {
         self.shell = shell
         self.image = image
         self.cpus = cpus
         self.memoryBytes = Int64(memoryGB) * 1_073_741_824
         self.binPath = binPath
         self.exists = exists
+        self.toolchainsConfig = toolchainsConfig
+    }
+
+    /// Linux-platform selection for cache-env exports in registration
+    /// scripts (computed per request from live config). nil = no selection.
+    var linuxToolchainSelection: ManagedToolchainSelection? {
+        guard let config = toolchainsConfig() else { return nil }
+        return ToolchainCatalog.selection(from: config, platform: .linux)
     }
 
     /// Resolved path of the `docker` CLI. Public so the CLI doctor and the
@@ -93,8 +107,16 @@ public struct DockerRuntime: Runtime {
             return
         }
         Log.info(id, "starting Linux container from \(image) (\(cpus) vCPU, \(memoryGBLabel), linux/arm64)")
-        _ = try await run([
-            bin, "run", "--detach",
+        var argv = [bin, "run", "--detach"]
+        // Opt-in shared cache: bind-mount the host toolchain cache into the
+        // container (`docker run -v host:guest`) so per-job installs reuse
+        // warm downloads. Best-effort: create the host dir first so a fresh
+        // install cannot fail the run.
+        if route.cacheMount {
+            try? FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
+            argv += ["--volume", ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)]
+        }
+        argv += [
             "--name", id,
             "--cpus", String(cpus),
             "--memory", memoryLabel,
@@ -102,7 +124,8 @@ public struct DockerRuntime: Runtime {
             "--rm",  // agent exit removes the container: belt + suspenders
             image,
             "/bin/bash", "-lc", "while true; do sleep 3600; done",
-        ])
+        ]
+        _ = try await run(argv)
     }
 
     // MARK: - Registration
@@ -112,11 +135,22 @@ public struct DockerRuntime: Runtime {
     /// engine via `execRegistration`.
     public func registrationScript(forge: Forge, token: String, name: String,
                                    runnerCount: Int, route: RepoRoute, labels: [String]?) async throws -> String {
-        // `route.cacheMount` is intentionally ignored: no virtiofs into Linux
-        // containers (see the type doc comment).
+        // Opt-in shared cache: point the selected ecosystems' caches at the
+        // bind-mounted host cache so per-job installs reuse warm downloads.
+        // Exports are guarded no-ops when the mount is absent. Linux
+        // platform: macOS-only entries (brew, fvm, CocoaPods) never appear.
+        let cachePrefix: String
+        if route.cacheMount, let selection = linuxToolchainSelection {
+            cachePrefix = RunnerBootstrap.cacheEnvExports(
+                cacheEnvs: selection.cacheEnvs,
+                mountPath: ToolchainCacheMount.linuxGuestPath
+            ) + "\n\n"
+        } else {
+            cachePrefix = ""
+        }
         switch forge.credentials {
         case .github:
-            return RunnerBootstrap.linuxGitHubRegistrationScript(
+            return cachePrefix + RunnerBootstrap.linuxGitHubRegistrationScript(
                 configureURL: forge.registrationURL(),
                 token: token,
                 labels: labels ?? forge.labels,
@@ -128,7 +162,7 @@ public struct DockerRuntime: Runtime {
             guard let giteaForge = forge as? GiteaForge else {
                 throw RuntimeWatchError.registrationFailed(vm: name, stderr: "gitea forge misconfigured")
             }
-            return RunnerBootstrap.linuxGiteaRegistrationScript(
+            return cachePrefix + RunnerBootstrap.linuxGiteaRegistrationScript(
                 instance: giteaForge.registrationURL(),
                 token: giteaForge.registrationToken,
                 labels: forge.labels,

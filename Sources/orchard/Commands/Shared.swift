@@ -68,7 +68,8 @@ func helpText() -> String {
         image prepare --container   Build the Linux container image (apple container);
                                     bakes `toolchains:` too — macOS-only entries are
                                     skipped (use --linux-toolchain/--linux-stack to override)
-        image prepare --docker      Build the Linux container image (Docker Desktop / OrbStack / colima)
+        image prepare --docker      Build the Linux container image (Docker Desktop /
+                                    OrbStack / colima); bakes `toolchains:` the same way
         toolchains                  Managed-toolchain catalog, selections, and cache state
         toolchains prune [--dry-run]   Expire stale host-cache entries now
 

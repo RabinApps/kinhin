@@ -65,6 +65,40 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let jobSlots: Int
     }
 
+    /// Shared toolchain cache state (the mount `image prepare` writes
+    /// through and runner VMs/containers bind when `share_cache: true`).
+    public struct ToolchainCacheSection: Codable, Equatable, Sendable {
+        public struct Ecosystem: Codable, Equatable, Sendable {
+            /// Cache subdirectory under the cache root, e.g. "npm", "go/mod".
+            public let directory: String
+            /// Total bytes currently cached in that subdirectory.
+            public let bytes: Int64
+
+            public init(directory: String, bytes: Int64) {
+                self.directory = directory
+                self.bytes = bytes
+            }
+        }
+
+        /// Always true — the host cache root is created on demand.
+        public let root: String
+        /// Whether the cache root directory exists (and is writable).
+        public let usable: Bool
+        /// Total bytes across every ecosystem subdirectory.
+        public let totalBytes: Int64
+        /// Per-ecosystem breakdown for the directories actually selected in
+        /// the config's `toolchains:` (top-level subdirectories with content
+        /// when nothing is selected).
+        public let ecosystems: [Ecosystem]
+
+        public init(root: String, usable: Bool, totalBytes: Int64, ecosystems: [Ecosystem]) {
+            self.root = root
+            self.usable = usable
+            self.totalBytes = totalBytes
+            self.ecosystems = ecosystems
+        }
+    }
+
     /// Host snapshot (cores, memory, free disk, arm64).
     public let host: HostResources
     /// Command Line Tools state + repair command.
@@ -77,6 +111,8 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     /// Docker runtime — present only when config.yaml declares a `docker:`
     /// section (same presence rule as the checklist's docker rows).
     public let docker: DockerSection?
+    /// Shared toolchain cache state.
+    public let toolchainCache: ToolchainCacheSection
     /// Stored-token state for every forge (static, no network probes).
     public let auth: AuthStatusReport
     /// The full first-run checklist (same rows `setup-status --json` emits).
@@ -88,14 +124,15 @@ public struct DoctorReport: Codable, Equatable, Sendable {
 
     public init(
         host: HostResources, clt: CLTSection, tart: TartSection, container: ContainerSection?,
-        docker: DockerSection?, auth: AuthStatusReport, checks: [SetupCheckResult],
-        ready: Bool, capacity: CapacitySection?
+        docker: DockerSection?, toolchainCache: ToolchainCacheSection, auth: AuthStatusReport,
+        checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?
     ) {
         self.host = host
         self.clt = clt
         self.tart = tart
         self.container = container
         self.docker = docker
+        self.toolchainCache = toolchainCache
         self.auth = auth
         self.checks = checks
         self.ready = ready
@@ -268,6 +305,12 @@ public struct DoctorReportBuilder: Sendable {
             )
         }
 
+        // Shared toolchain cache — directory state only (no live mounts
+        // probed; runners mount on demand). The per-ecosystem breakdown
+        // covers the subdirectories the config's toolchains selection uses,
+        // falling back to all top-level directories with content.
+        let cacheSection = Self.toolchainCacheSection(config: parsed)
+
         // Capacity — the same math the human doctor prints, plus job slots.
         var capacitySection: DoctorReport.CapacitySection?
         if let cfg = parsed {
@@ -294,11 +337,75 @@ public struct DoctorReportBuilder: Sendable {
             tart: Self.tartSection(from: resolvedTart),
             container: containerSection,
             docker: dockerSection,
+            toolchainCache: cacheSection,
             auth: authReport,
             checks: status.checks,
             ready: status.ready && authReport.allGood,
             capacity: capacitySection
         )
+    }
+
+    /// Measures the host toolchain cache: usability, total bytes, and the
+    /// per-ecosystem breakdown for the directories the config's selection
+    /// maps to (or all populated top-level directories when nothing is
+    /// selected). Pure filesystem reads — never creates or deletes anything.
+    /// Public so the human doctor prints exactly the JSON document's data.
+    public static func toolchainCacheSection(config: OrchardConfig?) -> DoctorReport.ToolchainCacheSection {
+        let root = Paths.toolchainCache
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        var isUsable = fm.fileExists(atPath: root.path, isDirectory: &isDir) && isDir.boolValue
+        if isUsable, !fm.isWritableFile(atPath: root.path) {
+            isUsable = false
+        }
+        guard isUsable else {
+            return DoctorReport.ToolchainCacheSection(root: root.path, usable: false, totalBytes: 0, ecosystems: [])
+        }
+
+        // The subdirectories the config's toolchains selection maps to
+        // (Linux path irrelevant here — subdirectories are shared).
+        let selected: [String]?
+        if let toolchains = config?.toolchains {
+            let selection = ToolchainCatalog.selection(from: toolchains)
+            let dirs = selection.cacheEnvs.map(\.subdirectory)
+            selected = dirs.isEmpty ? nil : dirs
+        } else {
+            selected = nil
+        }
+
+        var ecosystems: [DoctorReport.ToolchainCacheSection.Ecosystem] = []
+        var total: Int64 = 0
+        if let selected {
+            for directory in selected {
+                let bytes = Self.directorySize(at: root.appendingPathComponent(directory))
+                ecosystems.append(.init(directory: directory, bytes: bytes))
+                total += bytes
+            }
+        } else {
+            // No selection: report every populated top-level directory.
+            let children = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey, .totalFileAllocatedSizeKey])) ?? []
+            for child in children.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+                let bytes = Self.directorySize(at: child)
+                guard bytes > 0 else { continue }
+                ecosystems.append(.init(directory: child.lastPathComponent, bytes: bytes))
+                total += bytes
+            }
+        }
+        return DoctorReport.ToolchainCacheSection(root: root.path, usable: true, totalBytes: total, ecosystems: ecosystems)
+    }
+
+    /// Recursive byte size of a directory (0 when missing). Follows the
+    /// same pruning-friendly convention: regular files only.
+    static func directorySize(at url: URL) -> Int64 {
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]) else { return 0 }
+        var total: Int64 = 0
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  values.isRegularFile == true else { continue }
+            total += Int64(values.fileSize ?? 0)
+        }
+        return total
     }
 
     /// Maps CLTState to the JSON section, carrying the shared repair lines.

@@ -3,8 +3,9 @@ import Foundation
 /// Bakes the runner agents into a Linux OCI image for the Docker runtime:
 /// boots a scratch container from the base image (`docker run`), installs the
 /// GitHub Actions agent and/or gitea-runner (token-gated, mirroring the VM
-/// and Apple-container prepare paths), commits via `docker commit`, tags the
-/// result, and cleans up the scratch container.
+/// and Apple-container prepare paths), optionally bakes managed toolchains,
+/// commits via `docker commit`, tags the result, and cleans up the scratch
+/// container.
 ///
 /// Unlike the Apple-container preparer (which must `container build` because
 /// `container` has no commit), Docker's native `commit` keeps this a simple
@@ -16,19 +17,50 @@ public struct DockerImagePreparer {
         self.shell = shell
     }
 
+    public struct Options {
+        public var image: String
+        public var target: String
+        public var user: String
+        /// Managed toolchains (`toolchains:` config section) baked after the
+        /// runner agents install, before `docker commit`. nil = none.
+        public var toolchains: OrchardConfig.ToolchainsConfig?
+        /// Timeout for the managed toolchain install exec (seconds) —
+        /// installing heavy toolchains is slow.
+        public var toolchainTimeout: TimeInterval
+        /// Token presence overrides for tests (nil = probe the Keychain).
+        public var hasGitHubToken: Bool?
+        public var hasGiteaToken: Bool?
+
+        public init(image: String, target: String, user: String = "admin", toolchains: OrchardConfig.ToolchainsConfig? = nil, toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil) {
+            self.image = image
+            self.target = target
+            self.user = user
+            self.toolchains = toolchains
+            self.toolchainTimeout = toolchainTimeout
+            self.hasGitHubToken = hasGitHubToken
+            self.hasGiteaToken = hasGiteaToken
+        }
+    }
+
     /// Resolve the runner-agent versions from the vendors' feeds (pinned
     /// fallback offline), then run the bake.
     @discardableResult
-    public func prepare(image: String, target: String, user: String = "admin") async throws -> String {
+    public func prepare(_ options: Options) async throws -> String {
         let versions = await RunnerVersionResolver().resolve()
-        return try await prepare(image: image, target: target, versions: versions, user: user)
+        return try await prepare(options, versions: versions)
+    }
+
+    /// Back-compat entry without toolchains.
+    @discardableResult
+    public func prepare(image: String, target: String, user: String = "admin") async throws -> String {
+        try await prepare(.init(image: image, target: target, user: user))
     }
 
     /// Testable core with injected versions.
-    public func prepare(image: String, target: String, versions: RunnerVersionResolver.Versions, user: String) async throws -> String {
+    public func prepare(_ options: Options, versions: RunnerVersionResolver.Versions) async throws -> String {
         // Token-gated provisioning: identical policy to the other paths.
-        let hasGitHubToken = KeychainTokenStore.load(forge: .github) != nil
-        let hasGiteaToken = KeychainTokenStore.load(forge: .gitea) != nil
+        let hasGitHubToken = options.hasGitHubToken ?? (KeychainTokenStore.load(forge: .github) != nil)
+        let hasGiteaToken = options.hasGiteaToken ?? (KeychainTokenStore.load(forge: .gitea) != nil)
         guard hasGitHubToken || hasGiteaToken else {
             throw ContainerImageError.noCredentials("store at least one platform token first (orchard auth set / orchard auth set --gitea)")
         }
@@ -50,10 +82,28 @@ public struct DockerImagePreparer {
 
         let dockerBin = DockerRuntime.resolvedBinaryPath
 
-        // 1. Boot a scratch container from the base image.
+        // Cache upkeep: sweep stale entries before this bake writes through
+        // the cache (noop unless age/size limits trip).
+        let policy = ToolchainCachePolicy(from: options.toolchains)
+        ToolchainCachePruner().prune(policy: policy)
+
+        // Always bind-mount the host toolchain cache into the scratch
+        // container: every prepare write-through (apt, mise, npm) lands in
+        // one cache that later bakes and runner containers reuse.
+        do {
+            try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
+        } catch {
+            Log.warn("docker-image", "could not create toolchain cache dir (\(error.localizedDescription)); continuing without it")
+        }
+
+        // 1. Boot a scratch container from the base image, with the host
+        //    cache bind-mounted (`docker run -v host:guest`).
         let scratch = "orchard-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
-        Log.info("docker-image", "starting scratch container from \(image)")
-        _ = try await shell.run([dockerBin, "run", "--detach", "--name", scratch, image,
+        let hostCache = Paths.toolchainCache.path
+        Log.info("docker-image", "starting scratch container from \(options.image) (host toolchain cache bind-mounted)")
+        _ = try await shell.run([dockerBin, "run", "--detach",
+                                 "--volume", ToolchainCacheMount.volumeSpec(host: hostCache),
+                                 "--name", scratch, options.image,
                                  "/bin/bash", "-lc", "while true; do sleep 3600; done"])
 
         do {
@@ -67,21 +117,40 @@ public struct DockerImagePreparer {
                 throw ContainerImageError.provisioningFailed(String(exec.stderr.prefix(500)))
             }
 
-            // 4. Commit the filesystem to the target tag.
-            Log.info("docker-image", "committing target image \(target)")
-            let commit = try await shell.run([dockerBin, "commit", scratch, target])
+            // 4. Managed toolchains (toolchains: config): install + pin via
+            //    the catalog, with the cache bind mount visible at the guest
+            //    path. Failure aborts the bake so the previous target image
+            //    stays intact.
+            if let toolchains = options.toolchains {
+                let selection = ToolchainCatalog.selection(from: toolchains, platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath)
+                let managed = RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: selection, mountPath: ToolchainCacheMount.linuxGuestPath)
+                Log.info("docker-image", "installing managed toolchains (\(selection.miseSpecs.count) mise spec(s), \(selection.aptPackages.count) apt package(s), \(selection.npmPackages.count) npm global(s); \(selection.skippedEntries.count) macOS-only entr(y/ies) skipped)")
+                let provisioned = try await shell.run([dockerBin, "exec", scratch, "/bin/bash", "-lc", managed])
+                guard provisioned.succeeded else {
+                    throw ContainerImageError.provisioningFailed("managed toolchain install failed: \(String(provisioned.stderr.prefix(500)))")
+                }
+                let tail = String(provisioned.stdout.trimmingCharacters(in: .whitespacesAndNewlines).suffix(400))
+                if !tail.isEmpty {
+                    Log.info("docker-image", "managed toolchain output (tail): \(tail)")
+                }
+                Log.info("docker-image", "managed toolchains baked into the image")
+            }
+
+            // 5. Commit the filesystem to the target tag.
+            Log.info("docker-image", "committing target image \(options.target)")
+            let commit = try await shell.run([dockerBin, "commit", scratch, options.target])
             guard commit.succeeded else {
                 throw ContainerImageError.provisioningFailed("docker commit failed: \(String(commit.stderr.prefix(500)))")
             }
         } catch {
-            try? await shell.run([dockerBin, "rm", "--force", scratch])
+            _ = try? await shell.run([dockerBin, "rm", "--force", scratch])
             throw error
         }
 
-        // 5. Clean up the scratch container.
+        // 6. Clean up the scratch container.
         _ = try? await shell.run([dockerBin, "rm", "--force", scratch])
-        Log.info("docker-image", "prepared docker image '\(target)' is ready")
-        return target
+        Log.info("docker-image", "prepared docker image '\(options.target)' is ready")
+        return options.target
     }
 
     /// Polls `docker exec true` until the scratch container accepts exec.

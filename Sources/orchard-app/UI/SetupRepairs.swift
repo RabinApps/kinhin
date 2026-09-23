@@ -102,7 +102,11 @@ extension SetupWindowController {
                 throw NSError(domain: "orchard", code: 2, userInfo: [NSLocalizedDescriptionKey: "config missing, invalid, or no docker.image set"])
             }
             let preparer = DockerImagePreparer(shell: Shell())
-            try await preparer.prepare(image: image, target: image)
+            // The config's toolchains section bakes into the Linux image too
+            // (macOS-only entries are skipped for containers, never an error).
+            var options = DockerImagePreparer.Options(image: image, target: image)
+            options.toolchains = cfg.toolchains
+            try await preparer.prepare(options)
         }
     }
 

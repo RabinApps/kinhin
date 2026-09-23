@@ -292,8 +292,8 @@ final class DockerRuntimeTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeRoute() -> RepoRoute {
-        RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30)
+    private func makeRoute(cacheMount: Bool = false) -> RepoRoute {
+        RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30, cacheMount: cacheMount)
     }
 
     func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
@@ -303,6 +303,141 @@ final class DockerRuntimeTests: XCTestCase {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
         XCTFail("condition not met within \(timeout)s")
+    }
+
+    // MARK: - Shared toolchain cache (Linux path, Docker flavor)
+
+    func testProvisionMountsCacheOnlyWhenShareCacheIsOn() async throws {
+        let shell = RecordingShell()
+        let runtime = DockerRuntime(
+            shell: shell, image: "img", cpus: 2, memoryGB: 4,
+            binPath: bin
+        )
+        try await runtime.provision(id: "orchard-a", route: makeRoute())
+        var runArgv = try XCTUnwrap(shell.argvs.last { $0.contains("run") })
+        XCTAssertFalse(runArgv.contains("--volume"), "share_cache off → no bind mount")
+
+        try await runtime.provision(id: "orchard-b", route: makeRoute(cacheMount: true))
+        runArgv = try XCTUnwrap(shell.argvs.last { $0.contains("run") })
+        XCTAssertTrue(runArgv.contains("--volume"))
+        XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
+    }
+
+    func testRegistrationScriptPrefixesLinuxCacheExportsWhenMounted() async throws {
+        let runtime = DockerRuntime(
+            shell: RecordingShell(), image: "img", cpus: 2, memoryGB: 4,
+            binPath: bin,
+            toolchainsConfig: { OrchardConfig.ToolchainsConfig(specs: ["node@22", "pnpm"]) }
+        )
+        let github = GitHubForge(
+            credentials: .github(token: "tok", scope: "acme/widgets"),
+            labels: ["orchard"],
+            client: FakeGitHub()
+        )
+        let script = try await runtime.registrationScript(
+            forge: github, token: "RT", name: "orchard-1", runnerCount: 1,
+            route: makeRoute(cacheMount: true), labels: nil
+        )
+        XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/orchard-cache/npm\""))
+        XCTAssertTrue(script.contains("export npm_config_store_dir=\"/var/orchard-cache/pnpm-store\""))
+        XCTAssertTrue(script.contains("/opt/actions-runner"), "registration script itself still present")
+        XCTAssertTrue(script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "config.sh --url")!.lowerBound, "exports come first")
+    }
+
+    func testRegistrationScriptWithoutMountHasNoExports() async throws {
+        let runtime = DockerRuntime(
+            shell: RecordingShell(), image: "img", cpus: 2, memoryGB: 4,
+            binPath: bin,
+            toolchainsConfig: { OrchardConfig.ToolchainsConfig(specs: ["node@22"]) }
+        )
+        let github = GitHubForge(
+            credentials: .github(token: "tok", scope: "acme/widgets"),
+            labels: ["orchard"],
+            client: FakeGitHub()
+        )
+        let script = try await runtime.registrationScript(
+            forge: github, token: "RT", name: "orchard-1", runnerCount: 1,
+            route: makeRoute(), labels: nil
+        )
+        XCTAssertFalse(script.contains("export NPM_CONFIG_CACHE"), "no mount → no cache exports")
+    }
+
+    func testPrepareAlwaysBindMountsTheCache() async throws {
+        let shell = RecordingShell()
+        let preparer = DockerImagePreparer(shell: shell)
+        try await preparer.prepare(.init(image: "ubuntu:24.04", target: "orchard-ci", hasGitHubToken: true, hasGiteaToken: false))
+        let runArgv = try XCTUnwrap(shell.argvs.first { $0.contains("run") })
+        XCTAssertTrue(runArgv.contains("--volume"), "prepare bind-mounts the host cache unconditionally: \(runArgv)")
+        XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
+    }
+
+    func testPrepareBakesManagedToolchainsBeforeCommit() async throws {
+        let shell = RecordingShell()
+        let preparer = DockerImagePreparer(shell: shell)
+        try await preparer.prepare(.init(
+            image: "ubuntu:24.04", target: "orchard-ci",
+            toolchains: OrchardConfig.ToolchainsConfig(specs: ["node@22"]),
+            hasGitHubToken: true, hasGiteaToken: false
+        ))
+        // Order: run → ready-probe exec → agent exec → managed exec → commit.
+        let runIdx = try XCTUnwrap(shell.argvs.firstIndex { $0.contains("run") })
+        let bashExecs = shell.argvs.enumerated().filter { _, argv in
+            argv.contains("exec") && argv.contains("/bin/bash")
+        }
+        XCTAssertEqual(bashExecs.count, 2, "agent install + managed toolchains: \(shell.argvs)")
+        let managedExec = shell.argvs[bashExecs[1].offset].joined(separator: " ")
+        XCTAssertTrue(managedExec.contains("mise use --global node@22"), "second exec is the managed toolchain script")
+        let commitIdx = try XCTUnwrap(shell.argvs.firstIndex { $0.contains("commit") })
+        XCTAssertGreaterThan(commitIdx, bashExecs[1].offset, "managed toolchains bake before docker commit")
+        XCTAssertGreaterThan(bashExecs[0].offset, runIdx)
+    }
+
+    func testPrepareManagedFailureAbortsBeforeCommit() async throws {
+        // Scripted per call: run ok, ready-probe ok, agent exec ok, managed
+        // exec FAILS — no commit must happen, scratch container removed.
+        let shell = ScriptedShell()
+        shell.responses = [
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),
+            ShellResult(exitCode: 1, stdout: "", stderr: "boom"),
+        ]
+        let preparer = DockerImagePreparer(shell: shell)
+        do {
+            try await preparer.prepare(.init(
+                image: "ubuntu:24.04", target: "orchard-ci",
+                toolchains: OrchardConfig.ToolchainsConfig(specs: ["node@22"]),
+                hasGitHubToken: true, hasGiteaToken: false
+            ))
+            XCTFail("expected the bake to fail")
+        } catch let error as ContainerImageError {
+            guard case .provisioningFailed(let why) = error, why.contains("managed toolchain install failed") else {
+                return XCTFail("expected managed-toolchain provisioningFailed, got \(error)")
+            }
+        }
+        let argvs = await shell.argvSnapshot()
+        XCTAssertFalse(argvs.contains { $0.contains("commit") }, "no image is committed when a bake step fails")
+        XCTAssertTrue(argvs.contains { $0.contains("rm") && $0.contains("--force") }, "the scratch container is cleaned up")
+    }
+
+    func testEngineWiresToolchainsIntoDockerRuntime() async throws {
+        var config = makeTestConfig()
+        config.docker = .init(image: "orchard-ci-linux", cpus: 2, memoryGB: 4)
+        config.toolchains = OrchardConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
+        let engine = FleetEngine(
+            config: config, github: FakeGitHub(), tart: FakeTart(),
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            containerShell: RecordingShell()
+        )
+        let runtime = try XCTUnwrap(engine.dockerRuntime)
+        let forge = GitHubForge(
+            credentials: .github(token: "tok", scope: "acme/widgets"),
+            labels: ["orchard"],
+            client: FakeGitHub()
+        )
+        let route = RepoRoute(repo: "acme/widgets", image: "orchard-ci-linux", ephemeral: true, bootTimeout: 30, cacheMount: true)
+        let script = try await runtime.registrationScript(forge: forge, token: "tok", name: "c", runnerCount: 1, route: route, labels: nil)
+        XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/orchard-cache/npm\""))
     }
 }
 

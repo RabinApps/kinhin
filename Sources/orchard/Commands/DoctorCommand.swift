@@ -93,6 +93,18 @@ enum DoctorCommand {
         print("  token:      \(KeychainTokenStore.load() != nil ? "stored ✓" : "missing — run: orchard auth set")")
         let configExists = FileManager.default.fileExists(atPath: Paths.config.path)
         print("  config:     \(configExists ? Paths.config.path : "missing — run: orchard config init")")
+        // Shared toolchain cache: what prepare writes through and runner
+        // VMs/containers bind when share_cache is on. The selected-ecosystem
+        // breakdown mirrors the JSON document's `toolchainCache` section.
+        let cacheConfig = (try? ConfigLoader.load()).flatMap { $0 }
+        let cache = DoctorReportBuilder.toolchainCacheSection(config: cacheConfig)
+        if cache.usable {
+            let gb = Double(cache.totalBytes) / 1_073_741_824
+            let detail = cache.ecosystems.map { "\($0.directory) \(String(format: "%.1f", Double($0.bytes) / 1_048_576)) MB" }.joined(separator: ", ")
+            print("  cache:      \(String(format: "%.1f", gb)) GB at \(cache.root) ✓\(detail.isEmpty ? " (empty)" : " — \(detail)")")
+        } else {
+            print("  cache:      NOT USABLE ✗ at \(cache.root) — the next prepare recreates it")
+        }
         if configExists, let cfg = try? ConfigLoader.load() {
             let plan = Capacity.plan(
                 host: arch,

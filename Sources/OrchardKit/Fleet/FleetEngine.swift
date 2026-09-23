@@ -85,7 +85,8 @@ public final class FleetEngine {
                 shell: containerShell ?? Shell(),
                 image: dockerConfig.image,
                 cpus: dockerConfig.cpus,
-                memoryGB: dockerConfig.memoryGB
+                memoryGB: dockerConfig.memoryGB,
+                toolchainsConfig: { [config] in config.toolchains }
             )
         }
         // The fleet's primary runtime (single-pool fleets and the legacy

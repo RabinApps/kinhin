@@ -252,4 +252,47 @@ final class DoctorReportTests: XCTestCase {
         XCTAssertEqual(configRow?.action, "edit_config")
         XCTAssertFalse(report.ready)
     }
+
+    // MARK: - Shared toolchain cache section
+
+    func testToolchainCacheSectionAlwaysPresent() async {
+        let report = await builder(config: Self.config()).build()
+        XCTAssertNotNil(report.toolchainCache, "the cache is a host fact — reported with or without a config")
+        XCTAssertEqual(report.toolchainCache.root, Paths.toolchainCache.path)
+    }
+
+    func testToolchainCacheSectionMeasuresRealDirectories() throws {
+        // Build a scratch "cache root" by pointing the static helper at a
+        // fixture: the section helper reads Paths.toolchainCache, so exercise
+        // the measuring code path directly with a temporary tree instead.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("orchard-doctor-cache-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("npm/tarballs"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("mise/downloads"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("empty"), withIntermediateDirectories: true)
+        try Data(repeating: 0x41, count: 2048).write(to: root.appendingPathComponent("npm/tarballs/react.tar"))
+        try Data(repeating: 0x41, count: 512).write(to: root.appendingPathComponent("mise/downloads/node.tar.zst"))
+        try Data(repeating: 0x41, count: 16).write(to: root.appendingPathComponent("empty/.keep"))
+
+        let size = DoctorReportBuilder.directorySize(at: root)
+        XCTAssertEqual(size, 2048 + 512 + 16, "recursive byte size over regular files")
+
+        let missing = DoctorReportBuilder.directorySize(at: root.appendingPathComponent("nope"))
+        XCTAssertEqual(missing, 0, "a missing directory measures zero, not an error")
+    }
+
+    func testToolchainCacheSectionSelectionBreakdownUsesConfigSubdirectories() throws {
+        // The pure mapping: a toolchains selection yields exactly its mapped
+        // subdirectories (deduplicated), in stable order, even for dirs that
+        // don't exist yet (measured as zero bytes).
+        var cfg = Self.config()
+        cfg.toolchains = OrchardConfig.ToolchainsConfig(specs: ["go@1.23", "go@latest"])
+        let section = DoctorReportBuilder.toolchainCacheSection(config: cfg)
+        if section.usable {
+            XCTAssertEqual(section.ecosystems.map(\.directory), ["mise", "go/mod", "go/build"],
+                           "the breakdown mirrors the selection's cache map (deduped, MISE umbrella first)")
+        }
+    }
 }

@@ -272,14 +272,17 @@ installs — `npm ci`, `pnpm install`, `mise install`, `fvm install`, `dotnet re
 This is best-effort and off by default: the tools tolerate concurrent VM writers (worst
 case a duplicate download), but it does share cache state across ephemeral jobs.
 
-The apple/container (Linux) path is covered too: `image prepare --container` bind-mounts
-the same host cache into the scratch container (`container run -v host:guest`), bakes the
-config's `toolchains:` with a Linux-specific script (apt for dotnet, mise bootstrapped on
-demand; macOS-only entries like brew tools, fvm, and CocoaPods are skipped with a note),
+Both Linux runtimes are covered too: `image prepare --container` and `image prepare
+--docker` bind-mount the same host cache into their scratch containers (`-v host:guest`),
+bake the config's `toolchains:` with a Linux-specific script (apt for dotnet, mise
+bootstrapped on demand; macOS-only entries like brew tools, fvm, and CocoaPods are
+skipped with a note — override per prepare with `--linux-toolchain`/`--linux-stack`),
 and with `share_cache: true` every Linux runner container gets the same `-v` mount plus
 the guarded cache-env exports in its registration script — pointing at the container-side
 path `/var/orchard-cache`. macOS-only and cross-platform selections resolve independently
 per platform, so a mixed fleet shares one host cache without cross-contaminating guests.
+`orchard doctor` reports the cache's size and per-ecosystem breakdown (human output and
+the `toolchainCache` section of `--json`).
 
 The cache auto-expires — default 30 days since last use, with LRU eviction past 50 GB —
 and a one-hour grace window means a prune can never race a live download. Tune or
@@ -496,7 +499,7 @@ docker:
   max_slots: 8 # hard cap on concurrent container slots
 ```
 
-When `docker:` is configured, the checklist and `orchard doctor` gain Docker rows (daemon reachable, image present) exactly like the container rows; without it, they never appear. Docker slots register with an `orchard-docker` label so jobs opt in via `runs-on: [orchard-docker]`, and `max_slots` clamps the budget partition. The toolchain cache mount is a macOS virtiofs share — Linux containers ignore it (use `toolchains:` baked into the image instead).
+When `docker:` is configured, the checklist and `orchard doctor` gain Docker rows (daemon reachable, image present) exactly like the container rows; without it, they never appear. Docker slots register with an `orchard-docker` label so jobs opt in via `runs-on: [orchard-docker]`, and `max_slots` clamps the budget partition. The shared toolchain cache works here too: `image prepare --docker` bind-mounts the host cache into the scratch container and bakes the config's `toolchains:` (macOS-only entries are skipped with a note; override per prepare with `--linux-toolchain`/`--linux-stack`), and with `share_cache: true` every Docker slot gets the same `-v` mount plus the guarded cache-env exports in its registration script.
 
 #### Building the Docker image with a Dockerfile (CI-friendly)
 
@@ -531,7 +534,7 @@ docker build --platform linux/arm64 -t ghcr.io/acme/orchard-ci-linux:latest .
 docker push ghcr.io/acme/orchard-ci-linux:latest
 ```
 
-Then point `docker.image:` at the pushed reference. Bake your toolchains into the image the same way (`toolchains:` via a provision script in the Dockerfile) — the virtiofs host cache does not reach Linux containers, so anything the jobs need must live in the image. Unlike `image prepare`, the Dockerfile bakes both agents unconditionally; that's harmless, since agents only register when your fleet has a stored token for their platform. Pin the `ARG`s to a release (the versions above match Orchard's current pinned fallbacks) and bump them deliberately.
+Then point `docker.image:` at the pushed reference. Bake your toolchains into the image the same way (`toolchains:` via a provision script in the Dockerfile) — a CI-built image has no access to the host cache during its build, so anything the jobs need must live in the image (runners on your own host still get the shared-cache mount at runtime when `share_cache: true`). Unlike `image prepare`, the Dockerfile bakes both agents unconditionally; that's harmless, since agents only register when your fleet has a stored token for their platform. Pin the `ARG`s to a release (the versions above match Orchard's current pinned fallbacks) and bump them deliberately.
 
 ### Per-repo & per-workflow runtime routing
 
