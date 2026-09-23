@@ -488,6 +488,41 @@ docker:
 
 When `docker:` is configured, the checklist and `orchard doctor` gain Docker rows (daemon reachable, image present) exactly like the container rows; without it, they never appear. Docker slots register with an `orchard-docker` label so jobs opt in via `runs-on: [orchard-docker]`, and `max_slots` clamps the budget partition. The toolchain cache mount is a macOS virtiofs share — Linux containers ignore it (use `toolchains:` baked into the image instead).
 
+#### Building the Docker image with a Dockerfile (CI-friendly)
+
+`orchard image prepare --docker` bakes the image on the spot — fine for a one-host setup, but it needs a stored token and a live daemon on the machine doing the baking. For a reproducible, CI-buildable image, use a Dockerfile instead: it lands the runner agents at exactly the paths the registration scripts expect (`/opt/actions-runner` with `config.sh`, `/opt/gitea-runner/gitea-runner`), performs the same downloads `image prepare` would, and can be built anywhere with an `linux/arm64` builder (Apple silicon hosts run arm64 containers — keep the platform pinned):
+
+```dockerfile
+# orchard-ci-linux — Orchard runner agents on arm64 Linux
+# docker build --platform linux/arm64 -t ghcr.io/acme/orchard-ci-linux:latest .
+FROM ubuntu:24.04
+
+ARG RUNNER_VERSION=2.325.0      # pin to a github/actions/runner release
+ARG GITEA_RUNNER_VERSION=3.5.0  # pin to a gitea/runner release
+
+# GitHub Actions agent at /opt/actions-runner (config.sh must be executable there)
+RUN mkdir -p /opt/actions-runner \
+ && cd /opt/actions-runner \
+ && curl -fsSL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz" | tar xz \
+ && ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
+
+# Gitea runner at /opt/gitea-runner/gitea-runner
+RUN mkdir -p /opt/gitea-runner \
+ && cd /opt/gitea-runner \
+ && curl -fsSL "https://gitea.com/gitea/runner/releases/download/v${GITEA_RUNNER_VERSION}/gitea-runner-${GITEA_RUNNER_VERSION}-linux-arm64.xz" -o runner.xz \
+ && xz -d runner.xz && chmod +x runner && mv runner gitea-runner \
+ && ./gitea-runner --version
+```
+
+Build and push from CI (any linux/arm64 runner — or amd64 with QEMU):
+
+```bash
+docker build --platform linux/arm64 -t ghcr.io/acme/orchard-ci-linux:latest .
+docker push ghcr.io/acme/orchard-ci-linux:latest
+```
+
+Then point `docker.image:` at the pushed reference. Bake your toolchains into the image the same way (`toolchains:` via a provision script in the Dockerfile) — the virtiofs host cache does not reach Linux containers, so anything the jobs need must live in the image. Unlike `image prepare`, the Dockerfile bakes both agents unconditionally; that's harmless, since agents only register when your fleet has a stored token for their platform. Pin the `ARG`s to a release (the versions above match Orchard's current pinned fallbacks) and bump them deliberately.
+
 ### Per-repo & per-workflow runtime routing
 
 One fleet can mix runtimes: macOS repos on Tart VMs, Linux repos in Apple containers. Add a `runtimes:` section to route per repo — and override per **workflow** (or per job) with labels:
