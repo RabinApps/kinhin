@@ -6,7 +6,7 @@
 
 ## 1. Problem
 
-Orchard currently hardwires one execution runtime: every runner is a Tart macOS VM. That costs a
+kinhin currently hardwires one execution runtime: every runner is a Tart macOS VM. That costs a
 Tart dependency for users whose workloads are Linux-only, prevents cheaper execution for Linux
 jobs, and offers no story for trusted repos that want a warm, non-isolated runner. The Forge
 abstraction solved *who hands us jobs*; this layer solves *where jobs execute* — with per-repo
@@ -77,7 +77,7 @@ shape as `TartHealth` today, so the checklist renders it with existing machinery
 Consequences:
 
 - **Docker on macOS = Linux containers inside one Linux VM** (Docker Desktop/OrbStack/colima).
-  Orchard treats that Linux VM as *infrastructure* (started, monitored, counted in capacity),
+  kinhin treats that Linux VM as *infrastructure* (started, monitored, counted in capacity),
   not as a runner. One Linux VM serving N container slots is drastically cheaper than N macOS
   VMs — that is Docker mode's entire value proposition.
 - **Host mode is opt-in per repo, with an explicit consent step in the UI** ("this runs repo
@@ -100,7 +100,7 @@ runtimes:
     - repo: acme/scripts       # trusted internal scripts, warm host runner
       runtime: host
       host:
-        labels: [orchard-host, trusted]
+        labels: [kinhin-host, trusted]
 ```
 
 Parse/validation rules (all in `ConfigLoader.parse`, mirroring `gitea:` handling):
@@ -128,7 +128,7 @@ Host budget (cores, RAM, disk) — after reserve:
 - `DockerRuntime`'s effective job cap = `min(linuxVMCap × max_slots, sum of per-route max_slots)`.
 - The engine's autoscaler input becomes a per-runtime demand/capacity matrix: demand assigned to
   a repo's route uses *that route's* runtime cap, not the global one. `FleetStatus` gains
-  `capacityByRuntime: [String: Int]?` so `orchard doctor`/status can show
+  `capacityByRuntime: [String: Int]?` so `kinhin doctor`/status can show
   `tart: 2 · docker: 12 slots · host: 2`.
 - Overcommit is impossible by construction: budgets partition, they never share.
 
@@ -192,7 +192,7 @@ Stages 1–2 land invisibly (no user-visible change); stage 3 is the first user-
 
 ## 10. Open questions
 
-1. Should the shared Linux VM be Orchard-managed or delegate to Docker Desktop's? (Recommendation:
+1. Should the shared Linux VM be kinhin-managed or delegate to Docker Desktop's? (Recommendation:
    delegate to the installed Docker provider; manage nothing.)
 2. Per-route `runners_per_vm`? v1: inherit the global value; per-route override only if a real
    workload demands it.

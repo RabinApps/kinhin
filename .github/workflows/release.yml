@@ -19,15 +19,15 @@ jobs:
 
       - name: Build DMG
         env:
-          ORCHARD_VERSION: ${{ steps.ver.outputs.version }}
+          KINHIN_VERSION: ${{ steps.ver.outputs.version }}
         run: ./scripts/make-dmg.sh
 
       - name: Zip CLI
         run: |
-          BIN_DIR="$(swift build -c release --show-bin-path --product orchard)"
+          BIN_DIR="$(swift build -c release --show-bin-path --product kinhin)"
           mkdir -p dist/cli
-          cp "$BIN_DIR/orchard" dist/cli/
-          cd dist/cli && zip ../orchard-cli-${{ steps.ver.outputs.version }}-arm64.zip orchard
+          cp "$BIN_DIR/kinhin" dist/cli/
+          cd dist/cli && zip ../kinhin-cli-${{ steps.ver.outputs.version }}-arm64.zip kinhin
 
       - name: Stage installer
         run: cp scripts/install.sh dist/install.sh
@@ -35,14 +35,14 @@ jobs:
       - name: Checksums
         run: |
           cd dist
-          shasum -a 256 Orchard-*.dmg orchard-cli-*.zip install.sh > checksums.txt
+          shasum -a 256 kinhin-*.dmg kinhin-cli-*.zip install.sh > checksums.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/Orchard-*.dmg
-            dist/orchard-cli-*.zip
+            dist/kinhin-*.dmg
+            dist/kinhin-cli-*.zip
             dist/install.sh
             dist/checksums.txt
           generate_release_notes: true

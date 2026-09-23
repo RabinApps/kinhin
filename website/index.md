@@ -1,0 +1,32 @@
+---
+layout: home
+
+hero:
+  name: 'kinhin ○'
+  text: 'The mindful CI'
+  tagline: Autoscaling CI runners that live on your Mac — ephemeral, resource-aware, and gone when the job is done. macOS jobs run on Tart VMs; Linux jobs on apple/container microVMs or Docker.
+  actions:
+    - theme: brand
+      text: Get started
+      link: /guide/quick-start
+    - theme: alt
+      text: CLI reference
+      link: /cli/commands
+    - theme: alt
+      text: Migrating from Orchard
+      link: /guide/migrating
+
+features:
+  - title: Ephemeral by default
+    details: Every job gets a freshly cloned VM. The runner deregisters itself afterwards and the VM is deleted — no state leaks between jobs.
+  - title: Multi-forge
+    details: GitHub Actions and Gitea Actions served from one shared pool. The Forge abstraction keeps the door open for Forgejo, GitLab, Buildkite and more.
+  - title: Multi-runtime
+    details: macOS jobs on Tart VMs, Linux jobs on apple/container microVMs or Docker containers — each job routed by repo, workflow, or runs-on label.
+  - title: Resource-aware
+    details: The scaler never exceeds what your Mac can handle. Host CPU, memory, and disk headroom are always reserved, and the budget is partitioned across runtime pools.
+  - title: Menu bar or headless
+    details: The same engine behind a macOS menu bar app or a LaunchAgent daemon — same config, either way, exactly one fleet.
+  - title: One-line install
+    details: curl … \| bash from GitHub Releases with sha256 verification, no Gatekeeper dance, and a clean uninstall.
+---

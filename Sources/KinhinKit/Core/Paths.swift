@@ -1,0 +1,85 @@
+import Foundation
+
+/// Filesystem locations for kinhin's support files and binary discovery.
+public enum Paths {
+    /// `~/Library/Application Support/Kinhin`
+    public static var appSupport: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return base.appendingPathComponent("Kinhin", isDirectory: true)
+    }
+
+    /// Support directory used by the pre-rename build ("Orchard").
+    static var legacyAppSupport: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return base.appendingPathComponent("Orchard", isDirectory: true)
+    }
+
+    /// One-time migration from the pre-rename support directory: when the
+    /// legacy `Application Support/Orchard` folder exists and the new one
+    /// does not, move it (same-volume rename; config, logs, toolchain cache
+    /// and state all carry over). Failures never block startup — the new
+    /// directory is simply created empty on the next line.
+    public static func migrateLegacySupportDirectory(fileManager: FileManager = .default) {
+        migrateLegacySupportDirectory(from: legacyAppSupport, to: appSupport, fileManager: fileManager)
+    }
+
+    /// Injectable core of the migration so tests can exercise it on temp dirs.
+    static func migrateLegacySupportDirectory(from legacy: URL, to new: URL, fileManager: FileManager = .default) {
+        guard fileManager.fileExists(atPath: legacy.path),
+              !fileManager.fileExists(atPath: new.path) else { return }
+        do {
+            try fileManager.createDirectory(at: new.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fileManager.moveItem(at: legacy, to: new)
+            Log.info("paths", "migrated pre-rename support directory (Orchard → Kinhin)")
+        } catch {
+            Log.warn("paths", "could not migrate pre-rename support directory: \(error.localizedDescription)")
+        }
+    }
+
+    public static var config: URL { appSupport.appendingPathComponent("config.yaml") }
+
+    public static var logsDirectory: URL { appSupport.appendingPathComponent("logs", isDirectory: true) }
+
+    public static var keychainService: String { "com.kinhin.runner" }
+
+    /// Shared toolchain download cache (mise, brew, npm, fvm, Go, Cargo…).
+    /// Mounted read-write into scratch VMs at prepare time and — opt-in via
+    /// `toolchains.share_cache` — into runner VMs. See `ToolchainCacheMount`.
+    public static var toolchainCache: URL { appSupport.appendingPathComponent(ToolchainCacheMount.hostDirectoryName, isDirectory: true) }
+
+    /// Directory where per-VM bootstrap scripts and state live.
+    public static var stateDirectory: URL { appSupport.appendingPathComponent("state", isDirectory: true) }
+
+    public static func ensureSupportDirectories() {
+        migrateLegacySupportDirectory()
+        try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: logsDirectory, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: stateDirectory, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: toolchainCache, withIntermediateDirectories: true)
+    }
+
+    /// Locate a binary: explicit override, PATH, then Homebrew prefixes.
+    public static func findExecutable(named name: String, override: String? = nil) -> String? {
+        if let override, !override.isEmpty, FileManager.default.isExecutableFile(atPath: override) {
+            return override
+        }
+        // Honor the user's PATH first. PATH entries may be absolute (the
+        // common case) or relative — only prefix a slash for relative ones,
+        // or the resolved path doubles the leading slash ("//usr/local/bin/x").
+        if let pathVar = ProcessInfo.processInfo.environment["PATH"] {
+            for dir in pathVar.split(separator: ":") {
+                let prefix = dir.hasPrefix("/") ? "" : "/"
+                let candidate = "\(prefix)\(dir)/\(name)"
+                if FileManager.default.isExecutableFile(atPath: candidate) {
+                    return candidate
+                }
+            }
+        }
+        // Common Homebrew locations on Apple Silicon and Intel.
+        let brewCandidates = [
+            "/opt/homebrew/bin/\(name)",
+            "/usr/local/bin/\(name)",
+        ]
+        return brewCandidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+}

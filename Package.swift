@@ -2,14 +2,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "Orchard",
+    name: "kinhin",
     platforms: [
         .macOS(.v13),
     ],
     products: [
-        .executable(name: "orchard", targets: ["orchard"]),
-        .executable(name: "orchard-app", targets: ["orchard-app"]),
-        .library(name: "OrchardKit", targets: ["OrchardKit"]),
+        .executable(name: "kinhin", targets: ["kinhin"]),
+        .executable(name: "kinhin-app", targets: ["kinhin-app"]),
+        .library(name: "KinhinKit", targets: ["KinhinKit"]),
     ],
     dependencies: [
         // YAML parsing for the config file.
@@ -18,40 +18,40 @@ let package = Package(
     targets: [
         // Shared engine library (no UI).
         .target(
-            name: "OrchardKit",
+            name: "KinhinKit",
             dependencies: [
                 .product(name: "Yams", package: "Yams"),
             ],
-            path: "Sources/OrchardKit"
+            path: "Sources/KinhinKit"
         ),
         // Menu bar application.
         .executableTarget(
-            name: "orchard-app",
-            dependencies: ["OrchardKit"],
-            path: "Sources/orchard-app"
+            name: "kinhin-app",
+            dependencies: ["KinhinKit"],
+            path: "Sources/kinhin-app"
         ),
         // Headless CLI.
         .executableTarget(
-            name: "orchard",
-            dependencies: ["OrchardKit"],
-            path: "Sources/orchard"
+            name: "kinhin",
+            dependencies: ["KinhinKit"],
+            path: "Sources/kinhin"
         ),
         .testTarget(
-            name: "OrchardKitTests",
-            dependencies: ["OrchardKit"],
-            path: "Tests/OrchardKitTests"
+            name: "KinhinKitTests",
+            dependencies: ["KinhinKit"],
+            path: "Tests/KinhinKitTests"
         ),
        // Executable targets are importable from tests when their entry
         // point is declared with @main (not a main.swift file).
         .testTarget(
-            name: "OrchardCLITests",
-            dependencies: ["orchard"],
-            path: "Tests/OrchardCLITests"
+            name: "KinhinCLITests",
+            dependencies: ["kinhin"],
+            path: "Tests/KinhinCLITests"
         ),
         .testTarget(
-            name: "OrchardAppTests",
-            dependencies: ["orchard-app"],
-            path: "Tests/OrchardAppTests"
+            name: "KinhinAppTests",
+            dependencies: ["kinhin-app"],
+            path: "Tests/KinhinAppTests"
         ),
     ]
 )

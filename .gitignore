@@ -4,6 +4,7 @@
 *.xcodeproj
 dist/
 *.dmg
-orchard-cli-*.zip
+kinhin-cli-*.zip
+node_modules/
 .freebuff/
 bad.sha256
