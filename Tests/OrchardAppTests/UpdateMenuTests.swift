@@ -1,0 +1,101 @@
+import XCTest
+import AppKit
+import OrchardKit
+@testable import orchard_app
+
+@MainActor
+final class UpdateMenuTests: XCTestCase {
+    private var delegate: AppDelegate!
+    private var menu: NSMenu!
+
+    override func setUp() {
+        super.setUp()
+        delegate = AppDelegate()
+        menu = delegate.buildMenu()
+        delegate.menu = menu // refreshUpdateItems mutates the stored menu
+    }
+
+    private var updateItem: NSMenuItem? {
+        menu.items.first { $0.identifier?.rawValue == "updateItem" }
+    }
+
+    private var versionItem: NSMenuItem? {
+        guard let idx = menu.items.firstIndex(where: { $0.identifier?.rawValue == "updateItem" }),
+              menu.items.indices.contains(idx + 1) else { return nil }
+        return menu.items[idx + 1]
+    }
+
+    private func makeInfo(version: String = "9.9.9") -> UpdateInfo {
+        UpdateInfo(
+            tag: "v\(version)",
+            version: version,
+            dmgName: "Orchard-\(version)-arm64.dmg",
+            dmgURL: URL(string: "https://example.com/\(version).dmg")!,
+            releaseURL: URL(string: "https://example.com/releases/v\(version)")!,
+            publishedAt: Date(),
+            notes: "bigger, better, faster"
+        )
+    }
+
+    // MARK: menu states
+
+    func testNoPendingUpdateShowsCheckItem() {
+        delegate.pendingUpdate = nil
+        delegate.refreshUpdateItems()
+
+        XCTAssertEqual(updateItem?.title, "Check for Updates…")
+        XCTAssertEqual(updateItem?.isEnabled, true)
+        XCTAssertEqual(versionItem?.title, "  Orchard \(OrchardVersion.current)")
+        XCTAssertEqual(versionItem?.isEnabled, false)
+    }
+
+    func testPendingUpdateShowsDownloadPromotion() {
+        delegate.pendingUpdate = makeInfo()
+        delegate.refreshUpdateItems()
+
+        XCTAssertEqual(updateItem?.title, "Update available — Orchard 9.9.9…")
+        XCTAssertEqual(updateItem?.isEnabled, true)
+        XCTAssertEqual(versionItem?.title, "  Orchard \(OrchardVersion.current) (up to date)")
+        XCTAssertEqual(versionItem?.isEnabled, false)
+    }
+
+    func testPendingUpdateClearsBackToCheckState() {
+        delegate.pendingUpdate = makeInfo()
+        delegate.refreshUpdateItems()
+        delegate.pendingUpdate = nil
+        delegate.refreshUpdateItems()
+
+        XCTAssertEqual(updateItem?.title, "Check for Updates…")
+        XCTAssertEqual(versionItem?.title, "  Orchard \(OrchardVersion.current)")
+    }
+
+    // MARK: repo selection policy
+
+    func testEnvOverrideWinsWhenWellFormed() {
+        XCTAssertEqual(
+            UpdatePreferences.repo(fromEnvironment: ["ORCHARD_UPDATE_REPO": "fork-owner/orchard"]),
+            "fork-owner/orchard"
+        )
+    }
+
+    func testMalformedOrMissingOverrideFallsBackToDefault() {
+        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: [:]), "OWNER/orchard")
+        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["ORCHARD_UPDATE_REPO": ""]), "OWNER/orchard")
+        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["ORCHARD_UPDATE_REPO": "just-a-name"]), "OWNER/orchard")
+        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["ORCHARD_UPDATE_REPO": "a/b/c"]), "a/b/c", "contains a slash — honored as-is")
+    }
+
+    // MARK: last-check persistence
+
+    func testLastCheckRoundTripInScratchDefaults() {
+        let suiteName = "orchard-tests.lastcheck-\(UUID().uuidString)"
+        let suite = UserDefaults(suiteName: suiteName)!
+        defer { suite.removePersistentDomain(forName: suiteName) }
+
+        let stamp = Date(timeIntervalSince1970: 1_790_000_000)
+        XCTAssertLessThan(UpdatePreferences.lastCheck(in: suite), stamp, "unwritten defaults read as .distantPast")
+
+        UpdatePreferences.setLastCheck(stamp, in: suite)
+        XCTAssertEqual(UpdatePreferences.lastCheck(in: suite), stamp, "the 24h throttle stamp must survive a relaunch")
+    }
+}

@@ -1,0 +1,363 @@
+import Foundation
+
+/// One prerequisite row of the first-run checklist. The JSON contract shared
+/// by `orchard setup-status` and the menu bar setup window — treat field
+/// values (especially `id` and `action`) as a stable API.
+public struct SetupCheckResult: Codable, Equatable, Sendable {
+    /// Stable identifier: arch, tart, tart-rollback, config, token, image.
+    public let id: String
+    public let title: String
+    public let ok: Bool
+    /// Human-readable status line (contains no secrets).
+    public let detail: String
+    /// Stable action identifier for the fix button, or nil when nothing to do.
+    public let action: String?
+
+    public init(id: String, title: String, ok: Bool, detail: String, action: String?) {
+        self.id = id
+        self.title = title
+        self.ok = ok
+        self.detail = detail
+        self.action = action
+    }
+}
+
+/// The whole checklist plus whether onboarding is complete.
+public struct SetupStatus: Codable, Equatable, Sendable {
+    public let ready: Bool
+    public let checks: [SetupCheckResult]
+
+    public init(ready: Bool, checks: [SetupCheckResult]) {
+        self.ready = ready
+        self.checks = checks
+    }
+}
+
+/// Human-readable labels for the stable action identifiers — shared so the
+/// CLI and the app render the same fix-button text.
+public enum SetupAction {
+    public static func title(for action: String) -> String {
+        switch action {
+        case "fix_clt": return "Reinstall Command Line Tools"
+        case "install_tart": return "Install via Homebrew"
+        case "rollback_tart": return "Roll Back to Cirrus Build"
+        case "reinstall_tart": return "Reinstall via Homebrew"
+        case "create_config": return "Create Config"
+        case "edit_config": return "Edit Config"
+        case "enter_token": return "Enter Token…"
+        case "replace_token": return "Replace Token…"
+        case "enter_gitea_token": return "Enter Gitea Token…"
+        case "replace_gitea_token": return "Replace Gitea Token…"
+        case "install_container_cli": return "Install Apple container"
+        case "start_container_system": return "Start container system"
+        case "prepare_container_image": return "Prepare Container Image"
+        case "prepare_image": return "Prepare Image"
+        default: return action
+        }
+    }
+}
+
+/// Which config the checklist should see. `.live` probes the real machine;
+/// every other case is a hermetic fixture for tests (and for callers that
+/// already know the state). Replaces the old partial `configMissing` override.
+public enum ConfigScenario: Sendable {
+    /// Probe the real filesystem (front ends).
+    case live
+    /// Fresh machine: no config file.
+    case missing
+    /// File exists but does not parse/validate.
+    case invalid
+    /// Untouched starter template (placeholder repo).
+    case template
+    /// A caller-supplied parsed config (template-ness is detected from its repo).
+    case loaded(OrchardConfig)
+}
+
+/// Internal, fully-resolved view of the scenario — no filesystem at evaluation time.
+enum ConfigEvaluation {
+    case parsed(OrchardConfig)
+    case templateConfig
+    case invalidFile
+    case noFile
+}
+
+/// Computes the first-run prerequisite checklist. This is the single source of
+/// truth consumed by both front ends (`orchard setup-status` JSON and the menu
+/// bar setup window), so they can never drift apart.
+///
+/// All probes are injectable: pass a non-nil value to substitute a fixture
+/// (tests), or leave nil to probe the real machine (both front ends).
+public struct SetupStatusComputer: Sendable {
+    let host: HostResources?
+    let clt: CLTState?
+    let tartHealth: TartHealth?
+    let tartList: [TartVM]?
+    let config: ConfigScenario
+    let tokenStored: Bool?
+    let giteaTokenStored: Bool?
+    let containerHealth: RuntimeHealth?
+    let containerImages: [String]?
+
+    public init(
+        host: HostResources? = nil,
+        clt: CLTState? = nil,
+        tartHealth: TartHealth? = nil,
+        tartList: [TartVM]? = nil,
+        config: ConfigScenario = .live,
+        tokenStored: Bool? = nil,
+        giteaTokenStored: Bool? = nil,
+        containerHealth: RuntimeHealth? = nil,
+        containerImages: [String]? = nil
+    ) {
+        self.host = host
+        self.clt = clt
+        self.tartHealth = tartHealth
+        self.tartList = tartList
+        self.config = config
+        self.tokenStored = tokenStored
+        self.giteaTokenStored = giteaTokenStored
+        self.containerHealth = containerHealth
+        self.containerImages = containerImages
+    }
+
+    /// Loads the parsed config, or nil when missing/invalid.
+    static func liveConfig() -> OrchardConfig? {
+        guard FileManager.default.fileExists(atPath: Paths.config.path) else { return nil }
+        return try? ConfigLoader.load()
+    }
+
+    public func compute() async -> SetupStatus {
+        // Resolve the config scenario once. Every branch below reads the
+        // evaluation — never the real filesystem — so tests stay hermetic.
+        let evaluation: ConfigEvaluation
+        switch config {
+        case .live:
+            if let cfg = Self.liveConfig() {
+                evaluation = ConfigLoader.isTemplate(cfg) ? .templateConfig : .parsed(cfg)
+            } else {
+                evaluation = FileManager.default.fileExists(atPath: Paths.config.path) ? .invalidFile : .noFile
+            }
+        case .missing:
+            evaluation = .noFile
+        case .invalid:
+            evaluation = .invalidFile
+        case .template:
+            evaluation = .templateConfig
+        case .loaded(let cfg):
+            evaluation = ConfigLoader.isTemplate(cfg) ? .templateConfig : .parsed(cfg)
+        }
+        var parsed: OrchardConfig?
+        if case .parsed(let cfg) = evaluation { parsed = cfg }
+
+        let realHost = host ?? ResourceProbe().snapshot()
+        let realCLT: CLTState
+        if let clt {
+            realCLT = clt
+        } else {
+            realCLT = await CLTProbe().check()
+        }
+        let realToken = tokenStored ?? (KeychainTokenStore.load() != nil)
+        let health: TartHealth
+        if let tartHealth {
+            health = tartHealth
+        } else {
+            health = await TartHealthProbe(configuredPath: parsed?.tartPath).check()
+        }
+
+        var checks: [SetupCheckResult] = []
+
+        // 1. Host
+        checks.append(SetupCheckResult(
+            id: "arch",
+            title: "Apple Silicon Mac",
+            ok: realHost.arm64,
+            detail: "\(realHost.logicalCores) cores · \(realHost.memoryGB) GB RAM · \(realHost.freeDiskGB) GB free disk",
+            action: nil
+        ))
+
+        // 2. Command Line Tools — Homebrew can't build anything without them.
+        // A mismatch here silently blocks the tart install, so it comes first.
+        checks.append(SetupCheckResult(
+            id: "clt",
+            title: "Command Line Tools",
+            ok: realCLT.isOK,
+            detail: realCLT.detail,
+            action: realCLT.isOK ? nil : "fix_clt"
+        ))
+
+        // 3. Tart (installed *and* launches)
+        let tartHealthy = health == .healthy
+        switch health {
+        case .healthy:
+            checks.append(SetupCheckResult(id: "tart", title: "Tart installed", ok: true, detail: "installed and launches", action: nil))
+        case .missing:
+            checks.append(SetupCheckResult(id: "tart", title: "Tart installed", ok: false, detail: "required to run macOS VMs", action: "install_tart"))
+        case .killedOnLaunch:
+            checks.append(SetupCheckResult(
+                id: "tart-rollback",
+                title: "Tart is killed on launch",
+                ok: false,
+                detail: "Gatekeeper blocked the un-notarized binary (openai/homebrew-tools#27) — roll back to the notarized Cirrus Labs build",
+                action: "rollback_tart"
+            ))
+        case .broken(let reason):
+            checks.append(SetupCheckResult(id: "tart", title: "Tart is not working", ok: false, detail: "\(reason) — reinstall, or roll back to the Cirrus build", action: "reinstall_tart"))
+        }
+
+        // 4. Config — four states: working config, untouched template (the
+        // placeholder repo must never earn a green checkmark), invalid file,
+        // or none.
+        checks.append(Self.configCheck(evaluation, path: Paths.config.path))
+
+        // 5. Token(s) — GitHub always (replaceable even when stored);
+        // a Gitea row appears when the config declares that forge.
+        checks.append(SetupCheckResult(
+            id: "token",
+            title: "GitHub token stored",
+            ok: realToken,
+            detail: realToken ? "stored in Keychain" : "a PAT with repo scope is required",
+            action: realToken ? "replace_token" : "enter_token"
+        ))
+        if case .parsed(let cfg) = evaluation, cfg.gitea != nil {
+            let giteaToken = giteaTokenStored ?? (KeychainTokenStore.load(forge: .gitea) != nil)
+            checks.append(SetupCheckResult(
+                id: "gitea-token",
+                title: "Gitea token stored",
+                ok: giteaToken,
+                detail: giteaToken ? "stored in Keychain" : "a Gitea access token with runner-management rights is required (orchard auth set --gitea)",
+                action: giteaToken ? "replace_gitea_token" : "enter_gitea_token"
+            ))
+        }
+
+        // 6. Runner image
+        var imageOK = false
+        var imageDetail = "run after tart is installed"
+        if !tartHealthy {
+            imageDetail = health == .missing ? "run after tart is installed" : "could not launch tart"
+        } else if let cfg = parsed {
+            let images: [TartVM]?
+            if let tartList {
+                images = tartList
+            } else if let controller = try? TartController(configuredPath: cfg.tartPath) {
+                images = try? await controller.list()
+            } else {
+                images = nil
+            }
+            if let images {
+                imageOK = images.contains { $0.name == cfg.image || $0.source == cfg.image }
+                imageDetail = imageOK ? "image '\(cfg.image)' found" : "image '\(cfg.image)' not local yet"
+            } else {
+                imageDetail = "could not launch tart"
+            }
+        }
+        checks.append(SetupCheckResult(
+            id: "image",
+            title: "Runner image prepared",
+            ok: imageOK,
+            detail: imageDetail,
+            action: imageOK ? nil : "prepare_image"
+        ))
+
+        // 7. Apple-container runtime — rows appear only when the config
+        // enables the container runtime, mirroring the gitea-token row.
+        if case .parsed(let cfg) = evaluation, cfg.container != nil {
+            let resolvedHealth: RuntimeHealth
+            if let containerHealth {
+                resolvedHealth = containerHealth
+            } else {
+                resolvedHealth = await AppleContainerRuntime().health()
+            }
+            switch resolvedHealth {
+            case .ready:
+                checks.append(SetupCheckResult(
+                    id: "container-cli",
+                    title: "Apple container",
+                    ok: true,
+                    detail: "installed and the container system is running",
+                    action: nil
+                ))
+            case .missing:
+                checks.append(SetupCheckResult(
+                    id: "container-cli",
+                    title: "Apple container",
+                    ok: false,
+                    detail: "the container CLI is required for Linux container runners",
+                    action: "install_container_cli"
+                ))
+            case .broken(let why):
+                checks.append(SetupCheckResult(
+                    id: "container-cli",
+                    title: "Apple container",
+                    ok: false,
+                    detail: why,
+                    action: "start_container_system"
+                ))
+            default:
+                break
+            }
+
+            let wanted = cfg.container?.image ?? "orchard-ci-linux"
+            let listed: [String]
+            if let containerImages {
+                listed = containerImages
+            } else if resolvedHealth.isReady {
+                listed = await AppleContainerRuntime().localImageNames()
+            } else {
+                listed = []
+            }
+            let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
+            checks.append(SetupCheckResult(
+                id: "container-image",
+                title: "Container image prepared",
+                ok: imageFound,
+                detail: !resolvedHealth.isReady
+                    ? "run after the container system is running"
+                    : (imageFound ? "image '\(wanted)' found" : "image '\(wanted)' not local yet"),
+                action: imageFound ? nil : "prepare_container_image"
+            ))
+        }
+
+        return SetupStatus(ready: checks.allSatisfy(\.ok), checks: checks)
+    }
+
+    /// The full config row, total over every evaluation state: working config
+    /// (ok), untouched template (created — needs your repo, Edit Config),
+    /// invalid file, or missing (Create Config).
+    static func configCheck(_ evaluation: ConfigEvaluation, path: String) -> SetupCheckResult {
+        switch evaluation {
+        case .parsed(let cfg):
+            let scope = cfg.repo.contains("/") ? "repo: \(cfg.repo)" : "org: \(cfg.repo) (all its repos)"
+            return SetupCheckResult(
+                id: "config",
+                title: "Config created",
+                ok: true,
+                detail: "\(scope) · labels: \(cfg.labels.joined(separator: ","))",
+                action: nil
+            )
+        case .templateConfig:
+            return SetupCheckResult(
+                id: "config",
+                title: "Config created",
+                ok: false,
+                detail: "template created — set your repo in \(path)",
+                action: "edit_config"
+            )
+        case .invalidFile:
+            return SetupCheckResult(
+                id: "config",
+                title: "Config created",
+                ok: false,
+                detail: "\(path) (invalid)",
+                action: "create_config"
+            )
+        case .noFile:
+            return SetupCheckResult(
+                id: "config",
+                title: "Config created",
+                ok: false,
+                detail: "not created yet",
+                action: "create_config"
+            )
+        }
+    }
+}

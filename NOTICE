@@ -1,0 +1,11 @@
+Orchard
+Copyright 2026 Rabin Apps, LLC
+
+This product includes software developed by Rabin Apps, LLC (https://github.com/rabinapps).
+
+This product depends on:
+  - Tart (https://github.com/openai/tart) — macOS virtualization for Apple Silicon,
+    licensed under the Apache License 2.0.
+  - container (https://github.com/apple/container) - A tool for creating and running Linux containers using lightweight virtual machines on a Mac, licensed under the Apache License 2.0.
+  - Yams (https://github.com/jpsim/Yams) — YAML parsing for Swift,
+    licensed under the Apache License 2.0.
