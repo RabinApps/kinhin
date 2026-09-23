@@ -36,12 +36,18 @@ public struct RepoRoute: Sendable, Equatable {
     public let image: String
     public let ephemeral: Bool
     public let bootTimeout: Int
+    /// Opt-in (`toolchains.share_cache`): share the host toolchain cache
+    /// into every runner VM of this route via virtiofs, so per-job installs
+    /// (`npm ci`, `mise install`, `fvm install`, `dotnet restore`) hit warm
+    /// cache. Best-effort — see `ToolchainCacheMount`.
+    public let cacheMount: Bool
 
-    public init(repo: String, image: String, ephemeral: Bool, bootTimeout: Int) {
+    public init(repo: String, image: String, ephemeral: Bool, bootTimeout: Int, cacheMount: Bool = false) {
         self.repo = repo
         self.image = image
         self.ephemeral = ephemeral
         self.bootTimeout = bootTimeout
+        self.cacheMount = cacheMount
     }
 
     /// The route implied by today's single-fleet config.
@@ -50,7 +56,8 @@ public struct RepoRoute: Sendable, Equatable {
             repo: config.repo,
             image: config.image,
             ephemeral: config.vm.ephemeral,
-            bootTimeout: config.vmBootTimeout
+            bootTimeout: config.vmBootTimeout,
+            cacheMount: config.toolchains?.shareCache ?? false
         )
     }
 }
@@ -97,10 +104,21 @@ public struct TartRuntime: Runtime {
     public let id: RuntimeID = .tart
     let tart: TartControlling
     let bootTimeout: @Sendable () -> Int
+    /// The resolved managed-toolchain selection (cache envs come from here
+    /// when `share_cache` mounts the host cache into runner VMs).
+    let toolchainsConfig: @Sendable () -> OrchardConfig.ToolchainsConfig?
 
-    public init(tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int) {
+    /// Cache envs to export in registration scripts when the route mounts
+    /// the shared cache. Computed once per script request from live config.
+    var cachedToolchainSelection: ManagedToolchainSelection? {
+        guard let config = toolchainsConfig() else { return nil }
+        return ToolchainCatalog.selection(from: config)
+    }
+
+    public init(tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, toolchainsConfig: @escaping @Sendable () -> OrchardConfig.ToolchainsConfig? = { nil }) {
         self.tart = tart
         self.bootTimeout = bootTimeout
+        self.toolchainsConfig = toolchainsConfig
     }
 
     public func health() async -> RuntimeHealth {
@@ -126,14 +144,28 @@ public struct TartRuntime: Runtime {
         }
         Log.info(id, "cloning from \(route.image)")
         try await tart.clone(source: route.image, to: id)
-        try await tart.run(name: id)
+        let mounts = route.cacheMount ? [ToolchainCacheMount.guestPath] : []
+        try await tart.run(name: id, mounts: mounts)
     }
 
     public func registrationScript(forge: Forge, token: String, name: String,
                                    runnerCount: Int, route: RepoRoute, labels: [String]?) async throws -> String {
+        // Opt-in shared cache: point the selected ecosystems' caches at the
+        // mounted host share so per-job installs reuse warm downloads. The
+        // env prefix is prepended to whichever registration script the forge
+        // produces; exports are guarded no-ops when the share is absent.
+        let cachePrefix: String
+        if route.cacheMount, let selection = cachedToolchainSelection {
+            cachePrefix = RunnerBootstrap.cacheEnvExports(
+                cacheEnvs: selection.cacheEnvs,
+                mountPath: ToolchainCacheMount.guestPath
+            ) + "\n\n"
+        } else {
+            cachePrefix = ""
+        }
         switch forge.credentials {
         case .github:
-            return RunnerBootstrap.registrationScript(
+            return cachePrefix + RunnerBootstrap.registrationScript(
                 configureURL: forge.registrationURL(),
                 token: token,
                 labels: labels ?? forge.labels,
@@ -142,7 +174,7 @@ public struct TartRuntime: Runtime {
                 runnerCount: runnerCount
             )
         case .gitea:
-            return RunnerBootstrap.giteaRegistrationScript(
+            return cachePrefix + RunnerBootstrap.giteaRegistrationScript(
                 instance: forge.registrationURL(),
                 token: token,
                 labels: forge.labels,

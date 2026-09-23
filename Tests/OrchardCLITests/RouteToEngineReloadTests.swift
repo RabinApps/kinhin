@@ -76,7 +76,7 @@ final class RouteToEngineReloadTests: XCTestCase {
     private struct StubTart: TartControlling {
         func list() async throws -> [TartVM] { [] }
         func clone(source: String, to name: String) async throws {}
-        func run(name: String) async throws {}
+        func run(name: String, mounts: [String]) async throws {}
         func ip(of name: String, timeout: TimeInterval) async throws -> String { "192.168.64.2" }
         func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
             ShellResult(exitCode: 0, stdout: "", stderr: "")

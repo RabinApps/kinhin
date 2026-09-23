@@ -183,8 +183,10 @@ extension SetupWindowController {
             let preparer = ImagePreparer(tart: tart, ssh: SSHExecutor())
             var options = ImagePreparer.Options()
             // The app's one-click prepare bakes the config's provision
-            // script too (same rule as the CLI's `image prepare`).
+            // script and managed toolchains too (same rule as the CLI's
+            // `image prepare`).
             options.provisionScriptPath = cfg.provisionScript
+            options.toolchains = cfg.toolchains
             try await preparer.run(options)
         }
     }

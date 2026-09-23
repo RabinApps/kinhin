@@ -58,6 +58,67 @@ public struct OrchardConfig: Sendable, Equatable {
     /// `orchard image prepare` (after the runner agents install) — the place
     /// for toolchains every runner VM should boot with (Go, Rust, a JDK…).
     public var provisionScript: String? = nil
+    /// Managed toolchains: declarative runtimes installed and pinned into
+    /// the base image by `orchard image prepare` (no hand-written script
+    /// required), with a host-side download cache shared across prepares —
+    /// and, opt-in, across runner VMs. nil = feature off, behavior unchanged.
+    public var toolchains: ToolchainsConfig? = nil
+
+    /// Declarative toolchain installs baked by `image prepare`. Every entry
+    /// installs exactly its own pieces — nothing is added implicitly. The
+    /// catalog (see `ToolchainCatalog`) is advisory: unknown `specs` pass
+    /// through to mise and unknown `brew` formulas pass through to brew.
+    public struct ToolchainsConfig: Sendable, Equatable {
+        /// mise specs, e.g. "go@1.23.4", "node@22", "java@temurin-17".
+        /// Installed with `mise use --global` so every runner shell sees them.
+        public var specs: [String]? = nil
+        /// Homebrew formulas/casks, e.g. "wget", "yamllint".
+        public var brew: [String]? = nil
+        /// Curated multi-tool recipes from the catalog, e.g. "flutter",
+        /// "flutter@3.24.0" (SDK version), "expo", "react-native", "vercel",
+        /// "cloudflare".
+        public var stacks: [String]? = nil
+        /// Opt-in: mount the host toolchain cache into every runner VM so
+        /// per-job installs (`npm ci`, `mise install`, `fvm install`,
+        /// `dotnet restore`) hit warm cache. Best-effort: concurrent VM
+        /// writers are tolerated by these tools (worst case a re-download).
+        public var shareCache: Bool? = nil
+        /// Host-side cache auto-expiry policy. Baked images are never
+        /// touched — only the regenerable download cache on the host.
+        public var cache: CachePolicy? = nil
+
+        /// Memberwise init is internal; this public init supports CLI
+        /// flag-only construction (e.g. `image prepare --toolchain go@1.23`).
+        public init(specs: [String]? = nil, brew: [String]? = nil, stacks: [String]? = nil, shareCache: Bool? = nil, cache: CachePolicy? = nil) {
+            self.specs = specs
+            self.brew = brew
+            self.stacks = stacks
+            self.shareCache = shareCache
+            self.cache = cache
+        }
+
+        public struct CachePolicy: Sendable, Equatable {
+            /// Daily prune while the fleet engine runs, and a sweep after
+            /// each successful image prepare.
+            public var autoPrune: Bool? = nil
+            /// Entries unused this many days are deleted (0 = no age limit).
+            public var maxAgeDays: Int? = nil
+            /// LRU eviction beyond this total size in GB (0 = no size limit).
+            public var maxGB: Int? = nil
+
+            enum CodingKeys: String, CodingKey {
+                case autoPrune = "auto_prune"
+                case maxAgeDays = "max_age_days"
+                case maxGB = "max_gb"
+            }
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case specs, brew, stacks
+            case shareCache = "share_cache"
+            case cache
+        }
+    }
 
     public struct ContainerConfig: Sendable, Equatable {
         /// Linux OCI image to run each runner container from (must be
@@ -176,6 +237,7 @@ public struct OrchardConfig: Sendable, Equatable {
         case container
         case runtimes
         case provisionScript = "provision_script"
+        case toolchains
     }
 
     public static let `default` = OrchardConfig(
@@ -194,7 +256,8 @@ public struct OrchardConfig: Sendable, Equatable {
         reserve: .default,
         container: nil,
         runtimes: nil,
-        provisionScript: nil
+        provisionScript: nil,
+        toolchains: nil
     )
 }
 
@@ -325,6 +388,9 @@ public struct ConfigLoader {
             }
             cfg.provisionScript = provision
         }
+        if let toolchains = partial.toolchains {
+            cfg.toolchains = try Self.parseToolchains(toolchains)
+        }
         if let gitea = partial.gitea {
             guard let instance = gitea.instance, !instance.isEmpty else {
                 throw ConfigError.invalid("gitea.instance is required (e.g. https://gitea.example.com)")
@@ -429,6 +495,112 @@ public struct ConfigLoader {
         return cfg
     }
 
+    // MARK: Toolchains section
+
+    /// Validates and resolves the `toolchains:` section. Beyond the usual
+    /// shape checks (non-empty entries, no duplicates per list, non-negative
+    /// cache values) this enforces the no-implicit-installs rule: a stack
+    /// that needs a runtime (e.g. vercel → node) fails validation naming the
+    /// fix, instead of silently installing the dependency.
+    ///
+    /// Public so the CLI can validate `image prepare --toolchain/--stack`
+    /// flag overrides through the exact same rules as config parsing.
+    public static func parseToolchains(_ partial: PartialConfig.PartialToolchains) throws -> OrchardConfig.ToolchainsConfig {
+        let specs = try Self.parseList(partial.specs, key: "toolchains.specs")
+        let brew = try Self.parseList(partial.brew, key: "toolchains.brew")
+        let stackNames = try Self.parseList(partial.stacks, key: "toolchains.stacks")
+
+        var toolchains = OrchardConfig.ToolchainsConfig(
+            specs: partial.specs != nil ? specs : nil,
+            brew: partial.brew != nil ? brew : nil,
+            stacks: partial.stacks != nil ? stackNames : nil,
+            shareCache: partial.share_cache,
+            cache: nil
+        )
+
+        if let cache = partial.cache {
+            if let auto = cache.auto_prune, auto == false, cache.max_age_days == nil, cache.max_gb == nil {
+                throw ConfigError.invalid("toolchains.cache: set auto_prune: false together with explicit max_age_days / max_gb values, or remove the cache section (the defaults are auto_prune: true, 30 days, 50 GB)")
+            }
+            if let days = cache.max_age_days, days < 0 {
+                throw ConfigError.invalid("toolchains.cache.max_age_days must be >= 0 (0 = no age limit)")
+            }
+            if let gb = cache.max_gb, gb < 0 {
+                throw ConfigError.invalid("toolchains.cache.max_gb must be >= 0 (0 = no size limit)")
+            }
+            toolchains.cache = OrchardConfig.ToolchainsConfig.CachePolicy(
+                autoPrune: cache.auto_prune,
+                maxAgeDays: cache.max_age_days,
+                maxGB: cache.max_gb
+            )
+        }
+
+        // Stack ids must be known, and their runtime prerequisites must be
+        // explicitly selected. Unknown specs/brew entries stay legal (pass-
+        // through); stacks are Orchard-curated so an unknown id is a typo.
+        var resolvedStacks: [ToolchainStack] = []
+        for name in stackNames {
+            let (id, _) = ToolchainStack.splitSpec(name)
+            guard let stack = ToolchainCatalog.stack(id: id) else {
+                throw ConfigError.invalid("toolchains.stacks: unknown stack '\(id)' (known: \(ToolchainCatalog.stacks.map(\.id).joined(separator: ", ")))")
+            }
+            resolvedStacks.append(stack)
+        }
+
+        // No implicit installs: each stack's runtime requirements must be
+        // selected explicitly. `dotnet` in specs is the C#/.NET toolchain;
+        // `node` covers every node-family entry.
+        let specRoots = Set(specs.map { ToolchainCatalog.rootTool(of: $0) })
+        for stack in resolvedStacks {
+            for requirement in stack.requires {
+                let satisfied: Bool
+                switch requirement {
+                case .node: satisfied = specRoots.contains("node")
+                case .dotnet: satisfied = specRoots.contains("dotnet")
+                }
+                guard satisfied else {
+                    throw ConfigError.invalid("toolchains: stack '\(stack.id)' requires \(requirement.rawValue) — add it to toolchains.specs (e.g. \"node@22\")")
+                }
+            }
+        }
+
+        // Same no-implicit-installs rule for individual tools that need a
+        // runtime (pnpm, yarn, playwright, cypress, netlify-cli, …).
+        for spec in specs {
+            let root = ToolchainCatalog.rootTool(of: spec)
+            guard let tool = ToolchainCatalog.tool(id: root), !tool.requires.isEmpty else { continue }
+            for requirement in tool.requires {
+                let satisfied: Bool
+                switch requirement {
+                case .node: satisfied = specRoots.contains("node")
+                case .dotnet: satisfied = specRoots.contains("dotnet")
+                }
+                guard satisfied else {
+                    throw ConfigError.invalid("toolchains: '\(root)' requires \(requirement.rawValue) — add it to toolchains.specs (e.g. \"node@22\")")
+                }
+            }
+        }
+
+        return toolchains
+    }
+
+    /// Shared list parsing: every entry non-empty, no duplicates, list must
+    /// not be all-whitespace. Returns [] for an absent list.
+    static func parseList(_ raw: [String]?, key: String) throws -> [String] {
+        guard let raw else { return [] }
+        var seen = Set<String>()
+        for entry in raw {
+            let trimmed = entry.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                throw ConfigError.invalid("\(key) entries must not be empty")
+            }
+            guard seen.insert(trimmed).inserted else {
+                throw ConfigError.invalid("\(key): duplicate entry '\(trimmed)'")
+            }
+        }
+        return raw
+    }
+
     /// The commented default template written by `orchard config init`.
     public static func template() -> String {
         """
@@ -493,6 +665,23 @@ public struct ConfigLoader {
         # output is logged, recording what went into the image.
         # provision_script: "~/orchard/provision.sh"
 
+        # Optional: managed toolchains — Orchard installs and pins the
+        # runtimes below into the base image (no script to write), with
+        # version prints logged as the audit trail. Every entry installs
+        # exactly its own pieces; a stack that needs a runtime (vercel needs
+        # node) is a validation error until you list that runtime too.
+        # Unknown specs pass through to mise, unknown brew entries to brew —
+        # see `orchard toolchains` for the curated catalog.
+        # toolchains:
+        #   specs: ["go@1.23.4", "node@22", "bun@1.1.27", "deno@2", "java@temurin-17", "dotnet", "uv"]
+        #   brew: ["wget", "cmake", "yamllint"]
+        #   stacks: ["flutter@3.24.0", "expo", "react-native", "vercel", "cloudflare"]
+        #   share_cache: false   # mount the host download cache into runner VMs (opt-in)
+        #   cache:               # host-side cache auto-expiry (baked images are never touched)
+        #     auto_prune: true   # sweep after each prepare + daily while the fleet runs
+        #     max_age_days: 30   # entries unused this long are deleted (0 = never)
+        #     max_gb: 50         # LRU eviction beyond this size (0 = unlimited)
+
         # Optional: also serve Gitea Actions from the same fleet. VMs are
         # assigned to whichever forge (GitHub or Gitea) has the most pending
         # work at spawn time. Requires a Gitea access token (orchard auth set
@@ -534,7 +723,9 @@ public struct ConfigLoader {
 
 /// Decode target mirroring OrchardConfig but with all fields optional so we
 /// can produce precise validation errors instead of opaque decode failures.
-struct PartialConfig: Decodable {
+/// Public because the toolchains validation entry (`parseToolchains`) takes
+/// a `PartialToolchains` — the CLI's flag overrides reuse the same rules.
+public struct PartialConfig: Decodable {
     var repo: String?
     var labels: [String]?
     var min_runners: Int?
@@ -552,6 +743,7 @@ struct PartialConfig: Decodable {
     var container: PartialContainer?
     var runtimes: PartialRuntimes?
     var provision_script: String?
+    var toolchains: PartialToolchains?
 
     struct PartialGitea: Decodable {
         var instance: String?
@@ -586,5 +778,35 @@ struct PartialConfig: Decodable {
     struct PartialReserve: Decodable {
         var cpu: Int?
         var memory_gb: Int?
+    }
+
+    /// Public because `ConfigLoader.parseToolchains` (the shared validation
+    /// entry the CLI uses for `--toolchain/--stack` overrides) exposes it.
+    public struct PartialToolchains: Decodable {
+        public var specs: [String]?
+        public var brew: [String]?
+        public var stacks: [String]?
+        public var share_cache: Bool?
+        public var cache: PartialCachePolicy?
+
+        public init(specs: [String]? = nil, brew: [String]? = nil, stacks: [String]? = nil, share_cache: Bool? = nil, cache: PartialCachePolicy? = nil) {
+            self.specs = specs
+            self.brew = brew
+            self.stacks = stacks
+            self.share_cache = share_cache
+            self.cache = cache
+        }
+    }
+
+    public struct PartialCachePolicy: Decodable {
+        public var auto_prune: Bool?
+        public var max_age_days: Int?
+        public var max_gb: Int?
+
+        public init(auto_prune: Bool? = nil, max_age_days: Int? = nil, max_gb: Int? = nil) {
+            self.auto_prune = auto_prune
+            self.max_age_days = max_age_days
+            self.max_gb = max_gb
+        }
     }
 }

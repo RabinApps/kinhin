@@ -14,6 +14,11 @@ public enum Paths {
 
     public static var keychainService: String { "com.orchard.runner" }
 
+    /// Shared toolchain download cache (mise, brew, npm, fvm, Go, Cargo…).
+    /// Mounted read-write into scratch VMs at prepare time and — opt-in via
+    /// `toolchains.share_cache` — into runner VMs. See `ToolchainCacheMount`.
+    public static var toolchainCache: URL { appSupport.appendingPathComponent(ToolchainCacheMount.hostDirectoryName, isDirectory: true) }
+
     /// Directory where per-VM bootstrap scripts and state live.
     public static var stateDirectory: URL { appSupport.appendingPathComponent("state", isDirectory: true) }
 
@@ -21,6 +26,7 @@ public enum Paths {
         try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: logsDirectory, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: stateDirectory, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: toolchainCache, withIntermediateDirectories: true)
     }
 
     /// Locate a binary: explicit override, PATH, then Homebrew prefixes.

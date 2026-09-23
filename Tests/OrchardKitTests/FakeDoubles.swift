@@ -9,6 +9,8 @@ final class FakeTart: TartControlling, @unchecked Sendable {
     var deleteCalls: [String] = []
     var pullCalls: [String] = []
     var runCalls: [String] = []
+    /// Host directories shared into each booted VM, per run call.
+    var runMounts: [[String]] = []
     var stopCalls: [String] = []
     var failNextClone = false
 
@@ -30,7 +32,15 @@ final class FakeTart: TartControlling, @unchecked Sendable {
     }
 
     func run(name: String) async throws {
-        lock.lock(); runCalls.append(name); lock.unlock()
+        try await run(name: name, mounts: [])
+    }
+
+    func run(name: String, mounts: [String]) async throws {
+        lock.lock()
+        runCalls.append(name)
+        runMounts.append(mounts)
+        if let vm = vms[name] { vms[name] = TartVM(name: vm.name, source: vm.source, status: "running", cpu: vm.cpu, memoryMB: vm.memoryMB, diskGB: vm.diskGB) }
+        lock.unlock()
     }
 
     func ip(of name: String, timeout: TimeInterval) async throws -> String {

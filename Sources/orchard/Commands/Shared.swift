@@ -60,8 +60,14 @@ func helpText() -> String {
         runtimes route remove <pat>     Delete that route; a running daemon reloads routing live
         image prepare [--provision-script <file>]
                                     Build the runner base image (slow, once); the script
-                                    bakes your toolchains in after the agents install
+                                    bakes your toolchains in after the agents install.
+                                    Also bakes `toolchains:` config entries and uses the
+                                    shared host download cache (auto-pruned)
+        image prepare --toolchain <spec> [--stack <name>]
+                                    Override the config's toolchains for this prepare
         image prepare --container   Build the Linux container image (apple container)
+        toolchains                  Managed-toolchain catalog, selections, and cache state
+        toolchains prune [--dry-run]   Expire stale host-cache entries now
 
     RUNNING:
         start                       Start the fleet in this terminal (Ctrl-C to stop)
@@ -167,6 +173,19 @@ func flag(_ name: String, in args: [String]) -> String? {
 
 func hasFlag(_ name: String, in args: [String]) -> Bool {
     args.contains(name)
+}
+
+/// All values for a repeatable `--flag <value>` argument, in order.
+func allFlags(_ name: String, in args: [String]) -> [String] {
+    var values: [String] = []
+    var index = args.startIndex
+    while let found = args[index...].firstIndex(of: name) {
+        let valueIndex = args.index(after: found)
+        guard valueIndex < args.endIndex else { break }
+        values.append(args[valueIndex])
+        index = args.index(after: valueIndex)
+    }
+    return values
 }
 
 /// Config-file management (the `config init` command).

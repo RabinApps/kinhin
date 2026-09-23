@@ -49,6 +49,15 @@ struct OrchardCLI {
             case .imagePrepare:
                 try await ImageCommand.run(args)
 
+            case .toolchains:
+                do {
+                    if args.dropFirst().first == "prune" {
+                        await ToolchainsCommand.prune(Array(args.dropFirst()))
+                    } else {
+                        await ToolchainsCommand.run(args)
+                    }
+                }
+
             case .start:
                 try await RunCommands.start(args)
 

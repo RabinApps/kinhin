@@ -67,6 +67,12 @@ final class ConfigInitAndHelpTests: XCTestCase {
         XCTAssertTrue(help.contains("--provision-script"), "help should advertise the provision-script flag")
     }
 
+    func testHelpTextMentionsToolchainFlagsAndCommand() {
+        let help = helpText()
+        XCTAssertTrue(help.contains("--toolchain"), "help should advertise the managed-toolchain override flag")
+        XCTAssertTrue(help.contains("toolchains prune"), "help should advertise the manual cache prune")
+    }
+
     func testHelpTextStaysHonestAboutSetupOrder() {
         let help = helpText()
         // The guided order matters: config → auth → image → start.

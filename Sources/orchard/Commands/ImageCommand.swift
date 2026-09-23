@@ -40,6 +40,20 @@ enum ImageCommand {
             // The flag wins over the config key; either may be absent (no
             // user script is baked in that case).
             options.provisionScriptPath = flag("--provision-script", in: args) ?? cfg.provisionScript
+            // Managed toolchains: config section by default; --toolchain /
+            // --stack flags (repeatable) override it for this prepare. A
+            // bare --toolchain/--stack means "no managed toolchains".
+            let specFlags = allFlags("--toolchain", in: args)
+            let stackFlags = allFlags("--stack", in: args)
+            if !specFlags.isEmpty || !stackFlags.isEmpty {
+                let override = PartialConfig.PartialToolchains(
+                    specs: specFlags.isEmpty ? nil : specFlags,
+                    stacks: stackFlags.isEmpty ? nil : stackFlags
+                )
+                options.toolchains = try ConfigLoader.parseToolchains(override)
+            } else {
+                options.toolchains = cfg.toolchains
+            }
             try await preparer.run(options)
             print("image ready: \(options.target)")
             print("set `image: \"\(options.target)\"` in your config to use it")

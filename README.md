@@ -206,6 +206,85 @@ provision_script: "~/orchard/provision.sh"
   `dtolnay/rust-toolchain`, and friends still work on Orchard runners and need no image
   work — at the cost of re-downloading the toolchain in every job.
 
+## Managed toolchains & the shared cache
+
+Instead of writing a provision script, declare the runtimes you want and let Orchard
+install, pin, and verify them during `orchard image prepare`:
+
+```yaml
+# config.yaml
+toolchains:
+  specs: ["go@1.23.4", "node@22", "bun@1.1.27", "deno@2", "java@temurin-17", "dotnet", "uv"]
+  brew: ["wget", "cmake", "yamllint"]
+  stacks: ["flutter@3.24.0", "expo", "react-native", "vercel", "cloudflare"]
+  share_cache: false
+  cache:
+    auto_prune: true   # sweep after each prepare + daily while the fleet runs
+    max_age_days: 30   # entries unused this long are deleted (0 = never)
+    max_gb: 50         # LRU eviction beyond this size (0 = unlimited)
+```
+
+- **Nothing is installed implicitly.** Every entry installs exactly its own pieces. A
+  stack that needs a runtime (e.g. `vercel` needs node) is a **validation error naming
+  the fix** ("add `node@22` to toolchains.specs") until you select that runtime too.
+- **The catalog is advisory.** Unknown specs pass through to mise and unknown brew
+  entries to brew — so the long tail (`zig`, `ghc`, `erlang`, `perl`, …) works today
+  with zero Orchard code. Run `orchard toolchains` to see the curated list: mise
+  runtimes (go, rust, node, bun, deno, python, ruby, java, uv, terraform, kubectl),
+  npm globals (pnpm, yarn, playwright, cypress, netlify-cli, firebase-tools), brew
+  tools (awscli, gcloud, flyctl, supabase, php, composer, yamllint, dotnet-sdk, and
+  fastlane as a gem), and curated stacks:
+  - **`flutter[@version]`** — Flutter SDK via `fvm` (brew tap `leoafarias/fvm`) +
+    CocoaPods; `@version` pins the SDK (`fvm install` + `fvm global`), default `stable`.
+  - **`expo[@eas-cli-version]`** — `eas-cli` npm-global (requires node).
+  - **`react-native`** — direct (no Expo): watchman + CocoaPods + JDK 17; add node
+    yourself if you build JS.
+  - **`vercel[@cli-version]`** — `vercel` CLI (requires node); **`cloudflare[@version]`**
+    — `wrangler` (requires node).
+- **Verification is the audit trail.** Each tool/stack carries a verify command
+  (`go version`, `dotnet --list-sdks`, `fvm flutter --version`…); the prepare aborts
+  with the old image intact if any check fails, and the version prints land in
+  `orchard logs`.
+- **Deploy auth stays per-job.** `VERCEL_TOKEN`, `CLOUDFLARE_API_TOKEN`, and cloud
+  credentials are passed via workflow `env:` — never baked into an image.
+
+### The shared download cache
+
+`image prepare` always mounts a host-side cache —
+`~/Library/Application Support/Orchard/toolchain-cache/` — into the scratch VM, so
+repeated prepares skip re-downloading mise tools, brew bottles, npm packages, and
+Flutter SDKs. Every ecosystem gets its own env redirect at install time:
+
+| Ecosystem | Envs pointed at the cache |
+| --- | --- |
+| mise / Homebrew | `MISE_CACHE_DIR`, `HOMEBREW_CACHE` |
+| npm / pnpm / yarn / bun | `NPM_CONFIG_CACHE`, `npm_config_store_dir`, `YARN_CACHE_FOLDER`, `BUN_INSTALL_CACHE_DIR` |
+| Flutter (fvm) | `FVM_CACHE_PATH` |
+| Go / Rust | `GOMODCACHE` + `GOCACHE`, `CARGO_HOME` |
+| Python | `UV_CACHE_DIR`, `PIP_CACHE_DIR` |
+| JVM | `GRADLE_USER_HOME` |
+| .NET | `NUGET_PACKAGES` |
+| e2e browsers | `PLAYWRIGHT_BROWSERS_PATH`, `CYPRESS_CACHE_FOLDER` |
+
+Set **`share_cache: true`** to mount the same cache into every runner VM: per-job
+installs — `npm ci`, `pnpm install`, `mise install`, `fvm install`, `dotnet restore`,
+`playwright install` — then hit warm cache instead of re-downloading gigabytes per job.
+This is best-effort and off by default: the tools tolerate concurrent VM writers (worst
+case a duplicate download), but it does share cache state across ephemeral jobs. The
+apple/container (Linux) path is not covered yet.
+
+The cache auto-expires — default 30 days since last use, with LRU eviction past 50 GB —
+and a one-hour grace window means a prune can never race a live download. Tune or
+disable it under `toolchains.cache`, sweep manually with `orchard toolchains prune
+[--dry-run]`, and inspect size/selections with `orchard toolchains`. Pruning touches
+only the regenerable host cache — never baked images or running VMs.
+
+Turbopack, Vite, Next.js, and other bundlers are **project dependencies** — they come
+from `node_modules` via `npm ci` in your workflow and are never installed into the
+image. What the toolchain guarantees is the base: node, `corepack enable` (so a
+project's `packageManager` field picks pnpm/yarn), and warm package caches for every
+package manager.
+
 ## Commands
 
 ```
@@ -222,7 +301,14 @@ orchard runtimes route add <pattern> <tart|appleContainer>
 orchard runtimes route remove <pattern>
                              Delete that route (e.g. `acme/api` or `acme/web@Nightly`)
 orchard image prepare        Build the runner base image (once); --provision-script <file>
-                             bakes your toolchains in (see below)
+                             bakes your toolchains in (see below); `toolchains:`
+                             config entries are baked automatically and downloads
+                             go through a shared host cache (auto-pruned)
+orchard image prepare --toolchain <spec> [--stack <name>]
+                             Override the config's toolchains for this prepare
+orchard toolchains           Managed-toolchain catalog, selections, shared-cache state
+orchard toolchains prune [--dry-run]
+                             Expire stale host-cache entries now
 orchard start                Run the fleet in the foreground
 orchard daemon               Run the daemon in the foreground
 orchard daemon install       Install + start the LaunchAgent
@@ -339,9 +425,10 @@ Inside the targets, code is organized by domain:
 | `orchard-app/AppDelegate.swift` | Lifecycle + engine wiring + refresh                                                                          |
 | `orchard-app/UI/`               | Extensions: menu/status item, actions, token replacement, update flow, setup repairs, Runtimes pane          |
 
-Tests: `swift test` (377 tests across three targets: the engine suite (OrchardKitTests — store, RPC, SSH, image pipeline, tart-health, CLT probe, org permissions, queue attribution (queued and running,
+Tests: `swift test` (420+ tests across three targets: the engine suite (OrchardKitTests — store, RPC, SSH, image pipeline, tart-health, CLT probe, org permissions, queue attribution (queued and running,
 per repo), token replacement (Keychain upsert, live engine swap, daemon RPC), multi-forge (Gitea client, per-VM platform assignment, bootstrap, token-gated image provisioning), runtime
-abstraction and routing (TartRuntime semantics, Apple-container runtime health/provision/exec/teardown, label pools, capacity partition, per-repo/per-workflow routing), config
+abstraction and routing (TartRuntime semantics, Apple-container runtime health/provision/exec/teardown, label pools, capacity partition, per-repo/per-workflow routing), managed
+toolchains (catalog selection, no-implicit-install validation, managed-script content, shared-cache mounts at prepare and per runner VM, cache auto-expiry pruner), config
 ing (runtimes/budget/labels editors: section upsert, comment preservation, validation gating), hot-reload (engine applyReloaded, daemon reload_config RPC), update-check,
 setup-checklist parity, and setup UI presentation/layout tested against fakes — no VMs required), plus OrchardCLITests (command routing table, starter-config
 auto-create policy, flag parsing, status rendering, `config init` matrix, help text) and OrchardAppTests (menu construction, status title/line + VM-section

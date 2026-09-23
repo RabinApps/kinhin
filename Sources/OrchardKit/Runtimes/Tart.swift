@@ -38,12 +38,22 @@ public enum TartError: LocalizedError {
 public protocol TartControlling: Sendable {
     func list() async throws -> [TartVM]
     func clone(source: String, to name: String) async throws
+    /// Boots the VM, optionally sharing host directories into the guest
+    /// (tart virtiofs; macOS guests auto-mount under "/Volumes/My Shared Files").
+    func run(name: String, mounts: [String]) async throws
+    /// Convenience for callers that never mount host directories.
     func run(name: String) async throws
     func ip(of name: String, timeout: TimeInterval) async throws -> String
     func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult
     func stop(name: String) async throws
     func delete(name: String) async throws
     func pull(image: String) async throws
+}
+
+public extension TartControlling {
+    func run(name: String) async throws {
+        try await run(name: name, mounts: [])
+    }
 }
 
 /// Real implementation that shells out to the tart binary.
@@ -95,11 +105,13 @@ public struct TartController: TartControlling {
         guard res.succeeded else { throw TartError.commandFailed(what: "clone \(source) \(name)", stderr: res.stderr) }
     }
 
-    public func run(name: String) async throws {
+    public func run(name: String, mounts: [String]) async throws {
         // `tart run` blocks while the VM runs; launch it detached and return.
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
-        process.arguments = ["run", "--no-graphics", name]
+        // virtiofs shares: guests auto-mount under "/Volumes/My Shared Files".
+        let mountArgs = mounts.flatMap { ["--virtiofs", $0] }
+        process.arguments = ["run", "--no-graphics"] + mountArgs + [name]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice

@@ -36,8 +36,13 @@ public struct ImagePreparer {
         /// installing heavy toolchains is slow, so it gets its own budget
         /// separate from the 900 s agent install.
         public var provisionTimeout: TimeInterval
+        /// Managed toolchains (`toolchains:` config section) baked after the
+        /// runner agents install, before the user provision script. nil = none.
+        public var toolchains: OrchardConfig.ToolchainsConfig?
+        /// Timeout for the managed toolchain install's SSH exec (seconds).
+        public var toolchainTimeout: TimeInterval
 
-        public init(source: String = ImagePreparer.defaultSource, target: String = ImagePreparer.defaultTarget, runnerVersion: String = ImagePreparer.defaultRunnerVersion, giteaRunnerVersion: String = ImagePreparer.defaultGiteaRunnerVersion, user: String = "admin", hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil, provisionScriptPath: String? = nil, provisionTimeout: TimeInterval = 1800) {
+        public init(source: String = ImagePreparer.defaultSource, target: String = ImagePreparer.defaultTarget, runnerVersion: String = ImagePreparer.defaultRunnerVersion, giteaRunnerVersion: String = ImagePreparer.defaultGiteaRunnerVersion, user: String = "admin", hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil, provisionScriptPath: String? = nil, provisionTimeout: TimeInterval = 1800, toolchains: OrchardConfig.ToolchainsConfig? = nil, toolchainTimeout: TimeInterval = 1800) {
             self.source = source
             self.target = target
             self.runnerVersion = runnerVersion
@@ -47,6 +52,8 @@ public struct ImagePreparer {
             self.hasGiteaToken = hasGiteaToken
             self.provisionScriptPath = provisionScriptPath
             self.provisionTimeout = provisionTimeout
+            self.toolchains = toolchains
+            self.toolchainTimeout = toolchainTimeout
         }
     }
 
@@ -99,8 +106,24 @@ public struct ImagePreparer {
         Log.info("image", "cloning to scratch VM \(tmp)")
         try await tart.clone(source: options.source, to: tmp)
 
-        Log.info("image", "booting scratch VM")
-        try await tart.run(name: tmp)
+        // Cache upkeep: sweep stale entries before this prepare writes
+        // through the cache (noop unless age/size limits trip).
+        let policy = ToolchainCachePolicy(from: options.toolchains)
+        ToolchainCachePruner().prune(policy: policy)
+
+        // Always share the host toolchain cache into the scratch VM: every
+        // prepare write-through (brew, mise, npm, fvm) lands in one cache
+        // that later prepares and runner VMs reuse. Best-effort: scripts
+        // skip the cache gracefully when the share is not visible.
+        let cacheMounts = [ToolchainCacheMount.guestPath]
+        do {
+            try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
+        } catch {
+            Log.warn("image", "could not create toolchain cache dir (\(error.localizedDescription)); continuing without it")
+        }
+
+        Log.info("image", "booting scratch VM (host toolchain cache shared via virtiofs)")
+        try await tart.run(name: tmp, mounts: cacheMounts)
         let ip = try await tart.ip(of: tmp, timeout: 300)
         Log.info("image", "scratch VM at \(ip); injecting runner agent + tweaks")
 
@@ -109,6 +132,25 @@ public struct ImagePreparer {
             throw ImageError.provisioningFailed(String(result.stderr.prefix(500)))
         }
         Log.info("image", "agent provisioning done")
+
+        // Managed toolchains (toolchains: config): install + pin via the
+        // catalog, with the cache share mounted. Failure aborts the prepare
+        // so the previous target image stays intact. The user provision
+        // script still runs afterwards and can layer/override on top.
+        if let toolchains = options.toolchains {
+            let selection = ToolchainCatalog.selection(from: toolchains, mountPath: ToolchainCacheMount.guestPath)
+            let managed = RunnerBootstrap.managedToolchainsInstallScript(selection: selection, mountPath: ToolchainCacheMount.guestPath)
+            Log.info("image", "installing managed toolchains (\(selection.miseSpecs.count) mise spec(s), \(selection.brewFormulas.count) brew formula(s), \(selection.npmPackages.count) npm global(s))")
+            let provisioned = try await ssh.exec(vm: tmp, user: options.user, ip: ip, script: managed, timeout: options.toolchainTimeout)
+            guard provisioned.succeeded else {
+                throw ImageError.provisioningFailed("managed toolchain install failed: \(String(provisioned.stderr.prefix(500)))")
+            }
+            let tail = String(provisioned.stdout.trimmingCharacters(in: .whitespacesAndNewlines).suffix(400))
+            if !tail.isEmpty {
+                Log.info("image", "managed toolchain output (tail): \(tail)")
+            }
+            Log.info("image", "managed toolchains baked into the image")
+        }
 
         // User toolchains: run the provision script verbatim as a second SSH
         // exec, while the scratch VM is still up. Failure aborts the prepare

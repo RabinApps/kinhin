@@ -52,6 +52,8 @@ public final class FleetEngine {
     /// The Tart runtime instance (always available; mixed fleets select it
     /// per record while container-routed records use containerRuntime).
     let tartRuntime: TartRuntime
+    /// Daily host-cache sweep task (started/stopped with the engine).
+    var cachePruneTask: Task<Void, Never>?
 
     public init(config: OrchardConfig, github: GitHubServing, tart: TartControlling, store: FleetStore, ssh: SSHExecuting, host: HostResources, containerShell: ShellRunning? = nil) {
         let credentials = GitHubCredentials(token: "", scope: config.repo)
@@ -70,7 +72,7 @@ public final class FleetEngine {
             appleRuntime = instance
             self.runtime = instance
         } else {
-            self.runtime = TartRuntime(tart: tart, bootTimeout: { [config] in config.vmBootTimeout })
+            self.runtime = TartRuntime(tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, toolchainsConfig: { [config] in config.toolchains })
         }
         self.containerRuntime = appleRuntime
         self.config = config
@@ -88,7 +90,7 @@ public final class FleetEngine {
             diskPerVMGB: 0,
             userMax: config.maxRunners
         )
-        self.tartRuntime = TartRuntime(tart: tart, bootTimeout: { [config] in config.vmBootTimeout })
+        self.tartRuntime = TartRuntime(tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, toolchainsConfig: { [config] in config.toolchains })
         self.routing = RuntimeConfigModel(
             config: config.runtimes,
             fleetLabels: config.labels,
@@ -165,6 +167,7 @@ public final class FleetEngine {
         Log.info("engine", "starting fleet engine for \(config.repo) (capacity cap: \(capacity.maxConcurrent))")
         await attachGiteaForgeIfNeeded()
         await recoverIfNeeded()
+        startCachePruneSweepIfNeeded()
         let task = Task { [weak self] () -> Void in
             guard let self else { return }
             await self.reconcileLoop()
@@ -177,6 +180,8 @@ public final class FleetEngine {
         Log.info("engine", "stopping fleet engine")
         reconcileTask?.cancel()
         reconcileTask = nil
+        cachePruneTask?.cancel()
+        cachePruneTask = nil
         // Mirror the flag into the status snapshot now: the reconcile pass
         // that would sync it is being cancelled, so status().running would
         // otherwise stay stale true until the engine is started again.
@@ -185,6 +190,24 @@ public final class FleetEngine {
         // via the cache (minted under the old PAT's authority).
         registrationTokens.invalidate()
         await pauseAllVMs()
+    }
+
+    // MARK: - Cache maintenance
+
+    /// Daily host-cache sweep while the fleet runs. Failures log and are
+    /// ignored — pruning must never disturb scaling. The pruner's grace
+    /// window keeps it from racing any in-flight download or install.
+    func startCachePruneSweepIfNeeded() {
+        guard ToolchainCachePolicy(from: config.toolchains).autoPrune else { return }
+        cachePruneTask = Task { [weak self] () -> Void in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 86_400 * 1_000_000_000)
+                guard let self else { return }
+                let policy = ToolchainCachePolicy(from: self.config.toolchains)
+                guard policy.autoPrune else { continue }
+                ToolchainCachePruner().prune(policy: policy)
+            }
+        }
     }
 
     /// Swap in a new PAT: rebuilds the GitHub client and drops the cached
