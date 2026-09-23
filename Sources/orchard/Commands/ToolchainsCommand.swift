@@ -26,7 +26,16 @@ enum ToolchainsCommand {
             print("  specs:        \((toolchains.specs ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.specs ?? []).joined(separator: ", "))")
             print("  brew:         \((toolchains.brew ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.brew ?? []).joined(separator: ", "))")
             print("  stacks:       \((toolchains.stacks ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.stacks ?? []).joined(separator: ", "))")
-            print("  share_cache:  \((toolchains.shareCache ?? false) ? "yes (runner VMs mount the host cache)" : "no (add `share_cache: true` to share)")")
+            let shareCacheOn = toolchains.shareCache ?? false
+            if shareCacheOn {
+                let mounts = effectiveRuntimeMounts(hasContainer: cfg?.container != nil, hasDocker: cfg?.docker != nil)
+                print("  share_cache:  yes — mounts at runtime into:")
+                for mount in mounts {
+                    print("    \(mount)")
+                }
+            } else {
+                print("  share_cache:  no (add `share_cache: true` to share; baked installs always use the cache)")
+            }
             let policy = ToolchainCachePolicy(from: toolchains)
             print("  cache:        auto_prune: \(policy.autoPrune ? "on" : "off"), max_age_days: \(policy.maxAgeDays), max_gb: \(policy.maxGB)")
         } else {
@@ -69,6 +78,23 @@ enum ToolchainsCommand {
         print("Wire it up: set the section, then `orchard image prepare` (bakes the tools into the base image).")
     }
 
+    /// The runtime-specific mount lines reflecting the effective wiring:
+    /// prepare-time bakes always mount the cache; runner VMs/containers
+    /// mount it per runtime when `share_cache` is on.
+    static func effectiveRuntimeMounts(hasContainer: Bool, hasDocker: Bool) -> [String] {
+        var lines = [
+            "macOS VMs (tart): \(ToolchainCacheMount.guestPath) via virtiofs",
+            "image prepares:   always mounted (VM + container bakes)",
+        ]
+        if hasContainer {
+            lines.append("apple containers: \(ToolchainCacheMount.linuxGuestPath) via -v bind mount")
+        }
+        if hasDocker {
+            lines.append("docker slots:     \(ToolchainCacheMount.linuxGuestPath) via -v bind mount")
+        }
+        return lines
+    }
+
     /// `orchard toolchains prune [--dry-run]`.
     static func prune(_ args: [String]) async {
         let dryRun = hasFlag("--dry-run", in: args)
@@ -105,6 +131,8 @@ enum ToolchainsCommand {
                 "auto_prune": policy.autoPrune,
                 "max_age_days": policy.maxAgeDays,
                 "max_gb": policy.maxGB,
+                "guest_path_macos": ToolchainCacheMount.guestPath,
+                "guest_path_linux": ToolchainCacheMount.linuxGuestPath,
             ],
             "tools": ToolchainCatalog.tools.map { ["id": $0.id, "summary": $0.summary] },
             "stacks": ToolchainCatalog.stacks.map { ["id": $0.id, "summary": $0.summary] },

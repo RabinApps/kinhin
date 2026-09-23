@@ -131,13 +131,13 @@ final class SetupChecklistFlowTests: XCTestCase {
     func testGiteaRowSitsBetweenTokenAndImage() async {
         let status = await readyComputer(gitea: true).compute()
         XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart", "config", "token", "gitea-token", "image"])
+                       ["arch", "clt", "tart", "config", "token", "gitea-token", "image", "toolchain-cache"])
     }
 
     func testGiteaAndContainerRowsOrderTogether() async {
         let status = await readyComputer(gitea: true, container: true).compute()
         XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart", "config", "token", "gitea-token", "image", "container-cli", "container-image"])
+                       ["arch", "clt", "tart", "config", "token", "gitea-token", "image", "container-cli", "container-image", "toolchain-cache"])
         XCTAssertTrue(status.ready)
     }
 
@@ -154,7 +154,7 @@ final class SetupChecklistFlowTests: XCTestCase {
         )
         let status = await computer.compute()
         XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart-rollback", "config", "token", "image"])
+                       ["arch", "clt", "tart-rollback", "config", "token", "image", "toolchain-cache"])
     }
 
     // MARK: Readiness — ready is exactly "every check ok"
@@ -234,7 +234,9 @@ final class SetupChecklistFlowTests: XCTestCase {
         XCTAssertFalse(blockedVM.canStart)
         XCTAssertFalse(blockedVM.ready)
         XCTAssertEqual(blockedVM.rows.count, blocked.checks.count, "one display row per contract check")
-        XCTAssertEqual(blockedVM.progressFraction, 5.0 / 6.0, accuracy: 0.0001)
+        // readyComputer's checklist: 6 of 7 rows green (token red) — the
+        // advisory cache row counts toward the denominator.
+        XCTAssertEqual(blockedVM.progressFraction, 6.0 / 7.0, accuracy: 0.0001)
 
         let green = await readyComputer().compute()
         let greenVM = SetupViewModel(status: green)

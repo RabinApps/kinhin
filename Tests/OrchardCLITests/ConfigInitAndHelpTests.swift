@@ -84,4 +84,12 @@ final class ConfigInitAndHelpTests: XCTestCase {
         XCTAssertLessThan(auth.lowerBound, image.lowerBound)
         XCTAssertLessThan(image.lowerBound, start.lowerBound)
     }
+
+    func testHelpTextMentionsLinuxToolchainOverridesForBothContainerRuntimes() {
+        let help = helpText()
+        XCTAssertTrue(help.contains("--linux-toolchain"), "help should advertise the Linux bake override")
+        let docker = try! XCTUnwrap(help.range(of: "--docker"))
+        let bakes = try! XCTUnwrap(help.range(of: "bakes `toolchains:` the same way"))
+        XCTAssertLessThan(docker.lowerBound, bakes.lowerBound, "the docker line documents the same toolchain bake")
+    }
 }

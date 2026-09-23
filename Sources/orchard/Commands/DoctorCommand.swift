@@ -98,12 +98,16 @@ enum DoctorCommand {
         // breakdown mirrors the JSON document's `toolchainCache` section.
         let cacheConfig = (try? ConfigLoader.load()).flatMap { $0 }
         let cache = DoctorReportBuilder.toolchainCacheSection(config: cacheConfig)
+        let shareCacheOn = cacheConfig?.toolchains?.shareCache ?? false
         if cache.usable {
             let gb = Double(cache.totalBytes) / 1_073_741_824
             let detail = cache.ecosystems.map { "\($0.directory) \(String(format: "%.1f", Double($0.bytes) / 1_048_576)) MB" }.joined(separator: ", ")
             print("  cache:      \(String(format: "%.1f", gb)) GB at \(cache.root) ✓\(detail.isEmpty ? " (empty)" : " — \(detail)")")
+            if shareCacheOn, cache.totalBytes == 0 {
+                print("  cache note: share_cache is on but the cache is empty — runners will mount an empty dir until a prepare populates it")
+            }
         } else {
-            print("  cache:      NOT USABLE ✗ at \(cache.root) — the next prepare recreates it")
+            print("  cache:      NOT USABLE ✗ at \(cache.root) — the next prepare recreates it\(shareCacheOn ? " (share_cache is on: runner mounts will be empty)" : "")")
         }
         if configExists, let cfg = try? ConfigLoader.load() {
             let plan = Capacity.plan(

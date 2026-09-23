@@ -45,7 +45,7 @@ final class DockerSetupStatusTests: XCTestCase {
     func testRowOrderAppendsDockerRowsAfterImage() async {
         let status = await computer(dockerHealth: .ready, dockerImages: ["ghcr.io/acme/orchard-ci-linux:latest"]).compute()
         XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart", "config", "token", "image", "docker-cli", "docker-image"])
+                       ["arch", "clt", "tart", "config", "token", "image", "docker-cli", "docker-image", "toolchain-cache"])
         XCTAssertEqual(status.ready, true)
     }
 

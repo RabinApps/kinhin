@@ -84,6 +84,12 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let root: String
         /// Whether the cache root directory exists (and is writable).
         public let usable: Bool
+        /// True when the config's `toolchains.share_cache` mounts the cache
+        /// into every runner VM/container.
+        public let sharedWithRunners: Bool
+        /// True when `sharedWithRunners` is on but the cache holds nothing —
+        /// runners would mount an empty directory until a prepare populates it.
+        public let warning: Bool
         /// Total bytes across every ecosystem subdirectory.
         public let totalBytes: Int64
         /// Per-ecosystem breakdown for the directories actually selected in
@@ -91,9 +97,11 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         /// when nothing is selected).
         public let ecosystems: [Ecosystem]
 
-        public init(root: String, usable: Bool, totalBytes: Int64, ecosystems: [Ecosystem]) {
+        public init(root: String, usable: Bool, sharedWithRunners: Bool, warning: Bool, totalBytes: Int64, ecosystems: [Ecosystem]) {
             self.root = root
             self.usable = usable
+            self.sharedWithRunners = sharedWithRunners
+            self.warning = warning
             self.totalBytes = totalBytes
             self.ecosystems = ecosystems
         }
@@ -359,7 +367,11 @@ public struct DoctorReportBuilder: Sendable {
             isUsable = false
         }
         guard isUsable else {
-            return DoctorReport.ToolchainCacheSection(root: root.path, usable: false, totalBytes: 0, ecosystems: [])
+            let shareCacheOn = config?.toolchains?.shareCache ?? false
+            return DoctorReport.ToolchainCacheSection(
+                root: root.path, usable: false, sharedWithRunners: shareCacheOn,
+                warning: shareCacheOn, totalBytes: 0, ecosystems: []
+            )
         }
 
         // The subdirectories the config's toolchains selection maps to
@@ -391,7 +403,12 @@ public struct DoctorReportBuilder: Sendable {
                 total += bytes
             }
         }
-        return DoctorReport.ToolchainCacheSection(root: root.path, usable: true, totalBytes: total, ecosystems: ecosystems)
+        let shareCacheOn = config?.toolchains?.shareCache ?? false
+        let warning = shareCacheOn && total == 0
+        return DoctorReport.ToolchainCacheSection(
+            root: root.path, usable: true, sharedWithRunners: shareCacheOn,
+            warning: warning, totalBytes: total, ecosystems: ecosystems
+        )
     }
 
     /// Recursive byte size of a directory (0 when missing). Follows the

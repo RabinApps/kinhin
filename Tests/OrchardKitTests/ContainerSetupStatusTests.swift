@@ -43,7 +43,7 @@ final class ContainerSetupStatusTests: XCTestCase {
     func testRowOrderAppendsContainerRowsAfterImage() async {
         let status = await computer(containerHealth: .ready, containerImages: ["orchard-ci-linux"]).compute()
         XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart", "config", "token", "image", "container-cli", "container-image"])
+                       ["arch", "clt", "tart", "config", "token", "image", "container-cli", "container-image", "toolchain-cache"])
         XCTAssertEqual(status.ready, true)
     }
 

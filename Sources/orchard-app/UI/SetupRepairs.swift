@@ -39,8 +39,24 @@ extension SetupWindowController {
             prepareContainerImage()
         case "prepare_docker_image":
             prepareDockerImage()
+        case "create_toolchain_cache":
+            createToolchainCache()
         default:
             Log.error("setup", "no handler for action '\(action)'")
+        }
+    }
+
+    /// Creates the host toolchain-cache directory so `share_cache` mounts
+    /// land on a real path. Pure mkdir — safe to run anytime.
+    private func createToolchainCache() {
+        runLongTask(title: "Creating the shared toolchain cache…") {
+            do {
+                try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
+                Log.info("setup", "toolchain cache created at \(Paths.toolchainCache.path)")
+            } catch {
+                Log.error("setup", "could not create toolchain cache: \(error.localizedDescription)")
+                throw error
+            }
         }
     }
 

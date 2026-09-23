@@ -54,6 +54,7 @@ public enum SetupAction {
         case "prepare_docker_image": return "Prepare Docker Image"
         case "prepare_image": return "Prepare Image"
         case "repair_provision_script": return "Fix Provision Script…"
+        case "create_toolchain_cache": return "Create Toolchain Cache"
         default: return action
         }
     }
@@ -101,6 +102,10 @@ public struct SetupStatusComputer: Sendable {
     let containerImages: [String]?
     let dockerHealth: RuntimeHealth?
     let dockerImages: [String]?
+    /// Shared toolchain cache state (fixture). nil probes the real host: the
+    /// cache root's existence/writability, plus the config's `share_cache`.
+    /// No live mount is probed — runners bind on demand.
+    let toolchainCacheState: (usable: Bool, shareCacheOn: Bool)?
 
     public init(
         host: HostResources? = nil,
@@ -113,7 +118,8 @@ public struct SetupStatusComputer: Sendable {
         containerHealth: RuntimeHealth? = nil,
         containerImages: [String]? = nil,
         dockerHealth: RuntimeHealth? = nil,
-        dockerImages: [String]? = nil
+        dockerImages: [String]? = nil,
+        toolchainCacheState: (usable: Bool, shareCacheOn: Bool)? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -126,6 +132,7 @@ public struct SetupStatusComputer: Sendable {
         self.containerImages = containerImages
         self.dockerHealth = dockerHealth
         self.dockerImages = dockerImages
+        self.toolchainCacheState = toolchainCacheState
     }
 
     /// Loads the parsed config, or nil when missing/invalid.
@@ -380,7 +387,49 @@ public struct SetupStatusComputer: Sendable {
             ))
         }
 
+        // 9. Shared toolchain cache — advisory row for the host cache that
+        // prepare writes through and runners bind when share_cache is on.
+        // It never blocks readiness (the cache is regenerable by design;
+        // every consumer recreates or skips it gracefully).
+        if let cacheState = toolchainCacheState {
+            checks.append(Self.toolchainCacheCheck(usable: cacheState.usable, shareCacheOn: cacheState.shareCacheOn))
+        } else {
+            let fm = FileManager.default
+            var isDir: ObjCBool = false
+            let exists = fm.fileExists(atPath: Paths.toolchainCache.path, isDirectory: &isDir)
+            let usable = exists && isDir.boolValue && fm.isWritableFile(atPath: Paths.toolchainCache.path)
+            let shareCacheOn = parsed?.toolchains?.shareCache ?? false
+            checks.append(Self.toolchainCacheCheck(usable: usable, shareCacheOn: shareCacheOn))
+        }
+
         return SetupStatus(ready: checks.allSatisfy(\.ok), checks: checks)
+    }
+
+    /// The shared toolchain cache row: green when usable (or when it simply
+    /// isn't needed yet), red-but-advisory only when `share_cache` is on and
+    /// the host directory is missing/unwritable — that combination would
+    /// leave every runner's cache mounts silently empty.
+    static func toolchainCacheCheck(usable: Bool, shareCacheOn: Bool) -> SetupCheckResult {
+        if usable {
+            return SetupCheckResult(
+                id: "toolchain-cache",
+                title: "Shared toolchain cache",
+                ok: true,
+                detail: shareCacheOn
+                    ? "host cache ready — runner VMs and containers mount it (share_cache on)"
+                    : "host cache ready — `share_cache: true` also mounts it into runners",
+                action: nil
+            )
+        }
+        return SetupCheckResult(
+            id: "toolchain-cache",
+            title: "Shared toolchain cache",
+            ok: true,  // advisory: a missing cache never blocks onboarding
+            detail: shareCacheOn
+                ? "host cache directory missing — runner mounts will be empty until the next prepare recreates it"
+                : "not created yet — the next `orchard image prepare` creates it",
+            action: shareCacheOn ? "create_toolchain_cache" : nil
+        )
     }
 
     /// The provision-script row: green when the configured script exists and
