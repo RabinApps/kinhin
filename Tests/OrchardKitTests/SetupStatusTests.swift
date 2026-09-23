@@ -22,6 +22,16 @@ final class SetupStatusTests: XCTestCase {
         return cfg
     }
 
+    /// Writes content to a unique temp file for provision-script fixtures.
+    private func writeTempScript(_ content: String) throws -> String {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("orchard-setup-status-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("provision.sh")
+        try content.write(to: url, atomically: true, encoding: .utf8)
+        return url.path
+    }
+
     // MARK: Contract
 
     func testCheckIDsAndActionsAreStable() async {
@@ -190,7 +200,111 @@ final class SetupStatusTests: XCTestCase {
                        "a stored token stays replaceable (rotated/expired PATs are routine)")
         XCTAssertTrue(status.checks.first { $0.id == "token" }?.detail.contains("Keychain") ?? false)
     }
+
+    // MARK: Provision script row — only when the config declares one
+
+    private func configWithProvisionScript(_ path: String?) -> OrchardConfig {
+        var cfg = config()
+        cfg.provisionScript = path
+        return cfg
+    }
+
+    func testProvisionScriptRowAbsentWithoutConfigKey() async {
+        let computer = SetupStatusComputer(
+            host: host(),
+            clt: .ok(version: "27.0"),
+            tartHealth: .healthy,
+            tartList: [vm(name: "tahoe-base")],
+            config: .loaded(configWithProvisionScript(nil)),
+            tokenStored: true
+        )
+        let status = await computer.compute()
+        XCTAssertNil(status.checks.first { $0.id == "provision-script" },
+                     "no provision_script in config → no row")
+        XCTAssertEqual(status.checks.map(\.id), ["arch", "clt", "tart", "config", "token", "image"])
+        XCTAssertTrue(status.ready)
+    }
+
+    func testValidProvisionScriptProducesGreenRow() async throws {
+        let path = try writeTempScript("#!/bin/bash\nmise install go@1.23.4\n")
+        let computer = SetupStatusComputer(
+            host: host(),
+            clt: .ok(version: "27.0"),
+            tartHealth: .healthy,
+            tartList: [vm(name: "tahoe-base")],
+            config: .loaded(configWithProvisionScript(path)),
+            tokenStored: true
+        )
+        let status = await computer.compute()
+        let row = status.checks.first { $0.id == "provision-script" }
+        XCTAssertEqual(row?.ok, true)
+        XCTAssertNil(row?.action)
+        XCTAssertTrue(row?.detail.contains(path) ?? false, "detail names the script: \(row?.detail ?? "")")
+        XCTAssertTrue(status.ready, "a valid script must not block readiness")
+        // The row sits right after config, before tokens.
+        XCTAssertEqual(status.checks.map(\.id),
+                       ["arch", "clt", "tart", "config", "provision-script", "token", "image"])
+    }
+
+    func testMissingProvisionScriptProducesFixRowAndBlocksReady() async {
+        let missing = "/nonexistent/orchard-provision-\(UUID().uuidString).sh"
+        let computer = SetupStatusComputer(
+            host: host(),
+            clt: .ok(version: "27.0"),
+            tartHealth: .healthy,
+            tartList: [vm(name: "tahoe-base")],
+            config: .loaded(configWithProvisionScript(missing)),
+            tokenStored: true
+        )
+        let status = await computer.compute()
+        let row = status.checks.first { $0.id == "provision-script" }
+        XCTAssertEqual(row?.ok, false)
+        XCTAssertEqual(row?.action, "repair_provision_script")
+        XCTAssertTrue(row?.detail.contains("missing or unreadable") ?? false)
+        XCTAssertFalse(status.ready, "a broken provision script must block readiness — prepare would fail after the download")
+        XCTAssertEqual(SetupAction.title(for: "repair_provision_script"), "Fix Provision Script…")
+    }
+
+    func testEmptyProvisionScriptProducesFixRow() async throws {
+        let path = try writeTempScript("   \n\t\n")
+        let computer = SetupStatusComputer(
+            host: host(),
+            clt: .ok(version: "27.0"),
+            tartHealth: .healthy,
+            tartList: [vm(name: "tahoe-base")],
+            config: .loaded(configWithProvisionScript(path)),
+            tokenStored: true
+        )
+        let status = await computer.compute()
+        let row = status.checks.first { $0.id == "provision-script" }
+        XCTAssertEqual(row?.ok, false)
+        XCTAssertEqual(row?.action, "repair_provision_script")
+        XCTAssertTrue(row?.detail.contains("is empty") ?? false, "detail must say why: \(row?.detail ?? "")")
+        XCTAssertFalse(status.ready)
+    }
+
+    func testProvisionScriptDetailExpandsTildeLikePrepare() async {
+        // The detail must show the expanded path (what prepare will use),
+        // never the raw ~ form — a user must see the exact file being probed.
+        let computer = SetupStatusComputer(
+            host: host(),
+            clt: .ok(version: "27.0"),
+            tartHealth: .healthy,
+            tartList: [vm(name: "tahoe-base")],
+            config: .loaded(configWithProvisionScript("~/orchard/provision-\(UUID().uuidString).sh")),
+            tokenStored: true
+        )
+        let status = await computer.compute()
+        let row = status.checks.first { $0.id == "provision-script" }
+        XCTAssertEqual(row?.ok, false)
+        let detail = row?.detail ?? ""
+        XCTAssertFalse(detail.contains("~"), "detail must not show the tilde form: \(detail)")
+        XCTAssertTrue(detail.contains("/orchard/provision-"), "detail shows the expanded path: \(detail)")
+    }
 }
+
+/// Tiny fixture helpers for the provision-script row tests.
+enum ProvisionScriptFixtures { }
 
 /// Tiny convenience so scenario tests read cleanly.
 enum SetupCheckHelper {

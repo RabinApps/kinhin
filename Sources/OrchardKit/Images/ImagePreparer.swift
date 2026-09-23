@@ -29,8 +29,15 @@ public struct ImagePreparer {
         /// Token presence overrides for tests (nil = probe the Keychain).
         public var hasGitHubToken: Bool?
         public var hasGiteaToken: Bool?
+        /// Host path to a user script baked into the image after the runner
+        /// agents are installed (toolchains etc.). nil = no user script.
+        public var provisionScriptPath: String?
+        /// Timeout for the user provision script's SSH exec (seconds) —
+        /// installing heavy toolchains is slow, so it gets its own budget
+        /// separate from the 900 s agent install.
+        public var provisionTimeout: TimeInterval
 
-        public init(source: String = ImagePreparer.defaultSource, target: String = ImagePreparer.defaultTarget, runnerVersion: String = ImagePreparer.defaultRunnerVersion, giteaRunnerVersion: String = ImagePreparer.defaultGiteaRunnerVersion, user: String = "admin", hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil) {
+        public init(source: String = ImagePreparer.defaultSource, target: String = ImagePreparer.defaultTarget, runnerVersion: String = ImagePreparer.defaultRunnerVersion, giteaRunnerVersion: String = ImagePreparer.defaultGiteaRunnerVersion, user: String = "admin", hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil, provisionScriptPath: String? = nil, provisionTimeout: TimeInterval = 1800) {
             self.source = source
             self.target = target
             self.runnerVersion = runnerVersion
@@ -38,6 +45,8 @@ public struct ImagePreparer {
             self.user = user
             self.hasGitHubToken = hasGitHubToken
             self.hasGiteaToken = hasGiteaToken
+            self.provisionScriptPath = provisionScriptPath
+            self.provisionTimeout = provisionTimeout
         }
     }
 
@@ -61,6 +70,14 @@ public struct ImagePreparer {
         guard hasGitHubToken || hasGiteaToken else {
             throw ImageError.noCredentials("store at least one platform token first (orchard auth set / orchard auth set --gitea)")
         }
+
+        // Validate the user provision script up front: a broken path must
+        // fail before the multi-gigabyte image download, not after it.
+        let provisionScript = try Self.resolveProvisionScript(options.provisionScriptPath)
+        if let provisionScript {
+            Log.info("image", "user provision script will be baked: \(provisionScript.path)")
+        }
+
         var scripts: [String] = [RunnerBootstrap.prepareScript()]
         if hasGitHubToken {
             Log.info("image", "GitHub PAT found — baking actions-runner \(versions.github)")
@@ -91,6 +108,27 @@ public struct ImagePreparer {
         guard result.succeeded else {
             throw ImageError.provisioningFailed(String(result.stderr.prefix(500)))
         }
+        Log.info("image", "agent provisioning done")
+
+        // User toolchains: run the provision script verbatim as a second SSH
+        // exec, while the scratch VM is still up. Failure aborts the prepare
+        // so the previous target image stays intact.
+        if let provision = provisionScript {
+            Log.info("image", "running user provision script: \(provision.path)")
+            let wrapper = Self.provisionWrapperScript(contentBase64: Data(provision.content.utf8).base64EncodedString())
+            let provisioned = try await ssh.exec(vm: tmp, user: options.user, ip: ip, script: wrapper, timeout: options.provisionTimeout)
+            guard provisioned.succeeded else {
+                throw ImageError.provisioningFailed("user provision script failed: \(String(provisioned.stderr.prefix(500)))")
+            }
+            // Audit trail: the tail of the script's stdout (version prints
+            // etc.) lands in the log, recording what went into this image.
+            let tail = String(provisioned.stdout.trimmingCharacters(in: .whitespacesAndNewlines).suffix(400))
+            if !tail.isEmpty {
+                Log.info("image", "provision script output (tail): \(tail)")
+            }
+            Log.info("image", "user provision script baked into the image")
+        }
+
         Log.info("image", "provisioning done; stopping scratch VM")
 
         try await tart.stop(name: tmp)
@@ -105,14 +143,53 @@ public struct ImagePreparer {
         Log.info("image", "prepared image '\(options.target)' is ready")
     }
 
+    // MARK: User provision script
+
+    /// Validates and reads the user provision script before any slow work:
+    /// `~`/`~/` expands, the file must exist, be readable, and be non-empty.
+    static func resolveProvisionScript(_ path: String?) throws -> (path: String, content: String)? {
+        guard let raw = path?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        let expanded = expandingTilde(in: raw)
+        guard let content = try? String(contentsOfFile: expanded, encoding: .utf8) else {
+            throw ImageError.provisionScriptUnreadable(path: expanded, reason: "file missing or unreadable")
+        }
+        guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ImageError.provisionScriptUnreadable(path: expanded, reason: "script is empty")
+        }
+        return (expanded, content)
+    }
+
+    /// Expands a leading `~` / `~/` to the current user's home directory.
+    /// No `~username` support — paths are host-local by definition.
+    static func expandingTilde(in path: String) -> String {
+        if path == "~" { return NSHomeDirectory() }
+        if path.hasPrefix("~/") { return NSHomeDirectory() + path.dropFirst() }
+        return path
+    }
+
+    /// The remote wrapper executed over SSH: decode the embedded script to a
+    /// temp file, run it with bash, remove the temp file. `set -e` makes any
+    /// script failure propagate as a nonzero SSH exit. The script content is
+    /// base64-embedded so it runs verbatim — no shell-escaping of user input.
+    static func provisionWrapperScript(contentBase64: String) -> String {
+        """
+        set -euo pipefail
+        echo \(contentBase64) | base64 --decode > /tmp/orchard-provision.sh
+        bash /tmp/orchard-provision.sh
+        rm -f /tmp/orchard-provision.sh
+        """
+    }
+
     public enum ImageError: LocalizedError {
         case provisioningFailed(String)
         case noCredentials(String)
+        case provisionScriptUnreadable(path: String, reason: String)
 
         public var errorDescription: String? {
             switch self {
             case .provisioningFailed(let why): return "image provisioning failed: \(why)"
             case .noCredentials(let why): return "no platform credentials: \(why)"
+            case .provisionScriptUnreadable(let path, let why): return "user provision script '\(path)': \(why)"
             }
         }
     }

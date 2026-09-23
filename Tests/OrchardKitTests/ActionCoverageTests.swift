@@ -25,6 +25,7 @@ final class ActionCoverageTests: XCTestCase {
         "install_container_cli",
         "start_container_system",
         "prepare_container_image",
+        "repair_provision_script",
     ]
 
     private func computer(
@@ -70,6 +71,14 @@ final class ActionCoverageTests: XCTestCase {
         return cfg
     }
 
+    /// A config that also declares `provision_script` (adds the
+    /// provision-script row).
+    private func provisionScriptConfig(path: String) -> OrchardConfig {
+        var cfg = fixtureConfig
+        cfg.provisionScript = path
+        return cfg
+    }
+
     /// The parsed result of the auto-created starter template (placeholder repo).
     private var templateConfig: OrchardConfig {
         var cfg = OrchardConfig.default
@@ -93,6 +102,7 @@ final class ActionCoverageTests: XCTestCase {
             ("container service down", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig), tokenStored: true, containerHealth: .broken("the container system service is not running — start it with: container system start"))),
             ("container image missing", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig), tokenStored: true, containerHealth: .ready, containerImages: [])),
             ("container fully ready", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig), tokenStored: true, containerHealth: .ready, containerImages: ["orchard-ci-linux"])),
+            ("provision script missing", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(provisionScriptConfig(path: "/nonexistent/orchard-provision.sh")), tokenStored: true)),
         ]
 
         var emitted: Set<String> = []

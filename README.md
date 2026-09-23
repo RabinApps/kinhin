@@ -150,11 +150,61 @@ Key fields:
 | `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                               |
 | `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                     |
 | `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                        |
+| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](#baking-toolchains-into-the-base-image))                                           |
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                          |
 
 The effective concurrency cap is
 `min(max_runners, (cores − reserve.cpu) / vm.cpu, (RAM − reserve.memory_gb) / vm.memory_gb)` —
 `orchard doctor` prints the result and the binding constraint.
+
+## Baking toolchains into the base image
+
+GitHub-hosted runners ship with Xcode, JDKs, Go, Rust, and dozens of other tools preinstalled.
+Orchard's runner VMs contain exactly what the base image contains — each job gets a fresh
+linked clone of it, so anything a job installs is thrown away when the VM is deleted. The
+place to add your own toolchains is `orchard image prepare`: it can run **your provision
+script** inside the VM once, after the runner agents are installed, and every runner VM then
+boots with whatever it installed.
+
+Write a script — it runs verbatim as the `admin` user, and a failure aborts the prepare with
+the previous image left intact:
+
+```bash
+#!/bin/bash
+# ~/orchard/provision.sh — baked into the image by `orchard image prepare`
+brew install wget cmake
+mise install go@1.23.4 rust@1.82 java@temurin-21   # exact versions; mise ships in the base image
+go version && rustc --version && java -version      # their output is logged as the audit trail
+```
+
+Wire it up either way (the CLI flag wins over the config key):
+
+```bash
+orchard image prepare --provision-script ~/orchard/provision.sh
+```
+
+```yaml
+# config.yaml
+provision_script: "~/orchard/provision.sh"
+```
+
+- **Versioning is yours.** The script is the pin: every prepare rebuilds from the pristine
+  upstream image, so editing the script and re-running prepare is how toolchains change —
+  there is no drift between builds. The base image ships **Homebrew** and **mise**, so either
+  `mise install go@1.23.4` (exact patches) or versioned formulas like `brew install go@1.23
+  temurin@21` (pinned major/minor) work.
+- **Audit trail.** End the script with `go version && java -version …` — Orchard logs the
+  stdout tail during prepare, recording what went into that image build (see `orchard logs`).
+- **Checklist guard.** A configured script that is missing or empty fails the first-run
+  checklist (`orchard setup-status` / the setup window) with a one-click fix, so the typo is
+  caught before a 20-minute prepare downloads gigabytes and then aborts.
+- **Timeout.** The script gets its own 30-minute budget, separate from the agent install.
+- **Full Xcode?** Don't install it from a script (it's tens of GB) — point `image:` (or
+  `image prepare --source`) at Cirrus Labs' `macos-tahoe-xcode:16` or `macos-runner:tahoe`
+  images instead: Xcode (and Flutter) preinstalled, with `xcodes` to switch versions.
+- **Small tools only?** Per-job `actions/setup-go`, `actions/setup-java`,
+  `dtolnay/rust-toolchain`, and friends still work on Orchard runners and need no image
+  work — at the cost of re-downloading the toolchain in every job.
 
 ## Commands
 
@@ -162,7 +212,8 @@ The effective concurrency cap is
 orchard config init          Write the starter config
 orchard auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
 orchard auth status --json    All forges' stored-token state in one machine-readable document (exit 1 until ready)
-orchard doctor               Prerequisites + computed capacity
+orchard doctor [--json]      Prerequisites + computed capacity (--json: host, runtime health, stored tokens, checklist,
+                             and capacity in one machine-readable document; ready=false until every half passes)
 orchard setup-status [--json] First-run checklist; exit 1 until ready (--json for scripts)
 orchard runtimes [--json]    Pools, capacity, budget split, live health, and routes (--no-health skips probes)
 orchard runtimes route add <pattern> <tart|appleContainer>
@@ -170,7 +221,8 @@ orchard runtimes route add <pattern> <tart|appleContainer>
                              editor as the Runtimes pane; a running daemon reloads routing live
 orchard runtimes route remove <pattern>
                              Delete that route (e.g. `acme/api` or `acme/web@Nightly`)
-orchard image prepare        Build the runner base image (once)
+orchard image prepare        Build the runner base image (once); --provision-script <file>
+                             bakes your toolchains in (see below)
 orchard start                Run the fleet in the foreground
 orchard daemon               Run the daemon in the foreground
 orchard daemon install       Install + start the LaunchAgent
@@ -287,7 +339,7 @@ Inside the targets, code is organized by domain:
 | `orchard-app/AppDelegate.swift` | Lifecycle + engine wiring + refresh                                                                          |
 | `orchard-app/UI/`               | Extensions: menu/status item, actions, token replacement, update flow, setup repairs, Runtimes pane          |
 
-Tests: `swift test` (364 tests across three targets: the engine suite (OrchardKitTests — store, RPC, SSH, image pipeline, tart-health, CLT probe, org permissions, queue attribution (queued and running,
+Tests: `swift test` (377 tests across three targets: the engine suite (OrchardKitTests — store, RPC, SSH, image pipeline, tart-health, CLT probe, org permissions, queue attribution (queued and running,
 per repo), token replacement (Keychain upsert, live engine swap, daemon RPC), multi-forge (Gitea client, per-VM platform assignment, bootstrap, token-gated image provisioning), runtime
 abstraction and routing (TartRuntime semantics, Apple-container runtime health/provision/exec/teardown, label pools, capacity partition, per-repo/per-workflow routing), config
 ing (runtimes/budget/labels editors: section upsert, comment preservation, validation gating), hot-reload (engine applyReloaded, daemon reload_config RPC), update-check,

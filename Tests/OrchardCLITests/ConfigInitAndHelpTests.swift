@@ -62,6 +62,11 @@ final class ConfigInitAndHelpTests: XCTestCase {
         }
     }
 
+    func testHelpTextMentionsProvisionScriptHook() {
+        let help = helpText()
+        XCTAssertTrue(help.contains("--provision-script"), "help should advertise the provision-script flag")
+    }
+
     func testHelpTextStaysHonestAboutSetupOrder() {
         let help = helpText()
         // The guided order matters: config → auth → image → start.

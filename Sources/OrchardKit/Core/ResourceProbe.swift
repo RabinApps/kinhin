@@ -1,7 +1,8 @@
 import Foundation
 
-/// Snapshot of the host machine's resources.
-public struct HostResources: Sendable, Equatable {
+/// Snapshot of the host machine's resources. Codable because the doctor's
+/// machine-readable document embeds the snapshot verbatim.
+public struct HostResources: Sendable, Equatable, Codable {
     public let logicalCores: Int
     public let memoryGB: Int
     public let freeDiskGB: Int

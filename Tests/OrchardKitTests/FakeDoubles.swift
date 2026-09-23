@@ -137,11 +137,26 @@ final class FakeSSH: SSHExecuting, @unchecked Sendable {
     var onExec: ((String) -> Void)? // receives the VM name
     private let lock = NSLock()
     private(set) var scripts: [String] = []
-    /// When set, exec fails with this text as stderr instead of succeeding.
+    private(set) var timeouts: [TimeInterval] = []
+    /// When set, every exec fails with this text as stderr.
     var failWith: String?
+    /// When set (and `failWith` is not), only the exec at this zero-based
+    /// call index fails — lets tests fail a later step (e.g. the user
+    /// provision script) while earlier steps succeed.
+    var failOnCall: Int?
 
     func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
-        lock.lock(); scripts.append(script); let failing = failWith; lock.unlock()
+        lock.lock()
+        let callIndex = scripts.count
+        scripts.append(script)
+        timeouts.append(timeout)
+        let failing: String?
+        if let idx = failOnCall, idx == callIndex {
+            failing = failWith ?? "injected failure"
+        } else {
+            failing = failWith
+        }
+        lock.unlock()
         onExec?(vm)
         if let failing {
             return ShellResult(exitCode: 1, stdout: "", stderr: failing)

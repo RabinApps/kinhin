@@ -34,7 +34,7 @@ struct OrchardCLI {
                 try await AuthCommand.run(args)
 
             case .doctor:
-                await DoctorCommand.run(args)
+                try await DoctorCommand.run(args)
 
             case .setupStatus:
                 try await SetupStatusCommand.run(args)

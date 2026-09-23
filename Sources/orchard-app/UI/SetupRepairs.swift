@@ -19,6 +19,8 @@ extension SetupWindowController {
             createConfig()
         case "edit_config":
             editConfig()
+        case "repair_provision_script":
+            repairProvisionScript()
         case "enter_token":
             openTokenSettings(.github)
         case "replace_token":
@@ -140,6 +142,14 @@ extension SetupWindowController {
         Task { await refreshChecks() }
     }
 
+    /// The provision-script row's fix: the broken path lives in config.yaml
+    /// (the row's detail names it), so open the file for editing and re-check.
+    private func repairProvisionScript() {
+        Paths.ensureSupportDirectories()
+        NSWorkspace.shared.open(Paths.config)
+        Task { await refreshChecks() }
+    }
+
     /// Command Line Tools are missing/outdated. Reinstalling needs sudo, so
     /// copy the exact command and hand the user a Terminal to run and approve
     /// it in — then re-check.
@@ -171,7 +181,11 @@ extension SetupWindowController {
             }
             let tart = try TartController(configuredPath: cfg.tartPath)
             let preparer = ImagePreparer(tart: tart, ssh: SSHExecutor())
-            try await preparer.run(ImagePreparer.Options())
+            var options = ImagePreparer.Options()
+            // The app's one-click prepare bakes the config's provision
+            // script too (same rule as the CLI's `image prepare`).
+            options.provisionScriptPath = cfg.provisionScript
+            try await preparer.run(options)
         }
     }
 

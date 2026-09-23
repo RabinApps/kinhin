@@ -52,6 +52,7 @@ public enum SetupAction {
         case "start_container_system": return "Start container system"
         case "prepare_container_image": return "Prepare Container Image"
         case "prepare_image": return "Prepare Image"
+        case "repair_provision_script": return "Fix Provision Script…"
         default: return action
         }
     }
@@ -126,26 +127,15 @@ public struct SetupStatusComputer: Sendable {
         return try? ConfigLoader.load()
     }
 
+    /// Resolves a config scenario to its fully-evaluated view — no filesystem
+    /// access at evaluation time for non-live scenarios. Shared by the
+    /// checklist and the doctor builder so both surfaces resolve the config
+    /// identically and can never disagree.
+
     public func compute() async -> SetupStatus {
         // Resolve the config scenario once. Every branch below reads the
         // evaluation — never the real filesystem — so tests stay hermetic.
-        let evaluation: ConfigEvaluation
-        switch config {
-        case .live:
-            if let cfg = Self.liveConfig() {
-                evaluation = ConfigLoader.isTemplate(cfg) ? .templateConfig : .parsed(cfg)
-            } else {
-                evaluation = FileManager.default.fileExists(atPath: Paths.config.path) ? .invalidFile : .noFile
-            }
-        case .missing:
-            evaluation = .noFile
-        case .invalid:
-            evaluation = .invalidFile
-        case .template:
-            evaluation = .templateConfig
-        case .loaded(let cfg):
-            evaluation = ConfigLoader.isTemplate(cfg) ? .templateConfig : .parsed(cfg)
-        }
+        let evaluation = Self.resolve(config)
         var parsed: OrchardConfig?
         if case .parsed(let cfg) = evaluation { parsed = cfg }
 
@@ -208,6 +198,14 @@ public struct SetupStatusComputer: Sendable {
         // placeholder repo must never earn a green checkmark), invalid file,
         // or none.
         checks.append(Self.configCheck(evaluation, path: Paths.config.path))
+
+        // 4b. Provision script — only when the config declares one. A missing
+        // or empty script hard-fails `image prepare` after its multi-GB
+        // download, so the checklist catches it first, using the exact same
+        // validation ImagePreparer applies (they cannot disagree).
+        if case .parsed(let cfg) = evaluation, cfg.provisionScript != nil {
+            checks.append(Self.provisionScriptCheck(cfg))
+        }
 
         // 5. Token(s) — GitHub always (replaceable even when stored);
         // a Gitea row appears when the config declares that forge.
@@ -320,6 +318,42 @@ public struct SetupStatusComputer: Sendable {
         return SetupStatus(ready: checks.allSatisfy(\.ok), checks: checks)
     }
 
+    /// The provision-script row: green when the configured script exists and
+    /// is non-empty — exactly what `image prepare` will validate — otherwise
+    /// a fix row pointing at config.yaml. Only called for configs that
+    /// declare `provision_script`.
+    static func provisionScriptCheck(_ cfg: OrchardConfig) -> SetupCheckResult {
+        func broken(_ detail: String) -> SetupCheckResult {
+            SetupCheckResult(
+                id: "provision-script",
+                title: "Provision script",
+                ok: false,
+                detail: detail,
+                action: "repair_provision_script"
+            )
+        }
+        do {
+            let resolved = try ImagePreparer.resolveProvisionScript(cfg.provisionScript)
+            return SetupCheckResult(
+                id: "provision-script",
+                title: "Provision script",
+                ok: true,
+                detail: "script found: \(resolved?.path ?? "")",
+                action: nil
+            )
+        } catch let error as ImagePreparer.ImageError {
+            guard case .provisionScriptUnreadable(let path, let reason) = error else {
+                return broken("\(cfg.provisionScript ?? "") (unusable)")
+            }
+            if reason == "script is empty" {
+                return broken("\(path) is empty — add commands or remove provision_script from config.yaml")
+            }
+            return broken("missing or unreadable at \(path) — fix the path in config.yaml")
+        } catch {
+            return broken("\(cfg.provisionScript ?? "") (unusable: \(error))")
+        }
+    }
+
     /// The full config row, total over every evaluation state: working config
     /// (ok), untouched template (created — needs your repo, Edit Config),
     /// invalid file, or missing (Create Config).
@@ -358,6 +392,27 @@ public struct SetupStatusComputer: Sendable {
                 detail: "not created yet",
                 action: "create_config"
             )
+        }
+    }
+
+    /// Scenario → evaluation. `.live` probes the real filesystem (and
+    /// classifies a parsed file as template vs working); every other case
+    /// maps directly to its evaluation.
+    static func resolve(_ config: ConfigScenario) -> ConfigEvaluation {
+        switch config {
+        case .live:
+            if let cfg = liveConfig() {
+                return ConfigLoader.isTemplate(cfg) ? .templateConfig : .parsed(cfg)
+            }
+            return FileManager.default.fileExists(atPath: Paths.config.path) ? .invalidFile : .noFile
+        case .missing:
+            return .noFile
+        case .invalid:
+            return .invalidFile
+        case .template:
+            return .templateConfig
+        case .loaded(let cfg):
+            return ConfigLoader.isTemplate(cfg) ? .templateConfig : .parsed(cfg)
         }
     }
 }

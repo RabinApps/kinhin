@@ -37,6 +37,9 @@ enum ImageCommand {
             options.source = flag("--source", in: args) ?? options.source
             options.target = flag("--target", in: args) ?? options.target
             options.runnerVersion = flag("--runner-version", in: args) ?? options.runnerVersion
+            // The flag wins over the config key; either may be absent (no
+            // user script is baked in that case).
+            options.provisionScriptPath = flag("--provision-script", in: args) ?? cfg.provisionScript
             try await preparer.run(options)
             print("image ready: \(options.target)")
             print("set `image: \"\(options.target)\"` in your config to use it")

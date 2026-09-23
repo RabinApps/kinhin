@@ -53,12 +53,14 @@ func helpText() -> String {
         auth set --gitea            Store (or replace) your Gitea access token (auth set --gitea --token X)
         auth status [--json]        Show whether a token is stored and valid (--json: all forges, machine output, exit 1 until ready)
         auth clear                  Remove the stored token
-        doctor                      Check prerequisites and print the computed capacity
+        doctor [--json]             Check prerequisites and print the computed capacity (--json: merged machine-readable diagnostics document)
         setup-status [--json]       First-run checklist (pass --json for machine output)
         runtimes [--json]           Pools, capacity, budget, health, and routes (--no-health skips probes)
         runtimes route add <pat> <rt>   Route a repo (owner/repo) or workflow (owner/repo@Name) to tart|appleContainer
         runtimes route remove <pat>     Delete that route; a running daemon reloads routing live
-        image prepare               Build the runner base image (slow, once)
+        image prepare [--provision-script <file>]
+                                    Build the runner base image (slow, once); the script
+                                    bakes your toolchains in after the agents install
         image prepare --container   Build the Linux container image (apple container)
 
     RUNNING:

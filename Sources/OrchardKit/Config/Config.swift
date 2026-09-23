@@ -54,6 +54,10 @@ public struct OrchardConfig: Sendable, Equatable {
     /// Per-repo/per-workflow runtime routing (nil → the legacy single-pool
     /// behavior: every VM uses the engine's one runtime and fleet labels).
     public var runtimes: RuntimeConfig?
+    /// Host path to a script baked into the base image by
+    /// `orchard image prepare` (after the runner agents install) — the place
+    /// for toolchains every runner VM should boot with (Go, Rust, a JDK…).
+    public var provisionScript: String? = nil
 
     public struct ContainerConfig: Sendable, Equatable {
         /// Linux OCI image to run each runner container from (must be
@@ -171,6 +175,7 @@ public struct OrchardConfig: Sendable, Equatable {
         case gitea
         case container
         case runtimes
+        case provisionScript = "provision_script"
     }
 
     public static let `default` = OrchardConfig(
@@ -188,7 +193,8 @@ public struct OrchardConfig: Sendable, Equatable {
         tartPath: nil,
         reserve: .default,
         container: nil,
-        runtimes: nil
+        runtimes: nil,
+        provisionScript: nil
     )
 }
 
@@ -313,6 +319,12 @@ public struct ConfigLoader {
             cfg.diskGB = disk
         }
         if let tartPath = partial.tart_path { cfg.tartPath = tartPath }
+        if let provision = partial.provision_script {
+            guard !provision.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ConfigError.invalid("provision_script must not be empty (remove the key or point it at a script file)")
+            }
+            cfg.provisionScript = provision
+        }
         if let gitea = partial.gitea {
             guard let instance = gitea.instance, !instance.isEmpty else {
                 throw ConfigError.invalid("gitea.instance is required (e.g. https://gitea.example.com)")
@@ -469,6 +481,18 @@ public struct ConfigLoader {
         # tart_path: /opt/homebrew/bin/tart
         # token_ttl: 3000      # seconds to cache the runner registration token
 
+        # Optional: bake your own toolchains into the base image. The script
+        # runs (verbatim, as the admin user) inside the VM during
+        # `orchard image prepare`, after the runner agents are installed;
+        # every runner VM then boots with whatever it installs. The script is
+        # the version pin — edit it and re-run prepare to change toolchains.
+        # The base image ships Homebrew and mise, so either works:
+        #   brew install wget go@1.23 temurin@21
+        #   mise install go@1.23.4 rust@1.82 java@temurin-21
+        # End the script with `go version && java -version` prints — their
+        # output is logged, recording what went into the image.
+        # provision_script: "~/orchard/provision.sh"
+
         # Optional: also serve Gitea Actions from the same fleet. VMs are
         # assigned to whichever forge (GitHub or Gitea) has the most pending
         # work at spawn time. Requires a Gitea access token (orchard auth set
@@ -527,6 +551,7 @@ struct PartialConfig: Decodable {
     var gitea: PartialGitea?
     var container: PartialContainer?
     var runtimes: PartialRuntimes?
+    var provision_script: String?
 
     struct PartialGitea: Decodable {
         var instance: String?
