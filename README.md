@@ -39,23 +39,6 @@ always reserved.
 - **One-line install** — `curl … | bash` from GitHub Releases; a Homebrew tap is optional.
 - **Update checks** — the menu bar app checks GitHub Releases daily and can download the new DMG for you.
 
-## Upgrading from Orchard
-
-kinhin was previously named **Orchard**. If you ran a pre-rename build:
-
-- **Your data moves itself.** On first launch (CLI or menu bar), the old
-  `~/Library/Application Support/Orchard/` directory — config, logs, toolchain cache, fleet state —
-  is moved to `~/Library/Application Support/Kinhin/`. Nothing is re-downloaded, nothing is lost.
-- **Keychain tokens migrate on read.** PATs stored under the old service name are found,
-  re-saved under the new one, and the legacy entry is removed.
-- **In-flight VMs are not orphaned.** Instances the old build spawned (`orchard-…` names) are
-  still recognized, adopted, and cleaned up by the new engine; new VMs use the `kinhin-…` prefix.
-- **Forks keep updating.** A pre-rename `ORCHARD_UPDATE_REPO` environment override is still
-  honored (the new `KINHIN_UPDATE_REPO` wins when both are set).
-- **The old daemon is cleaned up.** `kinhin daemon uninstall` also removes the legacy
-  `com.orchard.daemon` LaunchAgent; the installer's `--uninstall` removes a legacy
-  `Orchard.app` and its symlinks.
-
 ## Requirements
 
 - Apple Silicon Mac (arm64), macOS 13+
