@@ -24,19 +24,31 @@ public struct AppleContainerRuntime: Runtime {
     /// Existence probe for the binary (tests inject a constant; production
     /// checks the filesystem).
     let exists: @Sendable (String) -> Bool
+    /// The resolved managed-toolchain selection source (cache envs come from
+    /// here when `share_cache` bind-mounts the host cache into containers).
+    let toolchainsConfig: @Sendable () -> OrchardConfig.ToolchainsConfig?
 
     public init(shell: ShellRunning = Shell(),
                 image: String = "orchard-ci-linux",
                 cpus: Int = 4,
                 memoryGB: Int = 8,
                 binPath: String? = nil,
-                exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }) {
+                exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
+                toolchainsConfig: @escaping @Sendable () -> OrchardConfig.ToolchainsConfig? = { nil }) {
         self.shell = shell
         self.image = image
         self.cpus = cpus
         self.memoryBytes = Int64(memoryGB) * 1_073_741_824
         self.binPath = binPath
         self.exists = exists
+        self.toolchainsConfig = toolchainsConfig
+    }
+
+    /// Linux-platform selection for cache-env exports in registration
+    /// scripts (computed per request from live config). nil = no selection.
+    var linuxToolchainSelection: ManagedToolchainSelection? {
+        guard let config = toolchainsConfig() else { return nil }
+        return ToolchainCatalog.selection(from: config, platform: .linux)
     }
 
     /// Resolved path of the `container` CLI (the Homebrew cask installs to
@@ -82,15 +94,24 @@ public struct AppleContainerRuntime: Runtime {
             return
         }
         Log.info(id, "starting Linux container from \(image) (\(cpus) vCPU, \(memoryGBLabel))")
-        _ = try await run([
-            bin, "run", "--detach",
+        var argv = [bin, "run", "--detach"]
+        // Opt-in shared cache: bind-mount the host toolchain cache into the
+        // container (`container run -v host:guest`) so per-job installs
+        // reuse warm downloads. Best-effort: create the host dir first so a
+        // fresh install cannot fail the run.
+        if route.cacheMount {
+            try? FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
+            argv += ["--volume", ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)]
+        }
+        argv += [
             "--name", id,
             "--cpus", String(cpus),
             "--memory", memoryLabel,
             "--rm",  // agent exit removes the container: belt + suspenders
             image,
             "/bin/bash", "-lc", "while true; do sleep 3600; done",
-        ])
+        ]
+        _ = try await run(argv)
     }
 
     // MARK: - Registration
@@ -99,9 +120,22 @@ public struct AppleContainerRuntime: Runtime {
     /// paths). Executed inside the container by the engine via execScript.
     public func registrationScript(forge: Forge, token: String, name: String,
                                    runnerCount: Int, route: RepoRoute, labels: [String]?) async throws -> String {
+        // Opt-in shared cache: point the selected ecosystems' caches at the
+        // bind-mounted host cache so per-job installs reuse warm downloads.
+        // Exports are guarded no-ops when the mount is absent. Linux
+        // platform: macOS-only entries (brew, fvm, CocoaPods) never appear.
+        let cachePrefix: String
+        if route.cacheMount, let selection = linuxToolchainSelection {
+            cachePrefix = RunnerBootstrap.cacheEnvExports(
+                cacheEnvs: selection.cacheEnvs,
+                mountPath: ToolchainCacheMount.linuxGuestPath
+            ) + "\n\n"
+        } else {
+            cachePrefix = ""
+        }
         switch forge.credentials {
         case .github:
-            return RunnerBootstrap.linuxGitHubRegistrationScript(
+            return cachePrefix + RunnerBootstrap.linuxGitHubRegistrationScript(
                 configureURL: forge.registrationURL(),
                 token: token,
                 labels: labels ?? forge.labels,
@@ -113,7 +147,7 @@ public struct AppleContainerRuntime: Runtime {
             guard let giteaForge = forge as? GiteaForge else {
                 throw RuntimeWatchError.registrationFailed(vm: name, stderr: "gitea forge misconfigured")
             }
-            return RunnerBootstrap.linuxGiteaRegistrationScript(
+            return cachePrefix + RunnerBootstrap.linuxGiteaRegistrationScript(
                 instance: giteaForge.registrationURL(),
                 token: giteaForge.registrationToken,
                 labels: forge.labels,

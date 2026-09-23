@@ -87,7 +87,11 @@ extension SetupWindowController {
             }
             try await Self.startContainerSystem(shell: Shell())
             let preparer = ContainerImagePreparer(shell: Shell())
-            try await preparer.prepare(image: image, target: image)
+            // The config's toolchains section bakes into the Linux image too
+            // (macOS-only entries are skipped for containers, never an error).
+            var options = ContainerImagePreparer.Options(image: image, target: image)
+            options.toolchains = cfg.toolchains
+            try await preparer.prepare(options)
         }
     }
 

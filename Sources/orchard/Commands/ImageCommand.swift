@@ -20,7 +20,24 @@ enum ImageCommand {
                 let image = flag("--container-image", in: args) ?? "ubuntu:24.04"
                 let target = flag("--target", in: args) ?? "orchard-ci-linux"
                 let preparer = ContainerImagePreparer(shell: shell)
-                let baked = try await preparer.prepare(image: image, target: target)
+                var options = ContainerImagePreparer.Options(image: image, target: target)
+                // Managed toolchains for the Linux bake: config section by
+                // default; --linux-toolchain / --linux-stack flags
+                // (repeatable) override it for this prepare. A bare flag
+                // means "no managed toolchains". macOS-only entries are
+                // skipped with a note, never an error.
+                let specFlags = allFlags("--linux-toolchain", in: args)
+                let stackFlags = allFlags("--linux-stack", in: args)
+                if !specFlags.isEmpty || !stackFlags.isEmpty {
+                    let override = PartialConfig.PartialToolchains(
+                        specs: specFlags.isEmpty ? nil : specFlags,
+                        stacks: stackFlags.isEmpty ? nil : stackFlags
+                    )
+                    options.toolchains = try ConfigLoader.parseToolchains(override)
+                } else {
+                    options.toolchains = cfg.toolchains
+                }
+                let baked = try await preparer.prepare(options)
                 print("container image ready: \(baked)")
                 print("set `container.image: \"\(baked)\"` in your config to use it")
             } catch let error as ContainerImageError {

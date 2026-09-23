@@ -14,8 +14,29 @@ public enum ToolchainCacheMount {
     /// name keeps the share safe if other shares ever join the same mount.
     public static let guestDirectoryName = "orchard-cache"
 
-    /// Absolute guest-side path of the shared cache.
+    /// Absolute guest-side path of the shared cache in macOS guests.
     public static var guestPath: String { guestSharesRoot + "/" + guestDirectoryName }
+    /// Absolute guest-side path of the shared cache in Linux guests
+    /// (apple/container bind mounts). Chosen to be writable by root, which
+    /// is the default user in runner containers.
+    public static let linuxGuestPath = "/var/orchard-cache"
+
+    /// The `-v/--volume` spec for binding the host cache into a Linux
+    /// container (`container run -v <host>:<guest>` — the syntax documented
+    /// by apple/container's command reference).
+    public static func volumeSpec(host: String) -> String {
+        "\(host):\(linuxGuestPath)"
+    }
+}
+
+// MARK: - Platforms
+
+/// Which execution platforms a catalog entry supports. Entries list the
+/// platforms they install on; selection filters by target so e.g. a
+/// Linux container bake never sees CocoaPods.
+public enum ToolchainPlatform: String, Sendable, Equatable, CaseIterable {
+    case macOS
+    case linux
 }
 
 // MARK: - Requirements
@@ -58,6 +79,9 @@ public struct ToolchainEntry: Sendable, Equatable {
         case npm(package: String)
         /// A Ruby gem installed into the user's gem dir.
         case gem(name: String)
+        /// Debian/Ubuntu packages installed with apt-get (Linux guests only;
+        /// the runner containers run as root so no sudo is needed).
+        case apt(packages: [String])
     }
 
     public let id: String
@@ -71,8 +95,16 @@ public struct ToolchainEntry: Sendable, Equatable {
     public let verify: String
     /// The mise spec shown by `orchard toolchains` when the user doesn't pin.
     public let defaultSpec: String
+    /// Platforms this tool installs on. Entries absent from the target
+    /// platform are skipped at selection time (not an error — e.g. brew
+    /// tools simply don't apply inside Linux containers).
+    public let platforms: [ToolchainPlatform]
+    /// Alternative installer used on Linux guests (e.g. dotnet via apt
+    /// instead of the Homebrew cask). nil = the primary installer serves
+    /// every supported platform.
+    public let linuxInstaller: Installer?
 
-    public init(id: String, summary: String, installer: Installer, requires: [ToolchainRequirement] = [], cacheEnvs: [ToolchainCacheEnv] = [], verify: String, defaultSpec: String = "") {
+    public init(id: String, summary: String, installer: Installer, requires: [ToolchainRequirement] = [], cacheEnvs: [ToolchainCacheEnv] = [], verify: String, defaultSpec: String = "", platforms: [ToolchainPlatform] = ToolchainPlatform.allCases, linuxInstaller: Installer? = nil) {
         self.id = id
         self.summary = summary
         self.installer = installer
@@ -80,6 +112,20 @@ public struct ToolchainEntry: Sendable, Equatable {
         self.cacheEnvs = cacheEnvs
         self.verify = verify
         self.defaultSpec = defaultSpec
+        self.platforms = platforms
+        self.linuxInstaller = linuxInstaller
+    }
+
+    /// True when the tool installs exclusively via Homebrew (formula or
+    /// cask) — i.e. it has no Linux equivalent in the catalog.
+    public var isBrewOnly: Bool {
+        if case .brew = installer { return true }
+        return false
+    }
+
+    /// The installer for the given platform (the Linux override when set).
+    public func installer(for platform: ToolchainPlatform) -> Installer {
+        platform == .linux ? (linuxInstaller ?? installer) : installer
     }
 }
 
@@ -117,8 +163,11 @@ public struct ToolchainStack: Sendable, Equatable {
     /// replaced with the effective version; steps still containing the
     /// placeholder are dropped when no version is pinned.
     public let postInstall: [String]
+    /// Platforms this stack installs on (macOS-only for the iOS-adjacent
+    /// recipes: CocoaPods, watchman, and fvm do not exist on Linux).
+    public let platforms: [ToolchainPlatform]
 
-    public init(id: String, summary: String, requires: [ToolchainRequirement] = [], brewTaps: [String] = [], brewFormulas: [String] = [], miseSpecs: [String] = [], npmPackages: [NPMPackage] = [], cacheEnvs: [ToolchainCacheEnv] = [], verify: String, versionKind: String? = nil, defaultVersion: String = "", postInstall: [String] = []) {
+    public init(id: String, summary: String, requires: [ToolchainRequirement] = [], brewTaps: [String] = [], brewFormulas: [String] = [], miseSpecs: [String] = [], npmPackages: [NPMPackage] = [], cacheEnvs: [ToolchainCacheEnv] = [], verify: String, versionKind: String? = nil, defaultVersion: String = "", postInstall: [String] = [], platforms: [ToolchainPlatform] = ToolchainPlatform.allCases) {
         self.id = id
         self.summary = summary
         self.requires = requires
@@ -131,6 +180,7 @@ public struct ToolchainStack: Sendable, Equatable {
         self.versionKind = versionKind
         self.defaultVersion = defaultVersion
         self.postInstall = postInstall
+        self.platforms = platforms
     }
 
     /// Splits "flutter@3.24.0" into ("flutter", "3.24.0"); a bare id or a
@@ -171,12 +221,17 @@ public struct ManagedToolchainSelection: Sendable, Equatable {
     public var miseSpecs: [String] = []
     public var npmPackages: [ToolchainStack.NPMPackage] = []
     public var gems: [String] = []
+    /// apt packages for Linux guests (e.g. `dotnet-sdk-8.0`).
+    public var aptPackages: [String] = []
     /// Post-install steps emitted verbatim (e.g. `fvm install 3.24.0`).
     public var stackSteps: [String] = []
     /// Deduped cache-env exports, in stable selection order.
     public var cacheEnvs: [ToolchainCacheEnv] = []
     /// Verify commands appended to the install script (fail-fast).
     public var verifications: [String] = []
+    /// True when a selected entry was skipped because it does not support
+    /// the requested platform (surfaced as a log line, never an error).
+    public var skippedEntries: [String] = []
 
     public init() {}
 }
@@ -191,11 +246,23 @@ extension ToolchainCatalog {
     /// - `brew` entries are Homebrew formulas/casks; known ones contribute
     ///   their cache envs and verification.
     /// - `stacks` contribute their recipe pieces (with pinned versions).
-    public static func selection(from config: OrchardConfig.ToolchainsConfig, mountPath: String? = nil) -> ManagedToolchainSelection {
+    ///
+    /// Platform-aware: entries that don't list the requested platform are
+    /// skipped (recorded in `skippedEntries`, never an error). Defaults to
+    /// macOS for the existing VM bake path.
+    public static func selection(
+        from config: OrchardConfig.ToolchainsConfig,
+        platform: ToolchainPlatform = .macOS,
+        mountPath: String? = nil
+    ) -> ManagedToolchainSelection {
         var out = ManagedToolchainSelection()
 
         func collect(_ entry: ToolchainEntry, version: String?) {
-            switch entry.installer {
+            guard entry.platforms.contains(platform) else {
+                if !out.skippedEntries.contains(entry.id) { out.skippedEntries.append(entry.id) }
+                return
+            }
+            switch entry.installer(for: platform) {
             case .mise:
                 out.miseSpecs.append(version.map { "\(entry.id)@\($0)" } ?? entry.defaultSpec)
             case .brew(let formula, let isCask):
@@ -205,6 +272,10 @@ extension ToolchainCatalog {
                 out.npmPackages.append(.init(name: package, version: version ?? ""))
             case .gem(let gem):
                 if !out.gems.contains(gem) { out.gems.append(gem) }
+            case .apt(let packages):
+                for package in packages where !out.aptPackages.contains(package) {
+                    out.aptPackages.append(package)
+                }
             }
             for env in entry.cacheEnvs where !out.cacheEnvs.contains(env) {
                 out.cacheEnvs.append(env)
@@ -228,6 +299,35 @@ extension ToolchainCatalog {
 
         // 2. brew: raw formulas; known tools contribute caches/verification.
         for formula in config.brew ?? [] {
+            if let tool = ToolchainCatalog.tool(id: formula) {
+                // Known tool: on Linux, use its Linux installer when it has
+                // one (e.g. dotnet via apt); otherwise skip with a note.
+                if !tool.platforms.contains(platform) {
+                    if !out.skippedEntries.contains(tool.id) { out.skippedEntries.append(tool.id) }
+                    continue
+                }
+                if case .brew(let name, let isCask) = tool.installer(for: platform) {
+                    let target = BrewFormula(name: name, isCask: isCask)
+                    if !out.brewFormulas.contains(target) { out.brewFormulas.append(target) }
+                } else if case .apt(let packages) = tool.installer(for: platform) {
+                    for package in packages where !out.aptPackages.contains(package) {
+                        out.aptPackages.append(package)
+                    }
+                }
+                for env in tool.cacheEnvs where !out.cacheEnvs.contains(env) {
+                    out.cacheEnvs.append(env)
+                }
+                if !tool.verify.isEmpty, !out.verifications.contains(tool.verify) {
+                    out.verifications.append(tool.verify)
+                }
+                continue
+            }
+            if platform == .linux {
+                // Homebrew is macOS-only: raw brew entries are skipped on
+                // Linux with a note (never an error).
+                if !out.skippedEntries.contains(formula) { out.skippedEntries.append(formula) }
+                continue
+            }
             if let tool = ToolchainCatalog.tool(id: formula),
                case .brew(let name, let isCask) = tool.installer {
                 let target = BrewFormula(name: name, isCask: isCask)
@@ -264,6 +364,10 @@ extension ToolchainCatalog {
         for name in config.stacks ?? [] {
             let (id, pinned) = ToolchainStack.splitSpec(name)
             guard let stack = ToolchainCatalog.stack(id: id) else { continue } // validated earlier
+            guard stack.platforms.contains(platform) else {
+                if !out.skippedEntries.contains(stack.id) { out.skippedEntries.append(stack.id) }
+                continue
+            }
             out.brewTaps.append(contentsOf: stack.brewTaps)
             for formula in stack.brewFormulas {
                 let target = BrewFormula(name: formula, isCask: false)
@@ -293,6 +397,21 @@ extension ToolchainCatalog {
             }
             if !stack.verify.isEmpty, !out.verifications.contains(stack.verify) {
                 out.verifications.append(stack.verify)
+            }
+        }
+
+        // Umbrella caches: mise (whenever any mise tool is selected) and
+        // Homebrew's download cache (macOS brew installs only). These were
+        // documented in the README's cache map but previously missing from
+        // the resolved selection.
+        if !out.miseSpecs.isEmpty {
+            let mise = ToolchainCacheEnv(variable: "MISE_CACHE_DIR", subdirectory: "mise")
+            if !out.cacheEnvs.contains(mise) { out.cacheEnvs.insert(mise, at: 0) }
+        }
+        if platform == .macOS, !out.brewFormulas.isEmpty {
+            let brew = ToolchainCacheEnv(variable: "HOMEBREW_CACHE", subdirectory: "brew")
+            if !out.cacheEnvs.contains(brew) {
+                out.cacheEnvs.insert(brew, at: out.miseSpecs.isEmpty ? 0 : 1)
             }
         }
 
@@ -367,20 +486,20 @@ public enum ToolchainCatalog {
         ToolchainEntry(id: "netlify-cli", summary: "Netlify deploy CLI", installer: .npm(package: "netlify-cli"), requires: [.node], verify: "netlify --version"),
         ToolchainEntry(id: "firebase-tools", summary: "Firebase deploy CLI", installer: .npm(package: "firebase-tools"), requires: [.node], verify: "firebase --version"),
 
-        // --- Homebrew ---
-        ToolchainEntry(id: "yamllint", summary: "YAML linter", installer: .brew(formula: "yamllint", isCask: false), verify: "yamllint --version"),
-        ToolchainEntry(id: "awscli", summary: "AWS CLI", installer: .brew(formula: "awscli", isCask: false), verify: "aws --version"),
-        ToolchainEntry(id: "supabase", summary: "Supabase CLI", installer: .brew(formula: "supabase", isCask: false), verify: "supabase --version"),
-        ToolchainEntry(id: "flyctl", summary: "Fly.io deploy CLI", installer: .brew(formula: "flyctl", isCask: false), verify: "flyctl version"),
-        ToolchainEntry(id: "gcloud", summary: "Google Cloud SDK", installer: .brew(formula: "google-cloud-sdk", isCask: true), verify: "gcloud --version"),
-        ToolchainEntry(id: "php", summary: "PHP runtime (Composer via the composer tool)", installer: .brew(formula: "php", isCask: false), verify: "php --version"),
-        ToolchainEntry(id: "composer", summary: "PHP dependency manager", installer: .brew(formula: "composer", isCask: false), verify: "composer --version"),
-        ToolchainEntry(id: "dotnet", summary: ".NET SDK (C#/F#/VB — Homebrew cask; no @version)", installer: .brew(formula: "dotnet-sdk", isCask: true), cacheEnvs: [
+        // --- Homebrew (macOS guests only; no Linux equivalent in the catalog) ---
+        ToolchainEntry(id: "yamllint", summary: "YAML linter", installer: .brew(formula: "yamllint", isCask: false), verify: "yamllint --version", platforms: [.macOS]),
+        ToolchainEntry(id: "awscli", summary: "AWS CLI", installer: .brew(formula: "awscli", isCask: false), verify: "aws --version", platforms: [.macOS]),
+        ToolchainEntry(id: "supabase", summary: "Supabase CLI", installer: .brew(formula: "supabase", isCask: false), verify: "supabase --version", platforms: [.macOS]),
+        ToolchainEntry(id: "flyctl", summary: "Fly.io deploy CLI", installer: .brew(formula: "flyctl", isCask: false), verify: "flyctl version", platforms: [.macOS]),
+        ToolchainEntry(id: "gcloud", summary: "Google Cloud SDK", installer: .brew(formula: "google-cloud-sdk", isCask: true), verify: "gcloud --version", platforms: [.macOS]),
+        ToolchainEntry(id: "php", summary: "PHP runtime (Composer via the composer tool)", installer: .brew(formula: "php", isCask: false), verify: "php --version", platforms: [.macOS]),
+        ToolchainEntry(id: "composer", summary: "PHP dependency manager", installer: .brew(formula: "composer", isCask: false), verify: "composer --version", platforms: [.macOS]),
+        ToolchainEntry(id: "dotnet", summary: ".NET SDK (C#/F#/VB): brew cask on macOS, apt on Linux; no @version", installer: .brew(formula: "dotnet-sdk", isCask: true), cacheEnvs: [
             ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget"),
-        ], verify: "dotnet --list-sdks"),
+        ], verify: "dotnet --list-sdks", linuxInstaller: .apt(packages: ["dotnet-sdk-8.0"])),
 
-        // --- gems ---
-        ToolchainEntry(id: "fastlane", summary: "iOS/Android release automation (uses the system Ruby)", installer: .gem(name: "fastlane"), verify: "fastlane --version"),
+        // --- gems (macOS guests; Linux bakes use mise-managed ruby + plain gem) ---
+        ToolchainEntry(id: "fastlane", summary: "iOS/Android release automation (uses the system Ruby)", installer: .gem(name: "fastlane"), verify: "fastlane --version", platforms: [.macOS]),
     ]
 
     // MARK: Stacks
@@ -395,7 +514,8 @@ public enum ToolchainCatalog {
             verify: "fvm flutter --version && fvm list",
             versionKind: "Flutter SDK version (installed and pinned via fvm; default: stable)",
             defaultVersion: "stable",
-            postInstall: ["fvm install <version>", "fvm global <version>"]
+            postInstall: ["fvm install <version>", "fvm global <version>"],
+            platforms: [.macOS]
         ),
         ToolchainStack(
             id: "expo",
@@ -411,7 +531,8 @@ public enum ToolchainCatalog {
             summary: "Direct React Native (no Expo): watchman, CocoaPods, JDK 17 — add node yourself",
             brewFormulas: ["watchman", "cocoapods"],
             miseSpecs: ["java@temurin-17"],
-            verify: "watchman --version && pod --version && java -version"
+            verify: "watchman --version && pod --version && java -version",
+            platforms: [.macOS]
         ),
         ToolchainStack(
             id: "vercel",

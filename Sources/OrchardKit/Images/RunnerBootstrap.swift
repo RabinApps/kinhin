@@ -310,6 +310,86 @@ public enum RunnerBootstrap {
         """
     }
 
+    /// The managed-toolchains script baked into Linux images by
+    /// `orchard image prepare --container` when a `toolchains:` section is
+    /// configured. Mirrors managedToolchainsInstallScript for the ubuntu-based
+    /// runner containers: guarded apt installs (running as root — no sudo),
+    /// a mise bootstrap (Linux base images don't ship it), `mise use --global`
+    /// pins, npm globals, and verify-gated completion. Cache exports point at
+    /// the container-side bind mount when present.
+    public static func linuxManagedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?) -> String {
+        var lines: [String] = ["set -euo pipefail"]
+
+        if let mountPath {
+            lines.append(Self.cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: mountPath))
+        }
+
+        if !selection.aptPackages.isEmpty {
+            let packages = selection.aptPackages.joined(separator: " ")
+            lines.append("""
+            # apt packages (guarded so re-runs no-op; containers run as root)
+            export DEBIAN_FRONTEND=noninteractive
+            for p in \(packages); do
+              if ! dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'install ok installed'; then
+                apt-get update -qq
+                apt-get install -y --no-install-recommends "$p"
+              fi
+            done
+            """)
+        }
+
+        if !selection.miseSpecs.isEmpty {
+            lines.append("""
+            # mise bootstrap (Linux base images don't ship it) + shims on PATH
+            if ! command -v mise >/dev/null 2>&1; then
+              curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+            fi
+            export PATH="$HOME/.local/share/mise/shims:$PATH"
+            """)
+            let specs = selection.miseSpecs.joined(separator: " ")
+            lines.append("""
+            # mise pins — installed AND set globally so every runner shell sees them
+            mise use --global \(specs)
+            """)
+        }
+
+        if !selection.npmPackages.isEmpty {
+            lines.append("# npm globals (guarded so re-runs no-op)")
+            for package in selection.npmPackages {
+                let spec = package.version.isEmpty ? "\(package.name)" : "\(package.name)@\(package.version)"
+                lines.append("""
+                if ! npm ls -g --depth=0 \(package.name) >/dev/null 2>&1; then
+                  npm install -g \(spec)
+                fi
+                """)
+            }
+        }
+
+        if !selection.gems.isEmpty {
+            let gems = selection.gems.joined(separator: " ")
+            lines.append("""
+            # Ruby gems (system install; guarded so re-runs no-op)
+            for g in \(gems); do
+              if ! gem list -i "^$g$" >/dev/null 2>&1; then
+                gem install "$g"
+              fi
+            done
+            """)
+        }
+
+        if !selection.stackSteps.isEmpty {
+            lines.append("# Stack steps (version-pinned installs)")
+            lines.append(contentsOf: selection.stackSteps)
+        }
+
+        if !selection.verifications.isEmpty {
+            lines.append("# Audit trail: verify every managed tool (output is logged)")
+            lines.append(selection.verifications.joined(separator: " && "))
+        }
+
+        return lines.joined(separator: "\n\n")
+    }
+
     /// Installs the Gitea runner binary into a Linux image (gitea-runner,
     /// formerly act_runner — linux-arm64 build).
     public static func linuxGiteaRunnerInstallScript(version: String) -> String {

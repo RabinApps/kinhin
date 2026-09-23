@@ -65,7 +65,9 @@ func helpText() -> String {
                                     shared host download cache (auto-pruned)
         image prepare --toolchain <spec> [--stack <name>]
                                     Override the config's toolchains for this prepare
-        image prepare --container   Build the Linux container image (apple container)
+        image prepare --container   Build the Linux container image (apple container);
+                                    bakes `toolchains:` too — macOS-only entries are
+                                    skipped (use --linux-toolchain/--linux-stack to override)
         image prepare --docker      Build the Linux container image (Docker Desktop / OrbStack / colima)
         toolchains                  Managed-toolchain catalog, selections, and cache state
         toolchains prune [--dry-run]   Expire stale host-cache entries now

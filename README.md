@@ -270,8 +270,16 @@ Set **`share_cache: true`** to mount the same cache into every runner VM: per-jo
 installs — `npm ci`, `pnpm install`, `mise install`, `fvm install`, `dotnet restore`,
 `playwright install` — then hit warm cache instead of re-downloading gigabytes per job.
 This is best-effort and off by default: the tools tolerate concurrent VM writers (worst
-case a duplicate download), but it does share cache state across ephemeral jobs. The
-apple/container (Linux) path is not covered yet.
+case a duplicate download), but it does share cache state across ephemeral jobs.
+
+The apple/container (Linux) path is covered too: `image prepare --container` bind-mounts
+the same host cache into the scratch container (`container run -v host:guest`), bakes the
+config's `toolchains:` with a Linux-specific script (apt for dotnet, mise bootstrapped on
+demand; macOS-only entries like brew tools, fvm, and CocoaPods are skipped with a note),
+and with `share_cache: true` every Linux runner container gets the same `-v` mount plus
+the guarded cache-env exports in its registration script — pointing at the container-side
+path `/var/orchard-cache`. macOS-only and cross-platform selections resolve independently
+per platform, so a mixed fleet shares one host cache without cross-contaminating guests.
 
 The cache auto-expires — default 30 days since last use, with LRU eviction past 50 GB —
 and a one-hour grace window means a prune can never race a live download. Tune or
@@ -475,6 +483,8 @@ container:
 ```
 
 Requires the container CLI (`brew install --cask container && container system start`). macOS jobs still need Tart — containers run Linux workloads only. When `container:` is configured, the setup checklist and `orchard doctor` gain container rows (CLI health, system-service state, image present) with one-click fix actions; without it, the rows never appear. Run `orchard runtimes` (or the menu bar's **Runtimes…** pane) to see the pool, its cap, and its live health once configured.
+
+Managed toolchains and the shared cache work on this path: `image prepare --container` bind-mounts the host toolchain cache into the scratch container and bakes the config's `toolchains:` via a Linux script (apt, mise, npm globals — macOS-only entries like brew tools, fvm, and CocoaPods are skipped with a note; override per prepare with `--linux-toolchain`/`--linux-stack`). With `share_cache: true`, every Linux runner container gets the same bind mount (guest path `/var/orchard-cache`) plus the guarded cache-env exports in its registration script, so per-job `npm ci`, `go mod download`, `dotnet restore`, and `playwright install` hit the same warm cache the VMs do.
 
 **Docker is here for Linux jobs too** — Linux runner containers inside your provider's shared Linux VM (Docker Desktop, OrbStack, or colima): one container per job slot with per-slot `--cpus`/`--memory` limits, registration over `docker exec` (no SSH, no guest IP), and the daemon teardown as soon as the job is done. Orchard delegates the VM — it never starts, stops, or configures the provider. Add this to your config and run `orchard image prepare --docker` to bake the agents into a Linux image:
 

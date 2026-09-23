@@ -75,7 +75,8 @@ public final class FleetEngine {
                 shell: containerShell ?? Shell(),
                 image: containerConfig.image,
                 cpus: containerConfig.cpus,
-                memoryGB: containerConfig.memoryGB
+                memoryGB: containerConfig.memoryGB,
+                toolchainsConfig: { [config] in config.toolchains }
             )
         }
         var dockerInstance: DockerRuntime?
