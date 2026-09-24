@@ -183,3 +183,42 @@ public struct TartController: TartControlling {
         guard res.succeeded else { throw TartError.commandFailed(what: "pull \(image)", stderr: res.stderr) }
     }
 }
+
+/// Stand-in used when tart is not installed but the fleet runs Linux jobs on
+/// Docker or Apple container. Every call fails clearly; nothing routes macOS
+/// work to it because the engine's primary runtime is the Linux one.
+public struct UnavailableTart: TartControlling {
+    public init() {}
+    private var missing: TartError { .missingBinary(path: "PATH") }
+    public func list() async throws -> [TartVM] { [] }
+    public func clone(source: String, to name: String) async throws { throw missing }
+    public func run(name: String, mounts: [String]) async throws { throw missing }
+    public func ip(of name: String, timeout: TimeInterval) async throws -> String { throw missing }
+    public func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult { throw missing }
+    public func stop(name: String) async throws { throw missing }
+    public func delete(name: String) async throws { throw missing }
+    public func pull(image: String) async throws { throw missing }
+}
+
+extension kinhinConfig {
+    /// True when a Linux runtime (Apple container or Docker) is configured, so
+    /// the fleet can run without tart (macOS jobs are then unavailable).
+    public var hasLinuxRuntime: Bool { container != nil || docker != nil }
+
+    /// True when the fleet can start on this host: tart is installed, or a
+    /// Linux runtime is configured to run instead.
+    public func canRunOnThisHost() -> Bool {
+        TartController.isInstalled(configuredPath: tartPath) || hasLinuxRuntime
+    }
+
+    /// The tart handle for an engine: the real controller when tart is
+    /// installed, an inert stand-in for Linux-only fleets, else the usual
+    /// "tart not found" error.
+    public func makeTartControlling() throws -> TartControlling {
+        if TartController.isInstalled(configuredPath: tartPath) {
+            return try TartController(configuredPath: tartPath)
+        }
+        if hasLinuxRuntime { return UnavailableTart() }
+        throw TartError.missingBinary(path: tartPath ?? "PATH")
+    }
+}

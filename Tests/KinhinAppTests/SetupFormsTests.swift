@@ -5,6 +5,16 @@ import KinhinKit
 
 /// The Setup forms and the Capacity form write real config edits — always to
 /// a scratch file, never the user's config.
+private final class FakeInstallShell: ShellRunning, @unchecked Sendable {
+    var calls: [[String]] = []
+    var failWith: String?
+    func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+        calls.append(argv)
+        if let failWith { return ShellResult(exitCode: 1, stdout: "", stderr: failWith) }
+        return ShellResult(exitCode: 0, stdout: "", stderr: "")
+    }
+}
+
 @MainActor
 final class SetupFormsTests: XCTestCase {
     private var configURL: URL!
@@ -40,14 +50,27 @@ final class SetupFormsTests: XCTestCase {
         let form = connectForm()
         var changed = 0
         form.onChanged = { changed += 1 }
+        form.markTokensStoredForTesting(github: true, gitea: false)
         form.enterGitHubRepoForTesting("acme/api")
         XCTAssertEqual(try snapshot().repo, "acme/api")
         XCTAssertEqual(changed, 1)
-        XCTAssertFalse(form.isConnected, "a repo alone is not connected — the token is missing too")
+        XCTAssertTrue(form.isConnected)
+    }
+
+    func testRepoCannotBeChosenBeforeTheForgeIsConnected() throws {
+        let form = connectForm()
+        form.enterGitHubRepoForTesting("acme/api")
+        XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "no token, so no repo is written")
+        form.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
+        XCTAssertNil(try snapshot().gitea, "no Gitea token, so no gitea section is written")
+        XCTAssertFalse(form.isConnected)
+        XCTAssertFalse(form.repoFieldsEnabledForTesting.github, "the repo field is locked until connected")
+        XCTAssertFalse(form.repoFieldsEnabledForTesting.gitea)
     }
 
     func testInvalidRepoIsRejectedAndNotWritten() throws {
         let form = connectForm()
+        form.markTokensStoredForTesting(github: true, gitea: false)
         form.enterGitHubRepoForTesting("a/b/c")
         XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "engine validation gates every write")
         XCTAssertTrue(allText(in: form.view).contains("Not saved"))
@@ -55,6 +78,7 @@ final class SetupFormsTests: XCTestCase {
 
     func testGiteaInstanceAndScopeAreWrittenTogether() throws {
         let form = connectForm()
+        form.markTokensStoredForTesting(github: false, gitea: true)
         form.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
         let gitea = try XCTUnwrap(snapshot().gitea)
         XCTAssertEqual(gitea.instance, "https://git.example.com")
@@ -63,6 +87,7 @@ final class SetupFormsTests: XCTestCase {
 
     func testGiteaNeedsBothServerAndScopeBeforeWriting() throws {
         let form = connectForm()
+        form.markTokensStoredForTesting(github: false, gitea: true)
         form.enterGiteaForTesting(instance: "https://git.example.com", scope: "")
         XCTAssertNil(try snapshot().gitea, "a half-filled gitea: section would make the config invalid")
     }
@@ -71,11 +96,51 @@ final class SetupFormsTests: XCTestCase {
         let form = connectForm()
         XCTAssertFalse(form.isConnected)
 
-        form.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
-        XCTAssertFalse(form.isConnected, "Gitea details without a token are not connected")
         form.markTokensStoredForTesting(github: false, gitea: true)
+        form.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
         XCTAssertTrue(form.isConnected, "a Gitea-only setup can finish onboarding")
         XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "no GitHub repo is required")
+    }
+
+    func testTartIsOptionalWhenALinuxRuntimeIsReady() throws {
+        let form = MacToolsFormViewController()
+        form.configURL = configURL
+        _ = form.view
+        var changes = 0
+        form.onReadinessChanged = { changes += 1 }
+        form.setTartReadyForTesting(false)
+        XCTAssertFalse(form.isReady, "nothing to run jobs on yet")
+        XCTAssertEqual(form.runsOnDescription, "nothing yet")
+
+        // Docker is installed on the machine running the tests; only assert
+        // the Linux path when it really is.
+        guard Paths.findExecutable(named: "docker") != nil else { return }
+        form.setDockerForTesting(true)
+        XCTAssertTrue(form.isReady, "a Linux runtime alone is enough — tart is optional")
+        XCTAssertTrue(form.runsOnDescription.hasPrefix("Linux jobs only (Docker)"), form.runsOnDescription)
+        XCTAssertEqual(changes, 1)
+        form.setDockerForTesting(false)
+        XCTAssertFalse(form.isReady)
+    }
+
+    func testWizardTurnsOnAnInstalledLinuxRuntimeWhenTartIsMissing() throws {
+        // Only meaningful on a host with Docker but without tart.
+        guard !TartController.isInstalled(), Paths.findExecutable(named: "docker") != nil,
+              Paths.findExecutable(named: "container") == nil else { return }
+        let form = MacToolsFormViewController()
+        form.configURL = configURL
+        form.autoEnableLinuxRuntime = true
+        _ = form.view
+        XCTAssertNotNil(try snapshot().docker, "Docker was switched on so setup can finish")
+        XCTAssertTrue(form.isReady)
+
+        // The Accounts page (flag off) never changes choices on its own.
+        try? FileManager.default.removeItem(at: configURL)
+        try? "repo: \"acme/widgets\"\nlabels: [a]\n".write(to: configURL, atomically: true, encoding: .utf8)
+        let quiet = MacToolsFormViewController()
+        quiet.configURL = configURL
+        _ = quiet.view
+        XCTAssertNil(try snapshot().docker)
     }
 
     func testLinuxRuntimeTogglesPersist() throws {
@@ -147,5 +212,87 @@ final class SetupFormsTests: XCTestCase {
         }
         walk(view)
         return out.joined(separator: "\n")
+    }
+
+    // MARK: Install flow
+
+    private func installForm(shell: FakeInstallShell, brew: String? = "/opt/homebrew/bin/brew") -> MacToolsFormViewController {
+        let form = MacToolsFormViewController()
+        form.configURL = configURL
+        form.installShell = shell
+        form.brewPath = { brew }
+        form.installedCheck = { _ in true }
+        _ = form.view
+        return form
+    }
+
+    func testCancellingTheInstallConfirmationRunsNothing() {
+        let shell = FakeInstallShell()
+        let form = installForm(shell: shell)
+        var asked: [InstallableTool] = []
+        form.confirmInstall = { tool, _ in asked.append(tool); return nil }
+        XCTAssertNil(form.install(.docker))
+        XCTAssertEqual(asked, [.docker], "the user is always asked first")
+        XCTAssertTrue(shell.calls.isEmpty)
+    }
+
+    func testConfirmedInstallRunsTheChosenOptionsCommands() async {
+        let shell = FakeInstallShell()
+        let form = installForm(shell: shell)
+        var offered: [String] = []
+        form.confirmInstall = { _, options in
+            offered = options.map(\.id)
+            return options.first { $0.id == "docker-colima" } // the user picks Colima
+        }
+        await form.install(.docker)?.value
+        XCTAssertEqual(offered, ["docker-desktop", "docker-orbstack", "docker-colima"], "all Docker options are offered")
+        XCTAssertEqual(shell.calls.first, ["/opt/homebrew/bin/brew", "install", "colima", "docker"])
+        // (The follow-up `colima start` is resolved from PATH after the real
+        // install, so it isn't reachable with a fake shell.)
+    }
+
+    func testMissingHomebrewExplainsInsteadOfAskingOrRunning() {
+        let shell = FakeInstallShell()
+        let form = installForm(shell: shell, brew: nil)
+        var explained: InstallableTool?
+        var confirmed = false
+        form.explainMissingBrew = { tool, _ in explained = tool }
+        form.confirmInstall = { _, _ in confirmed = true; return nil }
+        XCTAssertNil(form.install(.appleContainer))
+        XCTAssertEqual(explained, .appleContainer)
+        XCTAssertFalse(confirmed)
+        XCTAssertTrue(shell.calls.isEmpty)
+    }
+
+    func testFailedInstallShowsTheErrorAndATerminalFallback() async {
+        let shell = FakeInstallShell()
+        shell.failWith = "no space left"
+        let form = installForm(shell: shell)
+        form.confirmInstall = { _, options in options.first }
+        let task = form.install(.appleContainer)
+        await task?.value
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        let text = allText(in: form.view)
+        XCTAssertTrue(text.contains("Failed"), text)
+        XCTAssertTrue(text.contains("no space left"))
+        XCTAssertTrue(text.contains("brew install container"), "shows the command to run by hand")
+    }
+
+    func testEveryInstallableToolHasAnInstallButtonWhenMissing() {
+        let form = installForm(shell: FakeInstallShell())
+        let ids = allButtonIDs(in: form.view)
+        XCTAssertTrue(ids.contains("mac-install-tart") || TartController.isInstalled())
+        XCTAssertTrue(ids.contains("mac-install-container") || Paths.findExecutable(named: "container") != nil)
+        XCTAssertTrue(ids.contains("mac-install-docker") || Paths.findExecutable(named: "docker") != nil)
+    }
+
+    private func allButtonIDs(in view: NSView) -> [String] {
+        var out: [String] = []
+        func walk(_ v: NSView) {
+            if let b = v as? NSButton, !b.isHidden, let id = b.identifier?.rawValue { out.append(id) }
+            v.subviews.forEach(walk)
+        }
+        walk(view)
+        return out
     }
 }

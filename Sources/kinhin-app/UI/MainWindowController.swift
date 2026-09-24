@@ -52,16 +52,20 @@ enum MainTab: String, CaseIterable {
 
 /// Sub-sections of the Advanced tab.
 enum AdvancedSection: String, CaseIterable {
+    case accounts
     case capacity
     case routing
     case containers
+    case toolchains
     case app
 
     var label: String {
         switch self {
+        case .accounts: return "Accounts"
         case .capacity: return "Capacity"
         case .routing: return "Routing"
         case .containers: return "Containers"
+        case .toolchains: return "Toolchains"
         case .app: return "App"
         }
     }
@@ -101,8 +105,10 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     private var tabViews: [MainTab: NSView] = [:]
 
     // Header
+    /// The tab bar. Its segments are rebuilt by `rebuildTabBar()`: the Setup
+    /// tab only exists while first-run setup is unfinished.
     private let segmentControl = NSSegmentedControl(
-        labels: MainTab.allCases.map(\.label),
+        labels: [],
         trackingMode: .selectOne,
         target: nil,
         action: nil
@@ -115,6 +121,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     private(set) var macToolsController: MacToolsFormViewController?
     private(set) var configController: ConfigTabViewController?
     private(set) var containersController: ContainersViewController?
+    private(set) var toolchainsController: ToolchainsViewController?
     private(set) var runtimesController: RuntimesWindowController?
     private(set) var logsController: LogsViewController?
     private(set) var diagnosticsController: DiagnosticsViewController?
@@ -142,7 +149,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     )
     private let advancedContainer = NSView()
     private var advancedViews: [AdvancedSection: NSView] = [:]
-    private(set) var selectedAdvancedSection: AdvancedSection = .capacity
+    private(set) var selectedAdvancedSection: AdvancedSection = .accounts
 
     // App section controls
     private let settingsSubtitle = NSTextField(wrappingLabelWithString: "")
@@ -182,6 +189,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         buildUI(in: container)
         // Tabs install themselves on selection (their views must be in the
         // hierarchy before constraints pin them to the container).
+        rebuildTabBar()
         selectTab(.fleet, notify: false)
         applyLaunchMode(AppPreferences.launchMode(in: prefs), notify: false)
         loginCheck.state = AppPreferences.launchAtLogin(in: prefs) ? .on : .off
@@ -210,7 +218,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         NSLayoutConstraint.activate([
             segmentControl.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
             segmentControl.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            segmentControl.widthAnchor.constraint(equalToConstant: 360),
+            segmentControl.widthAnchor.constraint(equalToConstant: 300),
 
             tabContentContainer.topAnchor.constraint(equalTo: segmentControl.bottomAnchor, constant: 14),
             tabContentContainer.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -225,9 +233,29 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
 
     private(set) var selectedTab: MainTab = .fleet
 
+    /// Tabs currently shown: Setup appears only until first-run setup is done.
+    var visibleTabs: [MainTab] {
+        setupIncompleteFlag ? [.fleet, .setup, .advanced] : [.fleet, .advanced]
+    }
+
+    private func rebuildTabBar() {
+        let tabs = visibleTabs
+        segmentControl.segmentCount = tabs.count
+        for (index, tab) in tabs.enumerated() {
+            segmentControl.setLabel(tab.label, forSegment: index)
+        }
+        segmentControl.selectedSegment = tabs.firstIndex(of: selectedTab) ?? 0
+    }
+
     func selectTab(_ tab: MainTab, notify: Bool = true) {
+        // Setup only exists during onboarding; afterwards its forms live in
+        // Advanced → Accounts.
+        if tab == .setup && !setupIncompleteFlag {
+            showAdvanced(.accounts)
+            return
+        }
         selectedTab = tab
-        segmentControl.selectedSegment = MainTab.allCases.firstIndex(of: tab) ?? 0
+        segmentControl.selectedSegment = visibleTabs.firstIndex(of: tab) ?? 0
         tabContentContainer.subviews.forEach { $0.removeFromSuperview() }
         guard let view = tabViews[tab] ?? installTab(tab) else { return }
         pin(view, in: tabContentContainer)
@@ -264,13 +292,16 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         case .fleet:
             Task { [diagnosticsController] in await diagnosticsController?.refreshIfVisible() }
         case .setup:
-            connectController?.reload()
-            macToolsController?.reload()
+            break
         case .advanced:
             switch selectedAdvancedSection {
+            case .accounts:
+                connectController?.reload()
+                macToolsController?.reload()
             case .capacity: configController?.reload()
             case .routing: runtimesController?.reload()
             case .containers: containersController?.reload()
+            case .toolchains: break
             case .app: break
             }
         }
@@ -278,9 +309,10 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
 
     @objc private func segmentChanged(_ sender: NSSegmentedControl) {
         let index = sender.selectedSegment
-        guard MainTab.allCases.indices.contains(index) else { return }
-        Log.info("app", "tab → \(MainTab.allCases[index].rawValue)")
-        selectTab(MainTab.allCases[index])
+        let tabs = visibleTabs
+        guard tabs.indices.contains(index) else { return }
+        Log.info("app", "tab → \(tabs[index].rawValue)")
+        selectTab(tabs[index])
     }
 
     // MARK: Setup tab
@@ -294,41 +326,65 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    /// Opens the Setup tab (rebuilding it so the wizard/form choice is current).
+    /// Opens setup: the guided wizard while setup is unfinished, otherwise the
+    /// Accounts section of Advanced (there is no Setup tab after onboarding).
     func showSetup() {
+        guard setupIncompleteFlag else {
+            showAdvanced(.accounts)
+            return
+        }
         tabViews[.setup] = nil
         selectTab(.setup)
-        Log.info("app", "setup shown (guided: \(setupIncompleteFlag))")
+        Log.info("app", "guided setup shown")
     }
 
-    /// Set by the app delegate before the window opens.
-    var setupIncompleteFlag = false
+    /// Whether a token is stored for a forge. The real Keychain by default;
+    /// tests inject a stub so building the Accounts page never touches it.
+    var tokenProbe: @Sendable (ForgeID) -> Bool = { KeychainTokenStore.load(forge: $0) != nil }
 
+    /// Set by the app delegate before the window opens. Adds/removes the
+    /// Setup tab.
+    var setupIncompleteFlag = false {
+        didSet {
+            guard setupIncompleteFlag != oldValue else { return }
+            rebuildTabBar()
+        }
+    }
+
+    /// The first-run wizard (the only content of the Setup tab).
     private func buildSetupTab() -> NSView {
         let tab = NSView()
         tab.translatesAutoresizingMaskIntoConstraints = false
-        if setupIncompleteFlag {
-            let wizard = OnboardingWizardViewController()
-            wizard.saveToken = { [weak self] forge, token in
-                try await self?.tokenSaved?(forge, token)
-            }
-            wizard.onFinished = { [weak self] in
-                self?.setupIncompleteFlag = false
-                self?.tabViews[.setup] = nil
-                self?.selectTab(.fleet, notify: false)
-                self?.delegate?.setupTabFinished()
-            }
-            wizardController = wizard
-            connectController = nil
-            macToolsController = nil
-            pin(wizard.view, in: tab)
-            return tab
+        let wizard = OnboardingWizardViewController()
+        wizard.saveToken = { [weak self] forge, token in
+            try await self?.tokenSaved?(forge, token)
         }
-        wizardController = nil
+        wizard.onFinished = { [weak self] in
+            // Setup is done: the Setup tab goes away for good.
+            self?.setupIncompleteFlag = false
+            self?.tabViews[.setup] = nil
+            self?.wizardController = nil
+            self?.selectTab(.fleet, notify: false)
+            self?.delegate?.setupTabFinished()
+        }
+        wizard.onFinishLater = { [weak self] in
+            // Leave setup as it is; the Setup tab stays until it is finished.
+            self?.selectTab(.fleet, notify: false)
+        }
+        wizardController = wizard
+        pin(wizard.view, in: tab)
+        return tab
+    }
+
+    /// Advanced → Accounts: the same Connect and This Mac forms the wizard
+    /// uses, for changing them after setup.
+    private func buildAccountsSection() -> NSView {
+        let tab = NSView()
         let connect = ConnectFormViewController()
         connect.saveToken = { [weak self] forge, token in
             try await self?.tokenSaved?(forge, token)
         }
+        connect.hasStoredToken = tokenProbe
         connect.onChanged = { [weak self] in self?.runtimesEdited?() }
         let mac = MacToolsFormViewController()
         mac.onChanged = { [weak self] in self?.runtimesEdited?() }
@@ -340,13 +396,12 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         column.addArrangedSubview(connect.view)
         column.addArrangedSubview(sectionHeader("This Mac"))
         column.addArrangedSubview(mac.view)
-        // Children keep their controllers alive and in the responder chain.
         tab.addSubview(scroll)
         NSLayoutConstraint.activate([
             scroll.topAnchor.constraint(equalTo: tab.topAnchor),
             scroll.bottomAnchor.constraint(equalTo: tab.bottomAnchor),
-            scroll.leadingAnchor.constraint(equalTo: tab.leadingAnchor, constant: 16),
-            scroll.trailingAnchor.constraint(equalTo: tab.trailingAnchor, constant: -16),
+            scroll.leadingAnchor.constraint(equalTo: tab.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: tab.trailingAnchor),
         ])
         return tab
     }
@@ -493,7 +548,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         NSLayoutConstraint.activate([
             advancedSegments.topAnchor.constraint(equalTo: tab.topAnchor),
             advancedSegments.leadingAnchor.constraint(equalTo: tab.leadingAnchor, constant: 20),
-            advancedSegments.widthAnchor.constraint(equalToConstant: 380),
+            advancedSegments.widthAnchor.constraint(equalToConstant: 560),
 
             advancedContainer.topAnchor.constraint(equalTo: advancedSegments.bottomAnchor, constant: 12),
             advancedContainer.leadingAnchor.constraint(equalTo: tab.leadingAnchor, constant: 16),
@@ -511,15 +566,28 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         let view = advancedViews[section] ?? {
             let built: NSView
             switch section {
+            case .accounts: built = buildAccountsSection()
             case .capacity: built = buildCapacitySection()
             case .routing: built = buildRoutingSection()
             case .containers: built = buildContainersSection()
+            case .toolchains: built = buildToolchainsSection()
             case .app: built = buildAppSection()
             }
             advancedViews[section] = built
             return built
         }()
         pin(view, in: advancedContainer)
+        // Data-backed sections load when shown (Capacity is skipped: reloading
+        // it would discard unapplied edits).
+        switch section {
+        case .routing: runtimesController?.reload()
+        case .containers: containersController?.reload()
+        case .toolchains: break
+        case .accounts:
+            connectController?.reload()
+            macToolsController?.reload()
+        case .capacity, .app: break
+        }
     }
 
     @objc private func advancedSegmentChanged(_ sender: NSSegmentedControl) {
@@ -541,10 +609,16 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         return controller.view
     }
 
+    private func buildToolchainsSection() -> NSView {
+        let controller = ToolchainsViewController()
+        controller.onEdited = { [weak self] in self?.runtimesEdited?() }
+        toolchainsController = controller
+        return controller.view
+    }
+
     private func buildContainersSection() -> NSView {
         let controller = ContainersViewController()
         containersController = controller
-        controller.reload()
         return controller.view
     }
 

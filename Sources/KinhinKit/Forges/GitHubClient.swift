@@ -185,8 +185,11 @@ public struct GitHubClient: GitHubServing {
 
     func request(method: String, path: String, body: Data? = nil) throws -> URLRequest {
         let segments = credentials.scope.split(separator: "/")
-        guard segments.count == 1 || segments.count == 2,
-              segments.allSatisfy({ !$0.isEmpty }) else {
+        // A scope-less client is only for token-level calls (listing the repos
+        // the token can see during onboarding); everything else needs a scope.
+        let tokenLevel = credentials.scope.isEmpty && path.hasPrefix("/user/")
+        guard tokenLevel || ((segments.count == 1 || segments.count == 2)
+              && segments.allSatisfy({ !$0.isEmpty })) else {
             throw GitHubError.http(0, "invalid scope spec \(credentials.scope) — use 'RabinApps/name' or an org name")
         }
         var req = URLRequest(url: URL(string: "https://api.github.com\(path)")!)
@@ -270,14 +273,18 @@ public struct GitHubClient: GitHubServing {
     }
 
     /// Repos the token can see, for the onboarding/Config repo pickers.
-    /// Repo scopes list siblings of that repo; org scopes list the org's
-    /// repos. Actions-enabled repos sort first, then by name.
+    /// An empty scope lists everything the token can access; repo scopes
+    /// list siblings of that repo; org scopes list the org's repos. Actions-enabled repos sort first, then by name.
     public func listRepositories() async throws -> [RepoRef] {
         var refs: [RepoRef] = []
         var page = 1
         while true {
             let path: String
-            if credentials.isOrgScope {
+            if credentials.scope.isEmpty {
+                // No scope yet (onboarding): list every repo the token can
+                // see — its own, collaborator, and org repos.
+                path = "/user/repos?per_page=100&page=\(page)&sort=full_name&affiliation=owner,collaborator,organization_member"
+            } else if credentials.isOrgScope {
                 path = "/orgs/\(credentials.scope)/repos?per_page=100&page=\(page)"
             } else {
                 path = "/users/\(credentials.owner)/repos?per_page=100&page=\(page)&sort=full_name"

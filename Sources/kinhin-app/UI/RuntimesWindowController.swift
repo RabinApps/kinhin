@@ -9,6 +9,8 @@ import KinhinKit
 @MainActor
 final class RuntimesWindowController: NSWindowController {
     var onEdited: (() -> Void)?
+    /// The config file this pane reads and edits (tests point it at a scratch file).
+    var configURL: URL = Paths.config
 
     private let rowsStack = NSStackView()
     private let headlineLabel = NSTextField(labelWithString: "")
@@ -75,9 +77,23 @@ final class RuntimesWindowController: NSWindowController {
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
-        scroll.documentView = rowsStack
+        // Flipped document so the page opens at the TOP (an unflipped one
+        // starts scrolled to the bottom and clips the first cards).
+        let document = FlippedView()
+        document.translatesAutoresizingMaskIntoConstraints = false
+        document.addSubview(rowsStack)
+        scroll.documentView = document
         scroll.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(scroll)
+        NSLayoutConstraint.activate([
+            document.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            document.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            document.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
+            rowsStack.topAnchor.constraint(equalTo: document.topAnchor),
+            rowsStack.leadingAnchor.constraint(equalTo: document.leadingAnchor),
+            rowsStack.trailingAnchor.constraint(lessThanOrEqualTo: document.trailingAnchor),
+            rowsStack.bottomAnchor.constraint(equalTo: document.bottomAnchor),
+        ])
 
         // ---- Footer -------------------------------------------------------
         let addRouteButton = NSButton(title: "Add Route…", target: self, action: #selector(addRouteClicked))
@@ -119,7 +135,7 @@ final class RuntimesWindowController: NSWindowController {
     @objc func editConfigInUI() {
         // No window guard here: the embedded Runtimes tab has no own window
         // (only the standalone pane does), and runModal works either way.
-        let original = (try? String(contentsOf: Paths.config, encoding: .utf8)) ?? ""
+        let original = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
 
         let editor = NSTextView()
         editor.string = original
@@ -163,7 +179,7 @@ final class RuntimesWindowController: NSWindowController {
         let updated = editor.string
         guard updated != original else { return }
         do {
-            try ConfigEditor.save(updated, to: Paths.config)
+            try ConfigEditor.save(updated, to: configURL)
             Log.info("runtimes-pane", "config edited in UI; validation passed")
             onEdited?()
         } catch {
@@ -183,11 +199,16 @@ final class RuntimesWindowController: NSWindowController {
     /// then live probe results flip the chips in place — the pane never
     /// blocks on a subprocess.
     func reload() {
+        reloadCount += 1
         Task { await reloadWithHealth() }
     }
 
+    /// Test hooks.
+    private(set) var reloadCount = 0
+    var hasLoadedForTesting: Bool { viewModel != nil }
+
     private func reloadWithHealth() async {
-        guard let yaml = try? String(contentsOf: Paths.config, encoding: .utf8) else {
+        guard let yaml = try? String(contentsOf: configURL, encoding: .utf8) else {
             renderEmpty(message: "No config file yet — finish the Setup tab first.")
             return
         }
@@ -345,7 +366,7 @@ final class RuntimesWindowController: NSWindowController {
         column.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(column)
 
-        let yaml = (try? String(contentsOf: Paths.config, encoding: .utf8)) ?? ""
+        let yaml = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
 
         // Fleet base labels.
         column.addArrangedSubview(NSTextField(labelWithString: "Fleet base labels (every runner):"))
@@ -398,13 +419,13 @@ final class RuntimesWindowController: NSWindowController {
     private func commitLabels(field: NSTextField, scope: LabelsConfigEditor.Scope) {
         let labels = Self.parseLabelList(field.stringValue)
         do {
-            try LabelsConfigEditor.apply(labels, scope: scope, to: Paths.config)
+            try LabelsConfigEditor.apply(labels, scope: scope, to: configURL)
             Log.info("runtimes-pane", "\(scope == .fleet ? "fleet" : "container") labels updated")
             onEdited?()
         } catch {
             presentError(error)
             // Snap the field back to the on-disk truth.
-            let yaml = (try? String(contentsOf: Paths.config, encoding: .utf8)) ?? ""
+            let yaml = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
             field.stringValue = LabelsConfigEditor.labels(in: yaml, scope: scope).joined(separator: ", ")
         }
     }
@@ -650,7 +671,7 @@ final class RuntimesWindowController: NSWindowController {
         rc.budget = budget
         rc.defaultRuntime = defaultRuntime
         do {
-            try RuntimesConfigEditor.apply(rc, to: Paths.config)
+            try RuntimesConfigEditor.apply(rc, to: configURL)
             currentRuntimeConfig = rc // next drag starts from the new baseline
             if refreshPane { reload() }
             onEdited?()
@@ -734,31 +755,87 @@ final class RuntimesWindowController: NSWindowController {
     // MARK: Actions
 
     @objc func editConfigClicked() {
-        NSWorkspace.shared.open(Paths.config)
+        NSWorkspace.shared.open(configURL)
+    }
+
+    /// Runtimes a route can target: tart always, plus whichever Linux runtimes
+    /// the config has enabled (a route to an unconfigured runtime is rejected).
+    static func routableRuntimes(in config: kinhinConfig?) -> [RuntimeID] {
+        var ids: [RuntimeID] = [.tart]
+        if config?.container != nil { ids.append(.appleContainer) }
+        if config?.docker != nil { ids.append(.docker) }
+        return ids
+    }
+
+    /// The Add Route form with explicit frames (an NSAlert accessory view
+    /// doesn't run Auto Layout, so stack views collapse there).
+    static func makeRouteForm(runtimes: [RuntimeID]) -> (view: NSView, pattern: NSTextField, popup: NSPopUpButton) {
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 64))
+        let pattern = NSTextField(frame: NSRect(x: 0, y: 40, width: 340, height: 24))
+        pattern.placeholderString = "acme/api  or  acme/api@Workflow Name"
+        pattern.setAccessibilityLabel("Repo or workflow pattern")
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 6, width: 340, height: 26), pullsDown: false)
+        for id in runtimes {
+            switch id {
+            case .tart: popup.addItem(withTitle: "tart — macOS VMs")
+            case .appleContainer: popup.addItem(withTitle: "Apple container — Linux")
+            case .docker: popup.addItem(withTitle: "Docker — Linux")
+            case .host: popup.addItem(withTitle: "host")
+            }
+            popup.lastItem?.representedObject = id.rawValue
+        }
+        popup.setAccessibilityLabel("Runtime to use")
+        view.addSubview(pattern)
+        view.addSubview(popup)
+        return (view, pattern, popup)
+    }
+
+    /// Overridable so tests never open a modal: returns (pattern, runtime) or nil.
+    var promptForRoute: ([RuntimeID]) -> (String, RuntimeID)? = { runtimes in
+        let alert = NSAlert()
+        alert.messageText = "Add Route"
+        alert.informativeText = "Send a repository, or one workflow, to a runtime. Use owner/repo for a whole repo, or owner/repo@Workflow Name for one workflow."
+        alert.addButton(withTitle: "Add")
+        alert.addButton(withTitle: "Cancel")
+        let form = RuntimesWindowController.makeRouteForm(runtimes: runtimes)
+        alert.accessoryView = form.view
+        alert.window.initialFirstResponder = form.pattern
+        while true {
+            guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+            let pattern = form.pattern.stringValue.trimmingCharacters(in: .whitespaces)
+            if pattern.isEmpty {
+                alert.informativeText = "Enter a repository (owner/repo) first."
+                continue
+            }
+            guard let raw = form.popup.selectedItem?.representedObject as? String, let id = RuntimeID(rawValue: raw) else { return nil }
+            return (pattern, id)
+        }
+    }
+
+    /// Where routing problems and "nothing to do" explanations are shown.
+    var presentNotice: (_ title: String, _ message: String) -> Void = { title, message in
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     @objc func addRouteClicked() {
-        guard viewModel != nil else { return }
-        let alert = NSAlert()
-        alert.messageText = "Add Route"
-        alert.informativeText = "Pattern: RabinApps/repo for a whole repo, or RabinApps/repo@Workflow Name for one workflow."
-
-        let pattern = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        pattern.placeholderString = "acme/api"
-        let runtimePopup = NSPopUpButton(frame: NSRect(x: 0, y: 30, width: 300, height: 26))
-        runtimePopup.addItems(withTitles: ["tart — macOS VMs", "appleContainer — Linux containers", "docker — Linux containers"])
-
-        let stack = NSStackView(views: [pattern, runtimePopup])
-        stack.orientation = .vertical
-        stack.spacing = 8
-        alert.accessoryView = stack
-        alert.addButton(withTitle: "Add")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-
-        let patternValue = pattern.stringValue.trimmingCharacters(in: .whitespaces)
-        guard !patternValue.isEmpty else { return }
-        let runtimeValue = [RuntimeID.tart, .appleContainer, .docker][max(0, min(2, runtimePopup.indexOfSelectedItem))].rawValue
+        guard viewModel != nil, let parsed = parsedConfigForPreview else {
+            presentNotice("Routes are still loading",
+                          "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Advanced → App → Open config file).")
+            reload()
+            return
+        }
+        let runtimes = Self.routableRuntimes(in: parsed)
+        guard runtimes.count > 1 else {
+            presentNotice("Nothing to route to yet",
+                          "Routes send a repo or workflow to a runtime, and only tart is set up. Turn on Docker or Apple container in Advanced → Accounts first.")
+            return
+        }
+        guard let (patternValue, runtimeID) = promptForRoute(runtimes) else { return }
+        let runtimeValue = runtimeID.rawValue
 
         var rc = currentRuntimeConfig ?? kinhinConfig.RuntimeConfig()
         guard !rc.routes.contains(where: { $0.pattern == patternValue }) else {
@@ -768,7 +845,7 @@ final class RuntimesWindowController: NSWindowController {
         rc.routes.append(kinhinConfig.RuntimeConfig.Route(pattern: patternValue, runtime: runtimeValue))
 
         do {
-            try RuntimesConfigEditor.apply(rc, to: Paths.config)
+            try RuntimesConfigEditor.apply(rc, to: configURL)
             reload()
             onEdited?()
         } catch {
@@ -782,7 +859,7 @@ final class RuntimesWindowController: NSWindowController {
         var updated = rc
         updated.routes.removeAll { $0.pattern == pattern }
         do {
-            try RuntimesConfigEditor.apply(updated, to: Paths.config)
+            try RuntimesConfigEditor.apply(updated, to: configURL)
             reload()
             onEdited?()
         } catch {

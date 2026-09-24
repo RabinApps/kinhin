@@ -15,36 +15,33 @@ final class ContainerManagerTests: XCTestCase {
         ContainerManager(tool: tool, shell: shell, binary: "/bin/\(tool.binaryName)")
     }
 
-    func testDockerCommandsAreBuiltCorrectly() async throws {
-        let shell = ContainerFakeShell()
-        let docker = manager(.docker, shell)
-        try await docker.createContainer(name: "web", image: "nginx:latest")
-        try await docker.createVolume(name: "data")
-        try await docker.deleteContainer(id: "web", force: true)
-        try await docker.deleteContainer(id: "old", force: false)
-        try await docker.deleteVolume(name: "data")
-        XCTAssertEqual(shell.calls, [
-            ["/bin/docker", "create", "--name", "web", "nginx:latest"],
-            ["/bin/docker", "volume", "create", "data"],
+    func testDeleteCommandsAreBuiltCorrectly() async throws {
+        let docker = ContainerFakeShell()
+        try await manager(.docker, docker).deleteContainer(id: "web", force: true)
+        try await manager(.docker, docker).deleteContainer(id: "old", force: false)
+        try await manager(.docker, docker).deleteVolume(name: "data")
+        XCTAssertEqual(docker.calls, [
             ["/bin/docker", "rm", "--force", "web"],
             ["/bin/docker", "rm", "old"],
             ["/bin/docker", "volume", "rm", "data"],
         ])
-    }
-
-    func testAppleContainerCommandsAreBuiltCorrectly() async throws {
-        let shell = ContainerFakeShell()
-        let apple = manager(.appleContainer, shell)
-        try await apple.createContainer(name: "web", image: "alpine")
-        try await apple.createVolume(name: "data")
-        try await apple.deleteContainer(id: "web", force: true)
-        try await apple.deleteVolume(name: "data")
-        XCTAssertEqual(shell.calls, [
-            ["/bin/container", "create", "--name", "web", "alpine"],
-            ["/bin/container", "volume", "create", "data"],
+        let apple = ContainerFakeShell()
+        try await manager(.appleContainer, apple).deleteContainer(id: "web", force: true)
+        try await manager(.appleContainer, apple).deleteVolume(name: "data")
+        XCTAssertEqual(apple.calls, [
             ["/bin/container", "delete", "--force", "web"],
             ["/bin/container", "volume", "delete", "data"],
         ])
+    }
+
+    func testInvalidNamesNeverReachTheShell() async {
+        let shell = ContainerFakeShell()
+        let docker = manager(.docker, shell)
+        for bad in ["", "-rf", "a b", "x;y", "--all"] {
+            do { try await docker.deleteVolume(name: bad); XCTFail("accepted '\(bad)'") }
+            catch { XCTAssertEqual(error as? ContainerManagerError, .invalidName(bad)) }
+        }
+        XCTAssertTrue(shell.calls.isEmpty)
     }
 
     func testLifecycleCommands() async throws {
@@ -58,18 +55,6 @@ final class ContainerManagerTests: XCTestCase {
         XCTAssertEqual(apple.calls, [["/bin/container", "stop", "a"], ["/bin/container", "start", "a"]],
                        "Apple container has no restart: it is stop then start")
         do { try await manager(.docker, shell).stopContainer(id: "--all"); XCTFail() } catch {}
-    }
-
-    func testInvalidNamesAndImagesNeverReachTheShell() async {
-        let shell = ContainerFakeShell()
-        let docker = manager(.docker, shell)
-        for bad in ["", "-rf", "a b", "x;y", "--all"] {
-            do { try await docker.createVolume(name: bad); XCTFail("accepted '\(bad)'") }
-            catch { XCTAssertEqual(error as? ContainerManagerError, .invalidName(bad)) }
-        }
-        do { try await docker.createContainer(name: "ok", image: "--privileged"); XCTFail() }
-        catch { XCTAssertEqual(error as? ContainerManagerError, .invalidImage("--privileged")) }
-        XCTAssertTrue(shell.calls.isEmpty)
     }
 
     func testFailureSurfacesToolOutput() async {

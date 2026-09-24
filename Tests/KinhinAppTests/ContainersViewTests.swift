@@ -25,8 +25,6 @@ private final class FakeDocker: ShellRunning, @unchecked Sendable {
             return ShellResult(exitCode: 0, stdout: rows.joined(separator: "\n"), stderr: "")
         case ["volume", "ls", "--format", "{{json .}}"]:
             return ShellResult(exitCode: 0, stdout: volumes.map { "{\"Name\":\"\($0)\",\"Driver\":\"local\"}" }.joined(separator: "\n"), stderr: "")
-        case _ where args.first == "create":
-            containers.append((args[2], args[3], "created"))
         case _ where args.first == "start":
             if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "running" }
         case _ where args.first == "stop":
@@ -35,8 +33,6 @@ private final class FakeDocker: ShellRunning, @unchecked Sendable {
             if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "running" }
         case _ where args.first == "rm":
             containers.removeAll { $0.id == args.last }
-        case _ where args.starts(with: ["volume", "create"]):
-            volumes.append(args[2])
         case _ where args.starts(with: ["volume", "rm"]):
             volumes.removeAll { $0 == args[2] }
         default: break
@@ -130,33 +126,21 @@ final class ContainersViewTests: XCTestCase {
         XCTAssertTrue(titles.contains("Start"))    // kinhin-1 is exited
     }
 
-    func testCreateContainerAndVolume() async {
-        controller.promptForm = { _, fields in fields.count == 2 ? ["api", "alpine:3"] : ["cache"] }
-        await controller.createContainer()?.value
-        await controller.createVolume()?.value
-        XCTAssertEqual(controller.containersForTesting.map(\.name), ["web", "kinhin-1", "api"])
-        XCTAssertEqual(controller.volumesForTesting.map(\.name), ["data", "cache"])
-    }
-
-    func testCancelledCreateDoesNothing() {
-        controller.promptForm = { _, _ in nil }
-        XCTAssertNil(controller.createContainer())
-        XCTAssertNil(controller.createVolume())
-        XCTAssertFalse(docker.calls.contains { $0.contains("create") })
+    func testDeleteIsAcknowledged() async {
+        await controller.deleteVolume(name: "data")?.value
+        XCTAssertTrue(controller.statusTextForTesting.contains("Deleted volume"), controller.statusTextForTesting)
     }
 
     func testToolErrorsShowInline() async {
-        controller.promptForm = { _, _ in ["cache"] }
-        docker.failNext = "volume name already in use"
-        await controller.createVolume()?.value
-        XCTAssertTrue(controller.statusTextForTesting.contains("already in use"), controller.statusTextForTesting)
+        docker.failNext = "volume is in use"
+        await controller.deleteVolume(name: "data")?.value
+        XCTAssertTrue(controller.statusTextForTesting.contains("in use"), controller.statusTextForTesting)
+        XCTAssertEqual(controller.volumesForTesting.count, 1, "a failed delete leaves the volume listed")
     }
 
-    func testInvalidNameIsRejectedBeforeRunning() async {
-        controller.promptForm = { _, _ in ["--bad"] }
-        await controller.createVolume()?.value
-        XCTAssertTrue(controller.statusTextForTesting.contains("not a valid name"))
-        XCTAssertFalse(docker.calls.contains { $0.contains("create") })
+    func testThereAreNoCreateButtons() {
+        let titles = allText().components(separatedBy: "\n")
+        XCTAssertFalse(titles.contains { $0.hasPrefix("New ") }, "kinhin never creates containers or volumes by hand")
     }
 
     private func allText() -> String {

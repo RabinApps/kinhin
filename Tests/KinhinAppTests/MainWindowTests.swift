@@ -39,17 +39,21 @@ final class MainWindowTests: XCTestCase {
     private var window: MainTabsWindowController!
     private var suite: UserDefaults!
     private var suiteName: String!
+    private var scratchConfig: URL!
 
     override func setUp() {
         super.setUp()
         suiteName = "kinhin-tests.mainwindow-\(UUID().uuidString)"
         suite = UserDefaults(suiteName: suiteName)
         delegate = RecordingTabsDelegate()
+        scratchConfig = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-mainwindow-\(UUID().uuidString).yaml")
+        try? "repo: \"your-org/your-repo\"\nlabels: [a]\n".write(to: scratchConfig, atomically: true, encoding: .utf8)
         window = MainTabsWindowController(defaults: suite)
         window.delegate = delegate
     }
 
     override func tearDown() {
+        try? FileManager.default.removeItem(at: scratchConfig)
         suite.removePersistentDomain(forName: suiteName)
         window = nil
         delegate = nil
@@ -83,10 +87,23 @@ final class MainWindowTests: XCTestCase {
 
     // MARK: tab structure
 
-    func testThreeTabsInDisplayOrder() {
+    func testTabsAndAdvancedSectionsInDisplayOrder() {
         XCTAssertEqual(MainTab.allCases, [.fleet, .setup, .advanced])
-        XCTAssertEqual(MainTab.allCases.map(\.label), ["Fleet", "Setup", "Advanced"])
-        XCTAssertEqual(AdvancedSection.allCases.map(\.label), ["Capacity", "Routing", "Containers", "App"])
+        XCTAssertEqual(AdvancedSection.allCases.map(\.label), ["Accounts", "Capacity", "Routing", "Containers", "App"])
+    }
+
+    func testSetupTabOnlyExistsWhileSetupIsUnfinished() {
+        XCTAssertEqual(window.visibleTabs, [.fleet, .advanced], "a configured app has no Setup tab")
+        XCTAssertEqual(segment().segmentCount, 2)
+        XCTAssertEqual((0..<segment().segmentCount).map { segment().label(forSegment: $0) ?? "" }, ["Fleet", "Advanced"])
+
+        window.setupIncompleteFlag = true
+        XCTAssertEqual(window.visibleTabs, [.fleet, .setup, .advanced])
+        XCTAssertEqual(segment().segmentCount, 3)
+        XCTAssertEqual(segment().label(forSegment: 1), "Setup")
+
+        window.setupIncompleteFlag = false
+        XCTAssertEqual(segment().segmentCount, 2, "finishing setup removes the tab")
     }
 
     func testWindowStartsOnTheFleetTab() {
@@ -98,30 +115,40 @@ final class MainWindowTests: XCTestCase {
         window.selectTab(.advanced, notify: false)
         XCTAssertEqual(window.selectedTab, .advanced)
         XCTAssertEqual(segment().selectedSegment, index(of: .advanced))
-
-        window.selectTab(.setup, notify: false)
-        XCTAssertEqual(window.selectedTab, .setup)
-        XCTAssertEqual(segment().selectedSegment, index(of: .setup))
+        window.selectTab(.fleet, notify: false)
+        XCTAssertEqual(window.selectedTab, .fleet)
+        XCTAssertEqual(segment().selectedSegment, index(of: .fleet))
     }
 
     func testSegmentClickSwitchesTabs() {
         let control = segment()
-        control.selectedSegment = index(of: .setup)
+        control.selectedSegment = index(of: .advanced)
         fire(control)
-        XCTAssertEqual(window.selectedTab, .setup)
+        XCTAssertEqual(window.selectedTab, .advanced)
     }
 
-    func testSetupIsARealTabThatStaysNavigableDuringOnboarding() {
+    func testSetupTabStaysNavigableDuringOnboardingAndVanishesWhenDone() {
         window.setupIncompleteFlag = true
         window.showSetup()
         XCTAssertEqual(window.selectedTab, .setup)
         XCTAssertTrue(segment().isEnabled, "the tab bar is never locked out")
         XCTAssertNotNil(window.wizardController, "first run shows the guided wizard")
 
-        // Finishing hands the window back to Fleet and re-bootstraps.
+        // Finishing removes the Setup tab and hands the window to Fleet.
         finishSetupForTesting()
         XCTAssertEqual(window.selectedTab, .fleet)
+        XCTAssertEqual(window.visibleTabs, [.fleet, .advanced])
+        XCTAssertNil(window.wizardController)
         XCTAssertEqual(delegate.setupFinishedCalls, 1, "the delegate re-bootstraps the engine")
+    }
+
+    func testFinishLaterKeepsTheSetupTab() {
+        let wizard = showWizard()
+        wizard.nextClickedForTesting()
+        wizard.nextClickedForTesting() // start step
+        wizard.skipClickedForTesting() // "Finish later"
+        XCTAssertEqual(window.selectedTab, .fleet)
+        XCTAssertEqual(window.visibleTabs, [.fleet, .setup, .advanced], "unfinished setup stays reachable")
     }
 
     func testSetupIncompleteOpensTheWizardWhenTheWindowOpens() {
@@ -131,9 +158,12 @@ final class MainWindowTests: XCTestCase {
         XCTAssertNotNil(window.wizardController)
     }
 
-    func testCompletedSetupShowsTheEditableFormsNotTheWizard() {
+    func testAfterSetupAccountsLiveInAdvanced() {
+        window.tokenProbe = { _ in false }
         window.setupIncompleteFlag = false
-        window.showSetup()
+        window.showSetup() // menu "Setup…" after onboarding lands here
+        XCTAssertEqual(window.selectedTab, .advanced)
+        XCTAssertEqual(window.selectedAdvancedSection, .accounts)
         XCTAssertNil(window.wizardController)
         XCTAssertNotNil(window.connectController)
         XCTAssertNotNil(window.macToolsController)
@@ -143,9 +173,7 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testWizardWalksThreeSteps() {
-        window.setupIncompleteFlag = true
-        window.showSetup()
-        let wizard = window.wizardController!
+        let wizard = showWizard()
         XCTAssertEqual(wizard.step, .connect, "the wizard opens on connecting an account")
 
         wizard.nextClickedForTesting()
@@ -155,9 +183,7 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testWizardCannotStartUntilConnectedAndReady() {
-        window.setupIncompleteFlag = true
-        window.showSetup()
-        let wizard = window.wizardController!
+        let wizard = showWizard()
         wizard.nextClickedForTesting()
         wizard.nextClickedForTesting()
         XCTAssertEqual(wizard.step, .start)
@@ -169,9 +195,7 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testWizardBackNavigation() {
-        window.setupIncompleteFlag = true
-        window.showSetup()
-        let wizard = window.wizardController!
+        let wizard = showWizard()
         wizard.nextClickedForTesting()
         wizard.nextClickedForTesting() // mac → start
         wizard.backClickedForTesting()
@@ -181,14 +205,14 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testAdvancedCapacityRendersPlainLanguageForm() throws {
-        window.selectTab(.advanced, notify: false)
+        window.showAdvanced(.capacity)
         XCTAssertEqual(window.selectedAdvancedSection, .capacity)
         _ = try XCTUnwrap(window.configController, "Capacity embeds the form controller")
         let text = allText()
         XCTAssertTrue(text.contains("How much runs at once"), "got: \(text)")
         XCTAssertTrue(text.contains("Each VM"))
         XCTAssertTrue(text.contains("Keep free for your Mac"))
-        XCTAssertFalse(text.contains("Forges"), "accounts live only in Setup")
+        XCTAssertFalse(text.contains("Forges"), "accounts live in the Accounts section")
     }
 
     func testAdvancedSectionsEmbedTheirControllers() {
@@ -467,6 +491,19 @@ final class MainWindowTests: XCTestCase {
 
     // MARK: helpers
 
+    /// Opens the wizard with its forms pointed at a scratch config, so
+    /// stepping through never touches (or auto-edits) the real one.
+    private func showWizard() -> OnboardingWizardViewController {
+        window.setupIncompleteFlag = true
+        window.showSetup()
+        let wizard = window.wizardController!
+        wizard.macFormForTesting.configURL = scratchConfig
+        wizard.connectFormForTesting.configURL = scratchConfig
+        wizard.connectFormForTesting.hasStoredToken = { _ in false }
+        wizard.macFormForTesting.autoEnableLinuxRuntime = false
+        return wizard
+    }
+
     private func segment() -> NSSegmentedControl {
         guard let control = window.window?.contentView?.flattenedViews().compactMap({ $0 as? NSSegmentedControl }).first else {
             fatalError("main window must carry the tab segment control")
@@ -482,7 +519,7 @@ final class MainWindowTests: XCTestCase {
     }
 
     private func index(of tab: MainTab) -> Int {
-        MainTab.allCases.firstIndex(of: tab) ?? -1
+        window.visibleTabs.firstIndex(of: tab) ?? -1
     }
 
     /// Drives the wizard's Finish → onFinished → dismiss path.

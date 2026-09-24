@@ -121,7 +121,7 @@ func engineFromConfig(_ cfg: kinhinConfig) throws -> FleetEngine {
     if !ConfigLoader.hasAnyForge(cfg) {
         fail("config has no forge yet — set your repo (or a gitea: section) in \(Paths.config.path) first")
     }
-    let tart = try TartController(configuredPath: cfg.tartPath)
+    let tart = try cfg.makeTartControlling()
     let github = GitHubClient(credentials: GitHubCredentials(token: tokenOrExit(for: cfg), scope: cfg.repo))
     let host = ResourceProbe().snapshot()
     return FleetEngine(

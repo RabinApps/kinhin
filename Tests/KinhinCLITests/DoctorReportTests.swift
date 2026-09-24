@@ -92,11 +92,11 @@ final class DoctorReportTests: XCTestCase {
     func testContainerUnhealthyStateCarriesFix() async {
         let report = await builder(
             config: Self.config(container: true),
-            containerHealth: .missing(tool: "apple container", fix: "brew install --cask container && container system start")
+            containerHealth: .missing(tool: "apple container", fix: "brew install container && container system start")
         ).build()
         XCTAssertEqual(report.container?.state, "missing")
         XCTAssertFalse(report.container?.ok ?? true)
-        XCTAssertEqual(report.container?.fix, "brew install --cask container && container system start")
+        XCTAssertEqual(report.container?.fix, "brew install container && container system start")
         XCTAssertFalse(report.container?.imageFound ?? true, "no images when the runtime is not ready")
     }
 

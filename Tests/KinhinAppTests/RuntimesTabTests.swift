@@ -53,7 +53,7 @@ final class RuntimesTabTests: XCTestCase {
             reserve: .default,
             loadHealth: true,
             tartHealth: { .ready },
-            containerHealth: { .missing(tool: "apple container", fix: "brew install --cask container") }
+            containerHealth: { .missing(tool: "apple container", fix: "brew install container") }
         )
         XCTAssertEqual(Set(vm.availability.keys), [.tart, .appleContainer, .docker])
         XCTAssertEqual(vm.availability[.tart], .ready)

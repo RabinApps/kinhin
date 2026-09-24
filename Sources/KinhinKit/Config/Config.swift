@@ -791,7 +791,7 @@ public struct ConfigLoader {
         # full Tart VMs (github.com/apple/container — lightweight, one VM per
         # container, Apple silicon only). Much cheaper per job for Linux
         # workloads; macOS jobs still need Tart. Requires the container CLI
-        # (brew install --cask container) and a Linux image baked with the
+        # (brew install container) and a Linux image baked with the
         # runner agents — prepare it with: kinhin image prepare --container-image <name>
         # container:
         #   image: "kinhin-ci-linux"

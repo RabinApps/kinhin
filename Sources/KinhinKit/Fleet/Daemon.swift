@@ -28,7 +28,7 @@ public enum Daemon {
             Log.error("daemon", message)
             throw DaemonError.missingToken
         }
-        guard TartController.isInstalled(configuredPath: cfg.tartPath) else {
+        guard cfg.canRunOnThisHost() else {
             Log.error("daemon", "tart binary not found")
             throw TartError.missingBinary(path: cfg.tartPath ?? "PATH")
         }
@@ -63,7 +63,7 @@ public enum Daemon {
         guard let pat = ConfigLoader.engineToken(for: cfg) else {
             throw DaemonError.missingToken
         }
-        let tart = try TartController(configuredPath: cfg.tartPath)
+        let tart = try cfg.makeTartControlling()
         return FleetEngine(
             config: cfg,
             pat: pat,

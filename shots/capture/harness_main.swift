@@ -213,8 +213,18 @@ struct HarnessMain {
             main.render(status: status)
             main.window?.orderBack(nil)
             captureWindow(main, name: "win-fleet-\(tag)", dark: dark)
+            main.tokenProbe = { _ in false }
+            main.showAdvanced(.accounts)
+            captureWindow(main, name: "win-advanced-accounts-\(tag)", dark: dark)
             main.showAdvanced(.capacity)
             captureWindow(main, name: "win-advanced-capacity-\(tag)", dark: dark)
+            main.showAdvanced(.routing)
+            // The pane loads asynchronously (config read + health probes).
+            for _ in 0..<150 where main.runtimesController?.hasLoadedForTesting != true {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            }
+            RunLoop.main.run(until: Date().addingTimeInterval(1.0))
+            captureWindow(main, name: "win-advanced-routing-\(tag)", dark: dark)
             main.showAdvanced(.app)
             captureWindow(main, name: "win-advanced-app-\(tag)", dark: dark)
         }

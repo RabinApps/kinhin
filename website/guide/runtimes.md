@@ -47,7 +47,7 @@ container:
   memory_gb: 8
 ```
 
-Requires the container CLI (`brew install --cask container && container system start`).
+Requires the container CLI (`brew install container && container system start`).
 
 ## Docker for Linux jobs
 

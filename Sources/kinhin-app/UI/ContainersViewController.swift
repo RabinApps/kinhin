@@ -1,10 +1,12 @@
 import AppKit
 import KinhinKit
 
-/// Advanced → Containers: list, create and delete containers and volumes for
-/// Docker or Apple container. Every delete asks for confirmation first, and
-/// running containers (and kinhin's own CI runner containers) get a stronger
-/// warning. Create opens a small form dialog.
+/// Advanced → Containers: list, start/stop/restart and delete containers, and
+/// list and delete volumes, for Docker or Apple container. Every delete asks
+/// for confirmation first, and running containers (and kinhin's own CI runner
+/// containers) get a stronger warning. Nothing here creates containers or
+/// volumes: kinhin's engine creates its own runner containers, and never uses
+/// named volumes.
 @MainActor
 final class ContainersViewController: NSViewController {
     /// Confirms a destructive action. Real UI shows an alert; tests inject a
@@ -18,10 +20,6 @@ final class ContainersViewController: NSViewController {
         alert.addButton(withTitle: "Cancel")
         alert.buttons.first?.hasDestructiveAction = true
         return alert.runModal() == .alertFirstButtonReturn
-    }
-    /// Collects values for a create form; nil = cancelled. Injectable for tests.
-    var promptForm: (_ title: String, _ fields: [(label: String, placeholder: String, value: String)]) -> [String]? = { title, fields in
-        ContainersViewController.presentForm(title: title, fields: fields)
     }
     /// Builds the manager for a tool (tests inject a fake shell).
     var makeManager: (ContainerTool) -> ContainerManager = { ContainerManager(tool: $0) }
@@ -163,10 +161,6 @@ final class ContainersViewController: NSViewController {
         for item in containers {
             containerCard.column.addArrangedSubview(containerRow(item))
         }
-        let newContainer = NSButton(title: "New Container…", target: self, action: #selector(newContainerClicked))
-        newContainer.bezelStyle = .rounded
-        newContainer.identifier = NSUserInterfaceItemIdentifier("new-container")
-        containerCard.column.addArrangedSubview(newContainer)
         listStack.addArrangedSubview(containerCard.card)
 
         let volumeCard = FormKit.card(title: "Volumes")
@@ -176,10 +170,6 @@ final class ContainersViewController: NSViewController {
         for item in volumes {
             volumeCard.column.addArrangedSubview(volumeRow(item))
         }
-        let newVolume = NSButton(title: "New Volume…", target: self, action: #selector(newVolumeClicked))
-        newVolume.bezelStyle = .rounded
-        newVolume.identifier = NSUserInterfaceItemIdentifier("new-volume")
-        volumeCard.column.addArrangedSubview(newVolume)
         listStack.addArrangedSubview(volumeCard.card)
     }
 
@@ -239,25 +229,6 @@ final class ContainersViewController: NSViewController {
 
     @objc private func refreshClicked() { reload() }
 
-    @objc private func newContainerClicked() { createContainer() }
-    @objc private func newVolumeClicked() { createVolume() }
-
-    @discardableResult
-    func createContainer() -> Task<Void, Never>? {
-        guard let values = promptForm("New Container", [
-            ("Name", "my-container", ""),
-            ("Image", "alpine:latest", ""),
-        ]) else { return nil }
-        return perform { try await $0.createContainer(name: values[0].trimmingCharacters(in: .whitespaces),
-                                               image: values[1].trimmingCharacters(in: .whitespaces)) }
-    }
-
-    @discardableResult
-    func createVolume() -> Task<Void, Never>? {
-        guard let values = promptForm("New Volume", [("Name", "my-volume", "")]) else { return nil }
-        return perform { try await $0.createVolume(name: values[0].trimmingCharacters(in: .whitespaces)) }
-    }
-
     @objc private func deleteContainerClicked(_ sender: NSButton) {
         guard let raw = sender.identifier?.rawValue, raw.hasPrefix("delete-container:") else { return }
         deleteContainer(id: String(raw.dropFirst("delete-container:".count)))
@@ -311,7 +282,7 @@ final class ContainersViewController: NSViewController {
         if item.isKinhinRunner { message += " This looks like a kinhin CI runner — deleting it cancels any job it is running." }
         message += " This can’t be undone."
         guard confirm("Delete container “\(item.name)”?", message, "Delete") else { return nil }
-        return perform { try await $0.deleteContainer(id: item.id, force: item.isRunning) }
+        return perform(done: "Deleted container “\(item.name)”.") { try await $0.deleteContainer(id: item.id, force: item.isRunning) }
     }
 
     @discardableResult
@@ -319,18 +290,19 @@ final class ContainersViewController: NSViewController {
         guard confirm("Delete volume “\(name)”?",
                       "The volume and all data stored in it will be permanently deleted. This can’t be undone.",
                       "Delete") else { return nil }
-        return perform { try await $0.deleteVolume(name: name) }
+        return perform(done: "Deleted volume “\(name)”.") { try await $0.deleteVolume(name: name) }
     }
 
     /// Runs an operation, then reloads; failures show inline.
     @discardableResult
-    private func perform(_ operation: @escaping (ContainerManager) async throws -> Void) -> Task<Void, Never> {
+    private func perform(done message: String? = nil, _ operation: @escaping (ContainerManager) async throws -> Void) -> Task<Void, Never> {
         let manager = makeManager(tool)
         progress.startAnimation(nil)
         return Task { [weak self] in
             do {
                 try await operation(manager)
                 await self?.reloadAndWait()
+                if let message { self?.setStatus(message, error: false) }
             } catch {
                 self?.setStatus(error.localizedDescription, error: true)
             }
@@ -341,36 +313,4 @@ final class ContainersViewController: NSViewController {
     var statusTextForTesting: String { statusLabel.stringValue }
     var containersForTesting: [ManagedContainer] { containers }
     var volumesForTesting: [ManagedVolume] { volumes }
-
-    // MARK: Form dialog
-
-    private static func presentForm(title: String, fields: [(label: String, placeholder: String, value: String)]) -> [String]? {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.addButton(withTitle: "Create")
-        alert.addButton(withTitle: "Cancel")
-        let inputs = fields.map { field -> NSTextField in
-            let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
-            input.placeholderString = field.placeholder
-            input.stringValue = field.value
-            input.setAccessibilityLabel(field.label)
-            return input
-        }
-        let rows = zip(fields, inputs).map { field, input -> NSView in
-            let label = NSTextField(labelWithString: field.label)
-            label.font = .systemFont(ofSize: 12)
-            label.widthAnchor.constraint(equalToConstant: 48).isActive = true
-            return FormKit.row([label, input])
-        }
-        let stack = NSStackView(views: rows)
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 8
-        stack.frame = NSRect(x: 0, y: 0, width: 340, height: CGFloat(rows.count) * 32)
-        alert.accessoryView = stack
-        alert.window.initialFirstResponder = inputs.first
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let values = inputs.map { $0.stringValue }
-        return values.first(where: { $0.trimmingCharacters(in: .whitespaces).isEmpty }) == nil ? values : nil
-    }
 }

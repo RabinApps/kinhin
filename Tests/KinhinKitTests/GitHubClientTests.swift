@@ -79,6 +79,25 @@ final class GitHubClientTests: XCTestCase {
         XCTAssertEqual(repos.map(\.fullName), ["acme-corp/site"])
     }
 
+    func testListRepositoriesWithNoScopeListsTheTokenOwnersRepos() async throws {
+        // Onboarding has no scope yet: it must list what the token can see,
+        // never a made-up "placeholder" user's repos.
+        StubProtocol.handler = { request in
+            XCTAssertEqual(request.url!.path, "/user/repos")
+            XCTAssertTrue(request.url!.query!.contains("affiliation=owner,collaborator,organization_member"))
+            let body = "[{\"full_name\":\"me/app\",\"private\":true,\"has_actions\":true},{\"full_name\":\"corp/site\",\"private\":false,\"has_actions\":true}]"
+            return (200, Data(body.utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let client = GitHubClient(credentials: GitHubCredentials(token: "t", scope: ""), session: {
+            let config = URLSessionConfiguration.ephemeral
+            config.protocolClasses = [StubProtocol.self]
+            return URLSession(configuration: config)
+        }())
+        let repos = try await client.listRepositories()
+        XCTAssertEqual(Set(repos.map(\.fullName)), ["me/app", "corp/site"])
+    }
+
     func testFetchRegistrationToken() async throws {
         StubProtocol.handler = { request in
             XCTAssertEqual(request.url?.path, "/repos/acme/widgets/actions/runners/registration-token")

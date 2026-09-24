@@ -14,7 +14,7 @@ runners. This page gets you from zero to a working fleet.
   ```
 - A GitHub PAT with `repo` scope (or a Gitea access token — see [Forge support](/guide/forges))
 - Optional — Linux jobs in [apple/container](https://github.com/apple/container):
-  `brew install --cask container && container system start` (macOS jobs always need Tart)
+  `brew install container && container system start` (macOS jobs always need Tart)
 - ~60 GB free disk for the base image plus per-VM scratch
 
 ## Install (one line)

@@ -104,6 +104,7 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
         githubRepo.setAccessibilityLabel("GitHub repository or organization to serve")
         githubRepo.completes = true
         githubRepo.numberOfVisibleItems = 12
+        setRepoFieldEnabled(githubRepo, enabled: false)
         githubRepo.delegate = self
         githubRepo.target = self
         githubRepo.action = #selector(githubRepoCommitted)
@@ -154,6 +155,7 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
         giteaScope.identifier = NSUserInterfaceItemIdentifier("connect-gitea-scope")
         giteaScope.setAccessibilityLabel("Gitea repository or organization to serve")
         giteaScope.completes = true
+        setRepoFieldEnabled(giteaScope, enabled: false)
         giteaScope.delegate = self
         giteaScope.target = self
         giteaScope.action = #selector(giteaScopeCommitted)
@@ -187,6 +189,7 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
         githubStatus.textColor = hasGitHubToken ? .secondaryLabelColor : .systemOrange
         githubConnect.title = hasGitHubToken ? "Replace" : "Connect"
         githubTokenStored = hasGitHubToken
+        setRepoFieldEnabled(githubRepo, enabled: hasGitHubToken)
         githubConnected = hasGitHubToken && !configuredRepo.isEmpty
 
         let gitea = snapshot?.gitea
@@ -202,9 +205,17 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
         giteaStatus.stringValue = hasGiteaToken ? "Token stored in your Keychain ✓ — paste a new one only to replace it." : "Not connected yet."
         giteaStatus.textColor = hasGiteaToken ? .secondaryLabelColor : .systemOrange
         giteaConnect.title = hasGiteaToken ? "Replace" : "Connect"
+        setRepoFieldEnabled(giteaScope, enabled: hasGiteaToken)
 
         if hasGitHubToken { Task { await listRepos(forge: .github, token: nil) } }
         if hasGiteaToken, gitea != nil { Task { await listRepos(forge: .gitea, token: nil) } }
+    }
+
+    /// A repository can only be chosen once its forge is connected: without a
+    /// token there is nothing to list or verify against.
+    fileprivate func setRepoFieldEnabled(_ combo: NSComboBox, enabled: Bool) {
+        combo.isEnabled = enabled
+        combo.placeholderString = enabled ? "owner/name, or an org name" : "Connect first to choose a repository"
     }
 
     // MARK: Connect
@@ -279,8 +290,7 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
             let refs: [RepoRef]
             switch forge {
             case .github:
-                let scope = lastWrittenRepo.isEmpty ? "placeholder/none" : lastWrittenRepo
-                refs = try await GitHubClient(credentials: GitHubCredentials(token: resolved, scope: scope)).listRepositories()
+                refs = try await GitHubClient(credentials: GitHubCredentials(token: resolved, scope: "")).listRepositories()
             case .gitea:
                 let instance = giteaInstance.stringValue.trimmingCharacters(in: .whitespaces)
                 guard !instance.isEmpty else { return false }
@@ -311,7 +321,7 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
 
     private func commitGitHubRepo() {
         let value = githubRepo.stringValue.trimmingCharacters(in: .whitespaces)
-        guard !value.isEmpty, value != lastWrittenRepo else { return }
+        guard githubTokenStored, !value.isEmpty, value != lastWrittenRepo else { return }
         do {
             try GeneralConfigEditor.apply(.repo(value), to: configURL)
             lastWrittenRepo = value
@@ -347,7 +357,7 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
     private func commitGitea() {
         let instance = giteaInstance.stringValue.trimmingCharacters(in: .whitespaces)
         let scope = giteaScope.stringValue.trimmingCharacters(in: .whitespaces)
-        guard !instance.isEmpty, !scope.isEmpty else { return }
+        guard giteaTokenStored, !instance.isEmpty, !scope.isEmpty else { return }
         let section = GeneralConfigEditor.Snapshot.Gitea(instance: instance, scope: scope)
         guard section != lastWrittenGitea else { return }
         do {
@@ -381,6 +391,8 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
     }
 
     // MARK: Test hooks
+
+    var repoFieldsEnabledForTesting: (github: Bool, gitea: Bool) { (githubRepo.isEnabled, giteaScope.isEnabled) }
 
     func markTokensStoredForTesting(github: Bool, gitea: Bool) {
         githubTokenStored = github

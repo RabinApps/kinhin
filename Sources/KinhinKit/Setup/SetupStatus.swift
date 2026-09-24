@@ -195,7 +195,7 @@ public struct SetupStatusComputer: Sendable {
         case .healthy:
             checks.append(SetupCheckResult(id: "tart", title: "Tart installed", ok: true, detail: "installed and launches", action: nil))
         case .missing:
-            checks.append(SetupCheckResult(id: "tart", title: "Tart installed", ok: false, detail: "required to run macOS VMs", action: "install_tart"))
+            checks.append(SetupCheckResult(id: "tart", title: "Tart installed", ok: false, detail: (parsed?.hasLinuxRuntime ?? false) ? "not installed — only needed for macOS jobs" : "required to run macOS VMs", action: "install_tart"))
         case .killedOnLaunch:
             checks.append(SetupCheckResult(
                 id: "tart-rollback",
@@ -406,7 +406,13 @@ public struct SetupStatusComputer: Sendable {
             checks.append(Self.toolchainCacheCheck(usable: usable, shareCacheOn: shareCacheOn))
         }
 
-        return SetupStatus(ready: checks.allSatisfy(\.ok), checks: checks)
+        // Linux-only: tart isn't installed but a Linux runtime is configured, so
+        // the macOS-only rows (Command Line Tools, tart, base image) don't
+        // gate readiness — they only matter for macOS jobs.
+        let linuxOnly = health == .missing && (parsed?.hasLinuxRuntime ?? false)
+        let macOnlyIDs: Set<String> = ["clt", "tart", "image"]
+        let gating = checks.filter { !(linuxOnly && macOnlyIDs.contains($0.id)) }
+        return SetupStatus(ready: gating.allSatisfy(\.ok), checks: checks)
     }
 
     /// The shared toolchain cache row: green when usable (or when it simply

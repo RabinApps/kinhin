@@ -102,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Engine wiring
 
-    func bootstrapEngine() {
+    func bootstrapEngine(reopenSetupOnFailure: Bool = true) {
         // First-run convenience: materialize the starter config (never
         // overwriting). The checklist still asks for a real repo, so this
         // can't mask an unfinished setup.
@@ -122,9 +122,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   ConfigLoader.hasAnyForge(cfg),
                   // GitHub PAT, or (Gitea-only config) the Gitea token.
                   let pat = ConfigLoader.engineToken(for: cfg),
-                  TartController.isInstalled(configuredPath: cfg.tartPath) {
+                  // tart, or a Linux runtime (Docker / Apple container) to run on.
+                  cfg.canRunOnThisHost() {
             do {
-                let tart = try TartController(configuredPath: cfg.tartPath)
+                let tart = try cfg.makeTartControlling()
                 // Factory-based init so a later token swap re-targets the
                 // client without an app restart.
                 engine = FleetEngine(
@@ -142,9 +143,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } else {
             setupIncomplete = true
-            Log.info("app", "setup incomplete — the setup overlay takes over the window")
+            Log.info("app", "setup incomplete — the guided setup opens")
             mainController?.setupIncompleteFlag = true
-            openMainWindow()
+            if reopenSetupOnFailure { openMainWindow() }
         }
     }
 

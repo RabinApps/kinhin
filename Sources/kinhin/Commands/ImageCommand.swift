@@ -10,7 +10,7 @@ enum ImageCommand {
             // mirroring the VM path's token-gating.
             let shell = Shell()
             guard let containerBin = Paths.findExecutable(named: "container") else {
-                fail("the container CLI is not installed. Install it first: brew install --cask container && container system start")
+                fail("the container CLI is not installed. Install it first: brew install container && container system start")
             }
             do {
                 let status = try await shell.run([containerBin, "system", "status"])

@@ -17,6 +17,8 @@ import KinhinKit
 final class OnboardingWizardViewController: NSViewController {
     /// Fired when the user presses Start fleet.
     var onFinished: (() -> Void)?
+    /// Fired when the user leaves setup unfinished ("Finish later").
+    var onFinishLater: (() -> Void)?
     /// Persists a token and live-swaps it into a running engine (injected by
     /// the app; defaults to a Keychain save).
     var saveToken: ((ForgeID, String) async throws -> Void)? {
@@ -41,7 +43,7 @@ final class OnboardingWizardViewController: NSViewController {
         var subtitle: String {
             switch self {
             case .connect: return "kinhin runs your CI jobs on this Mac. Connect GitHub, a self-hosted Gitea, or both: paste a token, then choose the repository (or organization) to serve."
-            case .mac: return "macOS jobs run in disposable virtual machines. kinhin can install what's missing."
+            case .mac: return "Choose what runs your jobs: Linux (Docker or Apple container), macOS virtual machines (tart), or both. You only need one."
             case .start: return "Everything you chose is saved. You can change any of it later in the Setup tab."
             }
         }
@@ -121,6 +123,7 @@ final class OnboardingWizardViewController: NSViewController {
             footer.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16),
         ])
 
+        macForm.autoEnableLinuxRuntime = true
         macForm.onReadinessChanged = { [weak self] in self?.refreshButtons() }
         connectForm.onChanged = { [weak self] in self?.refreshButtons() }
 
@@ -181,7 +184,7 @@ final class OnboardingWizardViewController: NSViewController {
 
     private func refreshButtons() {
         backButton.isEnabled = step != .connect
-        skipButton.isHidden = step == .start
+        skipButton.title = step == .start ? "Finish later" : "Skip for now"
         switch step {
         case .connect:
             nextButton.title = "Continue"
@@ -199,7 +202,7 @@ final class OnboardingWizardViewController: NSViewController {
     private func missingItems() -> [String] {
         var missing: [String] = []
         if !connectForm.isConnected { missing.append("Connect GitHub or Gitea and choose a repository or org (step 1).") }
-        if !macForm.isReady { missing.append("Install tart and prepare the runner image (step 2).") }
+        if !macForm.isReady { missing.append("Set up something to run jobs on (step 2): a Linux runtime (Docker or Apple container), or tart for macOS jobs.") }
         return missing
     }
 
@@ -210,8 +213,7 @@ final class OnboardingWizardViewController: NSViewController {
         var lines = [
             "Serving:  \(repo.isEmpty ? (snap?.gitea == nil ? "— not chosen yet" : "Gitea only") : repo)",
             "Gitea:  \(snap?.gitea.map { "\($0.scope) @ \($0.instance)" } ?? "not used")",
-            "Runs on:  macOS VMs" + [snap?.container != nil ? "Apple container" : nil, snap?.docker != nil ? "Docker" : nil]
-                .compactMap { $0 }.map { " + \($0)" }.joined(),
+            "Runs on:  \(macForm.runsOnDescription)",
         ]
         let missing = missingItems()
         if !missing.isEmpty {
@@ -244,5 +246,7 @@ final class OnboardingWizardViewController: NSViewController {
         show(next)
     }
 
-    @objc private func skipClicked() { nextClicked() }
+    @objc private func skipClicked() {
+        if step == .start { onFinishLater?() } else { nextClicked() }
+    }
 }

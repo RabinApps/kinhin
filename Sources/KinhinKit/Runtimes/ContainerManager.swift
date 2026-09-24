@@ -60,7 +60,6 @@ public struct ManagedVolume: Equatable, Sendable, Identifiable {
 public enum ContainerManagerError: LocalizedError, Equatable {
     case toolMissing(ContainerTool)
     case invalidName(String)
-    case invalidImage(String)
     case commandFailed(what: String, stderr: String)
 
     public var errorDescription: String? {
@@ -69,8 +68,6 @@ public enum ContainerManagerError: LocalizedError, Equatable {
             return "\(tool.title) is not installed (\(tool.binaryName) was not found)."
         case .invalidName(let name):
             return "'\(name)' is not a valid name. Use letters, numbers, '.', '_' or '-', starting with a letter or number."
-        case .invalidImage(let image):
-            return "'\(image)' is not a valid image reference."
         case .commandFailed(let what, let stderr):
             let detail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             return detail.isEmpty ? "\(what) failed." : "\(what) failed: \(detail.prefix(400))"
@@ -78,9 +75,9 @@ public enum ContainerManagerError: LocalizedError, Equatable {
     }
 }
 
-/// Lists, creates, and deletes containers and volumes through the Docker or
+/// Lists, controls, and deletes containers and volumes through the Docker or
 /// Apple `container` CLI. All work goes through an injectable shell so it is
-/// unit-testable; names and images are validated first so a value can never
+/// unit-testable; names are validated first so a value can never
 /// be mistaken for a command-line option.
 public struct ContainerManager: Sendable {
     public let tool: ContainerTool
@@ -99,9 +96,6 @@ public struct ContainerManager: Sendable {
         name.range(of: "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$", options: .regularExpression) != nil
     }
 
-    public static func isValidImage(_ image: String) -> Bool {
-        image.range(of: "^[A-Za-z0-9][A-Za-z0-9_.:/@-]{0,255}$", options: .regularExpression) != nil
-    }
 
     // MARK: Reading
 
@@ -128,18 +122,6 @@ public struct ContainerManager: Sendable {
     }
 
     // MARK: Creating & deleting
-
-    /// Creates (does not start) a container from an image.
-    public func createContainer(name: String, image: String) async throws {
-        guard Self.isValidName(name) else { throw ContainerManagerError.invalidName(name) }
-        guard Self.isValidImage(image) else { throw ContainerManagerError.invalidImage(image) }
-        _ = try await run(["create", "--name", name, image], what: "creating container '\(name)'")
-    }
-
-    public func createVolume(name: String) async throws {
-        guard Self.isValidName(name) else { throw ContainerManagerError.invalidName(name) }
-        _ = try await run(["volume", "create", name], what: "creating volume '\(name)'")
-    }
 
     /// Deletes a container; `force` also stops it first if it is running.
     public func deleteContainer(id: String, force: Bool) async throws {

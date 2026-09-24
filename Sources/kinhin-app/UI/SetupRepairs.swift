@@ -67,9 +67,9 @@ extension SetupWindowController {
             let shell = Shell()
             if !(await AppleContainerRuntime(shell: shell).health()).isReady {
                 let brew = Paths.findExecutable(named: "brew") ?? "/opt/homebrew/bin/brew"
-                let result = try await shell.run([brew, "install", "--cask", "container"], cwd: nil, timeout: 900)
+                let result = try await shell.run([brew, "install", "container"], cwd: nil, timeout: 900)
                 guard result.succeeded else {
-                    throw NSError(domain: "kinhin", code: 1, userInfo: [NSLocalizedDescriptionKey: result.stderr.isEmpty ? "brew install --cask container failed" : result.stderr])
+                    throw NSError(domain: "kinhin", code: 1, userInfo: [NSLocalizedDescriptionKey: result.stderr.isEmpty ? "brew install container failed" : result.stderr])
                 }
             }
             try await Self.startContainerSystem(shell: shell)
@@ -87,7 +87,9 @@ extension SetupWindowController {
     static func startContainerSystem(shell: ShellRunning) async throws {
         guard !(await AppleContainerRuntime(shell: shell).health()).isReady else { return }
         let result = try await shell.run(
-            [AppleContainerRuntime.resolvedBinaryPath, "system", "start"],
+            // --enable-kernel-install: without it the CLI asks a question and
+            // fails ("failed to read user input") when run without a terminal.
+            [AppleContainerRuntime.resolvedBinaryPath, "system", "start", "--enable-kernel-install"],
             cwd: nil, timeout: 120
         )
         guard result.succeeded else {

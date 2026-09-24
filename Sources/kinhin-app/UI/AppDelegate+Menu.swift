@@ -415,7 +415,7 @@ extension AppDelegate {
             return
         }
         do {
-            let tart = try TartController(configuredPath: cfg.tartPath)
+            let tart = try cfg.makeTartControlling()
             let wasRunning = await old.status().running
             let wasPaused = await old.status().paused
             let replacement = FleetEngine(
@@ -515,7 +515,21 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation {
         mainController?.setupIncompleteFlag = false
         engine = nil
         client = nil
-        bootstrapEngine()
-        Task { await refresh() }
+        bootstrapEngine(reopenSetupOnFailure: false)
+        guard engine != nil || client != nil else {
+            // Not ready after all: say why instead of silently resetting the
+            // wizard (the old behavior looked like "Start fleet does nothing").
+            setupIncomplete = true
+            mainController?.setupIncompleteFlag = true
+            let alert = NSAlert()
+            alert.messageText = "kinhin can't start the fleet yet"
+            alert.informativeText = "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open the Setup tab to finish."
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            mainController?.showSetup()
+            return
+        }
+        // "Start fleet" means start it: bootstrapping alone only builds the engine.
+        startFleet()
     }
 }

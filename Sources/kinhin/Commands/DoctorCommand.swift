@@ -83,7 +83,7 @@ enum DoctorCommand {
                     }
                 }
             case .missing:
-                print("  container:  NOT FOUND ✗ — install with: brew install --cask container && container system start")
+                print("  container:  NOT FOUND ✗ — install with: brew install container && container system start")
             case .broken(let why):
                 print("  container:  \(why)")
             default:

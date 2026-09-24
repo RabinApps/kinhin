@@ -52,7 +52,7 @@ always reserved.
 - A GitHub PAT with `repo` scope for the repository you want to serve (or a Gitea access token
   if you only use Gitea — see [Forge support](#forge-support-github-gitea--the-future))
 - Optional — Linux jobs in [apple/container](https://github.com/apple/container):
-  `brew install --cask container && container system start` (macOS jobs always need Tart)
+  `brew install container && container system start` (macOS jobs always need Tart)
 - ~60 GB free disk for the base image plus per-VM scratch
 
 ## Quick start (CLI)
@@ -522,7 +522,7 @@ container:
   memory_gb: 8
 ```
 
-Requires the container CLI (`brew install --cask container && container system start`). macOS jobs still need Tart — containers run Linux workloads only. When `container:` is configured, the setup checklist and `kinhin doctor` gain container rows (CLI health, system-service state, image present) with one-click fix actions; without it, the rows never appear. Run `kinhin runtimes` (or the menu bar's **Runtimes…** pane) to see the pool, its cap, and its live health once configured.
+Requires the container CLI (`brew install container && container system start`). macOS jobs still need Tart — containers run Linux workloads only. When `container:` is configured, the setup checklist and `kinhin doctor` gain container rows (CLI health, system-service state, image present) with one-click fix actions; without it, the rows never appear. Run `kinhin runtimes` (or the menu bar's **Runtimes…** pane) to see the pool, its cap, and its live health once configured.
 
 Managed toolchains and the shared cache work on this path: `image prepare --container` bind-mounts the host toolchain cache into the scratch container and bakes the config's `toolchains:` via a Linux script (apt, mise, npm globals — macOS-only entries like brew tools, fvm, and CocoaPods are skipped with a note; override per prepare with `--linux-toolchain`/`--linux-stack`). With `share_cache: true`, every Linux runner container gets the same bind mount (guest path `/var/kinhin-cache`) plus the guarded cache-env exports in its registration script, so per-job `npm ci`, `go mod download`, `dotnet restore`, and `playwright install` hit the same warm cache the VMs do.
 
