@@ -36,14 +36,19 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
     public var containerConfigured: Bool
     /// True when a `docker:` section exists (Docker slot pool).
     public var dockerConfigured: Bool
+    /// Every execution runtime this Mac could ever use, probed or not —
+    /// so the pane can say "installed" / "not installed" even for runtimes
+    /// the config doesn't use. Empty until a health pass fills it.
+    public var availability: [RuntimeID: RuntimeHealth] = [:]
 
-    public init(pools: [PoolRow] = [], routes: [RouteRow] = [], defaultRuntime: RuntimeID = .tart, routingConfigured: Bool = false, containerConfigured: Bool = false, dockerConfigured: Bool = false) {
+    public init(pools: [PoolRow] = [], routes: [RouteRow] = [], defaultRuntime: RuntimeID = .tart, routingConfigured: Bool = false, containerConfigured: Bool = false, dockerConfigured: Bool = false, availability: [RuntimeID: RuntimeHealth] = [:]) {
         self.pools = pools
         self.routes = routes
         self.defaultRuntime = defaultRuntime
         self.routingConfigured = routingConfigured
         self.containerConfigured = containerConfigured
         self.dockerConfigured = dockerConfigured
+        self.availability = availability
     }
 
     // MARK: Loading
@@ -127,10 +132,17 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             ).maxConcurrent
         }
 
-        // Health probes: one per pool, concurrently.
+        // Health probes: one per pool, concurrently — plus a full
+        // availability sweep so the pane can show installed / not installed
+        // for every runtime this Mac could use, configured or not.
         var healths: [RuntimeID: RuntimeHealth] = [:]
         if loadHealth {
             healths = await probeHealth(parsed: parsed, poolIDs: Set(model.pools.keys), tartHealth: tartHealth, containerHealth: containerHealth)
+            vm.availability = await probeAvailability(
+                parsed: parsed,
+                tartHealth: tartHealth,
+                containerHealth: containerHealth
+            )
         }
 
         vm.pools = model.pools.keys.sorted { $0.rawValue < $1.rawValue }.map { id in
@@ -152,6 +164,51 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             )
         }
         return vm
+    }
+
+    /// Probe every executable runtime (tart, apple container, docker) —
+    /// configured or not — so the UI can answer "what's installed on this
+    /// Mac?". Real probes by default; the same injection points as
+    /// `probeHealth` keep tests hermetic.
+    static func probeAvailability(
+        parsed: kinhinConfig,
+        tartHealth: (@Sendable () async -> RuntimeHealth)?,
+        containerHealth: (@Sendable () async -> RuntimeHealth)?
+    ) async -> [RuntimeID: RuntimeHealth] {
+        await withTaskGroup(of: (RuntimeID, RuntimeHealth).self) { group in
+            if let injected = tartHealth {
+                group.addTask { (.tart, await injected()) }
+            } else if let controller = try? TartController(configuredPath: parsed.tartPath) {
+                let runtime = TartRuntime(tart: controller, bootTimeout: { parsed.vmBootTimeout })
+                group.addTask { (.tart, await runtime.health()) }
+            } else {
+                group.addTask { (.tart, RuntimeHealth.missing(tool: "tart", fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")) }
+            }
+
+            if let injected = containerHealth {
+                group.addTask { (.appleContainer, await injected()) }
+            } else {
+                let runtime = AppleContainerRuntime(
+                    image: parsed.container?.image ?? "kinhin-ci-linux",
+                    cpus: parsed.container?.cpus ?? 4,
+                    memoryGB: parsed.container?.memoryGB ?? 8
+                )
+                group.addTask { (.appleContainer, await runtime.health()) }
+            }
+
+            let docker = DockerRuntime(
+                image: parsed.docker?.image ?? "kinhin-ci-linux",
+                cpus: parsed.docker?.cpus ?? 2,
+                memoryGB: parsed.docker?.memoryGB ?? 4
+            )
+            group.addTask { (.docker, await docker.health()) }
+
+            var results: [RuntimeID: RuntimeHealth] = [:]
+            for await (id, health) in group {
+                results[id] = health
+            }
+            return results
+        }
     }
 
     /// Probe each pool's runtime. Real probes by default; injectable for tests.

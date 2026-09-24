@@ -3,7 +3,8 @@ import KinhinKit
 
 /// Guided first-run setup. Renders SetupViewModel (computed in KinhinKit,
 /// unit-tested) as a scrollable card checklist with a progress header and a
-/// footer.
+/// footer. Lives inside the main window's Setup tab (embedded), and covers
+/// the whole window surface while first-run setup is incomplete.
 @MainActor
 final class SetupWindowController: NSWindowController {
     var onFinished: (() -> Void)?
@@ -18,6 +19,15 @@ final class SetupWindowController: NSWindowController {
     private let startButton = NSButton(title: "Start Fleet", target: nil, action: nil)
     var canStart = false
 
+    /// Embedded in the main window's Setup tab: builds the full checklist
+    /// UI into any container. The window form (below) reuses this.
+    convenience init(embeddedIn container: NSView) {
+        self.init(window: nil)
+        buildUI(in: container)
+        // Synchronous placeholders: never an empty pane, even while probing.
+        render(viewModel: SetupViewModel(checks: [], isLoading: true))
+    }
+
     convenience init() {
         // Size from the shared layout math (fits five cards without scrolling).
         let size = NSSize(width: SetupWindowLayout.windowWidth, height: SetupWindowLayout.windowHeight(forRows: 6))
@@ -25,18 +35,16 @@ final class SetupWindowController: NSWindowController {
 
         let window = NSWindow(
             contentRect: container.frame,
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         window.title = "kinhin Setup"
-        window.titlebarAppearsTransparent = true
-        window.appearance = NSAppearance(named: .aqua)
+        window.appearance = nil // follow the system (light & dark)
         window.backgroundColor = .windowBackgroundColor
         window.contentView = container
         window.center()
         self.init(window: window)
-
         buildUI(in: container, size: size)
         // Synchronous placeholders: never an empty window, even while probing.
         render(viewModel: SetupViewModel(checks: [], isLoading: true))
@@ -44,11 +52,11 @@ final class SetupWindowController: NSWindowController {
 
     // MARK: UI construction
 
-    private func buildUI(in container: NSView, size: NSSize) {
+    private func buildUI(in container: NSView, size: NSSize? = nil) {
         container.wantsLayer = true
 
         // ---- Header -----------------------------------------------------
-        let title = NSTextField(labelWithString: "🌳  kinhin")
+        let title = NSTextField(labelWithString: "○  kinhin")
         title.font = .systemFont(ofSize: 22, weight: .bold)
 
         headlineLabel.font = .systemFont(ofSize: 13)
@@ -107,7 +115,7 @@ final class SetupWindowController: NSWindowController {
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         container.addSubview(footer)
 
-        NSLayoutConstraint.activate([
+        var constraints = [
             headerStack.topAnchor.constraint(equalTo: container.topAnchor, constant: SetupWindowLayout.margin),
             headerStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: SetupWindowLayout.margin),
             headerStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -SetupWindowLayout.margin),
@@ -119,16 +127,22 @@ final class SetupWindowController: NSWindowController {
             scroll.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: SetupWindowLayout.margin),
             scroll.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: SetupWindowLayout.margin),
             scroll.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -SetupWindowLayout.margin),
-            // Zero gap: the visible area matches SetupWindowLayout's math
-            // (visibleRowCount() == 6 at the default height), so the base
-            // checklist fills the pane exactly and only the overflow scrolls.
-            scroll.bottomAnchor.constraint(equalTo: footer.topAnchor),
 
             footer.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: SetupWindowLayout.margin),
             footer.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -SetupWindowLayout.margin),
             footer.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -SetupWindowLayout.margin),
             footer.heightAnchor.constraint(equalToConstant: SetupWindowLayout.footerHeight - SetupWindowLayout.margin),
-        ])
+        ]
+
+        if let size {
+            // Standalone window: the fixed layout math applies.
+            constraints.append(scroll.bottomAnchor.constraint(equalTo: footer.topAnchor))
+        } else {
+            // Embedded in a tab: stretch with the container.
+            constraints.append(scroll.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -SetupWindowLayout.margin / 2))
+        }
+
+        NSLayoutConstraint.activate(constraints)
     }
 
     // MARK: Rendering
@@ -181,35 +195,41 @@ final class SetupWindowController: NSWindowController {
 
     /// A single checklist card.
     private func makeCard(for row: SetupRowViewModel, prominent: Bool) -> NSView {
-        let card = NSView()
         // REQUIRED: the card carries explicit size anchors and lives inside a
         // stack view. Without this, the autoresizing mask becomes an
         // unsatisfiable constraint; AppKit breaks random constraints and the
         // card's contents (text, buttons) end up misplaced or invisible.
+        //
+        // LayerStyleView (not a plain NSView): the layer's colors are
+        // resolved ONCE at assignment, so a raw `color.cgColor` freezes the
+        // first appearance — the subclass re-resolves semantic colors on
+        // every display update, keeping light & dark mode correct.
+        let card = LayerStyleView(frame: .zero)
         card.translatesAutoresizingMaskIntoConstraints = false
-        card.wantsLayer = true
-        card.layer?.cornerRadius = SetupWindowLayout.cardCornerRadius
-        card.layer?.backgroundColor = (row.isSatisfied
-            ? NSColor.labelColor.withAlphaComponent(0.045)
-            : NSColor.controlBackgroundColor
-        ).cgColor
-        card.layer?.borderWidth = prominent ? 1.5 : (row.isSatisfied ? 0 : 1)
-        card.layer?.borderColor = (prominent
-            ? NSColor.controlAccentColor.withAlphaComponent(0.45)
-            : NSColor.separatorColor
-        ).cgColor
+        card.styleLayer = { layer in
+            layer.cornerRadius = SetupWindowLayout.cardCornerRadius
+            layer.backgroundColor = (row.isSatisfied
+                ? NSColor.labelColor.withAlphaComponent(0.045)
+                : NSColor.controlBackgroundColor
+            ).cgColor
+            layer.borderWidth = prominent ? 1.5 : (row.isSatisfied ? 0 : 1)
+            layer.borderColor = (prominent
+                ? NSColor.controlAccentColor.withAlphaComponent(0.45)
+                : NSColor.separatorColor
+            ).cgColor
+        }
 
         // Status disc: ✓ when satisfied, ! when pending, … while checking.
-        let disc = NSTextField(labelWithString: row.isPlaceholder ? "…" : (row.isSatisfied ? "✓" : "!"))
-        disc.font = .systemFont(ofSize: 13, weight: .bold)
-        disc.alignment = .center
-        disc.wantsLayer = true
-        disc.layer?.cornerRadius = 12
-        disc.layer?.masksToBounds = true
         let discColor: NSColor = row.isPlaceholder
             ? .systemGray
             : (row.isSatisfied ? .systemGreen : .systemOrange)
-        disc.layer?.backgroundColor = discColor.withAlphaComponent(0.18).cgColor
+        let disc = LayerStyleLabel(labelWithString: row.isPlaceholder ? "…" : (row.isSatisfied ? "✓" : "!")) { layer in
+            layer.cornerRadius = 12
+            layer.masksToBounds = true
+            layer.backgroundColor = discColor.withAlphaComponent(0.18).cgColor
+        }
+        disc.font = .systemFont(ofSize: 13, weight: .bold)
+        disc.alignment = .center
         disc.textColor = discColor
         disc.translatesAutoresizingMaskIntoConstraints = false
 

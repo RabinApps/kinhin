@@ -5,11 +5,22 @@ import KinhinKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var menu: NSMenu?
-    // Hold the controller, not just its window: NSControl.target is unretained,
-    // so the controller must stay alive for the setup buttons to work.
-    var setupController: SetupWindowController?
-    var runtimesController: RuntimesWindowController?
-    var tokenSettingsController: TokenSettingsWindowController?
+    // The single main window hosts every tab (Fleet, Setup, Runtimes,
+    // Tokens, Settings). Hold the controller, not just its window:
+    // NSControl.target is unretained, so the controller must stay alive
+    // for the tab buttons to work.
+    var mainController: MainTabsWindowController?
+
+    /// Latest fleet status from the refresh poll — the Fleet tab renders it
+    /// on open so it never shows stale "Loading…" content.
+    var lastStatus: FleetStatus?
+
+    /// Set while first-run onboarding is up (or no usable config exists) —
+    /// the Setup tab then covers the window at launch.
+    var setupIncomplete = false
+    /// Tracks the main window's visibility so the activation policy can be
+    /// re-evaluated when it opens and closes.
+    var isMainWindowVisible = false
 
     // Engine is either owned here (in-process mode) or reached via RPC.
     var engine: FleetEngine?
@@ -34,7 +45,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSSetUncaughtExceptionHandler { exception in
             kinhinPresentCrashAlert(reason: exception.reason ?? exception.name.rawValue)
         }
-        installStatusItem()
+        let mode = AppPreferences.launchMode
+        if mode.showsStatusItem {
+            installStatusItem()
+        }
         bootstrapEngine()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
             Task { await self?.refresh() }
@@ -49,12 +63,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.checkForUpdates()
             }
         }
+        // Launch-mode surface selection: the main window opens unless the user
+        // chose menu-bar-only or onboarding already took the stage (the
+        // window's Setup tab is the launch surface until setup completes).
+        if mode.showMainWindowAtLaunch {
+            openMainWindow()
+        }
+        applyActivationPolicy()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         Task { await engine?.stop() }
         updateCheckTask?.cancel()
         updateDownloadTask?.cancel()
+    }
+
+    // MARK: Activation policy (normal app vs menu bar app)
+
+    /// Syncs the process persona with the current surfaces: a visible main
+    /// window (or a launch mode that is defined by the window) makes kinhin
+    /// a regular app with a Dock icon and app menu; otherwise it is the
+    /// classic accessory menu-bar app.
+    func applyActivationPolicy() {
+        let policy = activationPolicy(
+            showingMainWindow: isMainWindowVisible,
+            launchMode: AppPreferences.launchMode
+        )
+        if NSApp.activationPolicy() != policy {
+            NSApp.setActivationPolicy(policy)
+            Log.info("app", "activation policy → \(policy == .regular ? "regular" : "accessory")")
+        }
     }
 
     // MARK: Engine wiring
@@ -69,6 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Attach to daemon when one is running; otherwise run the engine in-process.
         if RPCClient.isDaemonAlive() {
             client = RPCClient()
+            setupIncomplete = false
             Log.info("app", "attaching to running daemon")
         } else if FileManager.default.fileExists(atPath: Paths.config.path),
                   let cfg = try? ConfigLoader.load(),
@@ -80,8 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   TartController.isInstalled(configuredPath: cfg.tartPath) {
             do {
                 let tart = try TartController(configuredPath: cfg.tartPath)
-                // Factory-based init so a later "Token Settings…" swap
-                // the client without an app restart.
+                // Factory-based init so a later token swap re-targets the
+                // client without an app restart.
                 engine = FleetEngine(
                     config: cfg,
                     pat: pat,
@@ -90,19 +129,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     ssh: SSHExecutor(),
                     host: ResourceProbe().snapshot()
                 )
+                setupIncomplete = false
                 Log.info("app", "no daemon; running engine in-process (not started yet)")
             } catch {
                 Log.error("app", "could not build engine: \(error.localizedDescription)")
             }
         } else {
-            Log.info("app", "setup incomplete — opening setup")
-            // Always open onboarding when setup is incomplete: a bare status-bar
-            // icon would look like the app did nothing (the "silent crash").
-            openSetup()
+            setupIncomplete = true
+            Log.info("app", "setup incomplete — the setup overlay takes over the window")
+            mainController?.setupIncompleteFlag = true
+            openMainWindow()
         }
     }
-
-
 
     // MARK: Refresh
 
@@ -118,6 +156,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         await MainActor.run { self.apply(status: status) }
     }
-
-
 }

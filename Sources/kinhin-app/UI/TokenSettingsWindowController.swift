@@ -79,22 +79,34 @@ final class TokenSettingsWindowController: NSWindowController {
     private var results: [ForgeID: NSTextField] = [:]
 
     convenience init() {
+        self.init(embeddedIn: nil)
+    }
+
+    /// Embedded in the main window's Tokens tab: `container` receives the
+    /// full form (header + one card per provider). Nil container → the
+    /// standalone-window form, unchanged.
+    convenience init(embeddedIn container: NSView?) {
         let size = NSSize(width: 560, height: 396)
-        let container = NSView(frame: NSRect(origin: .zero, size: size))
-        let window = NSWindow(
-            contentRect: container.frame,
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "kinhin Tokens"
-        window.titlebarAppearsTransparent = true
-        window.appearance = NSAppearance(named: .aqua)
-        window.backgroundColor = .windowBackgroundColor
-        window.contentView = container
-        window.center()
-        self.init(window: window)
-        buildUI(in: container)
+        let standalone = container == nil
+        let contentContainer = container ?? NSView(frame: NSRect(origin: .zero, size: size))
+        if standalone {
+            let window = NSWindow(
+                contentRect: contentContainer.frame,
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "kinhin Tokens"
+            window.titlebarAppearsTransparent = true
+            window.appearance = nil // follow the system (light & dark)
+            window.backgroundColor = .windowBackgroundColor
+            window.contentView = contentContainer
+            window.center()
+            self.init(window: window)
+        } else {
+            self.init(window: nil)
+        }
+        buildUI(in: contentContainer)
         reload()
     }
 
@@ -163,13 +175,14 @@ final class TokenSettingsWindowController: NSWindowController {
     }
 
     private func makeCard(for row: TokenSettingsRow) -> NSView {
-        let card = NSView()
+        let card = LayerStyleView(frame: .zero)
         card.translatesAutoresizingMaskIntoConstraints = false
-        card.wantsLayer = true
-        card.layer?.cornerRadius = 10
-        card.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        card.layer?.borderWidth = 1
-        card.layer?.borderColor = NSColor.separatorColor.cgColor
+        card.styleLayer = { layer in
+            layer.cornerRadius = 10
+            layer.backgroundColor = NSColor.controlBackgroundColor.cgColor
+            layer.borderWidth = 1
+            layer.borderColor = NSColor.separatorColor.cgColor
+        }
 
         let nameLabel = NSTextField(labelWithString: row.title)
         nameLabel.font = .systemFont(ofSize: 13, weight: .semibold)

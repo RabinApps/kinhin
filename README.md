@@ -35,6 +35,7 @@ always reserved.
   small jobs share a VM instead of each paying a full boot.
 - **Fast** — VMs are linked clones of one prepared base image, so boots take seconds, not minutes.
 - **Resource-aware** — the scaler never exceeds what your Mac can handle (see `kinhin doctor`).
+- **Main window or menu bar — your pick** — kinhin presents as a normal app (window + Dock) or as a classic tray app; the main window's Settings card picks the launch mode and an optional launch-at-login.
 - **Menu bar app or headless daemon** — same engine, same config, your choice.
 - **One-line install** — `curl … | bash` from GitHub Releases; a Homebrew tap is optional.
 - **Update checks** — the menu bar app checks GitHub Releases daily and can download the new DMG for you.
@@ -133,8 +134,35 @@ at your fork with `KINHIN_UPDATE_REPO=owner/kinhin` if needed.
 
 Install with the one-liner above, then launch **kinhin** from Applications. The setup window walks
 through the same steps as the CLI — installing tart, creating the config, storing the token, and
-preparing the image — then starts the fleet. The tree in your menu bar shows the number of live
-runner VMs. (Prefer dragging? The DMG from Releases still works.)
+preparing the image — then starts the fleet. The fleet lives in kinhin's single main window (and
+the ○ in your menu bar shows the number of live runner VMs). (Prefer dragging? The DMG from
+Releases still works.)
+
+### One window, five tabs
+
+Everything kinhin does happens in a single main window — no scattered panes. A segmented control
+switches between:
+
+| Tab        | Contents                                                                                       |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| **Fleet**  | Live status, Start/Stop/Pause, the VM list with per-VM delete, Logs, and update checks.        |
+| **Setup**  | The guided first-run checklist (also the launch surface while setup is incomplete).           |
+| **Runtimes** | Pools, budget sliders, routes, and labels — the validated config editors.                    |
+| **Tokens** | GitHub / Gitea access-token cards with live check.                                             |
+| **Settings** | Launch mode + launch-at-login.                                                               |
+
+Its **Settings tab** controls how kinhin presents itself (stored in UserDefaults, effective
+immediately):
+
+| Show at launch            | Behavior                                                                                       |
+| ------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Main window + menu bar** (default) | The tabbed window opens at launch and the ○ stays in the menu bar.                  |
+| **Main window only**      | A plain app — no menu bar item; closing the window quits kinhin.                                |
+| **Menu bar only**         | The classic tray app; reopen the window any time from the menu's **Open kinhin** item.          |
+
+The same tab offers **Launch kinhin at login** (a standard macOS login item via `SMAppService`,
+under System Settings → General → Login Items). While the main window is open kinhin runs as a
+regular app with a Dock icon; in menu-bar-only mode it stays an accessory app exactly as before.
 
 > **Unsigned app note:** the app is not notarized. On first launch, right-click → **Open**, or run
 > `xattr -cr /Applications/kinhin.app`. (Homebrew's cask verifies the sha256, so `brew install
@@ -455,8 +483,7 @@ abstraction and routing (TartRuntime semantics, Apple-container runtime health/p
 toolchains (catalog selection, no-implicit-install validation, managed-script content, shared-cache mounts at prepare and per runner VM, cache auto-expiry pruner), config
 ing (runtimes/budget/labels editors: section upsert, comment preservation, validation gating), hot-reload (engine applyReloaded, daemon reload_config RPC), update-check,
 setup-checklist parity, and setup UI presentation/layout tested against fakes — no VMs required), plus KinhinCLITests (command routing table, starter-config
-auto-create policy, flag parsing, status rendering, `config init` matrix, help text) and KinhinAppTests (menu construction, status title/line + VM-section
-rendering, update menu states, update preferences, setup repair execution)).
+auto-create policy, flag parsing, status rendering, `config init` matrix, help text) and the `Tests/` suite (`KinhinAppTests`: menu construction and presentation, status title/line + VM-section rendering, the tabbed main window (activation-policy and quit-on-close decisions, Fleet-tab status/VM rendering, Settings-tab launch-mode + login persistence, tab switching, delegate plumbing), update menu states, update preferences, setup repair execution)).
 CI: `.github/workflows/ci.yml` builds and tests on `macos-14`; `release.yml` publishes the DMG,
 CLI zip, installer, and checksums to GitHub Releases on `v*` tags.
 

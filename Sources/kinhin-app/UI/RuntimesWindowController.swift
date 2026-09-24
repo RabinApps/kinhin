@@ -18,22 +18,33 @@ final class RuntimesWindowController: NSWindowController {
     private var currentRuntimeConfig: kinhinConfig.RuntimeConfig?
 
     convenience init() {
+        self.init(embeddedIn: nil)
+    }
+
+    /// Embedded in the main window's Runtimes tab: `container` receives the
+    /// full pane. Nil container → the standalone-window form, unchanged.
+    convenience init(embeddedIn container: NSView?) {
         let size = NSSize(width: 560, height: 520)
-        let container = NSView(frame: NSRect(origin: .zero, size: size))
-        let window = NSWindow(
-            contentRect: container.frame,
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "kinhin Runtimes"
-        window.titlebarAppearsTransparent = true
-        window.appearance = NSAppearance(named: .aqua)
-        window.backgroundColor = .windowBackgroundColor
-        window.contentView = container
-        window.center()
-        self.init(window: window)
-        buildUI(in: container, size: size)
+        let standalone = container == nil
+        let contentContainer = container ?? NSView(frame: NSRect(origin: .zero, size: size))
+        if standalone {
+            let window = NSWindow(
+                contentRect: contentContainer.frame,
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "kinhin Runtimes"
+            window.titlebarAppearsTransparent = true
+            window.appearance = nil // follow the system (light & dark)
+            window.backgroundColor = .windowBackgroundColor
+            window.contentView = contentContainer
+            window.center()
+            self.init(window: window)
+        } else {
+            self.init(window: nil)
+        }
+        buildUI(in: contentContainer, size: size)
     }
 
     // MARK: UI construction
@@ -71,13 +82,15 @@ final class RuntimesWindowController: NSWindowController {
         // ---- Footer -------------------------------------------------------
         let addRouteButton = NSButton(title: "Add Route…", target: self, action: #selector(addRouteClicked))
         addRouteButton.bezelStyle = .rounded
-        let editButton = NSButton(title: "Edit config…", target: self, action: #selector(editConfigClicked))
+        let editButton = NSButton(title: "Edit config…", target: self, action: #selector(editConfigInUI))
         editButton.bezelStyle = .rounded
+        let externalButton = NSButton(title: "Edit in Terminal…", target: self, action: #selector(editConfigClicked))
+        externalButton.bezelStyle = .rounded
         let hint = NSTextField(labelWithString: "Slider changes apply on release; validation gates every write.")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
 
-        let footer = NSStackView(views: [addRouteButton, editButton, hint])
+        let footer = NSStackView(views: [addRouteButton, editButton, externalButton, hint])
         footer.orientation = .horizontal
         footer.spacing = 12
         footer.translatesAutoresizingMaskIntoConstraints = false
@@ -97,6 +110,68 @@ final class RuntimesWindowController: NSWindowController {
             footer.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -20),
             footer.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -16),
         ])
+    }
+
+    // MARK: Config editing (in-UI YAML editor)
+
+    /// Opens the validated in-UI editor sheet. The textarea starts from the
+    /// exact on-disk bytes; Save writes through ConfigEditor, so the engine's
+    /// full validation gates the result — a bad edit shows the error instead
+    /// of landing on disk.
+    @objc func editConfigInUI() {
+        // No window guard here: the embedded Runtimes tab has no own window
+        // (only the standalone pane does), and runModal works either way.
+        let original = (try? String(contentsOf: Paths.config, encoding: .utf8)) ?? ""
+
+        let editor = NSTextView()
+        editor.string = original
+        editor.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        editor.isAutomaticQuoteSubstitutionEnabled = false
+        editor.isAutomaticDashSubstitutionEnabled = false
+        editor.isAutomaticTextReplacementEnabled = false
+        editor.isEditable = true
+        editor.setAccessibilityLabel("config.yaml editor")
+        // Track the clip view's width (same as the Logs viewer): an
+        // autoresizing text view is sized once and never grows/shrinks when
+        // the alert is resized or laid out late.
+        editor.autoresizingMask = [.width]
+        editor.textContainer?.widthTracksTextView = true
+
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 560, height: 420))
+        scroll.hasVerticalScroller = true
+        scroll.documentView = editor
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+
+        let hint = NSTextField(labelWithString: "Saved only if the whole file still passes the engine's config validation.")
+        hint.font = .systemFont(ofSize: 11)
+        hint.textColor = .secondaryLabelColor
+
+        let column = NSStackView(views: [hint, scroll])
+        column.orientation = .vertical
+        column.spacing = 8
+        column.translatesAutoresizingMaskIntoConstraints = false
+        column.widthAnchor.constraint(equalToConstant: 560).isActive = true
+        scroll.heightAnchor.constraint(equalToConstant: 420).isActive = true
+
+        let alert = NSAlert()
+        alert.messageText = "Edit config.yaml"
+        alert.alertStyle = .informational
+        alert.accessoryView = column
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = editor
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let updated = editor.string
+        guard updated != original else { return }
+        do {
+            try ConfigEditor.save(updated, to: Paths.config)
+            Log.info("runtimes-pane", "config edited in UI; validation passed")
+            onEdited?()
+        } catch {
+            presentError(error)
+        }
+        reload()
     }
 
     // MARK: Loading & rendering
@@ -165,6 +240,26 @@ final class RuntimesWindowController: NSWindowController {
     private func render(viewModel vm: RuntimesPaneViewModel, repo: String, probing: Bool = false) {
         clearRows()
         headlineLabel.stringValue = "Fleet scope: \(repo) — \(vm.routingConfigured ? "routed" : "single-pool") fleet"
+
+        // ---- On this Mac (installed / not installed, configured or not) ---
+        if !vm.availability.isEmpty {
+            rowsStack.addArrangedSubview(sectionHeader("On this Mac"))
+            for id in [RuntimeID.tart, .appleContainer, .docker] {
+                guard let health = vm.availability[id] else { continue }
+                let inUse = vm.pools.contains { $0.runtime == id }
+                let title = Self.availabilityTitle(id, health: health, inUse: inUse)
+                let detail: String?
+                switch health {
+                case .ready:
+                    detail = nil
+                case .missing(_, let fix):
+                    detail = "To install: \(fix)"
+                case .broken(let why):
+                    detail = why
+                }
+                rowsStack.addArrangedSubview(makeCard(title: title, detail: detail, removeAction: nil))
+            }
+        }
 
         // ---- Pools -------------------------------------------------------
         rowsStack.addArrangedSubview(sectionHeader("Pools & capacity"))
@@ -237,12 +332,13 @@ final class RuntimesWindowController: NSWindowController {
     /// runtime is configured, container.labels. Both edit through the
     /// validated LabelsConfigEditor; the container marker is protected.
     private func makeLabelsCard() -> NSView {
-        let card = NSView()
-        card.wantsLayer = true
-        card.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        card.layer?.cornerRadius = 8
-        card.layer?.borderWidth = 1
-        card.layer?.borderColor = NSColor.separatorColor.cgColor
+        let card = LayerStyleView(frame: .zero)
+        card.styleLayer = { layer in
+            layer.backgroundColor = NSColor.controlBackgroundColor.cgColor
+            layer.cornerRadius = 8
+            layer.borderWidth = 1
+            layer.borderColor = NSColor.separatorColor.cgColor
+        }
 
         let column = NSStackView()
         column.orientation = .vertical
@@ -315,6 +411,25 @@ final class RuntimesWindowController: NSWindowController {
         }
     }
 
+    /// "On this Mac" row title: what's installed vs not, and whether the
+    /// config actually uses it.
+    static func availabilityTitle(_ id: RuntimeID, health: RuntimeHealth, inUse: Bool) -> String {
+        let name: String
+        switch id {
+        case .tart: name = "🍎 Tart (macOS VMs)"
+        case .appleContainer: name = "🐧 Apple container (Linux)"
+        case .docker: name = "🐳 Docker (Linux)"
+        case .host: name = "Host"
+        }
+        let state: String
+        switch health {
+        case .ready: state = "installed ✓"
+        case .missing: state = "not installed"
+        case .broken: state = "installed — needs attention"
+        }
+        return "\(name) — \(state)\(inUse ? " · used by your fleet" : " · not used by your config")"
+    }
+
     /// A small colored health chip: green ready / red not ready /
     /// grey "checking…" while the probe pass is in flight.
     static func healthChip(_ health: RuntimeHealth?, probing: Bool) -> NSTextField {
@@ -344,12 +459,13 @@ final class RuntimesWindowController: NSWindowController {
     /// default-runtime popup. Every change writes through
     /// RuntimesConfigEditor — engine validation gates the file.
     private func makeBudgetCard(rc: kinhinConfig.RuntimeConfig, pools: [RuntimesPaneViewModel.PoolRow]) -> NSView {
-        let card = NSView()
-        card.wantsLayer = true
-        card.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        card.layer?.cornerRadius = 8
-        card.layer?.borderWidth = 1
-        card.layer?.borderColor = NSColor.separatorColor.cgColor
+        let card = LayerStyleView(frame: .zero)
+        card.styleLayer = { layer in
+            layer.backgroundColor = NSColor.controlBackgroundColor.cgColor
+            layer.cornerRadius = 8
+            layer.borderWidth = 1
+            layer.borderColor = NSColor.separatorColor.cgColor
+        }
 
         let column = NSStackView()
         column.orientation = .vertical
@@ -364,13 +480,13 @@ final class RuntimesWindowController: NSWindowController {
         // Starved-route warning strip: visible only when a configured route
         // targets a runtime whose cap is 0 at the current split. Updated
         // live by updateCapPreviews on every slider tick.
-        let warning = NSTextField(wrappingLabelWithString: "")
+        let warning = LayerStyleLabel(wrappingLabelWithString: "") { layer in
+            layer.backgroundColor = NSColor.systemRed.withAlphaComponent(0.12).cgColor
+            layer.cornerRadius = 6
+        }
         warning.font = .systemFont(ofSize: 11, weight: .medium)
         warning.textColor = .systemRed
         warning.identifier = NSUserInterfaceItemIdentifier("budget-warning")
-        warning.wantsLayer = true
-        warning.layer?.backgroundColor = NSColor.systemRed.withAlphaComponent(0.12).cgColor
-        warning.layer?.cornerRadius = 6
         warning.isHidden = true
         warning.widthAnchor.constraint(equalToConstant: 460).isActive = true
         column.addArrangedSubview(warning)
@@ -556,12 +672,13 @@ final class RuntimesWindowController: NSWindowController {
     /// A rounded card row: title, optional secondary line, optional remove
     /// button, optional accessory view (the health chip) on the right.
     private func makeCard(title: String, detail: String?, removeAction: Selector?, cardIdentifier: String = "", accessory: NSView? = nil) -> NSView {
-        let card = NSView()
-        card.wantsLayer = true
-        card.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-        card.layer?.cornerRadius = 8
-        card.layer?.borderWidth = 1
-        card.layer?.borderColor = NSColor.separatorColor.cgColor
+        let card = LayerStyleView(frame: .zero)
+        card.styleLayer = { layer in
+            layer.backgroundColor = NSColor.controlBackgroundColor.cgColor
+            layer.cornerRadius = 8
+            layer.borderWidth = 1
+            layer.borderColor = NSColor.separatorColor.cgColor
+        }
 
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = .systemFont(ofSize: 13, weight: .medium)

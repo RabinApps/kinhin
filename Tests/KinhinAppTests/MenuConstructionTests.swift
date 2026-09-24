@@ -21,10 +21,12 @@ final class MenuConstructionTests: XCTestCase {
         XCTAssertEqual(titles, [
             "kinhin",
             "Loading…", // statusLine, refreshed by apply(status:)
-            "Start Fleet", "Stop Fleet", "Pause", "Resume", "Token Settings…",
+            "Open kinhin",
+            "Setup…", "Runtimes…", "Token Settings…",
+            "Start Fleet", "Stop Fleet", "Pause", "Resume",
             "Check for Updates…",
             "  kinhin \(kinhinVersion.current)",
-            "Open Setup…", "Runtimes…", "Open Logs", "Quit",
+            "Open Logs", "Quit",
             "VMs",
         ])
     }
@@ -36,21 +38,22 @@ final class MenuConstructionTests: XCTestCase {
         // their selector names because AppDelegate subclasses NSMenuItem's
         // target and macOS auto-tags action items during addItem.
         XCTAssertEqual(identifiers, [
-            "statusLine",
-            "startFleet", "stopFleet", "pauseFleet", "resumeFleet", "replaceTokenClicked",
+            "statusLine", "openMainWindow",
+            "openSetupTab", "openRuntimesTab", "openTokensTab",
+            "startFleet", "stopFleet", "pauseFleet", "resumeFleet",
             "updateItem",
-            "openSetup", "openRuntimes", "openLogs", "quit",
+            "openLogs", "quit",
             "vmSectionStart",
         ])
     }
 
     func testSeparatorsBetweenSections() {
         let items = delegate.buildMenu().items
-        // After the title, after the status line, after the fleet controls,
-        // and after the update pair. (There is no separator between the
-        // version item and "Open Setup…".)
+        // After the title, after the status line, after the fleet controls
+        // (which include "Open kinhin" and the tab shortcuts), and after the
+        // update pair. (No separator between the version item and "Open Logs".)
         let separatorIndices = items.indices.filter { items[$0].isSeparatorItem }
-        XCTAssertEqual(separatorIndices, [1, 3, 9, 16], "separator placement pins the menu layout")
+        XCTAssertEqual(separatorIndices, [1, 3, 12, 17], "separator placement pins the menu layout")
     }
 
     // MARK: targeting
@@ -58,14 +61,15 @@ final class MenuConstructionTests: XCTestCase {
     func testFleetActionsTargetTheDelegate() {
         let menu = delegate.buildMenu()
         let expected: [String: Selector] = [
+            "Open kinhin": #selector(AppDelegate.openMainWindow),
+            "Setup…": #selector(AppDelegate.openSetupTab),
+            "Runtimes…": #selector(AppDelegate.openRuntimesTab),
+            "Token Settings…": #selector(AppDelegate.openTokensTab),
             "Start Fleet": #selector(AppDelegate.startFleet),
             "Stop Fleet": #selector(AppDelegate.stopFleet),
             "Pause": #selector(AppDelegate.pauseFleet),
             "Resume": #selector(AppDelegate.resumeFleet),
-            "Token Settings…": #selector(AppDelegate.replaceTokenClicked),
             "Check for Updates…": #selector(AppDelegate.updateItemClicked),
-            "Open Setup…": #selector(AppDelegate.openSetup),
-            "Runtimes…": #selector(AppDelegate.openRuntimes),
             "Open Logs": #selector(AppDelegate.openLogs),
             "Quit": #selector(AppDelegate.quit),
         ]
@@ -81,10 +85,16 @@ final class MenuConstructionTests: XCTestCase {
 
     func testHeaderStatusAndVersionItemsAreDisabled() {
         let items = delegate.buildMenu().items
-        for title in ["kinhin", "Loading…", "  kinhin \(kinhinVersion.current)", "VMs"] {
+        for title in ["kinhin", "Loading…", "VMs"] {
             let item = items.first { $0.title == title }
             XCTAssertEqual(item?.isEnabled, false, "'\(title)' is display-only and must be disabled")
         }
+    }
+
+    func testOpenKinhinTargetsTheDelegateWithNoKeyEquivalent() {
+        let item = delegate.buildMenu().items.first { $0.identifier?.rawValue == "openMainWindow" }
+        XCTAssertEqual(item?.isEnabled, true)
+        XCTAssertEqual(item?.keyEquivalent, "", "menu bar items should not register global key equivalents")
     }
 
     func testUpdateItemIsEnabledAndHasNoKeyEquivalent() {

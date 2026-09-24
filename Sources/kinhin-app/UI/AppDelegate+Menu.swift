@@ -2,14 +2,15 @@ import AppKit
 import KinhinKit
 
 // Status item construction and menu rendering: the status line, the
-// dynamic VM section, and the state -> title mapping.
+// dynamic VM section, and the state -> title mapping — plus the single
+// main window's wiring (tabs, launch modes, activation policy).
 @MainActor
 extension AppDelegate {
     // MARK: Status item & menu
 
     func installStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = "🌳"
+        item.button?.title = "○"
         let m = buildMenu()
         menu = m
         item.menu = m
@@ -31,11 +32,29 @@ extension AppDelegate {
 
         m.addItem(.separator())
 
+        // Opens the main window (the launch-mode setting decides whether it
+        // also opens at launch). Always present: in menu-bar-only mode this
+        // is the only way in, and in main-window-and-menu-bar mode it
+        // re-opens a closed window.
+        let openItem = m.addItem(withTitle: "Open kinhin", action: #selector(openMainWindow), keyEquivalent: "")
+        openItem.target = self
+        openItem.identifier = NSUserInterfaceItemIdentifier("openMainWindow")
+
+        // Tab shortcuts: each opens the window on that tab.
+        let tabItem = m.addItem(withTitle: "Setup…", action: #selector(openSetupTab), keyEquivalent: "")
+        tabItem.target = self
+        tabItem.identifier = NSUserInterfaceItemIdentifier("openSetupTab")
+        let runtimesItem = m.addItem(withTitle: "Runtimes…", action: #selector(openRuntimesTab), keyEquivalent: "")
+        runtimesItem.target = self
+        runtimesItem.identifier = NSUserInterfaceItemIdentifier("openRuntimesTab")
+        let tokensItem = m.addItem(withTitle: "Token Settings…", action: #selector(openTokensTab), keyEquivalent: "t")
+        tokensItem.target = self
+        tokensItem.identifier = NSUserInterfaceItemIdentifier("openTokensTab")
+
         m.addItem(withTitle: "Start Fleet", action: #selector(startFleet), keyEquivalent: "s").target = self
         m.addItem(withTitle: "Stop Fleet", action: #selector(stopFleet), keyEquivalent: "k").target = self
         m.addItem(withTitle: "Pause", action: #selector(pauseFleet), keyEquivalent: "p").target = self
         m.addItem(withTitle: "Resume", action: #selector(resumeFleet), keyEquivalent: "r").target = self
-        m.addItem(withTitle: "Token Settings…", action: #selector(replaceTokenClicked), keyEquivalent: "t").target = self
 
         m.addItem(.separator())
         let updateItem = m.addItem(withTitle: "Check for Updates…", action: #selector(updateItemClicked), keyEquivalent: "")
@@ -43,8 +62,6 @@ extension AppDelegate {
         updateItem.identifier = NSUserInterfaceItemIdentifier("updateItem")
         let versionItem = m.addItem(withTitle: "  kinhin \(kinhinVersion.current)", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
-        m.addItem(withTitle: "Open Setup…", action: #selector(openSetup), keyEquivalent: "").target = self
-        m.addItem(withTitle: "Runtimes…", action: #selector(openRuntimes), keyEquivalent: "").target = self
         m.addItem(withTitle: "Open Logs", action: #selector(openLogs), keyEquivalent: "l").target = self
         m.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q").target = self
 
@@ -63,24 +80,31 @@ extension AppDelegate {
 
     // MARK: Status rendering (pure, unit-tested)
 
-    /// The status-bar title for a fleet state: plain tree when idle or
+    /// The status-bar title for a fleet state: plain circle when idle or
     /// stopped, ⏸ when paused, and an active-VM count when busy.
     func statusTitle(for status: FleetStatus) -> String {
         switch (status.running, status.paused, status.activeCount) {
         case (false, _, _):
-            return "🌳"
+            return "○"
         case (true, true, _):
-            return "🌳⏸"
+            return "○⏸"
         case (true, false, 0):
-            return "🌳"
+            return "○"
         case (true, false, let n):
-            return "🌳 \(n)"
+            return "○ \(n)"
         }
     }
 
     /// The first menu line: state word, counters, and the org-scope per-repo
     /// summaries (top 2 each) when the fleet serves more than one repo.
+    /// Static so the Fleet tab can render the exact same line.
     func statusLine(for status: FleetStatus) -> String {
+        AppDelegate.statusLineText(for: status)
+    }
+
+    /// Shared rendering of the status line for the menu and the Fleet tab.
+    static func statusLineText(for status: FleetStatus?) -> String {
+        guard let status else { return "Needs setup — open the Setup tab" }
         let state = !status.running ? "Stopped" : (status.paused ? "Paused" : "Running")
         var line = "\(state) — queue \(status.queueDepth) · desired \(status.desired) · cap \(status.capacityCap)"
         if status.jobCapacity > 0 { line += " · \(status.jobCapacity) job slots" }
@@ -101,16 +125,18 @@ extension AppDelegate {
 
     @MainActor
     func apply(status: FleetStatus?) {
+        lastStatus = status
         // Title reflects state at a glance.
         if let status {
             statusItem?.button?.title = statusTitle(for: status)
             statusLineItem?.title = statusLine(for: status)
         } else {
-            statusItem?.button?.title = "🌳"
-            statusLineItem?.title = "Needs setup — open Setup…"
+            statusItem?.button?.title = "○"
+            statusLineItem?.title = AppDelegate.statusLineText(for: nil)
         }
 
         rebuildVMSection(status: status)
+        mainController?.render(status: status)
     }
 
     @MainActor
@@ -143,6 +169,52 @@ extension AppDelegate {
         }
     }
 
+    // MARK: Main window & tabs
+
+    /// Opens (or focuses) the main window and makes kinhin a regular app
+    /// while it is visible.
+    @objc func openMainWindow() {
+        if mainController == nil {
+            let controller = MainTabsWindowController()
+            controller.delegate = self
+            controller.runtimesEdited = { [weak self] in
+                self?.pushRoutingToEngine()
+            }
+            controller.tokenSaved = { [weak self] forge, token in
+                try await self?.notifyTokenReplaced(forge: forge, token: token)
+            }
+            mainController = controller
+        }
+        if setupIncomplete {
+            mainController?.setupIncompleteFlag = true
+        }
+        isMainWindowVisible = true
+        applyActivationPolicy()
+        mainController?.showWindow(nil)
+        mainController?.window?.makeKeyAndOrderFront(nil)
+        mainController?.render(status: lastStatus)
+        mainController?.applySetupInProgress()
+        mainController?.refreshVisibleTab()
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Tab shortcuts shared by the menu and the window's own buttons.
+    @objc func openSetupTab() { openMainWindow(); mainController?.showSetupOverlay() }
+    @objc func openRuntimesTab() { openMainWindow(); mainController?.selectTab(.runtimes) }
+    @objc func openTokensTab() { openMainWindow(); mainController?.selectTab(.tokens) }
+    @objc func openSettingsTab() { openMainWindow(); mainController?.selectTab(.settings) }
+
+    /// The setup checklist's rows route token entry to the Tokens tab
+    /// (the canonical opener lives in AppDelegate+TokenReplacement.swift).
+    /// Dock-icon clicks reopen the window when none is visible (normal-app
+    /// behavior for the window-centric launch modes).
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag && AppPreferences.launchMode.showMainWindowAtLaunch {
+            openMainWindow()
+        }
+        return true
+    }
+
     // MARK: Actions
 
     @objc func startFleet() {
@@ -152,7 +224,7 @@ extension AppDelegate {
             } else if let client {
                 _ = try? client.send(method: .start)
             } else {
-                openSetup()
+                openSetupTab()
             }
             await refresh()
         }
@@ -193,6 +265,10 @@ extension AppDelegate {
 
     @objc func deleteVM(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }
+        deleteVM(id: id)
+    }
+
+    func deleteVM(id: String) {
         Task {
             if let engine {
                 await engine.deleteVM(id: id)
@@ -204,37 +280,26 @@ extension AppDelegate {
         }
     }
 
-    @objc func openRuntimes() {
-        if runtimesController == nil {
-            let controller = RuntimesWindowController()
-            controller.onEdited = { [weak self] in
-                // Push the routing change to whoever owns the engine so a
-                // running fleet picks it up without a restart: the
-                // in-process engine directly, a daemon over RPC. No engine
-                // yet → nothing to reload; the next start reads the file.
-                Task { [weak self] in
-                    guard let self else { return }
-                    if let engine = self.engine {
-                        if let cfg = try? ConfigLoader.load() {
-                            engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
-                            Log.info("app", "routing reloaded into in-process engine")
-                        }
-                    } else if let client = self.client {
-                        do {
-                            _ = try client.reloadConfig()
-                            Log.info("app", "daemon notified: routing reloaded")
-                        } catch {
-                            Log.warn("app", "daemon reload failed: \(error.localizedDescription)")
-                        }
-                    }
-                    await self.refresh()
+    /// The Runtimes tab's config writes must reach whoever owns the engine
+    /// so a running fleet picks up routing changes without a restart.
+    private func pushRoutingToEngine() {
+        Task { [weak self] in
+            guard let self else { return }
+            if let engine = self.engine {
+                if let cfg = try? ConfigLoader.load() {
+                    engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
+                    Log.info("app", "routing reloaded into in-process engine")
+                }
+            } else if let client = self.client {
+                do {
+                    _ = try client.reloadConfig()
+                    Log.info("app", "daemon notified: routing reloaded")
+                } catch {
+                    Log.warn("app", "daemon reload failed: \(error.localizedDescription)")
                 }
             }
-            runtimesController = controller
+            await self.refresh()
         }
-        runtimesController?.showWindow(nil)
-        runtimesController?.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc func openLogs() {
@@ -242,37 +307,16 @@ extension AppDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    @objc func openSetup() {
-        if setupController == nil {
-            let controller = SetupWindowController()
-            controller.onFinished = { [weak self] in
-                self?.engine = nil
-                self?.client = nil
-                self?.bootstrapEngine()
-            }
-            // Token rows open the shared settings form (same surface as the
-            // menu's "Token Settings…"), pre-focused on the provider.
-            controller.onOpenTokenSettings = { [weak self] forge in
-                self?.openTokenSettings(focusing: forge)
-            }
-            setupController = controller
-        }
-        setupController?.showWindow(nil)
-        setupController?.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        Task { self.repairTartIfNeeded() }
-    }
-
     /// When tart is installed but Gatekeeper kills it on launch, the checklist
     /// alone isn't enough — kick off the rollback repair automatically.
-    private func repairTartIfNeeded() {
+    func runTartRepairIfNeeded() {
         let cfg = try? ConfigLoader.load()
         guard TartController.isInstalled(configuredPath: cfg?.tartPath) else { return }
         Task {
             let health = await TartHealthProbe(configuredPath: cfg?.tartPath).check()
             guard health == .killedOnLaunch else { return }
             Log.error("app", "tart is killed on launch; starting automatic rollback repair")
-            setupController?.runRepair(
+            mainController?.setupController?.runRepair(
                 TartHealthProbe.repairs(for: .killedOnLaunch)[0],
                 progressTitle: "Tart is blocked by Gatekeeper — rolling back to the notarized Cirrus Labs build…"
             )
@@ -281,5 +325,49 @@ extension AppDelegate {
 
     @objc func quit() {
         NSApp.terminate(nil)
+    }
+}
+
+// MARK: - MainTabsWindowDelegate
+
+@MainActor
+extension AppDelegate: MainTabsWindowDelegate {
+    func openLogsFolder() { openLogs() }
+    func checkForUpdatesNow() { updateItemClicked() }
+
+    func launchModeChanged(_ mode: LaunchMode) {
+        applyActivationPolicy()
+        // Match the status item to the mode without touching a status item
+        // that is already installed (or removed).
+        if mode.showsStatusItem && statusItem == nil {
+            installStatusItem()
+        } else if !mode.showsStatusItem, let item = statusItem {
+            NSStatusBar.system.removeStatusItem(item)
+            statusItem = nil
+            menu = nil
+        }
+    }
+
+    func launchAtLoginChanged(_ enabled: Bool) {
+        LaunchAtLoginService.apply(enabled: enabled)
+    }
+
+    func mainTabsWindowWillClose() {
+        isMainWindowVisible = false
+        applyActivationPolicy()
+        if shouldQuitOnMainWindowClose(launchMode: AppPreferences.launchMode) {
+            quit()
+        }
+    }
+
+    /// The setup checklist's Start Fleet was pressed: rebuild the engine
+    /// from the now-complete config and hand the window back to the Fleet tab.
+    func setupTabFinished() {
+        setupIncomplete = false
+        mainController?.setupIncompleteFlag = false
+        engine = nil
+        client = nil
+        bootstrapEngine()
+        Task { await refresh() }
     }
 }

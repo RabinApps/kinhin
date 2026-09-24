@@ -20,20 +20,20 @@ final class StatusRenderingTests: XCTestCase {
     // MARK: status-bar title
 
     func testTitleForStoppedFleet() {
-        XCTAssertEqual(delegate.statusTitle(for: FleetStatus()), "🌳")
+        XCTAssertEqual(delegate.statusTitle(for: FleetStatus()), "○")
     }
 
     func testTitleForRunningIdleFleet() {
         var status = FleetStatus()
         status.running = true
-        XCTAssertEqual(delegate.statusTitle(for: status), "🌳")
+        XCTAssertEqual(delegate.statusTitle(for: status), "○")
     }
 
     func testTitleForPausedFleet() {
         var status = FleetStatus()
         status.running = true
         status.paused = true
-        XCTAssertEqual(delegate.statusTitle(for: status), "🌳⏸")
+        XCTAssertEqual(delegate.statusTitle(for: status), "○⏸")
     }
 
     func testTitleCountsOnlyActiveVMs() {
@@ -45,7 +45,7 @@ final class StatusRenderingTests: XCTestCase {
             record(phase: .failed),   // terminal — not active
             record(phase: .deleting), // terminal — not active
         ]
-        XCTAssertEqual(delegate.statusTitle(for: status), "🌳 2")
+        XCTAssertEqual(delegate.statusTitle(for: status), "○ 2")
     }
 
     // MARK: status line
@@ -113,12 +113,14 @@ final class StatusRenderingTests: XCTestCase {
 
         XCTAssertEqual(menu.items.first { $0.identifier?.rawValue == "statusLine" }?.title,
                        delegate.statusLine(for: status))
+        XCTAssertEqual(delegate.lastStatus, status, "the poll caches the latest status for the main window")
     }
 
     func testApplyWithoutStatusShowsNeedsSetup() {
         delegate.apply(status: nil)
         XCTAssertEqual(menu.items.first { $0.identifier?.rawValue == "statusLine" }?.title,
-                       "Needs setup — open Setup…")
+                       "Needs setup — open the Setup tab")
+        XCTAssertNil(delegate.lastStatus)
     }
 
     // MARK: VM section rebuild
