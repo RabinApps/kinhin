@@ -82,6 +82,9 @@ extension FleetEngine {
             $0.paused = pausedNow
         }
 
+        // Forges that failed at startup get another chance (backed off).
+        await retryDetachedForgesIfDue()
+
         let records = store.all
 
         // 1. Clean up finished/failed VMs.

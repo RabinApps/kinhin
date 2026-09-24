@@ -90,7 +90,13 @@ enum DoctorCommand {
                 break
             }
         }
-        print("  token:      \(KeychainTokenStore.load() != nil ? "stored ✓" : "missing — run: kinhin auth set")")
+        let doctorConfig = try? ConfigLoader.load()
+        if doctorConfig?.githubEnabled ?? true {
+            print("  token:      \(KeychainTokenStore.load() != nil ? "stored ✓" : "missing — run: kinhin auth set")")
+        }
+        if doctorConfig?.gitea != nil {
+            print("  gitea tok:  \(KeychainTokenStore.load(forge: .gitea) != nil ? "stored ✓" : "missing — run: kinhin auth set --gitea")")
+        }
         let configExists = FileManager.default.fileExists(atPath: Paths.config.path)
         print("  config:     \(configExists ? Paths.config.path : "missing — run: kinhin config init")")
         // Shared toolchain cache: what prepare writes through and runner
@@ -125,7 +131,7 @@ enum DoctorCommand {
                 print("  WARNING: a single VM does not fit the host within reserved headroom")
             }
             print("  image:      \(cfg.image)")
-            if !cfg.repo.contains("/") {
+            if cfg.githubEnabled, !cfg.repo.contains("/") {
                 print("  scope:      organization '\(cfg.repo)' — runners serve every repo; PAT needs org runner permissions (admin:org)")
                 // Active verification: mint (and discard) a registration token —
                 // the exact call the fleet's lifecycle depends on.

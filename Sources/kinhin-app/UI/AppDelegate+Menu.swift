@@ -6,6 +6,72 @@ import KinhinKit
 // main window's wiring (tabs, launch modes, activation policy).
 @MainActor
 extension AppDelegate {
+    // MARK: Application menu (menu bar while the app has a window)
+
+    /// The standard macOS menu bar: app menu (Settings…, Quit), Edit (so
+    /// copy/paste work in every field), and Window. Installed once; the
+    /// status-bar menu below is separate.
+    func installMainMenu() {
+        let main = NSMenu()
+
+        let appItem = NSMenuItem()
+        let app = NSMenu(title: "kinhin")
+        app.addItem(withTitle: "About kinhin", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        app.addItem(.separator())
+        let settings = app.addItem(withTitle: "Settings…", action: #selector(openSettingsTab), keyEquivalent: ",")
+        settings.target = self
+        let setup = app.addItem(withTitle: "Setup…", action: #selector(openSetupTab), keyEquivalent: "")
+        setup.target = self
+        app.addItem(.separator())
+        app.addItem(withTitle: "Hide kinhin", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        let hideOthers = app.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        app.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        app.addItem(.separator())
+        app.addItem(withTitle: "Quit kinhin", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = app
+        main.addItem(appItem)
+
+        let editItem = NSMenuItem()
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = edit
+        main.addItem(editItem)
+
+        let windowItem = NSMenuItem()
+        let window = NSMenu(title: "Window")
+        window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        windowItem.submenu = window
+        main.addItem(windowItem)
+        NSApp.windowsMenu = window
+
+        NSApp.mainMenu = main
+    }
+
+    // MARK: Menu state
+
+    /// Start/Stop/Pause/Resume only enable when they would do something.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        guard let id = item.identifier?.rawValue else { return true }
+        let running = lastStatus?.running ?? false
+        let paused = lastStatus?.paused ?? false
+        switch id {
+        case "startFleet": return !running
+        case "stopFleet": return running
+        case "pauseFleet": return running && !paused
+        case "resumeFleet": return running && paused
+        default: return true
+        }
+    }
+
     // MARK: Status item & menu
 
     func installStatusItem() {
@@ -40,21 +106,26 @@ extension AppDelegate {
         openItem.target = self
         openItem.identifier = NSUserInterfaceItemIdentifier("openMainWindow")
 
-        // Tab shortcuts: each opens the window on that tab.
-        let tabItem = m.addItem(withTitle: "Setup…", action: #selector(openSetupTab), keyEquivalent: "")
-        tabItem.target = self
-        tabItem.identifier = NSUserInterfaceItemIdentifier("openSetupTab")
-        let runtimesItem = m.addItem(withTitle: "Runtimes…", action: #selector(openRuntimesTab), keyEquivalent: "")
-        runtimesItem.target = self
-        runtimesItem.identifier = NSUserInterfaceItemIdentifier("openRuntimesTab")
-        let tokensItem = m.addItem(withTitle: "Token Settings…", action: #selector(openTokensTab), keyEquivalent: "t")
-        tokensItem.target = self
-        tokensItem.identifier = NSUserInterfaceItemIdentifier("openTokensTab")
+        // Shortcuts into the window's tabs.
+        let setupItem = m.addItem(withTitle: "Setup…", action: #selector(openSetupTab), keyEquivalent: "")
+        setupItem.target = self
+        setupItem.identifier = NSUserInterfaceItemIdentifier("openSetupTab")
+        let settingsItem = m.addItem(withTitle: "Settings…", action: #selector(openSettingsTab), keyEquivalent: ",")
+        settingsItem.target = self
+        settingsItem.identifier = NSUserInterfaceItemIdentifier("openSettingsTab")
 
-        m.addItem(withTitle: "Start Fleet", action: #selector(startFleet), keyEquivalent: "s").target = self
-        m.addItem(withTitle: "Stop Fleet", action: #selector(stopFleet), keyEquivalent: "k").target = self
-        m.addItem(withTitle: "Pause", action: #selector(pauseFleet), keyEquivalent: "p").target = self
-        m.addItem(withTitle: "Resume", action: #selector(resumeFleet), keyEquivalent: "r").target = self
+        m.addItem(.separator())
+        for (title, action, key, id) in [
+            ("Start Fleet", #selector(startFleet), "s", "startFleet"),
+            ("Stop Fleet", #selector(stopFleet), "k", "stopFleet"),
+            ("Pause", #selector(pauseFleet), "p", "pauseFleet"),
+            ("Resume", #selector(resumeFleet), "r", "resumeFleet"),
+        ] as [(String, Selector, String, String)] {
+            let item = m.addItem(withTitle: title, action: action, keyEquivalent: key)
+            item.keyEquivalentModifierMask = [.command]
+            item.target = self
+            item.identifier = NSUserInterfaceItemIdentifier(id)
+        }
 
         m.addItem(.separator())
         let updateItem = m.addItem(withTitle: "Check for Updates…", action: #selector(updateItemClicked), keyEquivalent: "")
@@ -62,7 +133,7 @@ extension AppDelegate {
         updateItem.identifier = NSUserInterfaceItemIdentifier("updateItem")
         let versionItem = m.addItem(withTitle: "  kinhin \(kinhinVersion.current)", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
-        m.addItem(withTitle: "Open Logs", action: #selector(openLogs), keyEquivalent: "l").target = self
+        m.addItem(withTitle: "Open Logs", action: #selector(openLogs), keyEquivalent: "").target = self
         m.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q").target = self
 
         // Placeholder VM section refreshed dynamically.
@@ -178,7 +249,7 @@ extension AppDelegate {
             let controller = MainTabsWindowController()
             controller.delegate = self
             controller.runtimesEdited = { [weak self] in
-                self?.pushRoutingToEngine()
+                self?.pushConfigToEngine()
             }
             controller.tokenSaved = { [weak self] forge, token in
                 try await self?.notifyTokenReplaced(forge: forge, token: token)
@@ -199,13 +270,9 @@ extension AppDelegate {
     }
 
     /// Tab shortcuts shared by the menu and the window's own buttons.
-    @objc func openSetupTab() { openMainWindow(); mainController?.showSetupOverlay() }
-    @objc func openRuntimesTab() { openMainWindow(); mainController?.selectTab(.runtimes) }
-    @objc func openTokensTab() { openMainWindow(); mainController?.selectTab(.tokens) }
-    @objc func openSettingsTab() { openMainWindow(); mainController?.selectTab(.settings) }
+    @objc func openSetupTab() { openMainWindow(); mainController?.showSetup() }
+    @objc func openSettingsTab() { openMainWindow(); mainController?.selectTab(.advanced) }
 
-    /// The setup checklist's rows route token entry to the Tokens tab
-    /// (the canonical opener lives in AppDelegate+TokenReplacement.swift).
     /// Dock-icon clicks reopen the window when none is visible (normal-app
     /// behavior for the window-centric launch modes).
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -269,6 +336,13 @@ extension AppDelegate {
     }
 
     func deleteVM(id: String) {
+        let alert = NSAlert()
+        alert.messageText = "Delete \(id)?"
+        alert.informativeText = "This stops the VM and removes it. Any job running on it is cancelled."
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .warning
+        guard confirmDestructive(alert) else { return }
         Task {
             if let engine {
                 await engine.deleteVM(id: id)
@@ -280,25 +354,97 @@ extension AppDelegate {
         }
     }
 
-    /// The Runtimes tab's config writes must reach whoever owns the engine
-    /// so a running fleet picks up routing changes without a restart.
-    private func pushRoutingToEngine() {
+    /// Runs a confirmation alert; overridable in tests via `confirmOverride`.
+    func confirmDestructive(_ alert: NSAlert) -> Bool {
+        if let confirmOverride { return confirmOverride }
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// Config writes (Runtimes pane, Config tab) reach whoever owns the
+    /// engine so the running fleet picks up the change. Routing-only edits
+    /// apply live; anything else (scope, bounds, VM shape, images, forge
+    /// sections) restarts the engine automatically — the old behavior was
+    /// to silently keep the stale config until a manual daemon restart.
+    /// Edits are debounced: a save burst (e.g. a stepper drag) flushes once.
+    func pushConfigToEngine() {
+        pendingConfigEdits = true
+        guard !isConfigPushScheduled else { return }
+        isConfigPushScheduled = true
         Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard let self else { return }
-            if let engine = self.engine {
-                if let cfg = try? ConfigLoader.load() {
-                    engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
-                    Log.info("app", "routing reloaded into in-process engine")
-                }
-            } else if let client = self.client {
-                do {
-                    _ = try client.reloadConfig()
-                    Log.info("app", "daemon notified: routing reloaded")
-                } catch {
-                    Log.warn("app", "daemon reload failed: \(error.localizedDescription)")
-                }
+            while self.pendingConfigEdits {
+                self.pendingConfigEdits = false
+                await self.applyConfigToEngine()
             }
-            await self.refresh()
+            self.isConfigPushScheduled = false
+        }
+    }
+
+    private func applyConfigToEngine() async {
+        if let engine {
+            guard let cfg = try? ConfigLoader.load() else {
+                Log.warn("app", "config reload skipped — config.yaml does not parse; the running fleet keeps its current config")
+                return
+            }
+            if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
+                await rebuildInProcessEngine(from: engine, config: cfg)
+            } else {
+                engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
+                Log.info("app", "routing reloaded into in-process engine")
+            }
+        } else if let client {
+            do {
+                _ = try client.reloadConfig()
+                Log.info("app", "daemon notified: config reloaded (restarted if the change required it)")
+            } catch {
+                Log.warn("app", "daemon reload failed: \(error.localizedDescription)")
+            }
+        }
+        await refresh()
+    }
+
+    /// Rebuild the in-process engine from a new config. Deliberately not
+    /// stop()→start(): stop tears every active VM down. The old engine is
+    /// detached (scaling stops, lifecycle tasks cancel) while its instances
+    /// keep running; the replacement adopts them via the standard recovery
+    /// path, then resumes serving at the previous running/paused state.
+    private func rebuildInProcessEngine(from old: FleetEngine, config cfg: kinhinConfig) async {
+        guard let pat = ConfigLoader.engineToken(for: cfg) else {
+            Log.warn("app", "config change needs an engine restart but the required forge token is missing — the fleet keeps running on the old config")
+            return
+        }
+        do {
+            let tart = try TartController(configuredPath: cfg.tartPath)
+            let wasRunning = await old.status().running
+            let wasPaused = await old.status().paused
+            let replacement = FleetEngine(
+                config: cfg,
+                pat: pat,
+                tart: tart,
+                store: FleetStore(),
+                ssh: SSHExecutor(),
+                host: ResourceProbe().snapshot()
+            )
+            // A stopped fleet stays stopped across a rebuild — a config edit
+            // must never start spawning VMs.
+            if wasRunning {
+                await replacement.start()
+                if wasPaused { await replacement.setPaused(true) }
+            }
+            let status = await replacement.status()
+            if wasRunning, !status.running, let error = status.lastError {
+                // Startup verification failed (bad PAT, transient network):
+                // keep the old engine instead of trading a running fleet for
+                // a dead one.
+                Log.error("app", "rebuild did not start: \(error) — keeping the previous engine and config")
+                return
+            }
+            await old.detachKeepingInstances()
+            engine = replacement
+            Log.info("app", "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))")
+        } catch {
+            Log.error("app", "engine rebuild failed: \(error.localizedDescription) — the fleet keeps running on the old config")
         }
     }
 
@@ -307,8 +453,8 @@ extension AppDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    /// When tart is installed but Gatekeeper kills it on launch, the checklist
-    /// alone isn't enough — kick off the rollback repair automatically.
+    /// When tart is installed but Gatekeeper kills it on launch, the wizard
+    /// alone isn't enough — run the repair directly (no UI dependency).
     func runTartRepairIfNeeded() {
         let cfg = try? ConfigLoader.load()
         guard TartController.isInstalled(configuredPath: cfg?.tartPath) else { return }
@@ -316,8 +462,10 @@ extension AppDelegate {
             let health = await TartHealthProbe(configuredPath: cfg?.tartPath).check()
             guard health == .killedOnLaunch else { return }
             Log.error("app", "tart is killed on launch; starting automatic rollback repair")
-            mainController?.setupController?.runRepair(
-                TartHealthProbe.repairs(for: .killedOnLaunch)[0],
+            let repair = TartHealthProbe.repairs(for: .killedOnLaunch)[0]
+            let repairRunner = SetupWindowController(embeddedIn: NSView())
+            repairRunner.runRepair(
+                repair,
                 progressTitle: "Tart is blocked by Gatekeeper — rolling back to the notarized Cirrus Labs build…"
             )
         }
@@ -331,7 +479,7 @@ extension AppDelegate {
 // MARK: - MainTabsWindowDelegate
 
 @MainActor
-extension AppDelegate: MainTabsWindowDelegate {
+extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation {
     func openLogsFolder() { openLogs() }
     func checkForUpdatesNow() { updateItemClicked() }
 

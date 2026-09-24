@@ -94,6 +94,7 @@ final class ReloadConfigTests: XCTestCase {
 
     func testDaemonReloadRPCAppliesConfigFromDisk() async throws {
         let (engine, _) = makeEngine()
+        let ref = Daemon.EngineRef(engine)
 
         // Scratch config file with a container section + mixed routing.
         let dir = FileManager.default.temporaryDirectory
@@ -118,10 +119,27 @@ final class ReloadConfigTests: XCTestCase {
         try yaml.write(to: url, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        let response = await Daemon.handle(.init(id: 1, method: .reloadConfig), engine: engine, configURL: url)
+        // Adding a container section is a shape change: the daemon rebuilds
+        // the engine through the factory (production: buildEngine with the
+        // real Keychain/tart; here, the test's own collaborators).
+        let response = await Daemon.handle(
+            .init(id: 1, method: .reloadConfig),
+            engineRef: ref,
+            configURL: url,
+            engineFactory: { cfg in
+                FleetEngine(config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: self.host)
+            }
+        )
         XCTAssertTrue(response.ok, "reload RPC should succeed: \(response.error ?? "")")
-        let status = await engine.status()
-        XCTAssertEqual(Set(status.capacityByRuntime?.keys ?? [:].keys), ["appleContainer", "tart"])
+        let replaced = try XCTUnwrap(ref.engine, "the ref serves the rebuilt engine")
+        XCTAssertFalse(replaced === engine)
+        let status = await replaced.status()
+        let caps = status.capacityByRuntime ?? [:]
+        XCTAssertEqual(Set(caps.keys), ["tart", "appleContainer"])
+        // usable 10cpu/28GB: container 0.4 → 4cpu/11GB ÷ (2,4) = 2;
+        // tart remainder 6cpu/17GB ÷ (4,8) = min(1, 2) = 1 (cpu-bound)
+        XCTAssertEqual(caps["appleContainer"], "2")
+        XCTAssertEqual(caps["tart"], "1")
     }
 
     func testDaemonReloadRPCReportsFailureOnBadConfig() async throws {
@@ -133,11 +151,229 @@ final class ReloadConfigTests: XCTestCase {
         try "repo: \"acme/widgets\"\nlabels: []\n".write(to: url, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        let response = await Daemon.handle(.init(id: 2, method: .reloadConfig), engine: engine, configURL: url)
+        let response = await Daemon.handle(.init(id: 2, method: .reloadConfig), engineRef: .init(engine), configURL: url)
         XCTAssertFalse(response.ok, "invalid config must fail the reload, not apply partially")
         // Engine keeps its previous (default) routing state — still usable.
         let status = await engine.status()
         XCTAssertNotNil(status)
+    }
+
+    // MARK: - Restart policy (pure)
+
+    /// Routing-only changes are the live-reload set; everything else in the
+    /// frozen engine config requires a rebuild.
+    func testRestartPolicyMatrix() {
+        let base = makeTestConfig()
+
+        // Routing-only edits (applyReloaded's exact set) stay live.
+        XCTAssertFalse(FleetEngine.restartRequired(from: base, to: base), "identical configs never restart")
+        var routes = makeTestConfig()
+        routes.runtimes = .init(defaultRuntime: "appleContainer", budget: ["tart": 0.5, "appleContainer": 0.5], routes: [.init(pattern: "acme/api", runtime: "appleContainer")])
+        XCTAssertFalse(FleetEngine.restartRequired(from: base, to: routes), "routes/budget/default are hot-reloaded")
+        var labels = makeTestConfig()
+        labels.labels = ["kinhin", "extra"]
+        XCTAssertFalse(FleetEngine.restartRequired(from: base, to: labels), "label edits reach the forge live")
+
+        // Everything read from the frozen config restarts.
+        func with(_ mutate: (inout kinhinConfig) -> Void) -> kinhinConfig {
+            var cfg = base
+            mutate(&cfg)
+            return cfg
+        }
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.repo = "acme/other" }), "scope change must restart")
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.minRunners = 2 }), "bounds must restart")
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.maxRunners = 8 }), "bounds must restart")
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.runnersPerVM = 3 }), "density must restart")
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.pollInterval = 60 }), "poll cadence must restart")
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.vm.cpuCount = 6 }), "VM shape must restart")
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.image = "other-base" }), "image must restart")
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.reserve.cpu = 4 }), "host headroom must restart")
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.container = .init(image: "linux", cpus: 2, memoryGB: 4) }), "runtime sections must restart")
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.gitea = .init(instance: "https://gitea.example.com", scope: "acme") }), "forge sections must restart")
+        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.toolchains = .init(specs: ["node@22"]) }), "toolchains must restart")
+    }
+
+    // MARK: - Daemon reload: hot reload vs rebuild
+
+    /// Engines for these tests are built from the parsed YAML itself (not
+    /// makeTestConfig) so the restart diff compares like with like.
+    private func makeEngine(_ config: kinhinConfig, store: FleetStore = makeTestStore()) -> FleetEngine {
+        FleetEngine(
+            config: config,
+            github: FakeGitHub(),
+            tart: FakeTart(),
+            store: store,
+            ssh: FakeSSH(),
+            host: host
+        )
+    }
+
+    /// A routing-only edit answers ok and keeps the same engine object.
+    func testDaemonReloadRoutingOnlyReusesTheEngine() async throws {
+        let dir = try scratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.yaml")
+        try yaml().write(to: url, atomically: true, encoding: .utf8)
+        let engine = makeEngine(try ConfigLoader.parse(yaml()))
+        let ref = Daemon.EngineRef(engine)
+
+        let routed = yaml(runtimes: "runtimes:\n  default: tart\n  routes:\n    - pattern: \"acme/api\"\n      runtime: tart\n")
+        try routed.write(to: url, atomically: true, encoding: .utf8)
+
+        let response = await Daemon.handle(
+            .init(id: 20, method: .reloadConfig),
+            engineRef: ref,
+            configURL: url,
+            engineFactory: { _ in XCTFail("routing-only reload must not rebuild"); return engine }
+        )
+        XCTAssertTrue(response.ok, "\(response.error ?? "")")
+        XCTAssertTrue(ref.engine === engine, "routing-only edit keeps the same engine")
+    }
+
+    /// A shape edit (vm.cpu differs) answers ok and swaps in a NEW engine
+    /// built by the factory from the on-disk config.
+    func testDaemonReloadShapeEditRebuildsTheEngine() async throws {
+        let dir = try scratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.yaml")
+        try yaml().write(to: url, atomically: true, encoding: .utf8)
+        let engine = makeEngine(try ConfigLoader.parse(yaml()))
+        let ref = Daemon.EngineRef(engine)
+
+        try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
+        let replacement = makeEngine(try ConfigLoader.parse(yaml(vmCPU: 6)))
+        let response = await Daemon.handle(
+            .init(id: 21, method: .reloadConfig),
+            engineRef: ref,
+            configURL: url,
+            engineFactory: { cfg in
+                XCTAssertEqual(cfg.vm.cpuCount, 6, "the factory receives the on-disk config")
+                return replacement
+            }
+        )
+        XCTAssertTrue(response.ok, "\(response.error ?? "")")
+        XCTAssertTrue(ref.engine === replacement, "the ref now serves the rebuilt engine")
+        XCTAssertFalse(ref.engine === engine)
+    }
+
+    /// A factory throw (missing token, tart missing) fails the RPC while
+    /// the old engine keeps serving — no half-swapped state.
+    func testDaemonReloadRebuildFailureKeepsTheOldEngine() async throws {
+        let dir = try scratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.yaml")
+        try yaml().write(to: url, atomically: true, encoding: .utf8)
+        let engine = makeEngine(try ConfigLoader.parse(yaml()))
+        let ref = Daemon.EngineRef(engine)
+
+        try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
+
+        struct Boom: Error {}
+        let response = await Daemon.handle(
+            .init(id: 22, method: .reloadConfig),
+            engineRef: ref,
+            configURL: url,
+            engineFactory: { _ in throw Boom() }
+        )
+        XCTAssertFalse(response.ok, "a failed rebuild must surface as ok:false")
+        XCTAssertTrue(response.error?.contains("Boom") ?? false, "got: \(response.error ?? "")")
+        XCTAssertTrue(ref.engine === engine, "the previous engine stays in service")
+    }
+
+    /// A rebuild while the fleet is running adopts the replacement with the
+    /// same engine "shape" (start was driven by the handler): the old engine
+    /// is detached and the ref serves the new one. The paused flag is
+    /// re-asserted on the replacement (covered indirectly: start() on a
+    /// fresh engine whose probe passes leaves running=true).
+    func testDaemonReloadWhileRunningReplacesAndDetaches() async throws {
+        let dir = try scratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.yaml")
+        try yaml().write(to: url, atomically: true, encoding: .utf8)
+        let engine = makeEngine(try ConfigLoader.parse(yaml()))
+        let ref = Daemon.EngineRef(engine)
+
+        // Fleet running (FakeGitHub's permission probe passes).
+        await engine.start()
+
+        try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
+        let replacement = makeEngine(try ConfigLoader.parse(yaml(vmCPU: 6)))
+        let response = await Daemon.handle(
+            .init(id: 23, method: .reloadConfig),
+            engineRef: ref,
+            configURL: url,
+            engineFactory: { _ in replacement }
+        )
+        XCTAssertTrue(response.ok, "\(response.error ?? "")")
+        XCTAssertTrue(ref.engine === replacement)
+        let status = await replacement.status()
+        XCTAssertTrue(status.running, "a running fleet must be running after the swap")
+        // The old engine stopped scaling (detach), not torn down.
+        let oldStatus = await engine.status()
+        XCTAssertFalse(oldStatus.running)
+    }
+
+    /// A stopped fleet must stay stopped across a rebuild.
+    func testDaemonReloadWhileStoppedKeepsFleetStopped() async throws {
+        let dir = try scratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.yaml")
+        try yaml().write(to: url, atomically: true, encoding: .utf8)
+        let engine = makeEngine(try ConfigLoader.parse(yaml()))
+        let ref = Daemon.EngineRef(engine)
+
+        try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
+        let replacement = makeEngine(try ConfigLoader.parse(yaml(vmCPU: 6)))
+        let response = await Daemon.handle(
+            .init(id: 24, method: .reloadConfig),
+            engineRef: ref,
+            configURL: url,
+            engineFactory: { _ in replacement }
+        )
+        XCTAssertTrue(response.ok, "\(response.error ?? "")")
+        let status = await replacement.status()
+        XCTAssertFalse(status.running, "a config edit must never start a stopped fleet")
+    }
+
+    // MARK: - Engine detach semantics
+
+    /// Detach cancels scaling but keeps records and instances: the fleet's
+    /// store survives for the replacement engine's recovery to adopt.
+    /// Detach cancels scaling but keeps records and instances: the fleet's
+    /// store survives for the replacement engine's recovery to adopt (stop()
+    /// by contrast deletes every active record).
+    func testDetachKeepsRecordsAndInstances() async {
+        let store = makeTestStore()
+        store.upsert(VMRecord(id: "kinhin-adopt", phase: .ready))
+        let engine = makeEngine(makeTestConfig(), store: store)
+        await engine.detachKeepingInstances()
+        let status = await engine.status()
+        XCTAssertFalse(status.running)
+        XCTAssertEqual(status.records.map(\.id), ["kinhin-adopt"], "records survive for adoption")
+    }
+
+    // MARK: - Helpers
+
+    private func scratchDir() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kinhin-reload-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// Minimal valid YAML for a config shape (makeTestConfig's values).
+    private func yaml(repo: String = "acme/widgets", vmCPU: Int = 4, runtimes: String? = nil) -> String {
+        var text = """
+        repo: "\(repo)"
+        labels: ["kinhin"]
+        poll_interval: 5
+        vm:
+          cpu: \(vmCPU)
+          memory_gb: 8
+        image: "tahoe-base"
+        """
+        if let runtimes { text += "\n" + runtimes }
+        return text
     }
 
     // MARK: - Client method encodes

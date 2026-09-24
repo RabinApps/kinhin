@@ -5,8 +5,7 @@ import KinhinKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var menu: NSMenu?
-    // The single main window hosts every tab (Fleet, Setup, Runtimes,
-    // Tokens, Settings). Hold the controller, not just its window:
+    // The single main window hosts every tab (Fleet, Setup, Advanced). Hold the controller, not just its window:
     // NSControl.target is unretained, so the controller must stay alive
     // for the tab buttons to work.
     var mainController: MainTabsWindowController?
@@ -21,10 +20,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Tracks the main window's visibility so the activation policy can be
     /// re-evaluated when it opens and closes.
     var isMainWindowVisible = false
+    /// Tests set this to skip the modal delete-VM confirmation.
+    var confirmOverride: Bool?
 
     // Engine is either owned here (in-process mode) or reached via RPC.
     var engine: FleetEngine?
     var client: RPCClient?
+    /// Config-edit push (debounced): a burst of edits flushes once.
+    var pendingConfigEdits = false
+    var isConfigPushScheduled = false
     private var pollTimer: Timer?
     private var updateTimer: Timer?
 
@@ -45,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSSetUncaughtExceptionHandler { exception in
             kinhinPresentCrashAlert(reason: exception.reason ?? exception.name.rawValue)
         }
+        installMainMenu()
         let mode = AppPreferences.launchMode
         if mode.showsStatusItem {
             installStatusItem()
@@ -111,11 +116,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.info("app", "attaching to running daemon")
         } else if FileManager.default.fileExists(atPath: Paths.config.path),
                   let cfg = try? ConfigLoader.load(),
-                  // A template config (placeholder repo) is not a working
-                  // config — keep onboarding up instead of booting a fleet
-                  // against "your-org/your-repo".
-                  !ConfigLoader.isTemplate(cfg),
-                  let pat = KeychainTokenStore.load(),
+                  // A template config (placeholder repo, no gitea:) is not a
+                  // working config — keep onboarding up instead of booting a
+                  // fleet against "your-org/your-repo".
+                  ConfigLoader.hasAnyForge(cfg),
+                  // GitHub PAT, or (Gitea-only config) the Gitea token.
+                  let pat = ConfigLoader.engineToken(for: cfg),
                   TartController.isInstalled(configuredPath: cfg.tartPath) {
             do {
                 let tart = try TartController(configuredPath: cfg.tartPath)

@@ -3,26 +3,23 @@ import KinhinKit
 
 @MainActor
 extension AppDelegate {
-    /// Opens the Tokens tab (one card per provider: GitHub, Gitea), optionally
-    /// pre-focusing the provider a checklist row referred to.
-    /// Menu item title and selector are unchanged.
+    /// Opens the Setup tab, where tokens are entered (menu item title and
+    /// selector are unchanged).
     @objc func replaceTokenClicked() {
         openTokenSettings(focusing: .github)
     }
 
-    /// Shared opener for the menu item and the setup checklist's token rows
-    /// (which pre-focus the provider they refer to).
+    /// Shared opener for the token menu item and any "add a token" prompt.
     func openTokenSettings(focusing forge: ForgeID) {
         openMainWindow()
-        mainController?.selectTab(.tokens)
-        mainController?.tokenController?.initialFocus = forge
+        mainController?.showSetup()
         NSApp.activate(ignoringOtherApps: true)
     }
 
     /// Swap a stored provider token at runtime: save to the Keychain, then
     /// hand the new token to whichever process owns the engine (in-process
     /// engine, or the daemon over RPC) so the swap takes effect without a
-    /// restart. Called from the Tokens tab's cards.
+    /// restart. Called from the Setup tab's Connect form.
     func notifyTokenReplaced(forge: ForgeID, token: String) async throws {
         switch forge {
         case .github:

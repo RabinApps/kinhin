@@ -20,7 +20,7 @@ runners. This page gets you from zero to a working fleet.
 ## Install (one line)
 
 ```bash
-curl -fsSL https://github.com/OWNER/kinhin/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
 ```
 
 Pinned version, or from a local DMG (air-gapped machines):

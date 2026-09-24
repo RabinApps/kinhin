@@ -21,8 +21,10 @@ public enum Daemon {
             Log.error("daemon", "config problem: \(error.localizedDescription)")
             throw error
         }
-        guard let pat = KeychainTokenStore.load() else {
-            let message = "no GitHub token in Keychain — run `kinhin auth` first"
+        guard let pat = ConfigLoader.engineToken(for: cfg) else {
+            let message = cfg.githubEnabled
+                ? "no GitHub token in Keychain — run `kinhin auth` first"
+                : "no forge ready — set a GitHub repo or a gitea: section, and store its token (`kinhin auth set`)"
             Log.error("daemon", message)
             throw DaemonError.missingToken
         }
@@ -31,38 +33,93 @@ public enum Daemon {
             throw TartError.missingBinary(path: cfg.tartPath ?? "PATH")
         }
 
-        let tart = try TartController(configuredPath: cfg.tartPath)
-        let host = ResourceProbe().snapshot()
-        // Factory-based init so `replace_token` RPC swaps the client live.
-        let engine = FleetEngine(
-            config: cfg,
-            pat: pat,
-            tart: tart,
-            store: FleetStore(),
-            ssh: SSHExecutor(),
-            host: host
-        )
+        let engineRef = EngineRef()
+        do {
+            engineRef.set(try buildEngine(cfg))
+        } catch {
+            Log.error("daemon", "could not build engine: \(error.localizedDescription)")
+            throw error
+        }
 
         Log.info("daemon", "starting engine for \(cfg.repo)")
-        await engine.start()
+        await engineRef.engine?.start()
         // The engine self-gates on runner permission (org PATs fail fast);
         // surface a blocked startup instead of idling silently.
-        let status = await engine.status()
-        if !status.running, let error = status.lastError {
+        if let status = await engineRef.engine?.status(), !status.running, let error = status.lastError {
             Log.error("daemon", "engine did not start: \(error)")
         }
 
         Log.info("daemon", "serving RPC on \(RPCPaths.socket.path)")
         try RPCServer.serve(socketURL: RPCPaths.socket) { request in
-            await Self.handle(request, engine: engine)
+            await Self.handle(request, engineRef: engineRef)
         }
     }
 
-    /// configURL is injectable so tests can exercise reload hermetically.
+    /// Wire a fresh engine for the given config (production collaborators:
+    /// Keychain PAT, tart at the configured path, the shared default store).
+    /// Called again on every config-reload rebuild, so a rebuilt engine
+    /// keeps serving through the same RPC server.
+    static func buildEngine(_ cfg: kinhinConfig) throws -> FleetEngine {
+        guard let pat = ConfigLoader.engineToken(for: cfg) else {
+            throw DaemonError.missingToken
+        }
+        let tart = try TartController(configuredPath: cfg.tartPath)
+        return FleetEngine(
+            config: cfg,
+            pat: pat,
+            tart: tart,
+            store: FleetStore(),
+            ssh: SSHExecutor(),
+            host: ResourceProbe().snapshot()
+        )
+    }
+
+    /// Thread-safe box around the "current" engine. A config edit that the
+    /// running engine cannot adopt live (anything beyond routing) requires
+    /// a rebuild — the server's handler keeps answering through this box
+    /// while the swap happens.
+    public final class EngineRef: @unchecked Sendable {
+        private let lock = NSLock()
+        private var wrapped: FleetEngine?
+
+        public init(_ initial: FleetEngine? = nil) {
+            wrapped = initial
+        }
+
+        public var engine: FleetEngine? {
+            lock.withLock { wrapped }
+        }
+
+        func set(_ engine: FleetEngine?) {
+            lock.withLock { wrapped = engine }
+        }
+    }
+
+    /// Legacy/compat entry: a fixed engine, wrapped in a throwaway ref.
+    /// (Production serves through engineRef so a reload can swap it.)
     static func handle(_ request: RPCRequest, engine: FleetEngine, configURL: URL = Paths.config) async -> RPCResponse {
+        await handle(request, engineRef: EngineRef(engine), configURL: configURL)
+    }
+
+    /// configURL is injectable so tests can exercise reload hermetically.
+    /// The engine comes in through engineRef: a scope/shape edit forces a
+    /// rebuild (fresh engine from the new file) rather than a live reload.
+    /// The factory defaults to the production collaborators; tests inject
+    /// one so a rebuild never touches the Keychain or tart.
+    static func handle(
+        _ request: RPCRequest,
+        engineRef: EngineRef,
+        configURL: URL = Paths.config,
+        engineFactory: ((kinhinConfig) throws -> FleetEngine)? = nil
+    ) async -> RPCResponse {
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()
         do {
+            // Resolve the engine per request (a rebuild swaps the box's
+            // contents mid-flight; every method reads it fresh).
+            guard let engine = engineRef.engine else {
+                return RPCResponse(id: request.id, ok: false, error: "no engine (rebuild failed) — fix the config and edit again")
+            }
             switch request.method {
             case .ping:
                 return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(["pong": true]))
@@ -105,11 +162,37 @@ public enum Daemon {
                 await engine.replaceCredentials(pat: replacement.pat)
                 return RPCResponse(id: request.id, ok: true)
             case .reloadConfig:
-                // The Runtimes pane (or CLI) just rewrote config.yaml; reload
-                // the routing state from the file on disk. Failure (bad YAML,
-                // validation) leaves the running fleet on its current config.
+                // The Runtimes pane, Config tab, or CLI just rewrote
+                // config.yaml. Routing-only edits apply live to the running
+                // engine; anything else (scope, bounds, VM shape, images,
+                // forge sections) requires rebuilding the engine from the
+                // new file. Failure (bad YAML, validation) leaves the
+                // running fleet untouched on its current config.
                 do {
                     let cfg = try ConfigLoader.load(from: configURL)
+                    if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
+                        let replacement = try (engineFactory ?? Self.buildEngine)(cfg)
+                        let wasRunning = await engine.status().running
+                        let wasPaused = await engine.status().paused
+                        // A stopped fleet stays stopped across a rebuild — a
+                        // config edit must never start spawning VMs.
+                        if wasRunning {
+                            await replacement.start()
+                            if wasPaused { await replacement.setPaused(true) }
+                        }
+                        let status = await replacement.status()
+                        if wasRunning, !status.running, let error = status.lastError {
+                            // Startup verification failed (bad PAT, transient
+                            // network): keep the old engine serving instead
+                            // of trading a running fleet for a dead one.
+                            Log.error("daemon", "rebuild did not start: \(error) — keeping the previous engine")
+                            return RPCResponse(id: request.id, ok: false, error: "restart failed: \(error)")
+                        }
+                        await engine.detachKeepingInstances()
+                        engineRef.set(replacement)
+                        Log.info("daemon", "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))")
+                        return RPCResponse(id: request.id, ok: true)
+                    }
                     await engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
                     return RPCResponse(id: request.id, ok: true)
                 } catch {

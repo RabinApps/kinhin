@@ -7,6 +7,12 @@ public struct ShellResult: Sendable {
     public let stderr: String
 
     public var succeeded: Bool { exitCode == 0 }
+
+    public init(exitCode: Int32, stdout: String, stderr: String) {
+        self.exitCode = exitCode
+        self.stdout = stdout
+        self.stderr = stderr
+    }
 }
 
 public enum ShellError: LocalizedError {

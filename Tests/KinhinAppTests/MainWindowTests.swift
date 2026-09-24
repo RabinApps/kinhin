@@ -83,9 +83,10 @@ final class MainWindowTests: XCTestCase {
 
     // MARK: tab structure
 
-    func testFourTabsInDisplayOrder() {
-        XCTAssertEqual(MainTab.allCases, [.fleet, .runtimes, .tokens, .settings, .logs])
-        XCTAssertEqual(MainTab.allCases.map(\.label), ["Fleet", "Runtimes", "Tokens", "Settings", "Logs"])
+    func testThreeTabsInDisplayOrder() {
+        XCTAssertEqual(MainTab.allCases, [.fleet, .setup, .advanced])
+        XCTAssertEqual(MainTab.allCases.map(\.label), ["Fleet", "Setup", "Advanced"])
+        XCTAssertEqual(AdvancedSection.allCases.map(\.label), ["Capacity", "Routing", "Containers", "App"])
     }
 
     func testWindowStartsOnTheFleetTab() {
@@ -94,55 +95,112 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testSelectingATabSwapsTheVisibleContent() {
-        window.selectTab(.runtimes, notify: false)
-        XCTAssertEqual(window.selectedTab, .runtimes)
-        XCTAssertEqual(segment().selectedSegment, index(of: .runtimes))
+        window.selectTab(.advanced, notify: false)
+        XCTAssertEqual(window.selectedTab, .advanced)
+        XCTAssertEqual(segment().selectedSegment, index(of: .advanced))
 
-        window.selectTab(.settings, notify: false)
-        XCTAssertEqual(window.selectedTab, .settings)
-        XCTAssertEqual(segment().selectedSegment, index(of: .settings))
+        window.selectTab(.setup, notify: false)
+        XCTAssertEqual(window.selectedTab, .setup)
+        XCTAssertEqual(segment().selectedSegment, index(of: .setup))
     }
 
     func testSegmentClickSwitchesTabs() {
         let control = segment()
-        control.selectedSegment = index(of: .tokens)
+        control.selectedSegment = index(of: .setup)
         fire(control)
-        XCTAssertEqual(window.selectedTab, .tokens)
+        XCTAssertEqual(window.selectedTab, .setup)
     }
 
-    func testSetupIsAnOverlayNotATab() {
-        window.showSetupOverlay()
-        XCTAssertEqual(window.selectedTab, .fleet, "the underlying tab does not change")
-        XCTAssertFalse(segment().isEnabled, "segment control disabled while onboarding owns the window")
-        XCTAssertNotNil(window.setupController, "the overlay embeds the checklist")
+    func testSetupIsARealTabThatStaysNavigableDuringOnboarding() {
+        window.setupIncompleteFlag = true
+        window.showSetup()
+        XCTAssertEqual(window.selectedTab, .setup)
+        XCTAssertTrue(segment().isEnabled, "the tab bar is never locked out")
+        XCTAssertNotNil(window.wizardController, "first run shows the guided wizard")
 
-        // Setup finishing hands the window back to the tabs.
+        // Finishing hands the window back to Fleet and re-bootstraps.
         finishSetupForTesting()
-        XCTAssertTrue(segment().isEnabled)
         XCTAssertEqual(window.selectedTab, .fleet)
         XCTAssertEqual(delegate.setupFinishedCalls, 1, "the delegate re-bootstraps the engine")
     }
 
-    func testSetupIncompleteOpensTheOverlayWhenTheWindowOpens() {
+    func testSetupIncompleteOpensTheWizardWhenTheWindowOpens() {
         window.setupIncompleteFlag = true
         window.applySetupInProgress()
-        XCTAssertNotNil(window.setupController)
-        XCTAssertFalse(segment().isEnabled)
-
-        finishSetupForTesting()
-        XCTAssertTrue(segment().isEnabled)
+        XCTAssertEqual(window.selectedTab, .setup)
+        XCTAssertNotNil(window.wizardController)
     }
 
-    func testEmbeddedChildControllersExistForTheirTabs() {
-        window.selectTab(.runtimes, notify: false)
-        window.selectTab(.tokens, notify: false)
-        window.selectTab(.logs, notify: false)
-        XCTAssertNotNil(window.runtimesController, "the Runtimes tab embeds the pane")
-        XCTAssertNotNil(window.tokenController, "the Tokens tab embeds the form")
-        XCTAssertNotNil(window.logsController, "the Logs tab embeds the viewer")
+    func testCompletedSetupShowsTheEditableFormsNotTheWizard() {
+        window.setupIncompleteFlag = false
+        window.showSetup()
+        XCTAssertNil(window.wizardController)
+        XCTAssertNotNil(window.connectController)
+        XCTAssertNotNil(window.macToolsController)
+        let text = allText()
+        XCTAssertTrue(text.contains("GitHub"), "got: \(text)")
+        XCTAssertTrue(text.contains("macOS jobs"), "got: \(text)")
+    }
+
+    func testWizardWalksThreeSteps() {
+        window.setupIncompleteFlag = true
+        window.showSetup()
+        let wizard = window.wizardController!
+        XCTAssertEqual(wizard.step, .connect, "the wizard opens on connecting an account")
+
+        wizard.nextClickedForTesting()
+        XCTAssertEqual(wizard.step, .mac)
+        wizard.skipClickedForTesting()
+        XCTAssertEqual(wizard.step, .start)
+    }
+
+    func testWizardCannotStartUntilConnectedAndReady() {
+        window.setupIncompleteFlag = true
+        window.showSetup()
+        let wizard = window.wizardController!
+        wizard.nextClickedForTesting()
+        wizard.nextClickedForTesting()
+        XCTAssertEqual(wizard.step, .start)
+        // Nothing connected in a hermetic test: pressing Start must not
+        // finish (it would bounce the app straight back into setup).
+        wizard.nextClickedForTesting()
+        XCTAssertEqual(delegate.setupFinishedCalls, 0)
+        XCTAssertTrue(allText().contains("Still needed"), "the summary says what is missing: \(allText())")
+    }
+
+    func testWizardBackNavigation() {
+        window.setupIncompleteFlag = true
+        window.showSetup()
+        let wizard = window.wizardController!
+        wizard.nextClickedForTesting()
+        wizard.nextClickedForTesting() // mac → start
+        wizard.backClickedForTesting()
+        XCTAssertEqual(wizard.step, .mac)
+        wizard.backClickedForTesting()
+        XCTAssertEqual(wizard.step, .connect)
+    }
+
+    func testAdvancedCapacityRendersPlainLanguageForm() throws {
+        window.selectTab(.advanced, notify: false)
+        XCTAssertEqual(window.selectedAdvancedSection, .capacity)
+        _ = try XCTUnwrap(window.configController, "Capacity embeds the form controller")
+        let text = allText()
+        XCTAssertTrue(text.contains("How much runs at once"), "got: \(text)")
+        XCTAssertTrue(text.contains("Each VM"))
+        XCTAssertTrue(text.contains("Keep free for your Mac"))
+        XCTAssertFalse(text.contains("Forges"), "accounts live only in Setup")
+    }
+
+    func testAdvancedSectionsEmbedTheirControllers() {
+        window.showAdvanced(.routing)
+        XCTAssertNotNil(window.runtimesController, "Routing embeds the runtimes pane")
+        window.showAdvanced(.app)
+        XCTAssertEqual(window.selectedAdvancedSection, .app)
+        XCTAssertTrue(allText().contains("Launch"))
     }
 
     // MARK: Fleet tab rendering
+
 
     func testRenderShowsNeedsSetupBeforeFirstStatus() {
         window.render(status: nil)
@@ -208,7 +266,7 @@ final class MainWindowTests: XCTestCase {
 
     func testSettingsPopupSyncsFromStoredModeWithoutNotifying() {
         // The Settings tab (and its popup) must exist first.
-        window.selectTab(.settings, notify: false)
+        window.showAdvanced(.app)
         // Init applied the stored (default) mode; the delegate must not have
         // been called back — no re-persist loop at construction time.
         XCTAssertEqual(selectedPopupIndex(), 0)
@@ -217,8 +275,8 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testChoosingAModeUpdatesTheCardAndNotifiesTheDelegate() {
-        // The Settings tab (and its popup) must exist first.
-        window.selectTab(.settings, notify: false)
+        // The App section (and its popup) must exist first.
+        window.showAdvanced(.app)
         window.applyLaunchMode(.menuBarOnly)
         XCTAssertEqual(delegate.changedModes, [.menuBarOnly])
         XCTAssertEqual(selectedPopupIndex(), index(of: .menuBarOnly))
@@ -238,7 +296,7 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testLoginCheckboxPersistsAndNotifies() {
-        window.selectTab(.settings, notify: false)
+        window.showAdvanced(.app)
         loginCheck().state = .on
         fire(loginCheck())
         XCTAssertEqual(delegate.loginToggles, [true])
@@ -274,25 +332,27 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testSecondaryButtonsReachTheDelegate() {
-        fire(button(titled: "Open Logs Folder"))
         fire(button(titled: "Check for Updates…"))
-        XCTAssertEqual(delegate.logsCalls, 1)
         XCTAssertEqual(delegate.updateCalls, 1)
+        XCTAssertNotNil(button(titled: "Logs…"), "logs open from the Fleet tab")
+        XCTAssertNotNil(button(titled: "Diagnostics…"))
     }
 
-    func testLogsTabRendersSearchableViewer() {
-        window.selectTab(.logs, notify: false)
-        let vc = window.logsController!
+    func testLogsSheetRendersSearchableViewer() throws {
+        fire(button(titled: "Logs…"))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        let vc = try XCTUnwrap(window.logsController, "the Logs… button creates the viewer")
+        defer { if let sheet = window.window?.attachedSheet { window.window?.endSheet(sheet) } }
         // The search field's placeholder (stringValue stays empty until typing).
         let searchFields = vc.view.flattenedViews().compactMap { $0 as? NSSearchField }
-        XCTAssertEqual(searchFields.count, 1, "the Logs tab carries one search field")
+        XCTAssertEqual(searchFields.count, 1, "the logs sheet carries one search field")
         XCTAssertTrue(searchFields[0].placeholderString?.contains("Search logs") ?? false)
         // Level filter popup + line count (the popup's selected title lives
         // on the control, not in a text label).
         let popups = vc.view.flattenedViews().compactMap { $0 as? NSPopUpButton }
         XCTAssertEqual(popups.count, 1)
         XCTAssertEqual(popups[0].titleOfSelectedItem, "All", "level filter present, defaulting to All")
-        XCTAssertTrue(allText().contains("lines"), "a line count is shown: \(allText())")
+        XCTAssertTrue(vc.view.flattenedText().joined(separator: "\n").contains("lines"), "a line count is shown")
         // The text area exists and shows the empty state.
         XCTAssertNotNil(vc.view.flattenedViews().compactMap { $0 as? NSTextView }.first)
     }
@@ -416,7 +476,7 @@ final class MainWindowTests: XCTestCase {
 
     private func loginCheck() -> NSButton {
         guard let button = window.window?.contentView?.flattenedButtons().first(where: { $0.title.contains("Launch kinhin at login") }) else {
-            fatalError("Settings tab must carry the login checkbox")
+            fatalError("App section must carry the login checkbox")
         }
         return button
     }
@@ -425,9 +485,9 @@ final class MainWindowTests: XCTestCase {
         MainTab.allCases.firstIndex(of: tab) ?? -1
     }
 
-    /// Drives the checklist's Start Fleet → onFinished → dismiss path.
+    /// Drives the wizard's Finish → onFinished → dismiss path.
     private func finishSetupForTesting() {
-        window.setupController?.onFinished?()
+        window.wizardController?.onFinished?()
     }
 
     private func index(of mode: LaunchMode) -> Int {
@@ -456,7 +516,7 @@ final class MainWindowTests: XCTestCase {
 
     private func selectedPopupIndex() -> Int {
         let all = popups()
-        XCTAssertEqual(all.count, 1, "exactly one launch-mode popup (Settings tab)")
+        XCTAssertEqual(all.count, 1, "exactly one launch-mode popup (App section)")
         return all.first?.indexOfSelectedItem ?? -1
     }
 

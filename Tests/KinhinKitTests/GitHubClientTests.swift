@@ -43,6 +43,42 @@ final class GitHubClientTests: XCTestCase {
         )
     }
 
+    func testListRepositoriesPaginatesAndSortsActionsFirst() async throws {
+        // A full 100-item page keeps pagination going; the short page ends it.
+        // Parse the page per request — a cached "page 1" branch would feed
+        // the full page forever and hang pagination.
+        let fullPage = (1...100).map { "{\"full_name\":\"acme/p\($0)\",\"private\":false,\"has_actions\":true}" }.joined(separator: ",")
+        StubProtocol.handler = { request in
+            let page = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "page" })?.value ?? "1"
+            if page == "1" {
+                return (200, Data("[\(fullPage)]".utf8), [:])
+            }
+            return (200, Data("[{\"full_name\":\"acme/last\",\"private\":false,\"has_actions\":true}]".utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let repos = try await makeClient().listRepositories()
+        XCTAssertEqual(repos.count, 101, "100 from the full page + 1 from the short page")
+        XCTAssertTrue(repos.contains { $0.fullName == "acme/last" })
+        XCTAssertTrue(repos.contains { $0.fullName == "acme/p1" })
+    }
+
+    func testListRepositoriesOrgScopeHitsOrgEndpoint() async throws {
+        StubProtocol.handler = { request in
+            XCTAssertEqual(request.url!.path, "/orgs/acme-corp/repos")
+            let body = "[{\"full_name\":\"acme-corp/site\",\"private\":false,\"has_actions\":true}]"
+            return (200, Data(body.utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let client = GitHubClient(credentials: GitHubCredentials(token: "t", scope: "acme-corp"), session: {
+            let config = URLSessionConfiguration.ephemeral
+            config.protocolClasses = [StubProtocol.self]
+            return URLSession(configuration: config)
+        }())
+        let repos = try await client.listRepositories()
+        XCTAssertEqual(repos.map(\.fullName), ["acme-corp/site"])
+    }
+
     func testFetchRegistrationToken() async throws {
         StubProtocol.handler = { request in
             XCTAssertEqual(request.url?.path, "/repos/acme/widgets/actions/runners/registration-token")

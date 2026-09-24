@@ -73,31 +73,31 @@ final class UpdateMenuTests: XCTestCase {
 
     func testEnvOverrideWinsWhenWellFormed() {
         XCTAssertEqual(
-            UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": "fork-owner/kinhin"]),
-            "fork-owner/kinhin"
+            UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": "fork-RabinApps/kinhin"]),
+            "fork-RabinApps/kinhin"
         )
     }
 
     func testMalformedOrMissingOverrideFallsBackToDefault() {
-        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: [:]), "OWNER/kinhin")
-        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": ""]), "OWNER/kinhin")
-        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": "just-a-name"]), "OWNER/kinhin")
+        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: [:]), "RabinApps/kinhin")
+        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": ""]), "RabinApps/kinhin")
+        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": "just-a-name"]), "RabinApps/kinhin")
         XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": "a/b/c"]), "a/b/c", "contains a slash — honored as-is")
     }
 
     func testLegacyOrchardEnvVarStillHonored() {
         XCTAssertEqual(
-            UpdatePreferences.repo(fromEnvironment: ["ORCHARD_UPDATE_REPO": "fork-owner/kinhin"]),
-            "fork-owner/kinhin",
+            UpdatePreferences.repo(fromEnvironment: ["ORCHARD_UPDATE_REPO": "fork-RabinApps/kinhin"]),
+            "fork-RabinApps/kinhin",
             "forks configured before the rename must keep updating"
         )
         // The current var wins when both are set.
         XCTAssertEqual(
             UpdatePreferences.repo(fromEnvironment: [
-                "KINHIN_UPDATE_REPO": "new-owner/kinhin",
-                "ORCHARD_UPDATE_REPO": "old-owner/kinhin",
+                "KINHIN_UPDATE_REPO": "new-RabinApps/kinhin",
+                "ORCHARD_UPDATE_REPO": "old-RabinApps/kinhin",
             ]),
-            "new-owner/kinhin"
+            "new-RabinApps/kinhin"
         )
     }
 

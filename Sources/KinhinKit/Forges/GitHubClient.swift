@@ -2,7 +2,7 @@ import Foundation
 
 public struct GitHubCredentials: Sendable {
     public let token: String
-    /// GitHub scope the fleet serves: "owner/name" (one repository) or a
+    /// GitHub scope the fleet serves: "RabinApps/name" (one repository) or a
     /// single "org" segment (an entire organization — runners register at
     /// the org level and serve every repo's queued jobs).
     public let scope: String
@@ -15,10 +15,11 @@ public struct GitHubCredentials: Sendable {
     /// True when the scope is an organization, not a single repository.
     public var isOrgScope: Bool { !scope.contains("/") }
 
+    /// The owner segment of the scope ("RabinApps" in "RabinApps/name").
     public var owner: String { String(scope.split(separator: "/").first ?? "") }
 
     /// URL passed to the runner's `config.sh --url`. Org-level runners
-    /// register at /organizations/<org>, repo-level at /<owner>/<repo>.
+    /// register at /organizations/<org>, repo-level at /<RabinApps>/<repo>.
     public var configureURL: String {
         isOrgScope
             ? "https://github.com/organizations/\(scope)"
@@ -130,6 +131,23 @@ public struct RegistrationToken: Codable, Sendable, Equatable {
     public let expiresAt: Date
 }
 
+/// A repository visible to the stored token — one pickable target for the
+/// onboarding repo step and the Config tab's repo picker.
+public struct RepoRef: Sendable, Equatable, Identifiable {
+    public let fullName: String
+    public let isPrivate: Bool
+    /// nil when the API didn't say (old Gitea versions).
+    public let hasActionsEnabled: Bool?
+
+    public var id: String { fullName }
+
+    public init(fullName: String, isPrivate: Bool = false, hasActionsEnabled: Bool? = nil) {
+        self.fullName = fullName
+        self.isPrivate = isPrivate
+        self.hasActionsEnabled = hasActionsEnabled
+    }
+}
+
 // MARK: - Client
 
 /// Minimal GitHub REST client covering what the autoscaler needs.
@@ -169,7 +187,7 @@ public struct GitHubClient: GitHubServing {
         let segments = credentials.scope.split(separator: "/")
         guard segments.count == 1 || segments.count == 2,
               segments.allSatisfy({ !$0.isEmpty }) else {
-            throw GitHubError.http(0, "invalid scope spec \(credentials.scope) — use 'owner/name' or an org name")
+            throw GitHubError.http(0, "invalid scope spec \(credentials.scope) — use 'RabinApps/name' or an org name")
         }
         var req = URLRequest(url: URL(string: "https://api.github.com\(path)")!)
         req.httpMethod = method
@@ -249,6 +267,54 @@ public struct GitHubClient: GitHubServing {
     struct RegistrationTokenResponse: Codable {
         let token: String
         let expires_at: Date
+    }
+
+    /// Repos the token can see, for the onboarding/Config repo pickers.
+    /// Repo scopes list siblings of that repo; org scopes list the org's
+    /// repos. Actions-enabled repos sort first, then by name.
+    public func listRepositories() async throws -> [RepoRef] {
+        var refs: [RepoRef] = []
+        var page = 1
+        while true {
+            let path: String
+            if credentials.isOrgScope {
+                path = "/orgs/\(credentials.scope)/repos?per_page=100&page=\(page)"
+            } else {
+                path = "/users/\(credentials.owner)/repos?per_page=100&page=\(page)&sort=full_name"
+            }
+            let req = try request(method: "GET", path: path)
+            let (data, _) = try await send(req)
+            struct GHRepo: Decodable {
+                let full_name: String
+                let isPrivate: Bool
+                let has_actions: Bool?
+
+                init(from decoder: Decoder) throws {
+                    let c = try decoder.container(keyedBy: CodingKeys.self)
+                    full_name = try c.decode(String.self, forKey: .full_name)
+                    isPrivate = try c.decodeIfPresent(Bool.self, forKey: .isPrivate) ?? false
+                    has_actions = try c.decodeIfPresent(Bool.self, forKey: .has_actions)
+                }
+
+                enum CodingKeys: String, CodingKey {
+                    case full_name
+                    case isPrivate = "private"
+                    case has_actions
+                }
+            }
+            let batch: [GHRepo]
+            do { batch = try JSONDecoder().decode([GHRepo].self, from: data) }
+            catch { throw GitHubError.decoding("repos: \(error.localizedDescription)") }
+            refs.append(contentsOf: batch.map { RepoRef(fullName: $0.full_name, isPrivate: $0.isPrivate, hasActionsEnabled: $0.has_actions) })
+            if batch.count < 100 { break }
+            page += 1
+        }
+        return refs.sorted {
+            if ($0.hasActionsEnabled ?? true) != ($1.hasActionsEnabled ?? true) {
+                return $0.hasActionsEnabled ?? true
+            }
+            return $0.fullName.localizedCaseInsensitiveCompare($1.fullName) == .orderedAscending
+        }
     }
 
     public func listRunners() async throws -> [GHRunner] {
@@ -360,10 +426,12 @@ public struct GitHubClient: GitHubServing {
 
     struct RunSummary: Codable {
         let id: Int
-        let repository: RepoRef?
+        let repository: RepoSummary?
     }
 
-    struct RepoRef: Codable {
+    /// Nested repo object inside workflow-run payloads (distinct from the
+    /// public RepoRef picker model).
+    struct RepoSummary: Codable {
         let full_name: String
     }
 

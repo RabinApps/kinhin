@@ -8,7 +8,7 @@ enum RunCommands {
         let cfg = loadConfigOrExit()
         let engine = try engineFromConfig(cfg)
         await engine.start()
-        print("fleet running for \(cfg.repo) — Ctrl-C to stop")
+        print("fleet running for \(cfg.githubEnabled ? cfg.repo : "Gitea \(cfg.gitea?.scope ?? "")") — Ctrl-C to stop")
         // Park until interrupted.
         let signalSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
         signal(SIGINT, SIG_IGN)

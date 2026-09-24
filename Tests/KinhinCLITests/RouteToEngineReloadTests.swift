@@ -200,7 +200,7 @@ final class RouteToEngineReloadTests: XCTestCase {
         XCTAssertNotNil(status)
     }
 
-    /// A workflow-level route (owner/repo@Name) added by the CLI routes only
+    /// A workflow-level route (RabinApps/repo@Name) added by the CLI routes only
     /// that workflow — the same repo's other workflows stay on the default
     /// pool. This is the per-workflow half of the routing contract.
     func testCLIWorkflowRouteBucketsOnlyThatWorkflow() async throws {

@@ -20,8 +20,14 @@ public struct kinhinConfig: Sendable, Equatable {
         public static let `default` = VM(cpuCount: 4, memoryGB: 8, ephemeral: true)
     }
 
-    /// GitHub repository to serve, e.g. "acme/widgets".
+    /// GitHub repository to serve, e.g. "acme/widgets". The starter
+    /// template's placeholder means "no GitHub": a config with a `gitea:`
+    /// section and this placeholder serves Gitea only (see `githubEnabled`).
     public var repo: String
+
+    /// True when GitHub is a real forge for this config (a real repo/org,
+    /// not empty and not the starter placeholder).
+    public var githubEnabled: Bool { !repo.isEmpty && repo != ConfigLoader.templateRepo }
     /// Labels a job must request (subset of these) to be picked up by this fleet.
     public var labels: [String]
     /// Never run fewer than this many idle runners.
@@ -190,12 +196,12 @@ public struct kinhinConfig: Sendable, Equatable {
         /// (fractions of the usable CPU+RAM budget; the remainder, if any,
         /// goes to the default runtime).
         public var budget: [String: Double]
-        /// Repo or `owner/repo@workflow` → runtime. Repo routes take
+        /// Repo or `RabinApps/repo@workflow` → runtime. Repo routes take
         /// precedence over workflow routes; first matching route wins.
         public var routes: [Route]
 
         public struct Route: Sendable, Equatable {
-            /// "owner/name" or "owner/name@Workflow Name".
+            /// "RabinApps/name" or "RabinApps/name@Workflow Name".
             public var pattern: String
             public var runtime: String
 
@@ -224,7 +230,7 @@ public struct kinhinConfig: Sendable, Equatable {
     public struct GiteaForgeConfig: Sendable, Equatable {
         /// Instance base URL, e.g. "https://gitea.example.com".
         public var instance: String
-        /// Scope: "owner/name" or org name (mirrors the GitHub scope model).
+        /// Scope: "RabinApps/name" or org name (mirrors the GitHub scope model).
         public var scope: String
         /// Labels jobs must request on Gitea (host-mode, e.g. ["macos:host"]).
         public var labels: [String]?
@@ -326,9 +332,24 @@ public struct ConfigLoader {
         cfg.repo == templateRepo
     }
 
+    /// The GitHub token the engine is built with. With GitHub configured it is
+    /// the Keychain PAT; if that is missing but a Gitea forge is configured
+    /// with its own token, an empty placeholder lets the fleet run on Gitea
+    /// alone (GitHub then reports its problem instead of blocking startup).
+    /// Gitea-only configs also get the placeholder. Nil when no configured
+    /// forge has a usable token.
+    public static func engineToken(for cfg: kinhinConfig, load: (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) }) -> String? {
+        let giteaReady = cfg.gitea != nil && load(.gitea) != nil
+        if cfg.githubEnabled {
+            if let token = load(.github) { return token }
+            return giteaReady ? "" : nil
+        }
+        return giteaReady ? "" : nil
+    }
+
     /// True when at least one forge is configured for real work.
     public static func hasAnyForge(_ cfg: kinhinConfig) -> Bool {
-        !cfg.repo.isEmpty && cfg.repo != templateRepo
+        cfg.githubEnabled || cfg.gitea != nil
     }
 
     /// Creates the starter config on first run. Never overwrites: an existing
@@ -366,12 +387,12 @@ public struct ConfigLoader {
         guard let repo = partial.repo, !repo.isEmpty else {
             throw ConfigError.missing("repo")
         }
-        // Scope: "owner/name" (one repository) or a single segment (an org —
+        // Scope: "RabinApps/name" (one repository) or a single segment (an org —
         // org-level runners serve every repo in the organization).
         let scopeSegments = repo.split(separator: "/")
         guard (1 ... 2).contains(scopeSegments.count),
               scopeSegments.allSatisfy({ !$0.isEmpty }) else {
-            throw ConfigError.invalid("scope must be 'owner/name' or an org name, got '\(repo)'")
+            throw ConfigError.invalid("scope must be 'RabinApps/name' or an org name, got '\(repo)'")
         }
         guard let labels = partial.labels, !labels.isEmpty else {
             throw ConfigError.missing("labels")
@@ -433,12 +454,12 @@ public struct ConfigLoader {
                 throw ConfigError.invalid("gitea.instance must be a base URL like https://gitea.example.com (no path, no /api suffix)")
             }
             guard let scope = gitea.scope, !scope.isEmpty else {
-                throw ConfigError.invalid("gitea.scope is required ('owner/name' or an org name)")
+                throw ConfigError.invalid("gitea.scope is required ('RabinApps/name' or an org name)")
             }
             let scopeSegments = scope.split(separator: "/")
             guard (1 ... 2).contains(scopeSegments.count),
                   scopeSegments.allSatisfy({ !$0.isEmpty }) else {
-                throw ConfigError.invalid("gitea.scope must be 'owner/name' or an org name, got '\(scope)'")
+                throw ConfigError.invalid("gitea.scope must be 'RabinApps/name' or an org name, got '\(scope)'")
             }
             if let giteaLabels = gitea.labels, giteaLabels.isEmpty {
                 throw ConfigError.invalid("gitea.labels must be non-empty when present")
@@ -505,11 +526,11 @@ public struct ConfigLoader {
                 if isWorkflow {
                     let repoPart = String(pattern.split(separator: "@").first ?? "")
                     guard repoPart.split(separator: "/").count == 2, !repoPart.hasSuffix("@") else {
-                        throw ConfigError.invalid("runtimes.routes pattern '\(pattern)' must be owner/name@Workflow or owner/name")
+                        throw ConfigError.invalid("runtimes.routes pattern '\(pattern)' must be RabinApps/name@Workflow or RabinApps/name")
                     }
                 } else {
                     guard segments.count == 2, segments.allSatisfy({ !$0.isEmpty }) else {
-                        throw ConfigError.invalid("runtimes.routes pattern '\(pattern)' must be owner/name (or owner/name@Workflow)")
+                        throw ConfigError.invalid("runtimes.routes pattern '\(pattern)' must be RabinApps/name (or RabinApps/name@Workflow)")
                     }
                 }
                 routes.append(kinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime))
@@ -668,7 +689,7 @@ public struct ConfigLoader {
 
         # GitHub scope to serve (required). Jobs whose `runs-on:` matches
         # (subset of) `labels` below will be run here.
-        #   "owner/name"  → a single repository
+        #   "RabinApps/name"  → a single repository
         #   "your-org"    → an entire organization (org-level runners serve
         #                   every repo's queued jobs; the PAT needs org
         #                   runner-management permissions)
@@ -747,7 +768,7 @@ public struct ConfigLoader {
         # --gitea) with runner-management rights on the scope below.
         # gitea:
         #   instance: "https://gitea.example.com"
-        #   scope: "owner/name"        # or an org name
+        #   scope: "RabinApps/name"        # or an org name
         #   labels: ["macos:host"]     # jobs opt in via runs-on: macos:host
 
         # Optional: route repos and workflows to different execution runtimes.

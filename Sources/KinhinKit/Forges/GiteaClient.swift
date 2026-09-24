@@ -45,7 +45,7 @@ public enum GiteaError: LocalizedError, Equatable {
 
 // MARK: - Credentials
 
-/// One Gitea instance + scope ("owner/name" repo or bare org name).
+/// One Gitea instance + scope ("RabinApps/name" repo or bare org name).
 public struct GiteaCredentials: Sendable {
     public let token: String
     public let scope: String
@@ -60,7 +60,7 @@ public struct GiteaCredentials: Sendable {
 
     public var isOrgScope: Bool { !scope.contains("/") }
 
-    public var owner: String { String(scope.split(separator: "/").first ?? "") }
+    public var RabinApps: String { String(scope.split(separator: "/").first ?? "") }
 
     /// Base for the actions sub-API of this scope.
     var actionsBase: String {
@@ -117,6 +117,82 @@ public struct GiteaClient: Sendable {
             return try JSONDecoder().decode(TokenResponse.self, from: data).token
         } catch {
             throw GiteaError.decoding("registration-token: \(error.localizedDescription)")
+        }
+    }
+
+    /// Repos the token can see (own + collaborator + org-affiliated, the
+    /// same surface the web dashboard shows) for the repo pickers. Actions
+    /// availability is not reported uniformly across Gitea versions, so it
+    /// stays nil unless the instance provides it.
+    public func listRepositories() async throws -> [RepoRef] {
+        var refs: [RepoRef] = []
+        var page = 1
+        while true {
+            let (data, _) = try await send(path: "/api/v1/repos/search?limit=50&private=true&sorted=updated&page=\(page)")
+            struct SearchHit: Decodable { let ok: Bool? }
+            struct GiteaRepo: Decodable {
+                let full_name: String
+                let isPrivate: Bool
+                let has_actions: Bool?
+
+                init(from decoder: Decoder) throws {
+                    let c = try decoder.container(keyedBy: CodingKeys.self)
+                    full_name = try c.decode(String.self, forKey: .full_name)
+                    isPrivate = try c.decodeIfPresent(Bool.self, forKey: .isPrivate) ?? false
+                    has_actions = try c.decodeIfPresent(Bool.self, forKey: .has_actions)
+                }
+
+                enum CodingKeys: String, CodingKey {
+                    case full_name
+                    case isPrivate = "private"
+                    case has_actions
+                }
+            }
+            struct Wrapper: Decodable {
+                let ok: Bool?
+                let data: [GiteaRepo]?
+
+                // Tolerate both object shapes: a wrapped {ok,data} body and
+                // a bare top-level array (older Gitea). The bare-array case
+                // routes through GiteaRepo.self-decoding via AnyDecodable
+                // bridge: decode the array first, fall back on type error.
+                init(from decoder: Decoder) throws {
+                    if let keyed = try? decoder.container(keyedBy: CodingKeys.self) {
+                        ok = try keyed.decodeIfPresent(Bool.self, forKey: .ok)
+                        data = try keyed.decodeIfPresent([GiteaRepo].self, forKey: .data)
+                    } else {
+                        // Bare array: surface a typed failure so the caller's
+                        // fallback decodes [GiteaRepo] directly.
+                        throw DecodingError.typeMismatch(
+                            [GiteaRepo].self,
+                            .init(codingPath: decoder.codingPath,
+                                  debugDescription: "bare array response")
+                        )
+                    }
+                }
+
+                enum CodingKeys: String, CodingKey { case ok, data }
+            }
+            let batch: [GiteaRepo]
+            do {
+                if let wrapped = try? JSONDecoder().decode(Wrapper.self, from: data).data {
+                    batch = wrapped
+                } else {
+                    // Some Gitea versions return a bare array.
+                    batch = try JSONDecoder().decode([GiteaRepo].self, from: data)
+                }
+            } catch {
+                throw GiteaError.decoding("repos/search: \(error.localizedDescription)")
+            }
+            refs.append(contentsOf: batch.map { RepoRef(fullName: $0.full_name, isPrivate: $0.isPrivate, hasActionsEnabled: $0.has_actions) })
+            if batch.count < 50 { break }
+            page += 1
+        }
+        return refs.sorted {
+            if ($0.hasActionsEnabled ?? true) != ($1.hasActionsEnabled ?? true) {
+                return $0.hasActionsEnabled ?? true
+            }
+            return $0.fullName.localizedCaseInsensitiveCompare($1.fullName) == .orderedAscending
         }
     }
 

@@ -10,7 +10,7 @@ kinhin doctor [--json]      Prerequisites + computed capacity (--json: host, run
 kinhin setup-status [--json] First-run checklist; exit 1 until ready (--json for scripts)
 kinhin runtimes [--json]    Pools, capacity, budget split, live health, and routes (--no-health skips probes)
 kinhin runtimes route add <pattern> <tart|appleContainer|docker>
-                            Route a repo (`owner/repo`) or workflow (`owner/repo@Name`) — same validated
+                            Route a repo (`RabinApps/repo`) or workflow (`RabinApps/repo@Name`) — same validated
                             editor as the Runtimes pane; a running daemon reloads routing live
 kinhin runtimes route remove <pattern>
                             Delete that route (e.g. `acme/api` or `acme/web@Nightly`)

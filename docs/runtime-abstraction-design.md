@@ -1,6 +1,6 @@
 # Runtime Abstraction — Design Document
 
-**Status:** Approved design · **Prerequisite:** Forge abstraction (shipped) · **Composes with:** Forge (a job is a *(forge, repo, runtime)* triple)
+**Status:** Approved design · **Prerequisite:** Forge abstraction (shipped) · **Composes with:** Forge (a job is a _(forge, repo, runtime)_ triple)
 
 ---
 
@@ -9,14 +9,14 @@
 kinhin currently hardwires one execution runtime: every runner is a Tart macOS VM. That costs a
 Tart dependency for users whose workloads are Linux-only, prevents cheaper execution for Linux
 jobs, and offers no story for trusted repos that want a warm, non-isolated runner. The Forge
-abstraction solved *who hands us jobs*; this layer solves *where jobs execute* — with per-repo
+abstraction solved _who hands us jobs_; this layer solves _where jobs execute_ — with per-repo
 routing so one fleet can mix runtimes across repositories.
 
 ## 2. Non-goals
 
 - **Running macOS jobs without Tart.** No container or host backend can execute macOS workloads
-  on a Mac; Tart remains the only macOS runtime. The abstraction makes Tart *optional for the
-  product* (Linux-only users never install it) — not optional for macOS jobs.
+  on a Mac; Tart remains the only macOS runtime. The abstraction makes Tart _optional for the
+  product_ (Linux-only users never install it) — not optional for macOS jobs.
 - Replacing the Forge abstraction. Runtime and Forge are orthogonal axes and compose: a job is
   a (forge, repo, runtime) triple.
 - Multi-node fleets: everything here is one-host, as today.
@@ -64,20 +64,20 @@ shape as `TartHealth` today, so the checklist renders it with existing machinery
 
 ### 3.2 The three implementations
 
-| | `TartRuntime` | `DockerRuntime` | `HostRuntime` |
-|---|---|---|---|
-| **OS** | macOS | Linux (containers) | any (runs on your Mac) |
-| **Isolation** | per-job VM | per-job container in one shared Linux VM | none — consent-gated |
-| **Provision** | clone+boot Tart VM (today's path) | ensure shared Linux VM up, one container per concurrent slot | nothing |
-| **Registration** | SSH: config.sh / act_runner register (today) | same scripts, exec'd via `docker exec` | `registerWarmRunner` on the host itself |
-| **Watch** | `awaitEphemeralExit` (today) | container presence + runner status | runner-status polling, no deletion |
-| **Teardown** | stop+delete VM (today) | `docker rm -f` (cleaner than VMs) | deregister + scrub work dir |
-| **Ephemeral semantics** | fresh VM per job | fresh container per job-slot | warm runner, periodic scrub |
+|                         | `TartRuntime`                                | `DockerRuntime`                                              | `HostRuntime`                           |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------ | --------------------------------------- |
+| **OS**                  | macOS                                        | Linux (containers)                                           | any (runs on your Mac)                  |
+| **Isolation**           | per-job VM                                   | per-job container in one shared Linux VM                     | none — consent-gated                    |
+| **Provision**           | clone+boot Tart VM (today's path)            | ensure shared Linux VM up, one container per concurrent slot | nothing                                 |
+| **Registration**        | SSH: config.sh / act_runner register (today) | same scripts, exec'd via `docker exec`                       | `registerWarmRunner` on the host itself |
+| **Watch**               | `awaitEphemeralExit` (today)                 | container presence + runner status                           | runner-status polling, no deletion      |
+| **Teardown**            | stop+delete VM (today)                       | `docker rm -f` (cleaner than VMs)                            | deregister + scrub work dir             |
+| **Ephemeral semantics** | fresh VM per job                             | fresh container per job-slot                                 | warm runner, periodic scrub             |
 
 Consequences:
 
 - **Docker on macOS = Linux containers inside one Linux VM** (Docker Desktop/OrbStack/colima).
-  kinhin treats that Linux VM as *infrastructure* (started, monitored, counted in capacity),
+  kinhin treats that Linux VM as _infrastructure_ (started, monitored, counted in capacity),
   not as a runner. One Linux VM serving N container slots is drastically cheaper than N macOS
   VMs — that is Docker mode's entire value proposition.
 - **Host mode is opt-in per repo, with an explicit consent step in the UI** ("this runs repo
@@ -90,14 +90,14 @@ Consequences:
 runtimes:
   default: tart
   routes:
-    - repo: acme/ios-app       # macOS workload → must be tart (validated)
+    - repo: acme/ios-app # macOS workload → must be tart (validated)
       runtime: tart
-    - repo: acme/api           # Linux workload on cheap containers
+    - repo: acme/api # Linux workload on cheap containers
       runtime: docker
       docker:
-        image: ghcr.io/acme/ci-linux:latest   # container image for its job slots
+        image: ghcr.io/acme/ci-linux:latest # container image for its job slots
         max_slots: 4
-    - repo: acme/scripts       # trusted internal scripts, warm host runner
+    - repo: acme/scripts # trusted internal scripts, warm host runner
       runtime: host
       host:
         labels: [kinhin-host, trusted]
@@ -105,7 +105,7 @@ runtimes:
 
 Parse/validation rules (all in `ConfigLoader.parse`, mirroring `gitea:` handling):
 
-1. Route repos must be valid `owner/name` scopes; no duplicate repo across routes.
+1. Route repos must be valid `RabinApps/name` scopes; no duplicate repo across routes.
 2. If a route's runtime is `tart`, the repo's OS is macOS — enforce that the forge-side label
    set for that repo includes macOS labels, or the route explicitly declares `os: macos`.
 3. `docker:` requires `image`; `max_slots` ≥ 1. `host:` requires explicit labels (never default
@@ -127,7 +127,7 @@ Host budget (cores, RAM, disk) — after reserve:
 
 - `DockerRuntime`'s effective job cap = `min(linuxVMCap × max_slots, sum of per-route max_slots)`.
 - The engine's autoscaler input becomes a per-runtime demand/capacity matrix: demand assigned to
-  a repo's route uses *that route's* runtime cap, not the global one. `FleetStatus` gains
+  a repo's route uses _that route's_ runtime cap, not the global one. `FleetStatus` gains
   `capacityByRuntime: [String: Int]?` so `kinhin doctor`/status can show
   `tart: 2 · docker: 12 slots · host: 2`.
 - Overcommit is impossible by construction: budgets partition, they never share.
@@ -138,7 +138,7 @@ The engine keeps one reconcile loop and one lifecycle per record; runtime-ness b
 parameter on the paths that already branch by platform:
 
 1. `VMRecord` gains `runtime: String?` alongside `platform` (same Codable-optional pattern).
-2. Spawn: assign **runtime from the repo's route** (first-match config lookup), *after* the forge
+2. Spawn: assign **runtime from the repo's route** (first-match config lookup), _after_ the forge
    demand split — a repo's demand counts against its runtime's capacity.
 3. `runLifecycle`: `provision` + `registrationScript` + `watch` + `teardown` calls replace the
    direct `tart.*` calls, parameterized by `record.runtime` (default `tart`).
@@ -165,14 +165,14 @@ A **Runtimes** pane in the menu bar app (Settings window, mirroring Setup's card
 
 ## 8. Staged implementation plan
 
-| Stage | Deliverable | Effort | Risk |
-|---|---|---|---|
-| 1 | `Runtime` protocol + `TartRuntime` wrapping today's calls; engine refactor behind it; **all 190 tests green** | 1 session | low — pure refactor |
-| 2 | Routing config (`runtimes:` section), per-runtime capacity matrix, `FleetStatus.capacityByRuntime` | 1 session | medium |
-| 3 | `DockerRuntime` (Linux VM infra detection, slot containers, `docker exec` registration, teardown) + tests — **shipped**: daemon-agnostic health via `docker info`, per-slot `--cpus/--memory`, `docker exec` registration, checklist/doctor rows, `image prepare --docker` | 1–2 sessions | medium — Docker Desktop vs colima variance |
-| 4 | `HostRuntime` warm runners + consent flow + status `warm:` entries | 1 session | low code / high care |
-| 5 | Runtimes settings pane (picker UI writing config, checklist rows per runtime) | 1 session | low |
-| 6 | Docs + doctor sections per runtime | ½ session | low |
+| Stage | Deliverable                                                                                                                                                                                                                                                                | Effort       | Risk                                       |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------------------------------------------ |
+| 1     | `Runtime` protocol + `TartRuntime` wrapping today's calls; engine refactor behind it; **all 190 tests green**                                                                                                                                                              | 1 session    | low — pure refactor                        |
+| 2     | Routing config (`runtimes:` section), per-runtime capacity matrix, `FleetStatus.capacityByRuntime`                                                                                                                                                                         | 1 session    | medium                                     |
+| 3     | `DockerRuntime` (Linux VM infra detection, slot containers, `docker exec` registration, teardown) + tests — **shipped**: daemon-agnostic health via `docker info`, per-slot `--cpus/--memory`, `docker exec` registration, checklist/doctor rows, `image prepare --docker` | 1–2 sessions | medium — Docker Desktop vs colima variance |
+| 4     | `HostRuntime` warm runners + consent flow + status `warm:` entries                                                                                                                                                                                                         | 1 session    | low code / high care                       |
+| 5     | Runtimes settings pane (picker UI writing config, checklist rows per runtime)                                                                                                                                                                                              | 1 session    | low                                        |
+| 6     | Docs + doctor sections per runtime                                                                                                                                                                                                                                         | ½ session    | low                                        |
 
 Stages 1–2 land invisibly (no user-visible change); stage 3 is the first user-facing feature.
 

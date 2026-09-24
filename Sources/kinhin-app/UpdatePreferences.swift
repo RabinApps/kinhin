@@ -3,14 +3,14 @@ import Foundation
 /// App-side update policy: which repo to check, how often, and the last-check
 /// stamp (UserDefaults, so the 24h throttle survives relaunches).
 enum UpdatePreferences {
-    /// The GitHub repo releases are published to. Fill in OWNER, or override
+    /// The GitHub repo releases are published to. Fill in RabinApps, or override
     /// for forks/local testing via the KINHIN_UPDATE_REPO environment variable.
     static let repo: String = {
         repo(fromEnvironment: ProcessInfo.processInfo.environment)
     }()
 
     /// The repo-selection rule, injectable for tests: an env var containing
-    /// "owner/name" wins; anything else (missing, empty, malformed) falls
+    /// "RabinApps/name" wins; anything else (missing, empty, malformed) falls
     /// back to the default repo. The pre-rename KINHIN/Orchard env var is
     /// still honored so forks configured before the rename keep updating.
     static func repo(fromEnvironment env: [String: String]) -> String {
@@ -20,7 +20,7 @@ enum UpdatePreferences {
         if let legacy = env["ORCHARD_UPDATE_REPO"], legacy.contains("/") {
             return legacy
         }
-        return "OWNER/kinhin"
+        return "RabinApps/kinhin"
     }
 
     /// Automatic checks run at most once per day; the menu item always checks on demand.

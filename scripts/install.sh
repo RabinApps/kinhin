@@ -1,7 +1,7 @@
 #!/bin/bash
 # kinhin one-line installer.
 #
-#   curl -fsSL https://github.com/OWNER/kinhin/releases/latest/download/install.sh | bash
+#   curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
 #   curl -fsSL ... | bash -s -- v0.1.0                        # pin a version
 #   bash scripts/install.sh /path/to/kinhin-0.1.0-arm64.dmg  # offline / air-gapped
 #
@@ -17,10 +17,10 @@
 #   bash scripts/install.sh --uninstall      # reverses everything above
 #
 # Override destinations for testing / custom layouts:
-#   REPO=owner/kinhin INSTALL_DIR=/path BIN_DIR=/path bash scripts/install.sh ...
+#   REPO=RabinApps/kinhin INSTALL_DIR=/path BIN_DIR=/path bash scripts/install.sh ...
 set -euo pipefail
 
-REPO="${REPO:-OWNER/kinhin}"
+REPO="${REPO:-RabinApps/kinhin}"
 INSTALL_DIR="${INSTALL_DIR:-/Applications}"
 
 # Resolve the CLI bin dir: Homebrew on Apple Silicon first (its bin is user-

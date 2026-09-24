@@ -10,10 +10,14 @@ public enum OrgPermissionProbe {
     public struct Report: Equatable, Sendable {
         public let ok: Bool
         public let message: String
+        public init(ok: Bool, message: String) {
+            self.ok = ok
+            self.message = message
+        }
     }
 
     /// Checks runner-management permission for the scope. Works for both
-    /// repo scopes ("owner/name") and org scopes — org scopes just get a
+    /// repo scopes ("RabinApps/name") and org scopes — org scopes just get a
     /// more specific remediation hint, since they need org-level rights.
     public static func verify(github: GitHubServing, scope: String) async -> Report {
         do {

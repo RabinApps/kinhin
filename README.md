@@ -109,7 +109,7 @@ Watch the fleet: `kinhin watch` (live) or `kinhin status` (one shot).
 Latest release:
 
 ```bash
-curl -fsSL https://github.com/OWNER/kinhin/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
 ```
 
 Pinned version, or from a local DMG (air-gapped machines):
@@ -128,7 +128,7 @@ Remove everything with `bash scripts/install.sh --uninstall` (config and your Ke
 After installing, the menu bar app checks GitHub Releases at most once a day and shows an
 **Update available — kinhin x.y.z…** item when a newer `v*` release exists; clicking it downloads
 the DMG (via URLSession, so it is never quarantined) and opens it for a one-click install. Point it
-at your fork with `KINHIN_UPDATE_REPO=owner/kinhin` if needed.
+at your fork with `KINHIN_UPDATE_REPO=RabinApps/kinhin` if needed.
 
 ## Quick start (menu bar app)
 
@@ -138,29 +138,26 @@ preparing the image — then starts the fleet. The fleet lives in kinhin's singl
 the ○ in your menu bar shows the number of live runner VMs). (Prefer dragging? The DMG from
 Releases still works.)
 
-### One window, five tabs
+### One window, three tabs
 
-Everything kinhin does happens in a single main window — no scattered panes. A segmented control
-switches between:
+Everything kinhin does happens in a single main window. A segmented control switches between:
 
-| Tab        | Contents                                                                                       |
-| ---------- | ---------------------------------------------------------------------------------------------- |
-| **Fleet**  | Live status, Start/Stop/Pause, the VM list with per-VM delete, Logs, and update checks.        |
-| **Setup**  | The guided first-run checklist (also the launch surface while setup is incomplete).           |
-| **Runtimes** | Pools, budget sliders, routes, and labels — the validated config editors.                    |
-| **Tokens** | GitHub / Gitea access-token cards with live check.                                             |
-| **Settings** | Launch mode + launch-at-login.                                                               |
+| Tab          | Contents                                                                                                   |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| **Fleet**    | Live status, Start/Stop/Pause, the VM list, and buttons for Logs, Diagnostics and update checks.           |
+| **Setup**    | Connect GitHub (and optionally Gitea), pick the repo or org, and get this Mac ready. First run is a 3-step wizard. |
+| **Advanced** | **Capacity** (VM counts and sizes, with Apply), **Routing** (runtimes, budget, labels), **App** (launch options, config file). |
 
-Its **Settings tab** controls how kinhin presents itself (stored in UserDefaults, effective
+Under **Advanced → App**, *Show at launch* controls how kinhin presents itself (stored in UserDefaults, effective
 immediately):
 
-| Show at launch            | Behavior                                                                                       |
-| ------------------------- | ---------------------------------------------------------------------------------------------- |
-| **Main window + menu bar** (default) | The tabbed window opens at launch and the ○ stays in the menu bar.                  |
-| **Main window only**      | A plain app — no menu bar item; closing the window quits kinhin.                                |
-| **Menu bar only**         | The classic tray app; reopen the window any time from the menu's **Open kinhin** item.          |
+| Show at launch                       | Behavior                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------- |
+| **Main window + menu bar** (default) | The tabbed window opens at launch and the ○ stays in the menu bar.                     |
+| **Main window only**                 | A plain app — no menu bar item; closing the window quits kinhin.                       |
+| **Menu bar only**                    | The classic tray app; reopen the window any time from the menu's **Open kinhin** item. |
 
-The same tab offers **Launch kinhin at login** (a standard macOS login item via `SMAppService`,
+The same section offers **Launch kinhin at login** (a standard macOS login item via `SMAppService`,
 under System Settings → General → Login Items). While the main window is open kinhin runs as a
 regular app with a Dock icon; in menu-bar-only mode it stays an accessory app exactly as before.
 
@@ -173,17 +170,17 @@ regular app with a Dock icon; in menu-bar-only mode it stays an accessory app ex
 `~/Library/Application Support/kinhin/config.yaml` — full template via `kinhin config init`.
 Key fields:
 
-| Field                                      | Meaning                                                                                                                                                                          |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `repo`                                     | GitHub scope to serve: `owner/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization** (PAT needs org runner-admin permission) |
-| `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                 |
-| `min_runners` / `max_runners`              | Scaling bounds (in VMs)                                                                                                                                                          |
-| `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                       |
-| `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                               |
-| `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                     |
-| `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                        |
-| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](#baking-toolchains-into-the-base-image))                                           |
-| `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                          |
+| Field                                      | Meaning                                                                                                                                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `repo`                                     | GitHub scope to serve: `RabinApps/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization** (PAT needs org runner-admin permission) |
+| `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                     |
+| `min_runners` / `max_runners`              | Scaling bounds (in VMs)                                                                                                                                                              |
+| `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                           |
+| `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                                   |
+| `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                         |
+| `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                            |
+| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](#baking-toolchains-into-the-base-image))                                               |
+| `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                              |
 
 The effective concurrency cap is
 `min(max_runners, (cores − reserve.cpu) / vm.cpu, (RAM − reserve.memory_gb) / vm.memory_gb)` —

@@ -57,7 +57,8 @@ public enum AuthStatusReporter {
     public static func report(config: kinhinConfig?, load: (ForgeID) -> String?) -> AuthStatusReport {
         let githubToken = load(.github)
         let repo = config?.repo
-        let githubConfigured = !(repo ?? "").isEmpty
+        // The starter placeholder repo means "no GitHub" (Gitea-only configs).
+        let githubConfigured = !(repo ?? "").isEmpty && repo != ConfigLoader.templateRepo
 
         let giteaToken = load(.gitea)
         let gitea = config?.gitea
@@ -82,7 +83,13 @@ public enum AuthStatusReporter {
             detail: giteaDetail(token: giteaToken, config: gitea)
         ))
 
-        let allGood = (githubToken != nil && githubConfigured) && (gitea == nil || giteaToken != nil)
+        // Every configured forge needs its token, and at least one forge must
+        // be configured (GitHub and Gitea are each optional on their own).
+        let githubOK = githubConfigured && githubToken != nil
+        let giteaOK = gitea != nil && giteaToken != nil
+        let allGood = (githubOK || giteaOK)
+            && (!githubConfigured || githubToken != nil)
+            && (gitea == nil || giteaToken != nil)
         return AuthStatusReport(forges: forges, allGood: allGood)
     }
 

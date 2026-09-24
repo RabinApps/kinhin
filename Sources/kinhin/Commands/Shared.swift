@@ -104,9 +104,13 @@ func loadConfigOrExit() -> kinhinConfig {
     }
 }
 
-func tokenOrExit() -> String {
-    guard let token = KeychainTokenStore.load() else {
-        fail("no GitHub token stored. Run: kinhin auth set")
+/// The token the engine is built with: the GitHub PAT, or an empty
+/// placeholder for a Gitea-only config (whose own token is required instead).
+func tokenOrExit(for cfg: kinhinConfig) -> String {
+    guard let token = ConfigLoader.engineToken(for: cfg) else {
+        fail(cfg.githubEnabled
+            ? "no GitHub token stored. Run: kinhin auth set"
+            : "no Gitea token stored. Run: kinhin auth set --gitea")
     }
     return token
 }
@@ -114,11 +118,11 @@ func tokenOrExit() -> String {
 func engineFromConfig(_ cfg: kinhinConfig) throws -> FleetEngine {
     // The auto-created template parses cleanly but names a placeholder repo —
     // never boot a fleet (and start polling GitHub) against it.
-    if ConfigLoader.isTemplate(cfg) {
-        fail("config still has the template repo — set your repo in \(Paths.config.path) first")
+    if !ConfigLoader.hasAnyForge(cfg) {
+        fail("config has no forge yet — set your repo (or a gitea: section) in \(Paths.config.path) first")
     }
     let tart = try TartController(configuredPath: cfg.tartPath)
-    let github = GitHubClient(credentials: GitHubCredentials(token: tokenOrExit(), scope: cfg.repo))
+    let github = GitHubClient(credentials: GitHubCredentials(token: tokenOrExit(for: cfg), scope: cfg.repo))
     let host = ResourceProbe().snapshot()
     return FleetEngine(
         config: cfg,

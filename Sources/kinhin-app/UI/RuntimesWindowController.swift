@@ -82,15 +82,13 @@ final class RuntimesWindowController: NSWindowController {
         // ---- Footer -------------------------------------------------------
         let addRouteButton = NSButton(title: "Add Route…", target: self, action: #selector(addRouteClicked))
         addRouteButton.bezelStyle = .rounded
-        let editButton = NSButton(title: "Edit config…", target: self, action: #selector(editConfigInUI))
+        let editButton = NSButton(title: "Edit YAML…", target: self, action: #selector(editConfigInUI))
         editButton.bezelStyle = .rounded
-        let externalButton = NSButton(title: "Edit in Terminal…", target: self, action: #selector(editConfigClicked))
-        externalButton.bezelStyle = .rounded
         let hint = NSTextField(labelWithString: "Slider changes apply on release; validation gates every write.")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
 
-        let footer = NSStackView(views: [addRouteButton, editButton, externalButton, hint])
+        let footer = NSStackView(views: [addRouteButton, editButton, hint])
         footer.orientation = .horizontal
         footer.spacing = 12
         footer.translatesAutoresizingMaskIntoConstraints = false
@@ -190,11 +188,11 @@ final class RuntimesWindowController: NSWindowController {
 
     private func reloadWithHealth() async {
         guard let yaml = try? String(contentsOf: Paths.config, encoding: .utf8) else {
-            renderEmpty(message: "No config file yet — run setup first.")
+            renderEmpty(message: "No config file yet — finish the Setup tab first.")
             return
         }
         guard let parsed = try? ConfigLoader.parse(yaml) else {
-            renderEmpty(message: "config.yaml doesn't parse — fix it with Edit config…")
+            renderEmpty(message: "config.yaml doesn't parse — fix it with Edit YAML…")
             return
         }
         let host = ResourceProbe().snapshot()
@@ -743,12 +741,12 @@ final class RuntimesWindowController: NSWindowController {
         guard viewModel != nil else { return }
         let alert = NSAlert()
         alert.messageText = "Add Route"
-        alert.informativeText = "Pattern: owner/repo for a whole repo, or owner/repo@Workflow Name for one workflow."
+        alert.informativeText = "Pattern: RabinApps/repo for a whole repo, or RabinApps/repo@Workflow Name for one workflow."
 
         let pattern = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
         pattern.placeholderString = "acme/api"
         let runtimePopup = NSPopUpButton(frame: NSRect(x: 0, y: 30, width: 300, height: 26))
-        runtimePopup.addItems(withTitles: ["tart — macOS VMs", "appleContainer — Linux containers"])
+        runtimePopup.addItems(withTitles: ["tart — macOS VMs", "appleContainer — Linux containers", "docker — Linux containers"])
 
         let stack = NSStackView(views: [pattern, runtimePopup])
         stack.orientation = .vertical
@@ -760,7 +758,7 @@ final class RuntimesWindowController: NSWindowController {
 
         let patternValue = pattern.stringValue.trimmingCharacters(in: .whitespaces)
         guard !patternValue.isEmpty else { return }
-        let runtimeValue = runtimePopup.indexOfSelectedItem == 1 ? RuntimeID.appleContainer.rawValue : RuntimeID.tart.rawValue
+        let runtimeValue = [RuntimeID.tart, .appleContainer, .docker][max(0, min(2, runtimePopup.indexOfSelectedItem))].rawValue
 
         var rc = currentRuntimeConfig ?? kinhinConfig.RuntimeConfig()
         guard !rc.routes.contains(where: { $0.pattern == patternValue }) else {

@@ -45,8 +45,8 @@ public struct RuntimePool: Sendable, Equatable {
 }
 
 /// Resolves a queued job to the pool that should serve it. Precedence:
-/// 1. Workflow route (`owner/name@Workflow`) — most specific.
-/// 2. Repo route (`owner/name`).
+/// 1. Workflow route (`RabinApps/name@Workflow`) — most specific.
+/// 2. Repo route (`RabinApps/name`).
 /// 3. Label capability: a job whose labels include a pool's exclusive
 ///    marker ("kinhin-container") routes to that pool even without a
 ///    config route (per-workflow `runs-on:` opt-in).
@@ -63,7 +63,7 @@ public enum RuntimeRouter {
         }
     }
 
-    /// Extract "owner/name" from a job's repository field (nil-safe).
+    /// Extract "RabinApps/name" from a job's repository field (nil-safe).
     static func repoKey(_ repo: String?) -> String? {
         guard let repo, !repo.isEmpty else { return nil }
         return repo
@@ -86,7 +86,7 @@ public enum RuntimeRouter {
         return String(pattern.split(separator: "@", maxSplits: 1).last ?? "")
     }
 
-    /// The repo portion of a route pattern ("owner/name@Workflow" → "owner/name").
+    /// The repo portion of a route pattern ("RabinApps/name@Workflow" → "RabinApps/name").
     static func repoPattern(of pattern: String) -> String {
         String(pattern.split(separator: "@", maxSplits: 1).first ?? "")
     }
@@ -97,7 +97,7 @@ public enum RuntimeRouter {
 
         // 1 & 2. Workflow-then-repo route precedence.
         if let repo {
-            // Workflow routes first ("owner/name@Workflow"). GitHub job names
+            // Workflow routes first ("RabinApps/name@Workflow"). GitHub job names
             // arrive as "Workflow / job", so the workflow key is the leading
             // segment; a plain name also matches by equality (case-insensitive).
             let workflowName = workflowKey(from: job)

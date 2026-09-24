@@ -26,6 +26,10 @@ public final class FleetEngine {
     /// Forge instances serving this fleet, keyed by platform string.
     public var forges: [String: Forge] { forgesLock.withLock { forgesByPlatform } }
 
+    /// Retry bookkeeping for forges that failed at startup (see
+    /// FleetForgeRetry.swift). Guarded by forgesLock.
+    var forgeRetry = ForgeRetryState()
+
     var reconcileTask: Task<Void, Never>?
     var lifecycleTasks: [String: Task<Void, Never>] = [:]
     let lifecycleLock = NSLock()
@@ -181,7 +185,10 @@ public final class FleetEngine {
         )
         self.credentials = credentials
         self.githubFactory = githubFactory
-        self.forgesByPlatform = ["github": GitHubForge(credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels, client: github)]
+        // Gitea-only configs never build a GitHub forge (no token, no scope).
+        self.forgesByPlatform = config.githubEnabled
+            ? ["github": GitHubForge(credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels, client: github)]
+            : [:]
         // NOTE: `runtime` was initialized in the designated init; convenience
         // inits cannot reassign let properties.
     }
@@ -200,18 +207,41 @@ public final class FleetEngine {
         // anything — a forbidden org token otherwise surfaces as per-VM
         // registration failures (and deleted VMs) instead of a clear answer.
         // Failure keeps the engine stopped and surfaced via lastError.
-        let verification = await OrgPermissionProbe.verify(github: github, scope: config.repo)
-        guard verification.ok else {
-            Log.error("engine", "startup blocked: \(verification.message)")
+        // Each configured forge is verified independently: one failing forge
+        // (bad token, missing org rights) must not take the other down. The
+        // failing forge is detached with its reason in lastError; the fleet
+        // only refuses to start when NO forge is usable.
+        var githubProblem: String?
+        if config.githubEnabled {
+            let verification = await OrgPermissionProbe.verify(github: github, scope: config.repo)
+            if !verification.ok {
+                githubProblem = verification.message
+                forgesLock.withLock { forgeRetry.markGitHubDetached(now: Date()) }
+                _ = forgesLock.withLock { forgesByPlatform.removeValue(forKey: "github") }
+                Log.error("engine", "GitHub unavailable: \(verification.message)")
+            }
+        }
+        await attachGiteaForgeIfNeeded()
+        let attachedCount = forgesLock.withLock { forgesByPlatform.count }
+        guard attachedCount > 0 else {
+            let giteaProblem = await statusBox.get().lastError
+            let message = githubProblem
+                ?? giteaProblem
+                ?? "no forge configured — set a GitHub repo or a gitea: section"
+            Log.error("engine", "startup blocked: \(message)")
             await statusBox.modify {
                 $0.running = false
-                $0.lastError = verification.message
+                $0.lastError = message
             }
             return
         }
+        if let githubProblem {
+            // Running on the remaining forge(s): keep the reason visible.
+            await statusBox.modify { $0.lastError = "GitHub: \(githubProblem)" }
+        }
 
-        Log.info("engine", "starting fleet engine for \(config.repo) (capacity cap: \(capacity.maxConcurrent))")
-        await attachGiteaForgeIfNeeded()
+        let served = forgesLock.withLock { forgesByPlatform.keys.sorted().joined(separator: " + ") }
+        Log.info("engine", "starting fleet engine for \(served) (capacity cap: \(capacity.maxConcurrent))")
         await recoverIfNeeded()
         startCachePruneSweepIfNeeded()
         let task = Task { [weak self] () -> Void in
@@ -261,6 +291,10 @@ public final class FleetEngine {
     /// call while running — the next reconcile/registration uses the new
     /// credentials; in-flight VMs are untouched.
     public func replaceCredentials(pat: String) async {
+        guard config.githubEnabled else {
+            Log.warn("engine", "GitHub token replaced but GitHub is not configured — ignoring")
+            return
+        }
         let fresh = GitHubCredentials(token: pat, scope: config.repo)
         let client = githubFactory.make(fresh)
         credentialsLock.withLock {
@@ -269,6 +303,7 @@ public final class FleetEngine {
         }
         forgesLock.withLock {
             forgesByPlatform["github"] = GitHubForge(credentials: .github(token: fresh.token, scope: fresh.scope), labels: config.labels, client: client)
+            forgeRetry.githubDetached = false
         }
         registrationTokens.invalidate()
         Log.info("engine", "GitHub credentials replaced (scope: \(config.repo))")
@@ -333,6 +368,52 @@ public final class FleetEngine {
     }
 
     // MARK: - Live config reload
+
+    /// Which parts of a config edit the *running* engine can adopt without
+    /// a rebuild: the routing model (pools/routes/budget), the capacity
+    /// partition, and the GitHub forge's label set — exactly what
+    /// `applyReloaded` swaps under the locks. Everything else (bounds, poll
+    /// cadence, per-VM shape, images, reserve, forge sections, toolchains)
+    /// lives in the frozen `config` the engine was built with, so a change
+    /// there silently does nothing until the engine is rebuilt.
+    public static func restartRequired(from old: kinhinConfig, to new: kinhinConfig) -> Bool {
+        var a = old
+        var b = new
+        a.runtimes = nil
+        b.runtimes = nil
+        a.labels = []
+        b.labels = []
+        return a != b
+    }
+
+    /// The frozen config this engine instance was built with — read live
+    /// (e.g. to diff against the on-disk file before deciding between a
+    /// hot reload and a rebuild).
+    public var activeConfig: kinhinConfig { config }
+
+    /// Stop scaling and cancel lifecycle work while keeping every spawned
+    /// instance and its record: the replacement engine's recovery adopts
+    /// them (rebooted engine: phases move back to booting where needed).
+    /// Deliberately NOT `stop()` — that tears all instances down, which a
+    /// config rebuild must never do.
+    public func detachKeepingInstances() async {
+        stateLock.withLock { running = false }
+        reconcileTask?.cancel()
+        reconcileTask = nil
+        cachePruneTask?.cancel()
+        cachePruneTask = nil
+        let tasks = lifecycleLock.withLock { () -> [Task<Void, Never>] in
+            let tasks = Array(lifecycleTasks.values)
+            lifecycleTasks.removeAll()
+            return tasks
+        }
+        for task in tasks { task.cancel() }
+        registrationTokens.invalidate()
+        // Mirror the flag into the status snapshot (stop() does the same):
+        // status().running must go false immediately, not at the next
+        // reconcile pass (which is now cancelled).
+        await statusBox.modify { $0.running = false }
+    }
 
     /// Swap in routing state from a freshly loaded config: the routing model
     /// (pools + routes), the capacity partition, and the pool set. Callable

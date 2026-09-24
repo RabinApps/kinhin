@@ -126,7 +126,7 @@ final class UpdateCheckTests: XCTestCase {
         }
     }
 
-    func testNetworkFailureSurfacesAsThrownError() async {
+    func testNetworkFailureSurfacesAsThrRabinAppsror() async {
         StubProtocol.handler = nil // StubProtocol fails the request with URLError
         do {
             _ = try await makeChecker().check()

@@ -22,7 +22,7 @@ final class MenuConstructionTests: XCTestCase {
             "kinhin",
             "Loading…", // statusLine, refreshed by apply(status:)
             "Open kinhin",
-            "Setup…", "Runtimes…", "Token Settings…",
+            "Setup…", "Settings…",
             "Start Fleet", "Stop Fleet", "Pause", "Resume",
             "Check for Updates…",
             "  kinhin \(kinhinVersion.current)",
@@ -39,7 +39,7 @@ final class MenuConstructionTests: XCTestCase {
         // target and macOS auto-tags action items during addItem.
         XCTAssertEqual(identifiers, [
             "statusLine", "openMainWindow",
-            "openSetupTab", "openRuntimesTab", "openTokensTab",
+            "openSetupTab", "openSettingsTab",
             "startFleet", "stopFleet", "pauseFleet", "resumeFleet",
             "updateItem",
             "openLogs", "quit",
@@ -53,7 +53,7 @@ final class MenuConstructionTests: XCTestCase {
         // (which include "Open kinhin" and the tab shortcuts), and after the
         // update pair. (No separator between the version item and "Open Logs".)
         let separatorIndices = items.indices.filter { items[$0].isSeparatorItem }
-        XCTAssertEqual(separatorIndices, [1, 3, 12, 17], "separator placement pins the menu layout")
+        XCTAssertEqual(separatorIndices, [1, 3, 7, 12, 17], "separator placement pins the menu layout")
     }
 
     // MARK: targeting
@@ -63,8 +63,7 @@ final class MenuConstructionTests: XCTestCase {
         let expected: [String: Selector] = [
             "Open kinhin": #selector(AppDelegate.openMainWindow),
             "Setup…": #selector(AppDelegate.openSetupTab),
-            "Runtimes…": #selector(AppDelegate.openRuntimesTab),
-            "Token Settings…": #selector(AppDelegate.openTokensTab),
+            "Settings…": #selector(AppDelegate.openSettingsTab),
             "Start Fleet": #selector(AppDelegate.startFleet),
             "Stop Fleet": #selector(AppDelegate.stopFleet),
             "Pause": #selector(AppDelegate.pauseFleet),

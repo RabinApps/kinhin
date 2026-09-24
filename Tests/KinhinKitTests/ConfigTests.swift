@@ -76,7 +76,7 @@ final class ConfigTests: XCTestCase {
     }
 
     func testBadRepoShapeThrows() {
-        // Three segments is neither owner/name nor an org.
+        // Three segments is neither RabinApps/name nor an org.
         XCTAssertThrowsError(try ConfigLoader.parse("repo: \"a/b/c\"")) { error in
             guard case ConfigError.invalid(let why) = (error as! ConfigError) else {
                 return XCTFail("wrong error")

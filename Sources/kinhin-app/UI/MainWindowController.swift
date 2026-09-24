@@ -33,22 +33,36 @@ func shouldQuitOnMainWindowClose(launchMode: LaunchMode) -> Bool {
 
 // MARK: - Tabs
 
-/// The main window's tabs. Setup is NOT a tab: it is a top-right button that
-/// overlays the whole window while onboarding (see showSetupOverlay).
+/// The main window's tabs. Fleet is the day-to-day view, Setup is where an
+/// account and this Mac are connected (a guided wizard on first run), and
+/// Advanced holds everything you rarely touch.
 enum MainTab: String, CaseIterable {
     case fleet
-    case runtimes
-    case tokens
-    case settings
-    case logs
+    case setup
+    case advanced
 
     var label: String {
         switch self {
         case .fleet: return "Fleet"
-        case .runtimes: return "Runtimes"
-        case .tokens: return "Tokens"
-        case .settings: return "Settings"
-        case .logs: return "Logs"
+        case .setup: return "Setup"
+        case .advanced: return "Advanced"
+        }
+    }
+}
+
+/// Sub-sections of the Advanced tab.
+enum AdvancedSection: String, CaseIterable {
+    case capacity
+    case routing
+    case containers
+    case app
+
+    var label: String {
+        switch self {
+        case .capacity: return "Capacity"
+        case .routing: return "Routing"
+        case .containers: return "Containers"
+        case .app: return "App"
         }
     }
 }
@@ -77,16 +91,14 @@ protocol MainTabsWindowDelegate: AnyObject {
 // MARK: - Main tabs window
 
 /// kinhin's single main window: a segmented control switches between Fleet,
-/// Runtimes, Tokens, Settings, and Logs; Setup lives behind a top-right
-/// button that overlays the window until onboarding completes.
+/// Setup, and Advanced. Setup shows a guided wizard until first-run setup is
+/// complete, then the same forms as an editable page.
 @MainActor
 final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     weak var delegate: MainTabsWindowDelegate?
 
     // Tab surfaces (created lazily on first selection).
     private var tabViews: [MainTab: NSView] = [:]
-    private var setupView: NSView?
-    private var isSetupOverlayActive = false
 
     // Header
     private let segmentControl = NSSegmentedControl(
@@ -95,21 +107,23 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         target: nil,
         action: nil
     )
-    private let setupButton = NSButton(title: "Setup", target: nil, action: nil)
     private let tabContentContainer = NSView()
 
     // Embedded child controllers (created once with their tabs).
-    private(set) var setupController: SetupWindowController?
+    private(set) var wizardController: OnboardingWizardViewController?
+    private(set) var connectController: ConnectFormViewController?
+    private(set) var macToolsController: MacToolsFormViewController?
+    private(set) var configController: ConfigTabViewController?
+    private(set) var containersController: ContainersViewController?
     private(set) var runtimesController: RuntimesWindowController?
-    private(set) var tokenController: TokenSettingsWindowController?
     private(set) var logsController: LogsViewController?
     private(set) var diagnosticsController: DiagnosticsViewController?
-    /// The Runtimes tab's config writes must reach the engine/daemon; the
+    /// Config writes from Setup/Advanced must reach the engine/daemon; the
     /// app injects the same handler the standalone pane used.
     var runtimesEdited: (() -> Void)?
-    /// The Tokens tab's saves persist to the Keychain and live-swap the
-    /// engine token; the app injects the same handler the standalone form
-    /// used. Throws on Keychain/RPC failure so the card shows the error.
+    /// Token saves persist to the Keychain and live-swap the engine token;
+    /// the app injects the handler. Throws on Keychain/RPC failure so the
+    /// form shows the error.
     var tokenSaved: ((ForgeID, String) async throws -> Void)?
 
     // Fleet tab controls
@@ -119,12 +133,23 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     private var vmStack: NSStackView?
     private var jobsStack: NSStackView?
 
-    // Settings tab controls
+    // Advanced tab
+    private let advancedSegments = NSSegmentedControl(
+        labels: AdvancedSection.allCases.map(\.label),
+        trackingMode: .selectOne,
+        target: nil,
+        action: nil
+    )
+    private let advancedContainer = NSView()
+    private var advancedViews: [AdvancedSection: NSView] = [:]
+    private(set) var selectedAdvancedSection: AdvancedSection = .capacity
+
+    // App section controls
     private let settingsSubtitle = NSTextField(wrappingLabelWithString: "")
     private let modePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let loginCheck = NSButton(checkboxWithTitle: "Launch kinhin at login", target: nil, action: nil)
     private let loginHint = NSTextField(wrappingLabelWithString: "Applies to the installed kinhin.app — no effect while running unbundled from `swift run`.")
-    /// Where the settings tab persists prefs. The real app uses .standard;
+    /// Where the App section persists prefs. The real app uses .standard;
     /// tests inject a scratch suite.
     private var prefs: UserDefaults = .standard
 
@@ -136,7 +161,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     convenience init(defaults: UserDefaults) {
-        let size = NSSize(width: 620, height: 560)
+        let size = NSSize(width: 620, height: 600)
         let container = NSView(frame: NSRect(origin: .zero, size: size))
         let window = NSWindow(
             contentRect: container.frame,
@@ -150,7 +175,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         window.backgroundColor = .windowBackgroundColor
         window.contentView = container
         window.center()
-        window.minSize = NSSize(width: 620, height: 460)
+        window.minSize = NSSize(width: 620, height: 480)
         self.init(window: window)
         prefs = defaults
         window.delegate = self
@@ -172,36 +197,22 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         segmentControl.target = self
         segmentControl.action = #selector(segmentChanged(_:))
         segmentControl.controlSize = .large
+        segmentControl.segmentDistribution = .fillEqually
         segmentControl.translatesAutoresizingMaskIntoConstraints = false
-
-        setupButton.bezelStyle = .rounded
-        setupButton.controlSize = .large
-        setupButton.target = self
-        setupButton.action = #selector(setupButtonClicked)
-        setupButton.setAccessibilityLabel("Open setup")
-        setupButton.toolTip = "Set up kinhin: install tools, create config, store a token, prepare the runner image"
-
-        let headerRow = NSStackView(views: [segmentControl, setupButton])
-        headerRow.orientation = .horizontal
-        headerRow.spacing = 12
-        headerRow.translatesAutoresizingMaskIntoConstraints = false
-        // The segments hug the left; Setup pins to the right edge.
-        segmentControl.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        setupButton.setContentHuggingPriority(.required, for: .horizontal)
-        headerRow.setCustomSpacing(200, after: segmentControl)
+        segmentControl.setAccessibilityLabel("kinhin sections")
 
         tabContentContainer.wantsLayer = true
         tabContentContainer.translatesAutoresizingMaskIntoConstraints = false
 
-        container.addSubview(headerRow)
+        container.addSubview(segmentControl)
         container.addSubview(tabContentContainer)
 
         NSLayoutConstraint.activate([
-            headerRow.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
-            headerRow.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
-            headerRow.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
+            segmentControl.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
+            segmentControl.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            segmentControl.widthAnchor.constraint(equalToConstant: 360),
 
-            tabContentContainer.topAnchor.constraint(equalTo: headerRow.bottomAnchor, constant: 14),
+            tabContentContainer.topAnchor.constraint(equalTo: segmentControl.bottomAnchor, constant: 14),
             tabContentContainer.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             tabContentContainer.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             tabContentContainer.bottomAnchor.constraint(equalTo: container.bottomAnchor),
@@ -216,49 +227,52 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
 
     func selectTab(_ tab: MainTab, notify: Bool = true) {
         selectedTab = tab
-        isSetupOverlayActive = false
         segmentControl.selectedSegment = MainTab.allCases.firstIndex(of: tab) ?? 0
         tabContentContainer.subviews.forEach { $0.removeFromSuperview() }
         guard let view = tabViews[tab] ?? installTab(tab) else { return }
-        tabContentContainer.addSubview(view)
-        // Pin the tab to the container now that both share a hierarchy.
+        pin(view, in: tabContentContainer)
+    }
+
+    private func pin(_ view: NSView, in container: NSView) {
+        view.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(view)
         NSLayoutConstraint.activate([
-            view.topAnchor.constraint(equalTo: tabContentContainer.topAnchor),
-            view.bottomAnchor.constraint(equalTo: tabContentContainer.bottomAnchor),
-            view.leadingAnchor.constraint(equalTo: tabContentContainer.leadingAnchor),
-            view.trailingAnchor.constraint(equalTo: tabContentContainer.trailingAnchor),
+            view.topAnchor.constraint(equalTo: container.topAnchor),
+            view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
     }
 
-    /// Creates a tab's view on first selection; nil for tabs without content.
+    /// Creates a tab's view on first selection.
     private func installTab(_ tab: MainTab) -> NSView? {
-        let view: NSView?
+        let view: NSView
         switch tab {
         case .fleet: view = buildFleetTab()
-        case .runtimes: view = buildRuntimesTab()
-        case .tokens: view = buildTokensTab()
-        case .settings: view = buildSettingsTab()
-        case .logs: view = buildLogsTab()
+        case .setup: view = buildSetupTab()
+        case .advanced: view = buildAdvancedTab()
         }
-        if let view { tabViews[tab] = view }
+        tabViews[tab] = view
         return view
     }
 
-    /// Refreshes whichever live-data tab is visible (called when the window
-    /// shows or the user lands on a tab via the menu). Probes and config
-    /// reads never run from bare tab switches — tests stay hermetic.
+    /// Refreshes whichever tab is visible (called when the window shows or
+    /// the user lands on a tab via the menu). Probes and config reads never
+    /// run from bare tab switches — tests stay hermetic.
     func refreshVisibleTab() {
         switch selectedTab {
-        case .runtimes:
-            runtimesController?.reload()
-        case .tokens:
-            tokenController?.reload()
-        case .logs:
-            logsController?.refreshNow()
         case .fleet:
             Task { [diagnosticsController] in await diagnosticsController?.refreshIfVisible() }
-        case .settings:
-            break
+        case .setup:
+            connectController?.reload()
+            macToolsController?.reload()
+        case .advanced:
+            switch selectedAdvancedSection {
+            case .capacity: configController?.reload()
+            case .routing: runtimesController?.reload()
+            case .containers: containersController?.reload()
+            case .app: break
+            }
         }
     }
 
@@ -269,71 +283,73 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         selectTab(MainTab.allCases[index])
     }
 
-    // MARK: Setup overlay (not a tab)
+    // MARK: Setup tab
 
-    @objc private func setupButtonClicked() {
-        showSetupOverlay()
-    }
-
-    /// Covers the whole window with the setup checklist. Setup is not a tab:
-    /// it is an onboarding surface behind a top-right button, shown on demand
-    /// (and automatically while first-run setup is incomplete).
-    func showSetupOverlay() {
-        if setupView == nil {
-            installSetupOverlay()
-        }
-        isSetupOverlayActive = true
-        segmentControl.isEnabled = false
-        setupButton.isEnabled = false
-        tabContentContainer.subviews.forEach { $0.removeFromSuperview() }
-        guard let view = setupView else { return }
-        tabContentContainer.addSubview(view)
-        NSLayoutConstraint.activate([
-            view.topAnchor.constraint(equalTo: tabContentContainer.topAnchor),
-            view.bottomAnchor.constraint(equalTo: tabContentContainer.bottomAnchor),
-            view.leadingAnchor.constraint(equalTo: tabContentContainer.leadingAnchor),
-            view.trailingAnchor.constraint(equalTo: tabContentContainer.trailingAnchor),
-        ])
-        Task { [setupController] in await setupController?.refreshChecks() }
-        Log.info("app", "setup overlay shown")
-    }
-
-    private func installSetupOverlay() {
-        let view = NSView()
-        view.translatesAutoresizingMaskIntoConstraints = false
-        let controller = SetupWindowController(embeddedIn: view)
-        controller.onFinished = { [weak self] in
-            self?.dismissSetupOverlay()
-            self?.delegate?.setupTabFinished()
-        }
-        controller.onOpenTokenSettings = { [weak self] forge in
-            // Token rows in the checklist jump to the Tokens tab.
-            self?.dismissSetupOverlay()
-            self?.selectTab(.tokens)
-            self?.tokenController?.initialFocus = forge
-        }
-        self.setupController = controller
-        setupView = view
-    }
-
-    private func dismissSetupOverlay() {
-        isSetupOverlayActive = false
-        segmentControl.isEnabled = true
-        setupButton.isEnabled = true
-        selectTab(.fleet, notify: false)
-    }
-
-    /// While first-run setup is incomplete the window opens straight into the
-    /// checklist overlay (the Setup button is then redundant but harmless).
+    /// While first-run setup is incomplete the window opens on the Setup tab,
+    /// which shows the guided wizard.
     func applySetupInProgress() {
         guard isWindowLoaded else { return }
         if setupIncompleteFlag {
-            showSetupOverlay()
+            showSetup()
         }
+    }
+
+    /// Opens the Setup tab (rebuilding it so the wizard/form choice is current).
+    func showSetup() {
+        tabViews[.setup] = nil
+        selectTab(.setup)
+        Log.info("app", "setup shown (guided: \(setupIncompleteFlag))")
     }
 
     /// Set by the app delegate before the window opens.
     var setupIncompleteFlag = false
+
+    private func buildSetupTab() -> NSView {
+        let tab = NSView()
+        tab.translatesAutoresizingMaskIntoConstraints = false
+        if setupIncompleteFlag {
+            let wizard = OnboardingWizardViewController()
+            wizard.saveToken = { [weak self] forge, token in
+                try await self?.tokenSaved?(forge, token)
+            }
+            wizard.onFinished = { [weak self] in
+                self?.setupIncompleteFlag = false
+                self?.tabViews[.setup] = nil
+                self?.selectTab(.fleet, notify: false)
+                self?.delegate?.setupTabFinished()
+            }
+            wizardController = wizard
+            connectController = nil
+            macToolsController = nil
+            pin(wizard.view, in: tab)
+            return tab
+        }
+        wizardController = nil
+        let connect = ConnectFormViewController()
+        connect.saveToken = { [weak self] forge, token in
+            try await self?.tokenSaved?(forge, token)
+        }
+        connect.onChanged = { [weak self] in self?.runtimesEdited?() }
+        let mac = MacToolsFormViewController()
+        mac.onChanged = { [weak self] in self?.runtimesEdited?() }
+        connectController = connect
+        macToolsController = mac
+
+        let (scroll, column) = FormKit.scrollingColumn(spacing: 14)
+        column.addArrangedSubview(sectionHeader("Connect"))
+        column.addArrangedSubview(connect.view)
+        column.addArrangedSubview(sectionHeader("This Mac"))
+        column.addArrangedSubview(mac.view)
+        // Children keep their controllers alive and in the responder chain.
+        tab.addSubview(scroll)
+        NSLayoutConstraint.activate([
+            scroll.topAnchor.constraint(equalTo: tab.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: tab.bottomAnchor),
+            scroll.leadingAnchor.constraint(equalTo: tab.leadingAnchor, constant: 16),
+            scroll.trailingAnchor.constraint(equalTo: tab.trailingAnchor, constant: -16),
+        ])
+        return tab
+    }
 
     // MARK: Fleet tab
 
@@ -382,7 +398,12 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         let vmScroll = NSScrollView()
         vmScroll.hasVerticalScroller = true
         vmScroll.drawsBackground = false
-        vmScroll.documentView = vmList
+        // Flipped document so rows start at the TOP of the scroll area (an
+        // unflipped one floats short lists to the bottom).
+        let vmDocument = FlippedView()
+        vmDocument.translatesAutoresizingMaskIntoConstraints = false
+        vmDocument.addSubview(vmList)
+        vmScroll.documentView = vmDocument
         vmScroll.translatesAutoresizingMaskIntoConstraints = false
         tab.addSubview(vmHeader)
         tab.addSubview(vmScroll)
@@ -402,9 +423,9 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         diagnosticsButton.bezelStyle = .rounded
         let updateButton = NSButton(title: "Check for Updates…", target: self, action: #selector(updateClicked))
         updateButton.bezelStyle = .rounded
-        let logsFolderButton = NSButton(title: "Open Logs Folder", target: self, action: #selector(logsClicked))
-        logsFolderButton.bezelStyle = .rounded
-        let footer = NSStackView(views: [diagnosticsButton, updateButton, logsFolderButton])
+        let logsButton = NSButton(title: "Logs…", target: self, action: #selector(showLogsClicked))
+        logsButton.bezelStyle = .rounded
+        let footer = NSStackView(views: [logsButton, diagnosticsButton, updateButton])
         footer.orientation = .horizontal
         footer.spacing = 8
         footer.translatesAutoresizingMaskIntoConstraints = false
@@ -425,7 +446,13 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
             vmScroll.leadingAnchor.constraint(equalTo: tab.leadingAnchor, constant: 20),
             vmScroll.trailingAnchor.constraint(equalTo: tab.trailingAnchor, constant: -20),
             vmScroll.heightAnchor.constraint(equalTo: tab.heightAnchor, multiplier: 0.30),
-            vmList.widthAnchor.constraint(equalTo: vmScroll.contentView.widthAnchor),
+            vmDocument.topAnchor.constraint(equalTo: vmScroll.contentView.topAnchor),
+            vmDocument.leadingAnchor.constraint(equalTo: vmScroll.contentView.leadingAnchor),
+            vmDocument.trailingAnchor.constraint(equalTo: vmScroll.contentView.trailingAnchor),
+            vmList.topAnchor.constraint(equalTo: vmDocument.topAnchor),
+            vmList.leadingAnchor.constraint(equalTo: vmDocument.leadingAnchor),
+            vmList.trailingAnchor.constraint(equalTo: vmDocument.trailingAnchor),
+            vmList.bottomAnchor.constraint(equalTo: vmDocument.bottomAnchor),
 
             jobsHeader.topAnchor.constraint(equalTo: vmScroll.bottomAnchor, constant: 10),
             jobsHeader.leadingAnchor.constraint(equalTo: tab.leadingAnchor, constant: 20),
@@ -448,72 +475,94 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         return label
     }
 
-    // MARK: Runtimes tab (embedded pane)
+    // MARK: Advanced tab
 
-    private func buildRuntimesTab() -> NSView {
+    private func buildAdvancedTab() -> NSView {
         let tab = NSView()
         tab.translatesAutoresizingMaskIntoConstraints = false
-        let controller = RuntimesWindowController(embeddedIn: tab)
-        controller.onEdited = { [weak self] in
-            self?.runtimesEdited?()
-        }
-        self.runtimesController = controller
-        return tab
-    }
 
-    // MARK: Tokens tab (embedded form)
+        advancedSegments.target = self
+        advancedSegments.action = #selector(advancedSegmentChanged(_:))
+        advancedSegments.controlSize = .small
+        advancedSegments.translatesAutoresizingMaskIntoConstraints = false
+        advancedSegments.setAccessibilityLabel("Advanced sections")
+        advancedContainer.translatesAutoresizingMaskIntoConstraints = false
 
-    private func buildTokensTab() -> NSView {
-        let tab = NSView()
-        tab.translatesAutoresizingMaskIntoConstraints = false
-        let controller = TokenSettingsWindowController(embeddedIn: tab)
-        controller.onSaved = { [weak self] forge, token in
-            try await self?.tokenSaved?(forge, token)
-        }
-        self.tokenController = controller
-        return tab
-    }
-
-    // MARK: Logs tab (pretty viewer + search)
-
-    private func buildLogsTab() -> NSView {
-        let tab = NSView()
-        tab.translatesAutoresizingMaskIntoConstraints = false
-        let controller = LogsViewController()
-        self.logsController = controller
-        tab.addSubview(controller.view)
+        tab.addSubview(advancedSegments)
+        tab.addSubview(advancedContainer)
         NSLayoutConstraint.activate([
-            controller.view.topAnchor.constraint(equalTo: tab.topAnchor, constant: 8),
-            controller.view.bottomAnchor.constraint(equalTo: tab.bottomAnchor, constant: -14),
-            controller.view.leadingAnchor.constraint(equalTo: tab.leadingAnchor, constant: 20),
-            controller.view.trailingAnchor.constraint(equalTo: tab.trailingAnchor, constant: -20),
+            advancedSegments.topAnchor.constraint(equalTo: tab.topAnchor),
+            advancedSegments.leadingAnchor.constraint(equalTo: tab.leadingAnchor, constant: 20),
+            advancedSegments.widthAnchor.constraint(equalToConstant: 380),
+
+            advancedContainer.topAnchor.constraint(equalTo: advancedSegments.bottomAnchor, constant: 12),
+            advancedContainer.leadingAnchor.constraint(equalTo: tab.leadingAnchor, constant: 16),
+            advancedContainer.trailingAnchor.constraint(equalTo: tab.trailingAnchor, constant: -16),
+            advancedContainer.bottomAnchor.constraint(equalTo: tab.bottomAnchor, constant: -12),
         ])
+        selectAdvancedSection(selectedAdvancedSection)
         return tab
     }
 
-    // MARK: Settings tab
+    func selectAdvancedSection(_ section: AdvancedSection) {
+        selectedAdvancedSection = section
+        advancedSegments.selectedSegment = AdvancedSection.allCases.firstIndex(of: section) ?? 0
+        advancedContainer.subviews.forEach { $0.removeFromSuperview() }
+        let view = advancedViews[section] ?? {
+            let built: NSView
+            switch section {
+            case .capacity: built = buildCapacitySection()
+            case .routing: built = buildRoutingSection()
+            case .containers: built = buildContainersSection()
+            case .app: built = buildAppSection()
+            }
+            advancedViews[section] = built
+            return built
+        }()
+        pin(view, in: advancedContainer)
+    }
 
-    private func buildSettingsTab() -> NSView {
+    @objc private func advancedSegmentChanged(_ sender: NSSegmentedControl) {
+        let index = sender.selectedSegment
+        guard AdvancedSection.allCases.indices.contains(index) else { return }
+        selectAdvancedSection(AdvancedSection.allCases[index])
+    }
+
+    /// Opens Advanced on a given section (used by the menu).
+    func showAdvanced(_ section: AdvancedSection) {
+        selectTab(.advanced)
+        selectAdvancedSection(section)
+    }
+
+    private func buildCapacitySection() -> NSView {
+        let controller = ConfigTabViewController()
+        controller.onEdited = { [weak self] in self?.runtimesEdited?() }
+        configController = controller
+        return controller.view
+    }
+
+    private func buildContainersSection() -> NSView {
+        let controller = ContainersViewController()
+        containersController = controller
+        controller.reload()
+        return controller.view
+    }
+
+    private func buildRoutingSection() -> NSView {
         let tab = NSView()
-        tab.translatesAutoresizingMaskIntoConstraints = false
+        let controller = RuntimesWindowController(embeddedIn: tab)
+        controller.onEdited = { [weak self] in self?.runtimesEdited?() }
+        runtimesController = controller
+        return tab
+    }
 
-        let card = LayerStyleView(frame: .zero)
-        card.translatesAutoresizingMaskIntoConstraints = false
-        card.styleLayer = { layer in
-            layer.cornerRadius = 10
-            layer.backgroundColor = NSColor.controlBackgroundColor.cgColor
-            layer.borderWidth = 1
-            layer.borderColor = NSColor.separatorColor.cgColor
-        }
+    // MARK: App section (launch behavior, files)
 
-        let header = NSTextField(labelWithString: "Settings")
-        header.font = .systemFont(ofSize: 13, weight: .semibold)
-        settingsSubtitle.font = .systemFont(ofSize: 11)
-        settingsSubtitle.textColor = .secondaryLabelColor
-        settingsSubtitle.maximumNumberOfLines = 2
+    private func buildAppSection() -> NSView {
+        let tab = NSView()
 
-        let modeLabel = NSTextField(labelWithString: "Show at launch")
-        modeLabel.font = .systemFont(ofSize: 12)
+        let (launchCard, launchColumn) = FormKit.card(title: "Launch")
+        let modeLabel = FormKit.label("Show at launch")
         for mode in LaunchMode.allCases {
             modePopup.addItem(withTitle: mode.label)
             modePopup.lastItem?.identifier = NSUserInterfaceItemIdentifier(mode.rawValue)
@@ -521,42 +570,49 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         modePopup.target = self
         modePopup.action = #selector(modePopupChanged)
         modePopup.setAccessibilityLabel("What kinhin shows at launch")
-
-        let modeRow = NSStackView(views: [modeLabel, modePopup])
-        modeRow.orientation = .horizontal
-        modeRow.spacing = 10
-        modeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-
+        settingsSubtitle.font = .systemFont(ofSize: 11)
+        settingsSubtitle.textColor = .secondaryLabelColor
+        settingsSubtitle.maximumNumberOfLines = 0
+        settingsSubtitle.preferredMaxLayoutWidth = FormKit.formWidth - 28
         loginCheck.target = self
         loginCheck.action = #selector(loginToggled)
-        loginCheck.font = .systemFont(ofSize: 12)
         loginCheck.setAccessibilityLabel("Launch kinhin at login")
         loginHint.font = .systemFont(ofSize: 10)
         loginHint.textColor = .tertiaryLabelColor
+        loginHint.preferredMaxLayoutWidth = FormKit.formWidth - 28
+        launchColumn.addArrangedSubview(FormKit.row([modeLabel, modePopup]))
+        launchColumn.addArrangedSubview(settingsSubtitle)
+        launchColumn.addArrangedSubview(loginCheck)
+        launchColumn.addArrangedSubview(loginHint)
 
-        let column = NSStackView(views: [header, settingsSubtitle, modeRow, loginCheck, loginHint])
-        column.orientation = .vertical
-        column.alignment = .leading
-        column.spacing = 6
-        column.translatesAutoresizingMaskIntoConstraints = false
+        let (filesCard, filesColumn) = FormKit.card(
+            title: "Files",
+            subtitle: "Everything above is saved in config.yaml — open it for settings that have no control here."
+        )
+        let openConfig = NSButton(title: "Open config file", target: self, action: #selector(openConfigFileClicked))
+        openConfig.bezelStyle = .rounded
+        openConfig.identifier = NSUserInterfaceItemIdentifier("open-config-file")
+        let openLogs = NSButton(title: "Open logs folder", target: self, action: #selector(logsClicked))
+        openLogs.bezelStyle = .rounded
+        filesColumn.addArrangedSubview(FormKit.row([openConfig, openLogs]))
 
-        card.addSubview(column)
+        let (scroll, column) = FormKit.scrollingColumn()
+        column.addArrangedSubview(launchCard)
+        column.addArrangedSubview(filesCard)
+        tab.addSubview(scroll)
         NSLayoutConstraint.activate([
-            column.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
-            column.bottomAnchor.constraint(lessThanOrEqualTo: card.bottomAnchor, constant: -12),
-            column.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 14),
-            column.trailingAnchor.constraint(lessThanOrEqualTo: card.trailingAnchor, constant: -14),
-            // The wrapping subtitle needs a bounded width or it collapses.
-            settingsSubtitle.widthAnchor.constraint(equalTo: column.widthAnchor),
+            scroll.topAnchor.constraint(equalTo: tab.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: tab.bottomAnchor),
+            scroll.leadingAnchor.constraint(equalTo: tab.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: tab.trailingAnchor),
         ])
-
-        tab.addSubview(card)
-        NSLayoutConstraint.activate([
-            card.topAnchor.constraint(equalTo: tab.topAnchor, constant: 8),
-            card.leadingAnchor.constraint(equalTo: tab.leadingAnchor, constant: 20),
-            card.trailingAnchor.constraint(equalTo: tab.trailingAnchor, constant: -20),
-        ])
+        // Reflect stored prefs now that the controls exist.
+        applyLaunchMode(AppPreferences.launchMode(in: prefs), notify: false)
         return tab
+    }
+
+    @objc private func openConfigFileClicked() {
+        NSWorkspace.shared.open(Paths.config)
     }
 
     // MARK: Rendering
@@ -692,6 +748,50 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         window.beginSheet(diagnosticsWindow!) { _ in }
         Task { [diagnosticsController] in await diagnosticsController?.load() }
     }
+
+    /// Logs open as a sheet from the Fleet tab (they are a debugging aid, not
+    /// a day-to-day destination).
+    @objc private func showLogsClicked() {
+        guard let window else { return }
+        if logsSheet == nil {
+            let controller = LogsViewController()
+            logsController = controller
+            let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 460), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+            sheet.title = "Logs"
+            let content = NSView(frame: sheet.contentRect(forFrameRect: sheet.frame))
+            sheet.contentView = content
+            controller.view.translatesAutoresizingMaskIntoConstraints = false
+            let close = NSButton(title: "Done", target: self, action: #selector(closeLogsSheet))
+            close.bezelStyle = .rounded
+            close.keyEquivalent = "\r"
+            let folder = NSButton(title: "Open logs folder", target: self, action: #selector(logsClicked))
+            folder.bezelStyle = .rounded
+            let buttons = NSStackView(views: [folder, NSView(), close])
+            buttons.translatesAutoresizingMaskIntoConstraints = false
+            content.addSubview(controller.view)
+            content.addSubview(buttons)
+            NSLayoutConstraint.activate([
+                controller.view.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
+                controller.view.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
+                controller.view.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+                controller.view.bottomAnchor.constraint(equalTo: buttons.topAnchor, constant: -10),
+                buttons.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
+                buttons.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+                buttons.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12),
+            ])
+            sheet.minSize = NSSize(width: 480, height: 320)
+            logsSheet = sheet
+        }
+        window.beginSheet(logsSheet!) { _ in }
+        logsController?.refreshNow()
+    }
+
+    @objc private func closeLogsSheet() {
+        guard let sheet = logsSheet else { return }
+        window?.endSheet(sheet)
+    }
+
+    private var logsSheet: NSWindow?
 
     /// The diagnostics sheet's window (owned so the sheet can re-open).
     private var diagnosticsWindow: NSWindow?

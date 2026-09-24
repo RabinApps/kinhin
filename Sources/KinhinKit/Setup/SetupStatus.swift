@@ -223,13 +223,17 @@ public struct SetupStatusComputer: Sendable {
 
         // 5. Token(s) — GitHub always (replaceable even when stored);
         // a Gitea row appears when the config declares that forge.
-        checks.append(SetupCheckResult(
-            id: "token",
-            title: "GitHub token stored",
-            ok: realToken,
-            detail: realToken ? "stored in Keychain" : "a PAT with repo scope is required",
-            action: realToken ? "replace_token" : "enter_token"
-        ))
+        // A Gitea-only config (no real GitHub repo) has no GitHub row.
+        let githubInUse = parsed.map { $0.githubEnabled } ?? true
+        if githubInUse {
+            checks.append(SetupCheckResult(
+                id: "token",
+                title: "GitHub token stored",
+                ok: realToken,
+                detail: realToken ? "stored in Keychain" : "a PAT with repo scope is required",
+                action: realToken ? "replace_token" : "enter_token"
+            ))
+        }
         if case .parsed(let cfg) = evaluation, cfg.gitea != nil {
             let giteaToken = giteaTokenStored ?? (KeychainTokenStore.load(forge: .gitea) != nil)
             checks.append(SetupCheckResult(
@@ -474,7 +478,10 @@ public struct SetupStatusComputer: Sendable {
     static func configCheck(_ evaluation: ConfigEvaluation, path: String) -> SetupCheckResult {
         switch evaluation {
         case .parsed(let cfg):
-            let scope = cfg.repo.contains("/") ? "repo: \(cfg.repo)" : "org: \(cfg.repo) (all its repos)"
+            var scope = cfg.repo.contains("/") ? "repo: \(cfg.repo)" : "org: \(cfg.repo) (all its repos)"
+            if !cfg.githubEnabled, let gitea = cfg.gitea {
+                scope = "gitea: \(gitea.scope) @ \(gitea.instance)"
+            }
             return SetupCheckResult(
                 id: "config",
                 title: "Config created",
@@ -516,7 +523,7 @@ public struct SetupStatusComputer: Sendable {
         switch config {
         case .live:
             if let cfg = liveConfig() {
-                return ConfigLoader.isTemplate(cfg) ? .templateConfig : .parsed(cfg)
+                return ConfigLoader.hasAnyForge(cfg) ? .parsed(cfg) : .templateConfig
             }
             return FileManager.default.fileExists(atPath: Paths.config.path) ? .invalidFile : .noFile
         case .missing:
@@ -526,7 +533,7 @@ public struct SetupStatusComputer: Sendable {
         case .template:
             return .templateConfig
         case .loaded(let cfg):
-            return ConfigLoader.isTemplate(cfg) ? .templateConfig : .parsed(cfg)
+            return ConfigLoader.hasAnyForge(cfg) ? .parsed(cfg) : .templateConfig
         }
     }
 }
