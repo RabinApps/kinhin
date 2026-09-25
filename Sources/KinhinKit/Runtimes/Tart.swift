@@ -5,7 +5,7 @@ public struct TartVM: Sendable, Equatable {
     public let source: String
     public let status: String  // "running" | "suspended" | "stopped" | ...
     public let cpu: Int?
-    public let memoryMB: Int?
+    let memoryMB: Int?
     public let diskGB: Int?
 
     public init(name: String, source: String, status: String, cpu: Int? = nil, memoryMB: Int? = nil, diskGB: Int? = nil)
@@ -87,7 +87,7 @@ public struct TartController: TartControlling {
     }
 
     /// Parse `tart list --quiet` output: lines of "name \t source \t status".
-    public static func parseList(_ text: String) -> [TartVM] {
+    static func parseList(_ text: String) -> [TartVM] {
         text.split(separator: "\n").compactMap { line in
             let cols = line.split(separator: "\t", omittingEmptySubsequences: false)
             guard cols.count >= 3 else { return nil }
@@ -143,7 +143,7 @@ public struct TartController: TartControlling {
         throw lastError
     }
 
-    public static func isValidIPv4(_ s: String) -> Bool {
+    static func isValidIPv4(_ s: String) -> Bool {
         let parts = s.split(separator: ".")
         guard parts.count == 4 else { return false }
         return parts.allSatisfy { p in
@@ -194,25 +194,25 @@ public struct TartController: TartControlling {
 /// Stand-in used when tart is not installed but the fleet runs Linux jobs on
 /// Docker or Apple container. Every call fails clearly; nothing routes macOS
 /// work to it because the engine's primary runtime is the Linux one.
-public struct UnavailableTart: TartControlling {
+struct UnavailableTart: TartControlling {
     public init() {}
     private var missing: TartError { .missingBinary(path: "PATH") }
     public func list() async throws -> [TartVM] { [] }
-    public func clone(source: String, to name: String) async throws { throw missing }
+    func clone(source: String, to name: String) async throws { throw missing }
     public func run(name: String, mounts: [String]) async throws { throw missing }
     public func ip(of name: String, timeout: TimeInterval) async throws -> String { throw missing }
-    public func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
+    func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
         -> ShellResult
     { throw missing }
     public func stop(name: String) async throws { throw missing }
     public func delete(name: String) async throws { throw missing }
-    public func pull(image: String) async throws { throw missing }
+    func pull(image: String) async throws { throw missing }
 }
 
 extension KinhinConfig {
     /// True when a Linux runtime (Apple container or Docker) is configured, so
     /// the fleet can run without tart (macOS jobs are then unavailable).
-    public var hasLinuxRuntime: Bool { container != nil || docker != nil }
+    var hasLinuxRuntime: Bool { container != nil || docker != nil }
 
     /// True when the fleet can start on this host: tart is installed, or a
     /// Linux runtime is configured to run instead.

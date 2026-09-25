@@ -15,7 +15,7 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         /// Repair command line for a broken state, null when ok.
         public let fixCommand: String?
         /// Extra fallback advice (present for the outdated state only).
-        public let fixHint: String?
+        let fixHint: String?
     }
 
     public struct TartSection: Codable, Equatable, Sendable {
@@ -86,7 +86,7 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let usable: Bool
         /// True when the config's `toolchains.share_cache` mounts the cache
         /// into every runner VM/container.
-        public let sharedWithRunners: Bool
+        let sharedWithRunners: Bool
         /// True when `sharedWithRunners` is on but the cache holds nothing —
         /// runners would mount an empty directory until a prepare populates it.
         public let warning: Bool

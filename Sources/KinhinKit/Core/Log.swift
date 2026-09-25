@@ -7,7 +7,7 @@ import os
 public enum Log {
     /// One log line.
     public struct Entry: Codable, Sendable, Equatable {
-        public let timestamp: Date
+        let timestamp: Date
         public let level: String
         public let component: String
         public let message: String
@@ -46,7 +46,7 @@ public enum Log {
     }
 
     public static var minLevel: Level = .info
-    public static var echoToStderr = true
+    static var echoToStderr = true
 
     /// In-memory ring buffer of recent entries (also mirrored to disk).
     private static let ring = Runaround<Entry>(capacity: 5000)

@@ -35,7 +35,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
     /// The runtime a container-only fleet uses (single-pool legacy mode).
     public var containerConfigured: Bool
     /// True when a `docker:` section exists (Docker slot pool).
-    public var dockerConfigured: Bool
+    var dockerConfigured: Bool
     /// Every execution runtime this Mac could ever use, probed or not —
     /// so the pane can say "installed" / "not installed" even for runtimes
     /// the config doesn't use. Empty until a health pass fills it.

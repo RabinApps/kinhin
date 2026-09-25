@@ -3,7 +3,7 @@ import Foundation
 /// Runs the fleet engine headless behind the unix-socket RPC server.
 public enum Daemon {
     public static let label = "com.kinhin.daemon"
-    public static let plistName = "com.kinhin.daemon.plist"
+    static let plistName = "com.kinhin.daemon.plist"
 
     /// Boot the engine and block forever serving RPC.
     public static func run() async throws {
@@ -81,7 +81,7 @@ public enum Daemon {
     /// running engine cannot adopt live (anything beyond routing) requires
     /// a rebuild — the server's handler keeps answering through this box
     /// while the swap happens.
-    public final class EngineRef: @unchecked Sendable {
+    final class EngineRef: @unchecked Sendable {
         private let lock = NSLock()
         private var wrapped: FleetEngine?
 
@@ -226,7 +226,7 @@ public enum Daemon {
         public init(id: String) { self.id = id }
     }
 
-    public enum DaemonError: LocalizedError {
+    enum DaemonError: LocalizedError {
         case missingToken
         case alreadyRunning
         case configProblem(String)

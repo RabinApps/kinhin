@@ -13,14 +13,14 @@ public struct GitHubCredentials: Sendable {
     }
 
     /// True when the scope is an organization, not a single repository.
-    public var isOrgScope: Bool { !scope.contains("/") }
+    var isOrgScope: Bool { !scope.contains("/") }
 
     /// The owner segment of the scope ("RabinApps" in "RabinApps/name").
     public var owner: String { String(scope.split(separator: "/").first ?? "") }
 
     /// URL passed to the runner's `config.sh --url`. Org-level runners
     /// register at /organizations/<org>, repo-level at /<RabinApps>/<repo>.
-    public var configureURL: String {
+    var configureURL: String {
         isOrgScope
             ? "https://github.com/organizations/\(scope)"
             : "https://github.com/\(scope)"
@@ -78,13 +78,13 @@ public struct GHRunner: Codable, Sendable, Equatable {
 
 public struct GHJob: Codable, Sendable, Equatable {
     public let id: Int
-    public let runID: Int
+    let runID: Int
     public let name: String
     public let status: String
     public let labels: [String]?
     /// The runner executing (or slated to execute) this job — the key that
     /// maps a running job back to one of our VMs.
-    public let runnerName: String?
+    let runnerName: String?
 
     enum CodingKeys: String, CodingKey {
         case id, name, status, labels
@@ -97,7 +97,7 @@ public struct GHJob: Codable, Sendable, Equatable {
 /// work in org scope). `runnerName` is what the runner registered as.
 public struct RunningJob: Sendable, Equatable {
     public let name: String
-    public let runnerName: String?
+    let runnerName: String?
     public let repository: String?
 
     public init(name: String, runnerName: String?, repository: String?) {
@@ -109,8 +109,8 @@ public struct RunningJob: Sendable, Equatable {
 
 /// A queued job that this fleet could run.
 public struct QueuedJob: Sendable, Equatable {
-    public let runID: Int
-    public let jobID: Int
+    let runID: Int
+    let jobID: Int
     public let name: String
     public let labels: [String]
     /// Repository the job belongs to (always present in org scope; nil when
@@ -128,16 +128,16 @@ public struct QueuedJob: Sendable, Equatable {
 
 public struct RegistrationToken: Codable, Sendable, Equatable {
     public let token: String
-    public let expiresAt: Date
+    let expiresAt: Date
 }
 
 /// A repository visible to the stored token — one pickable target for the
 /// onboarding repo step and the Config tab's repo picker.
 public struct RepoRef: Sendable, Equatable, Identifiable {
     public let fullName: String
-    public let isPrivate: Bool
+    let isPrivate: Bool
     /// nil when the API didn't say (old Gitea versions).
-    public let hasActionsEnabled: Bool?
+    let hasActionsEnabled: Bool?
 
     public var id: String { fullName }
 

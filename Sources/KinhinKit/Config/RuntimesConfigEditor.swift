@@ -36,7 +36,7 @@ public enum RuntimesConfigEditor {
     // MARK: Writing
 
     /// Serialize the section with stable ordering (the pane's canonical form).
-    public static func sectionText(_ rc: KinhinConfig.RuntimeConfig) -> String {
+    static func sectionText(_ rc: KinhinConfig.RuntimeConfig) -> String {
         var lines: [String] = ["runtimes:"]
         lines.append("  default: \(rc.defaultRuntime)")
         if !rc.budget.isEmpty {

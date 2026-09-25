@@ -12,7 +12,7 @@ public struct ToolchainCachePolicy: Sendable, Equatable {
 
     /// Entries modified within this window are untouchable (a live download
     /// or an in-flight install may be writing them right now).
-    public static let graceWindow: TimeInterval = 60 * 60
+    static let graceWindow: TimeInterval = 60 * 60
 
     public init(autoPrune: Bool, maxAgeDays: Int, maxGB: Int) {
         self.autoPrune = autoPrune

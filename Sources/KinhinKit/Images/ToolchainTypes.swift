@@ -7,12 +7,12 @@ import Foundation
 /// it when `toolchains.share_cache` is on.
 public enum ToolchainCacheMount {
     /// tart auto-mounts virtiofs shares under this path inside macOS guests.
-    public static let guestSharesRoot = "/Volumes/My Shared Files"
+    static let guestSharesRoot = "/Volumes/My Shared Files"
     /// Directory (under `Paths.appSupport`) holding the host cache.
-    public static let hostDirectoryName = "toolchain-cache"
+    static let hostDirectoryName = "toolchain-cache"
     /// Directory (inside the virtiofs share) holding the cache. A distinct
     /// name keeps the share safe if other shares ever join the same mount.
-    public static let guestDirectoryName = "kinhin-cache"
+    static let guestDirectoryName = "kinhin-cache"
 
     /// Absolute guest-side path of the shared cache in macOS guests.
     public static var guestPath: String { guestSharesRoot + "/" + guestDirectoryName }
@@ -24,7 +24,7 @@ public enum ToolchainCacheMount {
     /// The `-v/--volume` spec for binding the host cache into a Linux
     /// container (`container run -v <host>:<guest>` — the syntax documented
     /// by apple/container's command reference).
-    public static func volumeSpec(host: String) -> String {
+    static func volumeSpec(host: String) -> String {
         "\(host):\(linuxGuestPath)"
     }
 }
@@ -56,7 +56,7 @@ public enum ToolchainRequirement: String, Sendable, CaseIterable {
 /// and skipped gracefully when the cache mount is absent.
 public struct ToolchainCacheEnv: Sendable, Equatable {
     public let variable: String
-    public let subdirectory: String
+    let subdirectory: String
 
     public init(variable: String, subdirectory: String) {
         self.variable = variable
@@ -91,7 +91,7 @@ public struct ToolchainEntry: Sendable, Equatable {
     /// Explicit runtime prerequisites (validated, never auto-installed).
     public let requires: [ToolchainRequirement]
     /// Cache envs exported when this tool is selected.
-    public let cacheEnvs: [ToolchainCacheEnv]
+    let cacheEnvs: [ToolchainCacheEnv]
     /// Shell command that must succeed after install ("" = nothing).
     public let verify: String
     /// The mise spec shown by `kinhin toolchains` when the user doesn't pin.
@@ -147,22 +147,22 @@ public struct ToolchainStack: Sendable, Equatable {
     public let id: String
     public let summary: String
     public let requires: [ToolchainRequirement]
-    public let brewTaps: [String]
-    public let brewFormulas: [String]
-    public let miseSpecs: [String]
-    public let npmPackages: [NPMPackage]
-    public let cacheEnvs: [ToolchainCacheEnv]
+    let brewTaps: [String]
+    let brewFormulas: [String]
+    let miseSpecs: [String]
+    let npmPackages: [NPMPackage]
+    let cacheEnvs: [ToolchainCacheEnv]
     public let verify: String
     /// What `@version` means for this stack; nil = version unsupported.
     public let versionKind: String?
     /// Short note shown under the version field in the Advanced → Toolchains UI.
-    public let versionHint: String?
+    let versionHint: String?
     /// The version applied when the config doesn't pin one ("" = none).
     public let defaultVersion: String
     /// Extra shell steps run after installs. The literal `<version>` is
     /// replaced with the effective version; steps still containing the
     /// placeholder are dropped when no version is pinned.
-    public let postInstall: [String]
+    let postInstall: [String]
     /// Platforms this stack installs on (macOS-only for the iOS-adjacent
     /// recipes: CocoaPods, watchman, and fvm do not exist on Linux).
     public let platforms: [ToolchainPlatform]
@@ -192,7 +192,7 @@ public struct ToolchainStack: Sendable, Equatable {
 
     /// Splits "flutter@3.24.0" into ("flutter", "3.24.0"); a bare id or a
     /// trailing "@" yields a nil version.
-    public static func splitSpec(_ name: String) -> (id: String, version: String?) {
+    static func splitSpec(_ name: String) -> (id: String, version: String?) {
         guard let at = name.firstIndex(of: "@") else { return (name, nil) }
         let id = String(name[..<at])
         let version = String(name[name.index(after: at)...])
@@ -201,7 +201,7 @@ public struct ToolchainStack: Sendable, Equatable {
     }
 
     /// The effective version: the pinned one, else the stack default.
-    public func effectiveVersion(pinned: String?) -> String {
+    func effectiveVersion(pinned: String?) -> String {
         pinned ?? defaultVersion
     }
 }
@@ -209,9 +209,9 @@ public struct ToolchainStack: Sendable, Equatable {
 // MARK: - Resolved selection
 
 /// A Homebrew install target.
-public struct BrewFormula: Sendable, Equatable, Hashable {
+struct BrewFormula: Sendable, Equatable, Hashable {
     public let name: String
-    public let isCask: Bool
+    let isCask: Bool
     public init(name: String, isCask: Bool) {
         self.name = name
         self.isCask = isCask
@@ -223,22 +223,22 @@ public struct BrewFormula: Sendable, Equatable, Hashable {
 /// — resolution maps ids to installers, caches, and verifications; it never
 /// adds a tool.
 public struct ManagedToolchainSelection: Sendable, Equatable {
-    public var brewTaps: [String] = []
-    public var brewFormulas: [BrewFormula] = []
-    public var miseSpecs: [String] = []
-    public var npmPackages: [ToolchainStack.NPMPackage] = []
-    public var gems: [String] = []
+    var brewTaps: [String] = []
+    var brewFormulas: [BrewFormula] = []
+    var miseSpecs: [String] = []
+    var npmPackages: [ToolchainStack.NPMPackage] = []
+    var gems: [String] = []
     /// apt packages for Linux guests (e.g. `dotnet-sdk-8.0`).
-    public var aptPackages: [String] = []
+    var aptPackages: [String] = []
     /// Post-install steps emitted verbatim (e.g. `fvm install 3.24.0`).
-    public var stackSteps: [String] = []
+    var stackSteps: [String] = []
     /// Deduped cache-env exports, in stable selection order.
-    public var cacheEnvs: [ToolchainCacheEnv] = []
+    var cacheEnvs: [ToolchainCacheEnv] = []
     /// Verify commands appended to the install script (fail-fast).
-    public var verifications: [String] = []
+    var verifications: [String] = []
     /// True when a selected entry was skipped because it does not support
     /// the requested platform (surfaced as a log line, never an error).
-    public var skippedEntries: [String] = []
+    var skippedEntries: [String] = []
 
     public init() {}
 }

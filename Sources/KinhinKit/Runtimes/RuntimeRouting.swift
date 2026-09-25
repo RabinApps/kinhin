@@ -5,7 +5,7 @@ import Foundation
 /// One label pool: a runtime whose runners register with distinct labels so
 /// workflows route per job via `runs-on:`. Pools are built from the config
 /// (`runtimes:` section when present, or the legacy single-fleet defaults).
-public struct RuntimePool: Sendable, Equatable {
+struct RuntimePool: Sendable, Equatable {
     /// The execution runtime backing this pool.
     public let runtime: RuntimeID
     /// Labels the pool's runners register with (fleet labels + runtime marker).
@@ -19,7 +19,7 @@ public struct RuntimePool: Sendable, Equatable {
     /// The fleet's default label set for this runtime: the config labels
     /// plus the runtime's marker ("kinhin-container" for Apple containers,
     /// "kinhin-docker" for Docker slots).
-    public static func labelsFor(_ runtime: RuntimeID, fleetLabels: [String], containerExtra: [String]? = nil)
+    static func labelsFor(_ runtime: RuntimeID, fleetLabels: [String], containerExtra: [String]? = nil)
         -> [String]
     {
         var labels = fleetLabels
@@ -37,7 +37,7 @@ public struct RuntimePool: Sendable, Equatable {
     /// The exclusive `runs-on:` marker a pool registers with, enabling
     /// per-workflow opt-in without a config route. nil for runtimes that
     /// serve the fleet's default labels (tart).
-    public static func exclusiveMarker(for runtime: RuntimeID) -> String? {
+    static func exclusiveMarker(for runtime: RuntimeID) -> String? {
         switch runtime {
         case .appleContainer: return "kinhin-container"
         case .docker: return "kinhin-docker"
@@ -53,8 +53,8 @@ public struct RuntimePool: Sendable, Equatable {
 ///    marker ("kinhin-container") routes to that pool even without a
 ///    config route (per-workflow `runs-on:` opt-in).
 /// 4. The default runtime for unmatched jobs.
-public enum RuntimeRouter {
-    public struct Decision: Sendable, Equatable {
+enum RuntimeRouter {
+    struct Decision: Sendable, Equatable {
         public let pool: RuntimePool
         /// How the pool was chosen (for logs and tests).
         public let via: String
@@ -94,7 +94,7 @@ public enum RuntimeRouter {
     }
 
     /// Route a queued job to a pool.
-    public static func assign(
+    static func assign(
         job: ForgeJob, config: RuntimeConfigModel, defaultPool: RuntimePool, pools: [RuntimeID: RuntimePool]
     ) -> Decision {
         let repo = repoKey(job.repository)
@@ -143,7 +143,7 @@ public enum RuntimeRouter {
 
 /// The engine-facing routing model: pools by runtime id plus the config
 /// routes, with demand bucketing and spawn selection.
-public struct RuntimeConfigModel: Sendable {
+struct RuntimeConfigModel: Sendable {
     public let routes: [KinhinConfig.RuntimeConfig.Route]
     public let pools: [RuntimeID: RuntimePool]
     public let defaultRuntime: RuntimeID
@@ -192,7 +192,7 @@ public struct RuntimeConfigModel: Sendable {
     }
 
     /// Bucket queued jobs into per-pool demand counts.
-    public func demandByPool(for jobs: [ForgeJob], forgeID: ForgeID) -> [RuntimeID: Int] {
+    func demandByPool(for jobs: [ForgeJob], forgeID: ForgeID) -> [RuntimeID: Int] {
         var counts: [RuntimeID: Int] = [:]
         let defaultPool = pools[defaultRuntime] ?? RuntimePool(runtime: .tart, labels: [])
         for job in jobs {
@@ -203,7 +203,7 @@ public struct RuntimeConfigModel: Sendable {
     }
 
     /// True when the pool exists (its runtime is configured).
-    public func poolExists(_ runtime: RuntimeID) -> Bool {
+    func poolExists(_ runtime: RuntimeID) -> Bool {
         pools[runtime] != nil
     }
 }
@@ -212,8 +212,8 @@ public struct RuntimeConfigModel: Sendable {
 
 /// Splits the host's usable budget between runtimes by configured weights.
 /// The default runtime receives the remainder when weights sum below 1.
-public enum RuntimeCapacity {
-    public struct Partition: Sendable, Equatable {
+enum RuntimeCapacity {
+    struct Partition: Sendable, Equatable {
         /// Per-runtime caps (in VMs/containers of that runtime's shape).
         public let caps: [RuntimeID: Int]
         /// Human summary for status/doctor lines.

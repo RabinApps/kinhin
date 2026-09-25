@@ -5,10 +5,10 @@ public struct UpdateInfo: Equatable, Sendable {
     public let tag: String
     public let version: String  // "1.2.3" without the leading "v"
     public let dmgName: String
-    public let dmgURL: URL
-    public let releaseURL: URL
-    public let publishedAt: Date?
-    public let notes: String?
+    let dmgURL: URL
+    let releaseURL: URL
+    let publishedAt: Date?
+    let notes: String?
 
     public init(
         tag: String, version: String, dmgName: String, dmgURL: URL, releaseURL: URL, publishedAt: Date?, notes: String?
@@ -29,7 +29,7 @@ public enum UpdateCheckResult: Equatable, Sendable {
     case available(UpdateInfo)
 }
 
-public enum UpdateCheckError: LocalizedError, Equatable {
+enum UpdateCheckError: LocalizedError, Equatable {
     case notFound(String)
     case noDMGAsset(String)
     case http(Int, String)
@@ -52,7 +52,7 @@ public enum UpdateCheckError: LocalizedError, Equatable {
 /// Compares dotted release versions: `1.0.0` < `1.0.1`, `1.0` == `1.0.0`,
 /// and a pre-release suffix sorts *below* the bare version, so
 /// `1.0.0-beta` < `1.0.0` holds.
-public func isVersion(_ a: String, olderThan b: String) -> Bool {
+func isVersion(_ a: String, olderThan b: String) -> Bool {
     let left = a.split(separator: ".").map(String.init)
     let right = b.split(separator: ".").map(String.init)
     // Split a segment into its numeric prefix and any pre-release suffix.
@@ -77,7 +77,7 @@ public func isVersion(_ a: String, olderThan b: String) -> Bool {
 /// itself is pure and unit-tested.
 public struct UpdateChecker: Sendable {
     public let repo: String  // "RabinApps/name"
-    public let currentVersion: String
+    let currentVersion: String
     let session: URLSession
 
     public init(repo: String, currentVersion: String = kinhinVersion.current, session: URLSession? = nil) {
@@ -107,7 +107,7 @@ public struct UpdateChecker: Sendable {
     }
 
     /// Query releases/latest and build UpdateInfo from the DMG asset.
-    public func fetchLatestRelease() async throws -> UpdateInfo {
+    func fetchLatestRelease() async throws -> UpdateInfo {
         guard repo.split(separator: "/").count == 2 else {
             throw UpdateCheckError.notFound(repo)
         }

@@ -17,18 +17,18 @@ public enum RPCMethod: String, Codable, Sendable {
 }
 
 /// Payload for `replace_token`: swaps the daemon's PAT without a restart.
-public struct TokenReplaceRequest: Codable, Sendable, Equatable {
+struct TokenReplaceRequest: Codable, Sendable, Equatable {
     public let pat: String
     public init(pat: String) { self.pat = pat }
 }
 
 /// Payload for `replace_gitea_token`: swaps the daemon's Gitea access token.
-public struct GiteaTokenReplaceRequest: Codable, Sendable, Equatable {
+struct GiteaTokenReplaceRequest: Codable, Sendable, Equatable {
     public let token: String
     public init(token: String) { self.token = token }
 }
 
-public struct RPCRequest: Codable, Sendable, Equatable {
+struct RPCRequest: Codable, Sendable, Equatable {
     public let id: Int
     public let method: RPCMethod
     public let payload: Data?
@@ -63,7 +63,7 @@ public enum RPCPaths {
 
 /// Line-delimited JSON over a unix socket. One request per connection keeps
 /// the protocol trivially simple and robust.
-public enum RPCServer {
+enum RPCServer {
     /// Serve requests forever on the given socket path.
     public static func serve(socketURL: URL, handler: @escaping @Sendable (RPCRequest) async -> RPCResponse) throws {
         // A stale socket from a previous run may or may not exist; bind()
@@ -215,7 +215,7 @@ public enum RPCError: LocalizedError {
 
 /// Client for talking to a running daemon.
 public struct RPCClient: Sendable {
-    public let socketURL: URL
+    let socketURL: URL
 
     public init(socketURL: URL = RPCPaths.socket) {
         self.socketURL = socketURL
@@ -227,7 +227,7 @@ public struct RPCClient: Sendable {
     }
 
     @discardableResult
-    public func ping() throws -> Bool {
+    func ping() throws -> Bool {
         let response = try send(method: .ping)
         return response.ok
     }

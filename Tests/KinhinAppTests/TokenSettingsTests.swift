@@ -1,4 +1,3 @@
-import KinhinKit
 import XCTest
 
 @testable import KinhinKit

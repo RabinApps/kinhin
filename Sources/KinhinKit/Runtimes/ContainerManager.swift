@@ -13,7 +13,7 @@ public enum ContainerTool: String, CaseIterable, Sendable {
     }
 
     /// Executable name looked up on PATH / known install locations.
-    public var binaryName: String {
+    var binaryName: String {
         switch self {
         case .docker: return "docker"
         case .appleContainer: return "container"
@@ -47,7 +47,7 @@ public struct ManagedContainer: Equatable, Sendable, Identifiable {
 
 public struct ManagedVolume: Equatable, Sendable, Identifiable {
     public let name: String
-    public let driver: String
+    let driver: String
 
     public var id: String { name }
 
@@ -57,7 +57,7 @@ public struct ManagedVolume: Equatable, Sendable, Identifiable {
     }
 }
 
-public enum ContainerManagerError: LocalizedError, Equatable {
+enum ContainerManagerError: LocalizedError, Equatable {
     case toolMissing(ContainerTool)
     case invalidName(String)
     case commandFailed(what: String, stderr: String)
@@ -93,7 +93,7 @@ public struct ContainerManager: Sendable {
 
     // MARK: Validation
 
-    public static func isValidName(_ name: String) -> Bool {
+    static func isValidName(_ name: String) -> Bool {
         name.range(of: "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$", options: .regularExpression) != nil
     }
 

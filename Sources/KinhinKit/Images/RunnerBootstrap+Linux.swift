@@ -6,7 +6,7 @@ extension RunnerBootstrap {
     /// Installs the GitHub Actions runner agent into a Linux image for the
     /// Apple-container runtime (baked during `kinhin image prepare` when a
     /// GitHub credential exists). Mirrors installScript but for Linux tarballs.
-    public static func linuxGitHubAgentInstallScript(runnerVersion: String) -> String {
+    static func linuxGitHubAgentInstallScript(runnerVersion: String) -> String {
         """
         set -euo pipefail
         mkdir -p /opt/actions-runner
@@ -28,7 +28,7 @@ extension RunnerBootstrap {
     /// a mise bootstrap (Linux base images don't ship it), `mise use --global`
     /// pins, npm globals, and verify-gated completion. Cache exports point at
     /// the container-side bind mount when present.
-    public static func linuxManagedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?)
+    static func linuxManagedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?)
         -> String
     {
         var lines: [String] = ["set -euo pipefail"]
@@ -110,7 +110,7 @@ extension RunnerBootstrap {
 
     /// Installs the Gitea runner binary into a Linux image (gitea-runner,
     /// formerly act_runner — linux-arm64 build).
-    public static func linuxGiteaRunnerInstallScript(version: String) -> String {
+    static func linuxGiteaRunnerInstallScript(version: String) -> String {
         """
         set -euo pipefail
         if [ ! -x /opt/gitea-runner/gitea-runner ]; then
@@ -131,7 +131,7 @@ extension RunnerBootstrap {
     /// container user), so config.sh needs --runasservice=false semantics —
     /// plain unattended registration + foreground nohup run.sh, same shape
     /// as the VM script.
-    public static func linuxGitHubRegistrationScript(
+    static func linuxGitHubRegistrationScript(
         configureURL: String,
         token: String,
         labels: [String],
@@ -175,7 +175,7 @@ extension RunnerBootstrap {
 
     /// Gitea registration inside a Linux container (gitea-runner register
     /// --no-interactive + daemon; no --ephemeral exists upstream).
-    public static func linuxGiteaRegistrationScript(
+    static func linuxGiteaRegistrationScript(
         instance: String, token: String, labels: [String], name: String, runnerCount: Int = 1
     ) -> String {
         let labelList = labels.joined(separator: ",")

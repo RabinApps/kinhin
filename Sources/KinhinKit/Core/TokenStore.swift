@@ -13,9 +13,9 @@ public enum KeychainTokenStore {
     /// Keychain service name used by the pre-rename build ("Orchard").
     /// Load falls back to it once and re-saves under the current service,
     /// so tokens stored before the rename migrate transparently.
-    public static let legacyService = "com.orchard.runner"
+    static let legacyService = "com.orchard.runner"
 
-    public enum TokenError: LocalizedError {
+    enum TokenError: LocalizedError {
         case unhandled(OSStatus)
 
         public var errorDescription: String? {
@@ -98,7 +98,7 @@ public enum KeychainTokenStore {
 /// Caches the short-lived (1 h) runner registration token, refreshing it
 /// `refreshMargin` before expiry. Thread-safe. Under concurrent contention it
 /// may fetch twice — harmless against the GitHub API.
-public final class RegistrationTokenCache: Sendable {
+final class RegistrationTokenCache: Sendable {
     private struct Entry: Sendable {
         let token: String
         let expiresAt: Date

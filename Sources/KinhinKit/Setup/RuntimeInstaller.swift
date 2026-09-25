@@ -15,7 +15,7 @@ public enum InstallableTool: String, CaseIterable, Sendable {
     }
 
     /// Executable that proves the tool is installed.
-    public var binaryName: String {
+    var binaryName: String {
         switch self {
         case .tart: return "tart"
         case .appleContainer: return "container"
@@ -37,7 +37,7 @@ public struct InstallOption: Identifiable, Equatable, Sendable {
     /// Install commands (need Homebrew when `needsBrew`).
     public let commands: [[String]]
     /// Commands run after a successful install (e.g. start the service).
-    public let postInstall: [[String]]
+    let postInstall: [[String]]
     public let needsBrew: Bool
     /// Where to download it by hand when Homebrew is not available.
     public let manualURL: URL?
@@ -72,7 +72,7 @@ func summarize(_ output: String) -> String {
     return String(chosen.joined(separator: " ").prefix(500))
 }
 
-public enum RuntimeInstallerError: LocalizedError, Equatable {
+enum RuntimeInstallerError: LocalizedError, Equatable {
     case brewMissing
     case commandFailed(command: String, output: String)
     case notInstalledAfterwards(InstallableTool)

@@ -1,6 +1,6 @@
-import KinhinKit
 import XCTest
 
+@testable import KinhinKit
 @testable import kinhin
 
 final class ConfigInitAndHelpTests: XCTestCase {

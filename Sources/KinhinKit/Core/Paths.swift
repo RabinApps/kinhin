@@ -10,7 +10,7 @@ public enum Paths {
     }
 
     /// `~/Library/Application Support/Kinhin`
-    public static var appSupport: URL {
+    static var appSupport: URL {
         userLibrarySubdirectory(.applicationSupportDirectory, fallback: "Library/Application Support")
             .appendingPathComponent("Kinhin", isDirectory: true)
     }
@@ -26,7 +26,7 @@ public enum Paths {
     /// does not, move it (same-volume rename; config, logs, toolchain cache
     /// and state all carry over). Failures never block startup — the new
     /// directory is simply created empty on the next line.
-    public static func migrateLegacySupportDirectory(fileManager: FileManager = .default) {
+    static func migrateLegacySupportDirectory(fileManager: FileManager = .default) {
         migrateLegacySupportDirectory(from: legacyAppSupport, to: appSupport, fileManager: fileManager)
     }
 
@@ -48,7 +48,7 @@ public enum Paths {
 
     public static var logsDirectory: URL { appSupport.appendingPathComponent("logs", isDirectory: true) }
 
-    public static var keychainService: String { "com.kinhin.runner" }
+    static var keychainService: String { "com.kinhin.runner" }
 
     /// Shared toolchain download cache (mise, brew, npm, fvm, Go, Cargo…).
     /// Mounted read-write into scratch VMs at prepare time and — opt-in via

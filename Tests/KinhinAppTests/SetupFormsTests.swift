@@ -1,7 +1,7 @@
 import AppKit
-import KinhinKit
 import XCTest
 
+@testable import KinhinKit
 @testable import kinhin_app
 
 /// The Setup forms and the Capacity form write real config edits — always to

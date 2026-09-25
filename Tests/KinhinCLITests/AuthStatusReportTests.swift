@@ -1,6 +1,6 @@
-import KinhinKit
 import XCTest
 
+@testable import KinhinKit
 @testable import kinhin
 
 /// The `kinhin auth status --json` contract: per-forge stored-token state,

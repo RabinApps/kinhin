@@ -75,7 +75,7 @@ extension FleetEngine {
     }
 
     /// One pass of the control loop. Public for tests.
-    public func reconcileOnce() async throws {
+    func reconcileOnce() async throws {
         let pausedNow = stateLock.withLock { paused }
         await statusBox.modify {
             $0.running = stateLock.withLock { running }

@@ -1,7 +1,7 @@
 import AppKit
-import KinhinKit
 import XCTest
 
+@testable import KinhinKit
 @testable import kinhin_app
 
 /// A tiny stateful Docker: enough to watch create/delete round-trip.

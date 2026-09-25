@@ -52,7 +52,7 @@ public enum BudgetEditor {
     /// A runtime joins the budget: the non-default budget is split evenly
     /// between the existing entries and the newcomer (or a token 0.25 when
     /// nothing else is budgeted). The default runtime keeps the remainder.
-    public static func addRuntime(
+    static func addRuntime(
         _ runtime: RuntimeID,
         current: [String: Double],
         defaultRuntime: RuntimeID

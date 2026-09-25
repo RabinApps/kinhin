@@ -12,7 +12,7 @@ public struct ConfigLoader {
     public static let templateRepo = "your-org/your-repo"
 
     /// True when the parsed config still carries the template's placeholder repo.
-    public static func isTemplate(_ cfg: KinhinConfig) -> Bool {
+    static func isTemplate(_ cfg: KinhinConfig) -> Bool {
         cfg.repo == templateRepo
     }
 

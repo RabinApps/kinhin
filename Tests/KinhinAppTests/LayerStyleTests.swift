@@ -1,7 +1,7 @@
 import AppKit
-import KinhinKit
 import XCTest
 
+@testable import KinhinKit
 @testable import kinhin_app
 
 /// The CALayer color-freeze bug class: `layer.backgroundColor = color.cgColor`

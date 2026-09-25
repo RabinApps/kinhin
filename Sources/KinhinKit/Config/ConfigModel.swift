@@ -39,13 +39,13 @@ public struct KinhinConfig: Sendable, Equatable {
     /// Poll interval for GitHub in seconds.
     public var pollInterval: Int
     /// Registration-token cache TTL in seconds (GitHub tokens expire after 1 hour).
-    public var tokenTTL: Int
+    var tokenTTL: Int
     /// Per-VM resource settings.
     public var vm: VM
     /// Tart image to clone for each runner, e.g. "tahoe-base" (prepared via `kinhin image prepare`).
     public var image: String
     /// How long a freshly booted VM may take to join as a registered runner (seconds).
-    public var vmBootTimeout: Int
+    var vmBootTimeout: Int
     /// Optional extra disk (GB) attached to each VM.
     public var diskGB: Int?
     /// Optional tart binary path override.

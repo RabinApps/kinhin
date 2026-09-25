@@ -1,6 +1,6 @@
 import Foundation
 
-public enum EngineError: LocalizedError {
+enum EngineError: LocalizedError {
     case registrationFailed(vm: String, stderr: String)
 
     public var errorDescription: String? {

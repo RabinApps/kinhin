@@ -24,7 +24,7 @@ public struct ImagePreparer {
         public var source: String
         public var target: String
         public var runnerVersion: String
-        public var giteaRunnerVersion: String
+        var giteaRunnerVersion: String
         public var user: String
         /// Token presence overrides for tests (nil = probe the Keychain).
         public var hasGitHubToken: Bool?
@@ -35,12 +35,12 @@ public struct ImagePreparer {
         /// Timeout for the user provision script's SSH exec (seconds) —
         /// installing heavy toolchains is slow, so it gets its own budget
         /// separate from the 900 s agent install.
-        public var provisionTimeout: TimeInterval
+        var provisionTimeout: TimeInterval
         /// Managed toolchains (`toolchains:` config section) baked after the
         /// runner agents install, before the user provision script. nil = none.
         public var toolchains: KinhinConfig.ToolchainsConfig?
         /// Timeout for the managed toolchain install's SSH exec (seconds).
-        public var toolchainTimeout: TimeInterval
+        var toolchainTimeout: TimeInterval
 
         public init(
             source: String = ImagePreparer.defaultSource, target: String = ImagePreparer.defaultTarget,

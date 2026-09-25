@@ -76,12 +76,12 @@ public struct TartHealthProbe {
     }
 
     /// True when `tart --version` behaves like a working binary.
-    public static func launchLooksHealthy(_ result: ShellResult) -> Bool {
+    static func launchLooksHealthy(_ result: ShellResult) -> Bool {
         result.succeeded && result.stdout.contains("tart version")
     }
 
     /// Maps a failed launch to a short reason. `nil` means "unclassifiable".
-    public static func classifyFailure(_ result: ShellResult) -> String? {
+    static func classifyFailure(_ result: ShellResult) -> String? {
         if result.exitCode == 137 || result.terminatedBySignal(9) {
             return "terminated by SIGKILL (exit 137) — Gatekeeper kill, see openai/homebrew-tools#27"
         }

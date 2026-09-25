@@ -8,7 +8,7 @@ extension RunnerBootstrap {
     /// the share is not mounted (or the path is missing) the variable is
     /// left at its default — caching is best-effort and never fails a
     /// prepare or a runner boot.
-    public static func cacheEnvExports(cacheEnvs: [ToolchainCacheEnv], mountPath: String) -> String {
+    static func cacheEnvExports(cacheEnvs: [ToolchainCacheEnv], mountPath: String) -> String {
         guard !cacheEnvs.isEmpty else { return "" }
         let lines = cacheEnvs.map { env -> String in
             """
@@ -27,7 +27,7 @@ extension RunnerBootstrap {
     /// formulas (idempotent), mise pins (`mise use --global`), npm globals,
     /// gems, then every verify command — a failing verify aborts the prepare
     /// with the previous image left intact.
-    public static func managedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?)
+    static func managedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?)
         -> String
     {
         var lines: [String] = ["set -euo pipefail"]
@@ -114,7 +114,7 @@ extension RunnerBootstrap {
     }
 
     /// Base-image tweaks: disable sleep, enable SSH, autologin hint.
-    public static func prepareScript() -> String {
+    static func prepareScript() -> String {
         """
         set -euo pipefail
 

@@ -1,7 +1,7 @@
 import AppKit
-import KinhinKit
 import XCTest
 
+@testable import KinhinKit
 @testable import kinhin_app
 
 /// Renders the real ToolchainsViewController against a scratch config and

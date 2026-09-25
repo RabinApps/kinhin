@@ -2,14 +2,14 @@ import Foundation
 
 /// A completed subprocess run.
 public struct ShellResult: Sendable {
-    public let exitCode: Int32
+    let exitCode: Int32
     public let stdout: String
     public let stderr: String
 
     public var succeeded: Bool { exitCode == 0 }
 
     /// Non-empty, whitespace-trimmed lines of stdout (ids, names, references).
-    public var outputLines: [String] {
+    var outputLines: [String] {
         stdout
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -23,7 +23,7 @@ public struct ShellResult: Sendable {
     }
 }
 
-public enum ShellError: LocalizedError {
+enum ShellError: LocalizedError {
     case launchFailed(String)
 
     public var errorDescription: String? {

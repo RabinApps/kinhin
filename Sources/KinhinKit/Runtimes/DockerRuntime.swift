@@ -186,7 +186,7 @@ public struct DockerRuntime: Runtime {
 
     /// Runs a script inside the running container (`docker exec`), which
     /// surfaces the script's exit status directly.
-    public func execScript(_ id: String, _ script: String, timeout: TimeInterval = 600) async throws -> ShellResult {
+    func execScript(_ id: String, _ script: String, timeout: TimeInterval = 600) async throws -> ShellResult {
         try await run([bin, "exec", id, "/bin/bash", "-lc", script], timeout: timeout)
     }
 
@@ -235,7 +235,7 @@ public struct DockerRuntime: Runtime {
         }
     }
 
-    public func containerIDs(all: Bool) async throws -> [String] {
+    func containerIDs(all: Bool) async throws -> [String] {
         let argv: [String] =
             all
             ? [bin, "ps", "--all", "--quiet"]

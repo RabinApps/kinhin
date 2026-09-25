@@ -20,10 +20,10 @@ public struct SetupRowViewModel: Equatable, Sendable {
     /// True for "Checking this Mac…" placeholder rows while probes run.
     public let isPlaceholder: Bool
 
-    public static let checkingSubtitle = "Checking this Mac…"
+    static let checkingSubtitle = "Checking this Mac…"
 
     /// VoiceOver label: state plus the available action, in one phrase.
-    public var accessibilityLabel: String {
+    var accessibilityLabel: String {
         if isPlaceholder { return title }
         var label = "\(title): \(isSatisfied ? "OK" : "needs setup")"
         if let actionTitle {
@@ -121,7 +121,7 @@ public enum SetupWindowLayout {
     public static let cardCornerRadius: CGFloat = 10
 
     /// Card rows fully visible before the list must scroll.
-    public static func visibleRowCount(windowHeight: CGFloat = windowHeight) -> Int {
+    static func visibleRowCount(windowHeight: CGFloat = windowHeight) -> Int {
         let available = windowHeight - headerHeight - footerHeight - margin * 2
         guard available >= cardHeight else { return 0 }
         return Int((available + rowSpacing) / (cardHeight + rowSpacing))

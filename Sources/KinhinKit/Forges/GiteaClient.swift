@@ -17,7 +17,7 @@ public struct GiteaRunner: Codable, Sendable, Equatable {
     }
 }
 
-public enum GiteaError: LocalizedError, Equatable {
+enum GiteaError: LocalizedError, Equatable {
     case unauthorized
     case forbidden(String)
     case notFound(String)
@@ -59,7 +59,7 @@ public struct GiteaCredentials: Sendable {
         self.instance = instance
     }
 
-    public var isOrgScope: Bool { !scope.contains("/") }
+    var isOrgScope: Bool { !scope.contains("/") }
 
     public var RabinApps: String { String(scope.split(separator: "/").first ?? "") }
 
@@ -71,7 +71,7 @@ public struct GiteaCredentials: Sendable {
     }
 
     /// URL the in-VM act_runner registers against (the instance itself).
-    public var registrationURL: String { instance }
+    var registrationURL: String { instance }
 
     static func validate(instance: String) throws -> URL {
         guard let url = URL(string: instance),
@@ -218,14 +218,14 @@ public struct GiteaClient: Sendable {
         }
     }
 
-    public func deleteRunner(id: Int) async throws {
+    func deleteRunner(id: Int) async throws {
         _ = try await send(path: "\(credentials.actionsBase)/runners/\(id)", method: "DELETE")
     }
 
     /// Pending demand. Primary: the scope's task queue endpoints (verified on
     /// the target instance in the field). Fallback when the API answers but
     /// reports nothing usable: caller applies the min_runners floor.
-    public func queuedTaskCount() async throws -> Int {
+    func queuedTaskCount() async throws -> Int {
         let (data, _) = try await send(path: "\(credentials.actionsBase)/tasks?status=waiting&page=1&limit=50")
         struct TaskRef: Decodable {}
         struct Wrapper: Decodable { let total_count: Int; let entries: [TaskRef]? }

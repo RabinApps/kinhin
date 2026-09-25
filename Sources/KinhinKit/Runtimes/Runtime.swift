@@ -35,12 +35,12 @@ public struct RepoRoute: Sendable, Equatable {
     public let repo: String
     public let image: String
     public let ephemeral: Bool
-    public let bootTimeout: Int
+    let bootTimeout: Int
     /// Opt-in (`toolchains.share_cache`): share the host toolchain cache
     /// into every runner VM of this route via virtiofs, so per-job installs
     /// (`npm ci`, `mise install`, `fvm install`, `dotnet restore`) hit warm
     /// cache. Best-effort — see `ToolchainCacheMount`.
-    public let cacheMount: Bool
+    let cacheMount: Bool
 
     public init(repo: String, image: String, ephemeral: Bool, bootTimeout: Int, cacheMount: Bool = false) {
         self.repo = repo
@@ -120,7 +120,7 @@ public protocol Runtime: Sendable {
 
 /// The original runtime: Tart macOS VMs. Wraps the exact calls the engine
 /// made directly before the refactor — behavior-preserving by construction.
-public struct TartRuntime: Runtime {
+struct TartRuntime: Runtime {
     public let id: RuntimeID = .tart
     let tart: TartControlling
     let ssh: SSHExecuting
@@ -176,11 +176,11 @@ public struct TartRuntime: Runtime {
         try await tart.run(name: id, mounts: mounts)
     }
 
-    public func awaitReady(id: String, timeout: TimeInterval) async throws -> String? {
+    func awaitReady(id: String, timeout: TimeInterval) async throws -> String? {
         try await tart.ip(of: id, timeout: timeout)
     }
 
-    public func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws
+    func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws
         -> ShellResult
     {
         guard let ip, !ip.isEmpty else {
@@ -189,7 +189,7 @@ public struct TartRuntime: Runtime {
         return try await ssh.exec(vm: id, user: "admin", ip: ip, script: script, timeout: timeout)
     }
 
-    public func existingInstanceIDs() async -> [String] {
+    func existingInstanceIDs() async -> [String] {
         do {
             return try await tart.list().map(\.name)
         } catch {
@@ -198,7 +198,7 @@ public struct TartRuntime: Runtime {
         }
     }
 
-    public func registrationScript(
+    func registrationScript(
         forge: Forge, token: String, name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String {
@@ -244,13 +244,13 @@ public struct TartRuntime: Runtime {
     /// exit-wait, selected by forge id. Stage 1 keeps the engine's existing
     /// watch methods authoritative — this hook exists for symmetry and for
     /// non-VM runtimes to override later.
-    public func watchExit(id: String, forge: Forge, runnerCount: Int, route: RepoRoute) async throws {
+    func watchExit(id: String, forge: Forge, runnerCount: Int, route: RepoRoute) async throws {
         // Engine-owned watch (needs the record store + statusBox); nothing to
         // do at the runtime layer for Tart. Non-VM runtimes implement their
         // own container/host polling here in stages 3–4.
     }
 
-    public func teardown(id: String) async {
+    func teardown(id: String) async {
         // Existence check makes teardown genuinely idempotent (double deletes
         // from racing lifecycle paths must not error or double-charge).
         do {

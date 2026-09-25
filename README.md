@@ -467,6 +467,7 @@ Inside the targets, code is organized by domain:
 | `KinhinKit/Fleet/`             | FleetEngine (split: shell / reconcile / lifecycle), status model, records                                    |
 | `KinhinKit/Images/`            | VM and container image preparation                                                                           |
 | `KinhinKit/Setup/`             | Setup checklist, doctor probes (tart health, CLT)                                                            |
+| `KinhinKit/ViewModels/`        | UI-agnostic view models (setup checklist rows, Runtimes pane)                                                |
 | `KinhinKit/Update/`            | GitHub-release update check                                                                                  |
 | `kinhin/KinhinCLI.swift`       | @main entry: arg parsing + dispatch only                                                                     |
 | `kinhin/Commands/`             | One file per command group (auth, doctor, image, run, runtimes, setup-status) + the CLICommand routing table |

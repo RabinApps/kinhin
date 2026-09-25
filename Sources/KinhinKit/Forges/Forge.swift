@@ -64,7 +64,7 @@ public struct ForgeRunner: Sendable, Equatable {
 /// Forge-agnostic job snapshot.
 public struct ForgeJob: Sendable, Equatable {
     public let name: String
-    public let runnerName: String?
+    let runnerName: String?
     public let repository: String?
     /// Labels the job requested via `runs-on:` (when the forge exposes
     /// them) — the per-workflow routing signal.
@@ -79,7 +79,7 @@ public struct ForgeJob: Sendable, Equatable {
 }
 
 /// The forge a VM is currently serving.
-public enum VMPlatform: String, Codable, Sendable {
+enum VMPlatform: String, Codable, Sendable {
     case github
     case gitea
 }
@@ -88,7 +88,7 @@ public enum VMPlatform: String, Codable, Sendable {
 
 /// Wraps the existing GitHubServing client in the unified Forge protocol.
 /// No GitHub behavior changes.
-public struct GitHubForge: Forge {
+struct GitHubForge: Forge {
     public let id: ForgeID = .github
     public let name = "github"
     public let credentials: ForgeCredentials
@@ -108,14 +108,14 @@ public struct GitHubForge: Forge {
             client: GitHubClient(credentials: credentials))
     }
 
-    public func registrationURL() -> String {
+    func registrationURL() -> String {
         switch credentials {
         case .github(_, let scope): return GitHubCredentials(token: "", scope: scope).configureURL
         default: return ""
         }
     }
 
-    public func mintRegistrationToken() async throws -> String {
+    func mintRegistrationToken() async throws -> String {
         try await client.fetchRegistrationToken().token
     }
 
@@ -123,17 +123,17 @@ public struct GitHubForge: Forge {
         try await client.listRunners().map { ForgeRunner(id: $0.id, name: $0.name, busy: $0.busy) }
     }
 
-    public func deleteRunner(id: Int) async throws {
+    func deleteRunner(id: Int) async throws {
         try await client.deleteRunner(id: id)
     }
 
-    public func queuedJobs() async throws -> [ForgeJob] {
+    func queuedJobs() async throws -> [ForgeJob] {
         try await client.queuedJobs(matching: Set(labels)).map {
             ForgeJob(name: $0.name, runnerName: nil, repository: $0.repository, labels: $0.labels)
         }
     }
 
-    public func runningJobs() async throws -> [ForgeJob] {
+    func runningJobs() async throws -> [ForgeJob] {
         try await client.runningJobs(matching: Set(labels)).map {
             ForgeJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
         }
@@ -148,7 +148,7 @@ public struct GitHubForge: Forge {
 /// a count (not a job list), so `queuedJobs` synthesizes attribution-less
 /// placeholders and honors a floor (min_runners) when the queue looks empty —
 /// the documented fallback for Gitea's thinner cross-scope reporting.
-public struct GiteaForge: Forge {
+struct GiteaForge: Forge {
     public let id: ForgeID = .gitea
     public let name = "gitea"
     public let credentials: ForgeCredentials
@@ -187,14 +187,14 @@ public struct GiteaForge: Forge {
         )
     }
 
-    public func registrationURL() -> String {
+    func registrationURL() -> String {
         switch credentials {
         case .gitea(_, _, let instance): return instance
         default: return ""
         }
     }
 
-    public func mintRegistrationToken() async throws -> String {
+    func mintRegistrationToken() async throws -> String {
         registrationToken
     }
 
@@ -204,11 +204,11 @@ public struct GiteaForge: Forge {
         }
     }
 
-    public func deleteRunner(id: Int) async throws {
+    func deleteRunner(id: Int) async throws {
         try await client.deleteRunner(id: id)
     }
 
-    public func queuedJobs() async throws -> [ForgeJob] {
+    func queuedJobs() async throws -> [ForgeJob] {
         var count = try await client.queuedTaskCount()
         if count == 0, demandFloor > 0 {
             count = demandFloor
@@ -216,7 +216,7 @@ public struct GiteaForge: Forge {
         return (0..<count).map { _ in ForgeJob(name: "gitea-task", runnerName: nil, repository: nil) }
     }
 
-    public func runningJobs() async throws -> [ForgeJob] {
+    func runningJobs() async throws -> [ForgeJob] {
         // Gitea's runner list carries busy state; per-runner job attribution
         // is not exposed uniformly across versions, so running attribution
         // for Gitea VMs comes from the busy flag in the lifecycle watch.
@@ -228,7 +228,7 @@ public struct GiteaForge: Forge {
 
 /// Builds Forge instances from credentials. Injectable in tests; production
 /// wiring returns the platform clients.
-public struct ForgeFactory: Sendable {
+struct ForgeFactory: Sendable {
     public var make: @Sendable (ForgeCredentials, [String], Int) async throws -> Forge
 
     public init(make: @escaping @Sendable (ForgeCredentials, [String], Int) async throws -> Forge) {
@@ -267,12 +267,11 @@ public struct ForgeFactory: Sendable {
 
 // MARK: - Demand merging (multi-forge autoscaler)
 
-public enum ForgeDemand {
+enum ForgeDemand {
     /// Merge queued jobs across forges into repo → count. Each contributing
     /// forge carries `attribution: Bool` — a repo-scoped forge suppresses its
     /// breakdown (it would carry no information), org-scoped forges keep it.
-    public static func mergeQueueByRepo(_ perForge: [ForgeID: (attribution: Bool, jobs: [ForgeJob])]) -> [String: Int]?
-    {
+    static func mergeQueueByRepo(_ perForge: [ForgeID: (attribution: Bool, jobs: [ForgeJob])]) -> [String: Int]? {
         var merged: [String: Int] = [:]
         var any = false
         for (forge, entry) in perForge where entry.attribution {
@@ -290,8 +289,7 @@ public enum ForgeDemand {
     /// unmet demand (queued jobs minus VMs already serving it). Ties prefer
     /// GitHub (the original platform): it is evaluated first and later
     /// forges need strictly greater unmet demand to take over.
-    public static func assignPlatform(demand: [ForgeID: Int], active: [ForgeID: Int], attached: Set<ForgeID>) -> ForgeID
-    {
+    static func assignPlatform(demand: [ForgeID: Int], active: [ForgeID: Int], attached: Set<ForgeID>) -> ForgeID {
         var best: ForgeID = .github
         var bestUnmet = Int.min
         let ordered = attached.sorted { a, b in

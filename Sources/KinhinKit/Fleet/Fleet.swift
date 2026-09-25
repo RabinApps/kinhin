@@ -17,7 +17,7 @@ public enum VMPhase: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    public var isTerminal: Bool { self == .deleting || self == .failed }
+    var isTerminal: Bool { self == .deleting || self == .failed }
 }
 
 /// Tracked state for one VM. Persisted as JSON for crash recovery.
@@ -25,8 +25,8 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     public let id: String  // tart VM name, e.g. "kinhin-1717000000-a1b2"
     public var phase: VMPhase
     public var createdAt: Date
-    public var updatedAt: Date
-    public var runnerName: String?
+    var updatedAt: Date
+    var runnerName: String?
     public var ip: String?
     /// Forge this VM serves ("github" | "gitea").
     public var platform: String?
@@ -36,7 +36,7 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     /// Label pool this instance belongs to (a RuntimeID rawValue); nil →
     /// the legacy single-pool fleet labels. Drives registration labels in
     /// mixed fleets so runners join the right `runs-on` pool.
-    public var poolLabels: String?
+    var poolLabels: String?
     public var job: String?
     /// Repositories with a job currently executing on this VM (org scope
     /// attribution, stamped by the reconcile loop from in-progress jobs;
@@ -51,7 +51,7 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
         self.updatedAt = createdAt
     }
 
-    public static func newName(now: Date = Date()) -> String {
+    static func newName(now: Date = Date()) -> String {
         let ts = Int(now.timeIntervalSince1970)
         // 32 bits of entropy: names are drawn in bursts (scale-up) within the
         // same second, so 16 bits collided observably under test.
@@ -76,7 +76,7 @@ public final class FleetStore: Sendable {
 
     public var all: [VMRecord] { mutex.withLock { $0 } }
 
-    public func upsert(_ record: VMRecord) {
+    func upsert(_ record: VMRecord) {
         mutex.withLock { list in
             if let idx = list.firstIndex(where: { $0.id == record.id }) {
                 list[idx] = record
@@ -94,7 +94,7 @@ public final class FleetStore: Sendable {
         persist()
     }
 
-    public func replaceAll(_ records: [VMRecord]) {
+    func replaceAll(_ records: [VMRecord]) {
         mutex.withLock { $0 = records }
         persist()
     }
@@ -107,7 +107,7 @@ public final class FleetStore: Sendable {
 }
 
 /// Pure desired-count policy, unit-testable without any I/O.
-public enum Autoscaler {
+enum Autoscaler {
     /// How many runner VMs should exist right now.
     ///
     /// - queueDepth: label-matching queued jobs on GitHub
@@ -115,7 +115,7 @@ public enum Autoscaler {
     /// - capacityCap: hard ceiling implied by host resources
     /// - runnersPerVM: registered runner processes per VM (many-to-one);
     ///   each VM absorbs this many queued jobs, so fewer VMs cover the queue
-    public static func desiredCount(
+    static func desiredCount(
         queueDepth: Int,
         minRunners: Int,
         maxRunners: Int,

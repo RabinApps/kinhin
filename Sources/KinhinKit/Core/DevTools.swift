@@ -12,7 +12,7 @@ public enum CLTState: Equatable, Sendable {
     /// xcode-select points nowhere (rare; breaks shims like `clang`).
     case unselected
 
-    public var isOK: Bool {
+    var isOK: Bool {
         if case .ok = self { return true }
         return false
     }
@@ -37,9 +37,9 @@ public enum CLTState: Equatable, Sendable {
 /// never shell out.
 public struct CLTProbe: Sendable {
     public struct Commands: Sendable {
-        public var selectedDir: String
-        public var receiptInfo: String
-        public var productVersion: String
+        var selectedDir: String
+        var receiptInfo: String
+        var productVersion: String
 
         public init(
             selectedDir: String = "xcode-select -p",
@@ -61,7 +61,7 @@ public struct CLTProbe: Sendable {
     }
 
     /// "26.6.0.0.1781586589" → "26.6.0" (strip build suffix).
-    public static func displayVersion(_ receiptVersion: String) -> String {
+    static func displayVersion(_ receiptVersion: String) -> String {
         var parts = receiptVersion.split(separator: ".").map(String.init)
         if parts.count > 3 { parts = Array(parts.prefix(3)) }
         return parts.joined(separator: ".")
@@ -70,7 +70,7 @@ public struct CLTProbe: Sendable {
     /// Compare dotted numeric versions; true when `version` satisfies `required`
     /// (segment-wise, missing segments are zeros). "26.6" satisfies "27.0"? No.
     /// "27.0" satisfies "27.0"? Yes.
-    public static func isVersion(_ version: String, atLeast required: String) -> Bool {
+    static func isVersion(_ version: String, atLeast required: String) -> Bool {
         let a = version.split(separator: ".").map { Int($0) ?? 0 }
         let b = required.split(separator: ".").map { Int($0) ?? 0 }
         let width = max(a.count, b.count)

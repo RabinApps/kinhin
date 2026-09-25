@@ -18,12 +18,12 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     public var runningByRepo: [String: Int]?
     public var records: [VMRecord]
     public var lastError: String?
-    public var updatedAt: Date
+    var updatedAt: Date
     /// Execution runtime serving the fleet ("tart" or "appleContainer").
     public var runtime: String?
     /// Per-runtime capacity caps (mixed fleets: the weighted partition;
     /// nil for single-runtime fleets). Keys are RuntimeID raw values.
-    public var capacityByRuntime: [String: String]?
+    var capacityByRuntime: [String: String]?
 
     public init(
         running: Bool = false, paused: Bool = false, queueDepth: Int = 0, desired: Int = 0, capacityCap: Int = 0,
@@ -49,14 +49,14 @@ public struct FleetStatus: Codable, Sendable, Equatable {
 }
 
 /// actor wrapper so concurrent status reads are safe.
-public actor FleetStatusBox {
+actor FleetStatusBox {
     private var status: FleetStatus
     public init(_ status: FleetStatus = FleetStatus()) {
         self.status = status
     }
     public func get() -> FleetStatus { status }
     public func set(_ s: FleetStatus) { status = s }
-    public func modify(_ body: (inout FleetStatus) -> Void) { body(&status) }
+    func modify(_ body: (inout FleetStatus) -> Void) { body(&status) }
 }
 
 /// Builds GitHub API clients for the engine. Injectable in tests; the

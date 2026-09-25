@@ -1,6 +1,6 @@
-import KinhinKit
 import XCTest
 
+@testable import KinhinKit
 @testable import kinhin
 
 // The route-editing subcommands must behave exactly like the pane's

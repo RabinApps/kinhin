@@ -33,7 +33,7 @@ extension FleetEngine {
     /// unavailable. Runs from every reconcile pass but only acts when the
     /// backoff has elapsed (30s, doubling to 5 min), and stops on its own once
     /// every configured forge is attached. `ignoreBackoff` is for tests.
-    public func retryDetachedForgesIfDue(now: Date = Date(), ignoreBackoff: Bool = false) async {
+    func retryDetachedForgesIfDue(now: Date = Date(), ignoreBackoff: Bool = false) async {
         guard stateLock.withLock({ running }) else { return }
         let (githubDetached, giteaDetached, due) = forgesLock.withLock {
             (

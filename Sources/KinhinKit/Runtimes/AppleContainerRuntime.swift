@@ -170,7 +170,7 @@ public struct AppleContainerRuntime: Runtime {
     /// Runs a script inside a running container (`container exec`), which
     /// surfaces the script's exit status directly — the container analogue
     /// of the SSH transport. Also the runtime's `execRegistration` impl.
-    public func execScript(_ id: String, _ script: String, timeout: TimeInterval = 600) async throws -> ShellResult {
+    func execScript(_ id: String, _ script: String, timeout: TimeInterval = 600) async throws -> ShellResult {
         try await run([bin, "exec", id, "/bin/bash", "-lc", script], timeout: timeout)
     }
 
@@ -209,8 +209,7 @@ public struct AppleContainerRuntime: Runtime {
     }
 
     /// Poll `container list` until the named container is running (or throw).
-    public func awaitRunning(_ id: String, timeout: TimeInterval, pollInterval: TimeInterval = 1) async throws -> String
-    {
+    func awaitRunning(_ id: String, timeout: TimeInterval, pollInterval: TimeInterval = 1) async throws -> String {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             try Task.checkCancellation()
@@ -232,7 +231,7 @@ public struct AppleContainerRuntime: Runtime {
     // MARK: - Internals
 
     /// All container ids known to the CLI (running + stopped).
-    public func containerIDs(all: Bool) async throws -> [String] {
+    func containerIDs(all: Bool) async throws -> [String] {
         let argv: [String] =
             all
             ? [bin, "list", "--all", "--quiet"]
@@ -261,7 +260,7 @@ public struct AppleContainerRuntime: Runtime {
     }
 }
 
-public enum RuntimeWatchError: LocalizedError {
+enum RuntimeWatchError: LocalizedError {
     case registrationFailed(vm: String, stderr: String)
     case registrationTimeout(vm: String)
 

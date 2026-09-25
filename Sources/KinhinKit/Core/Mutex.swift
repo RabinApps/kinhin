@@ -1,7 +1,7 @@
 import Foundation
 
 /// A tiny mutex primitive (Swift 5.9-compatible stand-in for the 5.10 Mutex).
-public final class Mutex<T>: @unchecked Sendable {
+final class Mutex<T>: @unchecked Sendable {
     private var value: T
     private let lock = NSLock()
 
@@ -10,7 +10,7 @@ public final class Mutex<T>: @unchecked Sendable {
     }
 
     @discardableResult
-    public func withLock<R>(_ body: (inout T) throws -> R) rethrows -> R {
+    func withLock<R>(_ body: (inout T) throws -> R) rethrows -> R {
         lock.lock()
         defer { lock.unlock() }
         return try body(&value)

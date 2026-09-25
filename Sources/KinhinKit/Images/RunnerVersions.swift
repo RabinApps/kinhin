@@ -16,7 +16,7 @@ public struct RunnerVersionResolver {
         public let gitea: String
     }
 
-    public static let fallback = Versions(github: "2.325.0", gitea: "3.5.0")
+    static let fallback = Versions(github: "2.325.0", gitea: "3.5.0")
 
     let session: URLSession
 

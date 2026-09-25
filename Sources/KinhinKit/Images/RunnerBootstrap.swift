@@ -1,14 +1,14 @@
 import Foundation
 
 /// Scripts injected into VMs over SSH to turn them into GitHub Actions runners.
-public enum RunnerBootstrap {
+enum RunnerBootstrap {
     /// Register and start `runnerCount` runner processes in the VM. GitHub's
     /// model is one job per runner process, so density (many-to-one) comes
     /// from registering several runners, each with its own agent directory
     /// and work directory. `runnerCount = 1` produces exactly the classic
     /// single-runner script. `run.sh` runs in the foreground; because the
     /// SSH session must return, each runner is launched detached with nohup.
-    public static func registrationScript(
+    static func registrationScript(
         configureURL: String,
         token: String,
         labels: [String],
@@ -75,7 +75,7 @@ public enum RunnerBootstrap {
     /// Installs the GitHub Actions runner agent into a base image (used by
     /// `kinhin image prepare`). `runnerCount` pre-creates one agent directory
     /// per concurrent runner so first boot doesn't download N times.
-    public static func installScript(runnerVersion: String, runnerCount: Int = 1) -> String {
+    static func installScript(runnerVersion: String, runnerCount: Int = 1) -> String {
         var dirs = "if [ ! -d \"$HOME/actions-runner\" ]; then"
         for index in 1...max(1, runnerCount) {
             let dir = index == 1 ? "actions-runner" : "actions-runner-\(index)"
@@ -113,7 +113,7 @@ public enum RunnerBootstrap {
     /// Installs the Gitea runner binary (gitea-runner, formerly act_runner)
     /// into the base image so any VM can serve Gitea Actions. Kept separate
     /// from the GitHub agent install; both run during `kinhin image prepare`.
-    public static func giteaRunnerInstallScript(version: String) -> String {
+    static func giteaRunnerInstallScript(version: String) -> String {
         """
         set -euo pipefail
 
@@ -137,7 +137,7 @@ public enum RunnerBootstrap {
     /// `act_runner register --no-interactive` + `daemon`. Gitea has no
     /// --ephemeral, so the registration writes .runner once and the daemon
     /// runs until the lifecycle watch tears the VM down after the job.
-    public static func giteaRegistrationScript(
+    static func giteaRegistrationScript(
         instance: String, token: String, labels: [String], name: String, runnerCount: Int = 1
     ) -> String {
         let labelList = labels.joined(separator: ",")

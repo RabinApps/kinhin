@@ -11,7 +11,7 @@ public struct LinuxImageOptions {
     public var toolchains: KinhinConfig.ToolchainsConfig?
     /// Timeout for the managed toolchain install exec (seconds) —
     /// installing heavy toolchains is slow.
-    public var toolchainTimeout: TimeInterval
+    var toolchainTimeout: TimeInterval
     /// Token presence overrides for tests (nil = probe the Keychain).
     public var hasGitHubToken: Bool?
     public var hasGiteaToken: Bool?
