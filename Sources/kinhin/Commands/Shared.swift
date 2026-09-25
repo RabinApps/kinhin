@@ -22,9 +22,7 @@ func notifyDaemonTokenReplaced(_ pat: String) {
         try RPCClient().replaceToken(pat: pat)
         print("running daemon notified — new token is live")
     } catch {
-        print(
-            "warning: could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token"
-        )
+        warn("could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token")
     }
 }
 
@@ -35,15 +33,66 @@ func notifyDaemonGiteaTokenReplaced(_ token: String) {
         try RPCClient().replaceGiteaToken(token)
         print("running daemon notified — new Gitea token is live")
     } catch {
-        print(
-            "warning: could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token"
-        )
+        warn("could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token")
     }
 }
 
-func fail(_ message: String) -> Never {
-    FileHandle.standardError.write(Data("kinhin: \(message)\n".utf8))
-    exit(1)
+/// Process exit codes. Scripts can branch on them: 1 for anything
+/// unclassified, 2 for a bad command line, then one per problem area.
+enum CLIExit: Int32 {
+    case general = 1
+    case usage = 2
+    case config = 3
+    case runtime = 4
+    case auth = 5
+
+    /// The exit code for an error thrown anywhere in the engine or CLI.
+    init(_ error: Error) {
+        if let cliError = error as? CLIError {
+            self = cliError.exit
+            return
+        }
+        switch ErrorCategory(error) {
+        case .config: self = .config
+        case .auth: self = .auth
+        case .runtime: self = .runtime
+        case .other: self = .general
+        }
+    }
+}
+
+/// A failure the CLI itself detected (bad arguments, missing prerequisite),
+/// carrying the exit code it should end the process with.
+struct CLIError: LocalizedError {
+    let message: String
+    let exit: CLIExit
+
+    init(_ message: String, exit: CLIExit = .general) {
+        self.message = message
+        self.exit = exit
+    }
+
+    var errorDescription: String? { message }
+}
+
+/// Writes to stderr, keeping stdout clean for machine-readable output.
+func printError(_ message: String) {
+    FileHandle.standardError.write(Data((message + "\n").utf8))
+}
+
+/// A non-fatal problem. Goes to stderr so `--json` output stays parseable.
+func warn(_ message: String) {
+    printError("warning: \(message)")
+}
+
+func fail(_ message: String, exit code: CLIExit = .general) -> Never {
+    printError("kinhin: \(message)")
+    exit(code.rawValue)
+}
+
+/// Ends the process for a thrown error, with an exit code matching its kind.
+func fail(_ error: Error) -> Never {
+    fail(error.localizedDescription, exit: CLIExit(error))
 }
 
 /// The full help screen, one call site for the printer and tests alike.
@@ -98,8 +147,12 @@ func helpText() -> String {
     """
 }
 
-func printHelp() {
-    print(helpText())
+func printHelp(toStandardError: Bool = false) {
+    if toStandardError {
+        printError(helpText())
+    } else {
+        print(helpText())
+    }
 }
 
 func loadConfigOrExit() -> KinhinConfig {
@@ -107,7 +160,7 @@ func loadConfigOrExit() -> KinhinConfig {
         let cfg = try ConfigLoader.load()
         return cfg
     } catch {
-        fail(error.localizedDescription)
+        fail(error)
     }
 }
 
@@ -118,7 +171,8 @@ func tokenOrExit(for cfg: KinhinConfig) -> String {
         fail(
             cfg.githubEnabled
                 ? "no GitHub token stored. Run: kinhin auth set"
-                : "no Gitea token stored. Run: kinhin auth set --gitea")
+                : "no Gitea token stored. Run: kinhin auth set --gitea",
+            exit: .auth)
     }
     return token
 }
@@ -127,7 +181,9 @@ func engineFromConfig(_ cfg: KinhinConfig) throws -> FleetEngine {
     // The auto-created template parses cleanly but names a placeholder repo —
     // never boot a fleet (and start polling GitHub) against it.
     if !ConfigLoader.hasAnyForge(cfg) {
-        fail("config has no forge yet — set your repo (or a gitea: section) in \(Paths.config.path) first")
+        fail(
+            "config has no forge yet — set your repo (or a gitea: section) in \(Paths.config.path) first",
+            exit: .config)
     }
     let tart = try cfg.makeTartControlling()
     let github = GitHubClient(credentials: GitHubCredentials(token: tokenOrExit(for: cfg), scope: cfg.repo))

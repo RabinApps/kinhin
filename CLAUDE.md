@@ -41,7 +41,7 @@ Formatting is configured in `.swift-format` (4 spaces, 120 columns). Run the for
 - No `try!`, `as!`, or force unwraps (`!`) outside tests. Use `guard let` / `if let` or a single documented `preconditionFailure` for true invariants.
 - Never swallow `CancellationError`; let it propagate.
 - UI: show failures with `AlertKit.present(error:)` (modal) or the form's status label. Never leave a failed user action silent. Load config through `ConfigStore` so a parse error is shown instead of rendering an empty config.
-- CLI: throw `CLIError`; the entry point maps it to an exit code (1 generic, 2 usage, 3 config, 4 runtime/engine, 5 auth). Errors and warnings go to stderr; stdout carries only command output (so `--json` stays parseable).
+- CLI: failures end through `fail(_:exit:)` or `fail(error)`; `CLIExit` gives the exit code (1 generic, 2 usage, 3 config, 4 runtime/engine, 5 auth), classified from the error via `ErrorCategory` (KinhinKit). Errors and warnings go to stderr; stdout carries only command output (so `--json` stays parseable).
 
 ## Commits
 

@@ -16,6 +16,8 @@ enum RunCommands {
             print("\nstopping…")
             Task {
                 await engine.stop()
+                // The signal handler owns process shutdown: the main queue is
+                // parked in dispatchMain(), so there is no caller to return to.
                 exit(0)
             }
         }
@@ -29,7 +31,7 @@ enum RunCommands {
             if response.ok {
                 print("daemon fleet stopped")
             } else {
-                fail(response.error ?? "unknown error")
+                fail(response.error ?? "unknown error", exit: .runtime)
             }
         } else {
             print("no daemon running; nothing to stop (if `kinhin start` runs elsewhere, Ctrl-C it there)")
@@ -40,10 +42,10 @@ enum RunCommands {
         let method: RPCMethod = command == "pause" ? .pause : .resume
         if RPCClient.isDaemonAlive() {
             let response = try RPCClient().send(method: method)
-            guard response.ok else { fail(response.error ?? "unknown error") }
+            guard response.ok else { fail(response.error ?? "unknown error", exit: .runtime) }
             print(command == "pause" ? "fleet paused" : "fleet resumed")
         } else {
-            fail("no daemon running; pause/resume works while a daemon is active")
+            fail("no daemon running; pause/resume works while a daemon is active", exit: .runtime)
         }
     }
 
@@ -51,7 +53,7 @@ enum RunCommands {
         if RPCClient.isDaemonAlive() {
             let response = try RPCClient().send(method: .status)
             guard response.ok, let payload = response.payload else {
-                fail(response.error ?? "daemon returned no payload")
+                fail(response.error ?? "daemon returned no payload", exit: .runtime)
             }
             let status = try JSONDecoder().decode(FleetStatus.self, from: payload)
             print(renderStatus(status))
@@ -133,11 +135,16 @@ enum RunCommands {
             // launchctl load
             let shell = Shell()
             let res = try await shell.run(["launchctl", "load", Daemon.agentPlistPath().path], cwd: nil, timeout: 30)
-            guard res.succeeded else { fail("launchctl load failed: \(res.stderr)") }
+            guard res.succeeded else { fail("launchctl load failed: \(res.stderr)", exit: .runtime) }
             print("daemon installed and started")
         } else if args.contains("uninstall") {
             let shell = Shell()
-            _ = try? await shell.run(["launchctl", "unload", Daemon.agentPlistPath().path], cwd: nil, timeout: 30)
+            do {
+                _ = try await shell.run(["launchctl", "unload", Daemon.agentPlistPath().path], cwd: nil, timeout: 30)
+            } catch {
+                // Unloading an agent that isn't loaded is fine; only a launch failure is worth mentioning.
+                warn("could not run launchctl unload (\(error.localizedDescription)); removing the plist anyway")
+            }
             try Daemon.uninstallAgent()
             print("daemon uninstalled")
         } else {
@@ -147,9 +154,8 @@ enum RunCommands {
             do {
                 try await Daemon.run()
             } catch {
-                fail(error.localizedDescription)
+                fail(error)
             }
         }
-
     }
 }

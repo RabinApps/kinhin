@@ -11,13 +11,15 @@ enum ImageCommand {
             let shell = Shell()
             guard let containerBin = Paths.findExecutable(named: "container") else {
                 fail(
-                    "the container CLI is not installed. Install it first: brew install container && container system start"
-                )
+                    "the container CLI is not installed. Install it first: brew install container && container system start",
+                    exit: .runtime)
             }
             do {
                 let status = try await shell.run([containerBin, "system", "status"])
                 guard status.succeeded else {
-                    fail("the container system service is not running. Start it first: container system start")
+                    fail(
+                        "the container system service is not running. Start it first: container system start",
+                        exit: .runtime)
                 }
                 let image = flag("--container-image", in: args) ?? "ubuntu:24.04"
                 let target = flag("--target", in: args) ?? "kinhin-ci-linux"
@@ -42,12 +44,10 @@ enum ImageCommand {
                 let baked = try await preparer.prepare(options)
                 print("container image ready: \(baked)")
                 print("set `container.image: \"\(baked)\"` in your config to use it")
-            } catch let error as ImageError {
-                fail(error.localizedDescription)
             } catch {
-                fail(error.localizedDescription)
+                fail(error)
             }
-            exit(0)
+            return
         }
         if hasFlag("--docker", in: args) {
             // Docker runtime path: bake agents into a Linux OCI image via the
@@ -57,9 +57,9 @@ enum ImageCommand {
             let dockerHealth = await DockerRuntime(shell: shell, image: "probe").health()
             switch dockerHealth {
             case .missing(_, let howToFix):
-                fail("docker is not available. \(howToFix)")
+                fail("docker is not available. \(howToFix)", exit: .runtime)
             case .broken(let why):
-                fail(why)
+                fail(why, exit: .runtime)
             case .ready:
                 break
             }
@@ -87,12 +87,10 @@ enum ImageCommand {
                 let baked = try await preparer.prepare(options)
                 print("docker image ready: \(baked)")
                 print("set `docker.image: \"\(baked)\"` in your config to use it")
-            } catch let error as ImageError {
-                fail(error.localizedDescription)
             } catch {
-                fail(error.localizedDescription)
+                fail(error)
             }
-            exit(0)
+            return
         }
         do {
             let tart = try TartController(configuredPath: cfg.tartPath)
@@ -123,10 +121,10 @@ enum ImageCommand {
             print("set `image: \"\(options.target)\"` in your config to use it")
         } catch TartError.missingBinary {
             fail(
-                "tart is not installed. Install it first (or click 'Install via Homebrew' in the app): brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart"
-            )
+                "tart is not installed. Install it first (or click 'Install via Homebrew' in the app): brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart",
+                exit: .runtime)
         } catch {
-            fail(error.localizedDescription)
+            fail(error)
         }
     }
 }

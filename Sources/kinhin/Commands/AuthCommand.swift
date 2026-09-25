@@ -33,8 +33,7 @@ struct AuthEnvironment {
     /// Static so `live`'s initializer can reference them without touching
     /// instance state (Swift forbids instance members in property initializers).
     static func fail(_ message: String) -> Never {
-        FileHandle.standardError.write(Data((message + "\n").utf8))
-        Foundation.exit(1)
+        kinhin.fail(message, exit: .auth)
     }
 
     static func exit(_ code: Int) -> Never {

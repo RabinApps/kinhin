@@ -85,11 +85,11 @@ struct KinhinCLI {
                 printHelp()
 
             case nil:
-                printHelp()
-                fail("unknown command '\(args.first ?? "")'")
+                printHelp(toStandardError: true)
+                fail("unknown command '\(args.first ?? "")'", exit: .usage)
             }
         } catch {
-            fail(error.localizedDescription)
+            fail(error)
         }
     }
 }

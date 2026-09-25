@@ -22,18 +22,18 @@ enum RuntimesCommand {
             do {
                 try await route(tail)
             } catch let error as RouteError {
-                fail(error.errorDescription ?? "runtimes command failed")
+                fail(error.errorDescription ?? "runtimes command failed", exit: .usage)
             } catch {
-                fail(error.localizedDescription)
+                fail(error)
             }
             return
         }
 
         guard let yaml = try? String(contentsOf: Paths.config, encoding: .utf8) else {
-            fail("no config at \(Paths.config.path) — run: kinhin config init")
+            fail("no config at \(Paths.config.path) — run: kinhin config init", exit: .config)
         }
         guard let parsed = try? ConfigLoader.parse(yaml) else {
-            fail("config.yaml doesn't parse — fix it, or run: kinhin doctor")
+            fail("config.yaml doesn't parse — fix it, or run: kinhin doctor", exit: .config)
         }
         let host = ResourceProbe().snapshot()
 
@@ -49,7 +49,8 @@ enum RuntimesCommand {
         } else {
             printText(vm, repo: parsed.repo, budget: parsed.runtimes?.budget ?? [:])
         }
-        exit(vm.pools.isEmpty ? 1 : 0)
+        // Documented contract: no pools at all (nothing set up yet) is a failing status.
+        if vm.pools.isEmpty { exit(CLIExit.general.rawValue) }
     }
 
     // MARK: Route editing
