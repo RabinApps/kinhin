@@ -58,10 +58,10 @@ final class RuntimesPaneTests: XCTestCase {
         let url = try tempConfig(configWithContainer())
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let rc = kinhinConfig.RuntimeConfig(
+        let rc = KinhinConfig.RuntimeConfig(
             defaultRuntime: "tart",
             budget: ["tart": 0.6, "appleContainer": 0.4],
-            routes: [kinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer")]
+            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer")]
         )
         let updated = try RuntimesConfigEditor.apply(rc, to: url)
 
@@ -83,7 +83,7 @@ final class RuntimesPaneTests: XCTestCase {
         let url = try tempConfig(withSection)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let rc = kinhinConfig.RuntimeConfig(
+        let rc = KinhinConfig.RuntimeConfig(
             defaultRuntime: "appleContainer",
             budget: ["appleContainer": 0.5],
             routes: []
@@ -107,10 +107,10 @@ final class RuntimesPaneTests: XCTestCase {
 
         // Routes reference appleContainer but the config has no container:
         // section — the engine's own validation must reject the write.
-        let rc = kinhinConfig.RuntimeConfig(
+        let rc = KinhinConfig.RuntimeConfig(
             defaultRuntime: "tart",
             budget: [:],
-            routes: [kinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer")]
+            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer")]
         )
         XCTAssertThrowsError(try RuntimesConfigEditor.apply(rc, to: url)) { error in
             guard case ConfigEditError.validation = error else {
@@ -124,7 +124,7 @@ final class RuntimesPaneTests: XCTestCase {
 
     func testApplyToMissingFileThrowsNotFound() {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-nope-\(UUID().uuidString).yaml")
-        XCTAssertThrowsError(try RuntimesConfigEditor.apply(kinhinConfig.RuntimeConfig(), to: url)) { error in
+        XCTAssertThrowsError(try RuntimesConfigEditor.apply(KinhinConfig.RuntimeConfig(), to: url)) { error in
             guard case ConfigEditError.notFound = error else {
                 return XCTFail("expected notFound, got \(error)")
             }
@@ -132,10 +132,10 @@ final class RuntimesPaneTests: XCTestCase {
     }
 
     func testSectionTextIsQuotedAndWeightFormatted() {
-        let rc = kinhinConfig.RuntimeConfig(
+        let rc = KinhinConfig.RuntimeConfig(
             defaultRuntime: "tart",
             budget: ["appleContainer": 0.35, "tart": 0.65],
-            routes: [kinhinConfig.RuntimeConfig.Route(pattern: "acme/x@Build & Test", runtime: "appleContainer")]
+            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/x@Build & Test", runtime: "appleContainer")]
         )
         let text = RuntimesConfigEditor.sectionText(rc)
         XCTAssertTrue(text.contains("budget:"))

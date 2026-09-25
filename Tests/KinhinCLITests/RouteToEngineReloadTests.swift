@@ -103,11 +103,11 @@ final class RouteToEngineReloadTests: XCTestCase {
         try yaml.write(to: configURL, atomically: true, encoding: .utf8)
     }
 
-    private func loadConfig() throws -> kinhinConfig {
+    private func loadConfig() throws -> KinhinConfig {
         try ConfigLoader.parse(String(contentsOf: configURL, encoding: .utf8))
     }
 
-    private func makeEngine(_ config: kinhinConfig) -> FleetEngine {
+    private func makeEngine(_ config: KinhinConfig) -> FleetEngine {
         FleetEngine(
             config: config,
             github: StubGitHub(),
@@ -120,7 +120,7 @@ final class RouteToEngineReloadTests: XCTestCase {
 
     private func bucket(
         _ jobs: [ForgeJob],
-        config: kinhinConfig
+        config: KinhinConfig
     ) -> [RuntimeID: Int] {
         RuntimeConfigModel(
             config: config.runtimes,

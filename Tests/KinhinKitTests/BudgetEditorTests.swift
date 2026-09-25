@@ -9,7 +9,7 @@ final class BudgetEditorTests: XCTestCase {
     // MARK: - Fixtures
 
     private let host = HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 200, arm64: true)
-    private let reserve = kinhinConfig.Reserve(cpu: 2, memoryGB: 4)
+    private let reserve = KinhinConfig.Reserve(cpu: 2, memoryGB: 4)
 
     // MARK: setShare
 
@@ -109,8 +109,8 @@ final class BudgetEditorTests: XCTestCase {
 
     func testStarvedRoutesFlagsZeroCapRuntimesWithRoutes() {
         let routes = [
-            kinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer"),
-            kinhinConfig.RuntimeConfig.Route(pattern: "acme/web", runtime: "tart"),
+            KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer"),
+            KinhinConfig.RuntimeConfig.Route(pattern: "acme/web", runtime: "tart"),
         ]
         let warnings = BudgetEditor.starvedRoutes(
             routes: routes,
@@ -124,8 +124,8 @@ final class BudgetEditorTests: XCTestCase {
 
     func testStarvedRoutesPluralizesAndDedupes() {
         let routes = [
-            kinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer"),
-            kinhinConfig.RuntimeConfig.Route(pattern: "acme/web@Nightly", runtime: "appleContainer"),
+            KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer"),
+            KinhinConfig.RuntimeConfig.Route(pattern: "acme/web@Nightly", runtime: "appleContainer"),
         ]
         let warnings = BudgetEditor.starvedRoutes(
             routes: routes,
@@ -137,7 +137,7 @@ final class BudgetEditorTests: XCTestCase {
     }
 
     func testStarvedRoutesEmptyWhenEveryRouteHasCapacity() {
-        let routes = [kinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer")]
+        let routes = [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer")]
         let warnings = BudgetEditor.starvedRoutes(
             routes: routes,
             caps: [.tart: 1, .appleContainer: 3],
@@ -148,7 +148,7 @@ final class BudgetEditorTests: XCTestCase {
 
     func testStarvedRoutesIgnoresUnconfiguredRuntimes() {
         // A route to an unconfigured runtime is ConfigLoader's problem.
-        let routes = [kinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "docker")]
+        let routes = [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "docker")]
         let warnings = BudgetEditor.starvedRoutes(
             routes: routes,
             caps: [.tart: 1],
@@ -221,7 +221,7 @@ final class BudgetEditorTests: XCTestCase {
 
         // Simulate the pane: slider sets container share, editor writes it.
         let budget = BudgetEditor.setShare(of: .appleContainer, to: 0.4, current: ["tart": 1.0], defaultRuntime: .tart)
-        let rc = kinhinConfig.RuntimeConfig(defaultRuntime: "tart", budget: budget, routes: [])
+        let rc = KinhinConfig.RuntimeConfig(defaultRuntime: "tart", budget: budget, routes: [])
         try RuntimesConfigEditor.apply(rc, to: url)
 
         // Reload: the shares must come back exactly.

@@ -18,7 +18,7 @@ struct AuthEnvironment {
     /// `auth status` probe — throws when the forge rejects the token.
     var checkGitHub: (GitHubCredentials) async throws -> Void
     var checkGitea: (GiteaCredentials) async throws -> Void
-    var loadConfig: () -> kinhinConfig
+    var loadConfig: () -> KinhinConfig
     /// Best-effort live-swap notification to a running daemon.
     var notifyDaemon: (String, ForgeID) -> Void
     /// stderr `kinhin: <message>` + exit 1.
@@ -28,7 +28,7 @@ struct AuthEnvironment {
     /// Config fixture for `auth status --json`: nil property → read the live
     /// file (tolerant of a missing one); a set value → use it instead, so
     /// tests never touch the developer's real config.
-    var jsonConfig: kinhinConfig?? = nil
+    var jsonConfig: KinhinConfig?? = nil
 
     /// Static so `live`'s initializer can reference them without touching
     /// instance state (Swift forbids instance members in property initializers).
@@ -43,7 +43,7 @@ struct AuthEnvironment {
 
     /// `auth status --json` works without a config file — the report's
     /// job is to *report* what's missing, not die on it.
-    static func loadConfigTolerant() -> kinhinConfig? {
+    static func loadConfigTolerant() -> KinhinConfig? {
         try? ConfigLoader.load()
     }
 

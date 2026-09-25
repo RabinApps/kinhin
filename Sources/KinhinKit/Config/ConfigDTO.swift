@@ -1,6 +1,6 @@
 import Foundation
 
-/// Decode target mirroring kinhinConfig but with all fields optional so we
+/// Decode target mirroring KinhinConfig but with all fields optional so we
 /// can produce precise validation errors instead of opaque decode failures.
 /// Public because the toolchains validation entry (`parseToolchains`) takes
 /// a `PartialToolchains` — the CLI's flag overrides reuse the same rules.

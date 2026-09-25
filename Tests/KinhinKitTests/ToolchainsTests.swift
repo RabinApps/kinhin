@@ -241,7 +241,7 @@ final class ToolchainsTests: XCTestCase {
 
     // MARK: Managed install script
 
-    private func toolchainsConfig(_ toolchainsYAML: String) throws -> kinhinConfig {
+    private func toolchainsConfig(_ toolchainsYAML: String) throws -> KinhinConfig {
         try ConfigLoader.parse(
             """
             repo: "acme/widgets"
@@ -455,7 +455,7 @@ final class ToolchainsTests: XCTestCase {
     func testCachePolicyDefaultsFromConfig() {
         XCTAssertEqual(
             ToolchainCachePolicy(from: nil), ToolchainCachePolicy(autoPrune: true, maxAgeDays: 30, maxGB: 50))
-        let partial = kinhinConfig.ToolchainsConfig(cache: .init(autoPrune: false, maxAgeDays: 7, maxGB: 0))
+        let partial = KinhinConfig.ToolchainsConfig(cache: .init(autoPrune: false, maxAgeDays: 7, maxGB: 0))
         let policy = ToolchainCachePolicy(from: partial)
         XCTAssertEqual(policy, ToolchainCachePolicy(autoPrune: false, maxAgeDays: 7, maxGB: 0))
     }
@@ -579,7 +579,7 @@ final class ToolchainsTests: XCTestCase {
         try await preparer.prepare(
             .init(
                 image: "ubuntu:24.04", target: "kinhin-ci-linux",
-                toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
+                toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
                 hasGitHubToken: true, hasGiteaToken: false
             ))
         // Order: run → ready-probe exec → agent exec → managed exec → build.
@@ -610,7 +610,7 @@ final class ToolchainsTests: XCTestCase {
             try await preparer.prepare(
                 .init(
                     image: "ubuntu:24.04", target: "kinhin-ci-linux",
-                    toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
+                    toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
                     hasGitHubToken: true, hasGiteaToken: false
                 ))
             XCTFail("expected the bake to fail")
@@ -677,7 +677,7 @@ final class ToolchainsTests: XCTestCase {
         let runtime = AppleContainerRuntime(
             shell: RecordingShell(), image: "img", cpus: 2, memoryGB: 4,
             binPath: "/usr/local/bin/container",
-            toolchainsConfig: { kinhinConfig.ToolchainsConfig(specs: ["node@22"]) }
+            toolchainsConfig: { KinhinConfig.ToolchainsConfig(specs: ["node@22"]) }
         )
         let forge = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
@@ -694,7 +694,7 @@ final class ToolchainsTests: XCTestCase {
         let shell = ContainerFakingShell()
         var config = makeTestConfig()
         config.container = .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4)
-        config.toolchains = kinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
+        config.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
         let engine = FleetEngine(
             config: config, github: FakeGitHub(), tart: FakeTart(),
             store: makeTestStore(), ssh: FakeSSH(), host: testHost,

@@ -26,7 +26,7 @@ final class AuthCommandTests: XCTestCase {
 
     private func makeEnvironment(
         stored: [ForgeID: String] = [:],
-        config: kinhinConfig,
+        config: KinhinConfig,
         readToken: (() -> String?)? = nil,
         checkError: Error? = nil,
         saveError: Error? = nil,
@@ -64,11 +64,11 @@ final class AuthCommandTests: XCTestCase {
         )
     }
 
-    private func workingConfig(gitea: Bool = false) -> kinhinConfig {
-        var cfg = kinhinConfig.default
+    private func workingConfig(gitea: Bool = false) -> KinhinConfig {
+        var cfg = KinhinConfig.default
         cfg.repo = "acme/widgets"
         if gitea {
-            cfg.gitea = kinhinConfig.GiteaForgeConfig(instance: "https://gitea.example.com", scope: "acme/widgets")
+            cfg.gitea = KinhinConfig.GiteaForgeConfig(instance: "https://gitea.example.com", scope: "acme/widgets")
         }
         return cfg
     }

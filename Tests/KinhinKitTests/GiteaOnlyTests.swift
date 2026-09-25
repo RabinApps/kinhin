@@ -5,7 +5,7 @@ import XCTest
 /// A config with a `gitea:` section and the starter placeholder repo serves
 /// Gitea only: no GitHub token, no GitHub verification.
 final class GiteaOnlyTests: XCTestCase {
-    private func giteaOnlyConfig() throws -> kinhinConfig {
+    private func giteaOnlyConfig() throws -> KinhinConfig {
         try ConfigLoader.parse(
             """
             repo: "\(ConfigLoader.templateRepo)"
@@ -110,7 +110,7 @@ final class DualForgeTests: XCTestCase {
         func runningJobs() async throws -> [ForgeJob] { [] }
     }
 
-    private func bothConfig() throws -> kinhinConfig {
+    private func bothConfig() throws -> KinhinConfig {
         try ConfigLoader.parse(
             """
             repo: "acme/widgets"

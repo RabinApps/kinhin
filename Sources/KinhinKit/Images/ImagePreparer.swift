@@ -38,7 +38,7 @@ public struct ImagePreparer {
         public var provisionTimeout: TimeInterval
         /// Managed toolchains (`toolchains:` config section) baked after the
         /// runner agents install, before the user provision script. nil = none.
-        public var toolchains: kinhinConfig.ToolchainsConfig?
+        public var toolchains: KinhinConfig.ToolchainsConfig?
         /// Timeout for the managed toolchain install's SSH exec (seconds).
         public var toolchainTimeout: TimeInterval
 
@@ -47,7 +47,7 @@ public struct ImagePreparer {
             runnerVersion: String = ImagePreparer.defaultRunnerVersion,
             giteaRunnerVersion: String = ImagePreparer.defaultGiteaRunnerVersion, user: String = "admin",
             hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil, provisionScriptPath: String? = nil,
-            provisionTimeout: TimeInterval = 1800, toolchains: kinhinConfig.ToolchainsConfig? = nil,
+            provisionTimeout: TimeInterval = 1800, toolchains: KinhinConfig.ToolchainsConfig? = nil,
             toolchainTimeout: TimeInterval = 1800
         ) {
             self.source = source

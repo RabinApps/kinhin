@@ -11,9 +11,9 @@ final class ContainerSetupStatusTests: XCTestCase {
     }
 
     private func config(
-        container: kinhinConfig.ContainerConfig? = kinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
-    ) -> kinhinConfig {
-        var cfg = kinhinConfig.default
+        container: KinhinConfig.ContainerConfig? = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
+    ) -> KinhinConfig {
+        var cfg = KinhinConfig.default
         cfg.repo = "acme/widgets"
         cfg.container = container
         return cfg
@@ -22,7 +22,7 @@ final class ContainerSetupStatusTests: XCTestCase {
     private func computer(
         containerHealth: RuntimeHealth?,
         containerImages: [String]? = nil,
-        container: kinhinConfig.ContainerConfig? = kinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
+        container: KinhinConfig.ContainerConfig? = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
     ) -> SetupStatusComputer {
         SetupStatusComputer(
             host: host(),

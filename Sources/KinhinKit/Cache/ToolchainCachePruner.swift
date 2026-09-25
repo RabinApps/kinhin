@@ -23,7 +23,7 @@ public struct ToolchainCachePolicy: Sendable, Equatable {
     /// Resolves the config's optional values: defaults are auto-prune on,
     /// 30 days, 50 GB. `0` disables that axis (never expire by age / no
     /// size cap).
-    public init(from config: kinhinConfig.ToolchainsConfig?) {
+    public init(from config: KinhinConfig.ToolchainsConfig?) {
         let cache = config?.cache
         self.init(
             autoPrune: cache?.autoPrune ?? true,

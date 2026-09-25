@@ -9,8 +9,8 @@ import XCTest
 /// without a `gitea:` section must say so instead of implying the token is in
 /// use). Pure logic — no AppKit state is exercised here.
 final class TokenSettingsTests: XCTestCase {
-    private var giteaConfig: kinhinConfig.GiteaForgeConfig {
-        kinhinConfig.GiteaForgeConfig(instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
+    private var giteaConfig: KinhinConfig.GiteaForgeConfig {
+        KinhinConfig.GiteaForgeConfig(instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
     }
 
     // MARK: GitHub
@@ -105,8 +105,8 @@ final class TokenSettingsTests: XCTestCase {
         GiteaClient(credentials: GiteaCredentials(token: "gt", scope: "acme", instance: "http://127.0.0.1:1"))
     }
 
-    private static func configWithRepo(_ repo: String) -> kinhinConfig {
-        var cfg = kinhinConfig.default
+    private static func configWithRepo(_ repo: String) -> KinhinConfig {
+        var cfg = KinhinConfig.default
         cfg.repo = repo
         return cfg
     }
@@ -157,7 +157,7 @@ final class TokenSettingsTests: XCTestCase {
     func testGiteaCheckFailureSurfacesProbeError() async {
         let report = await TokenHealthCheck.gitea(
             token: "gt_bad",
-            config: kinhinConfig.GiteaForgeConfig(instance: "http://127.0.0.1:1", scope: "acme"),
+            config: KinhinConfig.GiteaForgeConfig(instance: "http://127.0.0.1:1", scope: "acme"),
             client: giteaClient()
         )
         XCTAssertFalse(report.ok, "an unroutable instance cannot validate the token")

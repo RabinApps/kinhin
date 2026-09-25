@@ -16,7 +16,7 @@ public enum Daemon {
                 "another daemon appears to be running; continuing anyway (bind will fail if the socket is taken)")
         }
 
-        let cfg: kinhinConfig
+        let cfg: KinhinConfig
         do {
             cfg = try ConfigLoader.load()
         } catch {
@@ -62,7 +62,7 @@ public enum Daemon {
     /// Keychain PAT, tart at the configured path, the shared default store).
     /// Called again on every config-reload rebuild, so a rebuilt engine
     /// keeps serving through the same RPC server.
-    static func buildEngine(_ cfg: kinhinConfig) throws -> FleetEngine {
+    static func buildEngine(_ cfg: KinhinConfig) throws -> FleetEngine {
         guard let pat = ConfigLoader.engineToken(for: cfg) else {
             throw DaemonError.missingToken
         }
@@ -113,7 +113,7 @@ public enum Daemon {
         _ request: RPCRequest,
         engineRef: EngineRef,
         configURL: URL = Paths.config,
-        engineFactory: ((kinhinConfig) throws -> FleetEngine)? = nil
+        engineFactory: ((KinhinConfig) throws -> FleetEngine)? = nil
     ) async -> RPCResponse {
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()

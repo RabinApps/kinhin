@@ -92,7 +92,7 @@ public enum BudgetEditor {
     /// Pure: no disk, no probing.
     public static func previewCaps(
         host: HostResources,
-        reserve: kinhinConfig.Reserve,
+        reserve: KinhinConfig.Reserve,
         vmShape: (cpu: Int, memoryGB: Int),
         containerShape: (cpu: Int, memoryGB: Int)?,
         weights: [String: Double],
@@ -123,7 +123,7 @@ public enum BudgetEditor {
     /// is a human-readable warning; empty means the split can serve every
     /// route.
     public static func starvedRoutes(
-        routes: [kinhinConfig.RuntimeConfig.Route],
+        routes: [KinhinConfig.RuntimeConfig.Route],
         caps: [RuntimeID: Int],
         configuredRuntimes: Set<RuntimeID>
     ) -> [String] {

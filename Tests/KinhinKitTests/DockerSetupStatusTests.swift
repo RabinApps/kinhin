@@ -11,9 +11,9 @@ final class DockerSetupStatusTests: XCTestCase {
     }
 
     private func config(
-        docker: kinhinConfig.DockerForgeConfig? = kinhinConfig.DockerForgeConfig(image: "ghcr.io/acme/kinhin-ci-linux")
-    ) -> kinhinConfig {
-        var cfg = kinhinConfig.default
+        docker: KinhinConfig.DockerForgeConfig? = KinhinConfig.DockerForgeConfig(image: "ghcr.io/acme/kinhin-ci-linux")
+    ) -> KinhinConfig {
+        var cfg = KinhinConfig.default
         cfg.repo = "acme/widgets"
         cfg.docker = docker
         return cfg
@@ -22,7 +22,7 @@ final class DockerSetupStatusTests: XCTestCase {
     private func computer(
         dockerHealth: RuntimeHealth?,
         dockerImages: [String]? = nil,
-        docker: kinhinConfig.DockerForgeConfig? = kinhinConfig.DockerForgeConfig(image: "ghcr.io/acme/kinhin-ci-linux")
+        docker: KinhinConfig.DockerForgeConfig? = KinhinConfig.DockerForgeConfig(image: "ghcr.io/acme/kinhin-ci-linux")
     ) -> SetupStatusComputer {
         SetupStatusComputer(
             host: host(),

@@ -1,7 +1,7 @@
 import Foundation
 
 /// User-facing configuration, loaded from `~/Library/Application Support/Kinhin/config.yaml`.
-public struct kinhinConfig: Sendable, Equatable {
+public struct KinhinConfig: Sendable, Equatable {
     public struct VM: Sendable, Equatable {
         /// Number of virtual CPUs assigned to each runner VM.
         public var cpuCount: Int
@@ -283,7 +283,7 @@ public struct kinhinConfig: Sendable, Equatable {
         case toolchains
     }
 
-    public static let `default` = kinhinConfig(
+    public static let `default` = KinhinConfig(
         repo: "",
         labels: ["self-hosted", "macos", "arm64"],
         minRunners: 0,

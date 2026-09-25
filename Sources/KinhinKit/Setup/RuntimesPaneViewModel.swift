@@ -64,13 +64,13 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
     public static func load(
         configYAML: String,
         host: HostResources,
-        reserve: kinhinConfig.Reserve,
+        reserve: KinhinConfig.Reserve,
         loadHealth: Bool = false,
         tartHealth: (@Sendable () async -> RuntimeHealth)? = nil,
         containerHealth: (@Sendable () async -> RuntimeHealth)? = nil
     ) async -> RuntimesPaneViewModel {
         var vm = RuntimesPaneViewModel()
-        let parsed: kinhinConfig
+        let parsed: KinhinConfig
         do {
             parsed = try ConfigLoader.parse(configYAML)
         } catch {
@@ -80,7 +80,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
 
         vm.containerConfigured = parsed.container != nil
         vm.dockerConfigured = parsed.docker != nil
-        let routing: kinhinConfig.RuntimeConfig?
+        let routing: KinhinConfig.RuntimeConfig?
         do {
             routing = try RuntimesConfigEditor.parsed(from: configYAML)
         } catch {
@@ -190,7 +190,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
     /// Mac?". Real probes by default; the same injection points as
     /// `probeHealth` keep tests hermetic.
     static func probeAvailability(
-        parsed: kinhinConfig,
+        parsed: KinhinConfig,
         tartHealth: (@Sendable () async -> RuntimeHealth)?,
         containerHealth: (@Sendable () async -> RuntimeHealth)?
     ) async -> [RuntimeID: RuntimeHealth] {
@@ -239,7 +239,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
 
     /// Probe each pool's runtime. Real probes by default; injectable for tests.
     static func probeHealth(
-        parsed: kinhinConfig,
+        parsed: KinhinConfig,
         poolIDs: Set<RuntimeID>,
         tartHealth: (@Sendable () async -> RuntimeHealth)?,
         containerHealth: (@Sendable () async -> RuntimeHealth)?

@@ -342,7 +342,7 @@ final class DockerRuntimeTests: XCTestCase {
         let runtime = DockerRuntime(
             shell: RecordingShell(), image: "img", cpus: 2, memoryGB: 4,
             binPath: bin,
-            toolchainsConfig: { kinhinConfig.ToolchainsConfig(specs: ["node@22", "pnpm"]) }
+            toolchainsConfig: { KinhinConfig.ToolchainsConfig(specs: ["node@22", "pnpm"]) }
         )
         let github = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
@@ -365,7 +365,7 @@ final class DockerRuntimeTests: XCTestCase {
         let runtime = DockerRuntime(
             shell: RecordingShell(), image: "img", cpus: 2, memoryGB: 4,
             binPath: bin,
-            toolchainsConfig: { kinhinConfig.ToolchainsConfig(specs: ["node@22"]) }
+            toolchainsConfig: { KinhinConfig.ToolchainsConfig(specs: ["node@22"]) }
         )
         let github = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
@@ -395,7 +395,7 @@ final class DockerRuntimeTests: XCTestCase {
         try await preparer.prepare(
             .init(
                 image: "ubuntu:24.04", target: "kinhin-ci",
-                toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
+                toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
                 hasGitHubToken: true, hasGiteaToken: false
             ))
         // Order: run → ready-probe exec → agent exec → managed exec → commit.
@@ -426,7 +426,7 @@ final class DockerRuntimeTests: XCTestCase {
             try await preparer.prepare(
                 .init(
                     image: "ubuntu:24.04", target: "kinhin-ci",
-                    toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
+                    toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
                     hasGitHubToken: true, hasGiteaToken: false
                 ))
             XCTFail("expected the bake to fail")
@@ -445,7 +445,7 @@ final class DockerRuntimeTests: XCTestCase {
     func testEngineWiresToolchainsIntoDockerRuntime() async throws {
         var config = makeTestConfig()
         config.docker = .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4)
-        config.toolchains = kinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
+        config.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
         let engine = FleetEngine(
             config: config, github: FakeGitHub(), tart: FakeTart(),
             store: makeTestStore(), ssh: FakeSSH(), host: testHost,

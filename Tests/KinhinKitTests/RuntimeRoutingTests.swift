@@ -11,28 +11,28 @@ final class RuntimeRoutingTests: XCTestCase {
 
     private let fleetLabels = ["self-hosted", "macos", "arm64"]
 
-    private func mixedRoutes() -> [kinhinConfig.RuntimeConfig.Route] {
+    private func mixedRoutes() -> [KinhinConfig.RuntimeConfig.Route] {
         [
-            kinhinConfig.RuntimeConfig.Route(pattern: "acme/ios-app", runtime: "tart"),
-            kinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer"),
-            kinhinConfig.RuntimeConfig.Route(pattern: "acme/web@Linux-only checks", runtime: "appleContainer"),
+            KinhinConfig.RuntimeConfig.Route(pattern: "acme/ios-app", runtime: "tart"),
+            KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer"),
+            KinhinConfig.RuntimeConfig.Route(pattern: "acme/web@Linux-only checks", runtime: "appleContainer"),
         ]
     }
 
     private func mixedConfig(
         defaultRuntime: String = "tart", budget: [String: Double] = ["tart": 0.6, "appleContainer": 0.4]
-    ) -> kinhinConfig.RuntimeConfig {
-        kinhinConfig.RuntimeConfig(defaultRuntime: defaultRuntime, budget: budget, routes: mixedRoutes())
+    ) -> KinhinConfig.RuntimeConfig {
+        KinhinConfig.RuntimeConfig(defaultRuntime: defaultRuntime, budget: budget, routes: mixedRoutes())
     }
 
-    private func dockerConfig() -> kinhinConfig {
+    private func dockerConfig() -> KinhinConfig {
         var cfg = makeTestConfig()
         cfg.repo = "acme"
         cfg.docker = .init(image: "ghcr.io/acme/kinhin-ci-linux", cpus: 2, memoryGB: 4, maxSlots: 8)
-        cfg.runtimes = kinhinConfig.RuntimeConfig(
+        cfg.runtimes = KinhinConfig.RuntimeConfig(
             defaultRuntime: "tart",
             budget: ["tart": 0.5, "docker": 0.5],
-            routes: [kinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "docker")]
+            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "docker")]
         )
         return cfg
     }
@@ -371,7 +371,7 @@ final class RuntimeRoutingTests: XCTestCase {
 
     // MARK: - Engine spawn selection (mixed fleet)
 
-    private func makeEngine(runtimes: kinhinConfig.RuntimeConfig?) -> FleetEngine {
+    private func makeEngine(runtimes: KinhinConfig.RuntimeConfig?) -> FleetEngine {
         var cfg = makeTestConfig()
         cfg.repo = "acme"  // org scope: queued jobs carry repo attribution
         cfg.container = .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4)

@@ -418,7 +418,7 @@ extension AppDelegate {
     /// detached (scaling stops, lifecycle tasks cancel) while its instances
     /// keep running; the replacement adopts them via the standard recovery
     /// path, then resumes serving at the previous running/paused state.
-    private func rebuildInProcessEngine(from old: FleetEngine, config cfg: kinhinConfig) async {
+    private func rebuildInProcessEngine(from old: FleetEngine, config cfg: KinhinConfig) async {
         guard let pat = ConfigLoader.engineToken(for: cfg) else {
             Log.warn(
                 "app",

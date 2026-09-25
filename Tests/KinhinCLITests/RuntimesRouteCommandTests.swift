@@ -37,7 +37,7 @@ final class RuntimesRouteCommandTests: XCTestCase {
     }
 
     /// Read the on-disk runtimes section back through the editor's parser.
-    private func routedSection() throws -> kinhinConfig.RuntimeConfig? {
+    private func routedSection() throws -> KinhinConfig.RuntimeConfig? {
         try RuntimesConfigEditor.parsed(from: onDiskText())
     }
 

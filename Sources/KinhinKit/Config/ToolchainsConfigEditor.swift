@@ -16,7 +16,7 @@ public struct ToolchainsSelection: Equatable, Sendable {
     public var extraBrew: [String] = []
     public var shareCache = false
     /// Existing cache-expiry policy, preserved untouched.
-    public var cache: kinhinConfig.ToolchainsConfig.CachePolicy?
+    public var cache: KinhinConfig.ToolchainsConfig.CachePolicy?
 
     public init() {}
 
@@ -25,9 +25,9 @@ public struct ToolchainsSelection: Equatable, Sendable {
     }
 
     /// The engine-facing config this selection produces.
-    public var config: kinhinConfig.ToolchainsConfig {
+    public var config: KinhinConfig.ToolchainsConfig {
         let specs = ToolchainsConfigEditor.specStrings(for: self)
-        return kinhinConfig.ToolchainsConfig(
+        return KinhinConfig.ToolchainsConfig(
             specs: specs.isEmpty ? nil : specs,
             brew: extraBrew.isEmpty ? nil : extraBrew,
             stacks: ToolchainsConfigEditor.stackStrings(for: self).nilIfEmpty,
@@ -52,7 +52,7 @@ public enum ToolchainsConfigEditor {
         return selection(from: cfg.toolchains)
     }
 
-    public static func selection(from config: kinhinConfig.ToolchainsConfig?) -> ToolchainsSelection {
+    public static func selection(from config: KinhinConfig.ToolchainsConfig?) -> ToolchainsSelection {
         var out = ToolchainsSelection()
         guard let config else { return out }
         for spec in config.specs ?? [] {

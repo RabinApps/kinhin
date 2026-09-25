@@ -69,7 +69,7 @@ public enum GeneralConfigEditor {
     }
 
     /// Decode the editable subset from config text (defaults filled from
-    /// `kinhinConfig.default` where the key is absent). Throws when the text
+    /// `KinhinConfig.default` where the key is absent). Throws when the text
     /// is not valid YAML at all — callers surface that instead of editing
     /// against a phantom snapshot.
     public static func snapshot(from yaml: String) throws -> Snapshot {
@@ -77,7 +77,7 @@ public enum GeneralConfigEditor {
             throw ConfigEditError.yamlParse("top level must be a mapping")
         }
         let partial = try? YAMLDecoder().decode(PartialConfig.self, from: yaml)
-        let d = kinhinConfig.default
+        let d = KinhinConfig.default
         let vm = partial?.vm
         let reserve = partial?.reserve
         return Snapshot(

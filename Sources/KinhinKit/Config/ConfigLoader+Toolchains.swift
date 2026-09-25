@@ -12,13 +12,13 @@ extension ConfigLoader {
     /// Public so the CLI can validate `image prepare --toolchain/--stack`
     /// flag overrides through the exact same rules as config parsing.
     public static func parseToolchains(_ partial: PartialConfig.PartialToolchains) throws
-        -> kinhinConfig.ToolchainsConfig
+        -> KinhinConfig.ToolchainsConfig
     {
         let specs = try Self.parseList(partial.specs, key: "toolchains.specs")
         let brew = try Self.parseList(partial.brew, key: "toolchains.brew")
         let stackNames = try Self.parseList(partial.stacks, key: "toolchains.stacks")
 
-        var toolchains = kinhinConfig.ToolchainsConfig(
+        var toolchains = KinhinConfig.ToolchainsConfig(
             specs: partial.specs != nil ? specs : nil,
             brew: partial.brew != nil ? brew : nil,
             stacks: partial.stacks != nil ? stackNames : nil,
@@ -38,7 +38,7 @@ extension ConfigLoader {
             if let gb = cache.max_gb, gb < 0 {
                 throw ConfigError.invalid("toolchains.cache.max_gb must be >= 0 (0 = no size limit)")
             }
-            toolchains.cache = kinhinConfig.ToolchainsConfig.CachePolicy(
+            toolchains.cache = KinhinConfig.ToolchainsConfig.CachePolicy(
                 autoPrune: cache.auto_prune,
                 maxAgeDays: cache.max_age_days,
                 maxGB: cache.max_gb

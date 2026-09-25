@@ -35,7 +35,7 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         return alert.runModal() == .alertFirstButtonReturn
     }
     /// Runs the actual image build for a runtime (real implementation below).
-    var rebuild: (_ runtime: RuntimeID, _ config: kinhinConfig) async throws -> Void = { runtime, cfg in
+    var rebuild: (_ runtime: RuntimeID, _ config: KinhinConfig) async throws -> Void = { runtime, cfg in
         try await ToolchainsViewController.rebuildImage(runtime: runtime, config: cfg)
     }
 
@@ -476,7 +476,7 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
     }
 
     /// The real image builds (same calls the setup checklist and CLI make).
-    static func rebuildImage(runtime: RuntimeID, config cfg: kinhinConfig) async throws {
+    static func rebuildImage(runtime: RuntimeID, config cfg: KinhinConfig) async throws {
         switch runtime {
         case .tart:
             let tart = try TartController(configuredPath: cfg.tartPath)

@@ -130,7 +130,7 @@ final class DevToolsTests: XCTestCase {
         // The exact scenario that bit on a real machine: CLT outdated while
         // everything else is fine — the fleet must NOT report ready, and the
         // row must carry the fix action.
-        var cfg = kinhinConfig.default
+        var cfg = KinhinConfig.default
         cfg.repo = "acme/widgets"
         let computer = SetupStatusComputer(
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),

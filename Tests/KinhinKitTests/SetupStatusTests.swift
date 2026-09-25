@@ -17,8 +17,8 @@ final class SetupStatusTests: XCTestCase {
         TartVM(name: name, source: source, status: status, cpu: nil, memoryMB: nil)
     }
 
-    private func config() -> kinhinConfig {
-        var cfg = kinhinConfig.default
+    private func config() -> KinhinConfig {
+        var cfg = KinhinConfig.default
         cfg.repo = "acme/widgets"
         cfg.labels = ["self-hosted", "macos"]
         cfg.image = "tahoe-base"
@@ -210,7 +210,7 @@ final class SetupStatusTests: XCTestCase {
 
     // MARK: Provision script row — only when the config declares one
 
-    private func configWithProvisionScript(_ path: String?) -> kinhinConfig {
+    private func configWithProvisionScript(_ path: String?) -> KinhinConfig {
         var cfg = config()
         cfg.provisionScript = path
         return cfg
@@ -381,7 +381,7 @@ enum SetupCheckHelper {
     static func make(
         tartHealth: TartHealth,
         tartList: [TartVM],
-        config: kinhinConfig,
+        config: KinhinConfig,
         tokenStored: Bool
     ) -> SetupStatusComputer {
         SetupStatusComputer(

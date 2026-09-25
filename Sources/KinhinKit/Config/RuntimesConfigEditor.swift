@@ -20,15 +20,15 @@ public enum RuntimesConfigEditor {
     }
 
     /// The runtimes section parsed into the typed model (nil when absent).
-    public static func parsed(from yaml: String) throws -> kinhinConfig.RuntimeConfig? {
+    public static func parsed(from yaml: String) throws -> KinhinConfig.RuntimeConfig? {
         let partial = try YAMLDecoder().decode(PartialConfig.self, from: yaml)
         guard let rt = partial.runtimes else { return nil }
-        return kinhinConfig.RuntimeConfig(
+        return KinhinConfig.RuntimeConfig(
             defaultRuntime: rt.default ?? RuntimeID.tart.rawValue,
             budget: rt.budget ?? [:],
             routes: (rt.routes ?? []).compactMap { route in
                 guard let pattern = route.pattern, let runtime = route.runtime else { return nil }
-                return kinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime)
+                return KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime)
             }
         )
     }
@@ -36,7 +36,7 @@ public enum RuntimesConfigEditor {
     // MARK: Writing
 
     /// Serialize the section with stable ordering (the pane's canonical form).
-    public static func sectionText(_ rc: kinhinConfig.RuntimeConfig) -> String {
+    public static func sectionText(_ rc: KinhinConfig.RuntimeConfig) -> String {
         var lines: [String] = ["runtimes:"]
         lines.append("  default: \(rc.defaultRuntime)")
         if !rc.budget.isEmpty {
@@ -59,7 +59,7 @@ public enum RuntimesConfigEditor {
     /// The whole updated file must still parse through `ConfigLoader.parse`
     /// (the same validation the engine uses) or nothing is written.
     @discardableResult
-    public static func apply(_ rc: kinhinConfig.RuntimeConfig, to url: URL = Paths.config) throws -> String {
+    public static func apply(_ rc: KinhinConfig.RuntimeConfig, to url: URL = Paths.config) throws -> String {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ConfigEditError.notFound(url.path)
         }
@@ -82,7 +82,7 @@ public enum RuntimesConfigEditor {
     /// Replace (or append) the top-level `runtimes:` mapping by editing the
     /// raw text: the section spans from its top-level key line to the next
     /// top-level key. Comments and formatting elsewhere are untouched.
-    static func replaceSection(in yaml: String, with rc: kinhinConfig.RuntimeConfig) throws -> String {
+    static func replaceSection(in yaml: String, with rc: KinhinConfig.RuntimeConfig) throws -> String {
         // Structural sanity before surgery: must be a YAML mapping.
         guard let root = try Yams.compose(yaml: yaml), root.mapping != nil else {
             throw ConfigEditError.yamlParse("top level must be a mapping")

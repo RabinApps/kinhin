@@ -30,16 +30,16 @@ final class SetupChecklistFlowTests: XCTestCase {
         repo: String = "acme/widgets",
         gitea: Bool = false,
         container: Bool = false
-    ) -> kinhinConfig {
-        var cfg = kinhinConfig.default
+    ) -> KinhinConfig {
+        var cfg = KinhinConfig.default
         cfg.repo = repo
         cfg.image = "tahoe-base"
         if gitea {
-            cfg.gitea = kinhinConfig.GiteaForgeConfig(
+            cfg.gitea = KinhinConfig.GiteaForgeConfig(
                 instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
         }
         if container {
-            cfg.container = kinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
+            cfg.container = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
         }
         return cfg
     }

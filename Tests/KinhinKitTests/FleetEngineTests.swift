@@ -4,7 +4,7 @@ import XCTest
 
 final class FleetEngineTests: XCTestCase {
     func makeEngine(
-        config: kinhinConfig? = nil,
+        config: KinhinConfig? = nil,
         tart: FakeTart,
         github: FakeGitHub,
         ssh: FakeSSH

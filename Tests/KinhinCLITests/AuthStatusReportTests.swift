@@ -9,11 +9,11 @@ import XCTest
 /// file is touched; the CLI-level `--json` flow runs through the same
 /// injected AuthEnvironment the other auth tests use.
 final class AuthStatusReportTests: XCTestCase {
-    private static func config(repo: String = "acme/widgets", gitea: Bool = false) -> kinhinConfig {
-        var cfg = kinhinConfig.default
+    private static func config(repo: String = "acme/widgets", gitea: Bool = false) -> KinhinConfig {
+        var cfg = KinhinConfig.default
         cfg.repo = repo
         if gitea {
-            cfg.gitea = kinhinConfig.GiteaForgeConfig(
+            cfg.gitea = KinhinConfig.GiteaForgeConfig(
                 instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
         }
         return cfg
@@ -21,7 +21,7 @@ final class AuthStatusReportTests: XCTestCase {
 
     private func report(
         stored: [ForgeID: String] = [:],
-        config: kinhinConfig? = nil
+        config: KinhinConfig? = nil
     ) -> AuthStatusReport {
         AuthStatusReporter.report(config: config, load: { stored[$0] })
     }
@@ -141,7 +141,7 @@ final class AuthStatusReportTests: XCTestCase {
     /// AuthCommandTests, so no real keychain or file is touched.
     private func makeEnvironment(
         stored: [ForgeID: String] = [:],
-        config: kinhinConfig?,
+        config: KinhinConfig?,
         onExit: @escaping (Int) throws -> Never = { _ in throw ReportExit(code: -1) }
     ) -> AuthEnvironment {
         AuthEnvironment(
@@ -151,7 +151,7 @@ final class AuthStatusReportTests: XCTestCase {
             readToken: { nil },
             checkGitHub: { _ in },
             checkGitea: { _ in },
-            loadConfig: { config ?? kinhinConfig.default },
+            loadConfig: { config ?? KinhinConfig.default },
             notifyDaemon: { _, _ in },
             fail: { _ in throw ReportExit(code: 1) },
             exit: { code in try onExit(code) },
@@ -160,7 +160,7 @@ final class AuthStatusReportTests: XCTestCase {
     }
 
     func testJSONStatusEmitsParseableDocument() async throws {
-        var cfg = kinhinConfig.default
+        var cfg = KinhinConfig.default
         cfg.repo = "acme/widgets"
         let env = makeEnvironment(stored: [.github: "ghp_live"], config: cfg)
 
@@ -175,7 +175,7 @@ final class AuthStatusReportTests: XCTestCase {
     }
 
     func testJSONStatusRunExits1WhenARequiredTokenIsMissing() async {
-        var cfg = kinhinConfig.default
+        var cfg = KinhinConfig.default
         cfg.repo = "acme/widgets"
         let env = makeEnvironment(config: cfg) { code in
             XCTAssertEqual(code, 1, "allGood == false must exit 1 so `&&`-chained setup scripts stop")
@@ -194,7 +194,7 @@ final class AuthStatusReportTests: XCTestCase {
 
     func testJSONStatusNeverProbesTheForgeAPIs() async throws {
         // The check hooks would record if touched; --json must stay static.
-        var cfg = kinhinConfig.default
+        var cfg = KinhinConfig.default
         cfg.repo = "acme/widgets"
         var probed = false
         let env = AuthEnvironment(

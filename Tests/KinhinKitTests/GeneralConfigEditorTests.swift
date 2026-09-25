@@ -62,9 +62,9 @@ final class GeneralConfigEditorTests: XCTestCase {
 
     func testSnapshotFillsDefaultsForMissingKeys() throws {
         let snap = try GeneralConfigEditor.snapshot(from: "repo: \"acme/x\"\n")
-        XCTAssertEqual(snap.labels, kinhinConfig.default.labels)
-        XCTAssertEqual(snap.pollInterval, kinhinConfig.default.pollInterval)
-        XCTAssertEqual(snap.vmCPU, kinhinConfig.default.vm.cpuCount)
+        XCTAssertEqual(snap.labels, KinhinConfig.default.labels)
+        XCTAssertEqual(snap.pollInterval, KinhinConfig.default.pollInterval)
+        XCTAssertEqual(snap.vmCPU, KinhinConfig.default.vm.cpuCount)
     }
 
     func testSnapshotRejectsNonMappingYAML() {

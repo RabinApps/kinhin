@@ -16,8 +16,8 @@ final class RuntimesWindowController: NSWindowController {
     private let headlineLabel = NSTextField(labelWithString: "")
     private var viewModel: RuntimesPaneViewModel?
     private var previewCommitTask: Task<Void, Never>?
-    private var parsedConfigForPreview: kinhinConfig?
-    private var currentRuntimeConfig: kinhinConfig.RuntimeConfig?
+    private var parsedConfigForPreview: KinhinConfig?
+    private var currentRuntimeConfig: KinhinConfig.RuntimeConfig?
 
     convenience init() {
         self.init(embeddedIn: nil)
@@ -225,7 +225,7 @@ final class RuntimesWindowController: NSWindowController {
         parsedConfigForPreview = parsed
         currentRuntimeConfig =
             (try? RuntimesConfigEditor.parsed(from: yaml))
-            ?? kinhinConfig.RuntimeConfig(defaultRuntime: fast.defaultRuntime.rawValue)
+            ?? KinhinConfig.RuntimeConfig(defaultRuntime: fast.defaultRuntime.rawValue)
         render(viewModel: fast, repo: parsed.repo, probing: true)
         // Fill the initial cap previews from the on-disk budget.
         if let rc = currentRuntimeConfig {
@@ -486,7 +486,7 @@ final class RuntimesWindowController: NSWindowController {
     /// host budget), the default pool shown as the remainder, and a
     /// default-runtime popup. Every change writes through
     /// RuntimesConfigEditor — engine validation gates the file.
-    private func makeBudgetCard(rc: kinhinConfig.RuntimeConfig, pools: [RuntimesPaneViewModel.PoolRow]) -> NSView {
+    private func makeBudgetCard(rc: KinhinConfig.RuntimeConfig, pools: [RuntimesPaneViewModel.PoolRow]) -> NSView {
         let card = LayerStyleView(frame: .zero)
         card.styleLayer = { layer in
             layer.backgroundColor = NSColor.controlBackgroundColor.cgColor
@@ -779,7 +779,7 @@ final class RuntimesWindowController: NSWindowController {
 
     /// Runtimes a route can target: tart always, plus whichever Linux runtimes
     /// the config has enabled (a route to an unconfigured runtime is rejected).
-    static func routableRuntimes(in config: kinhinConfig?) -> [RuntimeID] {
+    static func routableRuntimes(in config: KinhinConfig?) -> [RuntimeID] {
         var ids: [RuntimeID] = [.tart]
         if config?.container != nil { ids.append(.appleContainer) }
         if config?.docker != nil { ids.append(.docker) }
@@ -862,7 +862,7 @@ final class RuntimesWindowController: NSWindowController {
         guard let (patternValue, runtimeID) = promptForRoute(runtimes) else { return }
         let runtimeValue = runtimeID.rawValue
 
-        var rc = currentRuntimeConfig ?? kinhinConfig.RuntimeConfig()
+        var rc = currentRuntimeConfig ?? KinhinConfig.RuntimeConfig()
         guard !rc.routes.contains(where: { $0.pattern == patternValue }) else {
             presentError(
                 NSError(
@@ -870,7 +870,7 @@ final class RuntimesWindowController: NSWindowController {
                     userInfo: [NSLocalizedDescriptionKey: "A route for '\(patternValue)' already exists."]))
             return
         }
-        rc.routes.append(kinhinConfig.RuntimeConfig.Route(pattern: patternValue, runtime: runtimeValue))
+        rc.routes.append(KinhinConfig.RuntimeConfig.Route(pattern: patternValue, runtime: runtimeValue))
 
         do {
             try RuntimesConfigEditor.apply(rc, to: configURL)

@@ -209,7 +209,7 @@ public struct UnavailableTart: TartControlling {
     public func pull(image: String) async throws { throw missing }
 }
 
-extension kinhinConfig {
+extension KinhinConfig {
     /// True when a Linux runtime (Apple container or Docker) is configured, so
     /// the fleet can run without tart (macOS jobs are then unavailable).
     public var hasLinuxRuntime: Bool { container != nil || docker != nil }

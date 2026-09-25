@@ -144,12 +144,12 @@ public enum RuntimeRouter {
 /// The engine-facing routing model: pools by runtime id plus the config
 /// routes, with demand bucketing and spawn selection.
 public struct RuntimeConfigModel: Sendable {
-    public let routes: [kinhinConfig.RuntimeConfig.Route]
+    public let routes: [KinhinConfig.RuntimeConfig.Route]
     public let pools: [RuntimeID: RuntimePool]
     public let defaultRuntime: RuntimeID
 
     public init(
-        config: kinhinConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil,
+        config: KinhinConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil,
         containerConfigured: Bool = false, dockerConfigured: Bool = false
     ) {
         if let config {

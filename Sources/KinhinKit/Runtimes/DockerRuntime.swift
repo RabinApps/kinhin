@@ -31,7 +31,7 @@ public struct DockerRuntime: Runtime {
     let exists: @Sendable (String) -> Bool
     /// The resolved managed-toolchain selection source (cache envs come from
     /// here when `share_cache` bind-mounts the host cache into containers).
-    let toolchainsConfig: @Sendable () -> kinhinConfig.ToolchainsConfig?
+    let toolchainsConfig: @Sendable () -> KinhinConfig.ToolchainsConfig?
 
     public init(
         shell: ShellRunning = Shell(),
@@ -40,7 +40,7 @@ public struct DockerRuntime: Runtime {
         memoryGB: Int = 4,
         binPath: String? = nil,
         exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
-        toolchainsConfig: @escaping @Sendable () -> kinhinConfig.ToolchainsConfig? = { nil }
+        toolchainsConfig: @escaping @Sendable () -> KinhinConfig.ToolchainsConfig? = { nil }
     ) {
         self.shell = shell
         self.image = image

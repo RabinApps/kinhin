@@ -1,7 +1,7 @@
 import Foundation
 import Yams
 
-/// Loads and validates `kinhinConfig`.
+/// Loads and validates `KinhinConfig`.
 public struct ConfigLoader {
     public init() {}
 
@@ -12,7 +12,7 @@ public struct ConfigLoader {
     public static let templateRepo = "your-org/your-repo"
 
     /// True when the parsed config still carries the template's placeholder repo.
-    public static func isTemplate(_ cfg: kinhinConfig) -> Bool {
+    public static func isTemplate(_ cfg: KinhinConfig) -> Bool {
         cfg.repo == templateRepo
     }
 
@@ -23,7 +23,7 @@ public struct ConfigLoader {
     /// Gitea-only configs also get the placeholder. Nil when no configured
     /// forge has a usable token.
     public static func engineToken(
-        for cfg: kinhinConfig, load: (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) }
+        for cfg: KinhinConfig, load: (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) }
     ) -> String? {
         let giteaReady = cfg.gitea != nil && load(.gitea) != nil
         if cfg.githubEnabled {
@@ -34,7 +34,7 @@ public struct ConfigLoader {
     }
 
     /// True when at least one forge is configured for real work.
-    public static func hasAnyForge(_ cfg: kinhinConfig) -> Bool {
+    public static func hasAnyForge(_ cfg: KinhinConfig) -> Bool {
         cfg.githubEnabled || cfg.gitea != nil
     }
 
@@ -57,7 +57,7 @@ public struct ConfigLoader {
         }
     }
 
-    public static func load(from url: URL = Paths.config) throws -> kinhinConfig {
+    public static func load(from url: URL = Paths.config) throws -> KinhinConfig {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ConfigError.notFound(url.path)
         }
@@ -67,7 +67,7 @@ public struct ConfigLoader {
         return try Self.parse(yaml)
     }
 
-    public static func parse(_ yaml: String) throws -> kinhinConfig {
+    public static func parse(_ yaml: String) throws -> KinhinConfig {
         let partial = try YAMLDecoder().decode(PartialConfig.self, from: yaml)
 
         guard let repo = partial.repo, !repo.isEmpty else {
@@ -101,7 +101,7 @@ public struct ConfigLoader {
             throw ConfigError.invalid("poll_interval must be >= 5 seconds to stay within GitHub rate limits")
         }
 
-        var cfg = kinhinConfig.default
+        var cfg = KinhinConfig.default
         cfg.repo = repo
         cfg.labels = labels
         cfg.minRunners = minRunners
@@ -158,7 +158,7 @@ public struct ConfigLoader {
             if let giteaLabels = gitea.labels, giteaLabels.isEmpty {
                 throw ConfigError.invalid("gitea.labels must be non-empty when present")
             }
-            cfg.gitea = kinhinConfig.GiteaForgeConfig(instance: instance, scope: scope, labels: gitea.labels)
+            cfg.gitea = KinhinConfig.GiteaForgeConfig(instance: instance, scope: scope, labels: gitea.labels)
         }
         if let container = partial.container {
             guard let containerImage = container.image, !containerImage.isEmpty else {
@@ -171,7 +171,7 @@ public struct ConfigLoader {
             if let mem = container.memory_gb, mem < 2 {
                 throw ConfigError.invalid("container.memory_gb must be >= 2")
             }
-            cfg.container = kinhinConfig.ContainerConfig(
+            cfg.container = KinhinConfig.ContainerConfig(
                 image: containerImage,
                 cpus: container.cpus ?? 4,
                 memoryGB: container.memory_gb ?? 8,
@@ -191,7 +191,7 @@ public struct ConfigLoader {
             if let slots = docker.max_slots, slots < 1 {
                 throw ConfigError.invalid("docker.max_slots must be >= 1")
             }
-            cfg.docker = kinhinConfig.DockerForgeConfig(
+            cfg.docker = KinhinConfig.DockerForgeConfig(
                 image: dockerImage,
                 cpus: docker.cpus ?? 2,
                 memoryGB: docker.memory_gb ?? 4,
@@ -209,7 +209,7 @@ public struct ConfigLoader {
                     budget[runtime] = weight
                 }
             }
-            var routes: [kinhinConfig.RuntimeConfig.Route] = []
+            var routes: [KinhinConfig.RuntimeConfig.Route] = []
             for route in runtimes.routes ?? [] {
                 guard let pattern = route.pattern, !pattern.isEmpty else {
                     throw ConfigError.invalid("runtimes.routes entries need a non-empty pattern")
@@ -231,7 +231,7 @@ public struct ConfigLoader {
                             "runtimes.routes pattern '\(pattern)' must be RabinApps/name (or RabinApps/name@Workflow)")
                     }
                 }
-                routes.append(kinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime))
+                routes.append(KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime))
             }
             var seenPatterns: Set<String> = []
             for route in routes where !seenPatterns.insert(route.pattern).inserted {
@@ -256,7 +256,7 @@ public struct ConfigLoader {
                 throw ConfigError.invalid(
                     "runtimes.budget weights sum to \(String(format: "%.2f", totalWeight)) — the total must be <= 1.0")
             }
-            cfg.runtimes = kinhinConfig.RuntimeConfig(
+            cfg.runtimes = KinhinConfig.RuntimeConfig(
                 defaultRuntime: runtimes.default ?? "tart",
                 budget: budget,
                 routes: routes

@@ -102,7 +102,7 @@ func printHelp() {
     print(helpText())
 }
 
-func loadConfigOrExit() -> kinhinConfig {
+func loadConfigOrExit() -> KinhinConfig {
     do {
         let cfg = try ConfigLoader.load()
         return cfg
@@ -113,7 +113,7 @@ func loadConfigOrExit() -> kinhinConfig {
 
 /// The token the engine is built with: the GitHub PAT, or an empty
 /// placeholder for a Gitea-only config (whose own token is required instead).
-func tokenOrExit(for cfg: kinhinConfig) -> String {
+func tokenOrExit(for cfg: KinhinConfig) -> String {
     guard let token = ConfigLoader.engineToken(for: cfg) else {
         fail(
             cfg.githubEnabled
@@ -123,7 +123,7 @@ func tokenOrExit(for cfg: kinhinConfig) -> String {
     return token
 }
 
-func engineFromConfig(_ cfg: kinhinConfig) throws -> FleetEngine {
+func engineFromConfig(_ cfg: KinhinConfig) throws -> FleetEngine {
     // The auto-created template parses cleanly but names a placeholder repo —
     // never boot a fleet (and start polling GitHub) against it.
     if !ConfigLoader.hasAnyForge(cfg) {

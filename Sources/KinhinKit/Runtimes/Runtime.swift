@@ -51,7 +51,7 @@ public struct RepoRoute: Sendable, Equatable {
     }
 
     /// The route implied by today's single-fleet config.
-    public static func from(config: kinhinConfig) -> RepoRoute {
+    public static func from(config: KinhinConfig) -> RepoRoute {
         RepoRoute(
             repo: config.repo,
             image: config.image,
@@ -127,7 +127,7 @@ public struct TartRuntime: Runtime {
     let bootTimeout: @Sendable () -> Int
     /// The resolved managed-toolchain selection (cache envs come from here
     /// when `share_cache` mounts the host cache into runner VMs).
-    let toolchainsConfig: @Sendable () -> kinhinConfig.ToolchainsConfig?
+    let toolchainsConfig: @Sendable () -> KinhinConfig.ToolchainsConfig?
 
     /// Cache envs to export in registration scripts when the route mounts
     /// the shared cache. Computed once per script request from live config.
@@ -138,7 +138,7 @@ public struct TartRuntime: Runtime {
 
     public init(
         tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, ssh: SSHExecuting = SSHExecutor(),
-        toolchainsConfig: @escaping @Sendable () -> kinhinConfig.ToolchainsConfig? = { nil }
+        toolchainsConfig: @escaping @Sendable () -> KinhinConfig.ToolchainsConfig? = { nil }
     ) {
         self.tart = tart
         self.bootTimeout = bootTimeout

@@ -51,39 +51,39 @@ final class ActionCoverageTests: XCTestCase {
         )
     }
 
-    private var fixtureConfig: kinhinConfig {
-        var cfg = kinhinConfig.default
+    private var fixtureConfig: KinhinConfig {
+        var cfg = KinhinConfig.default
         cfg.repo = "acme/widgets"
         return cfg
     }
 
     /// A config that also declares the Gitea forge (adds the gitea-token row).
-    private var giteaConfig: kinhinConfig {
+    private var giteaConfig: KinhinConfig {
         var cfg = fixtureConfig
-        cfg.gitea = kinhinConfig.GiteaForgeConfig(
+        cfg.gitea = KinhinConfig.GiteaForgeConfig(
             instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
         return cfg
     }
 
     /// A config that also enables the Apple-container runtime (adds the
     /// container rows).
-    private var containerConfig: kinhinConfig {
+    private var containerConfig: KinhinConfig {
         var cfg = fixtureConfig
-        cfg.container = kinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
+        cfg.container = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
         return cfg
     }
 
     /// A config that also declares `provision_script` (adds the
     /// provision-script row).
-    private func provisionScriptConfig(path: String) -> kinhinConfig {
+    private func provisionScriptConfig(path: String) -> KinhinConfig {
         var cfg = fixtureConfig
         cfg.provisionScript = path
         return cfg
     }
 
     /// The parsed result of the auto-created starter template (placeholder repo).
-    private var templateConfig: kinhinConfig {
-        var cfg = kinhinConfig.default
+    private var templateConfig: KinhinConfig {
+        var cfg = KinhinConfig.default
         cfg.repo = ConfigLoader.templateRepo
         return cfg
     }
@@ -233,7 +233,7 @@ final class ActionCoverageTests: XCTestCase {
 
     /// The config states render three distinct outcomes.
     func testConfigCheckThreeStates() {
-        var real = kinhinConfig.default
+        var real = KinhinConfig.default
         real.repo = "acme/widgets"
         let ok = SetupStatusComputer.configCheck(.parsed(real), path: "/tmp/x.yaml")
         let template = SetupStatusComputer.configCheck(.templateConfig, path: "/tmp/x.yaml")

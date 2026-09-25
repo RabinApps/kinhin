@@ -267,7 +267,7 @@ extension ToolchainCatalog {
     /// skipped (recorded in `skippedEntries`, never an error). Defaults to
     /// macOS for the existing VM bake path.
     public static func selection(
-        from config: kinhinConfig.ToolchainsConfig,
+        from config: KinhinConfig.ToolchainsConfig,
         platform: ToolchainPlatform = .macOS,
         mountPath: String? = nil
     ) -> ManagedToolchainSelection {

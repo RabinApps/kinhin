@@ -16,7 +16,7 @@ struct TokenSettingsRow: Equatable {
     /// `gitea:` block) — a token can still be stored, it just isn't in use.
     let configured: Bool
 
-    static func make(forge: ForgeID, token: String?, repo: String?, gitea: kinhinConfig.GiteaForgeConfig?)
+    static func make(forge: ForgeID, token: String?, repo: String?, gitea: KinhinConfig.GiteaForgeConfig?)
         -> TokenSettingsRow
     {
         let masked = token.map { String($0.prefix(4)) + "…" } ?? "—"

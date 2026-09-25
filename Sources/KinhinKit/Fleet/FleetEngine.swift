@@ -2,7 +2,7 @@ import Foundation
 import Yams
 
 public final class FleetEngine {
-    let config: kinhinConfig
+    let config: KinhinConfig
     let tart: TartControlling
     let store: FleetStore
     let ssh: SSHExecuting
@@ -67,7 +67,7 @@ public final class FleetEngine {
     var cachePruneTask: Task<Void, Never>?
 
     public init(
-        config: kinhinConfig, github: GitHubServing, tart: TartControlling, store: FleetStore, ssh: SSHExecuting,
+        config: KinhinConfig, github: GitHubServing, tart: TartControlling, store: FleetStore, ssh: SSHExecuting,
         host: HostResources, containerShell: ShellRunning? = nil
     ) {
         let credentials = GitHubCredentials(token: "", scope: config.repo)
@@ -183,7 +183,7 @@ public final class FleetEngine {
     /// factory keyed off the credentials (live by default; injectable in
     /// tests to observe credential swaps).
     public convenience init(
-        config: kinhinConfig, pat: String, tart: TartControlling, store: FleetStore, ssh: SSHExecuting,
+        config: KinhinConfig, pat: String, tart: TartControlling, store: FleetStore, ssh: SSHExecuting,
         host: HostResources, githubFactory: GitHubClientFactory = .live
     ) {
         let credentials = GitHubCredentials(token: pat, scope: config.repo)
@@ -395,7 +395,7 @@ public final class FleetEngine {
     /// cadence, per-VM shape, images, reserve, forge sections, toolchains)
     /// lives in the frozen `config` the engine was built with, so a change
     /// there silently does nothing until the engine is rebuilt.
-    public static func restartRequired(from old: kinhinConfig, to new: kinhinConfig) -> Bool {
+    public static func restartRequired(from old: KinhinConfig, to new: KinhinConfig) -> Bool {
         var a = old
         var b = new
         a.runtimes = nil
@@ -408,7 +408,7 @@ public final class FleetEngine {
     /// The frozen config this engine instance was built with — read live
     /// (e.g. to diff against the on-disk file before deciding between a
     /// hot reload and a rebuild).
-    public var activeConfig: kinhinConfig { config }
+    public var activeConfig: KinhinConfig { config }
 
     /// Stop scaling and cancel lifecycle work while keeping every spawned
     /// instance and its record: the replacement engine's recovery adopts
@@ -444,7 +444,7 @@ public final class FleetEngine {
     /// Scope: routing only. A container-image change or a runtime's shape
     /// lives in the runtime instance (fixed per engine) and still needs a
     /// daemon restart.
-    public func applyReloaded(config newConfig: kinhinConfig, host: HostResources) {
+    public func applyReloaded(config newConfig: KinhinConfig, host: HostResources) {
         let model = RuntimeConfigModel(
             config: newConfig.runtimes,
             fleetLabels: newConfig.labels,

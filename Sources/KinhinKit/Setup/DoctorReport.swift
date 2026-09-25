@@ -206,7 +206,7 @@ public struct DoctorReportBuilder: Sendable {
         // like the checklist does — the scenario is resolved through the same
         // shared code, so doctor and checklist can never disagree.
         let evaluation = SetupStatusComputer.resolve(config)
-        var parsed: kinhinConfig?
+        var parsed: KinhinConfig?
         if case .parsed(let cfg) = evaluation { parsed = cfg }
         let resolvedTart: TartHealth
         if let tartHealth {
@@ -359,7 +359,7 @@ public struct DoctorReportBuilder: Sendable {
     /// maps to (or all populated top-level directories when nothing is
     /// selected). Pure filesystem reads — never creates or deletes anything.
     /// Public so the human doctor prints exactly the JSON document's data.
-    public static func toolchainCacheSection(config: kinhinConfig?) -> DoctorReport.ToolchainCacheSection {
+    public static func toolchainCacheSection(config: KinhinConfig?) -> DoctorReport.ToolchainCacheSection {
         let root = Paths.toolchainCache
         let fm = FileManager.default
         var isDir: ObjCBool = false

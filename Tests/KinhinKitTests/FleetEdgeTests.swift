@@ -3,7 +3,7 @@ import XCTest
 @testable import KinhinKit
 
 final class FleetEdgeTests: XCTestCase {
-    func makeEngine(config: kinhinConfig? = nil, tart: FakeTart, github: FakeGitHub, ssh: FakeSSH) -> FleetEngine {
+    func makeEngine(config: KinhinConfig? = nil, tart: FakeTart, github: FakeGitHub, ssh: FakeSSH) -> FleetEngine {
         FleetEngine(
             config: config ?? makeTestConfig(),
             github: github,

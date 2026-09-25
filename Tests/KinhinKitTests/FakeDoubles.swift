@@ -213,8 +213,8 @@ func makeTestStore() -> FleetStore {
     return FleetStore(directory: dir)
 }
 
-func makeTestConfig(repo: String = "acme/widgets") -> kinhinConfig {
-    var cfg = kinhinConfig.default
+func makeTestConfig(repo: String = "acme/widgets") -> KinhinConfig {
+    var cfg = KinhinConfig.default
     cfg.repo = repo
     cfg.labels = ["kinhin"]
     cfg.pollInterval = 5

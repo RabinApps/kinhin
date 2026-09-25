@@ -32,7 +32,7 @@ public enum TokenHealthCheck {
 
     /// Check the Gitea provider against its configured instance.
     public static func gitea(
-        token: String, config: kinhinConfig.GiteaForgeConfig,
+        token: String, config: KinhinConfig.GiteaForgeConfig,
         client gitea: GiteaClient? = nil
     ) async -> Report {
         let client =
@@ -53,7 +53,7 @@ public enum TokenHealthCheck {
     /// (no token stored, or no config scope/section to check against).
     public static func check(
         forge: ForgeID,
-        config: kinhinConfig?,
+        config: KinhinConfig?,
         keychainToken: @escaping (ForgeID) -> String?,
         github: GitHubServing? = nil,
         gitea: GiteaClient? = nil

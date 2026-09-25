@@ -15,23 +15,23 @@ final class DoctorReportTests: XCTestCase {
     private let host = HostResources(logicalCores: 10, memoryGB: 32, freeDiskGB: 200, arm64: true)
 
     private static func config(repo: String = "acme/widgets", gitea: Bool = false, container: Bool = false)
-        -> kinhinConfig
+        -> KinhinConfig
     {
-        var cfg = kinhinConfig.default
+        var cfg = KinhinConfig.default
         cfg.repo = repo
         if gitea {
-            cfg.gitea = kinhinConfig.GiteaForgeConfig(
+            cfg.gitea = KinhinConfig.GiteaForgeConfig(
                 instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
         }
         if container {
-            cfg.container = kinhinConfig.ContainerConfig(image: "kinhin-ci-linux", cpus: 4, memoryGB: 8)
+            cfg.container = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux", cpus: 4, memoryGB: 8)
         }
         return cfg
     }
 
     private func builder(
         stored: [ForgeID: String] = [:],
-        config: kinhinConfig?,
+        config: KinhinConfig?,
         clt: CLTState = .ok(version: "26.6"),
         tartHealth: TartHealth = .healthy,
         containerHealth: RuntimeHealth? = nil,
@@ -302,7 +302,7 @@ final class DoctorReportTests: XCTestCase {
         // subdirectories (deduplicated), in stable order, even for dirs that
         // don't exist yet (measured as zero bytes).
         var cfg = Self.config()
-        cfg.toolchains = kinhinConfig.ToolchainsConfig(specs: ["go@1.23", "go@latest"])
+        cfg.toolchains = KinhinConfig.ToolchainsConfig(specs: ["go@1.23", "go@latest"])
         let section = DoctorReportBuilder.toolchainCacheSection(config: cfg)
         if section.usable {
             XCTAssertEqual(
@@ -314,7 +314,7 @@ final class DoctorReportTests: XCTestCase {
     func testToolchainCacheWarningFlagsEmptyCacheWithShareCacheOn() {
         // share_cache on + nothing cached: the runner-mounts-empty warning.
         var cfg = Self.config()
-        cfg.toolchains = kinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
+        cfg.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
         let section = DoctorReportBuilder.toolchainCacheSection(config: cfg)
         XCTAssertTrue(section.sharedWithRunners)
         if section.usable, section.totalBytes == 0 {
@@ -323,14 +323,14 @@ final class DoctorReportTests: XCTestCase {
 
         // share_cache off: never a warning.
         var plain = Self.config()
-        plain.toolchains = kinhinConfig.ToolchainsConfig(specs: ["node@22"])
+        plain.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"])
         let quiet = DoctorReportBuilder.toolchainCacheSection(config: plain)
         XCTAssertFalse(quiet.sharedWithRunners)
         XCTAssertFalse(quiet.warning)
 
         // Unusable root with share_cache on: warn regardless of bytes.
         var on = Self.config()
-        on.toolchains = kinhinConfig.ToolchainsConfig(shareCache: true)
+        on.toolchains = KinhinConfig.ToolchainsConfig(shareCache: true)
         _ = on  // the unusable branch is exercised via root: the warning flag
         let unusable = DoctorReport.ToolchainCacheSection(
             root: "/nonexistent", usable: false, sharedWithRunners: true, warning: true,
@@ -342,7 +342,7 @@ final class DoctorReportTests: XCTestCase {
 
     func testToolchainCacheJSONRoundTripsWithNewFields() async throws {
         var cfg = Self.config()
-        cfg.toolchains = kinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
+        cfg.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
         let report = await builder(config: cfg).build()
         let json = String(decoding: try JSONEncoder().encode(report), as: UTF8.self)
         XCTAssertTrue(json.contains("\"sharedWithRunners\":true"), "the share flag is part of the contract")

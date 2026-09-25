@@ -54,7 +54,7 @@ public struct AuthStatusReport: Codable, Equatable, Sendable {
 /// Builds AuthStatusReport from injected state. `load` stands in for the
 /// Keychain so tests stay hermetic; `.live` passes `KeychainTokenStore.load`.
 public enum AuthStatusReporter {
-    public static func report(config: kinhinConfig?, load: (ForgeID) -> String?) -> AuthStatusReport {
+    public static func report(config: KinhinConfig?, load: (ForgeID) -> String?) -> AuthStatusReport {
         let githubToken = load(.github)
         let repo = config?.repo
         // The starter placeholder repo means "no GitHub" (Gitea-only configs).
@@ -110,7 +110,7 @@ public enum AuthStatusReporter {
         }
     }
 
-    private static func giteaDetail(token: String?, config: kinhinConfig.GiteaForgeConfig?) -> String {
+    private static func giteaDetail(token: String?, config: KinhinConfig.GiteaForgeConfig?) -> String {
         let masked = token.map { "\(String($0.prefix(4)))…" } ?? "—"
         switch (token != nil, config != nil) {
         case (true, true):

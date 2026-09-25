@@ -23,7 +23,7 @@ public struct DockerImagePreparer {
         public var user: String
         /// Managed toolchains (`toolchains:` config section) baked after the
         /// runner agents install, before `docker commit`. nil = none.
-        public var toolchains: kinhinConfig.ToolchainsConfig?
+        public var toolchains: KinhinConfig.ToolchainsConfig?
         /// Timeout for the managed toolchain install exec (seconds) —
         /// installing heavy toolchains is slow.
         public var toolchainTimeout: TimeInterval
@@ -32,7 +32,7 @@ public struct DockerImagePreparer {
         public var hasGiteaToken: Bool?
 
         public init(
-            image: String, target: String, user: String = "admin", toolchains: kinhinConfig.ToolchainsConfig? = nil,
+            image: String, target: String, user: String = "admin", toolchains: KinhinConfig.ToolchainsConfig? = nil,
             toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil
         ) {
             self.image = image

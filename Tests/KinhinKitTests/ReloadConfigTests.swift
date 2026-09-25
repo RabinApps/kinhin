@@ -23,7 +23,7 @@ final class ReloadConfigTests: XCTestCase {
         return (engine, github)
     }
 
-    private func mixedConfig(budget: [String: Double], routes: [kinhinConfig.RuntimeConfig.Route]) -> kinhinConfig {
+    private func mixedConfig(budget: [String: Double], routes: [KinhinConfig.RuntimeConfig.Route]) -> KinhinConfig {
         var cfg = makeTestConfig()
         cfg.container = .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4)
         cfg.runtimes = .init(defaultRuntime: "tart", budget: budget, routes: routes)
@@ -181,7 +181,7 @@ final class ReloadConfigTests: XCTestCase {
         XCTAssertFalse(FleetEngine.restartRequired(from: base, to: labels), "label edits reach the forge live")
 
         // Everything read from the frozen config restarts.
-        func with(_ mutate: (inout kinhinConfig) -> Void) -> kinhinConfig {
+        func with(_ mutate: (inout KinhinConfig) -> Void) -> KinhinConfig {
             var cfg = base
             mutate(&cfg)
             return cfg
@@ -215,7 +215,7 @@ final class ReloadConfigTests: XCTestCase {
 
     /// Engines for these tests are built from the parsed YAML itself (not
     /// makeTestConfig) so the restart diff compares like with like.
-    private func makeEngine(_ config: kinhinConfig, store: FleetStore = makeTestStore()) -> FleetEngine {
+    private func makeEngine(_ config: KinhinConfig, store: FleetStore = makeTestStore()) -> FleetEngine {
         FleetEngine(
             config: config,
             github: FakeGitHub(),

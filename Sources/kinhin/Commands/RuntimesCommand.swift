@@ -85,7 +85,7 @@ enum RuntimesCommand {
         guard let yaml = try? String(contentsOf: configURL, encoding: .utf8) else {
             throw RouteError.usage("no config at \(configURL.path) — run: kinhin config init")
         }
-        let existing: kinhinConfig.RuntimeConfig?
+        let existing: KinhinConfig.RuntimeConfig?
         do {
             // nil (no section yet) is normal; a throw means the section exists
             // but is malformed.
@@ -94,7 +94,7 @@ enum RuntimesCommand {
             throw RouteError.usage("config.yaml has an invalid runtimes section — fix it, or run: kinhin doctor")
         }
         let hadRouting = existing != nil
-        var rc = existing ?? kinhinConfig.RuntimeConfig()
+        var rc = existing ?? KinhinConfig.RuntimeConfig()
 
         switch op {
         case "add":
@@ -108,7 +108,7 @@ enum RuntimesCommand {
                     "a route for '\(pattern)' already exists — remove it first: kinhin runtimes route remove \(pattern)"
                 )
             }
-            rc.routes.append(kinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime.rawValue))
+            rc.routes.append(KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime.rawValue))
             if !hadRouting {
                 print("note: created the runtimes: section (default: \(rc.defaultRuntime))")
             }

@@ -73,12 +73,12 @@ public enum ConfigScenario: Sendable {
     /// Untouched starter template (placeholder repo).
     case template
     /// A caller-supplied parsed config (template-ness is detected from its repo).
-    case loaded(kinhinConfig)
+    case loaded(KinhinConfig)
 }
 
 /// Internal, fully-resolved view of the scenario — no filesystem at evaluation time.
 enum ConfigEvaluation {
-    case parsed(kinhinConfig)
+    case parsed(KinhinConfig)
     case templateConfig
     case invalidFile
     case noFile
@@ -136,7 +136,7 @@ public struct SetupStatusComputer: Sendable {
     }
 
     /// Loads the parsed config, or nil when missing/invalid.
-    static func liveConfig() -> kinhinConfig? {
+    static func liveConfig() -> KinhinConfig? {
         guard FileManager.default.fileExists(atPath: Paths.config.path) else { return nil }
         do {
             return try ConfigLoader.load()
@@ -156,7 +156,7 @@ public struct SetupStatusComputer: Sendable {
         // Resolve the config scenario once. Every branch below reads the
         // evaluation — never the real filesystem — so tests stay hermetic.
         let evaluation = Self.resolve(config)
-        var parsed: kinhinConfig?
+        var parsed: KinhinConfig?
         if case .parsed(let cfg) = evaluation { parsed = cfg }
 
         let realHost = host ?? ResourceProbe().snapshot()
@@ -481,7 +481,7 @@ public struct SetupStatusComputer: Sendable {
     /// is non-empty — exactly what `image prepare` will validate — otherwise
     /// a fix row pointing at config.yaml. Only called for configs that
     /// declare `provision_script`.
-    static func provisionScriptCheck(_ cfg: kinhinConfig) -> SetupCheckResult {
+    static func provisionScriptCheck(_ cfg: KinhinConfig) -> SetupCheckResult {
         func broken(_ detail: String) -> SetupCheckResult {
             SetupCheckResult(
                 id: "provision-script",
