@@ -358,6 +358,7 @@ package manager.
 ```
 kinhin config init          Write the starter config
 kinhin auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
+kinhin auth add|list|remove    Manage additional GitHub/Gitea accounts (auth set --account NAME stores one's token)
 kinhin auth status --json    All forges' stored-token state in one machine-readable document (exit 1 until ready)
 kinhin doctor [--json]      Prerequisites + computed capacity (--json: host, runtime health, stored tokens, checklist,
                              and capacity in one machine-readable document; ready=false until every half passes)
@@ -545,6 +546,25 @@ gitea:
 - Image provisioning is **token-gated**: `kinhin image prepare` bakes the GitHub agent only if a GitHub PAT is stored, and the gitea-runner binary only if a Gitea token is stored — no credential, no agent. Both runner versions are resolved from the vendors' release feeds at prepare time (pinned fallback when offline).
 - Gitea VMs are ephemeral like GitHub's: gitea-runner has no `--ephemeral`, so kinhin watches for all of the VM's runners to go idle and deletes the VM after a short grace period.
 - Demand polling uses the scope's task-queue endpoints; when the instance reports nothing usable, a `min_runners` floor keeps capacity available.
+
+**Multiple accounts:** serve as many GitHub orgs/repos and Gitea instances as you like from one fleet. `repo:` and `gitea:` remain the built-in accounts (named `github` and `gitea`, tokens under the original Keychain items — nothing to migrate); add more with an `accounts:` list, each with its own token:
+
+```yaml
+accounts:
+  - name: work # lowercase letters, digits, - or _ (not "github"/"gitea")
+    forge: github
+    scope: "bigco" # org, or owner/name
+  - name: home-gitea
+    forge: gitea
+    scope: "me/repo"
+    instance: "https://git.home.lan"
+    labels: ["macos:host"]
+```
+
+- `kinhin auth add work --github --scope bigco` writes the entry (add `--token X` to store the token too); `kinhin auth set --account work` stores or replaces its token, `kinhin auth list` shows every account, `kinhin auth remove work` deletes the entry and its token. The app's Connect form has the same controls under **More accounts**.
+- Each account has its own token in the Keychain (`github-pat:work`), its own registration-token cache, and its own attach/retry state: one account with a bad token is detached with the reason in the status line while the others keep serving. New VMs go to the account with the most unmet demand.
+- `repo:` may be omitted when every account is in `accounts:`. Older kinhin builds ignore the `accounts:` key, so don't share one config with a build that predates it.
+- `kinhin auth status --json` keeps its `forges` entries and adds an `accounts` array.
 
 **More forges are planned.** The Forge protocol was designed so new platforms slot in without touching the engine: Forgejo (Gitea's upstream, wire-compatible with the Gitea forge), GitLab (its runner is Docker-executor-oriented, so a macOS host-mode path needs design work), Sourcehut, Buildkite, and others are all candidates. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
 

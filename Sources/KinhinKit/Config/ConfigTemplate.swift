@@ -93,6 +93,19 @@ extension ConfigLoader {
         #   scope: "RabinApps/name"        # or an org name
         #   labels: ["macos:host"]     # jobs opt in via runs-on: macos:host
 
+        # Optional: serve more accounts. `repo:` and `gitea:` above are the
+        # built-in accounts "github" and "gitea"; each entry here is another
+        # GitHub org/repo or Gitea instance with its own token. Manage them
+        # with `kinhin auth add|list|remove` and `kinhin auth set --account NAME`.
+        # accounts:
+        #   - name: work
+        #     forge: github
+        #     scope: "bigco"             # org, or owner/name
+        #   - name: home-gitea
+        #     forge: gitea
+        #     scope: "me/repo"
+        #     instance: "https://git.home.lan"
+
         # Optional: route repos and workflows to different execution runtimes.
         # macOS jobs need Tart VMs; Linux jobs can run in Apple-container
         # microVMs (cheaper per job). Each runtime's runners carry distinct

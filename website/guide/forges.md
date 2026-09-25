@@ -34,6 +34,34 @@ gitea:
 - Demand polling uses the scope's task-queue endpoints; when the instance reports nothing
   usable, a `min_runners` floor keeps capacity available.
 
+## Multiple accounts
+
+`repo:` and `gitea:` are the built-in accounts, named `github` and `gitea`. To serve more — a
+second GitHub org, another Gitea instance — add an `accounts:` list; every entry has its own
+scope and its own token:
+
+```yaml
+accounts:
+  - name: work # lowercase letters, digits, - or _ (not "github"/"gitea")
+    forge: github
+    scope: "bigco" # org, or owner/name
+  - name: home-gitea
+    forge: gitea
+    scope: "me/repo"
+    instance: "https://git.home.lan"
+    labels: ["macos:host"]
+```
+
+- `kinhin auth add work --github --scope bigco` writes the entry; `kinhin auth set --account work`
+  stores its token in the Keychain (`github-pat:work`). `kinhin auth list` and
+  `kinhin auth remove NAME` manage them. The app's Connect form has the same controls under
+  **More accounts**.
+- One account failing (bad token, unreachable server) is detached with the reason shown in the
+  status line and retried with backoff; the others keep serving.
+- New VMs go to the account with the most unmet demand, and register with that account's token.
+- `repo:` is optional when every account is listed under `accounts:`.
+- Older builds ignore `accounts:`, so avoid sharing one config file with a build that predates it.
+
 ## More forges are planned
 
 The Forge protocol was designed so new platforms slot in without touching the engine: Forgejo

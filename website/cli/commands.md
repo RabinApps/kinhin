@@ -4,6 +4,10 @@
 kinhin config init          Write the starter config
 kinhin auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
 kinhin auth set --gitea     Store/replace the Gitea access token
+kinhin auth add NAME --github|--gitea --scope S [--instance URL] [--token X]   Add another account to config.yaml
+kinhin auth set --account NAME   Store/replace that account's token (also: status/clear --account NAME)
+kinhin auth list            Every account and whether its token is stored
+kinhin auth remove NAME     Remove an account and its token
 kinhin auth status --json   All forges' stored-token state in one machine-readable document (exit 1 until ready)
 kinhin doctor [--json]      Prerequisites + computed capacity (--json: host, runtime health, stored tokens, checklist,
                             and capacity in one machine-readable document; ready=false until every half passes)
