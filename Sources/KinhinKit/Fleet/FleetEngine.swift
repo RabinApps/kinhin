@@ -80,11 +80,14 @@ public final class FleetEngine {
         self.credentials = credentials
         self.githubFactory = GitHubClientFactory { _ in github }
         self.githubInstance = github
-        self.forgesByPlatform = [
-            "github": GitHubForge(
-                credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels,
-                client: github)
-        ]
+        self.forgesByPlatform =
+            config.githubEnabled
+            ? [
+                "github": GitHubForge(
+                    credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels,
+                    client: github)
+            ]
+            : [:]
         let tartInstance = TartRuntime(
             tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh,
             toolchainsConfig: { [config] in config.toolchains })

@@ -37,6 +37,17 @@ func notifyDaemonGiteaTokenReplaced(_ token: String) {
     }
 }
 
+/// Same best-effort notification for a named account's token.
+func notifyDaemonAccountTokenReplaced(account: String, token: String) {
+    guard RPCClient.isDaemonAlive() else { return }
+    do {
+        try RPCClient().replaceAccountToken(account: account, token: token)
+        print("running daemon notified — new token for '\(account)' is live")
+    } catch {
+        warn("could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token")
+    }
+}
+
 /// Process exit codes. Scripts can branch on them: 1 for anything
 /// unclassified, 2 for a bad command line, then one per problem area.
 enum CLIExit: Int32 {
@@ -108,6 +119,11 @@ func helpText() -> String {
         config init                 Write a starter config file
         auth [set]                  Store (or replace) your GitHub PAT in the Keychain (or: auth set --token)
         auth set --gitea            Store (or replace) your Gitea access token (auth set --gitea --token X)
+        auth set --account NAME     Store the token for a named account (--token X to skip the prompt)
+        auth add NAME --github|--gitea --scope S [--instance URL] [--token X]
+                                    Add another GitHub or Gitea account to the config
+        auth list                   List every account and whether its token is stored
+        auth remove NAME            Remove an account from the config and delete its token
         auth status [--json]        Show whether a token is stored and valid (--json: all forges, machine output, exit 1 until ready)
         auth clear                  Remove the stored token
         doctor [--json]             Check prerequisites and print the computed capacity (--json: merged machine-readable diagnostics document)
@@ -173,7 +189,9 @@ func tokenOrExit(for cfg: KinhinConfig) -> String {
         fail(
             cfg.githubEnabled
                 ? "no GitHub token stored. Run: kinhin auth set"
-                : "no Gitea token stored. Run: kinhin auth set --gitea",
+                : cfg.gitea != nil
+                    ? "no Gitea token stored. Run: kinhin auth set --gitea"
+                    : "no account has a token stored. See: kinhin auth list, then kinhin auth set --account NAME",
             exit: .auth)
     }
     return token
@@ -188,11 +206,10 @@ func engineFromConfig(_ cfg: KinhinConfig) throws -> FleetEngine {
             exit: .config)
     }
     let tart = try cfg.makeTartControlling()
-    let github = GitHubClient(credentials: GitHubCredentials(token: tokenOrExit(for: cfg), scope: cfg.repo))
     let host = ResourceProbe().snapshot()
     return FleetEngine(
         config: cfg,
-        github: github,
+        pat: tokenOrExit(for: cfg),
         tart: tart,
         store: FleetStore(),
         ssh: SSHExecutor(),

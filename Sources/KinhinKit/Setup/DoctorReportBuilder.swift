@@ -13,6 +13,8 @@ public struct DoctorReportBuilder: Sendable {
     let config: ConfigScenario
     /// Stands in for the Keychain (`.live` passes `KeychainTokenStore.load`).
     let authLoad: @Sendable (ForgeID) -> String?
+    /// Same, for the named `accounts:` entries.
+    let accountLoad: @Sendable (ForgeID, String) -> String?
     let containerHealth: RuntimeHealth?
     let containerImages: [String]?
     let dockerHealth: RuntimeHealth?
@@ -25,6 +27,9 @@ public struct DoctorReportBuilder: Sendable {
         tartList: [TartVM]? = nil,
         config: ConfigScenario = .live,
         authLoad: @escaping @Sendable (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) },
+        accountLoad: @escaping @Sendable (ForgeID, String) -> String? = {
+            KeychainTokenStore.load(forge: $0, name: $1)
+        },
         containerHealth: RuntimeHealth? = nil,
         containerImages: [String]? = nil,
         dockerHealth: RuntimeHealth? = nil,
@@ -36,6 +41,7 @@ public struct DoctorReportBuilder: Sendable {
         self.tartList = tartList
         self.config = config
         self.authLoad = authLoad
+        self.accountLoad = accountLoad
         self.containerHealth = containerHealth
         self.containerImages = containerImages
         self.dockerHealth = dockerHealth
@@ -80,7 +86,7 @@ public struct DoctorReportBuilder: Sendable {
             dockerImages: dockerImages
         ).compute()
 
-        let authReport = AuthStatusReporter.report(config: parsed, load: authLoad)
+        let authReport = AuthStatusReporter.report(config: parsed, load: authLoad, loadAccount: accountLoad)
 
         // Apple-container section — present only when the config enables it,
         // with the same image-matching rule the checklist row uses.

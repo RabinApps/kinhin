@@ -25,6 +25,16 @@ struct AuthEnvironment {
     var fail: (String) throws -> Never
     /// Bare exit (stdout already carries the user-facing line).
     var exit: (Int) throws -> Never
+    /// Named-account token access (`--account NAME`, `auth add/remove`).
+    var saveAccount: (String, ForgeID, String) throws -> Void = { try KeychainTokenStore.save($0, forge: $1, name: $2) }
+    var loadAccount: (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
+    var deleteAccount: (ForgeID, String) -> Void = { KeychainTokenStore.delete(forge: $0, name: $1) }
+    /// Best-effort live-swap notification for a named account: (account, token).
+    var notifyDaemonAccount: (String, String) -> Void = { account, token in
+        notifyDaemonAccountTokenReplaced(account: account, token: token)
+    }
+    /// The config file `auth add/remove` edit.
+    var configURL: URL = Paths.config
     /// Config fixture for `auth status --json`: nil property → read the live
     /// file (tolerant of a missing one); a set value → use it instead, so
     /// tests never touch the developer's real config.
@@ -72,7 +82,8 @@ enum AuthCommand {
     static func emitStatusJSON(environment: AuthEnvironment) throws -> (report: AuthStatusReport, data: Data) {
         let report = AuthStatusReporter.report(
             config: environment.jsonConfig ?? AuthEnvironment.loadConfigTolerant(),
-            load: environment.load
+            load: environment.load,
+            loadAccount: environment.loadAccount
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -90,14 +101,118 @@ enum AuthCommand {
         return TokenRequirements.github(scope: config?.repo ?? "")
     }
 
+    /// Resolves `--account NAME` to its forge: "github"/"gitea" are the legacy
+    /// accounts, anything else must be an `accounts:` entry in the config.
+    static func resolveAccount(_ name: String, config: KinhinConfig?) -> AccountConfig? {
+        config?.allAccounts.first { $0.name == name }
+            ?? ForgeID(rawValue: name).map { AccountConfig(name: name, forge: $0, scope: "") }
+    }
+
+    /// `auth add NAME --github|--gitea --scope S [--instance URL] [--token T]`.
+    private static func add(_ args: [String], environment: AuthEnvironment) throws {
+        guard let name = args.dropFirst(2).first, !name.hasPrefix("--") else {
+            try environment.fail(
+                "usage: kinhin auth add NAME --github|--gitea --scope SCOPE [--instance URL] [--token T]")
+        }
+        let forge: ForgeID
+        switch (args.contains("--github"), args.contains("--gitea")) {
+        case (true, false): forge = .github
+        case (false, true): forge = .gitea
+        default: try environment.fail("choose exactly one of --github or --gitea")
+        }
+        guard let scope = flag("--scope", in: args) else {
+            try environment.fail("--scope is required (an org name, or owner/name for one repository)")
+        }
+        let account = AccountConfig(name: name, forge: forge, scope: scope, instance: flag("--instance", in: args))
+        do {
+            try AccountsConfigEditor.add(account, to: environment.configURL)
+        } catch {
+            try environment.fail(error.localizedDescription)
+        }
+        print("account '\(name)' added to config (\(forge.rawValue): \(scope))")
+        if let token = flag("--token", in: args) {
+            try environment.saveAccount(token, forge, name)
+            environment.notifyDaemonAccount(name, token)
+            print("token stored in Keychain")
+        } else {
+            print("next: kinhin auth set --account \(name)")
+        }
+    }
+
+    /// `auth list`: every account, its scope and whether a token is stored.
+    private static func list(environment: AuthEnvironment) {
+        let config: KinhinConfig? =
+            if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
+        let accounts = config?.allAccounts ?? []
+        guard !accounts.isEmpty else {
+            print("no accounts configured")
+            return
+        }
+        for account in accounts {
+            let token =
+                account.name == account.forge.rawValue
+                ? environment.load(account.forge) : environment.loadAccount(account.forge, account.name)
+            let where_ = account.instance.map { "\(account.scope) @ \($0)" } ?? account.scope
+            print(
+                "\(account.name)\t\(account.forge.rawValue)\t\(where_)\t\(token == nil ? "no token" : "token stored")")
+        }
+    }
+
+    /// `auth remove NAME`: drops the account from the config and its token.
+    private static func remove(_ args: [String], environment: AuthEnvironment) throws {
+        guard let name = args.dropFirst(2).first, !name.hasPrefix("--") else {
+            try environment.fail("usage: kinhin auth remove NAME")
+        }
+        let config: KinhinConfig? =
+            if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
+        guard let account = config?.accounts.first(where: { $0.name == name }) else {
+            try environment.fail(
+                "no account '\(name)' in the accounts: list (the top-level repo:/gitea: sections are edited in config.yaml)"
+            )
+        }
+        do {
+            try AccountsConfigEditor.remove(name: name, at: environment.configURL)
+        } catch {
+            try environment.fail(error.localizedDescription)
+        }
+        environment.deleteAccount(account.forge, name)
+        print("account '\(name)' removed (config entry and Keychain token)")
+    }
+
     /// `environment` is injectable so tests can drive every flow with
     /// recording doubles — no real Keychain, stdin, or network.
     static func run(_ args: [String], environment: AuthEnvironment = .live) async throws {
         let sub = args.dropFirst().first ?? "set"
+        switch sub {
+        case "add": return try add(args, environment: environment)
+        case "list": return list(environment: environment)
+        case "remove": return try remove(args, environment: environment)
+        default: break
+        }
         // Platform selection: --gitea targets the Gitea token; default is GitHub.
-        let giteaMode = args.contains("--gitea")
-        let forge: ForgeID = giteaMode ? .gitea : .github
-        let forgeName = giteaMode ? "Gitea access token" : "GitHub PAT"
+        // --account NAME targets a named account (an accounts: entry).
+        var giteaMode = args.contains("--gitea")
+        var forge: ForgeID = giteaMode ? .gitea : .github
+        var namedAccount: AccountConfig?
+        if let accountName = flag("--account", in: args) {
+            let config: KinhinConfig? =
+                if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
+            guard let resolved = resolveAccount(accountName, config: config) else {
+                try environment.fail(
+                    "no account '\(accountName)' in config — add it first: kinhin auth add \(accountName) --github|--gitea --scope SCOPE"
+                )
+            }
+            forge = resolved.forge
+            giteaMode = forge == .gitea
+            // The legacy names keep their original Keychain items and RPCs.
+            if resolved.name != resolved.forge.rawValue { namedAccount = resolved }
+        }
+        let forgeName =
+            namedAccount.map { "\($0.forge == .gitea ? "Gitea access token" : "GitHub PAT") for account '\($0.name)'" }
+            ?? (giteaMode ? "Gitea access token" : "GitHub PAT")
+        let load: (ForgeID) -> String? = { f in
+            namedAccount.map { environment.loadAccount($0.forge, $0.name) } ?? environment.load(f)
+        }
         switch sub {
         case "set":
             let token: String
@@ -117,8 +232,13 @@ enum AuthCommand {
                 }
                 token = entered
             }
-            try environment.save(token, forge)
-            environment.notifyDaemon(token, forge)
+            if let namedAccount {
+                try environment.saveAccount(token, namedAccount.forge, namedAccount.name)
+                environment.notifyDaemonAccount(namedAccount.name, token)
+            } else {
+                try environment.save(token, forge)
+                environment.notifyDaemon(token, forge)
+            }
             print("\(forgeName) stored in Keychain")
         case "status":
             // Machine output first: the whole point is a fast, deterministic,
@@ -131,12 +251,26 @@ enum AuthCommand {
                 }
                 return
             }
-            guard let token = environment.load(forge) else {
+            guard let token = load(forge) else {
                 print(giteaMode ? "no Gitea token stored" : "no token stored")
                 try environment.exit(1)
             }
             let cfg = environment.loadConfig()
-            if giteaMode {
+            if let namedAccount {
+                print("token stored (starts with \(token.prefix(4))…), checking \(namedAccount.scope)…")
+                do {
+                    if let instance = namedAccount.instance {
+                        try await environment.checkGitea(
+                            GiteaCredentials(token: token, scope: namedAccount.scope, instance: instance))
+                    } else {
+                        try await environment.checkGitHub(GitHubCredentials(token: token, scope: namedAccount.scope))
+                    }
+                    print("token works against \(namedAccount.scope)")
+                } catch {
+                    print("token check failed: \(error.localizedDescription)")
+                    try environment.exit(1)
+                }
+            } else if giteaMode {
                 guard let gitea = cfg.gitea else {
                     try environment.fail("no gitea section in config — add it before checking the Gitea token")
                 }
@@ -164,10 +298,14 @@ enum AuthCommand {
                 }
             }
         case "clear":
-            environment.delete(forge)
+            if let namedAccount {
+                environment.deleteAccount(namedAccount.forge, namedAccount.name)
+            } else {
+                environment.delete(forge)
+            }
             print("\(forgeName) removed")
         default:
-            try environment.fail("unknown auth subcommand '\(sub)' (use set|status|clear)")
+            try environment.fail("unknown auth subcommand '\(sub)' (use set|status|clear|list|add|remove)")
         }
     }
 }

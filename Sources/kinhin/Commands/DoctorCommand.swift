@@ -103,6 +103,12 @@ enum DoctorCommand {
                 "  gitea tok:  \(KeychainTokenStore.load(forge: .gitea) != nil ? "stored ✓" : "missing — run: kinhin auth set --gitea")"
             )
         }
+        for account in doctorConfig?.accounts ?? [] {
+            let stored = KeychainTokenStore.load(forge: account.forge, name: account.name) != nil
+            print(
+                "  \(("tok " + account.name + ":").padding(toLength: 11, withPad: " ", startingAt: 0))"
+                    + (stored ? "stored ✓" : "missing — run: kinhin auth set --account \(account.name)"))
+        }
         let configExists = FileManager.default.fileExists(atPath: Paths.config.path)
         print("  config:     \(configExists ? Paths.config.path : "missing — run: kinhin config init")")
         // Shared toolchain cache: what prepare writes through and runner

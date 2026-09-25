@@ -38,23 +38,69 @@ public struct AuthStatusReport: Codable, Equatable, Sendable {
         }
     }
 
+    /// One entry per `accounts:` list entry (the additional accounts; the
+    /// legacy github/gitea accounts stay in `forges`). Empty without any.
+    public struct Account: Codable, Equatable, Sendable {
+        public let name: String
+        /// "github" | "gitea".
+        public let forge: String
+        public let stored: Bool
+        /// First four characters of the stored token, or null.
+        public let prefix: String?
+        public let scope: String
+        /// Gitea instance URL; null for GitHub.
+        public let instance: String?
+        public let detail: String
+
+        public init(
+            name: String, forge: String, stored: Bool, prefix: String?, scope: String, instance: String?,
+            detail: String
+        ) {
+            self.name = name
+            self.forge = forge
+            self.stored = stored
+            self.prefix = prefix
+            self.scope = scope
+            self.instance = instance
+            self.detail = detail
+        }
+    }
+
     /// One entry per forge, in `ForgeID.allCases` order (github first).
     public let forges: [Forge]
+    /// The additional named accounts (see `Account`).
+    public let accounts: [Account]
     /// True when every forge the fleet actually needs has a stored token:
     /// GitHub must be stored *and* have a scope; Gitea only when configured.
     /// Mirrors the CLI's exit code for `auth status --json`.
     public let allGood: Bool
 
-    public init(forges: [Forge], allGood: Bool) {
+    public init(forges: [Forge], allGood: Bool, accounts: [Account] = []) {
         self.forges = forges
         self.allGood = allGood
+        self.accounts = accounts
+    }
+
+    /// `accounts` was added after the first release: older documents omit it.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        forges = try container.decode([Forge].self, forKey: .forges)
+        allGood = try container.decode(Bool.self, forKey: .allGood)
+        accounts = try container.decodeIfPresent([Account].self, forKey: .accounts) ?? []
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case forges, accounts, allGood
     }
 }
 
 /// Builds AuthStatusReport from injected state. `load` stands in for the
 /// Keychain so tests stay hermetic; `.live` passes `KeychainTokenStore.load`.
 public enum AuthStatusReporter {
-    public static func report(config: KinhinConfig?, load: (ForgeID) -> String?) -> AuthStatusReport {
+    public static func report(
+        config: KinhinConfig?, load: (ForgeID) -> String?,
+        loadAccount: (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
+    ) -> AuthStatusReport {
         let githubToken = load(.github)
         let repo = config?.repo
         // The starter placeholder repo means "no GitHub" (Gitea-only configs).
@@ -89,11 +135,25 @@ public enum AuthStatusReporter {
         // be configured (GitHub and Gitea are each optional on their own).
         let githubOK = githubConfigured && githubToken != nil
         let giteaOK = gitea != nil && giteaToken != nil
+        let accounts = (config?.accounts ?? []).map { account -> AuthStatusReport.Account in
+            let token = loadAccount(account.forge, account.name)
+            let masked = token.map { "\(String($0.prefix(4)))…" }
+            let detail =
+                masked.map { "stored in Keychain (\($0)) · scope: \(account.scope)" }
+                ?? "no token stored — run: kinhin auth set --account \(account.name)"
+            return AuthStatusReport.Account(
+                name: account.name, forge: account.forge.rawValue, stored: token != nil,
+                prefix: token.map { String($0.prefix(4)) }, scope: account.scope, instance: account.instance,
+                detail: detail)
+        }
+        let accountsOK = accounts.allSatisfy(\.stored)
+        let anyForge = githubOK || giteaOK || accounts.contains(where: \.stored)
         let allGood =
-            (githubOK || giteaOK)
+            anyForge
             && (!githubConfigured || githubToken != nil)
             && (gitea == nil || giteaToken != nil)
-        return AuthStatusReport(forges: forges, allGood: allGood)
+            && accountsOK
+        return AuthStatusReport(forges: forges, allGood: allGood, accounts: accounts)
     }
 
     private static func githubDetail(token: String?, scope: String?) -> String {
