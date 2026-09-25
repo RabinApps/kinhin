@@ -242,10 +242,7 @@ public struct DockerRuntime: Runtime {
             : [bin, "ps", "--quiet"]
         let result = try await run(argv)
         guard result.succeeded else { return [] }
-        return result.stdout
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        return result.outputLines
     }
 
     /// Local list of image references (for the checklist's image-present
@@ -259,10 +256,7 @@ public struct DockerRuntime: Runtime {
             return []
         }
         guard result.succeeded else { return [] }
-        return result.stdout
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        return result.outputLines
     }
 
     func run(_ argv: [String], timeout: TimeInterval = 120) async throws -> ShellResult {

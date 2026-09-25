@@ -8,6 +8,14 @@ public struct ShellResult: Sendable {
 
     public var succeeded: Bool { exitCode == 0 }
 
+    /// Non-empty, whitespace-trimmed lines of stdout (ids, names, references).
+    public var outputLines: [String] {
+        stdout
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
     public init(exitCode: Int32, stdout: String, stderr: String) {
         self.exitCode = exitCode
         self.stdout = stdout
