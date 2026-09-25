@@ -23,9 +23,11 @@ public struct ConfigLoader {
     /// Gitea-only configs also get the placeholder. Nil when no configured
     /// forge has a usable token.
     public static func engineToken(
-        for cfg: KinhinConfig, load: (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) }
+        for cfg: KinhinConfig, load: (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) },
+        loadAccount: (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
     ) -> String? {
-        let giteaReady = cfg.gitea != nil && load(.gitea) != nil
+        let extraReady = cfg.accounts.contains { loadAccount($0.forge, $0.name) != nil }
+        let giteaReady = extraReady || (cfg.gitea != nil && load(.gitea) != nil)
         if cfg.githubEnabled {
             if let token = load(.github) { return token }
             return giteaReady ? "" : nil
@@ -35,7 +37,7 @@ public struct ConfigLoader {
 
     /// True when at least one forge is configured for real work.
     public static func hasAnyForge(_ cfg: KinhinConfig) -> Bool {
-        cfg.githubEnabled || cfg.gitea != nil
+        cfg.githubEnabled || cfg.gitea != nil || !cfg.accounts.isEmpty
     }
 
     /// Creates the starter config on first run. Never overwrites: an existing
@@ -78,18 +80,71 @@ public struct ConfigLoader {
         return trimmed
     }
 
+    /// Validates the `accounts:` list: unique tame names (not the legacy
+    /// `github`/`gitea`), a known forge, a scope, and a Gitea instance URL.
+    static func parseAccounts(_ entries: [PartialConfig.PartialAccount]) throws -> [AccountConfig] {
+        var seen: Set<String> = []
+        var result: [AccountConfig] = []
+        for (index, entry) in entries.enumerated() {
+            let position = "accounts[\(index)]"
+            guard let name = entry.name, !name.isEmpty else {
+                throw ConfigError.invalid("\(position).name is required")
+            }
+            guard AccountConfig.isValidName(name) else {
+                throw ConfigError.invalid(
+                    "\(position).name '\(name)' must be lowercase letters, digits, '-' or '_' (max 32)")
+            }
+            guard !AccountConfig.reservedNames.contains(name) else {
+                throw ConfigError.invalid(
+                    "\(position).name '\(name)' is reserved for the top-level repo:/gitea: sections — pick another name")
+            }
+            guard seen.insert(name).inserted else {
+                throw ConfigError.invalid("duplicate account name '\(name)'")
+            }
+            guard let rawForge = entry.forge, let forge = ForgeID(rawValue: rawForge) else {
+                throw ConfigError.invalid("account '\(name)': forge must be github or gitea")
+            }
+            guard let scope = entry.scope, AccountConfig.isValidScope(scope) else {
+                throw ConfigError.invalid("account '\(name)': scope must be 'RabinApps/name' or an org name")
+            }
+            switch forge {
+            case .github:
+                if entry.instance != nil || entry.labels != nil {
+                    throw ConfigError.invalid("account '\(name)': instance and labels apply to gitea accounts only")
+                }
+                result.append(AccountConfig(name: name, forge: forge, scope: scope))
+            case .gitea:
+                guard let instance = entry.instance, !instance.isEmpty else {
+                    throw ConfigError.invalid("account '\(name)': instance is required (e.g. https://gitea.example.com)")
+                }
+                do {
+                    _ = try GiteaCredentials.validate(instance: instance)
+                } catch {
+                    throw ConfigError.invalid(
+                        "account '\(name)': instance must be a base URL like https://gitea.example.com (no path)")
+                }
+                if let labels = entry.labels, labels.isEmpty {
+                    throw ConfigError.invalid("account '\(name)': labels must be non-empty when present")
+                }
+                result.append(AccountConfig(name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels))
+            }
+        }
+        return result
+    }
+
     public static func parse(_ yaml: String) throws -> KinhinConfig {
         let partial = try YAMLDecoder().decode(PartialConfig.self, from: yaml)
 
-        guard let repo = partial.repo, !repo.isEmpty else {
+        // `repo:` is the legacy GitHub account; it may be omitted when the
+        // config names its accounts in the `accounts:` list instead.
+        let accounts = try Self.parseAccounts(partial.accounts ?? [])
+        let repo = partial.repo ?? ""
+        if repo.isEmpty, accounts.isEmpty {
             throw ConfigError.missing("repo")
         }
         // Scope: "RabinApps/name" (one repository) or a single segment (an org —
         // org-level runners serve every repo in the organization).
-        let scopeSegments = repo.split(separator: "/")
-        guard (1...2).contains(scopeSegments.count),
-            scopeSegments.allSatisfy({ !$0.isEmpty })
-        else {
+        if !repo.isEmpty, !AccountConfig.isValidScope(repo) {
             throw ConfigError.invalid("scope must be 'RabinApps/name' or an org name, got '\(repo)'")
         }
         guard let labels = partial.labels, !labels.isEmpty else {
@@ -114,6 +169,7 @@ public struct ConfigLoader {
 
         var cfg = KinhinConfig.default
         cfg.repo = repo
+        cfg.accounts = accounts
         cfg.labels = labels
         cfg.minRunners = minRunners
         cfg.maxRunners = maxRunners

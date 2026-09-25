@@ -24,6 +24,15 @@ public struct PartialConfig: Decodable {
     var runtimes: PartialRuntimes?
     var provisionScript: String?
     var toolchains: PartialToolchains?
+    var accounts: [PartialAccount]?
+
+    struct PartialAccount: Decodable {
+        var name: String?
+        var forge: String?
+        var scope: String?
+        var instance: String?
+        var labels: [String]?
+    }
 
     struct PartialGitea: Decodable {
         var instance: String?
@@ -168,5 +177,6 @@ public struct PartialConfig: Decodable {
         case runtimes
         case provisionScript = "provision_script"
         case toolchains
+        case accounts
     }
 }

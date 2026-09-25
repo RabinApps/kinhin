@@ -72,6 +72,9 @@ public struct KinhinConfig: Sendable, Equatable {
     /// Docker Desktop/OrbStack/colima). kinhin delegates the VM and manages
     /// nothing; it runs one container per job slot. nil = feature off.
     public var docker: DockerForgeConfig? = nil
+    /// Additional forge accounts beyond the legacy `repo:` / `gitea:` ones,
+    /// each with its own Keychain token. See `allAccounts` for the full set.
+    public var accounts: [AccountConfig] = []
 
     /// Declarative toolchain installs baked by `image prepare`. Every entry
     /// installs exactly its own pieces — nothing is added implicitly. The
@@ -300,6 +303,7 @@ public struct KinhinConfig: Sendable, Equatable {
         case runtimes
         case provisionScript = "provision_script"
         case toolchains
+        case accounts
     }
 
     public static let `default` = KinhinConfig(
