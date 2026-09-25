@@ -42,7 +42,7 @@ always reserved.
 
 ## Requirements
 
-- Apple Silicon Mac (arm64), macOS 13+
+- Apple Silicon Mac (arm64), macOS 14+
 - [Tart](https://tart.run):
   ```bash
   brew tap openai/tools

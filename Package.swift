@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "kinhin",
     platforms: [
-        .macOS(.v13),
+        .macOS(.v14),
     ],
     products: [
         .executable(name: "kinhin", targets: ["kinhin"]),

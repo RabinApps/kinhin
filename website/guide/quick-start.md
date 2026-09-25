@@ -5,7 +5,7 @@ runners. This page gets you from zero to a working fleet.
 
 ## Requirements
 
-- Apple Silicon Mac (arm64), macOS 13+
+- Apple Silicon Mac (arm64), macOS 14+
 - [Tart](https://tart.run) — macOS runner VMs:
   ```bash
   brew tap openai/tools

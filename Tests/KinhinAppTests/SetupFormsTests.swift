@@ -63,7 +63,7 @@ final class SetupFormsTests: XCTestCase {
         form.markTokensStoredForTesting(github: true, gitea: false)
         form.enterGitHubRepoForTesting("a/b/c")
         XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "engine validation gates every write")
-        XCTAssertTrue(allText(in: form.view).contains("Not saved"))
+        XCTAssertTrue(form.model.githubStatus.text.contains("Not saved"))
     }
 
     func testGiteaInstanceAndScopeAreWrittenTogether() throws {
@@ -270,7 +270,7 @@ final class SetupFormsTests: XCTestCase {
         let task = form.install(.appleContainer)
         await task?.value
         try? await Task.sleep(nanoseconds: 100_000_000)
-        let text = allText(in: form.view)
+        let text = form.model.busyLine.text
         XCTAssertTrue(text.contains("Failed"), text)
         XCTAssertTrue(text.contains("no space left"))
         XCTAssertTrue(text.contains("brew install container"), "shows the command to run by hand")
@@ -278,19 +278,9 @@ final class SetupFormsTests: XCTestCase {
 
     func testEveryInstallableToolHasAnInstallButtonWhenMissing() {
         let form = installForm(shell: FakeShell())
-        let ids = allButtonIDs(in: form.view)
-        XCTAssertTrue(ids.contains("mac-install-tart") || TartController.isInstalled())
-        XCTAssertTrue(ids.contains("mac-install-container") || Paths.findExecutable(named: "container") != nil)
-        XCTAssertTrue(ids.contains("mac-install-docker") || Paths.findExecutable(named: "docker") != nil)
-    }
-
-    private func allButtonIDs(in view: NSView) -> [String] {
-        var out: [String] = []
-        func walk(_ v: NSView) {
-            if let b = v as? NSButton, !b.isHidden, let id = b.identifier?.rawValue { out.append(id) }
-            v.subviews.forEach(walk)
-        }
-        walk(view)
-        return out
+        let model = form.model
+        XCTAssertTrue(model.tartInstallVisible || TartController.isInstalled())
+        XCTAssertTrue(model.containerInstallVisible || Paths.findExecutable(named: "container") != nil)
+        XCTAssertTrue(model.dockerInstallVisible || Paths.findExecutable(named: "docker") != nil)
     }
 }

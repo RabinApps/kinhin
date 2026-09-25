@@ -127,14 +127,15 @@ final class BaseImagePickerTests: XCTestCase {
         let form = MacToolsFormViewController()
         form.configURL = configURL
         _ = form.view
-        XCTAssertNotNil(form.containerBasePicker.superview?.superview)
-        form.containerBasePicker.commitCustom("debian:12")
+        XCTAssertTrue(form.model.containerOn, "the picker is shown while the runtime is enabled")
+        form.model.saveBaseImage("debian:12", for: .appleContainer)
         XCTAssertEqual(try saved(.appleContainer), "debian:12")
+        XCTAssertEqual(form.model.containerBaseImage, "debian:12")
 
         form.setContainerForTesting(false)
-        XCTAssertTrue(form.containerBasePicker.superview?.isHidden ?? true, "hidden once the runtime is off")
+        XCTAssertFalse(form.model.containerOn, "hidden once the runtime is off")
         form.setContainerForTesting(true)
-        XCTAssertEqual(form.containerBasePicker.value, nil, "a re-enabled section starts from the saved default")
+        XCTAssertEqual(form.model.containerBaseImage, nil, "a re-enabled section starts from the saved default")
     }
 }
 

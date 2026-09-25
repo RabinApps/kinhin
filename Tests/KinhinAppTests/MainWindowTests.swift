@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import XCTest
 
 @testable import KinhinKit
@@ -175,9 +176,13 @@ final class MainWindowTests: XCTestCase {
         XCTAssertNil(window.wizardController)
         XCTAssertNotNil(window.connectController)
         XCTAssertNotNil(window.macToolsController)
-        let text = allText()
-        XCTAssertTrue(text.contains("GitHub"), "got: \(text)")
-        XCTAssertTrue(text.contains("macOS jobs"), "got: \(text)")
+        // Both forms are SwiftUI-hosted, so their copy isn't in the AppKit text.
+        let connectForm = window.connectController?.view
+        XCTAssertTrue(connectForm is NSHostingView<ConnectView>, "the Accounts page hosts the SwiftUI Connect form")
+        XCTAssertNotNil(connectForm?.window, "and it is installed in the window")
+        let macForm = window.macToolsController?.view
+        XCTAssertTrue(macForm is NSHostingView<MacToolsView>, "the Accounts page hosts the SwiftUI Mac form")
+        XCTAssertNotNil(macForm?.window, "and it is installed in the window")
     }
 
     func testWizardWalksFourSteps() {
@@ -382,18 +387,13 @@ final class MainWindowTests: XCTestCase {
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         let vc = try XCTUnwrap(window.logsController, "the Logs… button creates the viewer")
         defer { if let sheet = window.window?.attachedSheet { window.window?.endSheet(sheet) } }
-        // The search field's placeholder (stringValue stays empty until typing).
-        let searchFields = vc.view.flattenedViews().compactMap { $0 as? NSSearchField }
-        XCTAssertEqual(searchFields.count, 1, "the logs sheet carries one search field")
-        XCTAssertTrue(searchFields[0].placeholderString?.contains("Search logs") ?? false)
-        // Level filter popup + line count (the popup's selected title lives
-        // on the control, not in a text label).
-        let popups = vc.view.flattenedViews().compactMap { $0 as? NSPopUpButton }
-        XCTAssertEqual(popups.count, 1)
-        XCTAssertEqual(popups[0].titleOfSelectedItem, "All", "level filter present, defaulting to All")
-        XCTAssertTrue(vc.view.flattenedText().joined(separator: "\n").contains("lines"), "a line count is shown")
-        // The text area exists and shows the empty state.
-        XCTAssertNotNil(vc.view.flattenedViews().compactMap { $0 as? NSTextView }.first)
+        // The viewer is SwiftUI-hosted; its state lives in the model.
+        XCTAssertTrue(vc.view is NSHostingView<LogsView>, "the viewer hosts the SwiftUI logs view")
+        XCTAssertEqual(vc.model.query, "", "the search starts empty")
+        XCTAssertEqual(vc.model.minLevel, .debug, "level filter present, defaulting to All")
+        XCTAssertEqual(LogsModel.levels.first?.title, "All")
+        XCTAssertTrue(vc.model.statusText.contains("lines"), "a line count is shown")
+        XCTAssertGreaterThan(vc.view.frame.width, 0, "the viewer is laid out inside the sheet")
     }
 
     func testDeleteButtonCarriesTheVMID() {
@@ -454,21 +454,16 @@ final class MainWindowTests: XCTestCase {
         let sheet = try XCTUnwrap(controller.view.window, "the sheet is attached")
         XCTAssertNotNil(sheet.sheetParent, "presented as a sheet on the main window")
 
-        // Regression: the report stack is the scroll view's document and has
-        // no intrinsic frame — unpinned it collapsed to 0x0 and rendered
-        // nothing. After layout it must span the viewport.
-        let stack = try XCTUnwrap(
-            controller.view.flattenedViews().compactMap { $0 as? NSScrollView }.first?.documentView as? NSStackView
-        )
-        XCTAssertGreaterThan(stack.frame.width, 300, "document stack must span the clip view, got \(stack.frame)")
+        // Regression: the report used to collapse to 0x0 and render nothing.
+        // It must lay out at the sheet's size and carry every check row.
+        XCTAssertGreaterThan(controller.view.frame.width, 300, "report must span the sheet, got \(controller.view.frame)")
+        XCTAssertTrue(controller.view is NSHostingView<DiagnosticsView>)
 
-        let text = sheet.contentView!.flattenedText().joined(separator: "\n")
-        XCTAssertTrue(text.contains("Host"))
-        XCTAssertTrue(text.contains("Command Line Tools"))
-        XCTAssertTrue(text.contains("Tart (macOS VMs)"))
-        XCTAssertTrue(text.contains("Apple container (Linux)"))
-        XCTAssertTrue(text.contains("Toolchain cache"))
-        XCTAssertTrue(text.contains("Capacity"))
+        let titles = controller.model.rows.map(\.title)
+        XCTAssertEqual(
+            titles,
+            ["Host", "Command Line Tools", "Tart (macOS VMs)", "Apple container (Linux)", "Capacity", "Toolchain cache"])
+        XCTAssertTrue(controller.model.rows.allSatisfy(\.ok), "the fixture report is all green")
     }
 
     func testDiagnosticsCloseEndsTheSheet() throws {
@@ -477,10 +472,7 @@ final class MainWindowTests: XCTestCase {
 
         // Regression: dismiss(_:) is a no-op for beginSheet presentation —
         // only the parent's endSheet(_) ends a sheet, so Close did nothing.
-        guard let close = controller.view.flattenedButtons().first(where: { $0.title == "Close" }) else {
-            return XCTFail("the sheet carries a Close button")
-        }
-        fire(close)
+        controller.closeSheet()
         // endSheet detaches after the sheet's exit animation completes on
         // the run loop — spin it so the detach is observed. Detachment is
         // measured on the sheet window itself: the controller's view stays
