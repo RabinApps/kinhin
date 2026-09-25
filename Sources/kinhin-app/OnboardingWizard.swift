@@ -3,18 +3,19 @@ import KinhinKit
 
 /// The first-run wizard: three short steps that reuse the same forms as the
 /// Setup tab, so nothing is entered in two different places.
-///
-/// 1. **Connect** — paste a GitHub token, pick the repo or org to serve
-///    (optionally add a self-hosted Gitea).
-/// 2. **This Mac** — install tart and prepare the runner image; optionally
-///    enable Linux runtimes.
-/// 3. **Start** — a plain-language summary and "Start fleet".
-///
-/// Every choice is written as soon as it is made, so leaving the wizard at
-/// any point keeps the progress. "Start fleet" is only enabled once the fleet
-/// can actually start, so the app never loops back into setup.
+////// 1. **Connect** — paste a GitHub token, pick the repo or org to serve
+    ///    (optionally add a self-hosted Gitea).
+    /// 2. **This Mac** — install tart and prepare the runner image; optionally
+    ///    enable Linux runtimes.
+    /// 3. **Select toolchains** — pick what runtimes/tools to preinstall into
+    ///    your runner images. Everything starts OFF so the user chooses.
+    /// 4. **Start** — a plain-language summary and "Start fleet".
+    ///
+    /// Every choice is written as soon as it is made, so leaving the wizard at
+    /// any point keeps the progress. "Start fleet" is only enabled once the fleet
+    /// can actually start, so the app never loops back into setup.
 @MainActor
-final class OnboardingWizardViewController: NSViewController {
+class OnboardingWizardViewController: NSViewController {
     /// Fired when the user presses Start fleet.
     var onFinished: (() -> Void)?
     /// Fired when the user leaves setup unfinished ("Finish later").
@@ -30,12 +31,14 @@ final class OnboardingWizardViewController: NSViewController {
     enum Step: Int, CaseIterable {
         case connect = 0
         case mac = 1
-        case start = 2
+        case toolchains = 2
+        case start = 3
 
         var title: String {
             switch self {
             case .connect: return "Connect your code"
             case .mac: return "Get this Mac ready"
+            case .toolchains: return "Select your toolchains"
             case .start: return "Ready to go"
             }
         }
@@ -44,6 +47,7 @@ final class OnboardingWizardViewController: NSViewController {
             switch self {
             case .connect: return "kinhin runs your CI jobs on this Mac. Connect GitHub, a self-hosted Gitea, or both: paste a token, then choose the repository (or organization) to serve."
             case .mac: return "Choose what runs your jobs: Linux (Docker or Apple container), macOS virtual machines (tart), or both. You only need one."
+            case .toolchains: return "Pick every tool and stack that should be preinstalled in each runner image. Nothing is installed until you apply."
             case .start: return "Everything you chose is saved. You can change any of it later in the Setup tab."
             }
         }
@@ -61,6 +65,7 @@ final class OnboardingWizardViewController: NSViewController {
 
     private let connectForm = ConnectFormViewController()
     private let macForm = MacToolsFormViewController()
+    private let toolchainsForm = ToolchainsFormViewController()
     private let summaryLabel = NSTextField(wrappingLabelWithString: "")
 
     init() { super.init(nibName: nil, bundle: nil) }
@@ -126,6 +131,10 @@ final class OnboardingWizardViewController: NSViewController {
         macForm.autoEnableLinuxRuntime = true
         macForm.onReadinessChanged = { [weak self] in self?.refreshButtons() }
         connectForm.onChanged = { [weak self] in self?.refreshButtons() }
+        toolchainsForm.onEdited = { [weak self] in self?.refreshButtons() }
+        // Point the form at a writable config (the real one in production),
+        // so its Apply writes back into config.yaml like the other forms.
+        toolchainsForm.configURL = Paths.config
 
         view = container
         show(.connect)
@@ -150,6 +159,10 @@ final class OnboardingWizardViewController: NSViewController {
             addChild(macForm)
             macForm.reload()
             child = macForm.view
+        case .toolchains:
+            addChild(toolchainsForm)
+            toolchainsForm.reload()
+            child = toolchainsForm.view
         case .start:
             updateSummary()
             child = summaryLabel
@@ -190,19 +203,24 @@ final class OnboardingWizardViewController: NSViewController {
             nextButton.title = "Continue"
         case .mac:
             nextButton.title = "Continue"
+        case .toolchains:
+            nextButton.title = "Continue"
         case .start:
             nextButton.title = "Start fleet"
-            nextButton.isEnabled = missingItems().isEmpty
+            nextButton.isEnabled = missingItems.isEmpty
             updateSummary()
         }
         if step != .start { nextButton.isEnabled = true }
     }
 
     /// What still blocks starting (empty → ready).
-    private func missingItems() -> [String] {
+    private var missingItems: [String] {
         var missing: [String] = []
         if !connectForm.isConnected { missing.append("Connect GitHub or Gitea and choose a repository or org (step 1).") }
         if !macForm.isReady { missing.append("Set up something to run jobs on (step 2): a Linux runtime (Docker or Apple container), or tart for macOS jobs.") }
+        if toolchainsForm.hasPendingChanges {
+            missing.append("Apply your toolchain selection in step 3 before starting the fleet.")
+        }
         return missing
     }
 
@@ -215,7 +233,17 @@ final class OnboardingWizardViewController: NSViewController {
             "Gitea:  \(snap?.gitea.map { "\($0.scope) @ \($0.instance)" } ?? "not used")",
             "Runs on:  \(macForm.runsOnDescription)",
         ]
-        let missing = missingItems()
+        // Summarize the step-3 toolchain selection on the final "Ready to
+        // go" step, so the user sees exactly what will be preinstalled.
+        let selectedTools = toolchainsForm.working.tools.compactMap { key, _ in key }.sorted()
+        let selectedStacks = toolchainsForm.working.stacks.compactMap { key, _ in key }.sorted()
+        if !selectedTools.isEmpty {
+            lines.append("Toolchains:  \(selectedTools.joined(separator: ", "))")
+        }
+        if !selectedStacks.isEmpty {
+            lines.append("Stacks:  \(selectedStacks.joined(separator: ", "))")
+        }
+        let missing = missingItems
         if !missing.isEmpty {
             lines.append("")
             lines.append("Still needed:")
@@ -240,7 +268,7 @@ final class OnboardingWizardViewController: NSViewController {
 
     @objc private func nextClicked() {
         guard let next = Step(rawValue: step.rawValue + 1) else {
-            if missingItems().isEmpty { onFinished?() }
+            if missingItems.isEmpty { onFinished?() }
             return
         }
         show(next)

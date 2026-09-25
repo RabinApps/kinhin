@@ -114,4 +114,48 @@ final class ToolchainsConfigEditorTests: XCTestCase {
             XCTAssertTrue(linux.skipped.contains(macOnly), "\(macOnly) can't be baked into a Linux image")
         }
     }
+
+    /// Tools without a defaultSpec and stacks without a defaultVersion render
+    /// an em dash, never a blank cell.
+    func testVersionFieldsNeverBlank() throws {
+        let yaml = base + """
+
+        toolchains:
+          specs: ["node"]
+          stacks: ["expo", "vercel", "cloudflare"]
+        """
+        var sel = try ToolchainsConfigEditor.selection(from: yaml)
+        sel.tools["yamllint"] = ""
+        sel.tools["fastlane"] = ""
+        sel.tools["dotnet"] = ""
+        // Every curated tool that the user selected gets a non-empty display
+        // version, falling back to an em dash when the catalog has no default.
+        for entry in ToolchainCatalog.tools where sel.tools[entry.id] != nil {
+            let display = entry.defaultSpec.isEmpty ? "—" : entry.defaultSpec
+            XCTAssertFalse(display.isEmpty, "\(entry.id) has no display version")
+        }
+        for stack in ToolchainCatalog.stacks where sel.stacks[stack.id] != nil {
+            let display = stack.defaultVersion.isEmpty ? "—" : stack.defaultVersion
+            XCTAssertFalse(display.isEmpty, "\(stack.id) has no display version")
+        }
+    }
+
+    // MARK: Selection is populated for a full active config
+
+    func testFullActiveConfigSelectionIsPopulated() throws {
+        let yaml = base + """
+
+        toolchains:
+          specs: ["node", "go", "rust", "python", "ruby", "java", "bun", "deno", "uv", "terraform", "kubectl", "pnpm", "yarn", "playwright", "cypress", "netlify-cli", "firebase-tools", "yamllint", "awscli", "supabase", "flyctl", "gcloud", "php", "composer", "dotnet", "fastlane"]
+          stacks: ["flutter", "expo", "react-native", "vercel", "cloudflare"]
+        """
+        let sel = try ToolchainsConfigEditor.selection(from: yaml)
+        // Every curated spec root maps to a known catalog tool.
+        let knownRoots = Set(sel.tools.keys).intersection(Set(ToolchainCatalog.tools.map(\.id)))
+        XCTAssertEqual(knownRoots, Set(["node", "go", "rust", "python", "ruby", "java", "bun", "deno", "uv", "terraform", "kubectl", "pnpm", "yarn", "playwright", "cypress", "netlify-cli", "firebase-tools", "yamllint", "awscli", "supabase", "flyctl", "gcloud", "php", "composer", "dotnet", "fastlane"]))
+        // Every curated stack maps by id.
+        XCTAssertEqual(sel.stacks.keys.sorted(), ["cloudflare", "expo", "flutter", "react-native", "vercel"])
+        XCTAssertEqual(sel.extraSpecs, [] as [String])
+        XCTAssertEqual(sel.extraBrew, [] as [String])
+    }
 }

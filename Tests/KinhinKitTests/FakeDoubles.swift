@@ -81,6 +81,8 @@ final class FakeGitHub: GitHubServing, @unchecked Sendable {
     var permissionDenied = false
     /// When set, token minting fails with 401 (bad/expired token).
     var unauthorized = false
+    /// When set, token minting fails with 404 (scope not reachable).
+    var notFound = false
     /// Repositories cycled through the queued jobs' `repository` field
     /// (simulates org-scope attribution). Empty → jobs have nil repository.
     var queueRepos: [String] = []
@@ -92,9 +94,11 @@ final class FakeGitHub: GitHubServing, @unchecked Sendable {
         lock.lock(); registrationTokenCalls += 1
         let denied = permissionDenied
         let rejected = unauthorized
+        let missing = notFound
         lock.unlock()
         if denied { throw GitHubError.forbidden("Resource not accessible by personal access token") }
         if rejected { throw GitHubError.unauthorized }
+        if missing { throw GitHubError.notFound("/orgs/acme/actions/runners/registration-token") }
         return RegistrationToken(token: "RT-\(registrationTokenCalls)", expiresAt: Date().addingTimeInterval(3600))
     }
 

@@ -69,7 +69,10 @@ public struct ToolchainCacheEnv: Sendable, Equatable {
 /// A single installable tool. `installer` says how `image prepare` installs
 /// it; `verify` must exit 0 afterwards or the prepare aborts (old image kept
 /// intact). Unknown specs beyond this table still pass through to mise/brew.
-public struct ToolchainEntry: Sendable, Equatable {
+public protocol _CatalogEntry: Sendable, Equatable {}
+extension _CatalogEntry {}
+
+public struct ToolchainEntry: Sendable, Equatable, _CatalogEntry {
     public enum Installer: Sendable, Equatable {
         /// A mise spec — the config entry itself (e.g. "go@1.23.4").
         case mise
@@ -135,7 +138,7 @@ public struct ToolchainEntry: Sendable, Equatable {
 /// expand ONLY to their own pieces — a stack that needs node or dotnet
 /// declares it in `requires`, and config validation demands the user select
 /// that runtime too.
-public struct ToolchainStack: Sendable, Equatable {
+public struct ToolchainStack: Sendable, Equatable, _CatalogEntry {
     /// An npm dependency with an optional pinned version.
     public struct NPMPackage: Sendable, Equatable {
         public let name: String
@@ -157,6 +160,8 @@ public struct ToolchainStack: Sendable, Equatable {
     public let verify: String
     /// What `@version` means for this stack; nil = version unsupported.
     public let versionKind: String?
+    /// Short note shown under the version field in the Advanced → Toolchains UI.
+    public let versionHint: String?
     /// The version applied when the config doesn't pin one ("" = none).
     public let defaultVersion: String
     /// Extra shell steps run after installs. The literal `<version>` is
@@ -167,7 +172,7 @@ public struct ToolchainStack: Sendable, Equatable {
     /// recipes: CocoaPods, watchman, and fvm do not exist on Linux).
     public let platforms: [ToolchainPlatform]
 
-    public init(id: String, summary: String, requires: [ToolchainRequirement] = [], brewTaps: [String] = [], brewFormulas: [String] = [], miseSpecs: [String] = [], npmPackages: [NPMPackage] = [], cacheEnvs: [ToolchainCacheEnv] = [], verify: String, versionKind: String? = nil, defaultVersion: String = "", postInstall: [String] = [], platforms: [ToolchainPlatform] = ToolchainPlatform.allCases) {
+    public init(id: String, summary: String, requires: [ToolchainRequirement] = [], brewTaps: [String] = [], brewFormulas: [String] = [], miseSpecs: [String] = [], npmPackages: [NPMPackage] = [], cacheEnvs: [ToolchainCacheEnv] = [], verify: String, versionKind: String? = nil, defaultVersion: String = "", versionHint: String? = nil, postInstall: [String] = [], platforms: [ToolchainPlatform] = ToolchainPlatform.allCases) {
         self.id = id
         self.summary = summary
         self.requires = requires
@@ -178,6 +183,7 @@ public struct ToolchainStack: Sendable, Equatable {
         self.cacheEnvs = cacheEnvs
         self.verify = verify
         self.versionKind = versionKind
+        self.versionHint = versionHint
         self.defaultVersion = defaultVersion
         self.postInstall = postInstall
         self.platforms = platforms
@@ -514,6 +520,7 @@ public enum ToolchainCatalog {
             verify: "fvm flutter --version && fvm list",
             versionKind: "Flutter SDK version (installed and pinned via fvm; default: stable)",
             defaultVersion: "stable",
+            versionHint: "flutter@3.24.0",
             postInstall: ["fvm install <version>", "fvm global <version>"],
             platforms: [.macOS]
         ),
@@ -524,7 +531,8 @@ public enum ToolchainCatalog {
             npmPackages: [ToolchainStack.NPMPackage(name: "eas-cli")],
             verify: "eas --version",
             versionKind: "eas-cli version",
-            defaultVersion: ""
+            defaultVersion: "",
+            versionHint: "latest"
         ),
         ToolchainStack(
             id: "react-native",
@@ -541,7 +549,8 @@ public enum ToolchainCatalog {
             npmPackages: [ToolchainStack.NPMPackage(name: "vercel")],
             verify: "vercel --version",
             versionKind: "Vercel CLI version",
-            defaultVersion: ""
+            defaultVersion: "",
+            versionHint: "latest"
         ),
         ToolchainStack(
             id: "cloudflare",

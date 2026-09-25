@@ -238,7 +238,7 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
                 self.githubToken.stringValue = ""
                 self.githubConnect.title = "Replace"
                 self.onChanged?()
-                self.reload()
+                await self.verifyPermission(scope: self.githubRepo.stringValue.trimmingCharacters(in: .whitespaces))
             } catch {
                 self.githubStatus.stringValue = "Couldn't save the token — \(error.localizedDescription)"
                 self.githubStatus.textColor = .systemRed
@@ -269,7 +269,7 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
                 self.giteaToken.stringValue = ""
                 self.commitGitea()
                 self.onChanged?()
-                self.reload()
+                // Gitea has no runner-management token model; no probe needed.
             } catch {
                 self.giteaStatus.stringValue = "Couldn't save the token — \(error.localizedDescription)"
                 self.giteaStatus.textColor = .systemRed
@@ -312,6 +312,20 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
                 status.textColor = .systemRed
             }
             return false
+        }
+    }
+
+    /// After a token is stored, verify the runner-management permission for
+    /// the live scope. For org scopes this surfaces the PAT-permission error
+    /// with its remediation instead of the generic "Connected ✓". GitHub
+    /// only: Gitea doesn't use OAuth runner-management tokens.
+    private func verifyPermission(scope: String) async {
+        let report = await OrgPermissionProbe.verify(github: GitHubClient(credentials: GitHubCredentials(token: "", scope: scope)), scope: scope)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.githubStatus.stringValue = report.message
+            self.githubStatus.textColor = report.ok ? .systemGreen : .systemRed
+            self.githubConnect.title = report.ok ? "Replace" : "Connect"
         }
     }
 

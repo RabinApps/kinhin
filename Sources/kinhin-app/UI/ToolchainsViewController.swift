@@ -12,7 +12,7 @@ import KinhinKit
 /// - Changes only reach an image when it is rebuilt, so each runtime has a
 ///   **Rebuild image…** button with a confirmation dialog.
 @MainActor
-final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
+class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
     var configURL: URL = Paths.config
     var onEdited: (() -> Void)?
 
@@ -34,14 +34,15 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
     }
 
     private var baseline = ToolchainsSelection()
-    private var working = ToolchainsSelection()
+    internal var working = ToolchainsSelection()
 
-    private let stack = NSStackView()
-    private let statusLabel = NSTextField(wrappingLabelWithString: "")
-    private let applyButton = NSButton(title: "Apply", target: nil, action: nil)
-    private let revertButton = NSButton(title: "Revert", target: nil, action: nil)
-    private let progress = NSProgressIndicator()
+    let stack = NSStackView()
+    let statusLabel = NSTextField(wrappingLabelWithString: "")
+    let applyButton = NSButton(title: "Apply", target: nil, action: nil)
+    let revertButton = NSButton(title: "Revert", target: nil, action: nil)
+    let progress = NSProgressIndicator()
     private var toolChecks: [String: NSButton] = [:]
+
     private var toolVersions: [String: NSTextField] = [:]
     private var stackChecks: [String: NSButton] = [:]
     private var stackVersions: [String: NSTextField] = [:]
@@ -93,6 +94,7 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         ])
         view = container
         reload()
+        render()
     }
 
     // MARK: Loading
@@ -105,20 +107,56 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
             return
         }
         baseline = loaded
-        working = loaded
-        render()
+        // Seed the grid: every catalog tool/stack ON by default when the
+        // config has no toolchains: section, so the page is never blank.
+        working = loaded.isEmpty ? catalogSelection() : loaded
+        refreshState()
+    }
+
+    /// A "everything on by default" selection mirroring the catalog, used to
+    /// keep the grid populated before the user has written any config.
+    private func catalogSelection() -> ToolchainsSelection {
+        var out = ToolchainsSelection()
+        for entry in ToolchainCatalog.tools {
+            out.tools[entry.id] = ""
+        }
+        for stack in ToolchainCatalog.stacks {
+            out.stacks[stack.id] = ""
+        }
+        return out
+    }
+
+    /// Same as `reload()`, but seeds the grid with every catalog tool/stack
+    /// OFF by default. Used by the setup wizard where there is no saved config
+    /// and the user has to pick each toolchain explicitly.
+    internal func reload(allOff: Bool = false) {
+        let yaml = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
+        guard let loaded = try? ToolchainsConfigEditor.selection(from: yaml) else {
+            statusLabel.stringValue = "config.yaml doesn't parse — use Advanced → App → Open config file."
+            statusLabel.textColor = .systemRed
+            return
+        }
+        baseline = loaded
+        if allOff {
+            // Seed all OFF: the user must explicitly enable each toolchain.
+            working = ToolchainsSelection()
+        } else {
+            working = loaded.isEmpty ? catalogSelection() : loaded
+        }
         refreshState()
     }
 
     // MARK: Rendering
 
-    private func render() {
+    internal func render() {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         toolChecks.removeAll(); toolVersions.removeAll(); stackChecks.removeAll(); stackVersions.removeAll()
         rebuildButtons.removeAll()
 
-        let intro = FormKit.hint("Pick what your jobs need preinstalled. Changes take effect when you rebuild an image below. Tools marked “macOS only” are skipped for Linux images.")
+        let intro = FormKit.hint("Pick what your jobs need preinstalled. Changes take effect when you rebuild an image below.")
         stack.addArrangedSubview(intro)
+        let note = FormKit.hint("Every row shows its platform note: “macOS · Linux” applies to both, “macOS only” skips on Linux, “Linux only” skips on macOS. Version fields pin a specific version (e.g. node@22).")
+        stack.addArrangedSubview(note)
 
         let mise = ToolchainCatalog.tools.filter { if case .mise = $0.installer { return true } else { return false } }
         let npm = ToolchainCatalog.tools.filter { if case .npm = $0.installer { return true } else { return false } }
@@ -139,7 +177,7 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
     private func toolsCard(_ title: String, _ entries: [ToolchainEntry]) -> NSView {
         let card = FormKit.card(title: title)
         for entry in entries {
-            let check = NSButton(checkboxWithTitle: entry.id, target: self, action: #selector(toolToggled(_:)))
+            let check = NSButton(checkboxWithTitle: entry.id, target: self, action: #selector(entryToggled(_:)))
             check.state = working.tools[entry.id] != nil ? .on : .off
             check.identifier = NSUserInterfaceItemIdentifier("tool:\(entry.id)")
             toolChecks[entry.id] = check
@@ -149,10 +187,11 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
             case .mise, .npm: versionable = true
             default: versionable = false
             }
-            let field = NSTextField(string: working.tools[entry.id] ?? "")
+            let selected = working.tools[entry.id]
+            let field = NSTextField(string: selected.flatMap { !$0.isEmpty ? $0 : nil } ?? (entry.defaultSpec.isEmpty ? "—" : entry.defaultSpec))
             field.placeholderString = versionable ? (entry.defaultSpec.split(separator: "@").dropFirst().first.map(String.init) ?? "latest") : "—"
-            field.isEnabled = versionable && working.tools[entry.id] != nil
-            field.identifier = NSUserInterfaceItemIdentifier("toolver:\(entry.id)")
+            field.isEnabled = versionable && selected != nil
+            field.identifier = NSUserInterfaceItemIdentifier("toolver:" + entry.id)
             field.delegate = self
             field.widthAnchor.constraint(equalToConstant: 96).isActive = true
             field.setAccessibilityLabel("\(entry.id) version")
@@ -172,14 +211,15 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
     private func stacksCard() -> NSView {
         let card = FormKit.card(title: "Stacks", subtitle: "Bundled recipes: several tools installed together.")
         for stack in ToolchainCatalog.stacks {
-            let check = NSButton(checkboxWithTitle: stack.id, target: self, action: #selector(stackToggled(_:)))
+            let check = NSButton(checkboxWithTitle: stack.id, target: self, action: #selector(entryToggled(_:)))
             check.state = working.stacks[stack.id] != nil ? .on : .off
             check.identifier = NSUserInterfaceItemIdentifier("stack:\(stack.id)")
             stackChecks[stack.id] = check
-            let field = NSTextField(string: working.stacks[stack.id] ?? "")
-            field.placeholderString = stack.versionKind == nil ? "—" : (stack.defaultVersion.isEmpty ? "latest" : stack.defaultVersion)
-            field.isEnabled = stack.versionKind != nil && working.stacks[stack.id] != nil
-            field.identifier = NSUserInterfaceItemIdentifier("stackver:\(stack.id)")
+            let selected = working.stacks[stack.id]
+            let field = NSTextField(string: selected.flatMap { !$0.isEmpty ? $0 : nil } ?? (stack.defaultVersion.isEmpty ? "—" : stack.defaultVersion))
+            field.placeholderString = stack.versionKind == nil ? "—" : (selected?.isEmpty ?? true ? (stack.defaultVersion.isEmpty ? "latest" : stack.defaultVersion) : "—")
+            field.isEnabled = stack.versionKind != nil && selected != nil
+            field.identifier = NSUserInterfaceItemIdentifier("stackver:" + stack.id)
             field.delegate = self
             field.widthAnchor.constraint(equalToConstant: 96).isActive = true
             stackVersions[stack.id] = field
@@ -268,38 +308,23 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
 
     // MARK: Editing (working copy only; Apply writes)
 
-    @objc private func toolToggled(_ sender: NSButton) {
-        guard let id = sender.identifier?.rawValue.dropFirst("tool:".count).description else { return }
-        if sender.state == .on {
-            working.tools[id] = toolVersions[id]?.stringValue.trimmingCharacters(in: .whitespaces) ?? ""
+    @objc internal func entryToggled(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue else { return }
+        let isStack = id.hasPrefix("stack:")
+        let key = isStack ? String(id.dropFirst("stack:".count)) : String(id.dropFirst("tool:".count))
+        if isStack {
+            working.stacks[key] = sender.state == .on ? (stackVersions[key]?.stringValue.trimmingCharacters(in: .whitespaces) ?? "") : nil
+            stackVersions[key]?.isEnabled = stackVersions[key] != nil && sender.state == .on
         } else {
-            working.tools[id] = nil
+            working.tools[key] = sender.state == .on ? (toolVersions[key]?.stringValue.trimmingCharacters(in: .whitespaces) ?? "") : nil
+            toolVersions[key]?.isEnabled = toolVersions[key] != nil && sender.state == .on
         }
-        syncVersionEnabled()
-        refreshState()
-    }
-
-    @objc private func stackToggled(_ sender: NSButton) {
-        guard let id = sender.identifier?.rawValue.dropFirst("stack:".count).description else { return }
-        working.stacks[id] = sender.state == .on ? (stackVersions[id]?.stringValue.trimmingCharacters(in: .whitespaces) ?? "") : nil
-        syncVersionEnabled()
         refreshState()
     }
 
     @objc private func shareToggled(_ sender: NSButton) {
         working.shareCache = sender.state == .on
         refreshState()
-    }
-
-    private func syncVersionEnabled() {
-        for entry in ToolchainCatalog.tools {
-            var versionable = false
-            switch entry.installer { case .mise, .npm: versionable = true; default: break }
-            toolVersions[entry.id]?.isEnabled = versionable && working.tools[entry.id] != nil
-        }
-        for stack in ToolchainCatalog.stacks {
-            stackVersions[stack.id]?.isEnabled = stack.versionKind != nil && working.stacks[stack.id] != nil
-        }
     }
 
     func controlTextDidChange(_ notification: Notification) { commitField(notification.object as? NSTextField) }
@@ -330,12 +355,21 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
 
     var hasPendingChanges: Bool { working != baseline }
 
-    private func refreshState() {
+    internal func refreshState() {
         let pending = hasPendingChanges
         let problems = ToolchainsConfigEditor.requirementProblems(working)
         applyButton.isEnabled = pending && problems.isEmpty && !busy
         revertButton.isEnabled = pending && !busy
         for button in rebuildButtons.values { button.isEnabled = !pending && !busy }
+
+        // Restore checkbox states from working after a reload.
+        for entry in ToolchainCatalog.tools {
+            toolChecks[entry.id]?.state = working.tools[entry.id] != nil ? .on : .off
+        }
+        for stack in ToolchainCatalog.stacks {
+            stackChecks[stack.id]?.state = working.stacks[stack.id] != nil ? .on : .off
+        }
+
         if !problems.isEmpty {
             statusLabel.stringValue = problems.joined(separator: " ")
             statusLabel.textColor = .systemOrange
@@ -347,12 +381,12 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         }
     }
 
-    @objc private func revertClicked() {
+    @objc internal func revertClicked() {
         statusLabel.stringValue = ""
         reload()
     }
 
-    @objc private func applyClicked() { apply() }
+    @objc internal func applyClicked() { apply() }
 
     func apply() {
         do {
@@ -360,7 +394,6 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
             baseline = working
             statusLabel.stringValue = "Applied ✓ — rebuild an image below to use it."
             statusLabel.textColor = .systemGreen
-            render()
             refreshState()
             onEdited?()
         } catch {
@@ -398,6 +431,7 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
                 try await rebuild(runtime, cfg)
                 self?.statusLabel.stringValue = "Rebuilt the \(Self.runtimeTitle(runtime)) ✓"
                 self?.statusLabel.textColor = .systemGreen
+                self?.reload()
             } catch {
                 self?.statusLabel.stringValue = "Not rebuilt — \(error.localizedDescription)"
                 self?.statusLabel.textColor = .systemRed
@@ -407,6 +441,8 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
             self?.refreshState()
         }
     }
+
+
 
     /// The real image builds (same calls the setup checklist and CLI make).
     static func rebuildImage(runtime: RuntimeID, config cfg: kinhinConfig) async throws {
@@ -448,6 +484,19 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
     var applyEnabledForTesting: Bool { applyButton.isEnabled }
     var rebuildEnabledForTesting: [RuntimeID: Bool] { rebuildButtons.mapValues(\.isEnabled) }
     var workingForTesting: ToolchainsSelection { working }
+    var renderedCountsForTesting: (tools: Int, stacks: Int) {
+        (toolChecks.count, stackChecks.count)
+    }
+    var renderedToolFieldValuesForTesting: [String: String] {
+        Dictionary(uniqueKeysWithValues: toolVersions.map { ($0.key, $0.value.stringValue) })
+    }
+    var renderedStackFieldValuesForTesting: [String: String] {
+        Dictionary(uniqueKeysWithValues: stackVersions.map { ($0.key, $0.value.stringValue) })
+    }
+    var toolChecksForTesting: [String: NSButton] { toolChecks }
+    var stackChecksForTesting: [String: NSButton] { stackChecks }
+    var toolVersionsForTesting: [String: NSTextField] { toolVersions }
+    var stackVersionsForTesting: [String: NSTextField] { stackVersions }
 }
 
 enum ToolchainRebuildError: LocalizedError {

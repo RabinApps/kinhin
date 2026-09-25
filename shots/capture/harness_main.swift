@@ -145,16 +145,23 @@ struct HarnessMain {
 
             // The wizard's forms are created with it: point them at the
             // scratch file and stub the Keychain probe BEFORE the view loads.
+            // Steps: connect → mac → toolchains → start (4 total).
             let wizard = OnboardingWizardViewController()
             wizard.connectFormForTesting.configURL = scratch
             wizard.connectFormForTesting.hasStoredToken = { _ in false }
             wizard.macFormForTesting.configURL = scratch
             wizard.loadViewIfNeeded()
-            render(wizard, size: size, name: "cap-wizard1-\(tag)", appearance: appearance)
+            render(wizard, size: size, name: "cap-wizard1-\([tag])", appearance: appearance)
             wizard.nextClickedForTesting(); wizard.loadViewIfNeeded()
-            render(wizard, size: size, name: "cap-wizard2-\(tag)", appearance: appearance)
+            render(wizard, size: size, name: "cap-wizard2-\([tag])", appearance: appearance)
             wizard.nextClickedForTesting(); wizard.loadViewIfNeeded()
-            render(wizard, size: size, name: "cap-wizard3-\(tag)", appearance: appearance)
+            render(wizard, size: size, name: "cap-wizard3-\([tag])", appearance: appearance)
+            // Step 3: select toolchains (all disabled by default).
+            wizard.nextClickedForTesting(); wizard.loadViewIfNeeded()
+            render(wizard, size: size, name: "cap-wizard4-\([tag])", appearance: appearance)
+            // Step 4: the Ready-to-go summary shows the selected toolchains.
+            wizard.nextClickedForTesting(); wizard.loadViewIfNeeded()
+            render(wizard, size: size, name: "cap-wizard5-\([tag])", appearance: appearance)
 
             // Setup tab (post-onboarding): the same two forms on one page.
             let connect = ConnectFormViewController()

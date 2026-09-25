@@ -145,7 +145,7 @@ Everything kinhin does happens in a single main window. A segmented control swit
 | Tab          | Contents                                                                                                   |
 | ------------ | ---------------------------------------------------------------------------------------------------------- |
 | **Fleet**    | Live status, Start/Stop/Pause, the VM list, and buttons for Logs, Diagnostics and update checks.           |
-| **Setup**    | Connect GitHub (and optionally Gitea), pick the repo or org, and get this Mac ready. First run is a 3-step wizard. |
+| **Setup**    | Connect GitHub (and optionally Gitea), pick the repo or org, get this Mac ready, then choose your toolchains. First run is a 4-step wizard. |
 | **Advanced** | **Capacity** (VM counts and sizes, with Apply), **Routing** (runtimes, budget, labels), **App** (launch options, config file). |
 
 Under **Advanced → App**, *Show at launch* controls how kinhin presents itself (stored in UserDefaults, effective

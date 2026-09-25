@@ -45,6 +45,25 @@ final class OrgPermissionTests: XCTestCase {
         XCTAssertTrue(report.message.contains("kinhin auth set"), report.message)
     }
 
+    func testOrgScopeNotFoundMapsToRunnerRemediation() async {
+        let github = FakeGitHub()
+        github.notFound = true
+        let report = await OrgPermissionProbe.verify(github: github, scope: "acme")
+        XCTAssertFalse(report.ok)
+        XCTAssertTrue(report.message.contains("lacks runner-management permission"))
+        XCTAssertTrue(report.message.contains("admin:org"), "org remediation must mention the scope: \(report.message)")
+        XCTAssertTrue(report.message.contains("Organization administration: write"), "fine-grained remediation must be present")
+    }
+
+    func testRepoScopeNotFoundMapsToRepoMessage() async {
+        let github = FakeGitHub()
+        github.notFound = true
+        let report = await OrgPermissionProbe.verify(github: github, scope: "acme/widgets")
+        XCTAssertFalse(report.ok)
+        XCTAssertTrue(report.message.contains("can't reach"))
+        XCTAssertFalse(report.message.contains("lacks runner-management"), "repo scope 404s should not leak org advice")
+    }
+
     // MARK: Engine start gate
 
     func makeEngine(github: FakeGitHub, tart: FakeTart = FakeTart()) -> FleetEngine {

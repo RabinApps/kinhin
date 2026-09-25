@@ -327,7 +327,8 @@ final class ScriptedShell: ShellRunning, @unchecked Sendable {
 /// A shell double that models `container list` as real state: `run --name X`
 /// creates container X, `delete --force X` removes it, and list returns the
 /// current names — so provision/awaitRunning/provision-after-recovery behave
-/// like the real CLI. Other argvs return success.
+/// like the real CLI. Other argvs return success. Matches the binary on any
+/// install prefix so the test stays independent of the host PATH.
 final class ContainerFakingShell: ShellRunning, @unchecked Sendable {
     private let lock = NSLock()
     private(set) var argvs: [[String]] = []
@@ -337,7 +338,7 @@ final class ContainerFakingShell: ShellRunning, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         argvs.append(argv)
-        guard argv.first == "/usr/local/bin/container" else {
+        guard argv.first == nil || argv.first == "/usr/local/bin/container" || argv.first?.hasSuffix("container") == true else {
             return ShellResult(exitCode: 0, stdout: "", stderr: "")
         }
         switch argv.dropFirst().first {

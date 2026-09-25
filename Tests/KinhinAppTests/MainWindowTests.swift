@@ -89,7 +89,7 @@ final class MainWindowTests: XCTestCase {
 
     func testTabsAndAdvancedSectionsInDisplayOrder() {
         XCTAssertEqual(MainTab.allCases, [.fleet, .setup, .advanced])
-        XCTAssertEqual(AdvancedSection.allCases.map(\.label), ["Accounts", "Capacity", "Routing", "Containers", "App"])
+        XCTAssertEqual(AdvancedSection.allCases.map(\.label), ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "App"])
     }
 
     func testSetupTabOnlyExistsWhileSetupIsUnfinished() {
@@ -144,9 +144,10 @@ final class MainWindowTests: XCTestCase {
 
     func testFinishLaterKeepsTheSetupTab() {
         let wizard = showWizard()
-        wizard.nextClickedForTesting()
-        wizard.nextClickedForTesting() // start step
-        wizard.skipClickedForTesting() // "Finish later"
+        wizard.nextClickedForTesting() // connect → mac
+        wizard.nextClickedForTesting() // mac → toolchains
+        wizard.nextClickedForTesting() // toolchains → start
+        wizard.skipClickedForTesting() // "Finish later" on start step
         XCTAssertEqual(window.selectedTab, .fleet)
         XCTAssertEqual(window.visibleTabs, [.fleet, .setup, .advanced], "unfinished setup stays reachable")
     }
@@ -172,20 +173,23 @@ final class MainWindowTests: XCTestCase {
         XCTAssertTrue(text.contains("macOS jobs"), "got: \(text)")
     }
 
-    func testWizardWalksThreeSteps() {
+    func testWizardWalksFourSteps() {
         let wizard = showWizard()
         XCTAssertEqual(wizard.step, .connect, "the wizard opens on connecting an account")
 
-        wizard.nextClickedForTesting()
+        wizard.nextClickedForTesting() // connect → mac
         XCTAssertEqual(wizard.step, .mac)
-        wizard.skipClickedForTesting()
+        wizard.nextClickedForTesting() // mac → toolchains
+        XCTAssertEqual(wizard.step, .toolchains)
+        wizard.nextClickedForTesting() // toolchains → start
         XCTAssertEqual(wizard.step, .start)
     }
 
     func testWizardCannotStartUntilConnectedAndReady() {
         let wizard = showWizard()
-        wizard.nextClickedForTesting()
-        wizard.nextClickedForTesting()
+        wizard.nextClickedForTesting() // connect → mac
+        wizard.nextClickedForTesting() // mac → toolchains
+        wizard.nextClickedForTesting() // toolchains → start
         XCTAssertEqual(wizard.step, .start)
         // Nothing connected in a hermetic test: pressing Start must not
         // finish (it would bounce the app straight back into setup).
