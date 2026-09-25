@@ -16,6 +16,10 @@ public struct SetupStatusComputer: Sendable {
     let giteaTokenStored: Bool?
     let containerHealth: RuntimeHealth?
     let containerImages: [String]?
+    /// Whether the container Linux kernel is installed (fixture). nil probes
+    /// the real host when the runtime health is probed live, and assumes
+    /// installed when health is injected, so fixtures stay hermetic.
+    let containerKernelInstalled: Bool?
     let dockerHealth: RuntimeHealth?
     let dockerImages: [String]?
     /// Shared toolchain cache state (fixture). nil probes the real host: the
@@ -33,6 +37,7 @@ public struct SetupStatusComputer: Sendable {
         giteaTokenStored: Bool? = nil,
         containerHealth: RuntimeHealth? = nil,
         containerImages: [String]? = nil,
+        containerKernelInstalled: Bool? = nil,
         dockerHealth: RuntimeHealth? = nil,
         dockerImages: [String]? = nil,
         toolchainCacheState: (usable: Bool, shareCacheOn: Bool)? = nil
@@ -46,6 +51,7 @@ public struct SetupStatusComputer: Sendable {
         self.giteaTokenStored = giteaTokenStored
         self.containerHealth = containerHealth
         self.containerImages = containerImages
+        self.containerKernelInstalled = containerKernelInstalled
         self.dockerHealth = dockerHealth
         self.dockerImages = dockerImages
         self.toolchainCacheState = toolchainCacheState
@@ -255,6 +261,24 @@ public struct SetupStatusComputer: Sendable {
                     ))
             default:
                 break
+            }
+
+            // Only surfaced when missing: the container system can be running
+            // without a Linux kernel, and then no container can start.
+            if resolvedHealth.isReady {
+                let kernelInstalled =
+                    containerKernelInstalled
+                    ?? (containerHealth == nil ? AppleContainerRuntime.hasInstalledKernel() : true)
+                if !kernelInstalled {
+                    checks.append(
+                        SetupCheckResult(
+                            id: "container-kernel",
+                            title: "Container Linux kernel",
+                            ok: false,
+                            detail: "not installed — Linux containers can't start without it (a one-time download)",
+                            action: "install_container_kernel"
+                        ))
+                }
             }
 
             let wanted = cfg.container?.image ?? "kinhin-ci-linux"

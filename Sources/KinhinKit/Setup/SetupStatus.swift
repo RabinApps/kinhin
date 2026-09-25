@@ -50,6 +50,7 @@ public enum SetupAction {
         case "replace_gitea_token": return "Replace Gitea Token…"
         case "install_container_cli": return "Install Apple container"
         case "start_container_system": return "Start container system"
+        case "install_container_kernel": return "Install Linux kernel"
         case "prepare_container_image": return "Prepare Container Image"
         case "prepare_docker_image": return "Prepare Docker Image"
         case "prepare_image": return "Prepare Image"

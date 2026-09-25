@@ -35,6 +35,8 @@ extension SetupWindowController {
             installContainerCLI()
         case "start_container_system":
             startContainerSystem()
+        case "install_container_kernel":
+            installContainerKernel()
         case "prepare_container_image":
             prepareContainerImage()
         case "prepare_docker_image":
@@ -89,7 +91,21 @@ extension SetupWindowController {
         }
     }
 
+    /// Downloads the Linux kernel that containers boot with (one time).
+    private func installContainerKernel() {
+        runLongTask(title: "Installing the Linux kernel for containers (one-time download)…") {
+            try await AppleContainerRuntime.installKernel()
+        }
+    }
+
+    /// Makes the container system usable: running, and with a Linux kernel
+    /// installed (a system started by hand may lack one).
     static func startContainerSystem(shell: ShellRunning) async throws {
+        try await startContainerServices(shell: shell)
+        try await AppleContainerRuntime.ensureKernel(shell: shell)
+    }
+
+    private static func startContainerServices(shell: ShellRunning) async throws {
         guard !(await AppleContainerRuntime(shell: shell).health()).isReady else { return }
         let result = try await shell.run(
             // --enable-kernel-install: without it the CLI asks a question and

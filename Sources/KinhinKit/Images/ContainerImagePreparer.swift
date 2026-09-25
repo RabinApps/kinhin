@@ -39,14 +39,9 @@ public struct ContainerImagePreparer {
                 // A fresh `container` install has no Linux kernel until one is
                 // downloaded; `system start` can be running and still lack it.
                 guard stderr.contains("kernel not configured") else { return false }
-                Log.info("container-image", "no default kernel configured — installing the recommended one")
                 do {
-                    let result = try await shell.run(
-                        [binary, "system", "kernel", "set", "--recommended"], cwd: nil, timeout: 900)
-                    if !result.succeeded {
-                        Log.warn("container-image", "kernel install failed: \(result.stderr.suffix(300))")
-                    }
-                    return result.succeeded
+                    try await AppleContainerRuntime.installKernel(shell: shell, binary: binary)
+                    return true
                 } catch {
                     Log.warn("container-image", "kernel install failed: \(error.localizedDescription)")
                     return false
