@@ -58,6 +58,9 @@ struct LinuxImageBaker {
         let binary: String
         /// Verb that force-removes a container ("rm" for docker, "delete" for container).
         let removeVerb: String
+        /// Given stderr from a failed scratch start, fixes a known, recoverable
+        /// cause (returns true, and the start is retried once). nil = none.
+        var recoverStartFailure: ((_ shell: ShellRunning, _ stderr: String) async -> Bool)? = nil
         /// Turns the scratch container into the tagged target image.
         let commit: (_ shell: ShellRunning, _ scratch: String, _ target: String) async throws -> Void
     }
@@ -108,12 +111,16 @@ struct LinuxImageBaker {
         //    cache bind-mounted (`<bin> run -v host:guest`).
         let scratch = "kinhin-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
         Log.info(tag, "starting scratch container from \(options.image) (host toolchain cache bind-mounted)")
-        let started = try await shell.run([
+        let startArgv = [
             bin, "run", "--detach",
             "--volume", ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path),
             "--name", scratch, options.image,
             "/bin/bash", "-lc", "while true; do sleep 3600; done",
-        ])
+        ]
+        var started = try await shell.run(startArgv)
+        if !started.succeeded, let recover = backend.recoverStartFailure, await recover(shell, started.stderr) {
+            started = try await shell.run(startArgv)
+        }
         // Fail here, with the CLI's own reason (missing image, registry
         // auth, ...), instead of polling exec for two minutes.
         guard started.succeeded else {

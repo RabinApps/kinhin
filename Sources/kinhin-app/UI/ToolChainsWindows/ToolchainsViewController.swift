@@ -110,13 +110,7 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
             footer.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
         view = container
-        switch seed {
-        case .fromConfig:
-            reload()
-        case .allOff:
-            working = ToolchainsSelection()
-            refreshState()
-        }
+        reload()
         render()
     }
 
@@ -127,21 +121,6 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         statusLabel.stringValue =
             "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file."
         statusLabel.textColor = .systemRed
-    }
-
-    func reload() {
-        let loaded: ToolchainsSelection
-        do {
-            loaded = try ToolchainsConfigEditor.selection(from: ConfigStore.text(at: configURL))
-        } catch {
-            showLoadError(error)
-            return
-        }
-        baseline = loaded
-        // Seed the grid: every catalog tool/stack ON by default when the
-        // config has no toolchains: section, so the page is never blank.
-        working = loaded.isEmpty ? catalogSelection() : loaded
-        refreshState()
     }
 
     /// A "everything on by default" selection mirroring the catalog, used to
@@ -157,10 +136,12 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         return out
     }
 
-    /// Same as `reload()`, but seeds the grid with every catalog tool/stack
-    /// OFF by default. Used by the setup wizard where there is no saved config
-    /// and the user has to pick each toolchain explicitly.
-    internal func reload(allOff: Bool = false) {
+    /// Reloads the saved selection as the baseline and reseeds the grid per
+    /// `seed`: every catalog entry ON when the config has no `toolchains:`
+    /// section (so the page is never blank), or all OFF in the wizard, where
+    /// the user must explicitly pick each toolchain.
+    func reload() {
+        let allOff = seed == .allOff
         let loaded: ToolchainsSelection
         do {
             loaded = try ToolchainsConfigEditor.selection(from: ConfigStore.text(at: configURL))

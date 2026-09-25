@@ -166,8 +166,10 @@ class OnboardingWizardViewController: NSViewController {
             macForm.reload()
             child = macForm.view
         case .toolchains:
-            addChild(toolchainsForm)
-            toolchainsForm.reload()
+            // No reload here: the form seeds itself when its view loads, and
+            // reloading on every visit would discard selections made before
+            // stepping back and forth.
+            if !children.contains(toolchainsForm) { addChild(toolchainsForm) }
             child = toolchainsForm.view
         case .start:
             updateSummary()
@@ -182,6 +184,12 @@ class OnboardingWizardViewController: NSViewController {
             child.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             child.trailingAnchor.constraint(lessThanOrEqualTo: content.trailingAnchor),
         ])
+        if newStep == .toolchains {
+            // The toolchains page is a scroll view plus a pinned footer with no
+            // intrinsic height of its own; without a bottom edge it collapses
+            // to just the footer and the grid disappears.
+            child.bottomAnchor.constraint(equalTo: content.bottomAnchor).isActive = true
+        }
         refreshButtons()
 
         // NSStackView has no intrinsic height, so pin the header to its
