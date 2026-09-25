@@ -109,10 +109,9 @@ extension SetupWindowController {
     /// Bakes the runner agents into the configured Linux container image.
     private func prepareContainerImage() {
         runLongTask(title: "Preparing container image (this takes a while)…") {
-            guard let cfg = try? ConfigLoader.load(), let image = cfg.container?.image else {
-                throw NSError(
-                    domain: "kinhin", code: 2,
-                    userInfo: [NSLocalizedDescriptionKey: "config missing, invalid, or no container.image set"])
+            let cfg = try ConfigLoader.load()
+            guard let image = cfg.container?.image else {
+                throw ConfigError.invalid("no container.image is set — add a container: section first")
             }
             try await Self.startContainerSystem(shell: Shell())
             let preparer = ContainerImagePreparer(shell: Shell())
@@ -127,10 +126,9 @@ extension SetupWindowController {
     /// Bakes the runner agents into the configured Docker image.
     private func prepareDockerImage() {
         runLongTask(title: "Preparing docker image (this takes a while)…") {
-            guard let cfg = try? ConfigLoader.load(), let image = cfg.docker?.image else {
-                throw NSError(
-                    domain: "kinhin", code: 2,
-                    userInfo: [NSLocalizedDescriptionKey: "config missing, invalid, or no docker.image set"])
+            let cfg = try ConfigLoader.load()
+            guard let image = cfg.docker?.image else {
+                throw ConfigError.invalid("no docker.image is set — add a docker: section first")
             }
             let preparer = DockerImagePreparer(shell: Shell())
             // The config's toolchains section bakes into the Linux image too
@@ -187,7 +185,12 @@ extension SetupWindowController {
     private func createConfig() {
         Paths.ensureSupportDirectories()
         if !FileManager.default.fileExists(atPath: Paths.config.path) {
-            try? ConfigLoader.template().write(toFile: Paths.config.path, atomically: true, encoding: .utf8)
+            do {
+                try ConfigLoader.template().write(toFile: Paths.config.path, atomically: true, encoding: .utf8)
+            } catch {
+                AlertKit.present(error: error, title: "Couldn't create config.yaml")
+                return
+            }
         }
         NSWorkspace.shared.open(Paths.config.deletingLastPathComponent())
         Task { await refreshChecks() }
@@ -217,13 +220,10 @@ extension SetupWindowController {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(CLTRepair.commandLine, forType: .string)
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = "Reinstall Command Line Tools"
-        alert.informativeText =
+        AlertKit.notice(
+            "Reinstall Command Line Tools",
             "The reinstall command was copied to your clipboard and Terminal is opening. Paste (⌘V), press Return, and approve the administrator prompt.\n\n\(CLTRepair.commandLine)\n\n\(CLTRepair.fallbackHint)"
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        )
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
         Task { await refreshChecks() }
     }
@@ -237,10 +237,7 @@ extension SetupWindowController {
 
     private func prepareImage() {
         runLongTask(title: "Preparing runner image (this takes a while)…") {
-            guard let cfg = try? ConfigLoader.load() else {
-                throw NSError(
-                    domain: "kinhin", code: 2, userInfo: [NSLocalizedDescriptionKey: "config missing or invalid"])
-            }
+            let cfg = try ConfigLoader.load()
             let tart = try TartController(configuredPath: cfg.tartPath)
             let preparer = ImagePreparer(tart: tart, ssh: SSHExecutor())
             var options = ImagePreparer.Options()

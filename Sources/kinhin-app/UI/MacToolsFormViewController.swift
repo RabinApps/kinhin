@@ -163,8 +163,7 @@ final class MacToolsFormViewController: NSViewController {
     // MARK: State
 
     func reload() {
-        let yaml = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
-        let snapshot = try? GeneralConfigEditor.snapshot(from: yaml)
+        let snapshot = ConfigStore.snapshotOrLog(at: configURL)
         containerToggle.state = snapshot?.container != nil ? .on : .off
         dockerToggle.state = snapshot?.docker != nil ? .on : .off
         let containerInstalled = Paths.findExecutable(named: "container") != nil
@@ -333,9 +332,7 @@ final class MacToolsFormViewController: NSViewController {
     }
 
     @objc private func containerToggled() {
-        let snap = (try? String(contentsOf: configURL, encoding: .utf8)).flatMap {
-            try? GeneralConfigEditor.snapshot(from: $0)
-        }
+        let snap = ConfigStore.snapshotOrLog(at: configURL)
         write(
             .container(
                 containerToggle.state == .on
@@ -344,9 +341,7 @@ final class MacToolsFormViewController: NSViewController {
     }
 
     @objc private func dockerToggled() {
-        let snap = (try? String(contentsOf: configURL, encoding: .utf8)).flatMap {
-            try? GeneralConfigEditor.snapshot(from: $0)
-        }
+        let snap = ConfigStore.snapshotOrLog(at: configURL)
         write(
             .docker(
                 dockerToggle.state == .on

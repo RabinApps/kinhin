@@ -199,7 +199,6 @@ extension AppDelegate {
         return line
     }
 
-    @MainActor
     func apply(status: FleetStatus?) {
         lastStatus = status
         // Title reflects state at a glance.
@@ -215,7 +214,6 @@ extension AppDelegate {
         mainController?.render(status: status)
     }
 
-    @MainActor
     /// Rebuilds the dynamic VM rows between the "VMs" header and the trailing
     /// separator. Internal (not private) so tests can drive the rebuild
     /// against a real menu. Idempotent: stale rows are removed first.
@@ -291,12 +289,23 @@ extension AppDelegate {
 
     // MARK: Actions
 
+    /// Sends a command to the background daemon and tells the user when it
+    /// fails (daemon not running, or it rejected the request) instead of
+    /// letting the menu action look like it worked.
+    func sendDaemonCommand(_ method: RPCMethod, payload: Data? = nil, failureTitle: String) {
+        do {
+            try client?.command(method, payload: payload)
+        } catch {
+            AlertKit.present(error: error, title: failureTitle)
+        }
+    }
+
     @objc func startFleet() {
         Task {
             if let engine {
                 await engine.start()
-            } else if let client {
-                _ = try? client.send(method: .start)
+            } else if client != nil {
+                sendDaemonCommand(.start, failureTitle: "Couldn't start the fleet")
             } else {
                 openSetupTab()
             }
@@ -308,8 +317,8 @@ extension AppDelegate {
         Task {
             if let engine {
                 await engine.stop()
-            } else if let client {
-                _ = try? client.send(method: .stop)
+            } else if client != nil {
+                sendDaemonCommand(.stop, failureTitle: "Couldn't stop the fleet")
             }
             await refresh()
         }
@@ -319,8 +328,8 @@ extension AppDelegate {
         Task {
             if let engine {
                 await engine.setPaused(true)
-            } else if let client {
-                _ = try? client.send(method: .pause)
+            } else if client != nil {
+                sendDaemonCommand(.pause, failureTitle: "Couldn't pause the fleet")
             }
             await refresh()
         }
@@ -330,8 +339,8 @@ extension AppDelegate {
         Task {
             if let engine {
                 await engine.setPaused(false)
-            } else if let client {
-                _ = try? client.send(method: .resume)
+            } else if client != nil {
+                sendDaemonCommand(.resume, failureTitle: "Couldn't resume the fleet")
             }
             await refresh()
         }
@@ -343,28 +352,31 @@ extension AppDelegate {
     }
 
     func deleteVM(id: String) {
-        let alert = NSAlert()
-        alert.messageText = "Delete \(id)?"
-        alert.informativeText = "This stops the VM and removes it. Any job running on it is cancelled."
-        alert.addButton(withTitle: "Delete")
-        alert.addButton(withTitle: "Cancel")
-        alert.alertStyle = .warning
-        guard confirmDestructive(alert) else { return }
+        guard
+            confirmDestructive(
+                title: "Delete \(id)?",
+                message: "This stops the VM and removes it. Any job running on it is cancelled.",
+                button: "Delete")
+        else { return }
         Task {
             if let engine {
                 await engine.deleteVM(id: id)
-            } else if let client {
-                let payload = try? JSONEncoder().encode(Daemon.VMDeleteRequest(id: id))
-                _ = try? client.send(method: .deleteVM, payload: payload)
+            } else if client != nil {
+                do {
+                    let payload = try JSONEncoder().encode(Daemon.VMDeleteRequest(id: id))
+                    sendDaemonCommand(.deleteVM, payload: payload, failureTitle: "Couldn't delete \(id)")
+                } catch {
+                    AlertKit.present(error: error, title: "Couldn't delete \(id)")
+                }
             }
             await refresh()
         }
     }
 
     /// Runs a confirmation alert; overridable in tests via `confirmOverride`.
-    func confirmDestructive(_ alert: NSAlert) -> Bool {
+    func confirmDestructive(title: String, message: String, button: String) -> Bool {
         if let confirmOverride { return confirmOverride }
-        return alert.runModal() == .alertFirstButtonReturn
+        return AlertKit.confirm(title: title, message: message, confirmTitle: button, destructive: true)
     }
 
     /// Config writes (Runtimes pane, Config tab) reach whoever owns the
@@ -390,10 +402,14 @@ extension AppDelegate {
 
     private func applyConfigToEngine() async {
         if let engine {
-            guard let cfg = try? ConfigLoader.load() else {
+            let cfg: KinhinConfig
+            do {
+                cfg = try ConfigLoader.load()
+            } catch {
                 Log.warn(
                     "app",
-                    "config reload skipped — config.yaml does not parse; the running fleet keeps its current config")
+                    "config reload skipped — \(error.localizedDescription); the running fleet keeps its current config"
+                )
                 return
             }
             if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
@@ -537,12 +553,10 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation {
             // wizard (the old behavior looked like "Start fleet does nothing").
             setupIncomplete = true
             mainController?.setupIncompleteFlag = true
-            let alert = NSAlert()
-            alert.messageText = "kinhin can't start the fleet yet"
-            alert.informativeText =
+            AlertKit.notice(
+                "kinhin can't start the fleet yet",
                 "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open the Setup tab to finish."
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
+            )
             mainController?.showSetup()
             return
         }

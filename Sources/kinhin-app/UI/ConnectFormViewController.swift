@@ -174,8 +174,7 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
     /// Re-reads config + Keychain (off the main thread — a Keychain read can
     /// block on a system prompt) and refreshes both cards.
     func reload() {
-        let yaml = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
-        let snapshot = try? GeneralConfigEditor.snapshot(from: yaml)
+        let snapshot = ConfigStore.snapshotOrLog(at: configURL)
         Task { [weak self] in
             let probe = self?.hasStoredToken ?? { _ in false }
             let tokens = await Task.detached { (probe(.github), probe(.gitea)) }.value
@@ -333,12 +332,9 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
     private func verifyPermission(scope: String) async {
         let report = await OrgPermissionProbe.verify(
             github: GitHubClient(credentials: GitHubCredentials(token: "", scope: scope)), scope: scope)
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.githubStatus.stringValue = report.message
-            self.githubStatus.textColor = report.ok ? .systemGreen : .systemRed
-            self.githubConnect.title = report.ok ? "Replace" : "Connect"
-        }
+        githubStatus.stringValue = report.message
+        githubStatus.textColor = report.ok ? .systemGreen : .systemRed
+        githubConnect.title = report.ok ? "Replace" : "Connect"
     }
 
     // MARK: Config writes
@@ -410,7 +406,7 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
     func comboBoxSelectionDidChange(_ notification: Notification) {
         guard let combo = notification.object as? NSComboBox else { return }
         // The selection is applied to stringValue after this callback.
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
             if combo === self?.githubRepo { self?.commitGitHubRepo() }
             if combo === self?.giteaScope { self?.commitGitea() }
         }

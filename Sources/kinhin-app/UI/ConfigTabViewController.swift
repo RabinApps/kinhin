@@ -73,9 +73,15 @@ final class ConfigTabViewController: NSViewController {
     // MARK: Loading & rendering
 
     func reload() {
-        let yaml = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
-        guard let snap = try? GeneralConfigEditor.snapshot(from: yaml) else {
-            statusLabel.stringValue = "config.yaml doesn't parse — use Advanced → App → Open config file."
+        let snap: GeneralConfigEditor.Snapshot
+        do {
+            guard let loaded = try ConfigStore.snapshot(at: configURL) else {
+                throw ConfigError.notFound(configURL.path)
+            }
+            snap = loaded
+        } catch {
+            statusLabel.stringValue =
+                "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file."
             statusLabel.textColor = .systemRed
             return
         }
@@ -223,9 +229,7 @@ final class ConfigTabViewController: NSViewController {
             statusLabel.stringValue = "Applied ✓"
             statusLabel.textColor = .systemGreen
         }
-        if let yaml = try? String(contentsOf: configURL, encoding: .utf8),
-            let snap = try? GeneralConfigEditor.snapshot(from: yaml)
-        {
+        if let snap = ConfigStore.snapshotOrLog(at: configURL) {
             snapshot = snap
         }
         if wroteAny { onEdited?() }

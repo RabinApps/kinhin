@@ -1,6 +1,6 @@
 import Foundation
 
-enum ConfigError: LocalizedError, Equatable {
+public enum ConfigError: LocalizedError, Equatable {
     case missing(String)
     case invalid(String)
     case notFound(String)

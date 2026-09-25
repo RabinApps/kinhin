@@ -18,8 +18,6 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
 
     /// Confirms a rebuild. Injectable so tests never open a modal.
     var confirmRebuild: (_ runtime: RuntimeID, _ plan: ToolchainsConfigEditor.Plan) -> Bool = { runtime, plan in
-        let alert = NSAlert()
-        alert.messageText = "Rebuild the \(ToolchainsViewController.runtimeTitle(runtime)) image?"
         var text =
             "This replaces the current image with a fresh one that includes your saved tools. It can take 10–30 minutes and downloads a lot."
         text +=
@@ -29,10 +27,9 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         if !plan.skipped.isEmpty {
             text += "\n\nSkipped (not available for this runtime): \(plan.skipped.joined(separator: ", "))."
         }
-        alert.informativeText = text
-        alert.addButton(withTitle: "Rebuild Image")
-        alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn
+        return AlertKit.confirm(
+            title: "Rebuild the \(ToolchainsViewController.runtimeTitle(runtime)) image?", message: text,
+            confirmTitle: "Rebuild Image", style: .informational)
     }
     /// Runs the actual image build for a runtime (real implementation below).
     var rebuild: (_ runtime: RuntimeID, _ config: KinhinConfig) async throws -> Void = { runtime, cfg in
@@ -105,11 +102,19 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
 
     // MARK: Loading
 
+    /// Says why the config could not be loaded, instead of a blank grid.
+    private func showLoadError(_ error: Error) {
+        statusLabel.stringValue =
+            "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file."
+        statusLabel.textColor = .systemRed
+    }
+
     func reload() {
-        let yaml = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
-        guard let loaded = try? ToolchainsConfigEditor.selection(from: yaml) else {
-            statusLabel.stringValue = "config.yaml doesn't parse — use Advanced → App → Open config file."
-            statusLabel.textColor = .systemRed
+        let loaded: ToolchainsSelection
+        do {
+            loaded = try ToolchainsConfigEditor.selection(from: ConfigStore.text(at: configURL))
+        } catch {
+            showLoadError(error)
             return
         }
         baseline = loaded
@@ -136,10 +141,11 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
     /// OFF by default. Used by the setup wizard where there is no saved config
     /// and the user has to pick each toolchain explicitly.
     internal func reload(allOff: Bool = false) {
-        let yaml = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
-        guard let loaded = try? ToolchainsConfigEditor.selection(from: yaml) else {
-            statusLabel.stringValue = "config.yaml doesn't parse — use Advanced → App → Open config file."
-            statusLabel.textColor = .systemRed
+        let loaded: ToolchainsSelection
+        do {
+            loaded = try ToolchainsConfigEditor.selection(from: ConfigStore.text(at: configURL))
+        } catch {
+            showLoadError(error)
             return
         }
         baseline = loaded
@@ -289,9 +295,7 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
     private func imagesCard() -> NSView {
         let card = FormKit.card(
             title: "Rebuild images", subtitle: "Your saved tools are baked in when an image is rebuilt.")
-        let snapshot = (try? String(contentsOf: configURL, encoding: .utf8)).flatMap {
-            try? GeneralConfigEditor.snapshot(from: $0)
-        }
+        let snapshot = ConfigStore.snapshotOrLog(at: configURL)
         var runtimes: [(RuntimeID, ToolchainPlatform)] = []
         if TartController.isInstalled() { runtimes.append((.tart, .macOS)) }
         if snapshot?.container != nil { runtimes.append((.appleContainer, .linux)) }
@@ -448,8 +452,11 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         guard !hasPendingChanges else { return nil }
         let platform: ToolchainPlatform = runtime == .tart ? .macOS : .linux
         guard confirmRebuild(runtime, ToolchainsConfigEditor.plan(baseline, for: platform)) else { return nil }
-        guard let cfg = try? ConfigLoader.load(from: configURL) else {
-            statusLabel.stringValue = "Not started — config.yaml is missing or invalid."
+        let cfg: KinhinConfig
+        do {
+            cfg = try ConfigLoader.load(from: configURL)
+        } catch {
+            statusLabel.stringValue = "Not started — \(error.localizedDescription)"
             statusLabel.textColor = .systemRed
             return nil
         }

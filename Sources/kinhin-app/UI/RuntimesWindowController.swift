@@ -135,7 +135,13 @@ final class RuntimesWindowController: NSWindowController {
     @objc func editConfigInUI() {
         // No window guard here: the embedded Runtimes tab has no own window
         // (only the standalone pane does), and runModal works either way.
-        let original = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
+        let original: String
+        do {
+            original = try ConfigStore.text(at: configURL)
+        } catch {
+            AlertKit.present(error: error, title: "Can't open config.yaml")
+            return
+        }
 
         let editor = NSTextView()
         editor.string = original
@@ -209,12 +215,17 @@ final class RuntimesWindowController: NSWindowController {
     var hasLoadedForTesting: Bool { viewModel != nil }
 
     private func reloadWithHealth() async {
-        guard let yaml = try? String(contentsOf: configURL, encoding: .utf8) else {
+        guard FileManager.default.fileExists(atPath: configURL.path) else {
             renderEmpty(message: "No config file yet — finish the Setup tab first.")
             return
         }
-        guard let parsed = try? ConfigLoader.parse(yaml) else {
-            renderEmpty(message: "config.yaml doesn't parse — fix it with Edit YAML…")
+        let yaml: String
+        let parsed: KinhinConfig
+        do {
+            yaml = try ConfigStore.text(at: configURL)
+            parsed = try ConfigLoader.parse(yaml)
+        } catch {
+            renderEmpty(message: "config.yaml has a problem — \(error.localizedDescription). Fix it with Edit YAML…")
             return
         }
         let host = ResourceProbe().snapshot()
@@ -373,7 +384,7 @@ final class RuntimesWindowController: NSWindowController {
         column.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(column)
 
-        let yaml = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
+        let yaml = ConfigStore.textOrLog(at: configURL)
 
         // Fleet base labels.
         column.addArrangedSubview(NSTextField(labelWithString: "Fleet base labels (every runner):"))
@@ -434,7 +445,7 @@ final class RuntimesWindowController: NSWindowController {
         } catch {
             presentError(error)
             // Snap the field back to the on-disk truth.
-            let yaml = (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
+            let yaml = ConfigStore.textOrLog(at: configURL)
             field.stringValue = LabelsConfigEditor.labels(in: yaml, scope: scope).joined(separator: ", ")
         }
     }
@@ -835,11 +846,7 @@ final class RuntimesWindowController: NSWindowController {
 
     /// Where routing problems and "nothing to do" explanations are shown.
     var presentNotice: (_ title: String, _ message: String) -> Void = { title, message in
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        AlertKit.notice(title, message)
     }
 
     @objc func addRouteClicked() {

@@ -12,14 +12,7 @@ final class ContainersViewController: NSViewController {
     /// Confirms a destructive action. Real UI shows an alert; tests inject a
     /// closure so no modal ever blocks them.
     var confirm: (_ title: String, _ message: String, _ button: String) -> Bool = { title, message, button in
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: button)
-        alert.addButton(withTitle: "Cancel")
-        alert.buttons.first?.hasDestructiveAction = true
-        return alert.runModal() == .alertFirstButtonReturn
+        AlertKit.confirm(title: title, message: message, confirmTitle: button, destructive: true)
     }
     /// Builds the manager for a tool (tests inject a fake shell).
     var makeManager: (ContainerTool) -> ContainerManager = { ContainerManager(tool: $0) }

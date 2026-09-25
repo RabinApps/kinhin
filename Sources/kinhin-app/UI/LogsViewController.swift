@@ -23,9 +23,7 @@ final class LogsViewController: NSViewController {
         var minLevel: Log.Level = .debug
 
         func matches(_ entry: Log.Entry) -> Bool {
-            guard Log.Level(rawValue: entry.level) != nil,
-                Log.Level(rawValue: entry.level)! >= minLevel
-            else { return false }
+            guard let level = Log.Level(rawValue: entry.level), level >= minLevel else { return false }
             guard !query.isEmpty else { return true }
             return entry.message.localizedCaseInsensitiveContains(query)
                 || entry.component.localizedCaseInsensitiveContains(query)
@@ -131,7 +129,9 @@ final class LogsViewController: NSViewController {
 
     private func startTimer() {
         refreshTimer?.invalidate()
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            // A repeating timer outlives its owner; stop it once the view is gone.
+            guard self != nil else { return timer.invalidate() }
             Task { @MainActor [weak self] in
                 self?.refreshNow(keepScroll: true)
             }
@@ -154,7 +154,7 @@ final class LogsViewController: NSViewController {
     }
 
     private func render() {
-        let storage = textView.textStorage!
+        guard let storage = textView.textStorage else { return }
         storage.setAttributedString(NSAttributedString(string: ""))
         let matching = entries.filter { filter.matches($0) }
 

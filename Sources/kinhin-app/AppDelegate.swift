@@ -157,12 +157,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let engine {
             status = await engine.status()
         } else if let client {
+            // Polled every few seconds: an unreachable daemon simply reads as
+            // "not running" in the status item, so a failure here is expected.
             if let response = try? client.send(method: .status),
                 response.ok, let payload = response.payload
             {
                 status = try? JSONDecoder().decode(FleetStatus.self, from: payload)
             }
         }
-        await MainActor.run { self.apply(status: status) }
+        apply(status: status)
     }
 }

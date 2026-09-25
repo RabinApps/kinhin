@@ -266,6 +266,18 @@ public struct RPCClient: Sendable {
         return true
     }
 
+    /// Like `send`, but a response the daemon rejected (`ok == false`) throws
+    /// `RPCError.rejected` — for callers that only care whether the command worked.
+    @discardableResult
+    public func command(_ method: RPCMethod, payload: Data? = nil) throws -> RPCResponse {
+        try Self.requireOK(send(method: method, payload: payload))
+    }
+
+    static func requireOK(_ response: RPCResponse) throws -> RPCResponse {
+        guard response.ok else { throw RPCError.rejected(response.error ?? "unknown error") }
+        return response
+    }
+
     public func send(method: RPCMethod, payload: Data? = nil, timeout: TimeInterval = 60) throws -> RPCResponse {
         guard FileManager.default.fileExists(atPath: socketURL.path) else {
             throw RPCError.connectionFailed(socketURL.path)

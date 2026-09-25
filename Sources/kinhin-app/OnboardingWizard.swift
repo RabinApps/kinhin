@@ -238,8 +238,7 @@ class OnboardingWizardViewController: NSViewController {
     }
 
     private func updateSummary() {
-        let yaml = (try? String(contentsOf: Paths.config, encoding: .utf8)) ?? ""
-        let snap = try? GeneralConfigEditor.snapshot(from: yaml)
+        let snap = ConfigStore.snapshotOrLog()
         let repo = (snap?.repo == ConfigLoader.templateRepo ? "" : snap?.repo) ?? ""
         var lines = [
             "Serving:  \(repo.isEmpty ? (snap?.gitea == nil ? "— not chosen yet" : "Gitea only") : repo)",

@@ -22,7 +22,7 @@ struct TokenSettingsRow: Equatable {
         let masked = token.map { String($0.prefix(4)) + "…" } ?? "—"
         switch forge {
         case .github:
-            let scope = (repo?.isEmpty == false) ? repo! : "your repo (set it in config.yaml)"
+            let scope = repo.flatMap { $0.isEmpty ? nil : $0 } ?? "your repo (set it in config.yaml)"
             return TokenSettingsRow(
                 forge: forge,
                 title: "GitHub",
