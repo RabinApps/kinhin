@@ -22,26 +22,26 @@ extension ConfigLoader {
             specs: partial.specs != nil ? specs : nil,
             brew: partial.brew != nil ? brew : nil,
             stacks: partial.stacks != nil ? stackNames : nil,
-            shareCache: partial.share_cache,
+            shareCache: partial.shareCache,
             cache: nil
         )
 
         if let cache = partial.cache {
-            if let auto = cache.auto_prune, auto == false, cache.max_age_days == nil, cache.max_gb == nil {
+            if let auto = cache.autoPrune, auto == false, cache.maxAgeDays == nil, cache.maxGB == nil {
                 throw ConfigError.invalid(
                     "toolchains.cache: set auto_prune: false together with explicit max_age_days / max_gb values, or remove the cache section (the defaults are auto_prune: true, 30 days, 50 GB)"
                 )
             }
-            if let days = cache.max_age_days, days < 0 {
+            if let days = cache.maxAgeDays, days < 0 {
                 throw ConfigError.invalid("toolchains.cache.max_age_days must be >= 0 (0 = no age limit)")
             }
-            if let gb = cache.max_gb, gb < 0 {
+            if let gb = cache.maxGB, gb < 0 {
                 throw ConfigError.invalid("toolchains.cache.max_gb must be >= 0 (0 = no size limit)")
             }
             toolchains.cache = KinhinConfig.ToolchainsConfig.CachePolicy(
-                autoPrune: cache.auto_prune,
-                maxAgeDays: cache.max_age_days,
-                maxGB: cache.max_gb
+                autoPrune: cache.autoPrune,
+                maxAgeDays: cache.maxAgeDays,
+                maxGB: cache.maxGB
             )
         }
 

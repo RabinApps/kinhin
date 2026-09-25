@@ -83,24 +83,24 @@ public enum GeneralConfigEditor {
         return Snapshot(
             repo: partial?.repo ?? "",
             labels: partial?.labels ?? d.labels,
-            minRunners: partial?.min_runners ?? d.minRunners,
-            maxRunners: partial?.max_runners ?? d.maxRunners,
-            runnersPerVM: partial?.runners_per_vm ?? d.runnersPerVM,
-            pollInterval: partial?.poll_interval ?? d.pollInterval,
+            minRunners: partial?.minRunners ?? d.minRunners,
+            maxRunners: partial?.maxRunners ?? d.maxRunners,
+            runnersPerVM: partial?.runnersPerVM ?? d.runnersPerVM,
+            pollInterval: partial?.pollInterval ?? d.pollInterval,
             vmCPU: vm?.cpu ?? d.vm.cpuCount,
-            vmMemoryGB: vm?.memory_gb ?? d.vm.memoryGB,
+            vmMemoryGB: vm?.memoryGB ?? d.vm.memoryGB,
             vmEphemeral: vm?.ephemeral ?? d.vm.ephemeral,
             image: partial?.image ?? d.image,
             reserveCPU: reserve?.cpu ?? d.reserve.cpu,
-            reserveMemoryGB: reserve?.memory_gb ?? d.reserve.memoryGB,
+            reserveMemoryGB: reserve?.memoryGB ?? d.reserve.memoryGB,
             gitea: partial?.gitea.map { .init(instance: $0.instance ?? "", scope: $0.scope ?? "") },
             container: partial?.container.map {
-                .init(image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memory_gb ?? 8)
+                .init(image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memoryGB ?? 8)
             },
             docker: partial?.docker.map {
                 .init(
-                    image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 2, memoryGB: $0.memory_gb ?? 4,
-                    maxSlots: $0.max_slots ?? 8)
+                    image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 2, memoryGB: $0.memoryGB ?? 4,
+                    maxSlots: $0.maxSlots ?? 8)
             }
         )
     }

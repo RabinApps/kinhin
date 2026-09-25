@@ -8,7 +8,6 @@
   "indentSwitchCaseLabels": false,
   "multiElementCollectionTrailingCommas": true,
   "rules": {
-    "AlwaysUseLowerCamelCase": false,
     "NoBlockComments": false,
     "OrderedImports": true,
     "UseLetInEveryBoundCaseVariable": false

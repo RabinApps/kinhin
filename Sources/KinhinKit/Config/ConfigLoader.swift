@@ -84,19 +84,19 @@ public struct ConfigLoader {
         guard let labels = partial.labels, !labels.isEmpty else {
             throw ConfigError.missing("labels")
         }
-        let minRunners = partial.min_runners ?? 0
-        let maxRunners = partial.max_runners ?? 1
+        let minRunners = partial.minRunners ?? 0
+        let maxRunners = partial.maxRunners ?? 1
         if minRunners < 0 { throw ConfigError.invalid("min_runners must be >= 0") }
         if maxRunners < 1 { throw ConfigError.invalid("max_runners must be >= 1") }
         if maxRunners < minRunners {
             throw ConfigError.invalid("max_runners (\(maxRunners)) must be >= min_runners (\(minRunners))")
         }
-        let runnersPerVM = partial.runners_per_vm ?? 1
+        let runnersPerVM = partial.runnersPerVM ?? 1
         if runnersPerVM < 1 { throw ConfigError.invalid("runners_per_vm must be >= 1") }
         if runnersPerVM > 8 {
             throw ConfigError.invalid("runners_per_vm must be <= 8 (each runner shares the VM's CPU and RAM)")
         }
-        let poll = partial.poll_interval ?? 20
+        let poll = partial.pollInterval ?? 20
         if poll < 5 {
             throw ConfigError.invalid("poll_interval must be >= 5 seconds to stay within GitHub rate limits")
         }
@@ -108,25 +108,25 @@ public struct ConfigLoader {
         cfg.maxRunners = maxRunners
         cfg.runnersPerVM = runnersPerVM
         cfg.pollInterval = poll
-        if let ttl = partial.token_ttl { cfg.tokenTTL = ttl }
+        if let ttl = partial.tokenTTL { cfg.tokenTTL = ttl }
         if let vm = partial.vm {
             if let cpu = vm.cpu, cpu < 1 { throw ConfigError.invalid("vm.cpu must be >= 1") }
-            if let mem = vm.memory_gb, mem < 2 { throw ConfigError.invalid("vm.memory_gb must be >= 2") }
+            if let mem = vm.memoryGB, mem < 2 { throw ConfigError.invalid("vm.memoryGB must be >= 2") }
             if let e = vm.ephemeral { cfg.vm.ephemeral = e }
             if let cpu = vm.cpu { cfg.vm.cpuCount = cpu }
-            if let mem = vm.memory_gb { cfg.vm.memoryGB = mem }
+            if let mem = vm.memoryGB { cfg.vm.memoryGB = mem }
         }
         if let image = partial.image {
             guard !image.isEmpty else { throw ConfigError.invalid("image must not be empty") }
             cfg.image = image
         }
-        if let boot = partial.vm_boot_timeout { cfg.vmBootTimeout = boot }
-        if let disk = partial.disk_gb {
+        if let boot = partial.vmBootTimeout { cfg.vmBootTimeout = boot }
+        if let disk = partial.diskGB {
             guard disk >= 0 else { throw ConfigError.invalid("disk_gb must be >= 0") }
             cfg.diskGB = disk
         }
-        if let tartPath = partial.tart_path { cfg.tartPath = tartPath }
-        if let provision = partial.provision_script {
+        if let tartPath = partial.tartPath { cfg.tartPath = tartPath }
+        if let provision = partial.provisionScript {
             guard !provision.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw ConfigError.invalid(
                     "provision_script must not be empty (remove the key or point it at a script file)")
@@ -168,13 +168,13 @@ public struct ConfigLoader {
             if let cpus = container.cpus, cpus < 1 {
                 throw ConfigError.invalid("container.cpus must be >= 1")
             }
-            if let mem = container.memory_gb, mem < 2 {
+            if let mem = container.memoryGB, mem < 2 {
                 throw ConfigError.invalid("container.memory_gb must be >= 2")
             }
             cfg.container = KinhinConfig.ContainerConfig(
                 image: containerImage,
                 cpus: container.cpus ?? 4,
-                memoryGB: container.memory_gb ?? 8,
+                memoryGB: container.memoryGB ?? 8,
                 labels: container.labels
             )
         }
@@ -185,17 +185,17 @@ public struct ConfigLoader {
             if let cpus = docker.cpus, cpus < 1 {
                 throw ConfigError.invalid("docker.cpus must be >= 1")
             }
-            if let mem = docker.memory_gb, mem < 1 {
+            if let mem = docker.memoryGB, mem < 1 {
                 throw ConfigError.invalid("docker.memory_gb must be >= 1")
             }
-            if let slots = docker.max_slots, slots < 1 {
+            if let slots = docker.maxSlots, slots < 1 {
                 throw ConfigError.invalid("docker.max_slots must be >= 1")
             }
             cfg.docker = KinhinConfig.DockerForgeConfig(
                 image: dockerImage,
                 cpus: docker.cpus ?? 2,
-                memoryGB: docker.memory_gb ?? 4,
-                maxSlots: docker.max_slots ?? 8
+                memoryGB: docker.memoryGB ?? 4,
+                maxSlots: docker.maxSlots ?? 8
             )
         }
         if let runtimes = partial.runtimes {
@@ -267,7 +267,7 @@ public struct ConfigLoader {
                 guard cpu >= 0 else { throw ConfigError.invalid("reserve.cpu must be >= 0") }
                 cfg.reserve.cpu = cpu
             }
-            if let mem = reserve.memory_gb {
+            if let mem = reserve.memoryGB {
                 guard mem >= 0 else { throw ConfigError.invalid("reserve.memory_gb must be >= 0") }
                 cfg.reserve.memoryGB = mem
             }
