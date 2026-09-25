@@ -30,6 +30,19 @@ public struct LinuxImageOptions {
     }
 }
 
+extension LinuxImageOptions {
+    /// Base image for re-baking `configured` in place. A rebuild starts from the
+    /// previous bake so it stays incremental, but the first bake has nothing
+    /// local to start from, and `configured` is only a name kinhin gives its
+    /// own output — not something a registry has. Fall back to `fallback`.
+    public static func baseImage(
+        configured: String, localImages: [String], fallback: String = "ubuntu:24.04"
+    ) -> String {
+        let present = localImages.contains { $0 == configured || $0.hasPrefix("\(configured):") }
+        return present ? configured : fallback
+    }
+}
+
 /// The bake pipeline shared by `DockerImagePreparer` and
 /// `ContainerImagePreparer`: boot a scratch container from the base image
 /// with the host toolchain cache bind-mounted, inject the token-gated runner
@@ -95,12 +108,21 @@ struct LinuxImageBaker {
         //    cache bind-mounted (`<bin> run -v host:guest`).
         let scratch = "kinhin-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
         Log.info(tag, "starting scratch container from \(options.image) (host toolchain cache bind-mounted)")
-        _ = try await shell.run([
+        let started = try await shell.run([
             bin, "run", "--detach",
             "--volume", ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path),
             "--name", scratch, options.image,
             "/bin/bash", "-lc", "while true; do sleep 3600; done",
         ])
+        // Fail here, with the CLI's own reason (missing image, registry
+        // auth, ...), instead of polling exec for two minutes.
+        guard started.succeeded else {
+            // CLIs print progress before the error; the last line is the reason.
+            let lines = started.stderr.split(whereSeparator: \.isNewline)
+            let reason = String((lines.last ?? "no error output").suffix(500))
+            throw ImageError.containerProvisioningFailed(
+                "could not start a container from '\(options.image)': \(reason)")
+        }
 
         do {
             // 2. Wait until it answers exec.
