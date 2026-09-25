@@ -9,8 +9,25 @@ import XCTest
 final class TokenReplacementTests: XCTestCase {
     // MARK: Keychain
 
+    /// A throwaway Keychain service: this test must never touch the
+    /// developer's real token (it used to delete it on every run).
+    private func withScratchKeychain(_ body: () throws -> Void) rethrows {
+        KeychainTokenStore.serviceOverride = "com.kinhin.runner.tests.\(UUID().uuidString)"
+        defer {
+            KeychainTokenStore.delete()
+            KeychainTokenStore.serviceOverride = nil
+        }
+        try body()
+    }
+
     func testSaveOverwritesExistingToken() throws {
-        defer { KeychainTokenStore.delete() }
+        try withScratchKeychain {
+            try saveOverwritesExistingToken()
+        }
+    }
+
+    private func saveOverwritesExistingToken() throws {
+        XCTAssertNotEqual(KeychainTokenStore.service, Paths.keychainService, "must not touch the real token")
         KeychainTokenStore.delete()
         try KeychainTokenStore.save("ghp_first")
         XCTAssertEqual(KeychainTokenStore.load(), "ghp_first")

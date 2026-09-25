@@ -7,10 +7,18 @@ public enum LinuxBaseImage {
     public static let defaultReference = "ubuntu:24.04"
 
     /// Images the install scripts are exercised against, for the pickers.
+    /// Each one was baked end to end on arm64 (runner agent, then mise node +
+    /// an npm global) before being listed; supported releases only. The
+    /// "slim" Debian images are smaller and ship even fewer packages — the
+    /// bake installs what it needs.
     public static let curated: [(title: String, reference: String)] = [
+        ("Ubuntu 26.04", "ubuntu:26.04"),
         ("Ubuntu 24.04", "ubuntu:24.04"),
         ("Ubuntu 22.04", "ubuntu:22.04"),
+        ("Debian 13", "debian:13"),
+        ("Debian 13 slim", "debian:13-slim"),
         ("Debian 12", "debian:12"),
+        ("Debian 12 slim", "debian:12-slim"),
     ]
 
     /// Which base to use: an explicit override (a CLI flag) wins, then the

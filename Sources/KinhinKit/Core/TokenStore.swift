@@ -10,6 +10,12 @@ public enum KeychainTokenStore {
         forge == .github ? "github-pat" : "gitea-pat"
     }
 
+    /// Tests point this at a throwaway service so they never read, overwrite,
+    /// or delete the developer's real token. While set, the legacy-service
+    /// migration is off too (it would touch the real legacy item).
+    nonisolated(unsafe) static var serviceOverride: String?
+    static var service: String { serviceOverride ?? Paths.keychainService }
+
     /// Keychain service name used by the pre-rename build ("Orchard").
     /// Load falls back to it once and re-saves under the current service,
     /// so tokens stored before the rename migrate transparently.
@@ -29,7 +35,7 @@ public enum KeychainTokenStore {
         let data = Data(token.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Paths.keychainService,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: account(for: forge),
         ]
         let attributes: [String: Any] = [kSecValueData as String: data]
@@ -51,12 +57,14 @@ public enum KeychainTokenStore {
     }
 
     public static func load(forge: ForgeID = .github) -> String? {
-        if let token = load(from: Paths.keychainService, account: account(for: forge)) {
+        if let token = load(from: service, account: account(for: forge)) {
             return token
         }
         // One-time legacy migration: re-save under the current service, then
         // drop the pre-rename item so it never lingers in the Keychain.
-        guard let legacy = load(from: legacyService, account: account(for: forge)) else { return nil }
+        guard serviceOverride == nil,
+            let legacy = load(from: legacyService, account: account(for: forge))
+        else { return nil }
         do {
             try save(legacy, forge: forge)
             delete(from: legacyService, account: account(for: forge))
@@ -77,12 +85,22 @@ public enum KeychainTokenStore {
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else { return nil }
+        guard status == errSecSuccess, let data = item as? Data else {
+            // "Not found" is normal (no token yet). Anything else — a denied
+            // prompt, a locked keychain, an item another build owns — used
+            // to look identical to "no token" and silently sent the user
+            // back to setup, so say what happened.
+            if status != errSecItemNotFound {
+                let reason = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
+                Log.warn("keychain", "couldn't read \(account) token from the Keychain: \(reason) (OSStatus \(status))")
+            }
+            return nil
+        }
         return String(decoding: data, as: UTF8.self)
     }
 
     public static func delete(forge: ForgeID = .github) {
-        delete(from: Paths.keychainService, account: account(for: forge))
+        delete(from: service, account: account(for: forge))
     }
 
     private static func delete(from service: String, account: String) {
