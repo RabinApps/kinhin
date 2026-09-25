@@ -48,6 +48,8 @@ public enum SetupAction {
         case "replace_token": return "Replace Token…"
         case "enter_gitea_token": return "Enter Gitea Token…"
         case "replace_gitea_token": return "Replace Gitea Token…"
+        case "enter_account_token": return "Enter Token…"
+        case "replace_account_token": return "Replace Token…"
         case "install_container_cli": return "Install Apple container"
         case "start_container_system": return "Start container system"
         case "install_container_kernel": return "Install Linux kernel"

@@ -82,8 +82,8 @@ public struct ImagePreparer {
         // Token-gated provisioning: an agent is baked in ONLY when the user
         // has a credential for that platform. No GitHub PAT → no GitHub
         // agent; no Gitea token → no gitea runner. Both missing → fail loudly.
-        let hasGitHubToken = options.hasGitHubToken ?? (KeychainTokenStore.load(forge: .github) != nil)
-        let hasGiteaToken = options.hasGiteaToken ?? (KeychainTokenStore.load(forge: .gitea) != nil)
+        let hasGitHubToken = options.hasGitHubToken ?? AccountTokens.anyStored(for: .github)
+        let hasGiteaToken = options.hasGiteaToken ?? AccountTokens.anyStored(for: .gitea)
         guard hasGitHubToken || hasGiteaToken else {
             throw ImageError.noCredentials(
                 "store at least one platform token first (kinhin auth set / kinhin auth set --gitea)")

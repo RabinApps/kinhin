@@ -22,6 +22,8 @@ final class ActionCoverageTests: XCTestCase {
         "replace_token",
         "enter_gitea_token",
         "replace_gitea_token",
+        "enter_account_token",
+        "replace_account_token",
         "prepare_image",
         "install_container_cli",
         "start_container_system",
@@ -62,6 +64,16 @@ final class ActionCoverageTests: XCTestCase {
         var cfg = fixtureConfig
         cfg.gitea = KinhinConfig.GiteaForgeConfig(
             instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
+        return cfg
+    }
+
+    /// A config with two extra named accounts (adds account-token rows).
+    private var accountsConfig: KinhinConfig {
+        var cfg = fixtureConfig
+        cfg.accounts = [
+            AccountConfig(name: "work", forge: .github, scope: "bigco"),
+            AccountConfig(name: "home", forge: .gitea, scope: "me", instance: "https://git.lan"),
+        ]
         return cfg
     }
 
@@ -141,6 +153,14 @@ final class ActionCoverageTests: XCTestCase {
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(giteaConfig),
                     tokenStored: true, giteaTokenStored: true)
+            ),
+            (
+                "extra accounts, one token missing",
+                SetupStatusComputer(
+                    host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),
+                    clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [],
+                    config: .loaded(accountsConfig), tokenStored: true,
+                    accountTokensStored: ["work": true, "home": false])
             ),
             (
                 "container CLI missing",

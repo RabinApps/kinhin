@@ -29,6 +29,9 @@ extension SetupWindowController {
             openTokenSettings(.gitea)
         case "replace_gitea_token":
             openTokenSettings(.gitea)
+        case "enter_account_token", "replace_account_token":
+            // Named accounts are managed in the Connect form's "More accounts".
+            openTokenSettings(.github)
         case "prepare_image":
             prepareImage()
         case "install_container_cli":

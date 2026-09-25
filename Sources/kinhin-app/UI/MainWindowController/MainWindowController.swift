@@ -41,6 +41,8 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     /// the app injects the handler. Throws on Keychain/RPC failure so the
     /// form shows the error.
     var tokenSaved: ((ForgeID, String) async throws -> Void)?
+    /// Same, for the named accounts of the Connect form's "More accounts".
+    var accountTokenSaved: ((AccountConfig, String) async throws -> Void)?
 
     // Fleet tab controls
     let statusLineLabel = NSTextField(wrappingLabelWithString: "Loading…")

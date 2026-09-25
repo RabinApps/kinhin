@@ -11,6 +11,7 @@ struct ConnectView: View {
         VStack(alignment: .leading, spacing: 12) {
             githubCard
             giteaCard
+            AccountsSection(model: model.accounts)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onChange(of: model.focusRequest) { _, request in

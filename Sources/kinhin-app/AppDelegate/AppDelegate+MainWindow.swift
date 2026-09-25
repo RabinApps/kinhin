@@ -19,6 +19,9 @@ extension AppDelegate {
             controller.tokenSaved = { [weak self] forge, token in
                 try await self?.notifyTokenReplaced(forge: forge, token: token)
             }
+            controller.accountTokenSaved = { [weak self] account, token in
+                try await self?.notifyAccountTokenReplaced(account: account, token: token)
+            }
             mainController = controller
         }
         if setupIncomplete {

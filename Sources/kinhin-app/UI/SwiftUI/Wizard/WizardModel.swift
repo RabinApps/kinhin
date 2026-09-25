@@ -149,11 +149,26 @@ final class WizardModel {
     func refreshSummary() {
         let snap = ConfigStore.snapshotOrLog()
         let repo = (snap?.repo == ConfigLoader.templateRepo ? "" : snap?.repo) ?? ""
+        let extra: [AccountConfig]
+        do {
+            extra = try AccountsConfigEditor.accounts()
+        } catch ConfigEditError.notFound {
+            extra = []
+        } catch {
+            Log.warn("config", "could not read accounts for the summary: \(error.localizedDescription)")
+            extra = []
+        }
+        let serving =
+            repo.isEmpty
+            ? (snap?.gitea == nil ? (extra.isEmpty ? "— not chosen yet" : "see accounts") : "Gitea only") : repo
         var lines = [
-            "Serving:  \(repo.isEmpty ? (snap?.gitea == nil ? "— not chosen yet" : "Gitea only") : repo)",
+            "Serving:  \(serving)",
             "Gitea:  \(snap?.gitea.map { "\($0.scope) @ \($0.instance)" } ?? "not used")",
-            "Runs on:  \(mac.runsOnDescription)",
         ]
+        if !extra.isEmpty {
+            lines.append("Accounts:  \(extra.map { "\($0.name) (\($0.scope))" }.joined(separator: ", "))")
+        }
+        lines.append("Runs on:  \(mac.runsOnDescription)")
         // Summarize the step-3 toolchain selection on the final "Ready to
         // go" step, so the user sees exactly what will be preinstalled.
         let selectedTools = toolchains.working.tools.keys.sorted()

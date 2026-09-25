@@ -14,6 +14,9 @@ public struct SetupStatusComputer: Sendable {
     let config: ConfigScenario
     let tokenStored: Bool?
     let giteaTokenStored: Bool?
+    /// Named-account token state by account name (fixture). nil probes the
+    /// Keychain for each `accounts:` entry.
+    let accountTokensStored: [String: Bool]?
     let containerHealth: RuntimeHealth?
     let containerImages: [String]?
     /// Whether the container Linux kernel is installed (fixture). nil probes
@@ -38,6 +41,7 @@ public struct SetupStatusComputer: Sendable {
         config: ConfigScenario = .live,
         tokenStored: Bool? = nil,
         giteaTokenStored: Bool? = nil,
+        accountTokensStored: [String: Bool]? = nil,
         containerHealth: RuntimeHealth? = nil,
         containerImages: [String]? = nil,
         containerKernelInstalled: Bool? = nil,
@@ -53,6 +57,7 @@ public struct SetupStatusComputer: Sendable {
         self.config = config
         self.tokenStored = tokenStored
         self.giteaTokenStored = giteaTokenStored
+        self.accountTokensStored = accountTokensStored
         self.containerHealth = containerHealth
         self.containerImages = containerImages
         self.containerKernelInstalled = containerKernelInstalled
@@ -195,6 +200,26 @@ public struct SetupStatusComputer: Sendable {
                         : "a Gitea access token with runner-management rights is required (kinhin auth set --gitea)",
                     action: giteaToken ? "replace_gitea_token" : "enter_gitea_token"
                 ))
+        }
+
+        // One row per additional named account.
+        if case .parsed(let cfg) = evaluation {
+            for account in cfg.accounts {
+                let stored =
+                    accountTokensStored?[account.name]
+                    ?? (KeychainTokenStore.load(forge: account.forge, name: account.name) != nil)
+                let provider = account.forge == .github ? "GitHub" : "Gitea"
+                checks.append(
+                    SetupCheckResult(
+                        id: "account-token-\(account.name)",
+                        title: "\(provider) token stored (\(account.name))",
+                        ok: stored,
+                        detail: stored
+                            ? "stored in Keychain"
+                            : "a token for \(account.scope) is required (kinhin auth set --account \(account.name))",
+                        action: stored ? "replace_account_token" : "enter_account_token"
+                    ))
+            }
         }
 
         // 6. Runner image
@@ -482,6 +507,11 @@ public struct SetupStatusComputer: Sendable {
             var scope = cfg.repo.contains("/") ? "repo: \(cfg.repo)" : "org: \(cfg.repo) (all its repos)"
             if !cfg.githubEnabled, let gitea = cfg.gitea {
                 scope = "gitea: \(gitea.scope) @ \(gitea.instance)"
+            } else if !cfg.githubEnabled {
+                scope = "accounts: \(cfg.accounts.map(\.name).joined(separator: ", "))"
+            }
+            if cfg.githubEnabled || cfg.gitea != nil, !cfg.accounts.isEmpty {
+                scope += " + \(cfg.accounts.count) more account\(cfg.accounts.count == 1 ? "" : "s")"
             }
             return SetupCheckResult(
                 id: "config",

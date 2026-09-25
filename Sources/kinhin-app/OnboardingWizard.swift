@@ -30,6 +30,11 @@ final class OnboardingWizardViewController: NSViewController {
         didSet { if let saveToken { model.connect.saveToken = saveToken } }
     }
 
+    /// Persists a named account's token and live-swaps it (injected by the app).
+    var saveAccountToken: ((AccountConfig, String) async throws -> Void)? {
+        didSet { if let saveAccountToken { model.connect.accounts.saveToken = saveAccountToken } }
+    }
+
     var step: Step { model.step }
 
     init() { super.init(nibName: nil, bundle: nil) }

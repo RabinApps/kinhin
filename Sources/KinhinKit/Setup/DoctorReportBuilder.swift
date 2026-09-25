@@ -80,6 +80,8 @@ public struct DoctorReportBuilder: Sendable {
             config: config,
             tokenStored: authLoad(.github) != nil,
             giteaTokenStored: authLoad(.gitea) != nil,
+            accountTokensStored: Dictionary(
+                uniqueKeysWithValues: (parsed?.accounts ?? []).map { ($0.name, accountLoad($0.forge, $0.name) != nil) }),
             containerHealth: containerHealth,
             containerImages: containerImages,
             dockerHealth: dockerHealth,

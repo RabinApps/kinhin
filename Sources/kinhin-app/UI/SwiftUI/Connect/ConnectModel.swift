@@ -22,6 +22,9 @@ final class ConnectModel {
         case githubToken, giteaInstance, giteaToken
     }
 
+    /// The "More accounts" section (extra GitHub/Gitea accounts).
+    let accounts = AccountsModel()
+
     // MARK: Injectable seams
 
     /// Persists a token (and live-swaps it into a running engine). Defaults
@@ -30,12 +33,16 @@ final class ConnectModel {
         try KeychainTokenStore.save(token, forge: forge)
     }
     /// The config file this form edits (tests point it at a scratch file).
-    var configURL: URL = Paths.config
+    var configURL: URL = Paths.config {
+        didSet { accounts.configURL = configURL }
+    }
     /// Whether a token is stored for a forge (tests stub this out so they
     /// never touch the real Keychain).
     @ObservationIgnored var hasStoredToken: @Sendable (ForgeID) -> Bool = { KeychainTokenStore.load(forge: $0) != nil }
     /// Fired after any successful token or config change.
-    @ObservationIgnored var onChanged: (() -> Void)?
+    @ObservationIgnored var onChanged: (() -> Void)? {
+        didSet { accounts.onChanged = onChanged }
+    }
     /// Checks runner-management permission for a scope. `token` nil → use the
     /// stored one. Returns nil when there is nothing to check (no token, or
     /// no repo/org chosen yet). Injectable so tests never hit the network.
@@ -75,7 +82,7 @@ final class ConnectModel {
     /// True once at least one forge is fully connected: GitHub (stored token
     /// + real repo/org) or Gitea (stored token + server + scope). Either one
     /// alone is enough to run a fleet.
-    var isConnected: Bool { githubConnected || giteaConnected }
+    var isConnected: Bool { githubConnected || giteaConnected || accounts.rows.contains { $0.tokenStored } }
     private var githubConnected = false
     private var giteaConnected = false
     private var githubTokenStored = false
@@ -103,6 +110,7 @@ final class ConnectModel {
     /// Re-reads config + Keychain (off the main thread — a Keychain read can
     /// block on a system prompt) and refreshes both cards.
     func reload() {
+        accounts.reload()
         let snapshot = ConfigStore.snapshotOrLog(at: configURL)
         Task { [weak self] in
             let probe = self?.hasStoredToken ?? { _ in false }

@@ -35,6 +35,9 @@ extension MainTabsWindowController {
         wizard.saveToken = { [weak self] forge, token in
             try await self?.tokenSaved?(forge, token)
         }
+        wizard.saveAccountToken = { [weak self] account, token in
+            try await self?.accountTokenSaved?(account, token)
+        }
         wizard.onFinished = { [weak self] in
             // Setup is done: the Setup tab goes away for good.
             self?.setupIncompleteFlag = false
@@ -59,6 +62,9 @@ extension MainTabsWindowController {
         let connect = ConnectFormViewController()
         connect.saveToken = { [weak self] forge, token in
             try await self?.tokenSaved?(forge, token)
+        }
+        connect.model.accounts.saveToken = { [weak self] account, token in
+            try await self?.accountTokenSaved?(account, token)
         }
         connect.hasStoredToken = tokenProbe
         connect.onChanged = { [weak self] in self?.runtimesEdited?() }

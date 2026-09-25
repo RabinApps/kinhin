@@ -63,3 +63,29 @@ extension KinhinConfig {
         return result + accounts
     }
 }
+
+/// Token presence across a forge's accounts (the legacy one and every
+/// `accounts:` entry) — what image baking gates on: an agent is baked in when
+/// *any* account of its platform can use it.
+public enum AccountTokens {
+    public static func anyStored(
+        for forge: ForgeID,
+        config: KinhinConfig? = loadedConfig(),
+        load: (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
+    ) -> Bool {
+        if load(forge, forge.rawValue) != nil { return true }
+        return (config?.accounts ?? []).contains { $0.forge == forge && load($0.forge, $0.name) != nil }
+    }
+
+    /// The on-disk config when there is a valid one; a broken file is logged
+    /// (the image step then falls back to the legacy tokens alone).
+    public static func loadedConfig() -> KinhinConfig? {
+        guard FileManager.default.fileExists(atPath: Paths.config.path) else { return nil }
+        do {
+            return try ConfigLoader.load()
+        } catch {
+            Log.warn("config", "could not read accounts for token detection: \(error.localizedDescription)")
+            return nil
+        }
+    }
+}

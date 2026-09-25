@@ -47,4 +47,20 @@ extension AppDelegate {
         }
         await refresh()
     }
+
+    /// Same for a named `accounts:` entry: save to the Keychain under the
+    /// account's own item, then hand the token to the engine (or daemon).
+    func notifyAccountTokenReplaced(account: AccountConfig, token: String) async throws {
+        try KeychainTokenStore.save(token, forge: account.forge, name: account.name)
+        if let engine {
+            await engine.replaceToken(account: account.name, token: token)
+            Log.info("app", "replaced token for account '\(account.name)' (in-process engine)")
+        } else if let client {
+            try client.replaceAccountToken(account: account.name, token: token)
+            Log.info("app", "replaced token for account '\(account.name)' (daemon notified)")
+        } else {
+            Log.info("app", "stored token for account '\(account.name)' (no engine running yet)")
+        }
+        await refresh()
+    }
 }
