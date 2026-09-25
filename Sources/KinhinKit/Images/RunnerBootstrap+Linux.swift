@@ -3,12 +3,34 @@ import Foundation
 extension RunnerBootstrap {
     // MARK: - Linux (Apple container runtime)
 
+    /// Installs, via apt, whichever of the given tools the base image lacks.
+    /// Minimal images (ubuntu:24.04) ship neither curl nor CA certificates,
+    /// and every download step below needs them. `tools` pairs a command
+    /// to look for with the package that provides it. Idempotent: a no-op
+    /// once everything is present (containers run as root — no sudo).
+    static func linuxPrerequisitesScript(tools: [(command: String, package: String)]) -> String {
+        let checks = tools.map { "command -v \($0.command) >/dev/null 2>&1 || need=\"$need \($0.package)\"" }
+        return
+            ([
+                "# prerequisites (minimal base images lack them)",
+                "need=\"\"",
+            ] + checks + [
+                "[ -e /etc/ssl/certs/ca-certificates.crt ] || need=\"$need ca-certificates\"",
+                "if [ -n \"$need\" ]; then",
+                "  export DEBIAN_FRONTEND=noninteractive",
+                "  apt-get update -qq",
+                "  apt-get install -y --no-install-recommends $need",
+                "fi",
+            ]).joined(separator: "\n")
+    }
+
     /// Installs the GitHub Actions runner agent into a Linux image for the
     /// Apple-container runtime (baked during `kinhin image prepare` when a
     /// GitHub credential exists). Mirrors installScript but for Linux tarballs.
     static func linuxGitHubAgentInstallScript(runnerVersion: String) -> String {
         """
         set -euo pipefail
+        \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("tar", "tar"), ("gzip", "gzip")]))
         mkdir -p /opt/actions-runner
         cd /opt/actions-runner
         if [ ! -x ./config.sh ]; then
@@ -31,7 +53,10 @@ extension RunnerBootstrap {
     static func linuxManagedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?)
         -> String
     {
-        var lines: [String] = ["set -euo pipefail"]
+        var lines: [String] = [
+            "set -euo pipefail",
+            linuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")]),
+        ]
 
         if let mountPath {
             lines.append(Self.cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: mountPath))
@@ -113,6 +138,7 @@ extension RunnerBootstrap {
     static func linuxGiteaRunnerInstallScript(version: String) -> String {
         """
         set -euo pipefail
+        \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("xz", "xz-utils")]))
         if [ ! -x /opt/gitea-runner/gitea-runner ]; then
           mkdir -p /opt/gitea-runner
           cd /opt/gitea-runner
