@@ -36,21 +36,29 @@ let package = Package(
             dependencies: ["KinhinKit"],
             path: "Sources/kinhin"
         ),
+        // Doubles shared by all three test targets (fake shells, tart, forges).
+        // Depends on KinhinKit via @testable, so it is built for testing only;
+        // release scripts build products explicitly (`--product`).
+        .target(
+            name: "KinhinTestSupport",
+            dependencies: ["KinhinKit"],
+            path: "Tests/KinhinTestSupport"
+        ),
         .testTarget(
             name: "KinhinKitTests",
-            dependencies: ["KinhinKit"],
+            dependencies: ["KinhinKit", "KinhinTestSupport"],
             path: "Tests/KinhinKitTests"
         ),
        // Executable targets are importable from tests when their entry
         // point is declared with @main (not a main.swift file).
         .testTarget(
             name: "KinhinCLITests",
-            dependencies: ["kinhin"],
+            dependencies: ["kinhin", "KinhinTestSupport"],
             path: "Tests/KinhinCLITests"
         ),
         .testTarget(
             name: "KinhinAppTests",
-            dependencies: ["kinhin-app"],
+            dependencies: ["kinhin-app", "KinhinTestSupport"],
             path: "Tests/KinhinAppTests"
         ),
     ]

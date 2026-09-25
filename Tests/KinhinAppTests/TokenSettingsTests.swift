@@ -1,6 +1,7 @@
 import XCTest
 
 @testable import KinhinKit
+@testable import KinhinTestSupport
 @testable import kinhin_app
 
 /// The token settings form's per-provider card content: stored/missing state,
@@ -80,23 +81,6 @@ final class TokenSettingsTests: XCTestCase {
 
     // MARK: Token health check (the cards' Check buttons)
 
-    /// Recording GitHub double — the probe must go through the same
-    /// GitHubServing surface the engine uses.
-    private final class RecordingGitHub: GitHubServing, @unchecked Sendable {
-        var configureURL = "https://github.com/acme/widgets"
-        var asked = 0
-        var error: GitHubError?
-        func fetchRegistrationToken() async throws -> RegistrationToken {
-            asked += 1
-            if let error { throw error }
-            return RegistrationToken(token: "lrt", expiresAt: Date().addingTimeInterval(3600))
-        }
-        func listRunners() async throws -> [GHRunner] { [] }
-        func deleteRunner(id: Int) async throws {}
-        func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] { [] }
-        func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] { [] }
-    }
-
     private func giteaClient() -> GiteaClient {
         // Real client pointed at an unroutable instance: the failure path
         // surfaces the transport error without touching the network beyond
@@ -111,14 +95,14 @@ final class TokenSettingsTests: XCTestCase {
     }
 
     func testGitHubCheckSuccessThroughInjectedClient() async {
-        let client = RecordingGitHub()
+        let client = FakeGitHub()
         let report = await TokenHealthCheck.check(
             forge: .github,
             config: Self.configWithRepo("acme/widgets"),
             keychainToken: { _ in "ghp_x" },
             github: client
         )
-        XCTAssertEqual(client.asked, 1, "the check must probe via the forge API")
+        XCTAssertEqual(client.registrationTokenCalls, 1, "the check must probe via the forge API")
         XCTAssertTrue(report.ok)
         XCTAssertTrue(report.message.contains("Token works"))
     }
@@ -174,7 +158,7 @@ final class TokenSettingsTests: XCTestCase {
                 overrideSeen = true
                 return "stored"
             },
-            github: RecordingGitHub()
+            github: FakeGitHub()
         )
         XCTAssertTrue(report.ok)
         XCTAssertTrue(overrideSeen, "the probe consulted the injected token source")

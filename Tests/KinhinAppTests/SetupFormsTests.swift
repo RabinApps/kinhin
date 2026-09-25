@@ -2,19 +2,8 @@ import AppKit
 import XCTest
 
 @testable import KinhinKit
+@testable import KinhinTestSupport
 @testable import kinhin_app
-
-/// The Setup forms and the Capacity form write real config edits — always to
-/// a scratch file, never the user's config.
-private final class FakeInstallShell: ShellRunning, @unchecked Sendable {
-    var calls: [[String]] = []
-    var failWith: String?
-    func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
-        calls.append(argv)
-        if let failWith { return ShellResult(exitCode: 1, stdout: "", stderr: failWith) }
-        return ShellResult(exitCode: 0, stdout: "", stderr: "")
-    }
-}
 
 @MainActor
 final class SetupFormsTests: XCTestCase {
@@ -218,7 +207,7 @@ final class SetupFormsTests: XCTestCase {
 
     // MARK: Install flow
 
-    private func installForm(shell: FakeInstallShell, brew: String? = "/opt/homebrew/bin/brew")
+    private func installForm(shell: FakeShell, brew: String? = "/opt/homebrew/bin/brew")
         -> MacToolsFormViewController
     {
         let form = MacToolsFormViewController()
@@ -231,7 +220,7 @@ final class SetupFormsTests: XCTestCase {
     }
 
     func testCancellingTheInstallConfirmationRunsNothing() {
-        let shell = FakeInstallShell()
+        let shell = FakeShell()
         let form = installForm(shell: shell)
         var asked: [InstallableTool] = []
         form.confirmInstall = { tool, _ in
@@ -243,7 +232,7 @@ final class SetupFormsTests: XCTestCase {
     }
 
     func testConfirmedInstallRunsTheChosenOptionsCommands() async {
-        let shell = FakeInstallShell()
+        let shell = FakeShell()
         let form = installForm(shell: shell)
         var offered: [String] = []
         form.confirmInstall = { _, options in
@@ -259,7 +248,7 @@ final class SetupFormsTests: XCTestCase {
     }
 
     func testMissingHomebrewExplainsInsteadOfAskingOrRunning() {
-        let shell = FakeInstallShell()
+        let shell = FakeShell()
         let form = installForm(shell: shell, brew: nil)
         var explained: InstallableTool?
         var confirmed = false
@@ -274,8 +263,8 @@ final class SetupFormsTests: XCTestCase {
     }
 
     func testFailedInstallShowsTheErrorAndATerminalFallback() async {
-        let shell = FakeInstallShell()
-        shell.failWith = "no space left"
+        let shell = FakeShell()
+        shell.failAll = "no space left"
         let form = installForm(shell: shell)
         form.confirmInstall = { _, options in options.first }
         let task = form.install(.appleContainer)
@@ -288,7 +277,7 @@ final class SetupFormsTests: XCTestCase {
     }
 
     func testEveryInstallableToolHasAnInstallButtonWhenMissing() {
-        let form = installForm(shell: FakeInstallShell())
+        let form = installForm(shell: FakeShell())
         let ids = allButtonIDs(in: form.view)
         XCTAssertTrue(ids.contains("mac-install-tart") || TartController.isInstalled())
         XCTAssertTrue(ids.contains("mac-install-container") || Paths.findExecutable(named: "container") != nil)

@@ -8,8 +8,11 @@ OUT_DIR="${1:-dist}"
 APP="$OUT_DIR/kinhin.app"
 CONFIGURATION="${CONFIGURATION:-release}" # lowercase: debug|release
 
+# Build the shipped products explicitly: the test-support target is testable-only
+# and does not compile in release.
 echo "==> swift build -c $CONFIGURATION"
-swift build -c "$CONFIGURATION"
+swift build -c "$CONFIGURATION" --product kinhin-app
+swift build -c "$CONFIGURATION" --product kinhin
 
 BIN_DIR="$(swift build -c "$CONFIGURATION" --show-bin-path --product kinhin-app)"
 # Assemble from scratch — never patch over a previous bundle (stale binaries).

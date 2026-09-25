@@ -18,7 +18,9 @@ Formatting is configured in `.swift-format` (4 spaces, 120 columns). Run the for
 - One primary type per file, named after the file. Small, tightly related types (an error enum, a DTO) may share it. Extensions that add a concern go in `Type+Concern.swift`.
 - Files over ~400 lines are a smell: split by responsibility (model / parsing / IO / UI), not by line count.
 - `KinhinKit` is grouped by domain (`Core`, `Config`, `Fleet`, `Forges`, `Runtimes`, `Images`, `Setup`, `Update`, `Cache`). It has no AppKit dependency. UI code lives only in `kinhin-app`.
-- Tests mirror the source folders (`Tests/KinhinKitTests/Config/…`). Shared fakes and stubs live in the test-support target, never as private copies inside a test file.
+- Kit tests mirror the source folders (`Tests/KinhinKitTests/Config/…`); one test class per file, named after its subject (no grab-bag `MiscTests`).
+- Shared doubles live in the `KinhinTestSupport` target (`Tests/KinhinTestSupport`): `FakeShell` (queued responses, `failOn`/`failAll`, records `calls`), `FakeTart`, `FakeGitHub`, `FakeSSH`, `StubProtocol`, `makeTestStore()`/`makeTestConfig()`. Import it with `@testable import KinhinTestSupport`. Only keep a private double in a test file when it models behavior specific to that test (e.g. a stateful docker CLI).
+- `KinhinTestSupport` is testable-only: release builds must name their products (`swift build -c release --product kinhin-app`).
 
 ## Style
 

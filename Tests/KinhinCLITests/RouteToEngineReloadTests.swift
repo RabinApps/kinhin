@@ -1,6 +1,7 @@
 import XCTest
 
 @testable import KinhinKit
+@testable import KinhinTestSupport
 @testable import kinhin
 
 /// The full route-editing path, end to end: the CLI subcommand writes a
@@ -61,42 +62,6 @@ final class RouteToEngineReloadTests: XCTestCase {
         baseYAML + "\n" + containerYAML + "\nruntimes:\n  default: tart\n  budget: {tart: 0.5, appleContainer: 0.5}\n"
     }
 
-    // MARK: - Local doubles (Kit fakes live in the other test bundle)
-
-    private final class StubGitHub: GitHubServing, @unchecked Sendable {
-        let configureURL = "https://github.com/acme/widgets"
-        func fetchRegistrationToken() async throws -> RegistrationToken {
-            RegistrationToken(token: "t", expiresAt: .distantFuture)
-        }
-        func listRunners() async throws -> [GHRunner] { [] }
-        func deleteRunner(id: Int) async throws {}
-        func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] { [] }
-        func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] { [] }
-    }
-
-    private struct StubTart: TartControlling {
-        func list() async throws -> [TartVM] { [] }
-        func clone(source: String, to name: String) async throws {}
-        func run(name: String, mounts: [String]) async throws {}
-        func ip(of name: String, timeout: TimeInterval) async throws -> String { "192.168.64.2" }
-        func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
-            -> ShellResult
-        {
-            ShellResult(exitCode: 0, stdout: "", stderr: "")
-        }
-        func stop(name: String) async throws {}
-        func delete(name: String) async throws {}
-        func pull(image: String) async throws {}
-    }
-
-    private struct StubSSH: SSHExecuting {
-        func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
-            -> ShellResult
-        {
-            ShellResult(exitCode: 0, stdout: "", stderr: "")
-        }
-    }
-
     // MARK: - Helpers
 
     private func installConfig(_ yaml: String) throws {
@@ -110,10 +75,10 @@ final class RouteToEngineReloadTests: XCTestCase {
     private func makeEngine(_ config: KinhinConfig) -> FleetEngine {
         FleetEngine(
             config: config,
-            github: StubGitHub(),
-            tart: StubTart(),
+            github: FakeGitHub(),
+            tart: FakeTart(),
             store: FleetStore(directory: scratch.appendingPathComponent("state")),
-            ssh: StubSSH(),
+            ssh: FakeSSH(),
             host: host
         )
     }
