@@ -167,11 +167,13 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         let key = isStack ? String(id.dropFirst("stack:".count)) : String(id.dropFirst("tool:".count))
         if isStack {
             working.stacks[key] =
-                sender.state == .on ? (stackVersions[key]?.stringValue.trimmingCharacters(in: .whitespaces) ?? "") : nil
+                sender.state == .on
+                ? ToolchainsConfigEditor.normalizedVersion(stackVersions[key]?.stringValue ?? "", for: key) : nil
             stackVersions[key]?.isEnabled = stackVersions[key] != nil && sender.state == .on
         } else {
             working.tools[key] =
-                sender.state == .on ? (toolVersions[key]?.stringValue.trimmingCharacters(in: .whitespaces) ?? "") : nil
+                sender.state == .on
+                ? ToolchainsConfigEditor.normalizedVersion(toolVersions[key]?.stringValue ?? "", for: key) : nil
             toolVersions[key]?.isEnabled = toolVersions[key] != nil && sender.state == .on
         }
         refreshState()
@@ -190,10 +192,14 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         let value = field.stringValue.trimmingCharacters(in: .whitespaces)
         if id.hasPrefix("toolver:") {
             let tool = String(id.dropFirst("toolver:".count))
-            if working.tools[tool] != nil { working.tools[tool] = value }
+            if working.tools[tool] != nil {
+                working.tools[tool] = ToolchainsConfigEditor.normalizedVersion(value, for: tool)
+            }
         } else if id.hasPrefix("stackver:") {
             let stackID = String(id.dropFirst("stackver:".count))
-            if working.stacks[stackID] != nil { working.stacks[stackID] = value }
+            if working.stacks[stackID] != nil {
+                working.stacks[stackID] = ToolchainsConfigEditor.normalizedVersion(value, for: stackID)
+            }
         } else if id == "extra-brew" {
             working.extraBrew = Self.splitList(value)
         } else if id == "extra-specs" {

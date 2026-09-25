@@ -14,9 +14,14 @@ extension ConfigLoader {
     public static func parseToolchains(_ partial: PartialConfig.PartialToolchains) throws
         -> KinhinConfig.ToolchainsConfig
     {
-        let specs = try Self.parseList(partial.specs, key: "toolchains.specs")
+        // Entries written by older builds carry a doubled id or a "—" placeholder
+        // in the version slot (`node@node@22`, `supabase@—`); repair them here so
+        // an existing config keeps working instead of failing mid-bake.
+        let specs = try Self.parseList(partial.specs, key: "toolchains.specs").map(
+            ToolchainsConfigEditor.normalizedSpec)
         let brew = try Self.parseList(partial.brew, key: "toolchains.brew")
         let stackNames = try Self.parseList(partial.stacks, key: "toolchains.stacks")
+            .map(ToolchainsConfigEditor.normalizedSpec)
 
         var toolchains = KinhinConfig.ToolchainsConfig(
             specs: partial.specs != nil ? specs : nil,

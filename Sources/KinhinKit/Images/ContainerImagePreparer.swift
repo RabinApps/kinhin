@@ -2,8 +2,8 @@ import Foundation
 
 /// Bakes the runner agents into a Linux OCI image for the Apple-container
 /// runtime (see `LinuxImageBaker` for the shared pipeline). `container` has no
-/// commit, so the scratch container's filesystem is captured with
-/// `container build` from a one-line Dockerfile.
+/// commit, so the scratch container's filesystem is exported to a tar and
+/// rebuilt into the target image with `container build` (FROM scratch).
 public struct ContainerImagePreparer {
     public typealias Options = LinuxImageOptions
 
@@ -48,6 +48,9 @@ public struct ContainerImagePreparer {
                 }
             },
             commit: { shell, scratch, target in
+                // `container` has no `commit`, and a Dockerfile cannot start
+                // FROM a container: export the scratch container's filesystem
+                // and rebuild it as a single layer over `scratch`.
                 let workdir = FileManager.default.temporaryDirectory
                     .appendingPathComponent("kinhin-container-build-\(UUID().uuidString)")
                 try FileManager.default.createDirectory(at: workdir, withIntermediateDirectories: true)
@@ -56,12 +59,20 @@ public struct ContainerImagePreparer {
                         try FileManager.default.removeItem(at: workdir)
                     }
                 }
-                try "FROM \(scratch)\n".write(
+                let rootfs = workdir.appendingPathComponent("rootfs.tar")
+                let exported = try await shell.run(
+                    [binary, "export", "--output", rootfs.path, scratch], cwd: nil, timeout: 1800)
+                guard exported.succeeded else {
+                    throw ImageError.containerProvisioningFailed(
+                        "container export failed: \(exported.failureExcerpt)")
+                }
+                try "FROM scratch\nADD rootfs.tar /\n".write(
                     to: workdir.appendingPathComponent("Dockerfile"), atomically: true, encoding: .utf8)
-                let build = try await shell.run([binary, "build", "--tag", target, workdir.path])
+                let build = try await shell.run(
+                    [binary, "build", "--tag", target, workdir.path], cwd: nil, timeout: 1800)
                 guard build.succeeded else {
                     throw ImageError.containerProvisioningFailed(
-                        "container build failed: \(String(build.stderr.prefix(500)))")
+                        "container build failed: \(build.failureExcerpt)")
                 }
             }
         )

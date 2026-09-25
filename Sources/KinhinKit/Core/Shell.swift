@@ -8,6 +8,18 @@ public struct ShellResult: Sendable {
 
     public var succeeded: Bool { exitCode == 0 }
 
+    /// The part of stderr worth showing in an error: the tail (a failing script
+    /// ends with its real error), minus apt/debconf chatter that is printed as
+    /// a warning on every run of a minimal image and says nothing about the failure.
+    public var failureExcerpt: String {
+        let noise = ["debconf:", "dpkg-preconfigure", "apt-utils", "Selecting previously", "Preparing to unpack"]
+        let lines = stderr.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { line in !line.isEmpty && !noise.contains { line.contains($0) } }
+        guard !lines.isEmpty else { return stderr.isEmpty ? "no error output (exit \(exitCode))" : "exit \(exitCode)" }
+        return String(lines.suffix(8).joined(separator: "\n").suffix(700))
+    }
+
     /// Non-empty, whitespace-trimmed lines of stdout (ids, names, references).
     var outputLines: [String] {
         stdout

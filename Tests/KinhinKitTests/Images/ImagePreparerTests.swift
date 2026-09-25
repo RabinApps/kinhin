@@ -141,3 +141,62 @@ final class ContainerKernelRecoveryTests: XCTestCase {
         XCTAssertFalse(shell.calls.contains { $0.contains("kernel") })
     }
 }
+
+final class FailureExcerptTests: XCTestCase {
+    func testExcerptSkipsAptChatterAndKeepsTheRealError() {
+        let stderr = """
+            debconf: delaying package configuration, since apt-utils is not installed
+            mise ERROR failed to install node@node@22
+            mise ERROR invalid version: node@22
+            """
+        let excerpt = ShellResult(exitCode: 1, stdout: "", stderr: stderr).failureExcerpt
+        XCTAssertFalse(excerpt.contains("debconf"))
+        XCTAssertTrue(excerpt.contains("invalid version: node@22"), excerpt)
+    }
+
+    func testExcerptShowsTheTailOfALongLog() {
+        let stderr = (1...50).map { "line \($0)" }.joined(separator: "\n")
+        let excerpt = ShellResult(exitCode: 1, stdout: "", stderr: stderr).failureExcerpt
+        XCTAssertTrue(excerpt.hasSuffix("line 50"))
+        XCTAssertFalse(excerpt.contains("line 1\n"))
+    }
+
+    func testExcerptSaysSoWhenThereIsNoUsefulOutput() {
+        XCTAssertEqual(
+            ShellResult(exitCode: 3, stdout: "", stderr: "").failureExcerpt, "no error output (exit 3)")
+        XCTAssertEqual(
+            ShellResult(exitCode: 3, stdout: "", stderr: "debconf: only noise").failureExcerpt, "exit 3")
+    }
+}
+
+final class ContainerCommitTests: XCTestCase {
+    private func options() -> LinuxImageOptions {
+        LinuxImageOptions(image: "ubuntu:24.04", target: "out-image", hasGitHubToken: true, hasGiteaToken: false)
+    }
+
+    func testCommitExportsTheScratchFilesystemThenBuildsFromScratch() async throws {
+        let shell = FakeShell()
+        _ = try await ContainerImagePreparer(shell: shell).prepare(options(), versions: .init(github: "1", gitea: "1"))
+        let calls = shell.calls
+        let export = try XCTUnwrap(calls.firstIndex { $0.contains("export") }, "\(calls)")
+        let build = try XCTUnwrap(calls.firstIndex { $0.contains("build") }, "\(calls)")
+        XCTAssertLessThan(export, build)
+        XCTAssertTrue(calls[export].contains("--output"))
+        XCTAssertEqual(calls[build].dropFirst().prefix(3), ["build", "--tag", "out-image"])
+        XCTAssertFalse(calls.contains { $0.contains("FROM") }, "the Dockerfile is a file, not an argument")
+    }
+
+    func testExportFailureIsReportedWithItsReason() async {
+        let shell = FakeShell()
+        shell.failOn = "export"
+        do {
+            _ = try await ContainerImagePreparer(shell: shell).prepare(
+                options(), versions: .init(github: "1", gitea: "1"))
+            XCTFail("expected a failure")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("container export failed"), error.localizedDescription)
+            XCTAssertTrue(error.localizedDescription.contains("boom"), error.localizedDescription)
+        }
+        XCTAssertFalse(shell.calls.contains { $0.contains("build") }, "no build after a failed export")
+    }
+}

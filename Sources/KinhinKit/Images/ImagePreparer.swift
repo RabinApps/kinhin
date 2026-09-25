@@ -141,7 +141,7 @@ public struct ImagePreparer {
 
         let result = try await ssh.exec(vm: tmp, user: options.user, ip: ip, script: script, timeout: 900)
         guard result.succeeded else {
-            throw ImageError.provisioningFailed(String(result.stderr.prefix(500)))
+            throw ImageError.provisioningFailed(result.failureExcerpt)
         }
         Log.info("image", "agent provisioning done")
 
@@ -161,7 +161,7 @@ public struct ImagePreparer {
                 vm: tmp, user: options.user, ip: ip, script: managed, timeout: options.toolchainTimeout)
             guard provisioned.succeeded else {
                 throw ImageError.provisioningFailed(
-                    "managed toolchain install failed: \(String(provisioned.stderr.prefix(500)))")
+                    "managed toolchain install failed: \(provisioned.failureExcerpt)")
             }
             let tail = String(provisioned.stdout.trimmingCharacters(in: .whitespacesAndNewlines).suffix(400))
             if !tail.isEmpty {
@@ -180,7 +180,7 @@ public struct ImagePreparer {
                 vm: tmp, user: options.user, ip: ip, script: wrapper, timeout: options.provisionTimeout)
             guard provisioned.succeeded else {
                 throw ImageError.provisioningFailed(
-                    "user provision script failed: \(String(provisioned.stderr.prefix(500)))")
+                    "user provision script failed: \(provisioned.failureExcerpt)")
             }
             // Audit trail: the tail of the script's stdout (version prints
             // etc.) lands in the log, recording what went into this image.

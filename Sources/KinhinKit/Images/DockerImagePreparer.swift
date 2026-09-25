@@ -41,7 +41,7 @@ public struct DockerImagePreparer {
                 let commit = try await shell.run([binary, "commit", scratch, target])
                 guard commit.succeeded else {
                     throw ImageError.containerProvisioningFailed(
-                        "docker commit failed: \(String(commit.stderr.prefix(500)))")
+                        "docker commit failed: \(commit.failureExcerpt)")
                 }
             }
         )

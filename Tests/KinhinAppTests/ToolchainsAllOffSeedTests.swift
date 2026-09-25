@@ -71,12 +71,12 @@ import XCTest
         // The form starts all OFF; the config's node is not pre-selected.
         XCTAssertNil(vc.working.tools["node"], "tool must start OFF")
 
-        // Check the tool on: selection is the version field's value (the
-        // default spec, e.g. \"node@22\"), because the field is empty in the
-        // all-off seed and entryToggled uses that value.
+        // Check the tool on: the selection is the bare version from the field
+        // (the default, "22") — never the whole "node@22" spec, which the
+        // config writer would turn into `node@node@22`.
         vc.toolChecksForTesting["node"]!.state = NSButton.StateValue.on
         vc.entryToggled(vc.toolChecksForTesting["node"]!)
-        XCTAssertEqual(vc.working.tools["node"], "node@22", "checking a tool must set its version to the default spec")
+        XCTAssertEqual(vc.working.tools["node"], "22", "checking a tool must set its version to the default version")
 
         // Uncheck.
         vc.toolChecksForTesting["node"]!.state = NSButton.StateValue.off
@@ -86,7 +86,7 @@ import XCTest
         // Re-check: selection is again the default spec.
         vc.toolChecksForTesting["node"]!.state = NSButton.StateValue.on
         vc.entryToggled(vc.toolChecksForTesting["node"]!)
-        XCTAssertEqual(vc.working.tools["node"], "node@22", "rechecking a tool restores the default spec")
+        XCTAssertEqual(vc.working.tools["node"], "22", "rechecking a tool restores the default version")
     }
 
     /// Toggling a stack checkbox must enable/disable that stack in `working`.
@@ -100,12 +100,12 @@ import XCTest
         // The form starts all OFF; the config's expo is not pre-selected.
         XCTAssertNil(vc.working.stacks["expo"], "stack must start OFF")
 
-        // Check the stack on: selection is the version field's value. expo's
-        // defaultVersion is \"\" (versionKind == nil), so the field shows "—".
+        // Check the stack on: expo takes no version, so the selection is the
+        // empty version — never the "—" placeholder (which used to be written
+        // to config as `expo@—`).
         vc.stackChecksForTesting["expo"]!.state = NSButton.StateValue.on
         vc.entryToggled(vc.stackChecksForTesting["expo"]!)
-        XCTAssertEqual(
-            vc.working.stacks["expo"], "—", "checking a stack must set its version to the field's placeholder")
+        XCTAssertEqual(vc.working.stacks["expo"], "", "a stack without a version selects with an empty version")
 
         // Uncheck.
         vc.stackChecksForTesting["expo"]!.state = NSButton.StateValue.off
@@ -115,7 +115,7 @@ import XCTest
         // Re-check: selection is again the placeholder.
         vc.stackChecksForTesting["expo"]!.state = NSButton.StateValue.on
         vc.entryToggled(vc.stackChecksForTesting["expo"]!)
-        XCTAssertEqual(vc.working.stacks["expo"], "—", "rechecking a stack restores the placeholder")
+        XCTAssertEqual(vc.working.stacks["expo"], "", "rechecking a stack selects it with an empty version")
     }
 
     /// A tool/stack must be deselectable after being selected.
@@ -156,5 +156,27 @@ import XCTest
 
     private func writeConfig(_ yaml: String) throws {
         try yaml.write(to: configURL, atomically: true, encoding: .utf8)
+    }
+
+    /// What lands in config.yaml after the user ticks boxes with the default
+    /// field contents: bare `id@version` specs, no doubled ids, no dashes.
+    func testTickedDefaultsWriteCleanSpecs() throws {
+        try writeConfig("repo: \"acme/widgets\"\nlabels: [self-hosted]\n")
+        let vc = makeVC()
+        _ = vc.view
+        for id in ["node", "supabase"] {
+            vc.toolChecksForTesting[id]!.state = .on
+            vc.entryToggled(vc.toolChecksForTesting[id]!)
+        }
+        vc.stackChecksForTesting["expo"]!.state = .on
+        vc.entryToggled(vc.stackChecksForTesting["expo"]!)
+        vc.apply()
+
+        let written = try String(contentsOf: configURL, encoding: .utf8)
+        XCTAssertTrue(written.contains("\"node@22\""), written)
+        XCTAssertTrue(written.contains("\"supabase\""), written)
+        XCTAssertFalse(written.contains("node@node"), written)
+        XCTAssertFalse(written.contains("—"), written)
+        XCTAssertTrue(written.contains("\"expo\""), written)
     }
 }

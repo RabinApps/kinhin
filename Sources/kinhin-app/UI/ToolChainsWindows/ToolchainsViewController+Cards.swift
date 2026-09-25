@@ -50,6 +50,9 @@ extension ToolchainsViewController {
             default: versionable = false
             }
             let selected = working.tools[entry.id]
+            // The field displays the default spec (or "—") so it is never blank;
+            // what it stores goes through `normalizedVersion`, so neither the
+            // "node@" prefix nor the dash ever reaches config.yaml.
             let field = NSTextField(
                 string: selected.flatMap { !$0.isEmpty ? $0 : nil }
                     ?? (entry.defaultSpec.isEmpty ? "—" : entry.defaultSpec))

@@ -169,3 +169,39 @@ final class ToolchainsConfigEditorTests: XCTestCase {
         XCTAssertEqual(sel.extraBrew, [] as [String])
     }
 }
+
+/// Older builds wrote the whole default spec, or a "—" placeholder, into the
+/// version slot (`node@node@22`, `supabase@—`); mise then rejected the spec
+/// mid-bake. New writes are clean and existing configs are repaired on load.
+final class ToolchainVersionNormalizationTests: XCTestCase {
+    func testNormalizedVersionStripsDoubledIdsAndPlaceholders() {
+        XCTAssertEqual(ToolchainsConfigEditor.normalizedVersion("node@22", for: "node"), "22")
+        XCTAssertEqual(ToolchainsConfigEditor.normalizedVersion("node@node@22", for: "node"), "22")
+        XCTAssertEqual(ToolchainsConfigEditor.normalizedVersion(" 22 ", for: "node"), "22")
+        XCTAssertEqual(ToolchainsConfigEditor.normalizedVersion("—", for: "supabase"), "")
+        XCTAssertEqual(ToolchainsConfigEditor.normalizedVersion("-", for: "supabase"), "")
+        XCTAssertEqual(ToolchainsConfigEditor.normalizedVersion("3.13", for: "python"), "3.13")
+    }
+
+    func testSpecStringsWriteCleanSpecs() {
+        var selection = ToolchainsSelection()
+        selection.tools["node"] = "node@22"
+        selection.tools["supabase"] = "—"
+        selection.stacks["expo"] = "—"
+        XCTAssertEqual(ToolchainsConfigEditor.specStrings(for: selection), ["node@22", "supabase"])
+        XCTAssertEqual(ToolchainsConfigEditor.stackStrings(for: selection), ["expo"])
+    }
+
+    func testLoadingRepairsAnAlreadyCorruptedConfig() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            repo: "acme/widgets"
+            labels: [self-hosted]
+            toolchains:
+              specs: ["node@node@22", "java", "supabase@—", "zig@0.13"]
+              stacks: ["expo@—"]
+            """)
+        XCTAssertEqual(cfg.toolchains?.specs, ["node@22", "java", "supabase", "zig@0.13"])
+        XCTAssertEqual(cfg.toolchains?.stacks, ["expo"])
+    }
+}

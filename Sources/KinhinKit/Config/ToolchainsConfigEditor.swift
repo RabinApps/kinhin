@@ -75,10 +75,30 @@ public enum ToolchainsConfigEditor {
 
     // MARK: Writing
 
+    /// A version as it belongs after `id@` in a spec. Version fields have shown
+    /// the whole default spec ("node@22") and a "—" for entries that take no
+    /// version, and both ended up in config files as `node@node@22` and
+    /// `supabase@—`. Strip a repeated `id@` prefix and the dash placeholders.
+    public static func normalizedVersion(_ raw: String, for id: String) -> String {
+        var version = raw.trimmingCharacters(in: .whitespaces)
+        while version.hasPrefix("\(id)@") { version = String(version.dropFirst(id.count + 1)) }
+        return ["—", "–", "-"].contains(version) ? "" : version
+    }
+
+    /// Repairs one config spec/stack entry (see `normalizedVersion`); entries
+    /// whose id the catalog doesn't know (raw mise specs) pass through.
+    static func normalizedSpec(_ spec: String) -> String {
+        let (id, version) = ToolchainStack.splitSpec(spec)
+        guard ToolchainCatalog.tool(id: id) != nil || ToolchainCatalog.stack(id: id) != nil else { return spec }
+        let clean = normalizedVersion(version ?? "", for: id)
+        return clean.isEmpty ? id : "\(id)@\(clean)"
+    }
+
     /// Catalog-ordered `specs` strings for a selection.
     static func specStrings(for selection: ToolchainsSelection) -> [String] {
         let known = ToolchainCatalog.tools.compactMap { entry -> String? in
-            guard let version = selection.tools[entry.id] else { return nil }
+            guard let raw = selection.tools[entry.id] else { return nil }
+            let version = normalizedVersion(raw, for: entry.id)
             return version.isEmpty ? entry.id : "\(entry.id)@\(version)"
         }
         return known + selection.extraSpecs
@@ -86,7 +106,8 @@ public enum ToolchainsConfigEditor {
 
     static func stackStrings(for selection: ToolchainsSelection) -> [String] {
         ToolchainCatalog.stacks.compactMap { stack in
-            guard let version = selection.stacks[stack.id] else { return nil }
+            guard let raw = selection.stacks[stack.id] else { return nil }
+            let version = normalizedVersion(raw, for: stack.id)
             return version.isEmpty ? stack.id : "\(stack.id)@\(version)"
         }
     }

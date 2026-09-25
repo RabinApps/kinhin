@@ -139,7 +139,7 @@ struct LinuxImageBaker {
             Log.info(tag, "installing runner agents")
             let exec = try await shell.run([bin, "exec", scratch, "/bin/bash", "-lc", script])
             guard exec.succeeded else {
-                throw ImageError.containerProvisioningFailed(String(exec.stderr.prefix(500)))
+                throw ImageError.containerProvisioningFailed(exec.failureExcerpt)
             }
 
             // 4. Managed toolchains (toolchains: config): install + pin via
@@ -177,7 +177,7 @@ struct LinuxImageBaker {
         let provisioned = try await shell.run([backend.binary, "exec", scratch, "/bin/bash", "-lc", managed])
         guard provisioned.succeeded else {
             throw ImageError.containerProvisioningFailed(
-                "managed toolchain install failed: \(String(provisioned.stderr.prefix(500)))")
+                "managed toolchain install failed: \(provisioned.failureExcerpt)")
         }
         let tail = String(provisioned.stdout.trimmingCharacters(in: .whitespacesAndNewlines).suffix(400))
         if !tail.isEmpty {

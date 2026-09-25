@@ -85,6 +85,9 @@ extension RunnerBootstrap {
                   curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
                 fi
                 export PATH="$HOME/.local/share/mise/shims:$PATH"
+                # persist it: runners start from a login shell, so job steps only see
+                # the pinned tools if the shims are on PATH there too
+                printf '%s\\n' 'export PATH="$HOME/.local/share/mise/shims:$PATH"' > /etc/profile.d/kinhin-mise.sh
                 """)
             let specs = selection.miseSpecs.joined(separator: " ")
             lines.append(
