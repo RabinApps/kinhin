@@ -41,7 +41,7 @@ public struct RunnerVersionResolver {
     /// Latest stable actions-runner tag, e.g. "v2.325.0" → "2.325.0".
     func latestGitHub() async -> String? {
         guard
-            let data = try? await fetch(
+            let data = await fetchLogged(
                 url: URL(string: "https://api.github.com/repos/actions/runner/releases/latest")!
             )
         else { return nil }
@@ -55,7 +55,7 @@ public struct RunnerVersionResolver {
     /// Latest stable Gitea runner tag, e.g. "v3.5.0" → "3.5.0".
     func latestGitea() async -> String? {
         guard
-            let data = try? await fetch(
+            let data = await fetchLogged(
                 url: URL(string: "https://gitea.com/api/v1/repos/gitea/runner/releases/latest")!
             )
         else { return nil }
@@ -64,6 +64,17 @@ public struct RunnerVersionResolver {
         let tag = payload.tag_name
         guard tag.hasPrefix("v"), tag.dropFirst().contains(".") else { return nil }
         return String(tag.dropFirst())
+    }
+
+    /// Version lookup is best-effort (callers fall back to pinned versions),
+    /// but an offline or rate-limited feed is worth a log line.
+    private func fetchLogged(url: URL) async -> Data? {
+        do {
+            return try await fetch(url: url)
+        } catch {
+            Log.warn("image", "runner version lookup failed for \(url.host ?? "feed"): \(error.localizedDescription)")
+            return nil
+        }
     }
 
     func fetch(url: URL) async throws -> Data {

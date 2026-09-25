@@ -77,7 +77,7 @@ final class SubsystemTests: XCTestCase {
         do {
             try await preparer.run(options)
             XCTFail("expected provisioning failure")
-        } catch let error as ImagePreparer.ImageError {
+        } catch let error as ImageError {
             guard case .provisioningFailed(let why) = error else {
                 return XCTFail("wrong error: \(error)")
             }

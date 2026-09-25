@@ -187,7 +187,7 @@ final class ForgeTests: XCTestCase {
         do {
             _ = try await preparer.run(ImagePreparer.Options(hasGitHubToken: false, hasGiteaToken: false))
             XCTFail("prepare must refuse when no platform token exists")
-        } catch let error as ImagePreparer.ImageError {
+        } catch let error as ImageError {
             guard case .noCredentials = error else { return XCTFail("wrong error: \(error)") }
         } catch {
             XCTFail("wrong error type: \(error)")

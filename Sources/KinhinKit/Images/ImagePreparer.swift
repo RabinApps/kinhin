@@ -69,7 +69,8 @@ public struct ImagePreparer {
         let tmp = "kinhin-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
         defer {
             Task {
-                try? await tart.stop(name: tmp); try? await tart.delete(name: tmp)
+                await bestEffortAsync(tmp, "stopping scratch VM") { try await tart.stop(name: tmp) }
+                await bestEffortAsync(tmp, "deleting scratch VM") { try await tart.delete(name: tmp) }
             }
         }
 
@@ -241,17 +242,4 @@ public struct ImagePreparer {
         """
     }
 
-    public enum ImageError: LocalizedError {
-        case provisioningFailed(String)
-        case noCredentials(String)
-        case provisionScriptUnreadable(path: String, reason: String)
-
-        public var errorDescription: String? {
-            switch self {
-            case .provisioningFailed(let why): return "image provisioning failed: \(why)"
-            case .noCredentials(let why): return "no platform credentials: \(why)"
-            case .provisionScriptUnreadable(let path, let why): return "user provision script '\(path)': \(why)"
-            }
-        }
-    }
 }

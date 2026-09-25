@@ -45,18 +45,6 @@ private extension Array {
 /// (comments elsewhere preserved), validating the whole file through the
 /// engine's own parser before anything is written.
 public enum ToolchainsConfigEditor {
-    public enum EditError: LocalizedError, Equatable {
-        case notFound(String)
-        case invalid(String)
-
-        public var errorDescription: String? {
-            switch self {
-            case .notFound(let path): return "config not found at \(path)"
-            case .invalid(let why): return why
-            }
-        }
-    }
-
     // MARK: Reading
 
     public static func selection(from yaml: String) throws -> ToolchainsSelection {
@@ -160,13 +148,13 @@ public enum ToolchainsConfigEditor {
 
     @discardableResult
     public static func apply(_ selection: ToolchainsSelection, to url: URL = Paths.config) throws -> String {
-        guard FileManager.default.fileExists(atPath: url.path) else { throw EditError.notFound(url.path) }
+        guard FileManager.default.fileExists(atPath: url.path) else { throw ConfigEditError.notFound(url.path) }
         let original = try String(contentsOf: url, encoding: .utf8)
         let updated = try replace(selection, in: original)
         do {
             _ = try ConfigLoader.parse(updated)
         } catch {
-            throw EditError.invalid(error.localizedDescription)
+            throw ConfigEditError.validation(error.localizedDescription)
         }
         try updated.write(toFile: url.path, atomically: true, encoding: .utf8)
         return updated

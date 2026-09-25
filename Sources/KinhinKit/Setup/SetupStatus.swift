@@ -138,7 +138,13 @@ public struct SetupStatusComputer: Sendable {
     /// Loads the parsed config, or nil when missing/invalid.
     static func liveConfig() -> kinhinConfig? {
         guard FileManager.default.fileExists(atPath: Paths.config.path) else { return nil }
-        return try? ConfigLoader.load()
+        do {
+            return try ConfigLoader.load()
+        } catch {
+            // The checklist reports "invalid file"; the reason belongs in the log.
+            Log.warn("setup", "config could not be loaded: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     /// Resolves a config scenario to its fully-evaluated view — no filesystem
@@ -494,7 +500,7 @@ public struct SetupStatusComputer: Sendable {
                 detail: "script found: \(resolved?.path ?? "")",
                 action: nil
             )
-        } catch let error as ImagePreparer.ImageError {
+        } catch let error as ImageError {
             guard case .provisionScriptUnreadable(let path, let reason) = error else {
                 return broken("\(cfg.provisionScript ?? "") (unusable)")
             }

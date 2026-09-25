@@ -238,7 +238,27 @@ public struct GiteaClient: Sendable {
 
     // MARK: Plumbing
 
+    /// Sends with retry on transient failures (network errors, 5xx), matching
+    /// the GitHub client's resilience to blips.
     func send(path: String, method: String = "GET") async throws -> (Data, HTTPURLResponse) {
+        try await withTransientRetry(isTransient: Self.isTransient) {
+            try await sendOnce(path: path, method: method)
+        }
+    }
+
+    static func isTransient(_ error: Error) -> Bool {
+        switch error {
+        case let error as GiteaError:
+            if case .http(let code, _) = error { return code == 0 || code >= 500 }
+            return false
+        case is URLError:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func sendOnce(path: String, method: String) async throws -> (Data, HTTPURLResponse) {
         guard let base = try? GiteaCredentials.validate(instance: credentials.instance) else {
             throw GiteaError.invalidInstance(credentials.instance)
         }

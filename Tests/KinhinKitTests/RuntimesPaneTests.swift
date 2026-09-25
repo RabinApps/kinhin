@@ -113,7 +113,7 @@ final class RuntimesPaneTests: XCTestCase {
             routes: [kinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer")]
         )
         XCTAssertThrowsError(try RuntimesConfigEditor.apply(rc, to: url)) { error in
-            guard case RuntimesConfigError.validation = error else {
+            guard case ConfigEditError.validation = error else {
                 return XCTFail("expected validation error, got \(error)")
             }
         }
@@ -125,7 +125,7 @@ final class RuntimesPaneTests: XCTestCase {
     func testApplyToMissingFileThrowsNotFound() {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-nope-\(UUID().uuidString).yaml")
         XCTAssertThrowsError(try RuntimesConfigEditor.apply(kinhinConfig.RuntimeConfig(), to: url)) { error in
-            guard case RuntimesConfigError.notFound = error else {
+            guard case ConfigEditError.notFound = error else {
                 return XCTFail("expected notFound, got \(error)")
             }
         }

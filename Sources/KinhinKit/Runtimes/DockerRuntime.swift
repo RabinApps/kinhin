@@ -91,13 +91,15 @@ public struct DockerRuntime: Runtime {
         }
         // The CLI exists; require the daemon to answer (every command fails
         // opaquely otherwise). One probe covers all three providers.
-        let info = try? await run([resolved, "info", "--format", "{{.ServerVersion}}"])
-        guard let info, info.succeeded,
-            !info.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else {
-            return .broken("the Docker daemon is not reachable — start Docker Desktop (or: colima start)")
+        do {
+            let info = try await run([resolved, "info", "--format", "{{.ServerVersion}}"])
+            if info.succeeded, !info.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return .ready
+            }
+        } catch {
+            Log.warn("docker", "daemon probe failed: \(error.localizedDescription)")
         }
-        return .ready
+        return .broken("the Docker daemon is not reachable — start Docker Desktop (or: colima start)")
     }
 
     // MARK: - Provision
@@ -116,7 +118,9 @@ public struct DockerRuntime: Runtime {
         // warm downloads. Best-effort: create the host dir first so a fresh
         // install cannot fail the run.
         if route.cacheMount {
-            try? FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
+            bestEffort("docker", "creating the toolchain cache directory") {
+                try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
+            }
             argv += ["--volume", ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)]
         }
         argv += [
@@ -193,7 +197,7 @@ public struct DockerRuntime: Runtime {
             if try await containerIDs(all: false).contains(id) {
                 return nil  // exec transport: no address to dial
             }
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            try await Task.sleep(nanoseconds: 1_000_000_000)
         }
         throw RuntimeWatchError.registrationTimeout(vm: id)
     }
@@ -215,7 +219,7 @@ public struct DockerRuntime: Runtime {
 
     public func teardown(id: String) async {
         // --rm already removes the container on agent exit; belt + suspenders.
-        _ = try? await run([bin, "rm", "--force", id])
+        await bestEffortAsync(id, "removing container") { _ = try await run([bin, "rm", "--force", id]) }
     }
 
     // MARK: - Internals
@@ -223,7 +227,12 @@ public struct DockerRuntime: Runtime {
     /// All container ids known to the CLI (running + stopped) — also the
     /// recovery path's instance enumeration.
     public func existingInstanceIDs() async -> [String] {
-        (try? await containerIDs(all: true)) ?? []
+        do {
+            return try await containerIDs(all: true)
+        } catch {
+            Log.warn("docker", "could not list containers for recovery: \(error.localizedDescription)")
+            return []
+        }
     }
 
     public func containerIDs(all: Bool) async throws -> [String] {
@@ -242,8 +251,14 @@ public struct DockerRuntime: Runtime {
     /// Local list of image references (for the checklist's image-present
     /// row and the doctor).
     public func localImageNames() async -> [String] {
-        let result = try? await run([bin, "images", "--format", "{{.Repository}}:{{.Tag}}"])
-        guard let result, result.succeeded else { return [] }
+        let result: ShellResult
+        do {
+            result = try await run([bin, "images", "--format", "{{.Repository}}:{{.Tag}}"])
+        } catch {
+            Log.warn("docker", "could not list images: \(error.localizedDescription)")
+            return []
+        }
+        guard result.succeeded else { return [] }
         return result.stdout
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }

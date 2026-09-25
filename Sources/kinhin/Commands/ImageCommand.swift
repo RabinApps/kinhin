@@ -42,7 +42,7 @@ enum ImageCommand {
                 let baked = try await preparer.prepare(options)
                 print("container image ready: \(baked)")
                 print("set `container.image: \"\(baked)\"` in your config to use it")
-            } catch let error as ContainerImageError {
+            } catch let error as ImageError {
                 fail(error.localizedDescription)
             } catch {
                 fail(error.localizedDescription)
@@ -87,7 +87,7 @@ enum ImageCommand {
                 let baked = try await preparer.prepare(options)
                 print("docker image ready: \(baked)")
                 print("set `docker.image: \"\(baked)\"` in your config to use it")
-            } catch let error as ContainerImageError {
+            } catch let error as ImageError {
                 fail(error.localizedDescription)
             } catch {
                 fail(error.localizedDescription)

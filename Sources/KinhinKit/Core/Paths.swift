@@ -2,16 +2,23 @@ import Foundation
 
 /// Filesystem locations for kinhin's support files and binary discovery.
 public enum Paths {
+    /// The user's `~/Library/<name>` directory. `FileManager` returns it for
+    /// every user domain; the home-relative path is only a defensive fallback.
+    static func userLibrarySubdirectory(_ directory: FileManager.SearchPathDirectory, fallback: String) -> URL {
+        FileManager.default.urls(for: directory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(fallback, isDirectory: true)
+    }
+
     /// `~/Library/Application Support/Kinhin`
     public static var appSupport: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return base.appendingPathComponent("Kinhin", isDirectory: true)
+        userLibrarySubdirectory(.applicationSupportDirectory, fallback: "Library/Application Support")
+            .appendingPathComponent("Kinhin", isDirectory: true)
     }
 
     /// Support directory used by the pre-rename build ("Orchard").
     static var legacyAppSupport: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return base.appendingPathComponent("Orchard", isDirectory: true)
+        userLibrarySubdirectory(.applicationSupportDirectory, fallback: "Library/Application Support")
+            .appendingPathComponent("Orchard", isDirectory: true)
     }
 
     /// One-time migration from the pre-rename support directory: when the

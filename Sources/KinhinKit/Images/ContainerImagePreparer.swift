@@ -60,7 +60,7 @@ public struct ContainerImagePreparer {
         let hasGitHubToken = options.hasGitHubToken ?? (KeychainTokenStore.load(forge: .github) != nil)
         let hasGiteaToken = options.hasGiteaToken ?? (KeychainTokenStore.load(forge: .gitea) != nil)
         guard hasGitHubToken || hasGiteaToken else {
-            throw ContainerImageError.noCredentials(
+            throw ImageError.noCredentials(
                 "store at least one platform token first (kinhin auth set / kinhin auth set --gitea)")
         }
 
@@ -118,7 +118,7 @@ public struct ContainerImagePreparer {
             Log.info("container-image", "installing runner agents")
             let exec = try await shell.run([containerBin, "exec", scratch, "/bin/bash", "-lc", script])
             guard exec.succeeded else {
-                throw ContainerImageError.provisioningFailed(String(exec.stderr.prefix(500)))
+                throw ImageError.containerProvisioningFailed(String(exec.stderr.prefix(500)))
             }
 
             // 4. Managed toolchains (toolchains: config): install + pin via
@@ -136,7 +136,7 @@ public struct ContainerImagePreparer {
                 )
                 let provisioned = try await shell.run([containerBin, "exec", scratch, "/bin/bash", "-lc", managed])
                 guard provisioned.succeeded else {
-                    throw ContainerImageError.provisioningFailed(
+                    throw ImageError.containerProvisioningFailed(
                         "managed toolchain install failed: \(String(provisioned.stderr.prefix(500)))")
                 }
                 let tail = String(provisioned.stdout.trimmingCharacters(in: .whitespacesAndNewlines).suffix(400))
@@ -155,7 +155,7 @@ public struct ContainerImagePreparer {
             try "FROM \(scratch)\n".write(to: dockerfile, atomically: true, encoding: .utf8)
             let build = try await shell.run([containerBin, "build", "--tag", options.target, workdir.path])
             guard build.succeeded else {
-                throw ContainerImageError.provisioningFailed(
+                throw ImageError.containerProvisioningFailed(
                     "container build failed: \(String(build.stderr.prefix(500)))")
             }
         } catch {
@@ -179,19 +179,7 @@ public struct ContainerImagePreparer {
             if probe.succeeded { return }
             try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
         }
-        throw ContainerImageError.provisioningFailed(
+        throw ImageError.containerProvisioningFailed(
             "scratch container never became ready for exec within \(Int(timeout))s")
-    }
-}
-
-public enum ContainerImageError: LocalizedError {
-    case provisioningFailed(String)
-    case noCredentials(String)
-
-    public var errorDescription: String? {
-        switch self {
-        case .provisioningFailed(let why): return "container image provisioning failed: \(why)"
-        case .noCredentials(let why): return "no platform credentials: \(why)"
-        }
     }
 }

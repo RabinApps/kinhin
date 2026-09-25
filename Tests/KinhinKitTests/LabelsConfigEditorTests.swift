@@ -73,7 +73,7 @@ final class LabelsConfigEditorTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         XCTAssertThrowsError(try LabelsConfigEditor.apply([], scope: .fleet, to: url)) { error in
-            guard case RuntimesConfigError.validation = error else { return XCTFail("wrong error: \(error)") }
+            guard case ConfigEditError.validation = error else { return XCTFail("wrong error: \(error)") }
         }
         // Disk untouched.
         XCTAssertEqual(
@@ -120,7 +120,7 @@ final class LabelsConfigEditorTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         XCTAssertThrowsError(try LabelsConfigEditor.apply(["x"], scope: .container, to: url)) { error in
-            guard case RuntimesConfigError.validation = error else { return XCTFail("wrong error: \(error)") }
+            guard case ConfigEditError.validation = error else { return XCTFail("wrong error: \(error)") }
         }
     }
 

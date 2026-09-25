@@ -14,9 +14,12 @@ final class FakeTart: TartControlling, @unchecked Sendable {
     var runMounts: [[String]] = []
     var stopCalls: [String] = []
     var failNextClone = false
+    /// Makes every `list()` throw, like `tart list` failing to launch.
+    var failList = false
 
     func list() async throws -> [TartVM] {
         lock.lock(); defer { lock.unlock() }
+        if failList { throw TartError.commandFailed(what: "list", stderr: "injected failure") }
         return Array(vms.values)
     }
 

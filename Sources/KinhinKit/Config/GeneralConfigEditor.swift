@@ -14,22 +14,6 @@ import Yams
 /// The app's Config tab and onboarding wizard edit through this — never by
 /// re-serializing the whole document (Yams would drop the user's comments).
 public enum GeneralConfigEditor {
-    public enum GeneralConfigError: LocalizedError, Equatable {
-        case notFound(String)
-        case yamlParse(String)
-        case validation(String)
-        case unsupported(String)
-
-        public var errorDescription: String? {
-            switch self {
-            case .notFound(let path): return "config not found at \(path)"
-            case .yamlParse(let why): return "config is not valid YAML — \(why)"
-            case .validation(let why): return why
-            case .unsupported(let what): return what
-            }
-        }
-    }
-
     // MARK: Reading
 
     /// The typed subset the UI edits, decoded from the raw YAML.
@@ -90,7 +74,7 @@ public enum GeneralConfigEditor {
     /// against a phantom snapshot.
     public static func snapshot(from yaml: String) throws -> Snapshot {
         guard let root = try? Yams.compose(yaml: yaml), root.mapping != nil else {
-            throw GeneralConfigError.yamlParse("top level must be a mapping")
+            throw ConfigEditError.yamlParse("top level must be a mapping")
         }
         let partial = try? YAMLDecoder().decode(PartialConfig.self, from: yaml)
         let d = kinhinConfig.default
@@ -128,14 +112,14 @@ public enum GeneralConfigEditor {
     @discardableResult
     public static func apply(_ field: Field, to url: URL = Paths.config) throws -> String {
         guard FileManager.default.fileExists(atPath: url.path) else {
-            throw GeneralConfigError.notFound(url.path)
+            throw ConfigEditError.notFound(url.path)
         }
         let original = try String(contentsOf: url, encoding: .utf8)
         let updated = try replace(field: field, in: original)
         do {
             _ = try ConfigLoader.parse(updated)
         } catch {
-            throw GeneralConfigError.validation(error.localizedDescription)
+            throw ConfigEditError.validation(error.localizedDescription)
         }
         try updated.write(toFile: url.path, atomically: true, encoding: .utf8)
         return updated
@@ -236,7 +220,7 @@ public enum GeneralConfigEditor {
         }
 
         guard let root = try? Yams.compose(yaml: yaml), root.mapping != nil else {
-            throw GeneralConfigError.yamlParse("top level must be a mapping")
+            throw ConfigEditError.yamlParse("top level must be a mapping")
         }
         let path = keyPath(for: field)
         let value = valueText(for: field)
@@ -311,7 +295,7 @@ public enum GeneralConfigEditor {
         -> String
     {
         guard let root = try? Yams.compose(yaml: yaml), root.mapping != nil else {
-            throw GeneralConfigError.yamlParse("top level must be a mapping")
+            throw ConfigEditError.yamlParse("top level must be a mapping")
         }
         var lines = yaml.components(separatedBy: "\n")
 

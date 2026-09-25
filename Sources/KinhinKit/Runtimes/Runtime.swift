@@ -163,7 +163,9 @@ public struct TartRuntime: Runtime {
     }
 
     public func provision(id: String, route: RepoRoute) async throws {
-        let existing = (try? await tart.list()) ?? []
+        // A failed list must not read as "no VMs": cloning over an existing
+        // one would fail later with a far less useful error.
+        let existing = try await tart.list()
         if existing.contains(where: { $0.name == id }) {
             Log.info(id, "VM already exists; reusing (recovery)")
             return
@@ -188,7 +190,12 @@ public struct TartRuntime: Runtime {
     }
 
     public func existingInstanceIDs() async -> [String] {
-        (try? await tart.list())?.map(\.name) ?? []
+        do {
+            return try await tart.list().map(\.name)
+        } catch {
+            Log.warn("tart", "could not list VMs for recovery: \(error.localizedDescription)")
+            return []
+        }
     }
 
     public func registrationScript(
@@ -246,9 +253,13 @@ public struct TartRuntime: Runtime {
     public func teardown(id: String) async {
         // Existence check makes teardown genuinely idempotent (double deletes
         // from racing lifecycle paths must not error or double-charge).
-        let existing = (try? await tart.list()) ?? []
-        guard existing.contains(where: { $0.name == id }) else { return }
-        try? await tart.stop(name: id)
-        try? await tart.delete(name: id)
+        do {
+            guard try await tart.list().contains(where: { $0.name == id }) else { return }
+        } catch {
+            // Unknown state: still attempt the teardown below.
+            Log.warn(id, "could not list VMs before teardown: \(error.localizedDescription)")
+        }
+        await bestEffortAsync(id, "stopping VM") { try await tart.stop(name: id) }
+        await bestEffortAsync(id, "deleting VM") { try await tart.delete(name: id) }
     }
 }

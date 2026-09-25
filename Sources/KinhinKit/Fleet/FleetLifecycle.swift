@@ -148,7 +148,15 @@ extension FleetEngine {
             try Task.checkCancellation()
             let all: [ForgeRunner]
             if let forge = forgesLock.withLock({ forgesByPlatform["gitea"] }) {
-                all = (try? await forge.runners()) ?? []
+                do {
+                    all = try await forge.runners()
+                } catch {
+                    // An API hiccup must not read as "runners deregistered",
+                    // which would delete a VM that is still running a job.
+                    Log.warn(id, "gitea runner list failed; retrying: \(error.localizedDescription)")
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                    continue
+                }
             } else {
                 all = []
             }
@@ -185,7 +193,7 @@ extension FleetEngine {
                 await deleteVMRecord(id: id, reason: "registration timeout")
                 return
             }
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            try await Task.sleep(nanoseconds: 1_000_000_000)
         }
         Log.warn(id, "gitea ephemeral watch timed out; deleting VM")
         await deleteVMRecord(id: id, reason: "timeout")
@@ -246,7 +254,7 @@ extension FleetEngine {
                 await deleteVMRecord(id: id, reason: "registration timeout")
                 return
             }
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            try await Task.sleep(nanoseconds: 1_000_000_000)
         }
         Log.warn(id, "ephemeral watch timed out; deleting VM")
         await deleteVMRecord(id: id, reason: "timeout")
@@ -262,10 +270,12 @@ extension FleetEngine {
         // attached forge — the VM id itself, or its indexed runners (\(id)-rN).
         let attached = forgesLock.withLock { Array(forgesByPlatform.values) }
         for forge in attached {
-            if let runners = try? await forge.runners() {
-                let stale = runners.filter { $0.name == id || $0.name.hasPrefix("\(id)-r") }
+            await bestEffortAsync(id, "cleaning up stale runner registrations") {
+                let stale = try await forge.runners().filter { $0.name == id || $0.name.hasPrefix("\(id)-r") }
                 for runner in stale {
-                    try? await forge.deleteRunner(id: runner.id)
+                    await bestEffortAsync(id, "deleting runner \(runner.name)") {
+                        try await forge.deleteRunner(id: runner.id)
+                    }
                 }
             }
         }
@@ -288,7 +298,8 @@ extension FleetEngine {
         for task in tasks {
             task.cancel()
         }
-        // Give tasks a moment to clean their VMs up.
+        // Give tasks a moment to clean their VMs up. Cancellation here only
+        // shortens the grace period; the sweep below still runs.
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         let remaining = store.all.filter { $0.phase.isActive }
         for record in remaining {

@@ -66,6 +66,8 @@ public enum RPCPaths {
 public enum RPCServer {
     /// Serve requests forever on the given socket path.
     public static func serve(socketURL: URL, handler: @escaping @Sendable (RPCRequest) async -> RPCResponse) throws {
+        // A stale socket from a previous run may or may not exist; bind()
+        // below reports any real problem.
         try? FileManager.default.removeItem(at: socketURL)
         try FileManager.default.createDirectory(
             at: socketURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -136,25 +138,43 @@ public enum RPCServer {
         guard let lineData = readLine(from: file) else { return }
 
         let decoder = JSONDecoder()
-        guard let request = try? decoder.decode(RPCRequest.self, from: lineData) else {
-            let response = RPCResponse(id: -1, ok: false, error: "undecodable request")
-            try? file.write(contentsOf: responseLine(response))
+        let request: RPCRequest
+        do {
+            request = try decoder.decode(RPCRequest.self, from: lineData)
+        } catch {
+            Log.warn("rpc", "undecodable request: \(error)")
+            write(responseLine(RPCResponse(id: -1, ok: false, error: "undecodable request")), to: file)
             return
         }
 
         let semaphore = DispatchSemaphore(value: 0)
         Task {
             let response = await handler(request)
-            try? file.write(contentsOf: responseLine(response))
+            write(responseLine(response), to: file)
             semaphore.signal()
         }
         _ = semaphore.wait(timeout: .now() + 120)
     }
 
+    /// The peer may have hung up; a failed write is logged, not fatal.
+    private static func write(_ data: Data, to file: FileHandle) {
+        do {
+            try file.write(contentsOf: data)
+        } catch {
+            Log.warn("rpc", "could not write response: \(error.localizedDescription)")
+        }
+    }
+
     static func responseLine(_ response: RPCResponse) -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        var data = (try? encoder.encode(response)) ?? Data("{}".utf8)
+        var data: Data
+        do {
+            data = try encoder.encode(response)
+        } catch {
+            Log.error("rpc", "could not encode response: \(error)")
+            data = Data("{}".utf8)
+        }
         data.append(0x0A)  // newline framing
         return data
     }

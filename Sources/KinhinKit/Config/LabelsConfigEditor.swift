@@ -29,17 +29,17 @@ public enum LabelsConfigEditor {
     @discardableResult
     public static func apply(_ newLabels: [String], scope: Scope, to url: URL = Paths.config) throws -> String {
         guard FileManager.default.fileExists(atPath: url.path) else {
-            throw RuntimesConfigError.notFound(url.path)
+            throw ConfigEditError.notFound(url.path)
         }
         guard !newLabels.isEmpty else {
-            throw RuntimesConfigError.validation(
+            throw ConfigEditError.validation(
                 scope == .fleet
                     ? "labels must not be empty (the fleet's base label set)"
                     : "container.labels must not be empty when present (remove the key instead)"
             )
         }
         for label in newLabels where label.trimmingCharacters(in: .whitespaces).isEmpty {
-            throw RuntimesConfigError.validation("labels must not contain blank entries")
+            throw ConfigEditError.validation("labels must not contain blank entries")
         }
 
         let original = try String(contentsOf: url, encoding: .utf8)
@@ -53,7 +53,7 @@ public enum LabelsConfigEditor {
         do {
             _ = try ConfigLoader.parse(updated)
         } catch {
-            throw RuntimesConfigError.validation(error.localizedDescription)
+            throw ConfigEditError.validation(error.localizedDescription)
         }
         try updated.write(toFile: url.path, atomically: true, encoding: .utf8)
         return updated
@@ -77,7 +77,7 @@ public enum LabelsConfigEditor {
     /// trailing comment on the key line is preserved.
     static func replaceTopLevelList(in yaml: String, newLabels: [String]) throws -> String {
         guard let root = try Yams.compose(yaml: yaml), root.mapping != nil else {
-            throw RuntimesConfigError.yamlParse("top level must be a mapping")
+            throw ConfigEditError.yamlParse("top level must be a mapping")
         }
         var lines = yaml.components(separatedBy: "\n")
         let block = ["labels:"] + newLabels.map { "  - \"\($0.escaped())\"" }
@@ -118,7 +118,7 @@ public enum LabelsConfigEditor {
     /// the block lacks it.
     static func replaceContainerLabels(in yaml: String, newLabels: [String]) throws -> String {
         guard let root = try Yams.compose(yaml: yaml), root.mapping != nil else {
-            throw RuntimesConfigError.yamlParse("top level must be a mapping")
+            throw ConfigEditError.yamlParse("top level must be a mapping")
         }
         var lines = yaml.components(separatedBy: "\n")
 
@@ -127,13 +127,13 @@ public enum LabelsConfigEditor {
                 isTopKey($0) && $0.trimmingCharacters(in: .whitespaces) == "container:"
             })
         else {
-            throw RuntimesConfigError.validation(
+            throw ConfigEditError.validation(
                 "no container: section in config — add it before setting container.labels")
         }
         // A flow-style container line (container: {…}) can't take children.
         let containerLine = lines[containerIdx].trimmingCharacters(in: .whitespaces)
         guard containerLine == "container:" else {
-            throw RuntimesConfigError.yamlParse(
+            throw ConfigEditError.yamlParse(
                 "container: must use block style (one key per line) to edit container.labels")
         }
 

@@ -123,7 +123,7 @@ enum RuntimesCommand {
 
         do {
             try RuntimesConfigEditor.apply(rc, to: configURL)
-        } catch let error as RuntimesConfigError {
+        } catch let error as ConfigEditError {
             throw RouteError.usage(error.errorDescription ?? "config update rejected")
         }
 

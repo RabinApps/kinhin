@@ -65,7 +65,7 @@ public struct DockerImagePreparer {
         let hasGitHubToken = options.hasGitHubToken ?? (KeychainTokenStore.load(forge: .github) != nil)
         let hasGiteaToken = options.hasGiteaToken ?? (KeychainTokenStore.load(forge: .gitea) != nil)
         guard hasGitHubToken || hasGiteaToken else {
-            throw ContainerImageError.noCredentials(
+            throw ImageError.noCredentials(
                 "store at least one platform token first (kinhin auth set / kinhin auth set --gitea)")
         }
 
@@ -122,7 +122,7 @@ public struct DockerImagePreparer {
             Log.info("docker-image", "installing runner agents")
             let exec = try await shell.run([dockerBin, "exec", scratch, "/bin/bash", "-lc", script])
             guard exec.succeeded else {
-                throw ContainerImageError.provisioningFailed(String(exec.stderr.prefix(500)))
+                throw ImageError.containerProvisioningFailed(String(exec.stderr.prefix(500)))
             }
 
             // 4. Managed toolchains (toolchains: config): install + pin via
@@ -140,7 +140,7 @@ public struct DockerImagePreparer {
                 )
                 let provisioned = try await shell.run([dockerBin, "exec", scratch, "/bin/bash", "-lc", managed])
                 guard provisioned.succeeded else {
-                    throw ContainerImageError.provisioningFailed(
+                    throw ImageError.containerProvisioningFailed(
                         "managed toolchain install failed: \(String(provisioned.stderr.prefix(500)))")
                 }
                 let tail = String(provisioned.stdout.trimmingCharacters(in: .whitespacesAndNewlines).suffix(400))
@@ -154,7 +154,7 @@ public struct DockerImagePreparer {
             Log.info("docker-image", "committing target image \(options.target)")
             let commit = try await shell.run([dockerBin, "commit", scratch, options.target])
             guard commit.succeeded else {
-                throw ContainerImageError.provisioningFailed(
+                throw ImageError.containerProvisioningFailed(
                     "docker commit failed: \(String(commit.stderr.prefix(500)))")
             }
         } catch {
@@ -178,7 +178,7 @@ public struct DockerImagePreparer {
             if probe.succeeded { return }
             try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
         }
-        throw ContainerImageError.provisioningFailed(
+        throw ImageError.containerProvisioningFailed(
             "scratch container never became ready for exec within \(Int(timeout))s")
     }
 }

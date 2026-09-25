@@ -103,7 +103,7 @@ final class RuntimesTabTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         XCTAssertThrowsError(try ConfigEditor.save("repo: [unclosed", to: url)) { error in
-            guard case ConfigEditor.ConfigEditorError.validation = error else {
+            guard case ConfigEditError.rejected = error else {
                 return XCTFail("expected a validation error, got: \(error)")
             }
             // The engine's message is opaque for a YAML parse failure, but the

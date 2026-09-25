@@ -70,11 +70,23 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
         containerHealth: (@Sendable () async -> RuntimeHealth)? = nil
     ) async -> RuntimesPaneViewModel {
         var vm = RuntimesPaneViewModel()
-        guard let parsed = try? ConfigLoader.parse(configYAML) else { return vm }
+        let parsed: kinhinConfig
+        do {
+            parsed = try ConfigLoader.parse(configYAML)
+        } catch {
+            Log.warn("runtimes", "config could not be parsed for the pane: \(error.localizedDescription)")
+            return vm
+        }
 
         vm.containerConfigured = parsed.container != nil
         vm.dockerConfigured = parsed.docker != nil
-        let routing = (try? RuntimesConfigEditor.parsed(from: configYAML)) ?? nil
+        let routing: kinhinConfig.RuntimeConfig?
+        do {
+            routing = try RuntimesConfigEditor.parsed(from: configYAML)
+        } catch {
+            Log.warn("runtimes", "routing section could not be read: \(error.localizedDescription)")
+            routing = nil
+        }
         let rc = routing ?? parsed.runtimes
         vm.routingConfigured = rc != nil
         let fleetLabels = parsed.labels

@@ -79,11 +79,12 @@ public struct AppleContainerRuntime: Runtime {
         }
         // The CLI exists; require the host API service to be running
         // (every command fails opaquely without it).
-        let status = try? await run([resolved, "system", "status"])
-        guard let status, status.succeeded else {
-            return .broken("the container system service is not running — start it with: container system start")
+        do {
+            if try await run([resolved, "system", "status"]).succeeded { return .ready }
+        } catch {
+            Log.warn("container", "system status probe failed: \(error.localizedDescription)")
         }
-        return .ready
+        return .broken("the container system service is not running — start it with: container system start")
     }
 
     // MARK: - Provision
@@ -102,7 +103,9 @@ public struct AppleContainerRuntime: Runtime {
         // reuse warm downloads. Best-effort: create the host dir first so a
         // fresh install cannot fail the run.
         if route.cacheMount {
-            try? FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
+            bestEffort("container", "creating the toolchain cache directory") {
+                try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
+            }
             argv += ["--volume", ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)]
         }
         argv += [
@@ -185,7 +188,12 @@ public struct AppleContainerRuntime: Runtime {
     /// Ids of all known containers (running + stopped) — the recovery path
     /// enumerates instances through the runtime, no per-runtime branch.
     public func existingInstanceIDs() async -> [String] {
-        (try? await containerIDs(all: true)) ?? []
+        do {
+            return try await containerIDs(all: true)
+        } catch {
+            Log.warn("container", "could not list containers for recovery: \(error.localizedDescription)")
+            return []
+        }
     }
 
     /// The boot-wait analogue of `tart.ip`: polls until the container is
@@ -209,7 +217,7 @@ public struct AppleContainerRuntime: Runtime {
             if try await containerIDs(all: false).contains(id) {
                 return id
             }
-            try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+            try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
         }
         throw RuntimeWatchError.registrationTimeout(vm: id)
     }
@@ -218,7 +226,7 @@ public struct AppleContainerRuntime: Runtime {
 
     public func teardown(id: String) async {
         // --rm already removes the container on agent exit; belt + suspenders.
-        _ = try? await run([bin, "delete", "--force", id])
+        await bestEffortAsync(id, "deleting container") { _ = try await run([bin, "delete", "--force", id]) }
     }
 
     // MARK: - Internals
@@ -240,8 +248,14 @@ public struct AppleContainerRuntime: Runtime {
     /// Local list of image references (for the checklist's image-present
     /// row and the doctor).
     public func localImageNames() async -> [String] {
-        let result = try? await run([bin, "image", "list", "--quiet"])
-        guard let result, result.succeeded else { return [] }
+        let result: ShellResult
+        do {
+            result = try await run([bin, "image", "list", "--quiet"])
+        } catch {
+            Log.warn("container", "could not list images: \(error.localizedDescription)")
+            return []
+        }
+        guard result.succeeded else { return [] }
         return result.stdout
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }

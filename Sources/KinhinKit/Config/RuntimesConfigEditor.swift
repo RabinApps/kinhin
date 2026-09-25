@@ -2,20 +2,6 @@ import Foundation
 import Yams
 
 /// Errors surfaced by the Runtimes pane's config editing.
-public enum RuntimesConfigError: LocalizedError, Equatable {
-    case yamlParse(String)
-    case validation(String)
-    case notFound(String)
-
-    public var errorDescription: String? {
-        switch self {
-        case .yamlParse(let why): return "config is not valid YAML — \(why)"
-        case .validation(let why): return why
-        case .notFound(let path): return "config not found at \(path)"
-        }
-    }
-}
-
 /// Reads and writes the `runtimes:` section of the config YAML while
 /// preserving everything else byte-for-byte. The menu bar Runtimes pane
 /// edits through this — never by re-serializing the whole document (Yams
@@ -75,19 +61,19 @@ public enum RuntimesConfigEditor {
     @discardableResult
     public static func apply(_ rc: kinhinConfig.RuntimeConfig, to url: URL = Paths.config) throws -> String {
         guard FileManager.default.fileExists(atPath: url.path) else {
-            throw RuntimesConfigError.notFound(url.path)
+            throw ConfigEditError.notFound(url.path)
         }
         let original: String
         do {
             original = try String(contentsOf: url, encoding: .utf8)
         } catch {
-            throw RuntimesConfigError.notFound(url.path)
+            throw ConfigEditError.notFound(url.path)
         }
         let updated = try replaceSection(in: original, with: rc)
         do {
             _ = try ConfigLoader.parse(updated)
         } catch {
-            throw RuntimesConfigError.validation(error.localizedDescription)
+            throw ConfigEditError.validation(error.localizedDescription)
         }
         try updated.write(toFile: url.path, atomically: true, encoding: .utf8)
         return updated
@@ -99,7 +85,7 @@ public enum RuntimesConfigEditor {
     static func replaceSection(in yaml: String, with rc: kinhinConfig.RuntimeConfig) throws -> String {
         // Structural sanity before surgery: must be a YAML mapping.
         guard let root = try Yams.compose(yaml: yaml), root.mapping != nil else {
-            throw RuntimesConfigError.yamlParse("top level must be a mapping")
+            throw ConfigEditError.yamlParse("top level must be a mapping")
         }
         var lines = yaml.components(separatedBy: "\n")
         let newSection = sectionText(rc)

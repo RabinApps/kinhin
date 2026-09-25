@@ -57,8 +57,13 @@ public enum KeychainTokenStore {
         // One-time legacy migration: re-save under the current service, then
         // drop the pre-rename item so it never lingers in the Keychain.
         guard let legacy = load(from: legacyService, account: account(for: forge)) else { return nil }
-        try? save(legacy, forge: forge)
-        delete(from: legacyService, account: account(for: forge))
+        do {
+            try save(legacy, forge: forge)
+            delete(from: legacyService, account: account(for: forge))
+        } catch {
+            // Keep the legacy item so the token is not lost; retry next load.
+            Log.warn("keychain", "legacy token migration failed: \(error.localizedDescription)")
+        }
         return legacy
     }
 

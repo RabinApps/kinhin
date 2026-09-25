@@ -461,7 +461,9 @@ public struct ConfigLoader {
             guard let instance = gitea.instance, !instance.isEmpty else {
                 throw ConfigError.invalid("gitea.instance is required (e.g. https://gitea.example.com)")
             }
-            guard (try? GiteaCredentials.validate(instance: instance)) != nil else {
+            do {
+                _ = try GiteaCredentials.validate(instance: instance)
+            } catch {
                 throw ConfigError.invalid(
                     "gitea.instance must be a base URL like https://gitea.example.com (no path, no /api suffix)")
             }

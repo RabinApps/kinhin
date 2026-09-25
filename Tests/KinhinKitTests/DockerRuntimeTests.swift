@@ -430,8 +430,9 @@ final class DockerRuntimeTests: XCTestCase {
                     hasGitHubToken: true, hasGiteaToken: false
                 ))
             XCTFail("expected the bake to fail")
-        } catch let error as ContainerImageError {
-            guard case .provisioningFailed(let why) = error, why.contains("managed toolchain install failed") else {
+        } catch let error as ImageError {
+            guard case .containerProvisioningFailed(let why) = error, why.contains("managed toolchain install failed")
+            else {
                 return XCTFail("expected managed-toolchain provisioningFailed, got \(error)")
             }
         }

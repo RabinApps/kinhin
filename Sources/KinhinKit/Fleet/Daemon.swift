@@ -117,6 +117,16 @@ public enum Daemon {
     ) async -> RPCResponse {
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()
+        /// Decodes the request payload, logging why a malformed one was rejected.
+        func decodePayload<T: Decodable>(_ type: T.Type) -> T? {
+            guard let payload = request.payload else { return nil }
+            do {
+                return try decoder.decode(type, from: payload)
+            } catch {
+                Log.warn("daemon", "rejected malformed \(request.method) payload: \(error)")
+                return nil
+            }
+        }
         do {
             // Resolve the engine per request (a rebuild swaps the box's
             // contents mid-flight; every method reads it fresh).
@@ -143,25 +153,19 @@ public enum Daemon {
                 await engine.setPaused(false)
                 return RPCResponse(id: request.id, ok: true)
             case .deleteVM:
-                guard let payload = request.payload,
-                    let id = try? decoder.decode(VMDeleteRequest.self, from: payload).id
-                else {
+                guard let id = decodePayload(VMDeleteRequest.self)?.id else {
                     return RPCResponse(id: request.id, ok: false, error: "expected {\"id\": \"...\"}")
                 }
                 await engine.deleteVM(id: id)
                 return RPCResponse(id: request.id, ok: true)
             case .replaceGiteaToken:
-                guard let payload = request.payload,
-                    let replacement = try? decoder.decode(GiteaTokenReplaceRequest.self, from: payload)
-                else {
+                guard let replacement = decodePayload(GiteaTokenReplaceRequest.self) else {
                     return RPCResponse(id: request.id, ok: false, error: "expected {\"token\": \"...\"}")
                 }
                 await engine.replaceGiteaToken(replacement.token)
                 return RPCResponse(id: request.id, ok: true)
             case .replaceToken:
-                guard let payload = request.payload,
-                    let replacement = try? decoder.decode(TokenReplaceRequest.self, from: payload)
-                else {
+                guard let replacement = decodePayload(TokenReplaceRequest.self) else {
                     return RPCResponse(id: request.id, ok: false, error: "expected {\"pat\": \"...\"}")
                 }
                 // The caller (app or CLI) has already saved the token to the
@@ -239,8 +243,8 @@ public enum Daemon {
     // MARK: - LaunchAgent
 
     public static func agentPlistPath() -> URL {
-        let lib = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        return lib.appendingPathComponent("LaunchAgents/\(plistName)")
+        Paths.userLibrarySubdirectory(.libraryDirectory, fallback: "Library")
+            .appendingPathComponent("LaunchAgents/\(plistName)")
     }
 
     /// Write the LaunchAgent plist pointing at the given kinhin binary.
@@ -275,9 +279,12 @@ public enum Daemon {
     }
 
     public static func uninstallAgent() throws {
-        try? FileManager.default.removeItem(at: agentPlistPath())
+        let fm = FileManager.default
         // Pre-rename builds installed under the com.orchard.daemon label.
-        let lib = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first!
-        try? FileManager.default.removeItem(at: lib.appendingPathComponent("LaunchAgents/com.orchard.daemon.plist"))
+        let legacy = Paths.userLibrarySubdirectory(.libraryDirectory, fallback: "Library")
+            .appendingPathComponent("LaunchAgents/com.orchard.daemon.plist")
+        for url in [agentPlistPath(), legacy] where fm.fileExists(atPath: url.path) {
+            try fm.removeItem(at: url)
+        }
     }
 }

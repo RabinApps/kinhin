@@ -99,7 +99,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         do {
             try await preparer.run(options)
             XCTFail("expected an unreadable-script error")
-        } catch let error as ImagePreparer.ImageError {
+        } catch let error as ImageError {
             guard case .provisionScriptUnreadable(let path, let reason) = error else {
                 return XCTFail("wrong error: \(error)")
             }
@@ -123,7 +123,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         do {
             try await preparer.run(options)
             XCTFail("expected an empty-script error")
-        } catch let error as ImagePreparer.ImageError {
+        } catch let error as ImageError {
             guard case .provisionScriptUnreadable(_, let reason) = error else {
                 return XCTFail("wrong error: \(error)")
             }
@@ -149,7 +149,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         do {
             try await preparer.run(options)
             XCTFail("expected the prepare to fail")
-        } catch let error as ImagePreparer.ImageError {
+        } catch let error as ImageError {
             guard case .provisioningFailed(let why) = error else {
                 return XCTFail("wrong error: \(error)")
             }
