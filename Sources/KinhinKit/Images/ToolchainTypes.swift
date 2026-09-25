@@ -1,0 +1,251 @@
+import Foundation
+
+// MARK: - Shared cache mount
+
+/// Where the shared toolchain cache lives on the host and inside guests.
+/// `image prepare` always mounts it (faster re-prepares); runner VMs mount
+/// it when `toolchains.share_cache` is on.
+public enum ToolchainCacheMount {
+    /// tart auto-mounts virtiofs shares under this path inside macOS guests.
+    public static let guestSharesRoot = "/Volumes/My Shared Files"
+    /// Directory (under `Paths.appSupport`) holding the host cache.
+    public static let hostDirectoryName = "toolchain-cache"
+    /// Directory (inside the virtiofs share) holding the cache. A distinct
+    /// name keeps the share safe if other shares ever join the same mount.
+    public static let guestDirectoryName = "kinhin-cache"
+
+    /// Absolute guest-side path of the shared cache in macOS guests.
+    public static var guestPath: String { guestSharesRoot + "/" + guestDirectoryName }
+    /// Absolute guest-side path of the shared cache in Linux guests
+    /// (apple/container bind mounts). Chosen to be writable by root, which
+    /// is the default user in runner containers.
+    public static let linuxGuestPath = "/var/kinhin-cache"
+
+    /// The `-v/--volume` spec for binding the host cache into a Linux
+    /// container (`container run -v <host>:<guest>` — the syntax documented
+    /// by apple/container's command reference).
+    public static func volumeSpec(host: String) -> String {
+        "\(host):\(linuxGuestPath)"
+    }
+}
+
+// MARK: - Platforms
+
+/// Which execution platforms a catalog entry supports. Entries list the
+/// platforms they install on; selection filters by target so e.g. a
+/// Linux container bake never sees CocoaPods.
+public enum ToolchainPlatform: String, Sendable, Equatable, CaseIterable {
+    case macOS
+    case linux
+}
+
+// MARK: - Requirements
+
+/// A runtime a catalog entry needs but does NOT install itself. Enforced at
+/// config validation: the user selects the requirement explicitly — kinhin
+/// never adds tools implicitly.
+public enum ToolchainRequirement: String, Sendable, CaseIterable {
+    case node
+    case dotnet
+}
+
+// MARK: - Cache map
+
+/// One environment variable pointed into the shared cache. The value is
+/// `<cache mount>/<subdirectory>` — created on demand by the install script
+/// and skipped gracefully when the cache mount is absent.
+public struct ToolchainCacheEnv: Sendable, Equatable {
+    public let variable: String
+    public let subdirectory: String
+
+    public init(variable: String, subdirectory: String) {
+        self.variable = variable
+        self.subdirectory = subdirectory
+    }
+}
+
+// MARK: - Tools
+
+/// A single installable tool. `installer` says how `image prepare` installs
+/// it; `verify` must exit 0 afterwards or the prepare aborts (old image kept
+/// intact). Unknown specs beyond this table still pass through to mise/brew.
+
+public struct ToolchainEntry: Sendable, Equatable {
+    public enum Installer: Sendable, Equatable {
+        /// A mise spec — the config entry itself (e.g. "go@1.23.4").
+        case mise
+        /// A Homebrew formula (or cask name when `isCask`).
+        case brew(formula: String, isCask: Bool)
+        /// An npm package installed globally with `npm install -g`.
+        case npm(package: String)
+        /// A Ruby gem installed into the user's gem dir.
+        case gem(name: String)
+        /// Debian/Ubuntu packages installed with apt-get (Linux guests only;
+        /// the runner containers run as root so no sudo is needed).
+        case apt(packages: [String])
+    }
+
+    public let id: String
+    public let summary: String
+    public let installer: Installer
+    /// Explicit runtime prerequisites (validated, never auto-installed).
+    public let requires: [ToolchainRequirement]
+    /// Cache envs exported when this tool is selected.
+    public let cacheEnvs: [ToolchainCacheEnv]
+    /// Shell command that must succeed after install ("" = nothing).
+    public let verify: String
+    /// The mise spec shown by `kinhin toolchains` when the user doesn't pin.
+    public let defaultSpec: String
+    /// Platforms this tool installs on. Entries absent from the target
+    /// platform are skipped at selection time (not an error — e.g. brew
+    /// tools simply don't apply inside Linux containers).
+    public let platforms: [ToolchainPlatform]
+    /// Alternative installer used on Linux guests (e.g. dotnet via apt
+    /// instead of the Homebrew cask). nil = the primary installer serves
+    /// every supported platform.
+    public let linuxInstaller: Installer?
+
+    public init(
+        id: String, summary: String, installer: Installer, requires: [ToolchainRequirement] = [],
+        cacheEnvs: [ToolchainCacheEnv] = [], verify: String, defaultSpec: String = "",
+        platforms: [ToolchainPlatform] = ToolchainPlatform.allCases, linuxInstaller: Installer? = nil
+    ) {
+        self.id = id
+        self.summary = summary
+        self.installer = installer
+        self.requires = requires
+        self.cacheEnvs = cacheEnvs
+        self.verify = verify
+        self.defaultSpec = defaultSpec
+        self.platforms = platforms
+        self.linuxInstaller = linuxInstaller
+    }
+
+    /// True when the tool installs exclusively via Homebrew (formula or
+    /// cask) — i.e. it has no Linux equivalent in the catalog.
+    public var isBrewOnly: Bool {
+        if case .brew = installer { return true }
+        return false
+    }
+
+    /// The installer for the given platform (the Linux override when set).
+    public func installer(for platform: ToolchainPlatform) -> Installer {
+        platform == .linux ? (linuxInstaller ?? installer) : installer
+    }
+}
+
+// MARK: - Stacks
+
+/// A curated multi-tool recipe (mobile/web workflow in one entry). Stacks
+/// expand ONLY to their own pieces — a stack that needs node or dotnet
+/// declares it in `requires`, and config validation demands the user select
+/// that runtime too.
+public struct ToolchainStack: Sendable, Equatable {
+    /// An npm dependency with an optional pinned version.
+    public struct NPMPackage: Sendable, Equatable {
+        public let name: String
+        public let version: String  // "" = latest
+        public init(name: String, version: String = "") {
+            self.name = name
+            self.version = version
+        }
+    }
+
+    public let id: String
+    public let summary: String
+    public let requires: [ToolchainRequirement]
+    public let brewTaps: [String]
+    public let brewFormulas: [String]
+    public let miseSpecs: [String]
+    public let npmPackages: [NPMPackage]
+    public let cacheEnvs: [ToolchainCacheEnv]
+    public let verify: String
+    /// What `@version` means for this stack; nil = version unsupported.
+    public let versionKind: String?
+    /// Short note shown under the version field in the Advanced → Toolchains UI.
+    public let versionHint: String?
+    /// The version applied when the config doesn't pin one ("" = none).
+    public let defaultVersion: String
+    /// Extra shell steps run after installs. The literal `<version>` is
+    /// replaced with the effective version; steps still containing the
+    /// placeholder are dropped when no version is pinned.
+    public let postInstall: [String]
+    /// Platforms this stack installs on (macOS-only for the iOS-adjacent
+    /// recipes: CocoaPods, watchman, and fvm do not exist on Linux).
+    public let platforms: [ToolchainPlatform]
+
+    public init(
+        id: String, summary: String, requires: [ToolchainRequirement] = [], brewTaps: [String] = [],
+        brewFormulas: [String] = [], miseSpecs: [String] = [], npmPackages: [NPMPackage] = [],
+        cacheEnvs: [ToolchainCacheEnv] = [], verify: String, versionKind: String? = nil, defaultVersion: String = "",
+        versionHint: String? = nil, postInstall: [String] = [],
+        platforms: [ToolchainPlatform] = ToolchainPlatform.allCases
+    ) {
+        self.id = id
+        self.summary = summary
+        self.requires = requires
+        self.brewTaps = brewTaps
+        self.brewFormulas = brewFormulas
+        self.miseSpecs = miseSpecs
+        self.npmPackages = npmPackages
+        self.cacheEnvs = cacheEnvs
+        self.verify = verify
+        self.versionKind = versionKind
+        self.versionHint = versionHint
+        self.defaultVersion = defaultVersion
+        self.postInstall = postInstall
+        self.platforms = platforms
+    }
+
+    /// Splits "flutter@3.24.0" into ("flutter", "3.24.0"); a bare id or a
+    /// trailing "@" yields a nil version.
+    public static func splitSpec(_ name: String) -> (id: String, version: String?) {
+        guard let at = name.firstIndex(of: "@") else { return (name, nil) }
+        let id = String(name[..<at])
+        let version = String(name[name.index(after: at)...])
+        guard !version.isEmpty else { return (id, nil) }
+        return (id, version)
+    }
+
+    /// The effective version: the pinned one, else the stack default.
+    public func effectiveVersion(pinned: String?) -> String {
+        pinned ?? defaultVersion
+    }
+}
+
+// MARK: - Resolved selection
+
+/// A Homebrew install target.
+public struct BrewFormula: Sendable, Equatable, Hashable {
+    public let name: String
+    public let isCask: Bool
+    public init(name: String, isCask: Bool) {
+        self.name = name
+        self.isCask = isCask
+    }
+}
+
+/// Everything the managed-toolchain install script needs, resolved from a
+/// validated `toolchains:` config. Only what the user selected appears here
+/// — resolution maps ids to installers, caches, and verifications; it never
+/// adds a tool.
+public struct ManagedToolchainSelection: Sendable, Equatable {
+    public var brewTaps: [String] = []
+    public var brewFormulas: [BrewFormula] = []
+    public var miseSpecs: [String] = []
+    public var npmPackages: [ToolchainStack.NPMPackage] = []
+    public var gems: [String] = []
+    /// apt packages for Linux guests (e.g. `dotnet-sdk-8.0`).
+    public var aptPackages: [String] = []
+    /// Post-install steps emitted verbatim (e.g. `fvm install 3.24.0`).
+    public var stackSteps: [String] = []
+    /// Deduped cache-env exports, in stable selection order.
+    public var cacheEnvs: [ToolchainCacheEnv] = []
+    /// Verify commands appended to the install script (fail-fast).
+    public var verifications: [String] = []
+    /// True when a selected entry was skipped because it does not support
+    /// the requested platform (surfaced as a log line, never an error).
+    public var skippedEntries: [String] = []
+
+    public init() {}
+}
