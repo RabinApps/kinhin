@@ -474,14 +474,15 @@ Inside the targets, code is organized by domain:
 | `kinhin-app/AppDelegate.swift` | Lifecycle + engine wiring + refresh                                                                          |
 | `kinhin-app/UI/`               | Extensions: menu/status item, actions, token replacement, update flow, setup repairs, Runtimes pane          |
 
-Tests: `swift test` (420+ tests across three targets: the engine suite (KinhinKitTests — store, RPC, SSH, image pipeline, tart-health, CLT probe, org permissions, queue attribution (queued and running,
+Tests: `swift test` (750+ tests across three targets: the engine suite (KinhinKitTests — store, RPC, SSH, image pipeline, tart-health, CLT probe, org permissions, queue attribution (queued and running,
 per repo), token replacement (Keychain upsert, live engine swap, daemon RPC), multi-forge (Gitea client, per-VM platform assignment, bootstrap, token-gated image provisioning), runtime
 abstraction and routing (TartRuntime semantics, Apple-container runtime health/provision/exec/teardown, label pools, capacity partition, per-repo/per-workflow routing), managed
 toolchains (catalog selection, no-implicit-install validation, managed-script content, shared-cache mounts at prepare and per runner VM, cache auto-expiry pruner), config
 ing (runtimes/budget/labels editors: section upsert, comment preservation, validation gating), hot-reload (engine applyReloaded, daemon reload_config RPC), update-check,
 setup-checklist parity, and setup UI presentation/layout tested against fakes — no VMs required), plus KinhinCLITests (command routing table, starter-config
 auto-create policy, flag parsing, status rendering, `config init` matrix, help text) and the `Tests/` suite (`KinhinAppTests`: menu construction and presentation, status title/line + VM-section rendering, the tabbed main window (activation-policy and quit-on-close decisions, Fleet-tab status/VM rendering, Settings-tab launch-mode + login persistence, tab switching, delegate plumbing), update menu states, update preferences, setup repair execution)).
-CI: `.github/workflows/ci.yml` builds and tests on `macos-14`; `release.yml` publishes the DMG,
+Contributor conventions (layout, style, error handling, formatting) are in [CLAUDE.md](CLAUDE.md).
+CI: `.github/workflows/ci.yml` lints, builds, and tests on `macos-14`; `release.yml` publishes the DMG,
 CLI zip, installer, and checksums to GitHub Releases on `v*` tags.
 
 ## Forge support (GitHub, Gitea, & the future)
@@ -509,7 +510,7 @@ gitea:
 - Gitea VMs are ephemeral like GitHub's: gitea-runner has no `--ephemeral`, so kinhin watches for all of the VM's runners to go idle and deletes the VM after a short grace period.
 - Demand polling uses the scope's task-queue endpoints; when the instance reports nothing usable, a `min_runners` floor keeps capacity available.
 
-**More forges are planned.** The Forge protocol was designed so new platforms slot in without touching the engine: Forgejo (Gitea's upstream, wire-compatible with the Gitea forge), GitLab (its runner is Docker-executor-oriented, so a macOS host-mode path needs design work), Sourcehut, Buildkite, and others are all candidates. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forge.swift` for the contract.
+**More forges are planned.** The Forge protocol was designed so new platforms slot in without touching the engine: Forgejo (Gitea's upstream, wire-compatible with the Gitea forge), GitLab (its runner is Docker-executor-oriented, so a macOS host-mode path needs design work), Sourcehut, Buildkite, and others are all candidates. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
 
 **Execution runtimes are the second axis** (design: [docs/runtime-abstraction-design.md](docs/runtime-abstraction-design.md)): every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the agent, and tears down. Three backends ship: **Tart** (macOS VMs), **apple/container** (Linux microVMs), and **Docker** (Linux containers in your provider's shared VM); opt-in host-direct execution is a candidate behind the same interface. The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the protocol, so new backends slot in without touching lifecycle code.
 
