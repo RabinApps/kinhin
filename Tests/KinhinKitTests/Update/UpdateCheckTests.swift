@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 
 @testable import KinhinKit
@@ -151,23 +152,38 @@ final class UpdateCheckTests: XCTestCase {
 
     // MARK: Download
 
-    func testDownloadDMGWritesUnquarantinedFile() async throws {
-        let payload = Data("fake dmg bytes".utf8)
-        StubProtocol.handler = { request in
-            XCTAssertTrue(request.url?.absoluteString.contains("kinhin-0.2.0-arm64.dmg") ?? false)
-            return (200, payload, [:])
-        }
-        let info = UpdateInfo(
+    private func sha256Hex(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func makeInfo(withChecksums: Bool = true) -> UpdateInfo {
+        UpdateInfo(
             tag: "v0.2.0",
             version: "0.2.0",
             dmgName: "kinhin-0.2.0-arm64.dmg",
             dmgURL: URL(string: "https://example.com/kinhin-0.2.0-arm64.dmg")!,
+            checksumsURL: withChecksums ? URL(string: "https://example.com/checksums.txt") : nil,
             releaseURL: URL(string: "https://example.com/releases/v0.2.0")!,
             publishedAt: nil,
             notes: nil
         )
+    }
+
+    /// Serves `payload` for the DMG and `checksums` for checksums.txt.
+    private func stubDownload(payload: Data, checksums: String) {
+        StubProtocol.handler = { request in
+            if request.url?.lastPathComponent == "checksums.txt" { return (200, Data(checksums.utf8), [:]) }
+            return (200, payload, [:])
+        }
+    }
+
+    func testDownloadDMGWritesUnquarantinedFile() async throws {
+        let payload = Data("fake dmg bytes".utf8)
+        stubDownload(
+            payload: payload,
+            checksums: "\(sha256Hex(payload))  kinhin-0.2.0-arm64.dmg\n0000  install.sh\n")
         var progressReports: [Double] = []
-        let url = try await makeChecker().downloadDMG(info) { progressReports.append($0) }
+        let url = try await makeChecker().downloadDMG(makeInfo()) { progressReports.append($0) }
         defer { try? FileManager.default.removeItem(at: url) }
 
         XCTAssertEqual(try Data(contentsOf: url), payload)
@@ -175,5 +191,61 @@ final class UpdateCheckTests: XCTestCase {
         let quarantineSize = getxattr(url.path, "com.apple.quarantine", nil, 0, 0, 0)
         XCTAssertEqual(quarantineSize, -1, "downloads must not carry the quarantine attribute")
         _ = progressReports  // progress may or may not fire for tiny payloads
+    }
+
+    func testDownloadRejectsChecksumMismatchAndDeletesFile() async {
+        stubDownload(
+            payload: Data("tampered".utf8), checksums: "\(sha256Hex(Data("genuine".utf8)))  kinhin-0.2.0-arm64.dmg\n")
+        do {
+            _ = try await makeChecker().downloadDMG(makeInfo())
+            XCTFail("a mismatching download must throw")
+        } catch let error as UpdateCheckError {
+            XCTAssertEqual(error, .checksumMismatch("kinhin-0.2.0-arm64.dmg"))
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+        let leftover = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "kinhin-update-kinhin-0.2.0-arm64.dmg")
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: leftover.path), "unverified installer must not stay on disk")
+    }
+
+    func testDownloadFailsClosedWithoutChecksumsAsset() async {
+        stubDownload(payload: Data("bytes".utf8), checksums: "")
+        do {
+            _ = try await makeChecker().downloadDMG(makeInfo(withChecksums: false))
+            XCTFail("a release without checksums must not be installable")
+        } catch let error as UpdateCheckError {
+            XCTAssertEqual(error, .noChecksum("kinhin-0.2.0-arm64.dmg"))
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
+    func testDownloadFailsClosedWhenChecksumsHasNoEntryForTheDMG() async {
+        stubDownload(payload: Data("bytes".utf8), checksums: "abcd  install.sh\n")
+        do {
+            _ = try await makeChecker().downloadDMG(makeInfo())
+            XCTFail("a missing entry must not be treated as verified")
+        } catch let error as UpdateCheckError {
+            XCTAssertEqual(error, .noChecksum("kinhin-0.2.0-arm64.dmg"))
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
+    func testExpectedChecksumParsingHandlesBinaryMarkerAndCase() {
+        let text = "ABCDEF  other.zip\n1234ab *kinhin-0.2.0-arm64.dmg\n"
+        XCTAssertEqual(UpdateChecker.expectedChecksum(for: "kinhin-0.2.0-arm64.dmg", in: text), "1234ab")
+        XCTAssertEqual(UpdateChecker.expectedChecksum(for: "other.zip", in: text), "abcdef")
+        XCTAssertNil(UpdateChecker.expectedChecksum(for: "missing.dmg", in: text))
+    }
+
+    func testFetchLatestReleaseCapturesChecksumsAsset() async throws {
+        StubProtocol.handler = { _ in
+            (200, self.releaseJSON(tag: "v0.2.0", assets: ["kinhin-0.2.0-arm64.dmg", "checksums.txt"]), [:])
+        }
+        let info = try await makeChecker().fetchLatestRelease()
+        XCTAssertEqual(info.checksumsURL?.lastPathComponent, "checksums.txt")
     }
 }

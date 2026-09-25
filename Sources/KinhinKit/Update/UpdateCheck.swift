@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Everything the UI needs to know about the latest GitHub release.
@@ -6,17 +7,21 @@ public struct UpdateInfo: Equatable, Sendable {
     public let version: String  // "1.2.3" without the leading "v"
     public let dmgName: String
     let dmgURL: URL
+    /// The release's `checksums.txt` asset; nil when the release has none.
+    let checksumsURL: URL?
     let releaseURL: URL
     let publishedAt: Date?
     let notes: String?
 
     public init(
-        tag: String, version: String, dmgName: String, dmgURL: URL, releaseURL: URL, publishedAt: Date?, notes: String?
+        tag: String, version: String, dmgName: String, dmgURL: URL, checksumsURL: URL? = nil, releaseURL: URL,
+        publishedAt: Date?, notes: String?
     ) {
         self.tag = tag
         self.version = version
         self.dmgName = dmgName
         self.dmgURL = dmgURL
+        self.checksumsURL = checksumsURL
         self.releaseURL = releaseURL
         self.publishedAt = publishedAt
         self.notes = notes
@@ -34,6 +39,8 @@ enum UpdateCheckError: LocalizedError, Equatable {
     case noDMGAsset(String)
     case http(Int, String)
     case decoding(String)
+    case noChecksum(String)
+    case checksumMismatch(String)
 
     public var errorDescription: String? {
         switch self {
@@ -45,6 +52,10 @@ enum UpdateCheckError: LocalizedError, Equatable {
             return "Update check HTTP \(code): \(body)"
         case .decoding(let why):
             return "Could not decode release info: \(why)"
+        case .noChecksum(let name):
+            return "Release has no checksum for \(name); refusing to install an unverified update"
+        case .checksumMismatch(let name):
+            return "Downloaded \(name) does not match the release checksum; the file was discarded"
         }
     }
 }
@@ -111,7 +122,10 @@ public struct UpdateChecker: Sendable {
         guard repo.split(separator: "/").count == 2 else {
             throw UpdateCheckError.notFound(repo)
         }
-        var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!)
+        guard let releaseURL = URL(string: "https://api.github.com/repos/\(repo)/releases/latest") else {
+            throw UpdateCheckError.notFound(repo)
+        }
+        var req = URLRequest(url: releaseURL)
         req.httpMethod = "GET"
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("Kinhin/1.0 (update-check)", forHTTPHeaderField: "User-Agent")
@@ -164,6 +178,7 @@ public struct UpdateChecker: Sendable {
             version: version,
             dmgName: dmg.name,
             dmgURL: dmg.browser_download_url,
+            checksumsURL: release.assets.first(where: { $0.name == "checksums.txt" })?.browser_download_url,
             releaseURL: release.html_url,
             publishedAt: release.published_at,
             notes: release.body
@@ -185,7 +200,53 @@ public struct UpdateChecker: Sendable {
             throw UpdateCheckError.http(http.statusCode, "downloading \(info.dmgName)")
         }
         try FileManager.default.moveItem(at: location, to: temp)
+        do {
+            try await verifyChecksum(of: temp, named: info.dmgName, checksumsURL: info.checksumsURL)
+        } catch {
+            // Never leave an unverified (or tampered) installer on disk.
+            bestEffort("update", "remove unverified download") { try FileManager.default.removeItem(at: temp) }
+            throw error
+        }
         return temp
+    }
+
+    /// Compares the file's SHA-256 with its line in the release's
+    /// `checksums.txt` (`shasum -a 256` format). Fails closed: a release
+    /// without a checksum entry is not installable through the updater.
+    func verifyChecksum(of file: URL, named name: String, checksumsURL: URL?) async throws {
+        guard let checksumsURL else { throw UpdateCheckError.noChecksum(name) }
+        let (data, response) = try await session.data(from: checksumsURL)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw UpdateCheckError.http(http.statusCode, "downloading checksums.txt")
+        }
+        guard let expected = Self.expectedChecksum(for: name, in: String(decoding: data, as: UTF8.self)) else {
+            throw UpdateCheckError.noChecksum(name)
+        }
+        guard try Self.sha256Hex(of: file) == expected else {
+            throw UpdateCheckError.checksumMismatch(name)
+        }
+    }
+
+    /// Finds `name` in `shasum` output ("<hex>  <name>", optional `*` binary
+    /// marker) and returns its lowercase digest.
+    static func expectedChecksum(for name: String, in text: String) -> String? {
+        for line in text.split(whereSeparator: \.isNewline) {
+            let fields = line.split(maxSplits: 1, whereSeparator: \.isWhitespace)
+            guard fields.count == 2 else { continue }
+            let entry = fields[1].trimmingCharacters(in: .whitespaces)
+            if entry == name || entry == "*" + name { return fields[0].lowercased() }
+        }
+        return nil
+    }
+
+    static func sha256Hex(of file: URL) throws -> String {
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }  // read-only handle: a failed close loses nothing
+        var hasher = SHA256()
+        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }
 

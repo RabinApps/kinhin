@@ -155,7 +155,7 @@ final class ForgeTests: XCTestCase {
             instance: "https://gitea.example.com", token: "T", labels: ["macos:host"], name: "kinhin-1"
         )
         XCTAssertTrue(script.contains("--no-interactive"))
-        XCTAssertTrue(script.contains("--instance https://gitea.example.com"))
+        XCTAssertTrue(script.contains("--instance 'https://gitea.example.com'"))
         XCTAssertTrue(script.contains("--token 'T'"))
         XCTAssertTrue(script.contains("--name 'kinhin-1'"))
         XCTAssertTrue(script.contains("--labels 'macos:host'"))

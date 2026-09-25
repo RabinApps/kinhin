@@ -12,7 +12,7 @@ final class RunnerBootstrapTests: XCTestCase {
             ephemeral: true,
             name: "kinhin-1"
         )
-        XCTAssertTrue(script.contains("--url https://github.com/acme/widgets"))
+        XCTAssertTrue(script.contains("--url 'https://github.com/acme/widgets'"))
         XCTAssertTrue(script.contains("SECRET"))
         XCTAssertTrue(script.contains("--labels 'macos,kinhin'"))
         XCTAssertTrue(script.contains("--name 'kinhin-1'"))

@@ -68,6 +68,13 @@ jobs:
             echo "NOTARY_ISSUER_ID=$NOTARY_ISSUER_ID"
           } >> "$GITHUB_ENV"
 
+      # Version.swift is the single source: stamp it from the tag so the CLI,
+      # the app and the bundle metadata all report the released version.
+      - name: Stamp version
+        run: |
+          sed -i '' "s/current = \".*\"/current = \"${{ steps.ver.outputs.version }}\"/" Sources/KinhinKit/Core/Version.swift
+          grep 'current = ' Sources/KinhinKit/Core/Version.swift
+
       - name: Build, sign and notarize DMG
         timeout-minutes: 40
         env:
@@ -96,6 +103,8 @@ jobs:
           hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet
           trap 'hdiutil detach "$MOUNT" -quiet || true' EXIT
           codesign --verify --deep --strict --verbose=2 "$MOUNT/kinhin.app"
+          reported="$("$MOUNT/kinhin.app/Contents/Resources/bin/kinhin" version)"
+          [ "$reported" = "kinhin $VERSION" ] || { echo "::error::CLI reports '$reported', expected 'kinhin $VERSION'"; exit 1; }
           spctl -a -vv -t exec "$MOUNT/kinhin.app"
 
       - name: Stage installer

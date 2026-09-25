@@ -182,12 +182,12 @@ extension RunnerBootstrap {
                   cp -a /opt/actions-runner/. "\(dir)" 2>/dev/null || true
                 fi
                 if [ -f .runner ]; then
-                  ./config.sh remove --token '\(token)' >/dev/null 2>&1 || true
+                  ./config.sh remove --token \(shellQuote(token)) >/dev/null 2>&1 || true
                 fi
-                ./config.sh --url \(configureURL) \\
-                            --token '\(token)' \\
-                            --labels '\(labelList)' \\
-                            --name '\(runnerName)' \\
+                ./config.sh --url \(shellQuote(configureURL)) \\
+                            --token \(shellQuote(token)) \\
+                            --labels \(shellQuote(labelList)) \\
+                            --name \(shellQuote(runnerName)) \\
                             --unattended \\
                             --replace \\
                             \(ephemeralFlag)--work /opt/work-\(index) >/dev/null
@@ -221,10 +221,10 @@ extension RunnerBootstrap {
                 fi
                 rm -f .runner
                 ./gitea-runner register --no-interactive \\
-                  --instance \(instance) \\
-                  --token '\(token)' \\
-                  --name '\(runnerName)' \\
-                  --labels '\(labelList)' >/dev/null
+                  --instance \(shellQuote(instance)) \\
+                  --token \(shellQuote(token)) \\
+                  --name \(shellQuote(runnerName)) \\
+                  --labels \(shellQuote(labelList)) >/dev/null
                 nohup ./gitea-runner daemon > daemon-\(index).log 2>&1 &
 
                 """

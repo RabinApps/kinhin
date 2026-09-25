@@ -3,7 +3,14 @@
 # Usage: scripts/build-app.sh [output-dir]
 set -euo pipefail
 
-VERSION="${KINHIN_VERSION:-0.1.0}"
+# Single source of truth: Sources/KinhinKit/Core/Version.swift. Release CI
+# stamps that file from the tag, so the binaries and the bundle agree.
+SOURCE_VERSION="$(sed -n 's/.*current = "\(.*\)".*/\1/p' Sources/KinhinKit/Core/Version.swift)"
+if [ -z "$SOURCE_VERSION" ]; then
+    echo "FATAL: could not read the version from Sources/KinhinKit/Core/Version.swift" >&2
+    exit 1
+fi
+VERSION="${KINHIN_VERSION:-$SOURCE_VERSION}"
 OUT_DIR="${1:-dist}"
 APP="$OUT_DIR/kinhin.app"
 CONFIGURATION="${CONFIGURATION:-release}" # lowercase: debug|release
