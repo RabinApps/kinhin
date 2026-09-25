@@ -334,7 +334,7 @@ final class AuthCommandTests: XCTestCase {
 
         await expectFailure(
             ["auth", "frobnicate"],
-            message: "unknown auth subcommand 'frobnicate' (use set|status|clear)",
+            message: "unknown auth subcommand 'frobnicate' (use set|status|clear|list|add|remove)",
             environment: env
         )
     }
@@ -348,7 +348,7 @@ final class AuthCommandTests: XCTestCase {
 
         await expectFailure(
             ["auth", "--token", "ghp_x"],
-            message: "unknown auth subcommand '--token' (use set|status|clear)",
+            message: "unknown auth subcommand '--token' (use set|status|clear|list|add|remove)",
             environment: env
         )
         XCTAssertTrue(recorder.saved.isEmpty)
