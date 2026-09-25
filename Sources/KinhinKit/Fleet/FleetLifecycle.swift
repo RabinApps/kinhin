@@ -66,10 +66,10 @@ extension FleetEngine {
             // adopted VMs. The runtime produces the right script flavor
             // (macOS VM scripts vs Linux container scripts) for its id.
             updateRecord(id) { $0.phase = .registering }
-            let platform = ForgeID(rawValue: store.all.first { $0.id == id }?.platform ?? "") ?? .github
-            guard let forge = forgesLock.withLock({ forgesByPlatform[platform.rawValue] }) else {
+            let account = store.all.first { $0.id == id }?.platform ?? ForgeID.github.rawValue
+            guard let forge = forgesLock.withLock({ forgesByPlatform[account] }) else {
                 throw EngineError.registrationFailed(
-                    vm: id, stderr: "no \(platform.rawValue) forge attached (missing token?)")
+                    vm: id, stderr: "no \(account) forge attached (missing token?)")
             }
             let runnerCount = max(1, config.runnersPerVM)
             let result: ShellResult
@@ -77,11 +77,11 @@ extension FleetEngine {
             // forge and executes it through its own transport (SSH for VMs,
             // exec for containers) — the engine is transport-agnostic.
             let token: String
-            switch platform {
+            switch forge.id {
             case .github:
-                token = try await registrationTokens.token { [self] in
-                    let t = try await github.fetchRegistrationToken()
-                    return t.token
+                // Registration tokens expire hourly; each account has its own cache.
+                token = try await registrationCache(for: account).token {
+                    try await forge.mintRegistrationToken()
                 }
             case .gitea:
                 guard let giteaForge = forge as? GiteaForge else {
@@ -106,11 +106,11 @@ extension FleetEngine {
 
             // If ephemeral, watch until the runner deregisters itself, then delete.
             if config.vm.ephemeral {
-                switch platform {
+                switch forge.id {
                 case .github:
-                    try await awaitEphemeralExit(id: id, ip: ip)
+                    try await awaitEphemeralExit(id: id, ip: ip, forge: forge)
                 case .gitea:
-                    try await awaitGiteaExit(id: id, ip: ip)
+                    try await awaitGiteaExit(id: id, ip: ip, forge: forge)
                 }
             }
         } catch is CancellationError {
@@ -133,7 +133,7 @@ extension FleetEngine {
     /// signal; after a short grace period (in case the next task is already
     /// dispatching) the VM is deleted. Runners that never register trip the
     /// registration timeout, exactly like the GitHub path.
-    func awaitGiteaExit(id: String, ip: String?) async throws {
+    func awaitGiteaExit(id: String, ip: String?, forge: Forge? = nil) async throws {
         let runnerCount = max(1, config.runnersPerVM)
         let expected: [String] =
             runnerCount == 1
@@ -147,7 +147,7 @@ extension FleetEngine {
         while Date() < deadline {
             try Task.checkCancellation()
             let all: [ForgeRunner]
-            if let forge = forgesLock.withLock({ forgesByPlatform["gitea"] }) {
+            if let forge = forge ?? forgesLock.withLock({ forgesByPlatform["gitea"] }) {
                 do {
                     all = try await forge.runners()
                 } catch {
@@ -206,14 +206,20 @@ extension FleetEngine {
     /// registered at least once and NONE remain — partial deregistration
     /// (one runner's job finished) keeps the VM alive for the others. Runners
     /// that never register trip the registration timeout instead.
-    func awaitEphemeralExit(id: String, ip: String?) async throws {
+    func awaitEphemeralExit(id: String, ip: String?, forge: Forge? = nil) async throws {
         let runnerCount = max(1, config.runnersPerVM)
         let expected: [String] =
             runnerCount == 1
             ? [id]
             : (1...runnerCount).map { "\(id)-r\($0)" }
-        func current(_ runners: [GHRunner]) -> [GHRunner] {
+        func current(_ runners: [ForgeRunner]) -> [ForgeRunner] {
             runners.filter { expected.contains($0.name) }
+        }
+        /// The record's own account when known; the legacy client otherwise
+        /// (tests and adopted VMs).
+        func listRunners() async throws -> [ForgeRunner] {
+            if let forge { return try await forge.runners() }
+            return try await github.listRunners().map { ForgeRunner(id: $0.id, name: $0.name, busy: $0.busy) }
         }
 
         let deadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 3600 * 6)))
@@ -222,7 +228,7 @@ extension FleetEngine {
         var seen: Set<String> = []
         while Date() < deadline {
             try Task.checkCancellation()
-            let mine = current(try await github.listRunners())
+            let mine = current(try await listRunners())
             for runner in mine {
                 seen.insert(runner.name)
             }

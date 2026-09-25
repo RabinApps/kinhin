@@ -96,7 +96,8 @@ public struct ConfigLoader {
             }
             guard !AccountConfig.reservedNames.contains(name) else {
                 throw ConfigError.invalid(
-                    "\(position).name '\(name)' is reserved for the top-level repo:/gitea: sections — pick another name")
+                    "\(position).name '\(name)' is reserved for the top-level repo:/gitea: sections — pick another name"
+                )
             }
             guard seen.insert(name).inserted else {
                 throw ConfigError.invalid("duplicate account name '\(name)'")
@@ -115,7 +116,8 @@ public struct ConfigLoader {
                 result.append(AccountConfig(name: name, forge: forge, scope: scope))
             case .gitea:
                 guard let instance = entry.instance, !instance.isEmpty else {
-                    throw ConfigError.invalid("account '\(name)': instance is required (e.g. https://gitea.example.com)")
+                    throw ConfigError.invalid(
+                        "account '\(name)': instance is required (e.g. https://gitea.example.com)")
                 }
                 do {
                     _ = try GiteaCredentials.validate(instance: instance)
@@ -126,7 +128,8 @@ public struct ConfigLoader {
                 if let labels = entry.labels, labels.isEmpty {
                     throw ConfigError.invalid("account '\(name)': labels must be non-empty when present")
                 }
-                result.append(AccountConfig(name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels))
+                result.append(
+                    AccountConfig(name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels))
             }
         }
         return result

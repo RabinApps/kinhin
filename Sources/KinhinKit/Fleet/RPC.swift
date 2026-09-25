@@ -10,6 +10,8 @@ public enum RPCMethod: String, Codable, Sendable {
     case deleteVM = "delete_vm"
     case replaceToken = "replace_token"
     case replaceGiteaToken = "replace_gitea_token"
+    /// Swap the token of one named account (multi-account configs).
+    case replaceAccountToken = "replace_account_token"
     /// Reload the routing config from disk (the Runtimes pane's edit hook).
     case reloadConfig = "reload_config"
     case logs
@@ -26,6 +28,16 @@ struct TokenReplaceRequest: Codable, Sendable, Equatable {
 struct GiteaTokenReplaceRequest: Codable, Sendable, Equatable {
     public let token: String
     public init(token: String) { self.token = token }
+}
+
+/// Payload for `replace_account_token`: swaps one account's token.
+struct AccountTokenReplaceRequest: Codable, Sendable, Equatable {
+    public let account: String
+    public let token: String
+    public init(account: String, token: String) {
+        self.account = account
+        self.token = token
+    }
 }
 
 struct RPCRequest: Codable, Sendable, Equatable {
@@ -248,6 +260,17 @@ public struct RPCClient: Sendable {
     public func replaceGiteaToken(_ token: String) throws -> Bool {
         let payload = try JSONEncoder().encode(GiteaTokenReplaceRequest(token: token))
         let response = try send(method: .replaceGiteaToken, payload: payload)
+        guard response.ok else {
+            throw RPCError.rejected(response.error ?? "unknown error")
+        }
+        return true
+    }
+
+    /// Ask the daemon to swap one account's token (already in the Keychain).
+    @discardableResult
+    public func replaceAccountToken(account: String, token: String) throws -> Bool {
+        let payload = try JSONEncoder().encode(AccountTokenReplaceRequest(account: account, token: token))
+        let response = try send(method: .replaceAccountToken, payload: payload)
         guard response.ok else {
             throw RPCError.rejected(response.error ?? "unknown error")
         }

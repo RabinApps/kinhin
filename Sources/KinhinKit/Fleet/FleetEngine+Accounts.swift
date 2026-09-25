@@ -1,0 +1,132 @@
+import Foundation
+
+// FleetEngine — the additional `accounts:` forges. The legacy `repo:` and
+// `gitea:` sections keep their dedicated paths (accounts "github"/"gitea");
+// every explicit account is attached here, keyed by its name in
+// `forgesByPlatform`, so `VMRecord.platform` and the demand maps carry the
+// account name for all of them.
+extension FleetEngine {
+    /// Explicit accounts without an attached forge (never attached yet, or
+    /// dropped after a failed verification) — the retry loop's work list.
+    func detachedAccounts() -> [AccountConfig] {
+        forgesLock.withLock { config.accounts.filter { forgesByPlatform[$0.name] == nil } }
+    }
+
+    /// The registration-token cache for an account. The legacy GitHub
+    /// account keeps the engine's original cache.
+    func registrationCache(for account: String) -> RegistrationTokenCache {
+        if account == ForgeID.github.rawValue { return registrationTokens }
+        return forgesLock.withLock {
+            if let cache = accountRegistrationTokens[account] { return cache }
+            let cache = RegistrationTokenCache(ttl: TimeInterval(config.tokenTTL))
+            accountRegistrationTokens[account] = cache
+            return cache
+        }
+    }
+
+    /// Drop every cached registration token (they were minted under the old
+    /// tokens' authority).
+    func invalidateRegistrationTokens() {
+        registrationTokens.invalidate()
+        let caches = forgesLock.withLock { Array(accountRegistrationTokens.values) }
+        for cache in caches { cache.invalidate() }
+    }
+
+    /// Attach every explicit account that isn't attached yet. One failing
+    /// account (no token, bad scope, unreachable instance) is logged and
+    /// surfaced in `lastError` without affecting the others.
+    func attachAccountsIfNeeded() async {
+        for account in detachedAccounts() {
+            guard let token = tokenLoader(account.forge, account.name) else {
+                let message =
+                    "account '\(account.name)' has no token stored — run: kinhin auth set --account \(account.name)"
+                Log.error("engine", message)
+                await statusBox.modify { $0.lastError = message }
+                continue
+            }
+            await attach(account: account, token: token, verify: true)
+        }
+    }
+
+    /// Build and register the forge for one account.
+    @discardableResult
+    func attach(account: AccountConfig, token: String, verify: Bool) async -> Bool {
+        do {
+            let forge: Forge
+            switch account.forge {
+            case .github:
+                let credentials = GitHubCredentials(token: token, scope: account.scope)
+                let client = githubFactory.make(credentials)
+                if verify {
+                    let verification = await OrgPermissionProbe.verify(github: client, scope: account.scope)
+                    guard verification.ok else {
+                        throw AccountAttachError.unverified(verification.message)
+                    }
+                }
+                forge = GitHubForge(
+                    credentials: .github(token: token, scope: account.scope), labels: config.labels, client: client,
+                    account: account.name)
+            case .gitea:
+                guard let instance = account.instance else {
+                    throw AccountAttachError.unverified("no instance URL configured")
+                }
+                forge = try await GiteaForge.make(
+                    credentials: GiteaCredentials(token: token, scope: account.scope, instance: instance),
+                    labels: account.labels ?? ["macos:host"],
+                    demandFloor: config.minRunners,
+                    account: account.name
+                )
+            }
+            forgesLock.withLock { forgesByPlatform[account.name] = forge }
+            registrationCache(for: account.name).invalidate()
+            Log.info("engine", "account '\(account.name)' attached (\(account.forge.rawValue): \(account.scope))")
+            await statusBox.modify {
+                if $0.lastError?.hasPrefix("account '\(account.name)'") == true { $0.lastError = nil }
+            }
+            return true
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            Log.error("engine", "account '\(account.name)' unavailable: \(message)")
+            await statusBox.modify { $0.lastError = "account '\(account.name)': \(message)" }
+            return false
+        }
+    }
+
+    /// Swap one account's token live. The legacy accounts route to their
+    /// dedicated methods; an unknown account is ignored with a warning.
+    public func replaceToken(account name: String, token: String) async {
+        switch name {
+        case ForgeID.github.rawValue:
+            await replaceCredentials(pat: token)
+        case ForgeID.gitea.rawValue:
+            await replaceGiteaToken(token)
+        default:
+            guard let account = config.accounts.first(where: { $0.name == name }) else {
+                Log.warn("engine", "token replaced for unknown account '\(name)' — ignoring")
+                return
+            }
+            await attach(account: account, token: token, verify: false)
+        }
+    }
+
+    /// True when any attached GitHub forge is org-scoped (an org fleet
+    /// reports a per-repo breakdown; single-repo scopes suppress it).
+    var githubOrgScoped: Bool {
+        forgesLock.withLock {
+            forgesByPlatform.values.contains { forge in
+                guard case .github(_, let scope) = forge.credentials else { return false }
+                return !scope.contains("/")
+            }
+        }
+    }
+}
+
+enum AccountAttachError: LocalizedError {
+    case unverified(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .unverified(let reason): return reason
+        }
+    }
+}

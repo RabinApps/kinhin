@@ -98,11 +98,11 @@ extension FleetEngine {
         // verified in attachGiteaForgeIfNeeded), so VMs are never assigned
         // to a platform the user hasn't authorized.
         var queueDepth = 0
-        var demandByForge: [ForgeID: Int] = [:]
+        var demandByForge: [String: Int] = [:]
         var demandByPool: [RuntimeID: Int] = [:]
         let attached = forgesLock.withLock { Array(forgesByPlatform.values) }
         if !pausedNow {
-            var perForgeJobs: [ForgeID: (attribution: Bool, jobs: [ForgeJob])] = [:]
+            var perForgeJobs: [String: (attribution: Bool, jobs: [ForgeJob])] = [:]
             for forge in attached {
                 do {
                     let jobs = try await forge.queuedJobs()
@@ -113,8 +113,8 @@ extension FleetEngine {
                         case .github(_, let s): s
                         case .gitea(_, let s, _): s
                         }
-                    perForgeJobs[forge.id] = (!scope.contains("/"), jobs)
-                    demandByForge[forge.id] = jobs.count
+                    perForgeJobs[forge.account] = (!scope.contains("/"), jobs)
+                    demandByForge[forge.account] = jobs.count
                     queueDepth += jobs.count
                     // Stage 2: bucket the same jobs into label pools so the
                     // spawn loop can pick the right runtime per instance.
@@ -135,12 +135,19 @@ extension FleetEngine {
 
             // Stamp each VM with the repos of the jobs its runners are
             // currently executing (attribution where the forge exposes it).
+            // Running attribution merges every GitHub account's jobs: runner
+            // names are VM ids, so one pass stamps each VM whichever account
+            // it serves. A failed account is skipped, but if none answered
+            // the stamps are left as they were.
+            var runningGitHub: [RunningJob] = []
+            var answered = false
             for forge in attached {
                 do {
                     let running = try await forge.runningJobs()
                     if forge.id == .github {
-                        await applyRunningAttribution(
-                            running.map {
+                        answered = true
+                        runningGitHub.append(
+                            contentsOf: running.map {
                                 RunningJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
                             })
                     }
@@ -150,6 +157,7 @@ extension FleetEngine {
                     Log.warn("engine", "could not fetch \(forge.name) running jobs: \(error)")
                 }
             }
+            if answered { await applyRunningAttribution(runningGitHub) }
         } else {
             // Paused: clear attribution so stale repos don't linger.
             await statusBox.modify { $0.runningByRepo = nil }
@@ -194,12 +202,12 @@ extension FleetEngine {
             // attached forges are candidates — and forges only attach when
             // their platform's token exists, so a VM is never assigned a
             // platform the user has no credential for.
-            let assigned = ForgeDemand.assignPlatform(
+            let assigned = ForgeDemand.assignAccount(
                 demand: demandByForge,
                 active: activeByPlatform(),
-                attached: Set(attached.map(\.id))
+                attached: Set(attached.map(\.account))
             )
-            record.platform = assigned.rawValue
+            record.platform = assigned
             // Per-VM runtime assignment: the label pool with the most unmet
             // demand, within its capacity partition. Single-pool fleets
             // reduce to the primary runtime with the fleet cap.
@@ -236,12 +244,13 @@ extension FleetEngine {
         }
     }
 
-    /// Active VM counts by assigned platform.
-    func activeByPlatform() -> [ForgeID: Int] {
-        var counts: [ForgeID: Int] = [:]
+    /// Active VM counts by assigned account (`VMRecord.platform` holds the
+    /// account name; the legacy accounts are "github" and "gitea").
+    func activeByPlatform() -> [String: Int] {
+        var counts: [String: Int] = [:]
         for record in store.all where record.phase.isActive {
-            guard let platform = record.platform, let forge = ForgeID(rawValue: platform) else { continue }
-            counts[forge, default: 0] += 1
+            guard let account = record.platform else { continue }
+            counts[account, default: 0] += 1
         }
         return counts
     }
@@ -302,7 +311,7 @@ extension FleetEngine {
     /// single-repo fleet's breakdown carries no information (nil), while an
     /// org fleet always reports a map — empty when the API omitted repos.
     func attributionByRepo(_ repos: [String?]) -> [String: Int]? {
-        guard !config.repo.contains("/") else { return nil }
+        guard githubOrgScoped else { return nil }
         return Dictionary(grouping: repos.compactMap { $0 }, by: { $0 }).mapValues(\.count)
     }
 
@@ -313,7 +322,7 @@ extension FleetEngine {
     /// Repo scope stamps the job name only — the repo breakdown would carry
     /// no information there (mirrors `queueByRepo` suppression).
     func applyRunningAttribution(_ running: [RunningJob]) async {
-        let isOrgScope = !config.repo.contains("/")
+        let isOrgScope = githubOrgScoped
 
         // Map runner name → VM id. Single-runner VMs register under the VM
         // id itself; multi-runner VMs register as "<vmid>-r1…rN".

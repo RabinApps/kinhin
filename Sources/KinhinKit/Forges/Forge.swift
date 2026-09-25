@@ -31,6 +31,10 @@ public protocol Forge: Sendable {
     /// Human label for status lines ("github", "gitea").
     var name: String { get }
     var credentials: ForgeCredentials { get }
+    /// The account this forge serves: "github"/"gitea" for the legacy
+    /// `repo:`/`gitea:` sections, else the `accounts:` entry's name. Keys the
+    /// engine's forge map and `VMRecord.platform`.
+    var account: String { get }
     /// Labels the fleet matches jobs against on this forge.
     var labels: [String] { get }
 
@@ -46,6 +50,10 @@ public protocol Forge: Sendable {
     func queuedJobs() async throws -> [ForgeJob]
     /// Jobs currently executing (runner_name keyed), for running attribution.
     func runningJobs() async throws -> [ForgeJob]
+}
+
+extension Forge {
+    public var account: String { id.rawValue }
 }
 
 /// Forge-agnostic runner snapshot.
@@ -91,14 +99,16 @@ enum VMPlatform: String, Codable, Sendable {
 struct GitHubForge: Forge {
     public let id: ForgeID = .github
     public let name = "github"
+    public let account: String
     public let credentials: ForgeCredentials
     public let labels: [String]
     let client: GitHubServing
 
-    public init(credentials: ForgeCredentials, labels: [String], client: GitHubServing) {
+    public init(credentials: ForgeCredentials, labels: [String], client: GitHubServing, account: String = "github") {
         self.credentials = credentials
         self.labels = labels
         self.client = client
+        self.account = account
     }
 
     /// Build from a GitHubCredentials (the legacy single-forge path).
@@ -151,6 +161,7 @@ struct GitHubForge: Forge {
 struct GiteaForge: Forge {
     public let id: ForgeID = .gitea
     public let name = "gitea"
+    public let account: String
     public let credentials: ForgeCredentials
     public let labels: [String]
     let client: GiteaClient
@@ -162,8 +173,9 @@ struct GiteaForge: Forge {
 
     public init(
         credentials: ForgeCredentials, labels: [String], client: GiteaClient, demandFloor: Int = 0,
-        registrationToken: String
+        registrationToken: String, account: String = "gitea"
     ) {
+        self.account = account
         self.credentials = credentials
         self.labels = labels
         self.client = client
@@ -173,7 +185,9 @@ struct GiteaForge: Forge {
 
     /// Builds the forge from credentials, resolving the registration token
     /// up front (the same call the permission probe uses — fail fast here).
-    public static func make(credentials: GiteaCredentials, labels: [String], demandFloor: Int = 0) async throws
+    public static func make(
+        credentials: GiteaCredentials, labels: [String], demandFloor: Int = 0, account: String = "gitea"
+    ) async throws
         -> GiteaForge
     {
         let client = GiteaClient(credentials: credentials)
@@ -183,7 +197,8 @@ struct GiteaForge: Forge {
             labels: labels,
             client: client,
             demandFloor: demandFloor,
-            registrationToken: token
+            registrationToken: token,
+            account: account
         )
     }
 
@@ -272,6 +287,17 @@ enum ForgeDemand {
     /// forge carries `attribution: Bool` — a repo-scoped forge suppresses its
     /// breakdown (it would carry no information), org-scoped forges keep it.
     static func mergeQueueByRepo(_ perForge: [ForgeID: (attribution: Bool, jobs: [ForgeJob])]) -> [String: Int]? {
+        merge(perForge)
+    }
+
+    /// Account-keyed variant (the engine keys demand by account name).
+    static func mergeQueueByRepo(_ perForge: [String: (attribution: Bool, jobs: [ForgeJob])]) -> [String: Int]? {
+        merge(perForge)
+    }
+
+    private static func merge<Key: Hashable>(_ perForge: [Key: (attribution: Bool, jobs: [ForgeJob])])
+        -> [String: Int]?
+    {
         var merged: [String: Int] = [:]
         var any = false
         for (forge, entry) in perForge where entry.attribution {
@@ -302,6 +328,27 @@ enum ForgeDemand {
             if unmet > bestUnmet {
                 bestUnmet = unmet
                 best = forge
+            }
+        }
+        return best
+    }
+
+    /// Account-keyed variant of `assignPlatform`: the account with the
+    /// largest unmet demand wins; ties prefer the legacy `github` account,
+    /// then alphabetical order. With nothing attached it returns "github".
+    static func assignAccount(demand: [String: Int], active: [String: Int], attached: Set<String>) -> String {
+        var best = ForgeID.github.rawValue
+        var bestUnmet = Int.min
+        let ordered = attached.sorted { a, b in
+            if a == ForgeID.github.rawValue { return true }
+            if b == ForgeID.github.rawValue { return false }
+            return a < b
+        }
+        for account in ordered {
+            let unmet = (demand[account] ?? 0) - (active[account] ?? 0)
+            if unmet > bestUnmet {
+                bestUnmet = unmet
+                best = account
             }
         }
         return best

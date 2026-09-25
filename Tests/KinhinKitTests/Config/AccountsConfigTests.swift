@@ -83,7 +83,8 @@ final class AccountsConfigTests: XCTestCase {
             """)
         XCTAssertNil(ConfigLoader.engineToken(for: cfg, load: { _ in nil }, loadAccount: { _, _ in nil }))
         XCTAssertEqual(
-            ConfigLoader.engineToken(for: cfg, load: { _ in nil }, loadAccount: { _, name in name == "work" ? "t" : nil }),
+            ConfigLoader.engineToken(
+                for: cfg, load: { _ in nil }, loadAccount: { _, name in name == "work" ? "t" : nil }),
             "")
     }
 }

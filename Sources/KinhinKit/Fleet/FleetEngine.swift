@@ -19,6 +19,12 @@ public final class FleetEngine {
     /// forgesLock. The v1 wiring carries exactly the GitHub forge.
     let forgesLock = NSLock()
     var forgesByPlatform: [String: Forge] = [:]
+    /// Registration-token caches for explicit GitHub accounts (guarded by
+    /// forgesLock); the legacy account uses `registrationTokens`.
+    var accountRegistrationTokens: [String: RegistrationTokenCache] = [:]
+    /// Resolves an account's token (forge, account name). Keychain in
+    /// production; tests inject their own.
+    var tokenLoader: @Sendable (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
 
     /// The API client in use. Swapped atomically by replaceCredentials.
     public var github: GitHubServing { credentialsLock.withLock { githubInstance } }
@@ -245,13 +251,14 @@ public final class FleetEngine {
             }
         }
         await attachGiteaForgeIfNeeded()
+        await attachAccountsIfNeeded()
         let attachedCount = forgesLock.withLock { forgesByPlatform.count }
         guard attachedCount > 0 else {
             let giteaProblem = await statusBox.get().lastError
             let message =
                 githubProblem
                 ?? giteaProblem
-                ?? "no forge configured — set a GitHub repo or a gitea: section"
+                ?? "no forge configured — set a GitHub repo, a gitea: section, or an accounts: list"
             Log.error("engine", "startup blocked: \(message)")
             await statusBox.modify {
                 $0.running = false
@@ -294,7 +301,7 @@ public final class FleetEngine {
         await statusBox.modify { $0.running = false }
         // A token replaced while stopped must not survive into the next run
         // via the cache (minted under the old PAT's authority).
-        registrationTokens.invalidate()
+        invalidateRegistrationTokens()
         await pauseAllVMs()
     }
 
@@ -439,7 +446,7 @@ public final class FleetEngine {
             return tasks
         }
         for task in tasks { task.cancel() }
-        registrationTokens.invalidate()
+        invalidateRegistrationTokens()
         // Mirror the flag into the status snapshot (stop() does the same):
         // status().running must go false immediately, not at the next
         // reconcile pass (which is now cancelled).
@@ -496,12 +503,15 @@ public final class FleetEngine {
         // Fleet label edits must reach the forge's demand query too —
         // queuedJobs(matching:) filters by the forge's label set.
         forgesLock.withLock {
-            if let githubForge = forgesByPlatform["github"] as? GitHubForge {
-                forgesByPlatform["github"] = GitHubForge(
-                    credentials: githubForge.credentials,
-                    labels: newConfig.labels,
-                    client: githubForge.client
-                )
+            for (key, forge) in forgesByPlatform {
+                if let githubForge = forge as? GitHubForge {
+                    forgesByPlatform[key] = GitHubForge(
+                        credentials: githubForge.credentials,
+                        labels: newConfig.labels,
+                        client: githubForge.client,
+                        account: githubForge.account
+                    )
+                }
             }
         }
         let poolNames = model.pools.keys.map(\.rawValue).sorted().joined(separator: ", ")

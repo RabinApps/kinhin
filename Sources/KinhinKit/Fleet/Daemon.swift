@@ -44,7 +44,7 @@ public enum Daemon {
             throw error
         }
 
-        Log.info("daemon", "starting engine for \(cfg.repo)")
+        Log.info("daemon", "starting engine for \(cfg.allAccounts.map(\.name).joined(separator: ", "))")
         await engineRef.engine?.start()
         // The engine self-gates on runner permission (org PATs fail fast);
         // surface a blocked startup instead of idling silently.
@@ -163,6 +163,13 @@ public enum Daemon {
                     return RPCResponse(id: request.id, ok: false, error: "expected {\"token\": \"...\"}")
                 }
                 await engine.replaceGiteaToken(replacement.token)
+                return RPCResponse(id: request.id, ok: true)
+            case .replaceAccountToken:
+                guard let replacement = decodePayload(AccountTokenReplaceRequest.self) else {
+                    return RPCResponse(
+                        id: request.id, ok: false, error: "expected {\"account\": \"...\", \"token\": \"...\"}")
+                }
+                await engine.replaceToken(account: replacement.account, token: replacement.token)
                 return RPCResponse(id: request.id, ok: true)
             case .replaceToken:
                 guard let replacement = decodePayload(TokenReplaceRequest.self) else {

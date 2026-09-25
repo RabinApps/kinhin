@@ -42,7 +42,8 @@ extension FleetEngine {
                 now >= forgeRetry.nextAttempt
             )
         }
-        guard githubDetached || giteaDetached, ignoreBackoff || due else { return }
+        let accountsDetached = !detachedAccounts().isEmpty
+        guard githubDetached || giteaDetached || accountsDetached, ignoreBackoff || due else { return }
 
         if githubDetached { await retryGitHub() }
         if giteaDetached {
@@ -52,11 +53,15 @@ extension FleetEngine {
             }
         }
 
+        if accountsDetached { await attachAccountsIfNeeded() }
+
+        let accountsStillMissing = !detachedAccounts().isEmpty
         let stillMissing = forgesLock.withLock {
             forgeRetry.githubDetached || (config.gitea != nil && forgesByPlatform["gitea"] == nil)
         }
+        let anyMissing = stillMissing || accountsStillMissing
         forgesLock.withLock {
-            if stillMissing {
+            if anyMissing {
                 forgeRetry.backOff(now: now)
             } else {
                 forgeRetry.scheduleNext(after: ForgeRetryState.initialDelay, now: now)
