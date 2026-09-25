@@ -176,7 +176,7 @@ public struct DockerImagePreparer {
         while Date() < deadline {
             let probe = try await shell.run([dockerBin, "exec", id, "/bin/true"])
             if probe.succeeded { return }
-            try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+            try? await Task.sleep(for: .seconds(pollInterval))
         }
         throw ImageError.containerProvisioningFailed(
             "scratch container never became ready for exec within \(Int(timeout))s")

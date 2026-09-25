@@ -112,7 +112,7 @@ enum RunCommands {
                 print("\u{1B}[2J\u{1B}[H")
                 print("daemon not running…")
             }
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            try? await Task.sleep(for: .seconds(2))
         }
     }
 

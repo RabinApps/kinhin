@@ -74,7 +74,6 @@ public struct GHRunner: Codable, Sendable, Equatable {
     public let busy: Bool
     public let labels: [GHLabel]?
 
-    public var labelNames: [String] { labels?.map(\.name) ?? [] }
 }
 
 public struct GHJob: Codable, Sendable, Equatable {
@@ -212,7 +211,7 @@ public struct GitHubClient: GitHubServing {
         var lastError: Error = GitHubError.http(0, "no attempt made")
         while attempt <= retries {
             if attempt > 0 {
-                try await Task.sleep(nanoseconds: UInt64(min(8.0, pow(2, Double(attempt))) * 1_000_000_000))
+                try await Task.sleep(for: .seconds(min(8.0, pow(2, Double(attempt)))))
             }
             attempt += 1
             do {

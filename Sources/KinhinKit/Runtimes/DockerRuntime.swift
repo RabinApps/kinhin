@@ -197,7 +197,7 @@ public struct DockerRuntime: Runtime {
             if try await containerIDs(all: false).contains(id) {
                 return nil  // exec transport: no address to dial
             }
-            try await Task.sleep(nanoseconds: 1_000_000_000)
+            try await Task.sleep(for: .seconds(1))
         }
         throw RuntimeWatchError.registrationTimeout(vm: id)
     }

@@ -286,13 +286,6 @@ public enum ForgeDemand {
         return any ? merged : nil
     }
 
-    /// Merge running jobs into repo → count (same suppression rule).
-    public static func mergeRunningByRepo(_ perForge: [ForgeID: (attribution: Bool, jobs: [ForgeJob])]) -> [String:
-        Int]?
-    {
-        mergeQueueByRepo(perForge)
-    }
-
     /// Pick the platform for a new VM: the attached forge with the largest
     /// unmet demand (queued jobs minus VMs already serving it). Ties prefer
     /// GitHub (the original platform): it is evaluated first and later

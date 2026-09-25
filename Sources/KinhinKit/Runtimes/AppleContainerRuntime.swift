@@ -217,7 +217,7 @@ public struct AppleContainerRuntime: Runtime {
             if try await containerIDs(all: false).contains(id) {
                 return id
             }
-            try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+            try await Task.sleep(for: .seconds(pollInterval))
         }
         throw RuntimeWatchError.registrationTimeout(vm: id)
     }

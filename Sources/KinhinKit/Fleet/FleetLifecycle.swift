@@ -154,7 +154,7 @@ extension FleetEngine {
                     // An API hiccup must not read as "runners deregistered",
                     // which would delete a VM that is still running a job.
                     Log.warn(id, "gitea runner list failed; retrying: \(error.localizedDescription)")
-                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                    try await Task.sleep(for: .seconds(1))
                     continue
                 }
             } else {
@@ -193,7 +193,7 @@ extension FleetEngine {
                 await deleteVMRecord(id: id, reason: "registration timeout")
                 return
             }
-            try await Task.sleep(nanoseconds: 1_000_000_000)
+            try await Task.sleep(for: .seconds(1))
         }
         Log.warn(id, "gitea ephemeral watch timed out; deleting VM")
         await deleteVMRecord(id: id, reason: "timeout")
@@ -254,7 +254,7 @@ extension FleetEngine {
                 await deleteVMRecord(id: id, reason: "registration timeout")
                 return
             }
-            try await Task.sleep(nanoseconds: 1_000_000_000)
+            try await Task.sleep(for: .seconds(1))
         }
         Log.warn(id, "ephemeral watch timed out; deleting VM")
         await deleteVMRecord(id: id, reason: "timeout")
@@ -300,7 +300,7 @@ extension FleetEngine {
         }
         // Give tasks a moment to clean their VMs up. Cancellation here only
         // shortens the grace period; the sweep below still runs.
-        try? await Task.sleep(nanoseconds: 2_000_000_000)
+        try? await Task.sleep(for: .seconds(2))
         let remaining = store.all.filter { $0.phase.isActive }
         for record in remaining {
             await deleteVMRecord(id: record.id, reason: "engine stopped")

@@ -138,7 +138,7 @@ public struct TartController: TartControlling {
                 if Self.isValidIPv4(candidate) { return candidate }
             }
             lastError = TartError.ipNotFound(vm: name)
-            try await Task.sleep(nanoseconds: 2_000_000_000)
+            try await Task.sleep(for: .seconds(2))
         }
         throw lastError
     }

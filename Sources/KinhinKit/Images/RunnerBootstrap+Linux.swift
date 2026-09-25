@@ -3,10 +3,6 @@ import Foundation
 extension RunnerBootstrap {
     // MARK: - Linux (Apple container runtime)
 
-    /// The agent architecture inside Linux containers: `container` on Apple
-    /// silicon runs arm64 Linux images.
-    public static let linuxRunnerArch = "arm64"
-
     /// Installs the GitHub Actions runner agent into a Linux image for the
     /// Apple-container runtime (baked during `kinhin image prepare` when a
     /// GitHub credential exists). Mirrors installScript but for Linux tarballs.

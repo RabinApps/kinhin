@@ -295,7 +295,7 @@ public final class FleetEngine {
         guard ToolchainCachePolicy(from: config.toolchains).autoPrune else { return }
         cachePruneTask = Task { [weak self] () -> Void in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 86_400 * 1_000_000_000)
+                try? await Task.sleep(for: .seconds(86_400))
                 guard let self else { return }
                 let policy = ToolchainCachePolicy(from: self.config.toolchains)
                 guard policy.autoPrune else { continue }

@@ -180,7 +180,7 @@ final class SetupWindowController: NSWindowController {
         // Render diagnostics: card + button geometry lands in the log so a
         // misplaced-content regression is observable without a screenshot.
         Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            try? await Task.sleep(for: .milliseconds(300))
             guard let self, let window = self.window else { return }
             window.layoutIfNeeded()
             for card in self.rowsStack.arrangedSubviews {

@@ -18,7 +18,7 @@ func withTransientRetry<T>(
         } catch {
             guard attempt < retries, isTransient(error) else { throw error }
             attempt += 1
-            try await Task.sleep(nanoseconds: UInt64(baseDelay * pow(2, Double(attempt - 1)) * 1_000_000_000))
+            try await Task.sleep(for: .seconds(baseDelay * pow(2, Double(attempt - 1))))
         }
     }
 }

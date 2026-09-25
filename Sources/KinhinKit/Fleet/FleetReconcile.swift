@@ -62,7 +62,7 @@ extension FleetEngine {
 
     func reconcileLoop() async {
         while !Task.isCancelled {
-            let interval = UInt64(config.pollInterval) * 1_000_000_000
+            let interval = config.pollInterval
             do {
                 try await reconcileOnce()
             } catch {
@@ -70,7 +70,7 @@ extension FleetEngine {
                 Log.error("engine", "reconcile failed: \(message)")
                 await statusBox.modify { $0.lastError = message }
             }
-            try? await Task.sleep(nanoseconds: interval)
+            try? await Task.sleep(for: .seconds(interval))
         }
     }
 
@@ -215,7 +215,7 @@ extension FleetEngine {
             spawnLifecycle(for: record)
             toSpawn -= 1
             // Stagger spawns slightly so disk I/O doesn't stampede.
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            try? await Task.sleep(for: .milliseconds(1500))
         }
 
         // 5. Scale down: if we have more ready instances than desired, delete

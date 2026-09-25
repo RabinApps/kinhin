@@ -121,13 +121,6 @@ public struct ToolchainEntry: Sendable, Equatable {
         self.linuxInstaller = linuxInstaller
     }
 
-    /// True when the tool installs exclusively via Homebrew (formula or
-    /// cask) — i.e. it has no Linux equivalent in the catalog.
-    public var isBrewOnly: Bool {
-        if case .brew = installer { return true }
-        return false
-    }
-
     /// The installer for the given platform (the Linux override when set).
     public func installer(for platform: ToolchainPlatform) -> Installer {
         platform == .linux ? (linuxInstaller ?? installer) : installer

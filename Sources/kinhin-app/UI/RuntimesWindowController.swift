@@ -609,7 +609,7 @@ final class RuntimesWindowController: NSWindowController {
 
         previewCommitTask?.cancel()
         previewCommitTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 400_000_000)
+            try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             // refreshPane: false — the on-screen values already match what
             // we're writing; a full rebuild mid-gesture would yank the
