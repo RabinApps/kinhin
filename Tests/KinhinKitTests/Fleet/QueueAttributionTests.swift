@@ -20,30 +20,35 @@ final class QueueAttributionTests: XCTestCase {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
-                let body = """
-                    {"total_count":2,"workflow_runs":[
-                      {"id":1,"repository":{"full_name":"acme/ios-app"}},
-                      {"id":2,"repository":{"full_name":"acme/api"}}
-                    ]}
-                    """
-                return (200, Data(body.utf8), [:])
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
             }
-            if path == "/orgs/acme/actions/runs/1/jobs" {
+            if path == "/orgs/acme/repos" {
+                return (200, Data("[{\"full_name\":\"acme/ios-app\"},{\"full_name\":\"acme/api\"}]".utf8), [:])
+            }
+            if path == "/repos/acme/ios-app/actions/runs" {
+                return (200, Data("{\"total_count\":1,\"workflow_runs\":[{\"id\":1}]}".utf8), [:])
+            }
+            if path == "/repos/acme/api/actions/runs" {
+                return (200, Data("{\"total_count\":1,\"workflow_runs\":[{\"id\":2}]}".utf8), [:])
+            }
+            if path == "/repos/acme/ios-app/actions/runs/1/jobs" {
                 return (
                     200,
                     Data(
                         """
                         {"jobs":[{"id":11,"run_id":1,"name":"build","status":"queued","labels":["self-hosted"]}]}
-                        """.utf8), [:]
+                        """.utf8),
+                    [:]
                 )
             }
-            if path == "/orgs/acme/actions/runs/2/jobs" {
+            if path == "/repos/acme/api/actions/runs/2/jobs" {
                 return (
                     200,
                     Data(
                         """
                         {"jobs":[{"id":22,"run_id":2,"name":"test","status":"queued","labels":["self-hosted"]}]}
-                        """.utf8), [:]
+                        """.utf8),
+                    [:]
                 )
             }
             XCTFail("unexpected path: \(path)")
@@ -67,21 +72,29 @@ final class QueueAttributionTests: XCTestCase {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+            }
+            if path == "/orgs/acme/repos" {
+                return (200, Data("[{\"full_name\":\"acme/ios-app\"}]".utf8), [:])
+            }
+            if path == "/repos/acme/ios-app/actions/runs" {
                 return (
                     200,
                     Data(
                         """
                         {"total_count":1,"workflow_runs":[{"id":9,"repository":{"full_name":"acme/ios-app"}}]}
-                        """.utf8), [:]
+                        """.utf8),
+                    [:]
                 )
             }
-            if path == "/orgs/acme/actions/runs/9/jobs" {
+            if path == "/repos/acme/ios-app/actions/runs/9/jobs" {
                 return (
                     200,
                     Data(
                         """
                         {"jobs":[{"id":77,"run_id":9,"name":"build","status":"in_progress","labels":["self-hosted"],"runner_name":"kinhin-123-a1-r2"}]}
-                        """.utf8), [:]
+                        """.utf8),
+                    [:]
                 )
             }
             XCTFail("unexpected path: \(path)")

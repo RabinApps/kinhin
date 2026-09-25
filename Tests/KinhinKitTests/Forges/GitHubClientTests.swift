@@ -154,6 +154,194 @@ final class GitHubClientTests: XCTestCase {
         XCTAssertEqual(makeOrgClient().configureURL, "https://github.com/organizations/acme")
     }
 
+    // MARK: fine-grained org fallback (org runs 404 → per-repo reads)
+
+    func testOrgRunsNotFoundFallsBackToPerRepoRuns() async throws {
+        var orgRunsCalls = 0
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/orgs/acme/actions/runs" {
+                orgRunsCalls += 1
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+            }
+            if path == "/orgs/acme/repos" {
+                return (200, Data("[{\"full_name\":\"acme/widgets\"},{\"full_name\":\"acme/api\"}]".utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs" {
+                return (200, Data("{\"total_count\":1,\"workflow_runs\":[{\"id\":1}]}".utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs/1/jobs" {
+                return (
+                    200,
+                    Data(
+                        """
+                        {"jobs":[{"id":11,"run_id":1,"name":"build","status":"queued","labels":["kinhin"]}]}
+                        """.utf8),
+                    [:]
+                )
+            }
+            if path == "/repos/acme/api/actions/runs" {
+                return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
+            }
+            XCTFail("unexpected path: \(path)")
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        let jobs = try await makeOrgClient().queuedJobs(matching: ["kinhin"])
+        XCTAssertEqual(jobs.count, 1)
+        XCTAssertEqual(jobs.first?.repository, "acme/widgets", "fallback reads must attribute the scoped repo")
+        XCTAssertEqual(orgRunsCalls, 1)
+    }
+
+    func testOrgRunsFallbackIsStickyAcrossPolls() async throws {
+        var orgRunsCalls = 0
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/orgs/acme/actions/runs" {
+                orgRunsCalls += 1
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+            }
+            if path == "/orgs/acme/repos" {
+                return (200, Data("[{\"full_name\":\"acme/widgets\"}]".utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs" {
+                return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
+            }
+            XCTFail("unexpected path: \(path)")
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        let client = makeOrgClient()
+        _ = try await client.runningJobs(matching: ["self-hosted"])
+        _ = try await client.runningJobs(matching: ["self-hosted"])
+        _ = try await client.runningJobs(matching: ["self-hosted"])
+        XCTAssertEqual(orgRunsCalls, 1, "after the first 404 later polls must skip the org endpoint")
+    }
+
+    func testOrgRunsFallbackSurvivesClientCopy() async throws {
+        var orgRunsCalls = 0
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/orgs/acme/actions/runs" {
+                orgRunsCalls += 1
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+            }
+            if path == "/orgs/acme/repos" {
+                return (200, Data("[{\"full_name\":\"acme/widgets\"}]".utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs" {
+                return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
+            }
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        let client = makeOrgClient()
+        _ = try await client.runningJobs(matching: ["self-hosted"])
+        let copy = client
+        _ = try await copy.runningJobs(matching: ["self-hosted"])
+        XCTAssertEqual(
+            orgRunsCalls, 1, "the via-repos flag lives in a shared box and survives struct copies")
+    }
+
+    func testOrgRunsFallbackUsesUserReposWhenOrgListIsUnreadable() async throws {
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/orgs/acme/actions/runs" {
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+            }
+            if path == "/orgs/acme/repos" {
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+            }
+            if path == "/user/repos" {
+                let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.query ?? ""
+                XCTAssertTrue(query.contains("affiliation=owner,collaborator,organization_member"), query)
+                return (
+                    200,
+                    Data("[{\"full_name\":\"acme/widgets\"},{\"full_name\":\"other/thing\"}]".utf8), [:]
+                )
+            }
+            if path == "/repos/acme/widgets/actions/runs" {
+                return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
+            }
+            XCTFail("unexpected path: \(path)")
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        let jobs = try await makeOrgClient().queuedJobs(matching: ["kinhin"])
+        XCTAssertTrue(jobs.isEmpty)
+    }
+
+    func testOrgRunsFallbackSkipsUnreadableRepos() async throws {
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/orgs/acme/actions/runs" {
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+            }
+            if path == "/orgs/acme/repos" {
+                return (200, Data("[{\"full_name\":\"acme/open\"},{\"full_name\":\"acme/locked\"}]".utf8), [:])
+            }
+            if path == "/repos/acme/open/actions/runs" {
+                return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
+            }
+            if path == "/repos/acme/locked/actions/runs" {
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+            }
+            XCTFail("unexpected path: \(path)")
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        let jobs = try await makeOrgClient().queuedJobs(matching: ["kinhin"])
+        XCTAssertTrue(jobs.isEmpty, "one unreadable repository must not fail the whole read")
+    }
+
+    func testOrgRuns404ErrorMessageMentionsTheFineGrainedLimit() {
+        let orgError = GitHubError.notFound("/orgs/acme/actions/runs")
+        let orgMessage = orgError.errorDescription ?? ""
+        XCTAssertTrue(orgMessage.contains("fine-grained"), orgMessage)
+        XCTAssertTrue(
+            orgMessage.contains("classic"), "org runs 404 must point at the classic-token option: \(orgMessage)")
+
+        // Non-org runs paths keep the generic message.
+        let repoError = GitHubError.notFound("/repos/acme/widgets/actions/runs")
+        XCTAssertTrue(repoError.errorDescription?.contains("Does the repo exist") ?? false)
+    }
+
+    func testOrgRunsFallbackFailsWhenNoRepositoryIsReadable() async throws {
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/orgs/acme/actions/runs" || path == "/orgs/acme/repos" {
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+            }
+            if path == "/user/repos" {
+                return (200, Data("[{\"full_name\":\"acme/widgets\"}]".utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs" {
+                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+            }
+            XCTFail("unexpected path: \(path)")
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        do {
+            _ = try await makeOrgClient().queuedJobs(matching: ["kinhin"])
+            XCTFail("should throw — an empty queue must not hide an unreadable token")
+        } catch let error as GitHubError {
+            guard case .notFound(let what) = error else { return XCTFail("wrong error: \(error)") }
+            XCTAssertTrue(what.contains("/*/actions/runs"), what)
+            XCTAssertTrue(
+                error.errorDescription?.contains("Actions: Read-only") ?? false,
+                error.errorDescription ?? "")
+        } catch {
+            XCTFail("wrong error type: \(error)")
+        }
+    }
+
     func testInvalidScopeSpecThrows() async {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubProtocol.self]

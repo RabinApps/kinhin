@@ -9,7 +9,21 @@ final class TokenRequirementsTests: XCTestCase {
         XCTAssertTrue(text.contains("Self-hosted runners: Read and write"), text)
         XCTAssertTrue(text.contains("Actions: Read-only"), text)
         XCTAssertTrue(text.contains("admin:org, repo"), "classic scopes for an org: \(text)")
+        XCTAssertTrue(
+            text.contains("no organization-level runs permission"),
+            "fine-grained limitation must be stated: \(text)")
+        XCTAssertTrue(text.contains("falls back to reading each repository"), text)
         XCTAssertFalse(text.contains("Administration"), "repo-only permission must not leak into org advice")
+    }
+
+    func testGitHubUnknownScopeNoteAlsoWarnsAboutOrgRuns() {
+        let text = TokenRequirements.github(scope: "").plainText
+        XCTAssertTrue(text.contains("no organization-level runs permission"), text)
+    }
+
+    func testGitHubRepoScopeHasNoOrgRunsNote() {
+        let text = TokenRequirements.github(scope: "acme/api").plainText
+        XCTAssertFalse(text.contains("no organization-level runs permission"), "repo advice stays scoped: \(text)")
     }
 
     func testGitHubRepoScopeNamesTheRepoPermissions() {

@@ -101,6 +101,9 @@ final class FakeGitHub: GitHubServing, @unchecked Sendable {
     /// Scripted in-progress jobs returned by `runningJobs` (simulates the
     /// jobs API's runner_name → repo mapping).
     var running: [RunningJob] = []
+    /// When set, `runningJobs` throws this error (simulates a token that can
+    /// manage runners but cannot read queued/running jobs).
+    var runningJobsError: (any Error)?
 
     func fetchRegistrationToken() async throws -> RegistrationToken {
         lock.lock(); registrationTokenCalls += 1
@@ -142,7 +145,8 @@ final class FakeGitHub: GitHubServing, @unchecked Sendable {
     }
 
     func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] {
-        running
+        if let error = runningJobsError { throw error }
+        return running
     }
 
     /// Simulate the runner registering on GitHub.

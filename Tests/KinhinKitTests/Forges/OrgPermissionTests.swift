@@ -58,6 +58,41 @@ final class OrgPermissionTests: XCTestCase {
             report.message.contains("Self-hosted runners: Read and write"), "fine-grained remediation must be present")
     }
 
+    func testOrgScopeQueueVisibilityGateBlocksRunsUnreadableTokens() async {
+        let github = FakeGitHub()
+        github.runningJobsError = GitHubError.notFound("/orgs/acme/actions/runs")
+        let report = await OrgPermissionProbe.verify(github: github, scope: "acme")
+        XCTAssertFalse(report.ok, "a token that cannot read the queue must not pass the start gate")
+        XCTAssertTrue(report.message.contains("cannot see queued/running jobs"), report.message)
+        XCTAssertTrue(report.message.contains("can manage runners"), "both facts must be stated: \(report.message)")
+        XCTAssertTrue(
+            report.message.contains("classic"), "remediation must offer the classic-token route: \(report.message)")
+    }
+
+    func testOrgScopeQueueVisibilityGatePassesReadableTokens() async {
+        let github = FakeGitHub()
+        github.runningJobsError = nil
+        let report = await OrgPermissionProbe.verify(github: github, scope: "acme")
+        XCTAssertTrue(report.ok)
+        XCTAssertTrue(report.message.contains("organization 'acme'"), report.message)
+    }
+
+    func testOrgScopeQueueVisibilityOtherFailuresFailTheCheck() async {
+        let github = FakeGitHub()
+        github.runningJobsError = GitHubError.http(500, "boom")
+        let report = await OrgPermissionProbe.verify(github: github, scope: "acme")
+        XCTAssertFalse(report.ok)
+        XCTAssertTrue(report.message.contains("queue visibility could not be verified"), report.message)
+    }
+
+    func testRepoScopeQueueVisibilityGateRunsTheSameCheck() async {
+        let github = FakeGitHub()
+        github.runningJobsError = GitHubError.notFound("/repos/acme/widgets/actions/runs")
+        let report = await OrgPermissionProbe.verify(github: github, scope: "acme/widgets")
+        XCTAssertFalse(report.ok)
+        XCTAssertTrue(report.message.contains("cannot see queued/running jobs"), report.message)
+    }
+
     func testRepoScopeNotFoundMapsToRepoMessage() async {
         let github = FakeGitHub()
         github.notFound = true

@@ -50,6 +50,16 @@ public enum GitHubError: LocalizedError, Equatable {
         case .forbidden(let why):
             return "GitHub forbidden (403): \(why)"
         case .notFound(let what):
+            if what.hasPrefix("/orgs/"), what.contains("/actions/runs") {
+                return
+                    "GitHub returned 404 for \(what): fine-grained tokens cannot read organization-wide workflow runs. "
+                    + "Kinhin falls back to per-repository reads; to poll the whole org at once use a classic token with the repo scope."
+            }
+            if what.hasSuffix("/*/actions/runs") {
+                return
+                    "GitHub returned 404 for \(what): the token cannot read workflow runs in any repository of the scope. "
+                    + "Fine-grained tokens need Repository permissions → Actions: Read-only; a classic token with the repo scope always works."
+            }
             return "GitHub returned 404 for \(what). Does the repo exist and does the token have access to it?"
         case .rateLimited(let resetAt):
             return "GitHub rate limit exhausted; resets at \(resetAt)"
@@ -167,6 +177,17 @@ public struct GitHubClient: GitHubServing {
     let session: URLSession
 
     public var configureURL: String { credentials.configureURL }
+
+    /// Sticky "the org runs endpoint is not readable" state (fine-grained
+    /// tokens). The client is a struct copied by value, so the flag lives in
+    /// a box to survive across polls.
+    private var runsMode = RunsModeBox()
+
+    /// Fan-out bounds per poll, same safety bound as the jobs loops: at most
+    /// this many repositories and workflow runs are read per poll when the
+    /// per-repository fallback is active.
+    private var maxReposPerPoll: Int { 20 }
+    private var maxRunsPerPoll: Int { 50 }
 
     public init(credentials: GitHubCredentials, session: URLSession? = nil) {
         self.credentials = credentials
@@ -365,17 +386,16 @@ public struct GitHubClient: GitHubServing {
     /// Fetch all queued workflow runs, then their jobs, filtering client-side
     /// to jobs whose label set is a superset of the fleet's labels.
     public func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] {
-        let queuedRuns = try await fetchRuns(status: "queued")
-
         var jobs: [QueuedJob] = []
-        for run in queuedRuns.prefix(50) {  // safety bound on fan-out per poll
-            for job in try await fetchJobs(runID: run.id) where job.status == "queued" {
+        for run in try await runs(status: "queued") {
+            for job in try await fetchJobs(runID: run.id, repository: run.scopedRepository) where job.status == "queued"
+            {
                 let jobLabels = Set(job.labels ?? [])
                 if labels.isSubset(of: jobLabels) {
                     jobs.append(
                         QueuedJob(
                             runID: run.id, jobID: job.id, name: job.name,
-                            labels: jobLabels.sorted(), repository: run.repository?.full_name
+                            labels: jobLabels.sorted(), repository: run.attributedRepository
                         ))
                 }
             }
@@ -387,17 +407,16 @@ public struct GitHubClient: GitHubServing {
     /// maps each job back to the VM that registered that runner — the basis
     /// for per-repo attribution of running work.
     public func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] {
-        let activeRuns = try await fetchRuns(status: "in_progress")
-
         var jobs: [RunningJob] = []
-        for run in activeRuns.prefix(50) {  // same safety bound as queued
-            for job in try await fetchJobs(runID: run.id) where job.status == "in_progress" {
+        for run in try await runs(status: "in_progress") {
+            for job in try await fetchJobs(runID: run.id, repository: run.scopedRepository)
+            where job.status == "in_progress" {
                 let jobLabels = Set(job.labels ?? [])
                 if labels.isSubset(of: jobLabels) {
                     jobs.append(
                         RunningJob(
                             name: job.name, runnerName: job.runnerName,
-                            repository: run.repository?.full_name
+                            repository: run.attributedRepository
                         ))
                 }
             }
@@ -405,35 +424,139 @@ public struct GitHubClient: GitHubServing {
         return jobs
     }
 
+    // MARK: Runs (org fallback)
+
+    /// The scope's runs with the given status, through whichever endpoint the
+    /// token can read, capped per poll like the jobs fan-out.
+    private func runs(status: String) async throws -> [RunRef] {
+        var all = try await fetchRuns(status: status)
+        if all.count > maxRunsPerPoll {
+            all = Array(all.prefix(maxRunsPerPoll))
+        }
+        return all
+    }
+
     /// All runs in the scope with the given status, following pagination.
-    private func fetchRuns(status: String) async throws -> [RunSummary] {
-        var runs: [RunSummary] = []
+    ///
+    /// GitHub grants fine-grained tokens runs access only through the
+    /// *repository* Actions permission; no fine-grained organization
+    /// permission unlocks `/orgs/{org}/actions/runs`, so org scope gets 404s
+    /// there even from tokens that manage runners fine. When that happens we
+    /// fall back to reading each repository's runs (see `runsFromRepos`); the
+    /// sticky flag skips the failing org call on later polls. Classic tokens
+    /// (`repo` scope) never need the fallback.
+    private func fetchRuns(status: String) async throws -> [RunRef] {
+        guard credentials.isOrgScope else {
+            return try await pagedRuns(path: "\(credentials.actionsBase)/runs", status: status, repository: nil)
+        }
+        if runsMode.viaRepos {
+            return try await runsFromRepos(status: status)
+        }
+        do {
+            return try await pagedRuns(path: "\(credentials.actionsBase)/runs", status: status, repository: nil)
+        } catch GitHubError.notFound {
+            runsMode.setViaRepos()
+            Log.warn(
+                "engine",
+                "org runs endpoint not readable for '\(credentials.scope)' — fine-grained tokens cannot read "
+                    + "/orgs/{org}/actions/runs; falling back to per-repository reads (a classic token with "
+                    + "the repo scope avoids this)")
+        }
+        return try await runsFromRepos(status: status)
+    }
+
+    /// One paginated runs fetch against a single endpoint. `repository`
+    /// attaches attribution for per-repository fallback reads.
+    private func pagedRuns(path: String, status: String, repository: String?) async throws -> [RunRef] {
+        var runs: [RunRef] = []
         var page = 1
         while true {
-            let req = try request(
-                method: "GET",
-                path: "\(credentials.actionsBase)/runs?status=\(status)&per_page=100&page=\(page)"
-            )
+            let req = try request(method: "GET", path: "\(path)?status=\(status)&per_page=100&page=\(page)")
             let (data, _) = try await send(req)
+            let decoded: RunsResponse
             do {
-                let decoded = try JSONDecoder().decode(RunsResponse.self, from: data)
-                runs.append(contentsOf: decoded.workflow_runs)
-                let totalPages = (decoded.total_count + 99) / 100
-                if page >= max(totalPages, 1) || decoded.workflow_runs.isEmpty { break }
-                page += 1
+                decoded = try JSONDecoder().decode(RunsResponse.self, from: data)
             } catch {
                 throw GitHubError.decoding("runs: \(error.localizedDescription)")
             }
+            runs.append(contentsOf: decoded.workflow_runs.map { RunRef(summary: $0, repository: repository) })
+            let totalPages = (decoded.total_count + 99) / 100
+            if page >= max(totalPages, 1) || decoded.workflow_runs.isEmpty { break }
+            page += 1
         }
         return runs
     }
 
-    /// All jobs of one workflow run.
-    private func fetchJobs(runID: Int) async throws -> [GHJob] {
-        let req = try request(
-            method: "GET",
-            path: "\(credentials.actionsBase)/runs/\(runID)/jobs?per_page=100"
-        )
+    /// Reads runs repo-by-repo (fine-grained-token fallback), attributing
+    /// each run to the repository it was read from. Repos the token cannot
+    /// see (404) are skipped: one unreadable repository must not fail the
+    /// whole queue read, and it contributes no jobs by definition.
+    private func runsFromRepos(status: String) async throws -> [RunRef] {
+        let repos = try await listScopeRepositories()
+        var runs: [RunRef] = []
+        var readableRepos = 0
+        for repo in repos.prefix(maxReposPerPoll) {
+            do {
+                runs.append(
+                    contentsOf: try await pagedRuns(
+                        path: "/repos/\(repo)/actions/runs", status: status, repository: repo))
+                readableRepos += 1
+            } catch GitHubError.notFound {
+                continue  // token has no Actions read on this repository
+            }
+        }
+        // An empty result must not hide a broken token: when the scope lists
+        // repositories but not one of them exposes runs, the autoscaler would
+        // silently see an empty queue forever. Fail loudly instead.
+        if readableRepos == 0, !repos.isEmpty {
+            throw GitHubError.notFound("/repos/\(credentials.owner)/*/actions/runs")
+        }
+        return runs
+    }
+
+    /// Repositories to poll in fallback mode: the org's repos, or — when
+    /// even that 404s (the org repo list needs Members read) — every repo
+    /// the token can see, filtered down to the scope's org.
+    func listScopeRepositories() async throws -> [String] {
+        do {
+            return try await pagedRepoNames(path: "/orgs/\(credentials.scope)/repos")
+        } catch GitHubError.notFound {
+            let all = try await pagedRepoNames(path: "/user/repos?affiliation=owner,collaborator,organization_member")
+            let prefix = "\(credentials.owner)/"
+            return all.filter { $0.hasPrefix(prefix) }
+        }
+    }
+
+    /// Names ("owner/repo") from a paginated repositories list.
+    private func pagedRepoNames(path: String) async throws -> [String] {
+        var names: [String] = []
+        var page = 1
+        while true {
+            let separator = path.contains("?") ? "&" : "?"
+            let req = try request(method: "GET", path: "\(path)\(separator)per_page=100&page=\(page)")
+            let (data, _) = try await send(req)
+            struct RepoName: Decodable { let full_name: String }
+            let batch: [RepoName]
+            do {
+                batch = try JSONDecoder().decode([RepoName].self, from: data)
+            } catch {
+                throw GitHubError.decoding("repos: \(error.localizedDescription)")
+            }
+            names.append(contentsOf: batch.map(\.full_name))
+            if batch.count < 100 { break }
+            page += 1
+        }
+        return names
+    }
+
+    /// All jobs of one workflow run. In per-repository fallback mode the
+    /// run's scoped repository supplies the repo-scoped jobs path (the
+    /// org-scope path 404s for fine-grained tokens).
+    private func fetchJobs(runID: Int, repository: String?) async throws -> [GHJob] {
+        let jobsPath =
+            repository.map { "/repos/\($0)/actions/runs/\(runID)/jobs" }
+            ?? "\(credentials.actionsBase)/runs/\(runID)/jobs"
+        let req = try request(method: "GET", path: "\(jobsPath)?per_page=100")
         let (data, _) = try await send(req)
         do {
             return try JSONDecoder().decode(JobsResponse.self, from: data).jobs
@@ -442,9 +565,24 @@ public struct GitHubClient: GitHubServing {
         }
     }
 
-    struct RunSummary: Codable {
+    /// One workflow run plus the repository it was read from (nil in org
+    /// mode, where the run payload itself carries the repository).
+    struct RunRef: Codable {
         let id: Int
         let repository: RepoSummary?
+        /// Repository the runs endpoint was scoped to (fallback reads).
+        let scopedRepository: String?
+
+        init(summary: RunSummary, repository: String?) {
+            self.id = summary.id
+            self.repository = summary.repository
+            self.scopedRepository = repository
+        }
+
+        /// What jobs of this run should be attributed to: the run payload's
+        /// repository when present, else the repository the fallback read
+        /// the run from.
+        var attributedRepository: String? { repository?.full_name ?? scopedRepository }
     }
 
     /// Nested repo object inside workflow-run payloads (distinct from the
@@ -456,6 +594,11 @@ public struct GitHubClient: GitHubServing {
     struct RunsResponse: Codable {
         let total_count: Int
         let workflow_runs: [RunSummary]
+    }
+
+    struct RunSummary: Codable {
+        let id: Int
+        let repository: RepoSummary?
     }
 
     struct JobsResponse: Codable {
