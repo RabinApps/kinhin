@@ -67,7 +67,8 @@ public enum ContainerManagerError: LocalizedError, Equatable {
         case .toolMissing(let tool):
             return "\(tool.title) is not installed (\(tool.binaryName) was not found)."
         case .invalidName(let name):
-            return "'\(name)' is not a valid name. Use letters, numbers, '.', '_' or '-', starting with a letter or number."
+            return
+                "'\(name)' is not a valid name. Use letters, numbers, '.', '_' or '-', starting with a letter or number."
         case .commandFailed(let what, let stderr):
             let detail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             return detail.isEmpty ? "\(what) failed." : "\(what) failed: \(detail.prefix(400))"
@@ -96,13 +97,13 @@ public struct ContainerManager: Sendable {
         name.range(of: "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$", options: .regularExpression) != nil
     }
 
-
     // MARK: Reading
 
     public func containers() async throws -> [ManagedContainer] {
         switch tool {
         case .docker:
-            let out = try await run(["ps", "--all", "--no-trunc", "--format", "{{json .}}"], what: "listing containers")
+            let out = try await run(
+                ["ps", "--all", "--no-trunc", "--format", "{{json .}}"], what: "listing containers")
             return Self.parseDockerContainers(out)
         case .appleContainer:
             let out = try await run(["list", "--all", "--format", "json"], what: "listing containers")
@@ -168,7 +169,8 @@ public struct ContainerManager: Sendable {
         guard let binary else { throw ContainerManagerError.toolMissing(tool) }
         let result = try await shell.run([binary] + args, cwd: nil, timeout: 60)
         guard result.succeeded else {
-            throw ContainerManagerError.commandFailed(what: what, stderr: result.stderr.isEmpty ? result.stdout : result.stderr)
+            throw ContainerManagerError.commandFailed(
+                what: what, stderr: result.stderr.isEmpty ? result.stdout : result.stderr)
         }
         return result.stdout
     }
@@ -186,7 +188,8 @@ public struct ContainerManager: Sendable {
     static func jsonArray(_ text: String) -> [[String: Any]] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
-              let object = try? JSONSerialization.jsonObject(with: Data(trimmed.utf8)) else { return [] }
+            let object = try? JSONSerialization.jsonObject(with: Data(trimmed.utf8))
+        else { return [] }
         return (object as? [[String: Any]]) ?? []
     }
 
@@ -223,7 +226,9 @@ public struct ContainerManager: Sendable {
             let imageObject = configuration?["image"] as? [String: Any]
             let image = (imageObject?["reference"] as? String) ?? (configuration?["image"] as? String) ?? ""
             let statusObject = row["status"] as? [String: Any]
-            let state = ((statusObject?["state"] as? String) ?? (row["status"] as? String) ?? (row["state"] as? String) ?? "").lowercased()
+            let state =
+                ((statusObject?["state"] as? String) ?? (row["status"] as? String) ?? (row["state"] as? String) ?? "")
+                .lowercased()
             return ManagedContainer(id: id, name: id, image: image, state: state, status: state)
         }
     }
@@ -233,7 +238,8 @@ public struct ContainerManager: Sendable {
     static func parseAppleVolumes(_ text: String) -> [ManagedVolume] {
         jsonArray(text).compactMap { row in
             let configuration = row["configuration"] as? [String: Any]
-            guard let name = (configuration?["name"] as? String) ?? (row["name"] as? String) ?? (row["id"] as? String) else { return nil }
+            guard let name = (configuration?["name"] as? String) ?? (row["name"] as? String) ?? (row["id"] as? String)
+            else { return nil }
             let driver = (configuration?["driver"] as? String) ?? (row["driver"] as? String) ?? ""
             return ManagedVolume(name: name, driver: driver)
         }

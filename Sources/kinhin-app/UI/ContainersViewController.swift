@@ -104,7 +104,9 @@ final class ContainersViewController: NSViewController {
             containers = []
             volumes = []
             render()
-            setStatus("\(tool.title) isn't installed on this Mac. Install Docker Desktop, OrbStack or colima, or Apple's container CLI.", error: true)
+            setStatus(
+                "\(tool.title) isn't installed on this Mac. Install Docker Desktop, OrbStack or colima, or Apple's container CLI.",
+                error: true)
             return
         }
         let manager = makeManager(tool)
@@ -177,7 +179,9 @@ final class ContainersViewController: NSViewController {
         let name = NSTextField(labelWithString: item.name)
         name.font = .systemFont(ofSize: 12, weight: .semibold)
         name.lineBreakMode = .byTruncatingMiddle
-        let detail = NSTextField(labelWithString: [item.image, item.status.isEmpty ? item.state : item.status].filter { !$0.isEmpty }.joined(separator: " · "))
+        let detail = NSTextField(
+            labelWithString: [item.image, item.status.isEmpty ? item.state : item.status].filter { !$0.isEmpty }.joined(
+                separator: " · "))
         detail.font = .systemFont(ofSize: 11)
         detail.textColor = item.isRunning ? .systemGreen : .secondaryLabelColor
         detail.lineBreakMode = .byTruncatingTail
@@ -194,9 +198,12 @@ final class ContainersViewController: NSViewController {
             button.setAccessibilityLabel("\(title.replacingOccurrences(of: "…", with: "")) container \(item.name)")
             return button
         }
-        let lifecycle: [NSButton] = item.isRunning
-            ? [small("Stop", #selector(stopContainerClicked(_:)), "stop-container"),
-               small("Restart", #selector(restartContainerClicked(_:)), "restart-container")]
+        let lifecycle: [NSButton] =
+            item.isRunning
+            ? [
+                small("Stop", #selector(stopContainerClicked(_:)), "stop-container"),
+                small("Restart", #selector(restartContainerClicked(_:)), "restart-container"),
+            ]
             : [small("Start", #selector(startContainerClicked(_:)), "start-container")]
         let delete = small("Delete…", #selector(deleteContainerClicked(_:)), "delete-container")
         let row = FormKit.row([text, FormKit.spacer()] + lifecycle + [delete])
@@ -234,9 +241,15 @@ final class ContainersViewController: NSViewController {
         deleteContainer(id: String(raw.dropFirst("delete-container:".count)))
     }
 
-    @objc private func startContainerClicked(_ sender: NSButton) { startContainer(id: id(from: sender, prefix: "start-container:")) }
-    @objc private func stopContainerClicked(_ sender: NSButton) { stopContainer(id: id(from: sender, prefix: "stop-container:")) }
-    @objc private func restartContainerClicked(_ sender: NSButton) { restartContainer(id: id(from: sender, prefix: "restart-container:")) }
+    @objc private func startContainerClicked(_ sender: NSButton) {
+        startContainer(id: id(from: sender, prefix: "start-container:"))
+    }
+    @objc private func stopContainerClicked(_ sender: NSButton) {
+        stopContainer(id: id(from: sender, prefix: "stop-container:"))
+    }
+    @objc private func restartContainerClicked(_ sender: NSButton) {
+        restartContainer(id: id(from: sender, prefix: "restart-container:"))
+    }
 
     private func id(from sender: NSButton, prefix: String) -> String {
         let raw = sender.identifier?.rawValue ?? ""
@@ -255,8 +268,12 @@ final class ContainersViewController: NSViewController {
     func stopContainer(id: String) -> Task<Void, Never>? {
         guard let item = containers.first(where: { $0.id == id }) else { return nil }
         if item.isKinhinRunner,
-           !confirm("Stop container “\(item.name)”?",
-                    "This looks like a kinhin CI runner — stopping it cancels any job it is running.", "Stop") { return nil }
+            !confirm(
+                "Stop container “\(item.name)”?",
+                "This looks like a kinhin CI runner — stopping it cancels any job it is running.", "Stop")
+        {
+            return nil
+        }
         return perform { try await $0.stopContainer(id: item.id) }
     }
 
@@ -264,8 +281,12 @@ final class ContainersViewController: NSViewController {
     func restartContainer(id: String) -> Task<Void, Never>? {
         guard let item = containers.first(where: { $0.id == id }) else { return nil }
         if item.isKinhinRunner,
-           !confirm("Restart container “\(item.name)”?",
-                    "This looks like a kinhin CI runner — restarting it cancels any job it is running.", "Restart") { return nil }
+            !confirm(
+                "Restart container “\(item.name)”?",
+                "This looks like a kinhin CI runner — restarting it cancels any job it is running.", "Restart")
+        {
+            return nil
+        }
         return perform { try await $0.restartContainer(id: item.id) }
     }
 
@@ -279,23 +300,32 @@ final class ContainersViewController: NSViewController {
         guard let item = containers.first(where: { $0.id == id }) else { return nil }
         var message = "“\(item.name)” will be permanently removed."
         if item.isRunning { message += " It is running and will be stopped first." }
-        if item.isKinhinRunner { message += " This looks like a kinhin CI runner — deleting it cancels any job it is running." }
+        if item.isKinhinRunner {
+            message += " This looks like a kinhin CI runner — deleting it cancels any job it is running."
+        }
         message += " This can’t be undone."
         guard confirm("Delete container “\(item.name)”?", message, "Delete") else { return nil }
-        return perform(done: "Deleted container “\(item.name)”.") { try await $0.deleteContainer(id: item.id, force: item.isRunning) }
+        return perform(done: "Deleted container “\(item.name)”.") {
+            try await $0.deleteContainer(id: item.id, force: item.isRunning)
+        }
     }
 
     @discardableResult
     func deleteVolume(name: String) -> Task<Void, Never>? {
-        guard confirm("Delete volume “\(name)”?",
-                      "The volume and all data stored in it will be permanently deleted. This can’t be undone.",
-                      "Delete") else { return nil }
+        guard
+            confirm(
+                "Delete volume “\(name)”?",
+                "The volume and all data stored in it will be permanently deleted. This can’t be undone.",
+                "Delete")
+        else { return nil }
         return perform(done: "Deleted volume “\(name)”.") { try await $0.deleteVolume(name: name) }
     }
 
     /// Runs an operation, then reloads; failures show inline.
     @discardableResult
-    private func perform(done message: String? = nil, _ operation: @escaping (ContainerManager) async throws -> Void) -> Task<Void, Never> {
+    private func perform(done message: String? = nil, _ operation: @escaping (ContainerManager) async throws -> Void)
+        -> Task<Void, Never>
+    {
         let manager = makeManager(tool)
         progress.startAnimation(nil)
         return Task { [weak self] in

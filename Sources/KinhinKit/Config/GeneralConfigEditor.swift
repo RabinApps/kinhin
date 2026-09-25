@@ -110,8 +110,14 @@ public enum GeneralConfigEditor {
             reserveCPU: reserve?.cpu ?? d.reserve.cpu,
             reserveMemoryGB: reserve?.memory_gb ?? d.reserve.memoryGB,
             gitea: partial?.gitea.map { .init(instance: $0.instance ?? "", scope: $0.scope ?? "") },
-            container: partial?.container.map { .init(image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memory_gb ?? 8) },
-            docker: partial?.docker.map { .init(image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 2, memoryGB: $0.memory_gb ?? 4, maxSlots: $0.max_slots ?? 8) }
+            container: partial?.container.map {
+                .init(image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memory_gb ?? 8)
+            },
+            docker: partial?.docker.map {
+                .init(
+                    image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 2, memoryGB: $0.memory_gb ?? 4,
+                    maxSlots: $0.max_slots ?? 8)
+            }
         )
     }
 
@@ -159,7 +165,7 @@ public enum GeneralConfigEditor {
 
     /// A scalar key at the top level or inside `vm:` / `reserve:`.
     private struct KeyPath {
-        var section: String? // nil = top level
+        var section: String?  // nil = top level
         var key: String
 
         static func top(_ key: String) -> KeyPath { KeyPath(section: nil, key: key) }
@@ -180,7 +186,7 @@ public enum GeneralConfigEditor {
         case .image: return .top("image")
         case .reserveCPU: return .under("reserve", "cpu")
         case .reserveMemoryGB: return .under("reserve", "memory_gb")
-        case .gitea, .container, .docker: return .top("unused") // handled separately
+        case .gitea, .container, .docker: return .top("unused")  // handled separately
         }
     }
 
@@ -188,7 +194,8 @@ public enum GeneralConfigEditor {
         func intText(_ v: Int) -> String { String(v) }
         func boolText(_ v: Bool) -> String { v ? "true" : "false" }
         func quoted(_ s: String) -> String {
-            let escaped = s
+            let escaped =
+                s
                 .replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "\"", with: "\\\"")
             return "\"\(escaped)\""
@@ -198,8 +205,8 @@ public enum GeneralConfigEditor {
         case .labels(let list):
             return "[" + list.map { quoted($0.trimmingCharacters(in: .whitespaces)) }.joined(separator: ", ") + "]"
         case .minRunners(let v), .maxRunners(let v), .runnersPerVM(let v),
-             .pollInterval(let v), .vmCPU(let v), .vmMemoryGB(let v),
-             .reserveCPU(let v), .reserveMemoryGB(let v):
+            .pollInterval(let v), .vmCPU(let v), .vmMemoryGB(let v),
+            .reserveCPU(let v), .reserveMemoryGB(let v):
             if case .minRunners(let n) = field { return intText(n) }
             if case .maxRunners(let n) = field { return intText(n) }
             if case .runnersPerVM(let n) = field { return intText(n) }
@@ -211,7 +218,7 @@ public enum GeneralConfigEditor {
             return "0"
         case .vmEphemeral(let b): return boolText(b)
         case .image(let s): return quoted(s)
-        case .gitea, .container, .docker: return "" // handled separately
+        case .gitea, .container, .docker: return ""  // handled separately
         }
     }
 
@@ -221,8 +228,10 @@ public enum GeneralConfigEditor {
     static func replace(field: Field, in yaml: String) throws -> String {
         switch field {
         case .gitea(let g): return try replaceSectionToggle("gitea", present: g != nil, in: yaml) { g.map(sectionText) }
-        case .container(let c): return try replaceSectionToggle("container", present: c != nil, in: yaml) { c.map(sectionText) }
-        case .docker(let d): return try replaceSectionToggle("docker", present: d != nil, in: yaml) { d.map(sectionText) }
+        case .container(let c):
+            return try replaceSectionToggle("container", present: c != nil, in: yaml) { c.map(sectionText) }
+        case .docker(let d):
+            return try replaceSectionToggle("docker", present: d != nil, in: yaml) { d.map(sectionText) }
         default: break
         }
 
@@ -242,7 +251,9 @@ public enum GeneralConfigEditor {
         // Find (or create) the section line, then the key line inside it.
         var sectionIdx: Int? = nil
         if let section = path.section {
-            sectionIdx = lines.firstIndex(where: { isTopKey($0) && $0.trimmingCharacters(in: .whitespaces) == "\(section):" })
+            sectionIdx = lines.firstIndex(where: {
+                isTopKey($0) && $0.trimmingCharacters(in: .whitespaces) == "\(section):"
+            })
             if sectionIdx == nil {
                 // Append the section header before writing the key.
                 while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
@@ -277,7 +288,7 @@ public enum GeneralConfigEditor {
             // Preserve a trailing comment on the edited line.
             let trimmed = lines[idx].trimmingCharacters(in: .whitespaces)
             if let commentRange = trimmed.range(of: " #"), trimmed.hasSuffix(":") == false {
-                _ = commentRange // comment handling: append to the new line
+                _ = commentRange  // comment handling: append to the new line
                 let comment = trimmed[commentRange.lowerBound...]
                 lines[idx] = newLine + " " + comment
             } else {
@@ -296,7 +307,9 @@ public enum GeneralConfigEditor {
 
     /// Remove or (re)write a whole top-level section block. `newText` renders
     /// the section when present.
-    static func replaceSectionToggle(_ name: String, present: Bool, in yaml: String, newText: () -> String?) throws -> String {
+    static func replaceSectionToggle(_ name: String, present: Bool, in yaml: String, newText: () -> String?) throws
+        -> String
+    {
         guard let root = try? Yams.compose(yaml: yaml), root.mapping != nil else {
             throw GeneralConfigError.yamlParse("top level must be a mapping")
         }
@@ -307,7 +320,8 @@ public enum GeneralConfigEditor {
             return line.hasPrefix(line.trimmingCharacters(in: .whitespaces)) && line.contains(":")
         }
 
-        if let start = lines.firstIndex(where: { isTopKey($0) && $0.trimmingCharacters(in: .whitespaces) == "\(name):" }) {
+        if let start = lines.firstIndex(where: { isTopKey($0) && $0.trimmingCharacters(in: .whitespaces) == "\(name):" }
+        ) {
             var end = lines.count
             for index in (start + 1)..<lines.count where isTopKey(lines[index]) {
                 end = index
@@ -355,7 +369,8 @@ public enum GeneralConfigEditor {
     }
 
     private static func quote(_ value: String) -> String {
-        let escaped = value
+        let escaped =
+            value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
         return "\"\(escaped)\""

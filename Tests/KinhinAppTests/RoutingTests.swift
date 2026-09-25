@@ -1,5 +1,6 @@
-import XCTest
 import AppKit
+import XCTest
+
 @testable import KinhinKit
 @testable import kinhin_app
 
@@ -11,7 +12,8 @@ final class RoutingTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        configURL = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-routing-\(UUID().uuidString).yaml")
+        configURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "kinhin-routing-\(UUID().uuidString).yaml")
     }
 
     override func tearDown() {
@@ -42,7 +44,7 @@ final class RoutingTests: XCTestCase {
     }
 
     func testAddRouteExplainsWhenNothingHasLoaded() {
-        let controller = makeController() // no config file at all
+        let controller = makeController()  // no config file at all
         var notice: (String, String)?
         controller.presentNotice = { notice = ($0, $1) }
         controller.addRouteClicked()
@@ -57,7 +59,9 @@ final class RoutingTests: XCTestCase {
         var notice: (String, String)?
         controller.presentNotice = { notice = ($0, $1) }
         var asked = false
-        controller.promptForRoute = { _ in asked = true; return nil }
+        controller.promptForRoute = { _ in
+            asked = true; return nil
+        }
         controller.addRouteClicked()
         XCTAssertEqual(notice?.0, "Nothing to route to yet")
         XCTAssertTrue(notice?.1.contains("Docker or Apple container") ?? false)
@@ -65,19 +69,22 @@ final class RoutingTests: XCTestCase {
     }
 
     func testAddRouteWritesTheRoute() async throws {
-        write("""
-        repo: "acme/widgets"
-        labels: [a]
-        docker:
-          image: "kinhin-ci-linux"
-        """)
+        write(
+            """
+            repo: "acme/widgets"
+            labels: [a]
+            docker:
+              image: "kinhin-ci-linux"
+            """)
         let controller = makeController()
         controller.reload()
         await waitUntilLoaded(controller)
         var edited = 0
         controller.onEdited = { edited += 1 }
         var offered: [RuntimeID] = []
-        controller.promptForRoute = { offered = $0; return ("acme/api", .docker) }
+        controller.promptForRoute = {
+            offered = $0; return ("acme/api", .docker)
+        }
         controller.addRouteClicked()
         XCTAssertEqual(offered, [.tart, .docker], "only configured runtimes are offered")
         let yaml = try String(contentsOf: configURL, encoding: .utf8)

@@ -38,7 +38,7 @@ final class RuntimesWindowController: NSWindowController {
             )
             window.title = "kinhin Runtimes"
             window.titlebarAppearsTransparent = true
-            window.appearance = nil // follow the system (light & dark)
+            window.appearance = nil  // follow the system (light & dark)
             window.backgroundColor = .windowBackgroundColor
             window.contentView = contentContainer
             window.center()
@@ -156,7 +156,8 @@ final class RuntimesWindowController: NSWindowController {
         scroll.documentView = editor
         scroll.translatesAutoresizingMaskIntoConstraints = false
 
-        let hint = NSTextField(labelWithString: "Saved only if the whole file still passes the engine's config validation.")
+        let hint = NSTextField(
+            labelWithString: "Saved only if the whole file still passes the engine's config validation.")
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .secondaryLabelColor
 
@@ -222,7 +223,9 @@ final class RuntimesWindowController: NSWindowController {
         let fast = await RuntimesPaneViewModel.load(configYAML: yaml, host: host, reserve: parsed.reserve)
         viewModel = fast
         parsedConfigForPreview = parsed
-        currentRuntimeConfig = (try? RuntimesConfigEditor.parsed(from: yaml)) ?? kinhinConfig.RuntimeConfig(defaultRuntime: fast.defaultRuntime.rawValue)
+        currentRuntimeConfig =
+            (try? RuntimesConfigEditor.parsed(from: yaml))
+            ?? kinhinConfig.RuntimeConfig(defaultRuntime: fast.defaultRuntime.rawValue)
         render(viewModel: fast, repo: parsed.repo, probing: true)
         // Fill the initial cap previews from the on-disk budget.
         if let rc = currentRuntimeConfig {
@@ -230,8 +233,9 @@ final class RuntimesWindowController: NSWindowController {
         }
 
         // Health pass: probe each enabled pool's runtime concurrently.
-        let withHealth = await RuntimesPaneViewModel.load(configYAML: yaml, host: host, reserve: parsed.reserve, loadHealth: true)
-        guard withHealth != fast else { return } // nothing changed; no flicker
+        let withHealth = await RuntimesPaneViewModel.load(
+            configYAML: yaml, host: host, reserve: parsed.reserve, loadHealth: true)
+        guard withHealth != fast else { return }  // nothing changed; no flicker
         viewModel = withHealth
         render(viewModel: withHealth, repo: parsed.repo, probing: false)
         // The re-render recreated the slider rows: refill their previews.
@@ -327,10 +331,13 @@ final class RuntimesWindowController: NSWindowController {
             rowsStack.addArrangedSubview(empty)
         } else {
             for route in vm.routes {
-                let title = route.isWorkflow
+                let title =
+                    route.isWorkflow
                     ? "\(route.pattern)  →  \(route.runtime.rawValue)  (workflow)"
                     : "\(route.pattern)  →  \(route.runtime.rawValue)"
-                let card = makeCard(title: title, detail: nil, removeAction: #selector(removeRouteClicked(_:)), cardIdentifier: route.pattern)
+                let card = makeCard(
+                    title: title, detail: nil, removeAction: #selector(removeRouteClicked(_:)),
+                    cardIdentifier: route.pattern)
                 rowsStack.addArrangedSubview(card)
             }
         }
@@ -378,7 +385,8 @@ final class RuntimesWindowController: NSWindowController {
         fleetField.delegate = self
         column.addArrangedSubview(fleetField)
 
-        let fleetHint = NSTextField(labelWithString: "Comma-separated. Jobs must request a subset of these via runs-on:.")
+        let fleetHint = NSTextField(
+            labelWithString: "Comma-separated. Jobs must request a subset of these via runs-on:.")
         fleetHint.font = .systemFont(ofSize: 11)
         fleetHint.textColor = .tertiaryLabelColor
         column.addArrangedSubview(fleetHint)
@@ -395,7 +403,8 @@ final class RuntimesWindowController: NSWindowController {
             containerField.delegate = self
             column.addArrangedSubview(containerField)
 
-            let containerHint = NSTextField(labelWithString: "Merged with the kinhin-container marker (always present) at pool build.")
+            let containerHint = NSTextField(
+                labelWithString: "Merged with the kinhin-container marker (always present) at pool build.")
             containerHint.font = .systemFont(ofSize: 11)
             containerHint.textColor = .tertiaryLabelColor
             column.addArrangedSubview(containerHint)
@@ -538,13 +547,15 @@ final class RuntimesWindowController: NSWindowController {
             label.font = .systemFont(ofSize: 12)
             label.widthAnchor.constraint(equalToConstant: 110).isActive = true
 
-            let slider = NSSlider(value: share, minValue: 0, maxValue: 1, target: self, action: #selector(budgetSliderChanged(_:)))
+            let slider = NSSlider(
+                value: share, minValue: 0, maxValue: 1, target: self, action: #selector(budgetSliderChanged(_:)))
             slider.controlSize = .small
-            slider.isContinuous = true // fire during the drag for live previews
+            slider.isContinuous = true  // fire during the drag for live previews
             slider.identifier = NSUserInterfaceItemIdentifier(pool.runtime.rawValue)
             slider.widthAnchor.constraint(equalToConstant: 220).isActive = true
 
-            let percent = NSTextField(labelWithString: "\(Int((shares[pool.runtime.rawValue] ?? share).rounded() * 100))%")
+            let percent = NSTextField(
+                labelWithString: "\(Int((shares[pool.runtime.rawValue] ?? share).rounded() * 100))%")
             percent.font = .systemFont(ofSize: 12, weight: .medium)
             percent.identifier = NSUserInterfaceItemIdentifier("pct-\(pool.runtime.rawValue)")
             percent.widthAnchor.constraint(equalToConstant: 44).isActive = true
@@ -562,7 +573,10 @@ final class RuntimesWindowController: NSWindowController {
         }
 
         // The default pool's effective share and cap (read-only remainder).
-        let remainder = NSTextField(labelWithString: String(format: "%@ keeps the remaining %.0f%%", defaultRuntime.rawValue, (shares[defaultRuntime.rawValue] ?? 0).rounded() * 100))
+        let remainder = NSTextField(
+            labelWithString: String(
+                format: "%@ keeps the remaining %.0f%%", defaultRuntime.rawValue,
+                (shares[defaultRuntime.rawValue] ?? 0).rounded() * 100))
         remainder.font = .systemFont(ofSize: 11)
         remainder.textColor = .secondaryLabelColor
         remainder.identifier = NSUserInterfaceItemIdentifier("remainder-note")
@@ -581,8 +595,9 @@ final class RuntimesWindowController: NSWindowController {
     /// debounce the actual config write until the drag settles (~400ms).
     @objc func budgetSliderChanged(_ sender: NSSlider) {
         guard let runtimeName = sender.identifier?.rawValue,
-              let runtime = RuntimeID(rawValue: runtimeName),
-              let rc = currentRuntimeConfig else { return }
+            let runtime = RuntimeID(rawValue: runtimeName),
+            let rc = currentRuntimeConfig
+        else { return }
         let defaultRuntime = RuntimeID(rawValue: rc.defaultRuntime) ?? .tart
         let budget = BudgetEditor.setShare(
             of: runtime,
@@ -649,7 +664,8 @@ final class RuntimesWindowController: NSWindowController {
         }
         if let remainder = labels["remainder-note"] {
             let pct = Int(((budget[def.rawValue] ?? 0) * 100).rounded())
-            remainder.stringValue = String(format: "%@ keeps the remaining %d%% — %d inst", def.rawValue, pct, caps[def] ?? 0)
+            remainder.stringValue = String(
+                format: "%@ keeps the remaining %d%% — %d inst", def.rawValue, pct, caps[def] ?? 0)
         }
     }
 
@@ -657,7 +673,8 @@ final class RuntimesWindowController: NSWindowController {
     /// stay; the remainder rule re-homes).
     @objc func defaultRuntimeChanged(_ sender: NSPopUpButton) {
         guard let rc = currentRuntimeConfig,
-              let chosen = sender.selectedItem?.representedObject as? String else { return }
+            let chosen = sender.selectedItem?.representedObject as? String
+        else { return }
         commit(budget: rc.budget, defaultRuntime: chosen)
     }
 
@@ -665,14 +682,14 @@ final class RuntimesWindowController: NSWindowController {
         guard var rc = currentRuntimeConfig else { return }
         if let problem = BudgetEditor.validate(budget) {
             presentError(NSError(domain: "kinhin", code: 2, userInfo: [NSLocalizedDescriptionKey: problem]))
-            reload() // snap sliders back to the on-disk truth
+            reload()  // snap sliders back to the on-disk truth
             return
         }
         rc.budget = budget
         rc.defaultRuntime = defaultRuntime
         do {
             try RuntimesConfigEditor.apply(rc, to: configURL)
-            currentRuntimeConfig = rc // next drag starts from the new baseline
+            currentRuntimeConfig = rc  // next drag starts from the new baseline
             if refreshPane { reload() }
             onEdited?()
         } catch {
@@ -690,7 +707,9 @@ final class RuntimesWindowController: NSWindowController {
 
     /// A rounded card row: title, optional secondary line, optional remove
     /// button, optional accessory view (the health chip) on the right.
-    private func makeCard(title: String, detail: String?, removeAction: Selector?, cardIdentifier: String = "", accessory: NSView? = nil) -> NSView {
+    private func makeCard(
+        title: String, detail: String?, removeAction: Selector?, cardIdentifier: String = "", accessory: NSView? = nil
+    ) -> NSView {
         let card = LayerStyleView(frame: .zero)
         card.styleLayer = { layer in
             layer.backgroundColor = NSColor.controlBackgroundColor.cgColor
@@ -794,7 +813,8 @@ final class RuntimesWindowController: NSWindowController {
     var promptForRoute: ([RuntimeID]) -> (String, RuntimeID)? = { runtimes in
         let alert = NSAlert()
         alert.messageText = "Add Route"
-        alert.informativeText = "Send a repository, or one workflow, to a runtime. Use owner/repo for a whole repo, or owner/repo@Workflow Name for one workflow."
+        alert.informativeText =
+            "Send a repository, or one workflow, to a runtime. Use owner/repo for a whole repo, or owner/repo@Workflow Name for one workflow."
         alert.addButton(withTitle: "Add")
         alert.addButton(withTitle: "Cancel")
         let form = RuntimesWindowController.makeRouteForm(runtimes: runtimes)
@@ -807,7 +827,8 @@ final class RuntimesWindowController: NSWindowController {
                 alert.informativeText = "Enter a repository (owner/repo) first."
                 continue
             }
-            guard let raw = form.popup.selectedItem?.representedObject as? String, let id = RuntimeID(rawValue: raw) else { return nil }
+            guard let raw = form.popup.selectedItem?.representedObject as? String, let id = RuntimeID(rawValue: raw)
+            else { return nil }
             return (pattern, id)
         }
     }
@@ -823,15 +844,19 @@ final class RuntimesWindowController: NSWindowController {
 
     @objc func addRouteClicked() {
         guard viewModel != nil, let parsed = parsedConfigForPreview else {
-            presentNotice("Routes are still loading",
-                          "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Advanced → App → Open config file).")
+            presentNotice(
+                "Routes are still loading",
+                "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Advanced → App → Open config file)."
+            )
             reload()
             return
         }
         let runtimes = Self.routableRuntimes(in: parsed)
         guard runtimes.count > 1 else {
-            presentNotice("Nothing to route to yet",
-                          "Routes send a repo or workflow to a runtime, and only tart is set up. Turn on Docker or Apple container in Advanced → Accounts first.")
+            presentNotice(
+                "Nothing to route to yet",
+                "Routes send a repo or workflow to a runtime, and only tart is set up. Turn on Docker or Apple container in Advanced → Accounts first."
+            )
             return
         }
         guard let (patternValue, runtimeID) = promptForRoute(runtimes) else { return }
@@ -839,7 +864,10 @@ final class RuntimesWindowController: NSWindowController {
 
         var rc = currentRuntimeConfig ?? kinhinConfig.RuntimeConfig()
         guard !rc.routes.contains(where: { $0.pattern == patternValue }) else {
-            presentError(NSError(domain: "kinhin", code: 1, userInfo: [NSLocalizedDescriptionKey: "A route for '\(patternValue)' already exists."]))
+            presentError(
+                NSError(
+                    domain: "kinhin", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "A route for '\(patternValue)' already exists."]))
             return
         }
         rc.routes.append(kinhinConfig.RuntimeConfig.Route(pattern: patternValue, runtime: runtimeValue))
@@ -855,7 +883,8 @@ final class RuntimesWindowController: NSWindowController {
 
     @objc func removeRouteClicked(_ sender: NSButton) {
         guard let pattern = sender.identifier?.rawValue,
-              let rc = currentRuntimeConfig else { return }
+            let rc = currentRuntimeConfig
+        else { return }
         var updated = rc
         updated.routes.removeAll { $0.pattern == pattern }
         do {
@@ -885,7 +914,9 @@ extension RuntimesWindowController: NSTextFieldDelegate {
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         // Enter in a label field commits and dismisses the keyboard focus.
-        guard control is NSTextField, (control.identifier?.rawValue.hasSuffix("labels-field") ?? false) else { return false }
+        guard control is NSTextField, (control.identifier?.rawValue.hasSuffix("labels-field") ?? false) else {
+            return false
+        }
         if commandSelector == #selector(NSResponder.insertNewline(_:)) {
             NSApp.keyWindow?.makeFirstResponder(nil)
             return true

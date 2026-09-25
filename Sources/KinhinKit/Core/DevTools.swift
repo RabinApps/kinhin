@@ -74,7 +74,7 @@ public struct CLTProbe: Sendable {
         let a = version.split(separator: ".").map { Int($0) ?? 0 }
         let b = required.split(separator: ".").map { Int($0) ?? 0 }
         let width = max(a.count, b.count)
-        for i in 0 ..< width {
+        for i in 0..<width {
             let ai = i < a.count ? a[i] : 0
             let bi = i < b.count ? b[i] : 0
             if ai != bi { return ai > bi }
@@ -110,15 +110,17 @@ public struct CLTProbe: Sendable {
         if let dir = await run(commands.selectedDir) {
             let path = dir.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
             if !dir.succeeded || path.isEmpty
-                || path.contains("error: unable to get active developer directory") {
+                || path.contains("error: unable to get active developer directory")
+            {
                 return .unselected
             }
         }
 
         // 3. Compare the receipt version against the running macOS version.
-        let macOS = await run(commands.productVersion).map {
-            $0.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        } ?? "0.0"
+        let macOS =
+            await run(commands.productVersion).map {
+                $0.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            } ?? "0.0"
         let clt = Self.displayVersion(receiptVersion)
         if Self.isVersion(clt, atLeast: macOS) {
             return .ok(version: clt)
@@ -135,5 +137,6 @@ public enum CLTRepair {
     public static let commandLine = "sudo rm -rf /Library/Developer/CommandLineTools && sudo xcode-select --install"
 
     /// Fallback when Software Update shows nothing (Homebrew's own advice).
-    public static let fallbackHint = "If no update appears, download \"Command Line Tools for Xcode\" from https://developer.apple.com/download/all/"
+    public static let fallbackHint =
+        "If no update appears, download \"Command Line Tools for Xcode\" from https://developer.apple.com/download/all/"
 }

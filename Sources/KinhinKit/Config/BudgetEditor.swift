@@ -131,7 +131,7 @@ public enum BudgetEditor {
         var seen: Set<String> = []
         for route in routes {
             guard let runtime = RuntimeID(rawValue: route.runtime) else { continue }
-            guard configuredRuntimes.contains(runtime) else { continue } // validation's job
+            guard configuredRuntimes.contains(runtime) else { continue }  // validation's job
             let cap = caps[runtime] ?? 0
             guard cap == 0, seen.insert(runtime.rawValue).inserted else { continue }
             warnings.append(

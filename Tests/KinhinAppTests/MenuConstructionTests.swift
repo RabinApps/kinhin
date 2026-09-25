@@ -1,6 +1,7 @@
-import XCTest
 import AppKit
 import KinhinKit
+import XCTest
+
 @testable import kinhin_app
 
 @MainActor
@@ -18,17 +19,19 @@ final class MenuConstructionTests: XCTestCase {
         let titles = delegate.buildMenu().items.compactMap { item -> String? in
             item.isSeparatorItem ? nil : item.title
         }
-        XCTAssertEqual(titles, [
-            "kinhin",
-            "Loading…", // statusLine, refreshed by apply(status:)
-            "Open kinhin",
-            "Setup…", "Settings…",
-            "Start Fleet", "Stop Fleet", "Pause", "Resume",
-            "Check for Updates…",
-            "  kinhin \(kinhinVersion.current)",
-            "Open Logs", "Quit",
-            "VMs",
-        ])
+        XCTAssertEqual(
+            titles,
+            [
+                "kinhin",
+                "Loading…",  // statusLine, refreshed by apply(status:)
+                "Open kinhin",
+                "Setup…", "Settings…",
+                "Start Fleet", "Stop Fleet", "Pause", "Resume",
+                "Check for Updates…",
+                "  kinhin \(kinhinVersion.current)",
+                "Open Logs", "Quit",
+                "VMs",
+            ])
     }
 
     func testStableIdentifiers() {
@@ -37,14 +40,16 @@ final class MenuConstructionTests: XCTestCase {
         // statusLine/vmSectionStart are set explicitly; the action items carry
         // their selector names because AppDelegate subclasses NSMenuItem's
         // target and macOS auto-tags action items during addItem.
-        XCTAssertEqual(identifiers, [
-            "statusLine", "openMainWindow",
-            "openSetupTab", "openSettingsTab",
-            "startFleet", "stopFleet", "pauseFleet", "resumeFleet",
-            "updateItem",
-            "openLogs", "quit",
-            "vmSectionStart",
-        ])
+        XCTAssertEqual(
+            identifiers,
+            [
+                "statusLine", "openMainWindow",
+                "openSetupTab", "openSettingsTab",
+                "startFleet", "stopFleet", "pauseFleet", "resumeFleet",
+                "updateItem",
+                "openLogs", "quit",
+                "vmSectionStart",
+            ])
     }
 
     func testSeparatorsBetweenSections() {

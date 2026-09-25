@@ -94,7 +94,7 @@ public struct Shell: ShellRunning {
         errData.append(errPipe.fileHandleForReading.readDataToEndOfFile())
 
         let code = process.terminationStatus
-        let actual = timedOut.value ? Int32(124) : code // 124 = timeout convention
+        let actual = timedOut.value ? Int32(124) : code  // 124 = timeout convention
         return ShellResult(
             exitCode: actual,
             stdout: outData.text,
@@ -102,4 +102,3 @@ public struct Shell: ShellRunning {
         )
     }
 }
-

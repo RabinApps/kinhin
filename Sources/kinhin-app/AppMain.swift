@@ -19,7 +19,8 @@ func kinhinPresentCrashAlert(reason: String) {
     let alert = NSAlert()
     alert.alertStyle = .critical
     alert.messageText = "kinhin hit a problem"
-    alert.informativeText = "kinhin crashed unexpectedly:\n\n\(reason)\n\nLogs: ~/Library/Application Support/Kinhin/logs/"
+    alert.informativeText =
+        "kinhin crashed unexpectedly:\n\n\(reason)\n\nLogs: ~/Library/Application Support/Kinhin/logs/"
     alert.addButton(withTitle: "OK")
     alert.runModal()
 }

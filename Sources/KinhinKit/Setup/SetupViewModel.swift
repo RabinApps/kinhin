@@ -56,7 +56,10 @@ public struct SetupRowViewModel: Equatable, Sendable {
         )
     }
 
-    init(id: String, title: String, subtitle: String, isSatisfied: Bool, actionID: String?, actionTitle: String?, isPlaceholder: Bool) {
+    init(
+        id: String, title: String, subtitle: String, isSatisfied: Bool, actionID: String?, actionTitle: String?,
+        isPlaceholder: Bool
+    ) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
@@ -81,7 +84,7 @@ public struct SetupViewModel: Equatable, Sendable {
         self.isLoading = isLoading
         if isLoading || checks.isEmpty {
             // Placeholder state: mirror the standard checklist length.
-            self.rows = (0 ..< 6).map { SetupRowViewModel.placeholder(index: $0) }
+            self.rows = (0..<6).map { SetupRowViewModel.placeholder(index: $0) }
             self.ready = false
             self.canStart = false
             self.progressFraction = 0
@@ -93,7 +96,8 @@ public struct SetupViewModel: Equatable, Sendable {
         self.ready = satisfied == checks.count
         self.canStart = self.ready
         self.progressFraction = checks.isEmpty ? 0 : Double(satisfied) / Double(checks.count)
-        self.headline = self.ready
+        self.headline =
+            self.ready
             ? "You're all set — start the fleet whenever you like."
             : "\(checks.count - satisfied) of \(checks.count) steps to go."
     }
@@ -127,7 +131,8 @@ public enum SetupWindowLayout {
     public static func windowHeight(forRows rows: Int) -> CGFloat {
         let minimum = headerHeight + footerHeight + margin * 2 + cardHeight
         guard rows > 1 else { return max(windowHeight, minimum) }
-        let needed = headerHeight + footerHeight + margin * 2
+        let needed =
+            headerHeight + footerHeight + margin * 2
             + CGFloat(rows) * cardHeight + CGFloat(rows - 1) * rowSpacing
         return max(windowHeight, needed)
     }

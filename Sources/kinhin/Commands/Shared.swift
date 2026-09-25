@@ -4,7 +4,10 @@ import KinhinKit
 @discardableResult
 func noteAutoCreatedConfigIfMissing() -> Bool {
     if ConfigLoader.createIfMissing() {
-        FileHandle.standardError.write(Data("note: created starter config at \(Paths.config.path) — set your repo, then run `kinhin auth set`\n".utf8))
+        FileHandle.standardError.write(
+            Data(
+                "note: created starter config at \(Paths.config.path) — set your repo, then run `kinhin auth set`\n"
+                    .utf8))
         return true
     }
     return false
@@ -19,7 +22,9 @@ func notifyDaemonTokenReplaced(_ pat: String) {
         try RPCClient().replaceToken(pat: pat)
         print("running daemon notified — new token is live")
     } catch {
-        print("warning: could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token")
+        print(
+            "warning: could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token"
+        )
     }
 }
 
@@ -30,7 +35,9 @@ func notifyDaemonGiteaTokenReplaced(_ token: String) {
         try RPCClient().replaceGiteaToken(token)
         print("running daemon notified — new Gitea token is live")
     } catch {
-        print("warning: could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token")
+        print(
+            "warning: could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token"
+        )
     }
 }
 
@@ -108,9 +115,10 @@ func loadConfigOrExit() -> kinhinConfig {
 /// placeholder for a Gitea-only config (whose own token is required instead).
 func tokenOrExit(for cfg: kinhinConfig) -> String {
     guard let token = ConfigLoader.engineToken(for: cfg) else {
-        fail(cfg.githubEnabled
-            ? "no GitHub token stored. Run: kinhin auth set"
-            : "no Gitea token stored. Run: kinhin auth set --gitea")
+        fail(
+            cfg.githubEnabled
+                ? "no GitHub token stored. Run: kinhin auth set"
+                : "no Gitea token stored. Run: kinhin auth set --gitea")
     }
     return token
 }
@@ -137,7 +145,9 @@ func engineFromConfig(_ cfg: kinhinConfig) throws -> FleetEngine {
 func renderStatus(_ status: FleetStatus) -> String {
     var lines: [String] = []
     lines.append("engine:    \(status.running ? (status.paused ? "paused" : "running") : "stopped")")
-    lines.append("repo:      (see config)   queue: \(status.queueDepth)   desired: \(status.desired)   capacity cap: \(status.capacityCap)")
+    lines.append(
+        "repo:      (see config)   queue: \(status.queueDepth)   desired: \(status.desired)   capacity cap: \(status.capacityCap)"
+    )
     lines.append("job slots: \(status.jobCapacity) concurrent jobs (VM cap × runners_per_vm)")
     if let byRepo = status.queueByRepo, byRepo.count > 1 {
         let breakdown = byRepo.sorted { $0.value > $1.value }

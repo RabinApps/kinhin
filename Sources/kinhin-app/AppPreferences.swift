@@ -1,6 +1,6 @@
 import Foundation
-import ServiceManagement
 import KinhinKit
+import ServiceManagement
 
 /// Which surfaces the app shows: a normal main window, the menu bar item,
 /// or both. Persisted in UserDefaults so the choice survives relaunches —
@@ -61,7 +61,8 @@ enum AppPreferences {
 
     static func launchMode(in defaults: UserDefaults) -> LaunchMode {
         guard let raw = defaults.string(forKey: launchModeKey),
-              let mode = LaunchMode(rawValue: raw) else {
+            let mode = LaunchMode(rawValue: raw)
+        else {
             return defaultMode
         }
         return mode

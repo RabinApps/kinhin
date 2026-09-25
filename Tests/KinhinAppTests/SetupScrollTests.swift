@@ -1,6 +1,7 @@
-import XCTest
 import AppKit
 import KinhinKit
+import XCTest
+
 @testable import kinhin_app
 
 /// The setup checklist scrolls (Runtimes-pane style) instead of the window
@@ -41,8 +42,10 @@ final class SetupScrollTests: XCTestCase {
 
         XCTAssertEqual(
             controller.window?.frame.height ?? 0, before, accuracy: 0.5,
-            "nine checklist rows must not resize the window — the pane scrolls instead (the old clipping bug's fix, done the other way)")
-        XCTAssertEqual(renderedStack(in: controller)?.arrangedSubviews.count, 9, "every row is present in the document view")
+            "nine checklist rows must not resize the window — the pane scrolls instead (the old clipping bug's fix, done the other way)"
+        )
+        XCTAssertEqual(
+            renderedStack(in: controller)?.arrangedSubviews.count, 9, "every row is present in the document view")
     }
 
     func testNineRowsOverflowThePaneAndScroll() {

@@ -1,6 +1,7 @@
-import XCTest
 import AppKit
 import KinhinKit
+import XCTest
+
 @testable import kinhin_app
 
 @MainActor
@@ -12,7 +13,7 @@ final class UpdateMenuTests: XCTestCase {
         super.setUp()
         delegate = AppDelegate()
         menu = delegate.buildMenu()
-        delegate.menu = menu // refreshUpdateItems mutates the stored menu
+        delegate.menu = menu  // refreshUpdateItems mutates the stored menu
     }
 
     private var updateItem: NSMenuItem? {
@@ -21,7 +22,8 @@ final class UpdateMenuTests: XCTestCase {
 
     private var versionItem: NSMenuItem? {
         guard let idx = menu.items.firstIndex(where: { $0.identifier?.rawValue == "updateItem" }),
-              menu.items.indices.contains(idx + 1) else { return nil }
+            menu.items.indices.contains(idx + 1)
+        else { return nil }
         return menu.items[idx + 1]
     }
 
@@ -81,8 +83,11 @@ final class UpdateMenuTests: XCTestCase {
     func testMalformedOrMissingOverrideFallsBackToDefault() {
         XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: [:]), "RabinApps/kinhin")
         XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": ""]), "RabinApps/kinhin")
-        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": "just-a-name"]), "RabinApps/kinhin")
-        XCTAssertEqual(UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": "a/b/c"]), "a/b/c", "contains a slash — honored as-is")
+        XCTAssertEqual(
+            UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": "just-a-name"]), "RabinApps/kinhin")
+        XCTAssertEqual(
+            UpdatePreferences.repo(fromEnvironment: ["KINHIN_UPDATE_REPO": "a/b/c"]), "a/b/c",
+            "contains a slash — honored as-is")
     }
 
     func testLegacyOrchardEnvVarStillHonored() {

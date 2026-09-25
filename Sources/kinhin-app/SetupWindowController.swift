@@ -40,7 +40,7 @@ final class SetupWindowController: NSWindowController {
             defer: false
         )
         window.title = "kinhin Setup"
-        window.appearance = nil // follow the system (light & dark)
+        window.appearance = nil  // follow the system (light & dark)
         window.backgroundColor = .windowBackgroundColor
         window.contentView = container
         window.center()
@@ -118,7 +118,8 @@ final class SetupWindowController: NSWindowController {
         var constraints = [
             headerStack.topAnchor.constraint(equalTo: container.topAnchor, constant: SetupWindowLayout.margin),
             headerStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: SetupWindowLayout.margin),
-            headerStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -SetupWindowLayout.margin),
+            headerStack.trailingAnchor.constraint(
+                equalTo: container.trailingAnchor, constant: -SetupWindowLayout.margin),
             headerStack.heightAnchor.constraint(equalToConstant: SetupWindowLayout.headerHeight),
 
             progressBar.leadingAnchor.constraint(equalTo: headerStack.leadingAnchor),
@@ -139,7 +140,8 @@ final class SetupWindowController: NSWindowController {
             constraints.append(scroll.bottomAnchor.constraint(equalTo: footer.topAnchor))
         } else {
             // Embedded in a tab: stretch with the container.
-            constraints.append(scroll.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -SetupWindowLayout.margin / 2))
+            constraints.append(
+                scroll.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -SetupWindowLayout.margin / 2))
         }
 
         NSLayoutConstraint.activate(constraints)
@@ -183,12 +185,19 @@ final class SetupWindowController: NSWindowController {
             window.layoutIfNeeded()
             for card in self.rowsStack.arrangedSubviews {
                 let buttons = card.subviews.compactMap { $0 as? NSButton }
-                let buttonsText = buttons
-                    .map { "btn(\($0.title) [\($0.identifier?.rawValue ?? "?")])@\(Int($0.frame.minX)),\(Int($0.frame.minY))" }
+                let buttonsText =
+                    buttons
+                    .map {
+                        "btn(\($0.title) [\($0.identifier?.rawValue ?? "?")])@\(Int($0.frame.minX)),\(Int($0.frame.minY))"
+                    }
                     .joined(separator: " ")
-                let title = card.subviews.compactMap { $0 as? NSStackView }.first?
+                let title =
+                    card.subviews.compactMap { $0 as? NSStackView }.first?
                     .arrangedSubviews.compactMap { $0 as? NSTextField }.first?.stringValue ?? "?"
-                Log.info("setup", "card '\(title)' frame \(Int(card.frame.width))x\(Int(card.frame.height)) @\(Int(card.frame.origin.x)),\(Int(card.frame.origin.y)) \(buttonsText)")
+                Log.info(
+                    "setup",
+                    "card '\(title)' frame \(Int(card.frame.width))x\(Int(card.frame.height)) @\(Int(card.frame.origin.x)),\(Int(card.frame.origin.y)) \(buttonsText)"
+                )
             }
         }
     }
@@ -208,19 +217,20 @@ final class SetupWindowController: NSWindowController {
         card.translatesAutoresizingMaskIntoConstraints = false
         card.styleLayer = { layer in
             layer.cornerRadius = SetupWindowLayout.cardCornerRadius
-            layer.backgroundColor = (row.isSatisfied
+            layer.backgroundColor =
+                (row.isSatisfied
                 ? NSColor.labelColor.withAlphaComponent(0.045)
-                : NSColor.controlBackgroundColor
-            ).cgColor
+                : NSColor.controlBackgroundColor).cgColor
             layer.borderWidth = prominent ? 1.5 : (row.isSatisfied ? 0 : 1)
-            layer.borderColor = (prominent
+            layer.borderColor =
+                (prominent
                 ? NSColor.controlAccentColor.withAlphaComponent(0.45)
-                : NSColor.separatorColor
-            ).cgColor
+                : NSColor.separatorColor).cgColor
         }
 
         // Status disc: ✓ when satisfied, ! when pending, … while checking.
-        let discColor: NSColor = row.isPlaceholder
+        let discColor: NSColor =
+            row.isPlaceholder
             ? .systemGray
             : (row.isSatisfied ? .systemGreen : .systemOrange)
         let disc = LayerStyleLabel(labelWithString: row.isPlaceholder ? "…" : (row.isSatisfied ? "✓" : "!")) { layer in
@@ -272,7 +282,8 @@ final class SetupWindowController: NSWindowController {
 
         if let actionTitle = row.actionTitle {
             let button = NSButton(title: actionTitle, target: self, action: #selector(runAction(_:)))
-            button.translatesAutoresizingMaskIntoConstraints = false // constraints below conflict with the autoresizing mask otherwise
+            // Constraints below conflict with the autoresizing mask otherwise.
+            button.translatesAutoresizingMaskIntoConstraints = false
             button.bezelStyle = .rounded
             button.controlSize = .small
             button.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -290,7 +301,8 @@ final class SetupWindowController: NSWindowController {
 
         NSLayoutConstraint.activate(constraints)
         card.heightAnchor.constraint(equalToConstant: SetupWindowLayout.cardHeight).isActive = true
-        card.widthAnchor.constraint(equalToConstant: SetupWindowLayout.windowWidth - SetupWindowLayout.margin * 2).isActive = true
+        card.widthAnchor.constraint(equalToConstant: SetupWindowLayout.windowWidth - SetupWindowLayout.margin * 2)
+            .isActive = true
         return card
     }
 

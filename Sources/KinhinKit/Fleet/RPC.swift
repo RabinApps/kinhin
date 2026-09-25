@@ -67,7 +67,8 @@ public enum RPCServer {
     /// Serve requests forever on the given socket path.
     public static func serve(socketURL: URL, handler: @escaping @Sendable (RPCRequest) async -> RPCResponse) throws {
         try? FileManager.default.removeItem(at: socketURL)
-        try FileManager.default.createDirectory(at: socketURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: socketURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw RPCError.socketCreateFailed }
@@ -154,7 +155,7 @@ public enum RPCServer {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         var data = (try? encoder.encode(response)) ?? Data("{}".utf8)
-        data.append(0x0A) // newline framing
+        data.append(0x0A)  // newline framing
         return data
     }
 
@@ -165,7 +166,7 @@ public enum RPCServer {
             if chunk.isEmpty { return buffer.isEmpty ? nil : buffer }
             buffer.append(chunk)
             if buffer.last == 0x0A { return buffer }
-            if buffer.count > 1_000_000 { return nil } // sanity cap
+            if buffer.count > 1_000_000 { return nil }  // sanity cap
         }
     }
 }
@@ -268,7 +269,7 @@ public struct RPCClient: Sendable {
         }
         guard connectResult == 0 else { throw RPCError.connectionFailed(socketURL.path) }
 
-        let request = RPCRequest(id: Int.random(in: 1 ... 1_000_000), method: method, payload: payload)
+        let request = RPCRequest(id: Int.random(in: 1...1_000_000), method: method, payload: payload)
         let encoder = JSONEncoder()
         var line = try encoder.encode(request)
         line.append(0x0A)

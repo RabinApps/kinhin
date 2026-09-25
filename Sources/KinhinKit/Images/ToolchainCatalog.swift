@@ -107,7 +107,11 @@ public struct ToolchainEntry: Sendable, Equatable, _CatalogEntry {
     /// every supported platform.
     public let linuxInstaller: Installer?
 
-    public init(id: String, summary: String, installer: Installer, requires: [ToolchainRequirement] = [], cacheEnvs: [ToolchainCacheEnv] = [], verify: String, defaultSpec: String = "", platforms: [ToolchainPlatform] = ToolchainPlatform.allCases, linuxInstaller: Installer? = nil) {
+    public init(
+        id: String, summary: String, installer: Installer, requires: [ToolchainRequirement] = [],
+        cacheEnvs: [ToolchainCacheEnv] = [], verify: String, defaultSpec: String = "",
+        platforms: [ToolchainPlatform] = ToolchainPlatform.allCases, linuxInstaller: Installer? = nil
+    ) {
         self.id = id
         self.summary = summary
         self.installer = installer
@@ -142,7 +146,7 @@ public struct ToolchainStack: Sendable, Equatable, _CatalogEntry {
     /// An npm dependency with an optional pinned version.
     public struct NPMPackage: Sendable, Equatable {
         public let name: String
-        public let version: String // "" = latest
+        public let version: String  // "" = latest
         public init(name: String, version: String = "") {
             self.name = name
             self.version = version
@@ -172,7 +176,13 @@ public struct ToolchainStack: Sendable, Equatable, _CatalogEntry {
     /// recipes: CocoaPods, watchman, and fvm do not exist on Linux).
     public let platforms: [ToolchainPlatform]
 
-    public init(id: String, summary: String, requires: [ToolchainRequirement] = [], brewTaps: [String] = [], brewFormulas: [String] = [], miseSpecs: [String] = [], npmPackages: [NPMPackage] = [], cacheEnvs: [ToolchainCacheEnv] = [], verify: String, versionKind: String? = nil, defaultVersion: String = "", versionHint: String? = nil, postInstall: [String] = [], platforms: [ToolchainPlatform] = ToolchainPlatform.allCases) {
+    public init(
+        id: String, summary: String, requires: [ToolchainRequirement] = [], brewTaps: [String] = [],
+        brewFormulas: [String] = [], miseSpecs: [String] = [], npmPackages: [NPMPackage] = [],
+        cacheEnvs: [ToolchainCacheEnv] = [], verify: String, versionKind: String? = nil, defaultVersion: String = "",
+        versionHint: String? = nil, postInstall: [String] = [],
+        platforms: [ToolchainPlatform] = ToolchainPlatform.allCases
+    ) {
         self.id = id
         self.summary = summary
         self.requires = requires
@@ -335,7 +345,8 @@ extension ToolchainCatalog {
                 continue
             }
             if let tool = ToolchainCatalog.tool(id: formula),
-               case .brew(let name, let isCask) = tool.installer {
+                case .brew(let name, let isCask) = tool.installer
+            {
                 let target = BrewFormula(name: name, isCask: isCask)
                 if !out.brewFormulas.contains(target) { out.brewFormulas.append(target) }
                 for env in tool.cacheEnvs where !out.cacheEnvs.contains(env) {
@@ -369,7 +380,7 @@ extension ToolchainCatalog {
         // 3. stacks: recipe pieces in declared order.
         for name in config.stacks ?? [] {
             let (id, pinned) = ToolchainStack.splitSpec(name)
-            guard let stack = ToolchainCatalog.stack(id: id) else { continue } // validated earlier
+            guard let stack = ToolchainCatalog.stack(id: id) else { continue }  // validated earlier
             guard stack.platforms.contains(platform) else {
                 if !out.skippedEntries.contains(stack.id) { out.skippedEntries.append(stack.id) }
                 continue
@@ -446,66 +457,121 @@ public enum ToolchainCatalog {
 
     public static let tools: [ToolchainEntry] = [
         // --- mise-managed runtimes ---
-        ToolchainEntry(id: "node", summary: "JavaScript runtime (npm included)", installer: .mise, cacheEnvs: [
-            ToolchainCacheEnv(variable: "NPM_CONFIG_CACHE", subdirectory: "npm"),
-        ], verify: "node --version && npm --version", defaultSpec: "node@22"),
-        ToolchainEntry(id: "go", summary: "Go toolchain", installer: .mise, cacheEnvs: [
-            ToolchainCacheEnv(variable: "GOMODCACHE", subdirectory: "go/mod"),
-            ToolchainCacheEnv(variable: "GOCACHE", subdirectory: "go/build"),
-        ], verify: "go version", defaultSpec: "go@latest"),
-        ToolchainEntry(id: "rust", summary: "Rust toolchain (rustc + cargo)", installer: .mise, cacheEnvs: [
-            ToolchainCacheEnv(variable: "CARGO_HOME", subdirectory: "cargo"),
-        ], verify: "cargo --version", defaultSpec: "rust@stable"),
-        ToolchainEntry(id: "python", summary: "Python (mise-managed)", installer: .mise, cacheEnvs: [
-            ToolchainCacheEnv(variable: "UV_CACHE_DIR", subdirectory: "uv"),
-            ToolchainCacheEnv(variable: "PIP_CACHE_DIR", subdirectory: "pip"),
-        ], verify: "python --version", defaultSpec: "python@3.13"),
-        ToolchainEntry(id: "ruby", summary: "Ruby (mise-managed)", installer: .mise, verify: "ruby --version", defaultSpec: "ruby@latest"),
-        ToolchainEntry(id: "java", summary: "JDK (Temurin via mise)", installer: .mise, cacheEnvs: [
-            ToolchainCacheEnv(variable: "GRADLE_USER_HOME", subdirectory: "gradle"),
-        ], verify: "java -version", defaultSpec: "java@temurin-21"),
-        ToolchainEntry(id: "bun", summary: "Bun runtime and package manager", installer: .mise, cacheEnvs: [
-            ToolchainCacheEnv(variable: "BUN_INSTALL_CACHE_DIR", subdirectory: "bun"),
-        ], verify: "bun --version", defaultSpec: "bun@latest"),
-        ToolchainEntry(id: "deno", summary: "Deno runtime", installer: .mise, cacheEnvs: [
-            ToolchainCacheEnv(variable: "DENO_DIR", subdirectory: "deno"),
-        ], verify: "deno --version", defaultSpec: "deno@2"),
-        ToolchainEntry(id: "uv", summary: "Astral uv Python package manager", installer: .mise, cacheEnvs: [
-            ToolchainCacheEnv(variable: "UV_CACHE_DIR", subdirectory: "uv"),
-        ], verify: "uv --version", defaultSpec: "uv@latest"),
-        ToolchainEntry(id: "terraform", summary: "Terraform CLI", installer: .mise, verify: "terraform version", defaultSpec: "terraform@latest"),
-        ToolchainEntry(id: "kubectl", summary: "Kubernetes CLI", installer: .mise, verify: "kubectl version --client", defaultSpec: "kubectl@latest"),
+        ToolchainEntry(
+            id: "node", summary: "JavaScript runtime (npm included)", installer: .mise,
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "NPM_CONFIG_CACHE", subdirectory: "npm")
+            ], verify: "node --version && npm --version", defaultSpec: "node@22"),
+        ToolchainEntry(
+            id: "go", summary: "Go toolchain", installer: .mise,
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "GOMODCACHE", subdirectory: "go/mod"),
+                ToolchainCacheEnv(variable: "GOCACHE", subdirectory: "go/build"),
+            ], verify: "go version", defaultSpec: "go@latest"),
+        ToolchainEntry(
+            id: "rust", summary: "Rust toolchain (rustc + cargo)", installer: .mise,
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "CARGO_HOME", subdirectory: "cargo")
+            ], verify: "cargo --version", defaultSpec: "rust@stable"),
+        ToolchainEntry(
+            id: "python", summary: "Python (mise-managed)", installer: .mise,
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "UV_CACHE_DIR", subdirectory: "uv"),
+                ToolchainCacheEnv(variable: "PIP_CACHE_DIR", subdirectory: "pip"),
+            ], verify: "python --version", defaultSpec: "python@3.13"),
+        ToolchainEntry(
+            id: "ruby", summary: "Ruby (mise-managed)", installer: .mise, verify: "ruby --version",
+            defaultSpec: "ruby@latest"),
+        ToolchainEntry(
+            id: "java", summary: "JDK (Temurin via mise)", installer: .mise,
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "GRADLE_USER_HOME", subdirectory: "gradle")
+            ], verify: "java -version", defaultSpec: "java@temurin-21"),
+        ToolchainEntry(
+            id: "bun", summary: "Bun runtime and package manager", installer: .mise,
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "BUN_INSTALL_CACHE_DIR", subdirectory: "bun")
+            ], verify: "bun --version", defaultSpec: "bun@latest"),
+        ToolchainEntry(
+            id: "deno", summary: "Deno runtime", installer: .mise,
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "DENO_DIR", subdirectory: "deno")
+            ], verify: "deno --version", defaultSpec: "deno@2"),
+        ToolchainEntry(
+            id: "uv", summary: "Astral uv Python package manager", installer: .mise,
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "UV_CACHE_DIR", subdirectory: "uv")
+            ], verify: "uv --version", defaultSpec: "uv@latest"),
+        ToolchainEntry(
+            id: "terraform", summary: "Terraform CLI", installer: .mise, verify: "terraform version",
+            defaultSpec: "terraform@latest"),
+        ToolchainEntry(
+            id: "kubectl", summary: "Kubernetes CLI", installer: .mise, verify: "kubectl version --client",
+            defaultSpec: "kubectl@latest"),
 
         // --- npm globals (require node, validated — never auto-installed) ---
-        ToolchainEntry(id: "pnpm", summary: "pnpm package manager (global)", installer: .npm(package: "pnpm"), requires: [.node], cacheEnvs: [
-            ToolchainCacheEnv(variable: "npm_config_store_dir", subdirectory: "pnpm-store"),
-        ], verify: "pnpm --version"),
-        ToolchainEntry(id: "yarn", summary: "Yarn classic (global)", installer: .npm(package: "yarn"), requires: [.node], cacheEnvs: [
-            ToolchainCacheEnv(variable: "YARN_CACHE_FOLDER", subdirectory: "yarn"),
-        ], verify: "yarn --version"),
-        ToolchainEntry(id: "playwright", summary: "Playwright e2e runner + browsers cache", installer: .npm(package: "playwright"), requires: [.node], cacheEnvs: [
-            ToolchainCacheEnv(variable: "PLAYWRIGHT_BROWSERS_PATH", subdirectory: "playwright"),
-        ], verify: "playwright --version"),
-        ToolchainEntry(id: "cypress", summary: "Cypress e2e runner + binary cache", installer: .npm(package: "cypress"), requires: [.node], cacheEnvs: [
-            ToolchainCacheEnv(variable: "CYPRESS_CACHE_FOLDER", subdirectory: "cypress"),
-        ], verify: "cypress --version"),
-        ToolchainEntry(id: "netlify-cli", summary: "Netlify deploy CLI", installer: .npm(package: "netlify-cli"), requires: [.node], verify: "netlify --version"),
-        ToolchainEntry(id: "firebase-tools", summary: "Firebase deploy CLI", installer: .npm(package: "firebase-tools"), requires: [.node], verify: "firebase --version"),
+        ToolchainEntry(
+            id: "pnpm", summary: "pnpm package manager (global)", installer: .npm(package: "pnpm"), requires: [.node],
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "npm_config_store_dir", subdirectory: "pnpm-store")
+            ], verify: "pnpm --version"),
+        ToolchainEntry(
+            id: "yarn", summary: "Yarn classic (global)", installer: .npm(package: "yarn"), requires: [.node],
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "YARN_CACHE_FOLDER", subdirectory: "yarn")
+            ], verify: "yarn --version"),
+        ToolchainEntry(
+            id: "playwright", summary: "Playwright e2e runner + browsers cache", installer: .npm(package: "playwright"),
+            requires: [.node],
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "PLAYWRIGHT_BROWSERS_PATH", subdirectory: "playwright")
+            ], verify: "playwright --version"),
+        ToolchainEntry(
+            id: "cypress", summary: "Cypress e2e runner + binary cache", installer: .npm(package: "cypress"),
+            requires: [.node],
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "CYPRESS_CACHE_FOLDER", subdirectory: "cypress")
+            ], verify: "cypress --version"),
+        ToolchainEntry(
+            id: "netlify-cli", summary: "Netlify deploy CLI", installer: .npm(package: "netlify-cli"),
+            requires: [.node], verify: "netlify --version"),
+        ToolchainEntry(
+            id: "firebase-tools", summary: "Firebase deploy CLI", installer: .npm(package: "firebase-tools"),
+            requires: [.node], verify: "firebase --version"),
 
         // --- Homebrew (macOS guests only; no Linux equivalent in the catalog) ---
-        ToolchainEntry(id: "yamllint", summary: "YAML linter", installer: .brew(formula: "yamllint", isCask: false), verify: "yamllint --version", platforms: [.macOS]),
-        ToolchainEntry(id: "awscli", summary: "AWS CLI", installer: .brew(formula: "awscli", isCask: false), verify: "aws --version", platforms: [.macOS]),
-        ToolchainEntry(id: "supabase", summary: "Supabase CLI", installer: .brew(formula: "supabase", isCask: false), verify: "supabase --version", platforms: [.macOS]),
-        ToolchainEntry(id: "flyctl", summary: "Fly.io deploy CLI", installer: .brew(formula: "flyctl", isCask: false), verify: "flyctl version", platforms: [.macOS]),
-        ToolchainEntry(id: "gcloud", summary: "Google Cloud SDK", installer: .brew(formula: "google-cloud-sdk", isCask: true), verify: "gcloud --version", platforms: [.macOS]),
-        ToolchainEntry(id: "php", summary: "PHP runtime (Composer via the composer tool)", installer: .brew(formula: "php", isCask: false), verify: "php --version", platforms: [.macOS]),
-        ToolchainEntry(id: "composer", summary: "PHP dependency manager", installer: .brew(formula: "composer", isCask: false), verify: "composer --version", platforms: [.macOS]),
-        ToolchainEntry(id: "dotnet", summary: ".NET SDK (C#/F#/VB): brew cask on macOS, apt on Linux; no @version", installer: .brew(formula: "dotnet-sdk", isCask: true), cacheEnvs: [
-            ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget"),
-        ], verify: "dotnet --list-sdks", linuxInstaller: .apt(packages: ["dotnet-sdk-8.0"])),
+        ToolchainEntry(
+            id: "yamllint", summary: "YAML linter", installer: .brew(formula: "yamllint", isCask: false),
+            verify: "yamllint --version", platforms: [.macOS]),
+        ToolchainEntry(
+            id: "awscli", summary: "AWS CLI", installer: .brew(formula: "awscli", isCask: false),
+            verify: "aws --version", platforms: [.macOS]),
+        ToolchainEntry(
+            id: "supabase", summary: "Supabase CLI", installer: .brew(formula: "supabase", isCask: false),
+            verify: "supabase --version", platforms: [.macOS]),
+        ToolchainEntry(
+            id: "flyctl", summary: "Fly.io deploy CLI", installer: .brew(formula: "flyctl", isCask: false),
+            verify: "flyctl version", platforms: [.macOS]),
+        ToolchainEntry(
+            id: "gcloud", summary: "Google Cloud SDK", installer: .brew(formula: "google-cloud-sdk", isCask: true),
+            verify: "gcloud --version", platforms: [.macOS]),
+        ToolchainEntry(
+            id: "php", summary: "PHP runtime (Composer via the composer tool)",
+            installer: .brew(formula: "php", isCask: false), verify: "php --version", platforms: [.macOS]),
+        ToolchainEntry(
+            id: "composer", summary: "PHP dependency manager", installer: .brew(formula: "composer", isCask: false),
+            verify: "composer --version", platforms: [.macOS]),
+        ToolchainEntry(
+            id: "dotnet", summary: ".NET SDK (C#/F#/VB): brew cask on macOS, apt on Linux; no @version",
+            installer: .brew(formula: "dotnet-sdk", isCask: true),
+            cacheEnvs: [
+                ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget")
+            ], verify: "dotnet --list-sdks", linuxInstaller: .apt(packages: ["dotnet-sdk-8.0"])),
 
         // --- gems (macOS guests; Linux bakes use mise-managed ruby + plain gem) ---
-        ToolchainEntry(id: "fastlane", summary: "iOS/Android release automation (uses the system Ruby)", installer: .gem(name: "fastlane"), verify: "fastlane --version", platforms: [.macOS]),
+        ToolchainEntry(
+            id: "fastlane", summary: "iOS/Android release automation (uses the system Ruby)",
+            installer: .gem(name: "fastlane"), verify: "fastlane --version", platforms: [.macOS]),
     ]
 
     // MARK: Stacks

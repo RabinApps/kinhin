@@ -28,13 +28,15 @@ public struct AppleContainerRuntime: Runtime {
     /// here when `share_cache` bind-mounts the host cache into containers).
     let toolchainsConfig: @Sendable () -> kinhinConfig.ToolchainsConfig?
 
-    public init(shell: ShellRunning = Shell(),
-                image: String = "kinhin-ci-linux",
-                cpus: Int = 4,
-                memoryGB: Int = 8,
-                binPath: String? = nil,
-                exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
-                toolchainsConfig: @escaping @Sendable () -> kinhinConfig.ToolchainsConfig? = { nil }) {
+    public init(
+        shell: ShellRunning = Shell(),
+        image: String = "kinhin-ci-linux",
+        cpus: Int = 4,
+        memoryGB: Int = 8,
+        binPath: String? = nil,
+        exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
+        toolchainsConfig: @escaping @Sendable () -> kinhinConfig.ToolchainsConfig? = { nil }
+    ) {
         self.shell = shell
         self.image = image
         self.cpus = cpus
@@ -118,42 +120,47 @@ public struct AppleContainerRuntime: Runtime {
 
     /// The bootstrap script (same forge scripts the VMs use — Linux agent
     /// paths). Executed inside the container by the engine via execScript.
-    public func registrationScript(forge: Forge, token: String, name: String,
-                                   runnerCount: Int, route: RepoRoute, labels: [String]?) async throws -> String {
+    public func registrationScript(
+        forge: Forge, token: String, name: String,
+        runnerCount: Int, route: RepoRoute, labels: [String]?
+    ) async throws -> String {
         // Opt-in shared cache: point the selected ecosystems' caches at the
         // bind-mounted host cache so per-job installs reuse warm downloads.
         // Exports are guarded no-ops when the mount is absent. Linux
         // platform: macOS-only entries (brew, fvm, CocoaPods) never appear.
         let cachePrefix: String
         if route.cacheMount, let selection = linuxToolchainSelection {
-            cachePrefix = RunnerBootstrap.cacheEnvExports(
-                cacheEnvs: selection.cacheEnvs,
-                mountPath: ToolchainCacheMount.linuxGuestPath
-            ) + "\n\n"
+            cachePrefix =
+                RunnerBootstrap.cacheEnvExports(
+                    cacheEnvs: selection.cacheEnvs,
+                    mountPath: ToolchainCacheMount.linuxGuestPath
+                ) + "\n\n"
         } else {
             cachePrefix = ""
         }
         switch forge.credentials {
         case .github:
-            return cachePrefix + RunnerBootstrap.linuxGitHubRegistrationScript(
-                configureURL: forge.registrationURL(),
-                token: token,
-                labels: labels ?? forge.labels,
-                ephemeral: route.ephemeral,
-                name: name,
-                runnerCount: runnerCount
-            )
+            return cachePrefix
+                + RunnerBootstrap.linuxGitHubRegistrationScript(
+                    configureURL: forge.registrationURL(),
+                    token: token,
+                    labels: labels ?? forge.labels,
+                    ephemeral: route.ephemeral,
+                    name: name,
+                    runnerCount: runnerCount
+                )
         case .gitea:
             guard let giteaForge = forge as? GiteaForge else {
                 throw RuntimeWatchError.registrationFailed(vm: name, stderr: "gitea forge misconfigured")
             }
-            return cachePrefix + RunnerBootstrap.linuxGiteaRegistrationScript(
-                instance: giteaForge.registrationURL(),
-                token: giteaForge.registrationToken,
-                labels: forge.labels,
-                name: name,
-                runnerCount: runnerCount
-            )
+            return cachePrefix
+                + RunnerBootstrap.linuxGiteaRegistrationScript(
+                    instance: giteaForge.registrationURL(),
+                    token: giteaForge.registrationToken,
+                    labels: forge.labels,
+                    name: name,
+                    runnerCount: runnerCount
+                )
         }
     }
 
@@ -169,7 +176,9 @@ public struct AppleContainerRuntime: Runtime {
         return nil
     }
 
-    public func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws -> ShellResult {
+    public func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws
+        -> ShellResult
+    {
         try await execScript(id, script, timeout: timeout)
     }
 
@@ -192,7 +201,8 @@ public struct AppleContainerRuntime: Runtime {
     }
 
     /// Poll `container list` until the named container is running (or throw).
-    public func awaitRunning(_ id: String, timeout: TimeInterval, pollInterval: TimeInterval = 1) async throws -> String {
+    public func awaitRunning(_ id: String, timeout: TimeInterval, pollInterval: TimeInterval = 1) async throws -> String
+    {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             try Task.checkCancellation()
@@ -215,7 +225,8 @@ public struct AppleContainerRuntime: Runtime {
 
     /// All container ids known to the CLI (running + stopped).
     public func containerIDs(all: Bool) async throws -> [String] {
-        let argv: [String] = all
+        let argv: [String] =
+            all
             ? [bin, "list", "--all", "--quiet"]
             : [bin, "list", "--quiet"]
         let result = try await run(argv)

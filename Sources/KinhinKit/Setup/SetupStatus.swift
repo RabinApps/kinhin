@@ -171,41 +171,56 @@ public struct SetupStatusComputer: Sendable {
         var checks: [SetupCheckResult] = []
 
         // 1. Host
-        checks.append(SetupCheckResult(
-            id: "arch",
-            title: "Apple Silicon Mac",
-            ok: realHost.arm64,
-            detail: "\(realHost.logicalCores) cores · \(realHost.memoryGB) GB RAM · \(realHost.freeDiskGB) GB free disk",
-            action: nil
-        ))
+        checks.append(
+            SetupCheckResult(
+                id: "arch",
+                title: "Apple Silicon Mac",
+                ok: realHost.arm64,
+                detail:
+                    "\(realHost.logicalCores) cores · \(realHost.memoryGB) GB RAM · \(realHost.freeDiskGB) GB free disk",
+                action: nil
+            ))
 
         // 2. Command Line Tools — Homebrew can't build anything without them.
         // A mismatch here silently blocks the tart install, so it comes first.
-        checks.append(SetupCheckResult(
-            id: "clt",
-            title: "Command Line Tools",
-            ok: realCLT.isOK,
-            detail: realCLT.detail,
-            action: realCLT.isOK ? nil : "fix_clt"
-        ))
+        checks.append(
+            SetupCheckResult(
+                id: "clt",
+                title: "Command Line Tools",
+                ok: realCLT.isOK,
+                detail: realCLT.detail,
+                action: realCLT.isOK ? nil : "fix_clt"
+            ))
 
         // 3. Tart (installed *and* launches)
         let tartHealthy = health == .healthy
         switch health {
         case .healthy:
-            checks.append(SetupCheckResult(id: "tart", title: "Tart installed", ok: true, detail: "installed and launches", action: nil))
+            checks.append(
+                SetupCheckResult(
+                    id: "tart", title: "Tart installed", ok: true, detail: "installed and launches", action: nil))
         case .missing:
-            checks.append(SetupCheckResult(id: "tart", title: "Tart installed", ok: false, detail: (parsed?.hasLinuxRuntime ?? false) ? "not installed — only needed for macOS jobs" : "required to run macOS VMs", action: "install_tart"))
+            checks.append(
+                SetupCheckResult(
+                    id: "tart", title: "Tart installed", ok: false,
+                    detail: (parsed?.hasLinuxRuntime ?? false)
+                        ? "not installed — only needed for macOS jobs" : "required to run macOS VMs",
+                    action: "install_tart"))
         case .killedOnLaunch:
-            checks.append(SetupCheckResult(
-                id: "tart-rollback",
-                title: "Tart is killed on launch",
-                ok: false,
-                detail: "Gatekeeper blocked the un-notarized binary (openai/homebrew-tools#27) — roll back to the notarized Cirrus Labs build",
-                action: "rollback_tart"
-            ))
+            checks.append(
+                SetupCheckResult(
+                    id: "tart-rollback",
+                    title: "Tart is killed on launch",
+                    ok: false,
+                    detail:
+                        "Gatekeeper blocked the un-notarized binary (openai/homebrew-tools#27) — roll back to the notarized Cirrus Labs build",
+                    action: "rollback_tart"
+                ))
         case .broken(let reason):
-            checks.append(SetupCheckResult(id: "tart", title: "Tart is not working", ok: false, detail: "\(reason) — reinstall, or roll back to the Cirrus build", action: "reinstall_tart"))
+            checks.append(
+                SetupCheckResult(
+                    id: "tart", title: "Tart is not working", ok: false,
+                    detail: "\(reason) — reinstall, or roll back to the Cirrus build", action: "reinstall_tart"))
         }
 
         // 4. Config — four states: working config, untouched template (the
@@ -226,23 +241,27 @@ public struct SetupStatusComputer: Sendable {
         // A Gitea-only config (no real GitHub repo) has no GitHub row.
         let githubInUse = parsed.map { $0.githubEnabled } ?? true
         if githubInUse {
-            checks.append(SetupCheckResult(
-                id: "token",
-                title: "GitHub token stored",
-                ok: realToken,
-                detail: realToken ? "stored in Keychain" : "a PAT with repo scope is required",
-                action: realToken ? "replace_token" : "enter_token"
-            ))
+            checks.append(
+                SetupCheckResult(
+                    id: "token",
+                    title: "GitHub token stored",
+                    ok: realToken,
+                    detail: realToken ? "stored in Keychain" : "a PAT with repo scope is required",
+                    action: realToken ? "replace_token" : "enter_token"
+                ))
         }
         if case .parsed(let cfg) = evaluation, cfg.gitea != nil {
             let giteaToken = giteaTokenStored ?? (KeychainTokenStore.load(forge: .gitea) != nil)
-            checks.append(SetupCheckResult(
-                id: "gitea-token",
-                title: "Gitea token stored",
-                ok: giteaToken,
-                detail: giteaToken ? "stored in Keychain" : "a Gitea access token with runner-management rights is required (kinhin auth set --gitea)",
-                action: giteaToken ? "replace_gitea_token" : "enter_gitea_token"
-            ))
+            checks.append(
+                SetupCheckResult(
+                    id: "gitea-token",
+                    title: "Gitea token stored",
+                    ok: giteaToken,
+                    detail: giteaToken
+                        ? "stored in Keychain"
+                        : "a Gitea access token with runner-management rights is required (kinhin auth set --gitea)",
+                    action: giteaToken ? "replace_gitea_token" : "enter_gitea_token"
+                ))
         }
 
         // 6. Runner image
@@ -266,13 +285,14 @@ public struct SetupStatusComputer: Sendable {
                 imageDetail = "could not launch tart"
             }
         }
-        checks.append(SetupCheckResult(
-            id: "image",
-            title: "Runner image prepared",
-            ok: imageOK,
-            detail: imageDetail,
-            action: imageOK ? nil : "prepare_image"
-        ))
+        checks.append(
+            SetupCheckResult(
+                id: "image",
+                title: "Runner image prepared",
+                ok: imageOK,
+                detail: imageDetail,
+                action: imageOK ? nil : "prepare_image"
+            ))
 
         // 7. Apple-container runtime — rows appear only when the config
         // enables the container runtime, mirroring the gitea-token row.
@@ -285,29 +305,32 @@ public struct SetupStatusComputer: Sendable {
             }
             switch resolvedHealth {
             case .ready:
-                checks.append(SetupCheckResult(
-                    id: "container-cli",
-                    title: "Apple container",
-                    ok: true,
-                    detail: "installed and the container system is running",
-                    action: nil
-                ))
+                checks.append(
+                    SetupCheckResult(
+                        id: "container-cli",
+                        title: "Apple container",
+                        ok: true,
+                        detail: "installed and the container system is running",
+                        action: nil
+                    ))
             case .missing:
-                checks.append(SetupCheckResult(
-                    id: "container-cli",
-                    title: "Apple container",
-                    ok: false,
-                    detail: "the container CLI is required for Linux container runners",
-                    action: "install_container_cli"
-                ))
+                checks.append(
+                    SetupCheckResult(
+                        id: "container-cli",
+                        title: "Apple container",
+                        ok: false,
+                        detail: "the container CLI is required for Linux container runners",
+                        action: "install_container_cli"
+                    ))
             case .broken(let why):
-                checks.append(SetupCheckResult(
-                    id: "container-cli",
-                    title: "Apple container",
-                    ok: false,
-                    detail: why,
-                    action: "start_container_system"
-                ))
+                checks.append(
+                    SetupCheckResult(
+                        id: "container-cli",
+                        title: "Apple container",
+                        ok: false,
+                        detail: why,
+                        action: "start_container_system"
+                    ))
             default:
                 break
             }
@@ -322,15 +345,16 @@ public struct SetupStatusComputer: Sendable {
                 listed = []
             }
             let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
-            checks.append(SetupCheckResult(
-                id: "container-image",
-                title: "Container image prepared",
-                ok: imageFound,
-                detail: !resolvedHealth.isReady
-                    ? "run after the container system is running"
-                    : (imageFound ? "image '\(wanted)' found" : "image '\(wanted)' not local yet"),
-                action: imageFound ? nil : "prepare_container_image"
-            ))
+            checks.append(
+                SetupCheckResult(
+                    id: "container-image",
+                    title: "Container image prepared",
+                    ok: imageFound,
+                    detail: !resolvedHealth.isReady
+                        ? "run after the container system is running"
+                        : (imageFound ? "image '\(wanted)' found" : "image '\(wanted)' not local yet"),
+                    action: imageFound ? nil : "prepare_container_image"
+                ))
         }
 
         // 8. Docker runtime — rows appear only when the config declares a
@@ -345,29 +369,33 @@ public struct SetupStatusComputer: Sendable {
             }
             switch resolvedHealth {
             case .ready:
-                checks.append(SetupCheckResult(
-                    id: "docker-cli",
-                    title: "Docker",
-                    ok: true,
-                    detail: "installed and the Docker daemon is reachable",
-                    action: nil
-                ))
+                checks.append(
+                    SetupCheckResult(
+                        id: "docker-cli",
+                        title: "Docker",
+                        ok: true,
+                        detail: "installed and the Docker daemon is reachable",
+                        action: nil
+                    ))
             case .missing:
-                checks.append(SetupCheckResult(
-                    id: "docker-cli",
-                    title: "Docker",
-                    ok: false,
-                    detail: "the docker CLI is required for Linux container runners (Docker Desktop, OrbStack, or colima)",
-                    action: "install_container_cli"
-                ))
+                checks.append(
+                    SetupCheckResult(
+                        id: "docker-cli",
+                        title: "Docker",
+                        ok: false,
+                        detail:
+                            "the docker CLI is required for Linux container runners (Docker Desktop, OrbStack, or colima)",
+                        action: "install_container_cli"
+                    ))
             case .broken(let why):
-                checks.append(SetupCheckResult(
-                    id: "docker-cli",
-                    title: "Docker",
-                    ok: false,
-                    detail: why,
-                    action: nil
-                ))
+                checks.append(
+                    SetupCheckResult(
+                        id: "docker-cli",
+                        title: "Docker",
+                        ok: false,
+                        detail: why,
+                        action: nil
+                    ))
             }
 
             let wanted = cfg.docker?.image ?? "kinhin-ci-linux"
@@ -380,15 +408,16 @@ public struct SetupStatusComputer: Sendable {
                 listed = []
             }
             let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
-            checks.append(SetupCheckResult(
-                id: "docker-image",
-                title: "Docker image prepared",
-                ok: imageFound,
-                detail: !resolvedHealth.isReady
-                    ? "run after the Docker daemon is reachable"
-                    : (imageFound ? "image '\(wanted)' found" : "image '\(wanted)' not local yet"),
-                action: imageFound ? nil : "prepare_docker_image"
-            ))
+            checks.append(
+                SetupCheckResult(
+                    id: "docker-image",
+                    title: "Docker image prepared",
+                    ok: imageFound,
+                    detail: !resolvedHealth.isReady
+                        ? "run after the Docker daemon is reachable"
+                        : (imageFound ? "image '\(wanted)' found" : "image '\(wanted)' not local yet"),
+                    action: imageFound ? nil : "prepare_docker_image"
+                ))
         }
 
         // 9. Shared toolchain cache — advisory row for the host cache that

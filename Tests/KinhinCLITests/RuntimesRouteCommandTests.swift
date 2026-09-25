@@ -1,5 +1,6 @@
-import XCTest
 import KinhinKit
+import XCTest
+
 @testable import kinhin
 
 // The route-editing subcommands must behave exactly like the pane's
@@ -10,8 +11,11 @@ import KinhinKit
 final class RuntimesRouteCommandTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
-        scratch = try FileManager.default.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: FileManager.default.temporaryDirectory, create: true)
-            .appendingPathComponent("kinhin-route-tests-\(UUID().uuidString)")
+        scratch = try FileManager.default.url(
+            for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: FileManager.default.temporaryDirectory,
+            create: true
+        )
+        .appendingPathComponent("kinhin-route-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
     }
 
@@ -41,30 +45,30 @@ final class RuntimesRouteCommandTests: XCTestCase {
     // container section configured (routes to appleContainer are rejected by
     // engine validation without an image).
     private let baseConfig = """
-    # kinhin configuration
-    repo: "acme/ios-app"
+        # kinhin configuration
+        repo: "acme/ios-app"
 
-    labels: ["self-hosted", "macos", "arm64"]
+        labels: ["self-hosted", "macos", "arm64"]
 
-    max_runners: 4
+        max_runners: 4
 
-    vm:
-      cpu: 4
-      memory_gb: 8
+        vm:
+          cpu: 4
+          memory_gb: 8
 
-    image: "tahoe-base"
+        image: "tahoe-base"
 
-    reserve:
-      cpu: 2
-      memory_gb: 4
+        reserve:
+          cpu: 2
+          memory_gb: 4
 
-    poll_interval: 30
+        poll_interval: 30
 
-    container:
-      image: "kinhin-ci-linux"
-      cpus: 2
-      memory_gb: 4
-    """
+        container:
+          image: "kinhin-ci-linux"
+          cpus: 2
+          memory_gb: 4
+        """
 
     private func runRoute(_ tail: [String]) async throws {
         // The core receives the args *after* `runtimes route`.
@@ -161,7 +165,10 @@ final class RuntimesRouteCommandTests: XCTestCase {
     // MARK: remove
 
     func testRemoveDeletesOnlyTheTargetRoute() async throws {
-        try installConfig(baseConfig + "\nruntimes:\n  default: tart\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n    - pattern: \"acme/web@Nightly\"\n      runtime: appleContainer\n")
+        try installConfig(
+            baseConfig
+                + "\nruntimes:\n  default: tart\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n    - pattern: \"acme/web@Nightly\"\n      runtime: appleContainer\n"
+        )
         try await runRoute(["remove", "acme/api"])
 
         let rc = try XCTUnwrap(try routedSection())
@@ -169,7 +176,10 @@ final class RuntimesRouteCommandTests: XCTestCase {
     }
 
     func testRemoveLastRouteKeepsTheSection() async throws {
-        try installConfig(baseConfig + "\nruntimes:\n  default: appleContainer\n  budget: {tart: 0.5, appleContainer: 0.5}\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n")
+        try installConfig(
+            baseConfig
+                + "\nruntimes:\n  default: appleContainer\n  budget: {tart: 0.5, appleContainer: 0.5}\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n"
+        )
         try await runRoute(["remove", "acme/api"])
 
         let rc = try XCTUnwrap(try routedSection(), "removing the last route must not drop default/budget")
@@ -206,7 +216,8 @@ final class RuntimesRouteCommandTests: XCTestCase {
         // `run` gets the full argv (head included) and must slice off
         // `runtimes route` before handing the tail to the editing core.
         // (Pinned directly because `run` exits the process on success.)
-        XCTAssertEqual(RuntimesCommand.routeTail(["runtimes", "route", "add", "acme/api", "tart"]), ["add", "acme/api", "tart"])
+        XCTAssertEqual(
+            RuntimesCommand.routeTail(["runtimes", "route", "add", "acme/api", "tart"]), ["add", "acme/api", "tart"])
         XCTAssertEqual(RuntimesCommand.routeTail(["runtimes", "route", "remove", "acme/api"]), ["remove", "acme/api"])
         XCTAssertNil(RuntimesCommand.routeTail(["runtimes"]), "bare runtimes is the summary")
         XCTAssertNil(RuntimesCommand.routeTail(["runtimes", "--json"]), "flags keep the summary form")
@@ -233,7 +244,9 @@ final class RuntimesRouteCommandTests: XCTestCase {
                 try await runRoute(argv)
                 XCTFail("expected RouteError for \(argv)")
             } catch let error as RuntimesCommand.RouteError {
-                XCTAssertTrue(error.message.contains(expectedSubstring), "\(argv): expected '\(expectedSubstring)' in '\(error.message)'")
+                XCTAssertTrue(
+                    error.message.contains(expectedSubstring),
+                    "\(argv): expected '\(expectedSubstring)' in '\(error.message)'")
             }
         }
 

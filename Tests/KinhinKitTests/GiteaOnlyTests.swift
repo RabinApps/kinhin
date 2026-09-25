@@ -1,17 +1,19 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// A config with a `gitea:` section and the starter placeholder repo serves
 /// Gitea only: no GitHub token, no GitHub verification.
 final class GiteaOnlyTests: XCTestCase {
     private func giteaOnlyConfig() throws -> kinhinConfig {
-        try ConfigLoader.parse("""
-        repo: "\(ConfigLoader.templateRepo)"
-        labels: [self-hosted, macOS]
-        gitea:
-          instance: "https://git.example.com"
-          scope: "team/repo"
-        """)
+        try ConfigLoader.parse(
+            """
+            repo: "\(ConfigLoader.templateRepo)"
+            labels: [self-hosted, macOS]
+            gitea:
+              instance: "https://git.example.com"
+              scope: "team/repo"
+            """)
     }
 
     func testGiteaOnlyConfigIsUsableWithoutGitHub() throws {
@@ -28,10 +30,12 @@ final class GiteaOnlyTests: XCTestCase {
 
     func testEngineTokenRequiresTheRightForgeToken() throws {
         let gitea = try giteaOnlyConfig()
-        XCTAssertEqual(ConfigLoader.engineToken(for: gitea, load: { $0 == .gitea ? "gt" : nil }), "",
-                       "Gitea-only needs only the Gitea token; the GitHub slot is an empty placeholder")
-        XCTAssertNil(ConfigLoader.engineToken(for: gitea, load: { $0 == .github ? "gh" : nil }),
-                     "a GitHub token does not satisfy a Gitea-only config")
+        XCTAssertEqual(
+            ConfigLoader.engineToken(for: gitea, load: { $0 == .gitea ? "gt" : nil }), "",
+            "Gitea-only needs only the Gitea token; the GitHub slot is an empty placeholder")
+        XCTAssertNil(
+            ConfigLoader.engineToken(for: gitea, load: { $0 == .github ? "gh" : nil }),
+            "a GitHub token does not satisfy a Gitea-only config")
 
         let github = try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [a]\n")
         XCTAssertEqual(ConfigLoader.engineToken(for: github, load: { $0 == .github ? "gh" : nil }), "gh")
@@ -40,7 +44,7 @@ final class GiteaOnlyTests: XCTestCase {
 
     func testEngineStartSkipsGitHubVerificationWhenGiteaOnly() async throws {
         let github = FakeGitHub()
-        github.permissionDenied = true // would block startup if GitHub were probed
+        github.permissionDenied = true  // would block startup if GitHub were probed
         let engine = FleetEngine(
             config: try giteaOnlyConfig(),
             github: github,
@@ -58,13 +62,14 @@ final class GiteaOnlyTests: XCTestCase {
 }
 
 final class GiteaOnlyCLITests: XCTestCase {
-    private let giteaOnly = try! ConfigLoader.parse("""
-    repo: "\(ConfigLoader.templateRepo)"
-    labels: [a]
-    gitea:
-      instance: "https://git.example.com"
-      scope: "team/repo"
-    """)
+    private let giteaOnly = try! ConfigLoader.parse(
+        """
+        repo: "\(ConfigLoader.templateRepo)"
+        labels: [a]
+        gitea:
+          instance: "https://git.example.com"
+          scope: "team/repo"
+        """)
 
     func testAuthStatusIsGoodWithOnlyTheGiteaToken() {
         let report = AuthStatusReporter.report(config: giteaOnly, load: { $0 == .gitea ? "gt-token" : nil })
@@ -93,7 +98,9 @@ final class DualForgeTests: XCTestCase {
     struct FakeGitea: Forge {
         var id: ForgeID { .gitea }
         var name: String { "gitea" }
-        var credentials: ForgeCredentials { .gitea(token: "t", scope: "team/repo", instance: "https://git.example.com") }
+        var credentials: ForgeCredentials {
+            .gitea(token: "t", scope: "team/repo", instance: "https://git.example.com")
+        }
         var labels: [String] { ["macos:host"] }
         func registrationURL() -> String { "https://git.example.com" }
         func mintRegistrationToken() async throws -> String { "rt" }
@@ -104,18 +111,20 @@ final class DualForgeTests: XCTestCase {
     }
 
     private func bothConfig() throws -> kinhinConfig {
-        try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: [self-hosted, macOS]
-        gitea:
-          instance: "https://git.example.com"
-          scope: "team/repo"
-        """)
+        try ConfigLoader.parse(
+            """
+            repo: "acme/widgets"
+            labels: [self-hosted, macOS]
+            gitea:
+              instance: "https://git.example.com"
+              scope: "team/repo"
+            """)
     }
 
     private func engine(github: FakeGitHub) throws -> FleetEngine {
-        let engine = FleetEngine(config: try bothConfig(), github: github, tart: FakeTart(),
-                                 store: makeTestStore(), ssh: FakeSSH(), host: testHost)
+        let engine = FleetEngine(
+            config: try bothConfig(), github: github, tart: FakeTart(),
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost)
         // Pre-attached: the engine skips building a real Gitea client.
         engine.forgesLock.withLock { engine.forgesByPlatform["gitea"] = FakeGitea() }
         return engine
@@ -152,15 +161,17 @@ final class DualForgeTests: XCTestCase {
         XCTAssertEqual(forges, ["gitea"], "the failing forge is detached, the healthy one keeps serving")
         let status = await waitUntilRunning(engine)
         XCTAssertTrue(status.running, "the fleet still starts on Gitea")
-        XCTAssertTrue(status.lastError?.hasPrefix("GitHub:") ?? false, "the reason stays visible: \(status.lastError ?? "nil")")
+        XCTAssertTrue(
+            status.lastError?.hasPrefix("GitHub:") ?? false, "the reason stays visible: \(status.lastError ?? "nil")")
         await engine.stop()
     }
 
     func testFleetStillRefusesToStartWhenNoForgeWorks() async throws {
         let github = FakeGitHub()
         github.permissionDenied = true
-        let engine = FleetEngine(config: try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [a]\n"), github: github,
-                                 tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: testHost)
+        let engine = FleetEngine(
+            config: try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [a]\n"), github: github,
+            tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: testHost)
         await engine.start()
         let status = await engine.status()
         XCTAssertFalse(status.running)
@@ -178,15 +189,17 @@ final class DualForgeTests: XCTestCase {
 /// Forges dropped at startup come back on their own.
 final class ForgeRetryTests: XCTestCase {
     private func makeDual(github: FakeGitHub) throws -> FleetEngine {
-        let cfg = try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: [a]
-        gitea:
-          instance: "https://git.example.com"
-          scope: "team/repo"
-        """)
-        let engine = FleetEngine(config: cfg, github: github, tart: FakeTart(),
-                                 store: makeTestStore(), ssh: FakeSSH(), host: testHost)
+        let cfg = try ConfigLoader.parse(
+            """
+            repo: "acme/widgets"
+            labels: [a]
+            gitea:
+              instance: "https://git.example.com"
+              scope: "team/repo"
+            """)
+        let engine = FleetEngine(
+            config: cfg, github: github, tart: FakeTart(),
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost)
         engine.forgesLock.withLock { engine.forgesByPlatform["gitea"] = DualForgeTests.FakeGitea() }
         return engine
     }
@@ -221,7 +234,7 @@ final class ForgeRetryTests: XCTestCase {
         let callsAfterStart = github.registrationTokenCalls
 
         github.permissionDenied = false
-        await engine.retryDetachedForgesIfDue(now: Date())            // too soon
+        await engine.retryDetachedForgesIfDue(now: Date())  // too soon
         XCTAssertEqual(github.registrationTokenCalls, callsAfterStart, "no probe before the backoff elapses")
         XCTAssertNil(engine.forges["github"])
 
@@ -254,12 +267,13 @@ final class ForgeRetryTests: XCTestCase {
 
 /// Tart is optional when a Linux runtime is configured.
 final class LinuxOnlyTests: XCTestCase {
-    private let linux = try! ConfigLoader.parse("""
-    repo: "acme/widgets"
-    labels: [a]
-    docker:
-      image: "kinhin-ci-linux"
-    """)
+    private let linux = try! ConfigLoader.parse(
+        """
+        repo: "acme/widgets"
+        labels: [a]
+        docker:
+          image: "kinhin-ci-linux"
+        """)
     private let macOnly = try! ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [a]\n")
 
     func testHasLinuxRuntime() {
@@ -268,8 +282,9 @@ final class LinuxOnlyTests: XCTestCase {
     }
 
     func testLinuxOnlyEngineRunsWithoutTart() async throws {
-        let engine = FleetEngine(config: linux, github: FakeGitHub(), tart: UnavailableTart(),
-                                 store: makeTestStore(), ssh: FakeSSH(), host: testHost)
+        let engine = FleetEngine(
+            config: linux, github: FakeGitHub(), tart: UnavailableTart(),
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost)
         await engine.start()
         // The engine starts; nothing throws for the missing tart.
         try await engine.reconcileOnce()
@@ -280,8 +295,9 @@ final class LinuxOnlyTests: XCTestCase {
         let tart = UnavailableTart()
         let vms = try? await tart.list()
         XCTAssertEqual(vms?.count, 0, "recovery finds no tart VMs")
-        do { try await tart.clone(source: "a", to: "b"); XCTFail() }
-        catch { XCTAssertTrue(error.localizedDescription.contains("tart not found")) }
+        do { try await tart.clone(source: "a", to: "b"); XCTFail() } catch {
+            XCTAssertTrue(error.localizedDescription.contains("tart not found"))
+        }
     }
 
     func testChecklistIsReadyWithoutTartWhenDockerIsConfigured() async {
@@ -290,7 +306,8 @@ final class LinuxOnlyTests: XCTestCase {
             tokenStored: true, dockerHealth: .ready, dockerImages: ["kinhin-ci-linux"]
         ).compute()
         XCTAssertFalse(status.checks.first { $0.id == "tart" }!.ok, "tart itself is still reported as missing")
-        XCTAssertTrue(status.ready, "but it no longer blocks a Linux-only fleet: \(status.checks.filter { !$0.ok }.map(\.id))")
+        XCTAssertTrue(
+            status.ready, "but it no longer blocks a Linux-only fleet: \(status.checks.filter { !$0.ok }.map(\.id))")
     }
 
     func testChecklistStillNeedsTartForAMacOnlyConfig() async {

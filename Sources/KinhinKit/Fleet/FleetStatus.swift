@@ -25,7 +25,12 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     /// nil for single-runtime fleets). Keys are RuntimeID raw values.
     public var capacityByRuntime: [String: String]?
 
-    public init(running: Bool = false, paused: Bool = false, queueDepth: Int = 0, desired: Int = 0, capacityCap: Int = 0, jobCapacity: Int = 0, queueByRepo: [String: Int]? = nil, runningByRepo: [String: Int]? = nil, records: [VMRecord] = [], lastError: String? = nil, updatedAt: Date = Date(), runtime: String? = nil, capacityByRuntime: [String: String]? = nil) {
+    public init(
+        running: Bool = false, paused: Bool = false, queueDepth: Int = 0, desired: Int = 0, capacityCap: Int = 0,
+        jobCapacity: Int = 0, queueByRepo: [String: Int]? = nil, runningByRepo: [String: Int]? = nil,
+        records: [VMRecord] = [], lastError: String? = nil, updatedAt: Date = Date(), runtime: String? = nil,
+        capacityByRuntime: [String: String]? = nil
+    ) {
         self.running = running
         self.paused = paused
         self.queueDepth = queueDepth
@@ -69,4 +74,3 @@ public struct GitHubClientFactory: Sendable {
         GitHubClientFactory { GitHubClient(credentials: $0) }
     }
 }
-

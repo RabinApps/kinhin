@@ -62,7 +62,8 @@ enum RunCommands {
         } else {
             print("daemon: not running")
             if FileManager.default.fileExists(atPath: Paths.config.path),
-               let cfg = try? ConfigLoader.load() {
+                let cfg = try? ConfigLoader.load()
+            {
                 let host = ResourceProbe().snapshot()
                 let plan = Capacity.plan(
                     host: host,
@@ -74,12 +75,14 @@ enum RunCommands {
                     userMax: cfg.maxRunners
                 )
                 print("capacity: \(plan.maxConcurrent) concurrent VM(s) available (binding: \(plan.bindingConstraint))")
-            let rpv = max(1, cfg.runnersPerVM)
-            let slots = plan.maxConcurrent * rpv
-            print("job slots:  \(slots) concurrent jobs (\(plan.maxConcurrent) VM(s) × runners_per_vm \(rpv))")
-            if rpv >= 3, cfg.vm.memoryGB < 8 {
-                print("  note: runners_per_vm \(rpv) with \(cfg.vm.memoryGB) GB/VM risks memory contention — Xcode jobs want ~2-3 GB each")
-            }
+                let rpv = max(1, cfg.runnersPerVM)
+                let slots = plan.maxConcurrent * rpv
+                print("job slots:  \(slots) concurrent jobs (\(plan.maxConcurrent) VM(s) × runners_per_vm \(rpv))")
+                if rpv >= 3, cfg.vm.memoryGB < 8 {
+                    print(
+                        "  note: runners_per_vm \(rpv) with \(cfg.vm.memoryGB) GB/VM risks memory contention — Xcode jobs want ~2-3 GB each"
+                    )
+                }
             }
             let tarts: [TartVM]
             if let controller = try? TartController() {
@@ -99,9 +102,10 @@ enum RunCommands {
         while true {
             // Reuse the status command's rendering.
             if RPCClient.isDaemonAlive(), let response = try? RPCClient().send(method: .status),
-               response.ok, let payload = response.payload,
-               let status = try? JSONDecoder().decode(FleetStatus.self, from: payload) {
-                print("\u{1B}[2J\u{1B}[H") // clear screen
+                response.ok, let payload = response.payload,
+                let status = try? JSONDecoder().decode(FleetStatus.self, from: payload)
+            {
+                print("\u{1B}[2J\u{1B}[H")  // clear screen
                 print(renderStatus(status))
                 print("(refreshing every 2s — Ctrl-C to exit)")
             } else {
@@ -146,6 +150,6 @@ enum RunCommands {
                 fail(error.localizedDescription)
             }
         }
-    
+
     }
 }

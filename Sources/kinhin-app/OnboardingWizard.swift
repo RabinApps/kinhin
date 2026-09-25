@@ -4,16 +4,16 @@ import KinhinKit
 /// The first-run wizard: three short steps that reuse the same forms as the
 /// Setup tab, so nothing is entered in two different places.
 ////// 1. **Connect** — paste a GitHub token, pick the repo or org to serve
-    ///    (optionally add a self-hosted Gitea).
-    /// 2. **This Mac** — install tart and prepare the runner image; optionally
-    ///    enable Linux runtimes.
-    /// 3. **Select toolchains** — pick what runtimes/tools to preinstall into
-    ///    your runner images. Everything starts OFF so the user chooses.
-    /// 4. **Start** — a plain-language summary and "Start fleet".
-    ///
-    /// Every choice is written as soon as it is made, so leaving the wizard at
-    /// any point keeps the progress. "Start fleet" is only enabled once the fleet
-    /// can actually start, so the app never loops back into setup.
+///    (optionally add a self-hosted Gitea).
+/// 2. **This Mac** — install tart and prepare the runner image; optionally
+///    enable Linux runtimes.
+/// 3. **Select toolchains** — pick what runtimes/tools to preinstall into
+///    your runner images. Everything starts OFF so the user chooses.
+/// 4. **Start** — a plain-language summary and "Start fleet".
+///
+/// Every choice is written as soon as it is made, so leaving the wizard at
+/// any point keeps the progress. "Start fleet" is only enabled once the fleet
+/// can actually start, so the app never loops back into setup.
 @MainActor
 class OnboardingWizardViewController: NSViewController {
     /// Fired when the user presses Start fleet.
@@ -45,9 +45,15 @@ class OnboardingWizardViewController: NSViewController {
 
         var subtitle: String {
             switch self {
-            case .connect: return "kinhin runs your CI jobs on this Mac. Connect GitHub, a self-hosted Gitea, or both: paste a token, then choose the repository (or organization) to serve."
-            case .mac: return "Choose what runs your jobs: Linux (Docker or Apple container), macOS virtual machines (tart), or both. You only need one."
-            case .toolchains: return "Pick every tool and stack that should be preinstalled in each runner image. Nothing is installed until you apply."
+            case .connect:
+                return
+                    "kinhin runs your CI jobs on this Mac. Connect GitHub, a self-hosted Gitea, or both: paste a token, then choose the repository (or organization) to serve."
+            case .mac:
+                return
+                    "Choose what runs your jobs: Linux (Docker or Apple container), macOS virtual machines (tart), or both. You only need one."
+            case .toolchains:
+                return
+                    "Pick every tool and stack that should be preinstalled in each runner image. Nothing is installed until you apply."
             case .start: return "Everything you chose is saved. You can change any of it later in the Setup tab."
             }
         }
@@ -183,7 +189,8 @@ class OnboardingWizardViewController: NSViewController {
         headerHeight?.isActive = false
         view.layoutSubtreeIfNeeded()
         if let headerStack {
-            let constraint = headerStack.heightAnchor.constraint(equalToConstant: max(26, headerStack.fittingSize.height))
+            let constraint = headerStack.heightAnchor.constraint(
+                equalToConstant: max(26, headerStack.fittingSize.height))
             constraint.isActive = true
             headerHeight = constraint
         }
@@ -216,8 +223,14 @@ class OnboardingWizardViewController: NSViewController {
     /// What still blocks starting (empty → ready).
     private var missingItems: [String] {
         var missing: [String] = []
-        if !connectForm.isConnected { missing.append("Connect GitHub or Gitea and choose a repository or org (step 1).") }
-        if !macForm.isReady { missing.append("Set up something to run jobs on (step 2): a Linux runtime (Docker or Apple container), or tart for macOS jobs.") }
+        if !connectForm.isConnected {
+            missing.append("Connect GitHub or Gitea and choose a repository or org (step 1).")
+        }
+        if !macForm.isReady {
+            missing.append(
+                "Set up something to run jobs on (step 2): a Linux runtime (Docker or Apple container), or tart for macOS jobs."
+            )
+        }
         if toolchainsForm.hasPendingChanges {
             missing.append("Apply your toolchain selection in step 3 before starting the fleet.")
         }

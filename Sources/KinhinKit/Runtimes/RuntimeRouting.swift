@@ -19,7 +19,9 @@ public struct RuntimePool: Sendable, Equatable {
     /// The fleet's default label set for this runtime: the config labels
     /// plus the runtime's marker ("kinhin-container" for Apple containers,
     /// "kinhin-docker" for Docker slots).
-    public static func labelsFor(_ runtime: RuntimeID, fleetLabels: [String], containerExtra: [String]? = nil) -> [String] {
+    public static func labelsFor(_ runtime: RuntimeID, fleetLabels: [String], containerExtra: [String]? = nil)
+        -> [String]
+    {
         var labels = fleetLabels
         if let marker = exclusiveMarker(for: runtime) {
             if !labels.contains(marker) { labels.append(marker) }
@@ -92,7 +94,9 @@ public enum RuntimeRouter {
     }
 
     /// Route a queued job to a pool.
-    public static func assign(job: ForgeJob, config: RuntimeConfigModel, defaultPool: RuntimePool, pools: [RuntimeID: RuntimePool]) -> Decision {
+    public static func assign(
+        job: ForgeJob, config: RuntimeConfigModel, defaultPool: RuntimePool, pools: [RuntimeID: RuntimePool]
+    ) -> Decision {
         let repo = repoKey(job.repository)
 
         // 1 & 2. Workflow-then-repo route precedence.
@@ -105,7 +109,8 @@ public enum RuntimeRouter {
                 guard let routeWorkflow = workflow(of: route.pattern) else { continue }
                 guard repoPattern(of: route.pattern) == repo else { continue }
                 if let workflowName,
-                   workflowName.caseInsensitiveCompare(routeWorkflow) == .orderedSame {
+                    workflowName.caseInsensitiveCompare(routeWorkflow) == .orderedSame
+                {
                     if let pool = pools[RuntimeID(rawValue: route.runtime) ?? .tart] {
                         return Decision(pool: pool, via: "workflow:\(route.pattern)")
                     }
@@ -124,8 +129,9 @@ public enum RuntimeRouter {
         // (kinhin-container for Apple containers, kinhin-docker for Docker).
         for (runtimeID, pool) in pools.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             if let marker = RuntimePool.exclusiveMarker(for: runtimeID),
-               pool.labels.contains(marker),
-               Set(job.labels ?? []).contains(marker) {
+                pool.labels.contains(marker),
+                Set(job.labels ?? []).contains(marker)
+            {
                 return Decision(pool: pool, via: "label:\(marker)")
             }
         }
@@ -142,7 +148,10 @@ public struct RuntimeConfigModel: Sendable {
     public let pools: [RuntimeID: RuntimePool]
     public let defaultRuntime: RuntimeID
 
-    public init(config: kinhinConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil, containerConfigured: Bool = false, dockerConfigured: Bool = false) {
+    public init(
+        config: kinhinConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil,
+        containerConfigured: Bool = false, dockerConfigured: Bool = false
+    ) {
         if let config {
             // Explicit routing: tart is always available (macOS workloads),
             // containers and Docker slots join when configured. The default
@@ -154,7 +163,8 @@ public struct RuntimeConfigModel: Sendable {
             if containerConfigured {
                 pools[.appleContainer] = RuntimePool(
                     runtime: .appleContainer,
-                    labels: RuntimePool.labelsFor(.appleContainer, fleetLabels: fleetLabels, containerExtra: containerLabels)
+                    labels: RuntimePool.labelsFor(
+                        .appleContainer, fleetLabels: fleetLabels, containerExtra: containerLabels)
                 )
             }
             if dockerConfigured {
@@ -172,10 +182,12 @@ public struct RuntimeConfigModel: Sendable {
             let primary: RuntimeID = containerConfigured ? .appleContainer : (dockerConfigured ? .docker : .tart)
             self.routes = []
             self.defaultRuntime = primary
-            self.pools = [primary: RuntimePool(
-                runtime: primary,
-                labels: RuntimePool.labelsFor(primary, fleetLabels: fleetLabels, containerExtra: containerLabels)
-            )]
+            self.pools = [
+                primary: RuntimePool(
+                    runtime: primary,
+                    labels: RuntimePool.labelsFor(primary, fleetLabels: fleetLabels, containerExtra: containerLabels)
+                )
+            ]
         }
     }
 
@@ -224,10 +236,12 @@ public enum RuntimeCapacity {
             let cpuShare = Int((Double(hostUsableCPU) * weight).rounded(.down))
             let memShare = Int((Double(hostUsableMemoryGB) * weight).rounded(.down))
             let shapeFor = shape(runtime)
-            let cap = shapeFor.cpu > 0 ? min(
-                shapeFor.cpu > 0 ? cpuShare / shapeFor.cpu : 0,
-                shapeFor.memoryGB > 0 ? memShare / shapeFor.memoryGB : Int.max
-            ) : 0
+            let cap =
+                shapeFor.cpu > 0
+                ? min(
+                    shapeFor.cpu > 0 ? cpuShare / shapeFor.cpu : 0,
+                    shapeFor.memoryGB > 0 ? memShare / shapeFor.memoryGB : Int.max
+                ) : 0
             caps[runtime] = max(0, cap)
             allocatedCPU += cpuShare
             allocatedMem += memShare
@@ -237,10 +251,12 @@ public enum RuntimeCapacity {
         let restCPU = max(0, hostUsableCPU - allocatedCPU)
         let restMem = max(0, hostUsableMemoryGB - allocatedMem)
         let defShape = shape(defaultRuntime)
-        let defCap = defShape.cpu > 0 ? min(
-            restCPU / defShape.cpu,
-            defShape.memoryGB > 0 ? restMem / defShape.memoryGB : Int.max
-        ) : 0
+        let defCap =
+            defShape.cpu > 0
+            ? min(
+                restCPU / defShape.cpu,
+                defShape.memoryGB > 0 ? restMem / defShape.memoryGB : Int.max
+            ) : 0
         caps[defaultRuntime] = max(0, defCap)
 
         let summary = caps.keys.sorted { $0.rawValue < $1.rawValue }

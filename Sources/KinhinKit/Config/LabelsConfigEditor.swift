@@ -122,13 +122,19 @@ public enum LabelsConfigEditor {
         }
         var lines = yaml.components(separatedBy: "\n")
 
-        guard let containerIdx = lines.firstIndex(where: { isTopKey($0) && $0.trimmingCharacters(in: .whitespaces) == "container:" }) else {
-            throw RuntimesConfigError.validation("no container: section in config — add it before setting container.labels")
+        guard
+            let containerIdx = lines.firstIndex(where: {
+                isTopKey($0) && $0.trimmingCharacters(in: .whitespaces) == "container:"
+            })
+        else {
+            throw RuntimesConfigError.validation(
+                "no container: section in config — add it before setting container.labels")
         }
         // A flow-style container line (container: {…}) can't take children.
         let containerLine = lines[containerIdx].trimmingCharacters(in: .whitespaces)
         guard containerLine == "container:" else {
-            throw RuntimesConfigError.yamlParse("container: must use block style (one key per line) to edit container.labels")
+            throw RuntimesConfigError.yamlParse(
+                "container: must use block style (one key per line) to edit container.labels")
         }
 
         let block = ["  labels:"] + newLabels.map { "    - \"\($0.escaped())\"" }

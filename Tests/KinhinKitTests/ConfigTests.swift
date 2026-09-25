@@ -1,37 +1,38 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class ConfigTests: XCTestCase {
     func testMinimalValidConfig() throws {
         let yaml = """
-        repo: "acme/widgets"
-        labels: ["kinhin"]
-        """
+            repo: "acme/widgets"
+            labels: ["kinhin"]
+            """
         let cfg = try ConfigLoader.parse(yaml)
         XCTAssertEqual(cfg.repo, "acme/widgets")
         XCTAssertEqual(cfg.labels, ["kinhin"])
-        XCTAssertEqual(cfg.maxRunners, 1) // default
-        XCTAssertEqual(cfg.runnersPerVM, 1) // default: classic one-runner-per-VM
+        XCTAssertEqual(cfg.maxRunners, 1)  // default
+        XCTAssertEqual(cfg.runnersPerVM, 1)  // default: classic one-runner-per-VM
         XCTAssertEqual(cfg.vm.cpuCount, 4)
     }
 
     func testRunnersPerVMParses() throws {
         let yaml = """
-        repo: "acme/widgets"
-        labels: ["x"]
-        max_runners: 2
-        runners_per_vm: 6
-        """
+            repo: "acme/widgets"
+            labels: ["x"]
+            max_runners: 2
+            runners_per_vm: 6
+            """
         XCTAssertEqual(try ConfigLoader.parse(yaml).runnersPerVM, 6)
     }
 
     func testRunnersPerVMRejectsZeroAndNine() throws {
         for bad in [0, 9] {
             let yaml = """
-            repo: "a/b"
-            labels: ["x"]
-            runners_per_vm: \(bad)
-            """
+                repo: "a/b"
+                labels: ["x"]
+                runners_per_vm: \(bad)
+                """
             XCTAssertThrowsError(try ConfigLoader.parse(yaml)) { error in
                 guard case ConfigError.invalid(let why) = (error as! ConfigError) else {
                     return XCTFail("wrong error")
@@ -43,21 +44,21 @@ final class ConfigTests: XCTestCase {
 
     func testFullConfig() throws {
         let yaml = """
-        repo: "acme/widgets"
-        labels: ["a", "b"]
-        min_runners: 1
-        max_runners: 3
-        poll_interval: 15
-        vm:
-          cpu: 3
-          memory_gb: 6
-          ephemeral: false
-        image: "kinhin-base"
-        disk_gb: 40
-        reserve:
-          cpu: 1
-          memory_gb: 2
-        """
+            repo: "acme/widgets"
+            labels: ["a", "b"]
+            min_runners: 1
+            max_runners: 3
+            poll_interval: 15
+            vm:
+              cpu: 3
+              memory_gb: 6
+              ephemeral: false
+            image: "kinhin-base"
+            disk_gb: 40
+            reserve:
+              cpu: 1
+              memory_gb: 2
+            """
         let cfg = try ConfigLoader.parse(yaml)
         XCTAssertEqual(cfg.minRunners, 1)
         XCTAssertEqual(cfg.maxRunners, 3)
@@ -111,11 +112,11 @@ final class ConfigTests: XCTestCase {
 
     func testMaxBelowMinThrows() {
         let yaml = """
-        repo: "a/b"
-        labels: ["x"]
-        min_runners: 3
-        max_runners: 2
-        """
+            repo: "a/b"
+            labels: ["x"]
+            min_runners: 3
+            max_runners: 2
+            """
         XCTAssertThrowsError(try ConfigLoader.parse(yaml)) { error in
             guard case ConfigError.invalid(let why) = (error as! ConfigError) else {
                 return XCTFail("wrong error")
@@ -126,17 +127,20 @@ final class ConfigTests: XCTestCase {
 
     func testTinyPollIntervalThrows() {
         let yaml = """
-        repo: "a/b"
-        labels: ["x"]
-        poll_interval: 1
-        """
+            repo: "a/b"
+            labels: ["x"]
+            poll_interval: 1
+            """
         XCTAssertThrowsError(try ConfigLoader.parse(yaml))
     }
 
     func testTemplateContainsKeyFields() {
         // The shipped template must document every knob a user may set.
         let template = ConfigLoader.template()
-        for key in ["repo:", "labels:", "min_runners:", "max_runners:", "runners_per_vm:", "poll_interval:", "vm:", "image:", "reserve:"] {
+        for key in [
+            "repo:", "labels:", "min_runners:", "max_runners:", "runners_per_vm:", "poll_interval:", "vm:", "image:",
+            "reserve:",
+        ] {
             XCTAssertTrue(template.contains(key), "template missing '\(key)'")
         }
     }

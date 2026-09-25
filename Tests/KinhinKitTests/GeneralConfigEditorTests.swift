@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class GeneralConfigEditorTests: XCTestCase {
@@ -6,7 +7,8 @@ final class GeneralConfigEditorTests: XCTestCase {
     private var file: URL!
 
     override func setUpWithError() throws {
-        dir = FileManager.default.temporaryDirectory.appendingPathComponent("gce-\(UUID().uuidString)", isDirectory: true)
+        dir = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "gce-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         file = dir.appendingPathComponent("config.yaml")
     }
@@ -20,23 +22,23 @@ final class GeneralConfigEditorTests: XCTestCase {
     }
 
     private static let sample = """
-    # kinhin configuration
-    repo: "acme/widgets"
-    labels: ["self-hosted", "macos"]
-    min_runners: 0
-    max_runners: 2
-    poll_interval: 20
-    vm:
-      cpu: 4          # per-VM cores
-      memory_gb: 8
-      ephemeral: true
-    image: "tahoe-base"
-    reserve:
-      cpu: 2
-      memory_gb: 4
+        # kinhin configuration
+        repo: "acme/widgets"
+        labels: ["self-hosted", "macos"]
+        min_runners: 0
+        max_runners: 2
+        poll_interval: 20
+        vm:
+          cpu: 4          # per-VM cores
+          memory_gb: 8
+          ephemeral: true
+        image: "tahoe-base"
+        reserve:
+          cpu: 2
+          memory_gb: 4
 
-    # Optional section below
-    """
+        # Optional section below
+        """
 
     // MARK: Snapshot
 
@@ -127,7 +129,8 @@ final class GeneralConfigEditorTests: XCTestCase {
 
     func testGiteaSectionInsertAndRemove() throws {
         try write(Self.sample)
-        _ = try GeneralConfigEditor.apply(.gitea(.init(instance: "https://gitea.acme.dev", scope: "acme/api")), to: file)
+        _ = try GeneralConfigEditor.apply(
+            .gitea(.init(instance: "https://gitea.acme.dev", scope: "acme/api")), to: file)
         var updated = try String(contentsOf: file, encoding: .utf8)
         XCTAssertTrue(updated.contains("gitea:"))
         XCTAssertTrue(updated.contains("instance: \"https://gitea.acme.dev\""))
@@ -146,7 +149,8 @@ final class GeneralConfigEditorTests: XCTestCase {
     func testContainerAndDockerToggles() throws {
         try write(Self.sample)
         _ = try GeneralConfigEditor.apply(.container(.init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4)), to: file)
-        _ = try GeneralConfigEditor.apply(.docker(.init(image: "docker-ci", cpus: 1, memoryGB: 2, maxSlots: 4)), to: file)
+        _ = try GeneralConfigEditor.apply(
+            .docker(.init(image: "docker-ci", cpus: 1, memoryGB: 2, maxSlots: 4)), to: file)
         let updated = try String(contentsOf: file, encoding: .utf8)
         XCTAssertTrue(updated.contains("container:"))
         XCTAssertTrue(updated.contains("docker:"))
@@ -176,6 +180,7 @@ final class GeneralConfigEditorTests: XCTestCase {
     }
 
     func testMissingFileThrows() {
-        XCTAssertThrowsError(try GeneralConfigEditor.apply(.pollInterval(30), to: dir.appendingPathComponent("nope.yaml")))
+        XCTAssertThrowsError(
+            try GeneralConfigEditor.apply(.pollInterval(30), to: dir.appendingPathComponent("nope.yaml")))
     }
 }

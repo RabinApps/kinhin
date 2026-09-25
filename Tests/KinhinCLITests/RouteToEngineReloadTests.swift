@@ -1,6 +1,7 @@
 import XCTest
-@testable import kinhin
+
 @testable import KinhinKit
+@testable import kinhin
 
 /// The full route-editing path, end to end: the CLI subcommand writes a
 /// route through the validated editor onto a scratch config, a live engine
@@ -34,25 +35,25 @@ final class RouteToEngineReloadTests: XCTestCase {
     /// the Linux side on top (container routes are rejected without a
     /// container section).
     private let baseYAML = """
-    repo: "acme/widgets"
-    labels: ["self-hosted", "macos", "arm64"]
-    max_runners: 4
-    poll_interval: 30
-    vm:
-      cpu: 4
-      memory_gb: 8
-    image: "tahoe-base"
-    reserve:
-      cpu: 2
-      memory_gb: 4
-    """
+        repo: "acme/widgets"
+        labels: ["self-hosted", "macos", "arm64"]
+        max_runners: 4
+        poll_interval: 30
+        vm:
+          cpu: 4
+          memory_gb: 8
+        image: "tahoe-base"
+        reserve:
+          cpu: 2
+          memory_gb: 4
+        """
 
     private let containerYAML = """
-    container:
-      image: "kinhin-ci-linux"
-      cpus: 2
-      memory_gb: 4
-    """
+        container:
+          image: "kinhin-ci-linux"
+          cpus: 2
+          memory_gb: 4
+        """
 
     /// A true mixed fleet: an even budget split so the reload materializes
     /// both pools' caps (usable 10 cpu / 28 GB → container 5/14, tart 5/14).
@@ -78,7 +79,9 @@ final class RouteToEngineReloadTests: XCTestCase {
         func clone(source: String, to name: String) async throws {}
         func run(name: String, mounts: [String]) async throws {}
         func ip(of name: String, timeout: TimeInterval) async throws -> String { "192.168.64.2" }
-        func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
+        func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
+            -> ShellResult
+        {
             ShellResult(exitCode: 0, stdout: "", stderr: "")
         }
         func stop(name: String) async throws {}
@@ -87,7 +90,9 @@ final class RouteToEngineReloadTests: XCTestCase {
     }
 
     private struct StubSSH: SSHExecuting {
-        func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
+        func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
+            -> ShellResult
+        {
             ShellResult(exitCode: 0, stdout: "", stderr: "")
         }
     }
@@ -180,7 +185,8 @@ final class RouteToEngineReloadTests: XCTestCase {
     /// repo falls back to the default pool.
     func testCLIRouteRemoveFallsBackToDefaultPool() async throws {
         try installConfig(mixedYAML)
-        try await RuntimesCommand.route(["add", "acme/api", "appleContainer"], configURL: configURL, notifyDaemon: false)
+        try await RuntimesCommand.route(
+            ["add", "acme/api", "appleContainer"], configURL: configURL, notifyDaemon: false)
         let engine = try makeEngine(loadConfig())
 
         // Remove through the CLI, then the running engine picks the file up.
@@ -205,7 +211,8 @@ final class RouteToEngineReloadTests: XCTestCase {
     /// pool. This is the per-workflow half of the routing contract.
     func testCLIWorkflowRouteBucketsOnlyThatWorkflow() async throws {
         try installConfig(mixedYAML)
-        try await RuntimesCommand.route(["add", "acme/api@Nightly", "appleContainer"], configURL: configURL, notifyDaemon: false)
+        try await RuntimesCommand.route(
+            ["add", "acme/api@Nightly", "appleContainer"], configURL: configURL, notifyDaemon: false)
 
         let config = try loadConfig()
         let buckets = bucket(
@@ -226,16 +233,20 @@ final class RouteToEngineReloadTests: XCTestCase {
     /// Routing itself must still work exactly the same.
     func testRouteOnlyReloadCapsTheDefaultAndStillRoutes() async throws {
         try installConfig(baseYAML + "\n" + containerYAML)
-        try await RuntimesCommand.route(["add", "acme/api", "appleContainer"], configURL: configURL, notifyDaemon: false)
+        try await RuntimesCommand.route(
+            ["add", "acme/api", "appleContainer"], configURL: configURL, notifyDaemon: false)
 
         let engine = try makeEngine(loadConfig())
         engine.applyReloaded(config: try loadConfig(), host: host)
 
         let status = await engine.status()
-        XCTAssertEqual(Set(status.capacityByRuntime?.keys ?? [:].keys), ["tart"], "only the default has a cap without budget weights")
+        XCTAssertEqual(
+            Set(status.capacityByRuntime?.keys ?? [:].keys), ["tart"],
+            "only the default has a cap without budget weights")
 
         // And the route still buckets demand identically.
-        let buckets = bucket([ForgeJob(name: "build", runnerName: nil, repository: "acme/api")], config: try loadConfig())
+        let buckets = bucket(
+            [ForgeJob(name: "build", runnerName: nil, repository: "acme/api")], config: try loadConfig())
         XCTAssertEqual(buckets[.appleContainer], 1)
         XCTAssertEqual(buckets[.tart] ?? 0, 0)
     }
@@ -250,7 +261,8 @@ final class RouteToEngineReloadTests: XCTestCase {
         let original = try String(contentsOf: configURL, encoding: .utf8)
 
         do {
-            try await RuntimesCommand.route(["add", "acme/api", "appleContainer"], configURL: configURL, notifyDaemon: false)
+            try await RuntimesCommand.route(
+                ["add", "acme/api", "appleContainer"], configURL: configURL, notifyDaemon: false)
             XCTFail("engine validation must reject a container route without a container section")
         } catch let error as RuntimesCommand.RouteError {
             XCTAssertTrue(error.message.contains("container"), "got: \(error.message)")

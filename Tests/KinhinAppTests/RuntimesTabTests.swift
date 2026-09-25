@@ -1,5 +1,6 @@
-import XCTest
 import AppKit
+import XCTest
+
 @testable import KinhinKit
 @testable import kinhin_app
 
@@ -20,11 +21,13 @@ final class RuntimesTabTests: XCTestCase {
             "🍎 Tart (macOS VMs) — installed ✓ · used by your fleet"
         )
         XCTAssertEqual(
-            RuntimesWindowController.availabilityTitle(.docker, health: .missing(tool: "docker", fix: "install Docker Desktop"), inUse: false),
+            RuntimesWindowController.availabilityTitle(
+                .docker, health: .missing(tool: "docker", fix: "install Docker Desktop"), inUse: false),
             "🐳 Docker (Linux) — not installed · not used by your config"
         )
         XCTAssertEqual(
-            RuntimesWindowController.availabilityTitle(.appleContainer, health: .broken("the container system service is not running"), inUse: true),
+            RuntimesWindowController.availabilityTitle(
+                .appleContainer, health: .broken("the container system service is not running"), inUse: true),
             "🐧 Apple container (Linux) — installed — needs attention · used by your fleet"
         )
     }
@@ -44,9 +47,9 @@ final class RuntimesTabTests: XCTestCase {
         // Minimal config: no container:, no docker: — those runtimes must
         // still appear in the sweep, which is the whole point.
         let yaml = """
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            """
         let vm = await RuntimesPaneViewModel.load(
             configYAML: yaml,
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 94, arm64: true),
@@ -60,8 +63,9 @@ final class RuntimesTabTests: XCTestCase {
         // Docker has no injection point: the real probe runs. On CI and dev
         // Macs without Docker it reports missing rather than being absent.
         guard case .missing = vm.availability[.docker] else {
-            if case .ready = vm.availability[.docker] { return } // Docker present locally — fine
-            return XCTFail("docker availability should be ready or missing, got: \(String(describing: vm.availability[.docker]))")
+            if case .ready = vm.availability[.docker] { return }  // Docker present locally — fine
+            return XCTFail(
+                "docker availability should be ready or missing, got: \(String(describing: vm.availability[.docker]))")
         }
     }
 
@@ -75,14 +79,14 @@ final class RuntimesTabTests: XCTestCase {
     }
 
     private let validConfig = """
-    repo: "acme/widgets"
-    labels: ["self-hosted", "macos", "arm64"]
-    """
+        repo: "acme/widgets"
+        labels: ["self-hosted", "macos", "arm64"]
+        """
 
     private let invalidConfig = """
-    repo: ""
-    labels: ["self-hosted"]
-    """
+        repo: ""
+        labels: ["self-hosted"]
+        """
 
     func testEditorWritesWhenValidationPasses() throws {
         let url = tempConfig(validConfig)
@@ -105,8 +109,9 @@ final class RuntimesTabTests: XCTestCase {
             // The engine's message is opaque for a YAML parse failure, but the
             // file must be untouched either way.
         }
-        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), validConfig,
-                       "a rejected edit must never touch the file")
+        XCTAssertEqual(
+            try String(contentsOf: url, encoding: .utf8), validConfig,
+            "a rejected edit must never touch the file")
     }
 
     func testEditorRefusesSemanticallyInvalidConfig() throws {

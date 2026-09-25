@@ -24,7 +24,8 @@ final class LogsViewController: NSViewController {
 
         func matches(_ entry: Log.Entry) -> Bool {
             guard Log.Level(rawValue: entry.level) != nil,
-                  Log.Level(rawValue: entry.level)! >= minLevel else { return false }
+                Log.Level(rawValue: entry.level)! >= minLevel
+            else { return false }
             guard !query.isEmpty else { return true }
             return entry.message.localizedCaseInsensitiveContains(query)
                 || entry.component.localizedCaseInsensitiveContains(query)
@@ -54,7 +55,10 @@ final class LogsViewController: NSViewController {
         searchField.action = #selector(searchChanged)
         searchField.setAccessibilityLabel("Search logs")
 
-        for (title, level) in [("All", Log.Level.debug), ("Info+", Log.Level.info), ("Warnings+", Log.Level.warn), ("Errors", Log.Level.error)] {
+        for (title, level) in [
+            ("All", Log.Level.debug), ("Info+", Log.Level.info), ("Warnings+", Log.Level.warn),
+            ("Errors", Log.Level.error),
+        ] {
             levelPopup.addItem(withTitle: title)
             levelPopup.lastItem?.representedObject = level
         }
@@ -177,10 +181,11 @@ final class LogsViewController: NSViewController {
                 .foregroundColor: NSColor.secondaryLabelColor,
                 .font: NSFont.systemFont(ofSize: 12),
             ])
-            full.append(NSAttributedString(
-                string: entries.isEmpty ? "No log lines yet." : "No lines match.",
-                attributes: empty
-            ))
+            full.append(
+                NSAttributedString(
+                    string: entries.isEmpty ? "No log lines yet." : "No lines match.",
+                    attributes: empty
+                ))
         }
         storage.setAttributedString(full)
     }

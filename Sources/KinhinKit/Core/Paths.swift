@@ -26,7 +26,8 @@ public enum Paths {
     /// Injectable core of the migration so tests can exercise it on temp dirs.
     static func migrateLegacySupportDirectory(from legacy: URL, to new: URL, fileManager: FileManager = .default) {
         guard fileManager.fileExists(atPath: legacy.path),
-              !fileManager.fileExists(atPath: new.path) else { return }
+            !fileManager.fileExists(atPath: new.path)
+        else { return }
         do {
             try fileManager.createDirectory(at: new.deletingLastPathComponent(), withIntermediateDirectories: true)
             try fileManager.moveItem(at: legacy, to: new)
@@ -45,7 +46,9 @@ public enum Paths {
     /// Shared toolchain download cache (mise, brew, npm, fvm, Go, Cargo…).
     /// Mounted read-write into scratch VMs at prepare time and — opt-in via
     /// `toolchains.share_cache` — into runner VMs. See `ToolchainCacheMount`.
-    public static var toolchainCache: URL { appSupport.appendingPathComponent(ToolchainCacheMount.hostDirectoryName, isDirectory: true) }
+    public static var toolchainCache: URL {
+        appSupport.appendingPathComponent(ToolchainCacheMount.hostDirectoryName, isDirectory: true)
+    }
 
     /// Directory where per-VM bootstrap scripts and state live.
     public static var stateDirectory: URL { appSupport.appendingPathComponent("state", isDirectory: true) }

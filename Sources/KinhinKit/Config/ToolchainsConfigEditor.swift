@@ -131,7 +131,8 @@ public enum ToolchainsConfigEditor {
     static func sectionText(_ selection: ToolchainsSelection) -> String? {
         guard !selection.isEmpty else { return nil }
         func quoted(_ value: String) -> String {
-            "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+            "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+                + "\""
         }
         func list(_ items: [String]) -> String { "[" + items.map(quoted).joined(separator: ", ") + "]" }
         var lines = ["toolchains:"]
@@ -183,7 +184,8 @@ public enum ToolchainsConfigEditor {
     public static func plan(_ selection: ToolchainsSelection, for platform: ToolchainPlatform) -> Plan {
         let resolved = ToolchainCatalog.selection(from: selection.config, platform: platform)
         let skipped = Set(resolved.skippedEntries)
-        let chosen = ToolchainCatalog.tools.map(\.id).filter { selection.tools[$0] != nil }
+        let chosen =
+            ToolchainCatalog.tools.map(\.id).filter { selection.tools[$0] != nil }
             + ToolchainCatalog.stacks.map(\.id).filter { selection.stacks[$0] != nil }
         var installing = chosen.filter { !skipped.contains($0) }
         installing += selection.extraSpecs

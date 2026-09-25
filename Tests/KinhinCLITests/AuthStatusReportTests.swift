@@ -1,5 +1,6 @@
-import XCTest
 import KinhinKit
+import XCTest
+
 @testable import kinhin
 
 /// The `kinhin auth status --json` contract: per-forge stored-token state,
@@ -12,7 +13,8 @@ final class AuthStatusReportTests: XCTestCase {
         var cfg = kinhinConfig.default
         cfg.repo = repo
         if gitea {
-            cfg.gitea = kinhinConfig.GiteaForgeConfig(instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
+            cfg.gitea = kinhinConfig.GiteaForgeConfig(
+                instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
         }
         return cfg
     }
@@ -103,18 +105,24 @@ final class AuthStatusReportTests: XCTestCase {
     // MARK: - allGood (drives the CLI exit code)
 
     func testAllGoodOnlyWhenEveryRequiredTokenIsStored() {
-        XCTAssertTrue(report(stored: [.github: "ghp_x"], config: Self.config()).allGood,
-                      "GitHub stored + scoped, Gitea unconfigured → all good")
-        XCTAssertFalse(report(config: Self.config()).allGood,
-                       "no GitHub token → not good")
-        XCTAssertFalse(report(stored: [.github: "ghp_x"], config: Self.config(gitea: true)).allGood,
-                       "gitea configured but no token → not good")
-        XCTAssertTrue(report(stored: [.github: "ghp_x", .gitea: "gt_x"], config: Self.config(gitea: true)).allGood,
-                      "every required token stored → all good")
-        XCTAssertFalse(report(stored: [.gitea: "gt_x"], config: Self.config()).allGood,
-                       "Gitea token alone never satisfies the report")
-        XCTAssertFalse(report(stored: [.github: "ghp_x"], config: Self.config(repo: "")).allGood,
-                       "a stored token without a scope is not usable")
+        XCTAssertTrue(
+            report(stored: [.github: "ghp_x"], config: Self.config()).allGood,
+            "GitHub stored + scoped, Gitea unconfigured → all good")
+        XCTAssertFalse(
+            report(config: Self.config()).allGood,
+            "no GitHub token → not good")
+        XCTAssertFalse(
+            report(stored: [.github: "ghp_x"], config: Self.config(gitea: true)).allGood,
+            "gitea configured but no token → not good")
+        XCTAssertTrue(
+            report(stored: [.github: "ghp_x", .gitea: "gt_x"], config: Self.config(gitea: true)).allGood,
+            "every required token stored → all good")
+        XCTAssertFalse(
+            report(stored: [.gitea: "gt_x"], config: Self.config()).allGood,
+            "Gitea token alone never satisfies the report")
+        XCTAssertFalse(
+            report(stored: [.github: "ghp_x"], config: Self.config(repo: "")).allGood,
+            "a stored token without a scope is not usable")
     }
 
     func testNilConfigStillProducesAGithubEntry() {

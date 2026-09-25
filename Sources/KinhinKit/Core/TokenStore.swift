@@ -112,7 +112,8 @@ public final class RegistrationTokenCache: Sendable {
     public func token(fetch: () async throws -> String) async throws -> String {
         let now = Date()
         if let current = entry.withLock({ $0.value }),
-           now < current.expiresAt.addingTimeInterval(-refreshMargin) {
+            now < current.expiresAt.addingTimeInterval(-refreshMargin)
+        {
             return current.token
         }
         let fresh = try await fetch()

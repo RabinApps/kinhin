@@ -33,13 +33,15 @@ public struct DockerRuntime: Runtime {
     /// here when `share_cache` bind-mounts the host cache into containers).
     let toolchainsConfig: @Sendable () -> kinhinConfig.ToolchainsConfig?
 
-    public init(shell: ShellRunning = Shell(),
-                image: String,
-                cpus: Int = 2,
-                memoryGB: Int = 4,
-                binPath: String? = nil,
-                exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
-                toolchainsConfig: @escaping @Sendable () -> kinhinConfig.ToolchainsConfig? = { nil }) {
+    public init(
+        shell: ShellRunning = Shell(),
+        image: String,
+        cpus: Int = 2,
+        memoryGB: Int = 4,
+        binPath: String? = nil,
+        exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
+        toolchainsConfig: @escaping @Sendable () -> kinhinConfig.ToolchainsConfig? = { nil }
+    ) {
         self.shell = shell
         self.image = image
         self.cpus = cpus
@@ -62,8 +64,8 @@ public struct DockerRuntime: Runtime {
         if let found = Paths.findExecutable(named: "docker") { return found }
         let candidates = [
             NSHomeDirectory() + "/.docker/bin/docker",  // Docker Desktop's CLI path
-            "/usr/local/bin/docker",                     // Docker Desktop symlink / colima
-            "/opt/homebrew/bin/docker",                  // brew-installed CLI
+            "/usr/local/bin/docker",  // Docker Desktop symlink / colima
+            "/opt/homebrew/bin/docker",  // brew-installed CLI
         ]
         for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) {
             return candidate
@@ -91,7 +93,8 @@ public struct DockerRuntime: Runtime {
         // opaquely otherwise). One probe covers all three providers.
         let info = try? await run([resolved, "info", "--format", "{{.ServerVersion}}"])
         guard let info, info.succeeded,
-              !info.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            !info.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
             return .broken("the Docker daemon is not reachable — start Docker Desktop (or: colima start)")
         }
         return .ready
@@ -133,42 +136,47 @@ public struct DockerRuntime: Runtime {
     /// The bootstrap script (same forge scripts the Apple-container runtime
     /// uses — Linux agent paths). Executed inside the container by the
     /// engine via `execRegistration`.
-    public func registrationScript(forge: Forge, token: String, name: String,
-                                   runnerCount: Int, route: RepoRoute, labels: [String]?) async throws -> String {
+    public func registrationScript(
+        forge: Forge, token: String, name: String,
+        runnerCount: Int, route: RepoRoute, labels: [String]?
+    ) async throws -> String {
         // Opt-in shared cache: point the selected ecosystems' caches at the
         // bind-mounted host cache so per-job installs reuse warm downloads.
         // Exports are guarded no-ops when the mount is absent. Linux
         // platform: macOS-only entries (brew, fvm, CocoaPods) never appear.
         let cachePrefix: String
         if route.cacheMount, let selection = linuxToolchainSelection {
-            cachePrefix = RunnerBootstrap.cacheEnvExports(
-                cacheEnvs: selection.cacheEnvs,
-                mountPath: ToolchainCacheMount.linuxGuestPath
-            ) + "\n\n"
+            cachePrefix =
+                RunnerBootstrap.cacheEnvExports(
+                    cacheEnvs: selection.cacheEnvs,
+                    mountPath: ToolchainCacheMount.linuxGuestPath
+                ) + "\n\n"
         } else {
             cachePrefix = ""
         }
         switch forge.credentials {
         case .github:
-            return cachePrefix + RunnerBootstrap.linuxGitHubRegistrationScript(
-                configureURL: forge.registrationURL(),
-                token: token,
-                labels: labels ?? forge.labels,
-                ephemeral: route.ephemeral,
-                name: name,
-                runnerCount: runnerCount
-            )
+            return cachePrefix
+                + RunnerBootstrap.linuxGitHubRegistrationScript(
+                    configureURL: forge.registrationURL(),
+                    token: token,
+                    labels: labels ?? forge.labels,
+                    ephemeral: route.ephemeral,
+                    name: name,
+                    runnerCount: runnerCount
+                )
         case .gitea:
             guard let giteaForge = forge as? GiteaForge else {
                 throw RuntimeWatchError.registrationFailed(vm: name, stderr: "gitea forge misconfigured")
             }
-            return cachePrefix + RunnerBootstrap.linuxGiteaRegistrationScript(
-                instance: giteaForge.registrationURL(),
-                token: giteaForge.registrationToken,
-                labels: forge.labels,
-                name: name,
-                runnerCount: runnerCount
-            )
+            return cachePrefix
+                + RunnerBootstrap.linuxGiteaRegistrationScript(
+                    instance: giteaForge.registrationURL(),
+                    token: giteaForge.registrationToken,
+                    labels: forge.labels,
+                    name: name,
+                    runnerCount: runnerCount
+                )
         }
     }
 
@@ -190,7 +198,9 @@ public struct DockerRuntime: Runtime {
         throw RuntimeWatchError.registrationTimeout(vm: id)
     }
 
-    public func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws -> ShellResult {
+    public func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws
+        -> ShellResult
+    {
         try await execScript(id, script, timeout: timeout)
     }
 
@@ -217,7 +227,8 @@ public struct DockerRuntime: Runtime {
     }
 
     public func containerIDs(all: Bool) async throws -> [String] {
-        let argv: [String] = all
+        let argv: [String] =
+            all
             ? [bin, "ps", "--all", "--quiet"]
             : [bin, "ps", "--quiet"]
         let result = try await run(argv)

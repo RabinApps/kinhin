@@ -1,6 +1,7 @@
-import XCTest
 import AppKit
 import KinhinKit
+import XCTest
+
 @testable import kinhin_app
 
 @MainActor
@@ -13,7 +14,7 @@ final class StatusRenderingTests: XCTestCase {
         super.setUp()
         delegate = AppDelegate()
         menu = delegate.buildMenu()
-        delegate.menu = menu // rebuildVMSection mutates the stored menu
+        delegate.menu = menu  // rebuildVMSection mutates the stored menu
         originalItems = menu.items
     }
 
@@ -42,8 +43,8 @@ final class StatusRenderingTests: XCTestCase {
         status.records = [
             record(phase: .busy),
             record(phase: .ready),
-            record(phase: .failed),   // terminal — not active
-            record(phase: .deleting), // terminal — not active
+            record(phase: .failed),  // terminal — not active
+            record(phase: .deleting),  // terminal — not active
         ]
         XCTAssertEqual(delegate.statusTitle(for: status), "○ 2")
     }
@@ -111,15 +112,17 @@ final class StatusRenderingTests: XCTestCase {
 
         delegate.apply(status: status)
 
-        XCTAssertEqual(menu.items.first { $0.identifier?.rawValue == "statusLine" }?.title,
-                       delegate.statusLine(for: status))
+        XCTAssertEqual(
+            menu.items.first { $0.identifier?.rawValue == "statusLine" }?.title,
+            delegate.statusLine(for: status))
         XCTAssertEqual(delegate.lastStatus, status, "the poll caches the latest status for the main window")
     }
 
     func testApplyWithoutStatusShowsNeedsSetup() {
         delegate.apply(status: nil)
-        XCTAssertEqual(menu.items.first { $0.identifier?.rawValue == "statusLine" }?.title,
-                       "Needs setup — open the Setup tab")
+        XCTAssertEqual(
+            menu.items.first { $0.identifier?.rawValue == "statusLine" }?.title,
+            "Needs setup — open the Setup tab")
         XCTAssertNil(delegate.lastStatus)
     }
 

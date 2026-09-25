@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Covers the runner-permission verification (PAT can manage runners for the
@@ -52,7 +53,8 @@ final class OrgPermissionTests: XCTestCase {
         XCTAssertFalse(report.ok)
         XCTAssertTrue(report.message.contains("lacks runner-management permission"))
         XCTAssertTrue(report.message.contains("admin:org"), "org remediation must mention the scope: \(report.message)")
-        XCTAssertTrue(report.message.contains("Organization administration: write"), "fine-grained remediation must be present")
+        XCTAssertTrue(
+            report.message.contains("Organization administration: write"), "fine-grained remediation must be present")
     }
 
     func testRepoScopeNotFoundMapsToRepoMessage() async {

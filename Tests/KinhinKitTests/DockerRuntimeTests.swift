@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Covers the Docker execution runtime: health probing across the Docker
@@ -65,8 +66,10 @@ final class DockerRuntimeTests: XCTestCase {
         XCTAssertEqual(shell.argvs.count, 2)  // ps (idempotency check) + run
         let runArgv = shell.argvs[1]
         XCTAssertEqual(runArgv.first, bin)
-        for flag in ["run", "--detach", "--name", "kinhin-abc", "--cpus", "3",
-                     "--memory", "6144M", "--platform", "linux/arm64", "--rm"] {
+        for flag in [
+            "run", "--detach", "--name", "kinhin-abc", "--cpus", "3",
+            "--memory", "6144M", "--platform", "linux/arm64", "--rm",
+        ] {
             XCTAssertTrue(runArgv.contains(flag), "run argv must contain \(flag): \(runArgv)")
         }
         XCTAssertTrue(runArgv.contains("ghcr.io/acme/ci"))
@@ -120,7 +123,8 @@ final class DockerRuntimeTests: XCTestCase {
         let gitea = GiteaForge(
             credentials: .gitea(token: "t", scope: "acme/widgets", instance: "https://gitea.example.com"),
             labels: ["linux:host"],
-            client: GiteaClient(credentials: GiteaCredentials(token: "t", scope: "acme/widgets", instance: "https://gitea.example.com")),
+            client: GiteaClient(
+                credentials: GiteaCredentials(token: "t", scope: "acme/widgets", instance: "https://gitea.example.com")),
             demandFloor: 0,
             registrationToken: "GT"
         )
@@ -136,8 +140,8 @@ final class DockerRuntimeTests: XCTestCase {
     func testAwaitReadyPollsUntilContainerAppears() async throws {
         let shell = ScriptedShell()
         shell.responses = [
-            ShellResult(exitCode: 1, stdout: "", stderr: ""),               // not yet
-            ShellResult(exitCode: 0, stdout: "other\n", stderr: ""),         // still not ours
+            ShellResult(exitCode: 1, stdout: "", stderr: ""),  // not yet
+            ShellResult(exitCode: 0, stdout: "other\n", stderr: ""),  // still not ours
             ShellResult(exitCode: 0, stdout: "other\nkinhin-abc\n", stderr: ""),  // up
         ]
         let runtime = DockerRuntime(
@@ -193,44 +197,54 @@ final class DockerRuntimeTests: XCTestCase {
     // MARK: - Config
 
     func testDockerConfigParsingAndValidation() throws {
-        let cfg = try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        docker:
-          image: "ghcr.io/acme/kinhin-ci-linux"
-          cpus: 2
-          memory_gb: 4
-          max_slots: 6
-        """)
+        let cfg = try ConfigLoader.parse(
+            """
+            repo: "acme"
+            labels: ["kinhin"]
+            docker:
+              image: "ghcr.io/acme/kinhin-ci-linux"
+              cpus: 2
+              memory_gb: 4
+              max_slots: 6
+            """)
         let docker = try XCTUnwrap(cfg.docker)
         XCTAssertEqual(docker.image, "ghcr.io/acme/kinhin-ci-linux")
         XCTAssertEqual(docker.cpus, 2)
         XCTAssertEqual(docker.memoryGB, 4)
         XCTAssertEqual(docker.maxSlots, 6)
 
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        docker:
-          image: ""
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme"
+                labels: ["kinhin"]
+                docker:
+                  image: ""
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("docker.image must not be empty"), "\(error)")
         }
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        docker:
-          cpus: 0
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme"
+                labels: ["kinhin"]
+                docker:
+                  cpus: 0
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("docker.image must not be empty"), "\(error)")
         }
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        docker:
-          image: "img"
-          max_slots: 0
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme"
+                labels: ["kinhin"]
+                docker:
+                  image: "img"
+                  max_slots: 0
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("docker.max_slots must be >= 1"), "\(error)")
         }
     }
@@ -260,7 +274,8 @@ final class DockerRuntimeTests: XCTestCase {
         let status = await engine.status()
         let record = try XCTUnwrap(status.records.first)
         XCTAssertEqual(record.runtime, RuntimeID.docker.rawValue)
-        XCTAssertEqual(status.runtime, RuntimeID.docker.rawValue, "docker is the primary runtime when only docker: is configured")
+        XCTAssertEqual(
+            status.runtime, RuntimeID.docker.rawValue, "docker is the primary runtime when only docker: is configured")
         XCTAssertNil(record.ip, "docker records carry no IP — there is no SSH transport")
 
         // The lifecycle used docker run/exec (provision) and exec (registration).
@@ -341,7 +356,9 @@ final class DockerRuntimeTests: XCTestCase {
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""))
         XCTAssertTrue(script.contains("export npm_config_store_dir=\"/var/kinhin-cache/pnpm-store\""))
         XCTAssertTrue(script.contains("/opt/actions-runner"), "registration script itself still present")
-        XCTAssertTrue(script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "config.sh --url")!.lowerBound, "exports come first")
+        XCTAssertTrue(
+            script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "config.sh --url")!.lowerBound,
+            "exports come first")
     }
 
     func testRegistrationScriptWithoutMountHasNoExports() async throws {
@@ -365,7 +382,8 @@ final class DockerRuntimeTests: XCTestCase {
     func testPrepareAlwaysBindMountsTheCache() async throws {
         let shell = RecordingShell()
         let preparer = DockerImagePreparer(shell: shell)
-        try await preparer.prepare(.init(image: "ubuntu:24.04", target: "kinhin-ci", hasGitHubToken: true, hasGiteaToken: false))
+        try await preparer.prepare(
+            .init(image: "ubuntu:24.04", target: "kinhin-ci", hasGitHubToken: true, hasGiteaToken: false))
         let runArgv = try XCTUnwrap(shell.argvs.first { $0.contains("run") })
         XCTAssertTrue(runArgv.contains("--volume"), "prepare bind-mounts the host cache unconditionally: \(runArgv)")
         XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
@@ -374,11 +392,12 @@ final class DockerRuntimeTests: XCTestCase {
     func testPrepareBakesManagedToolchainsBeforeCommit() async throws {
         let shell = RecordingShell()
         let preparer = DockerImagePreparer(shell: shell)
-        try await preparer.prepare(.init(
-            image: "ubuntu:24.04", target: "kinhin-ci",
-            toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
-            hasGitHubToken: true, hasGiteaToken: false
-        ))
+        try await preparer.prepare(
+            .init(
+                image: "ubuntu:24.04", target: "kinhin-ci",
+                toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
+                hasGitHubToken: true, hasGiteaToken: false
+            ))
         // Order: run → ready-probe exec → agent exec → managed exec → commit.
         let runIdx = try XCTUnwrap(shell.argvs.firstIndex { $0.contains("run") })
         let bashExecs = shell.argvs.enumerated().filter { _, argv in
@@ -404,11 +423,12 @@ final class DockerRuntimeTests: XCTestCase {
         ]
         let preparer = DockerImagePreparer(shell: shell)
         do {
-            try await preparer.prepare(.init(
-                image: "ubuntu:24.04", target: "kinhin-ci",
-                toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
-                hasGitHubToken: true, hasGiteaToken: false
-            ))
+            try await preparer.prepare(
+                .init(
+                    image: "ubuntu:24.04", target: "kinhin-ci",
+                    toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
+                    hasGitHubToken: true, hasGiteaToken: false
+                ))
             XCTFail("expected the bake to fail")
         } catch let error as ContainerImageError {
             guard case .provisioningFailed(let why) = error, why.contains("managed toolchain install failed") else {
@@ -417,7 +437,8 @@ final class DockerRuntimeTests: XCTestCase {
         }
         let argvs = await shell.argvSnapshot()
         XCTAssertFalse(argvs.contains { $0.contains("commit") }, "no image is committed when a bake step fails")
-        XCTAssertTrue(argvs.contains { $0.contains("rm") && $0.contains("--force") }, "the scratch container is cleaned up")
+        XCTAssertTrue(
+            argvs.contains { $0.contains("rm") && $0.contains("--force") }, "the scratch container is cleaned up")
     }
 
     func testEngineWiresToolchainsIntoDockerRuntime() async throws {
@@ -435,8 +456,10 @@ final class DockerRuntimeTests: XCTestCase {
             labels: ["kinhin"],
             client: FakeGitHub()
         )
-        let route = RepoRoute(repo: "acme/widgets", image: "kinhin-ci-linux", ephemeral: true, bootTimeout: 30, cacheMount: true)
-        let script = try await runtime.registrationScript(forge: forge, token: "tok", name: "c", runnerCount: 1, route: route, labels: nil)
+        let route = RepoRoute(
+            repo: "acme/widgets", image: "kinhin-ci-linux", ephemeral: true, bootTimeout: 30, cacheMount: true)
+        let script = try await runtime.registrationScript(
+            forge: forge, token: "tok", name: "c", runnerCount: 1, route: route, labels: nil)
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""))
     }
 }

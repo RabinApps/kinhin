@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Replacing the stored PAT: the Keychain upsert, the engine's live
@@ -63,7 +64,8 @@ final class TokenReplacementTests: XCTestCase {
 
         await engine.replaceCredentials(pat: "ghp_new")
 
-        XCTAssertEqual(recording.seenTokens, ["ghp_old", "ghp_new"], "factory must rebuild a client from the fresh credentials")
+        XCTAssertEqual(
+            recording.seenTokens, ["ghp_old", "ghp_new"], "factory must rebuild a client from the fresh credentials")
         let swapped = engine.github as? SwapProbeClient
         XCTAssertEqual(swapped?.token, "ghp_new", "engine.github must serve the new credentials")
     }
@@ -104,7 +106,8 @@ final class TokenReplacementTests: XCTestCase {
         try await waitUntil(timeout: 10) {
             github.registrationTokenCalls >= 2
         }
-        XCTAssertEqual(github.registrationTokenCalls, 2, "post-swap registration must re-mint, not reuse the cached token")
+        XCTAssertEqual(
+            github.registrationTokenCalls, 2, "post-swap registration must re-mint, not reuse the cached token")
     }
 
     // MARK: Daemon RPC
@@ -121,9 +124,12 @@ final class TokenReplacementTests: XCTestCase {
     }
 
     func testDaemonReplaceTokenRejectsBadPayload() async throws {
-        let engine = makeEngine(pat: "ghp_old", github: SwapProbeClient(token: "ghp_old"), factory: GitHubClientFactory { _ in SwapProbeClient(token: "ghp_old") })
+        let engine = makeEngine(
+            pat: "ghp_old", github: SwapProbeClient(token: "ghp_old"),
+            factory: GitHubClientFactory { _ in SwapProbeClient(token: "ghp_old") })
         let badPayload = try JSONEncoder().encode(["nope": true])
-        let response = await Daemon.handle(RPCRequest(id: 12, method: .replaceToken, payload: badPayload), engine: engine)
+        let response = await Daemon.handle(
+            RPCRequest(id: 12, method: .replaceToken, payload: badPayload), engine: engine)
         XCTAssertFalse(response.ok)
         XCTAssertTrue(response.error?.contains("pat") ?? false)
     }
@@ -140,7 +146,9 @@ final class TokenReplacementTests: XCTestCase {
     func testStoredTokenStillOffersReplaceAction() async {
         let computer = SetupCheckHelper.make(
             tartHealth: .healthy,
-            tartList: [TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "stopped")],
+            tartList: [
+                TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "stopped")
+            ],
             config: makeTestConfig(),
             tokenStored: true
         )
@@ -153,7 +161,9 @@ final class TokenReplacementTests: XCTestCase {
     func testMissingTokenOffersEnterAction() async {
         let computer = SetupCheckHelper.make(
             tartHealth: .healthy,
-            tartList: [TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "stopped")],
+            tartList: [
+                TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "stopped")
+            ],
             config: makeTestConfig(),
             tokenStored: false
         )

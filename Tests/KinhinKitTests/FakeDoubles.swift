@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import KinhinKit
 
 /// Scriptable fake for the tart binary.
@@ -22,7 +23,7 @@ final class FakeTart: TartControlling, @unchecked Sendable {
     func clone(source: String, to name: String) async throws {
         lock.lock()
         if failNextClone {
-            failNextClone = false // one-shot failure semantics
+            failNextClone = false  // one-shot failure semantics
             lock.unlock()
             throw TartError.commandFailed(what: "clone", stderr: "injected failure")
         }
@@ -39,7 +40,11 @@ final class FakeTart: TartControlling, @unchecked Sendable {
         lock.lock()
         runCalls.append(name)
         runMounts.append(mounts)
-        if let vm = vms[name] { vms[name] = TartVM(name: vm.name, source: vm.source, status: "running", cpu: vm.cpu, memoryMB: vm.memoryMB, diskGB: vm.diskGB) }
+        if let vm = vms[name] {
+            vms[name] = TartVM(
+                name: vm.name, source: vm.source, status: "running", cpu: vm.cpu, memoryMB: vm.memoryMB,
+                diskGB: vm.diskGB)
+        }
         lock.unlock()
     }
 
@@ -47,7 +52,9 @@ final class FakeTart: TartControlling, @unchecked Sendable {
         "192.168.64.\(Int.random(in: 2...250))"
     }
 
-    func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
+    func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
+        -> ShellResult
+    {
         ShellResult(exitCode: 0, stdout: "", stderr: "")
     }
 
@@ -148,7 +155,7 @@ final class FakeGitHub: GitHubServing, @unchecked Sendable {
 
 /// SSH double that "registers" the runner when its script runs.
 final class FakeSSH: SSHExecuting, @unchecked Sendable {
-    var onExec: ((String) -> Void)? // receives the VM name
+    var onExec: ((String) -> Void)?  // receives the VM name
     private let lock = NSLock()
     private(set) var scripts: [String] = []
     private(set) var timeouts: [TimeInterval] = []

@@ -1,6 +1,7 @@
-import XCTest
 import AppKit
 import KinhinKit
+import XCTest
+
 @testable import kinhin_app
 
 /// The Setup forms and the Capacity form write real config edits — always to
@@ -126,7 +127,8 @@ final class SetupFormsTests: XCTestCase {
     func testWizardTurnsOnAnInstalledLinuxRuntimeWhenTartIsMissing() throws {
         // Only meaningful on a host with Docker but without tart.
         guard !TartController.isInstalled(), Paths.findExecutable(named: "docker") != nil,
-              Paths.findExecutable(named: "container") == nil else { return }
+            Paths.findExecutable(named: "container") == nil
+        else { return }
         let form = MacToolsFormViewController()
         form.configURL = configURL
         form.autoEnableLinuxRuntime = true
@@ -197,7 +199,7 @@ final class SetupFormsTests: XCTestCase {
         let form = ConfigTabViewController()
         form.configURL = configURL
         _ = form.view
-        form.stageForTesting(.minRunners(99), id: "min-runners") // far above Max
+        form.stageForTesting(.minRunners(99), id: "min-runners")  // far above Max
         form.applyPending()
         XCTAssertTrue(form.hasPendingChanges, "a rejected edit is kept so it can be fixed")
         XCTAssertTrue(allText(in: form.view).contains("Not applied"))
@@ -216,7 +218,9 @@ final class SetupFormsTests: XCTestCase {
 
     // MARK: Install flow
 
-    private func installForm(shell: FakeInstallShell, brew: String? = "/opt/homebrew/bin/brew") -> MacToolsFormViewController {
+    private func installForm(shell: FakeInstallShell, brew: String? = "/opt/homebrew/bin/brew")
+        -> MacToolsFormViewController
+    {
         let form = MacToolsFormViewController()
         form.configURL = configURL
         form.installShell = shell
@@ -230,7 +234,9 @@ final class SetupFormsTests: XCTestCase {
         let shell = FakeInstallShell()
         let form = installForm(shell: shell)
         var asked: [InstallableTool] = []
-        form.confirmInstall = { tool, _ in asked.append(tool); return nil }
+        form.confirmInstall = { tool, _ in
+            asked.append(tool); return nil
+        }
         XCTAssertNil(form.install(.docker))
         XCTAssertEqual(asked, [.docker], "the user is always asked first")
         XCTAssertTrue(shell.calls.isEmpty)
@@ -242,10 +248,11 @@ final class SetupFormsTests: XCTestCase {
         var offered: [String] = []
         form.confirmInstall = { _, options in
             offered = options.map(\.id)
-            return options.first { $0.id == "docker-colima" } // the user picks Colima
+            return options.first { $0.id == "docker-colima" }  // the user picks Colima
         }
         await form.install(.docker)?.value
-        XCTAssertEqual(offered, ["docker-desktop", "docker-orbstack", "docker-colima"], "all Docker options are offered")
+        XCTAssertEqual(
+            offered, ["docker-desktop", "docker-orbstack", "docker-colima"], "all Docker options are offered")
         XCTAssertEqual(shell.calls.first, ["/opt/homebrew/bin/brew", "install", "colima", "docker"])
         // (The follow-up `colima start` is resolved from PATH after the real
         // install, so it isn't reachable with a fake shell.)
@@ -257,7 +264,9 @@ final class SetupFormsTests: XCTestCase {
         var explained: InstallableTool?
         var confirmed = false
         form.explainMissingBrew = { tool, _ in explained = tool }
-        form.confirmInstall = { _, _ in confirmed = true; return nil }
+        form.confirmInstall = { _, _ in
+            confirmed = true; return nil
+        }
         XCTAssertNil(form.install(.appleContainer))
         XCTAssertEqual(explained, .appleContainer)
         XCTAssertFalse(confirmed)

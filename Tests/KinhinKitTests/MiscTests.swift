@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class MiscTests: XCTestCase {
@@ -6,9 +7,9 @@ final class MiscTests: XCTestCase {
 
     func testTartListParsing() {
         let output = """
-        tahoe-base\tghcr.io/cirruslabs/macos-tahoe-base:latest\trunning\t4\t8\t64
-        kinhin-1717-abc\ttahoe-base\tsuspended\t2\t4\t64
-        """
+            tahoe-base\tghcr.io/cirruslabs/macos-tahoe-base:latest\trunning\t4\t8\t64
+            kinhin-1717-abc\ttahoe-base\tsuspended\t2\t4\t64
+            """
         let vms = TartController.parseList(output)
         XCTAssertEqual(vms.count, 2)
         XCTAssertEqual(vms[0].name, "tahoe-base")
@@ -43,9 +44,13 @@ final class MiscTests: XCTestCase {
     func testTokenCacheRefetchesAfterInvalidation() async throws {
         let cache = RegistrationTokenCache(ttl: 3600, refreshMargin: 60)
         var fetches = 0
-        _ = try await cache.token { fetches += 1; return "t1" }
+        _ = try await cache.token {
+            fetches += 1; return "t1"
+        }
         cache.invalidate()
-        _ = try await cache.token { fetches += 1; return "t2" }
+        _ = try await cache.token {
+            fetches += 1; return "t2"
+        }
         XCTAssertEqual(fetches, 2)
     }
 
@@ -85,7 +90,7 @@ final class MiscTests: XCTestCase {
             name: "kinhin-9",
             runnerCount: 3
         )
-        for index in 1 ... 3 {
+        for index in 1...3 {
             XCTAssertTrue(script.contains("--name 'kinhin-9-r\(index)'"), "missing runner \(index) name")
             XCTAssertTrue(script.contains("cd ~/actions-runner-\(index)"), "missing runner \(index) dir")
             XCTAssertTrue(script.contains("--work _work-\(index)"), "missing runner \(index) work dir")
@@ -107,7 +112,8 @@ final class MiscTests: XCTestCase {
             configureURL: "https://github.com/a/b", token: "t", labels: ["x"], ephemeral: true, name: "vm"
         )
         let explicit = RunnerBootstrap.registrationScript(
-            configureURL: "https://github.com/a/b", token: "t", labels: ["x"], ephemeral: true, name: "vm", runnerCount: 1
+            configureURL: "https://github.com/a/b", token: "t", labels: ["x"], ephemeral: true, name: "vm",
+            runnerCount: 1
         )
         XCTAssertEqual(legacy, explicit)
         XCTAssertFalse(legacy.contains("actions-runner-"))

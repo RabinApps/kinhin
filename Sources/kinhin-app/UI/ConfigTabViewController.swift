@@ -98,27 +98,36 @@ final class ConfigTabViewController: NSViewController {
 
         // How much work at once
         let work = FormKit.card(title: "How much runs at once")
-        work.column.addArrangedSubview(stepperRow(
-            "Fewest VMs kept ready", help: "0 means VMs only start when a job is waiting.",
-            value: snap.minRunners, range: 0...16, id: "min-runners", make: { .minRunners($0) }))
-        work.column.addArrangedSubview(stepperRow(
-            "Most VMs at once", help: "The hard ceiling on VMs running together.",
-            value: snap.maxRunners, range: 1...32, id: "max-runners", make: { .maxRunners($0) }))
-        work.column.addArrangedSubview(stepperRow(
-            "Jobs per VM", help: "Runners sharing one VM. 1 is safest; more share its CPU and RAM.",
-            value: snap.runnersPerVM, range: 1...8, id: "runners-per-vm", make: { .runnersPerVM($0) }))
-        work.column.addArrangedSubview(stepperRow(
-            "Look for new jobs every (seconds)", help: nil,
-            value: snap.pollInterval, range: 5...300, id: "poll", make: { .pollInterval($0) }))
+        work.column.addArrangedSubview(
+            stepperRow(
+                "Fewest VMs kept ready", help: "0 means VMs only start when a job is waiting.",
+                value: snap.minRunners, range: 0...16, id: "min-runners", make: { .minRunners($0) }))
+        work.column.addArrangedSubview(
+            stepperRow(
+                "Most VMs at once", help: "The hard ceiling on VMs running together.",
+                value: snap.maxRunners, range: 1...32, id: "max-runners", make: { .maxRunners($0) }))
+        work.column.addArrangedSubview(
+            stepperRow(
+                "Jobs per VM", help: "Runners sharing one VM. 1 is safest; more share its CPU and RAM.",
+                value: snap.runnersPerVM, range: 1...8, id: "runners-per-vm", make: { .runnersPerVM($0) }))
+        work.column.addArrangedSubview(
+            stepperRow(
+                "Look for new jobs every (seconds)", help: nil,
+                value: snap.pollInterval, range: 5...300, id: "poll", make: { .pollInterval($0) }))
         stack.addArrangedSubview(work.card)
 
         // Each VM
         let vm = FormKit.card(title: "Each VM")
-        vm.column.addArrangedSubview(stepperRow(
-            "CPU cores", help: nil, value: snap.vmCPU, range: 1...16, id: "vm-cpu", make: { .vmCPU($0) }))
-        vm.column.addArrangedSubview(stepperRow(
-            "Memory (GB)", help: nil, value: snap.vmMemoryGB, range: 2...64, id: "vm-mem", make: { .vmMemoryGB($0) }))
-        let ephemeral = NSButton(checkboxWithTitle: "Fresh VM for every job (recommended)", target: self, action: #selector(ephemeralToggled(_:)))
+        vm.column.addArrangedSubview(
+            stepperRow(
+                "CPU cores", help: nil, value: snap.vmCPU, range: 1...16, id: "vm-cpu", make: { .vmCPU($0) }))
+        vm.column.addArrangedSubview(
+            stepperRow(
+                "Memory (GB)", help: nil, value: snap.vmMemoryGB, range: 2...64, id: "vm-mem", make: { .vmMemoryGB($0) }
+            ))
+        let ephemeral = NSButton(
+            checkboxWithTitle: "Fresh VM for every job (recommended)", target: self,
+            action: #selector(ephemeralToggled(_:)))
         ephemeral.state = snap.vmEphemeral ? .on : .off
         ephemeral.identifier = NSUserInterfaceItemIdentifier("ephemeral-toggle")
         vm.column.addArrangedSubview(ephemeral)
@@ -130,11 +139,17 @@ final class ConfigTabViewController: NSViewController {
         stack.addArrangedSubview(vm.card)
 
         // Headroom
-        let reserve = FormKit.card(title: "Keep free for your Mac", subtitle: "Resources kinhin will not hand to VMs, so your Mac stays responsive.")
-        reserve.column.addArrangedSubview(stepperRow(
-            "CPU cores", help: nil, value: snap.reserveCPU, range: 0...12, id: "reserve-cpu", make: { .reserveCPU($0) }))
-        reserve.column.addArrangedSubview(stepperRow(
-            "Memory (GB)", help: nil, value: snap.reserveMemoryGB, range: 0...32, id: "reserve-mem", make: { .reserveMemoryGB($0) }))
+        let reserve = FormKit.card(
+            title: "Keep free for your Mac",
+            subtitle: "Resources kinhin will not hand to VMs, so your Mac stays responsive.")
+        reserve.column.addArrangedSubview(
+            stepperRow(
+                "CPU cores", help: nil, value: snap.reserveCPU, range: 0...12, id: "reserve-cpu",
+                make: { .reserveCPU($0) }))
+        reserve.column.addArrangedSubview(
+            stepperRow(
+                "Memory (GB)", help: nil, value: snap.reserveMemoryGB, range: 0...32, id: "reserve-mem",
+                make: { .reserveMemoryGB($0) }))
         stack.addArrangedSubview(reserve.card)
 
         refreshApplyState()
@@ -158,7 +173,8 @@ final class ConfigTabViewController: NSViewController {
         applyButton.isEnabled = count > 0
         revertButton.isEnabled = count > 0
         if count > 0 {
-            statusLabel.stringValue = "\(count) unapplied change\(count == 1 ? "" : "s") — Apply restarts the fleet if needed."
+            statusLabel.stringValue =
+                "\(count) unapplied change\(count == 1 ? "" : "s") — Apply restarts the fleet if needed."
             statusLabel.textColor = .systemOrange
         } else if !statusLabel.stringValue.hasPrefix("Applied") && !statusLabel.stringValue.hasPrefix("Not applied") {
             statusLabel.stringValue = ""
@@ -208,7 +224,8 @@ final class ConfigTabViewController: NSViewController {
             statusLabel.textColor = .systemGreen
         }
         if let yaml = try? String(contentsOf: configURL, encoding: .utf8),
-           let snap = try? GeneralConfigEditor.snapshot(from: yaml) {
+            let snap = try? GeneralConfigEditor.snapshot(from: yaml)
+        {
             snapshot = snap
         }
         if wroteAny { onEdited?() }
@@ -222,8 +239,10 @@ final class ConfigTabViewController: NSViewController {
         stage("ephemeral", .vmEphemeral(sender.state == .on))
     }
 
-    private func stepperRow(_ title: String, help: String?, value: Int, range: ClosedRange<Int>, id: String,
-                            make: @escaping (Int) -> GeneralConfigEditor.Field) -> NSView {
+    private func stepperRow(
+        _ title: String, help: String?, value: Int, range: ClosedRange<Int>, id: String,
+        make: @escaping (Int) -> GeneralConfigEditor.Field
+    ) -> NSView {
         let row = StepperRow(value: value, range: range, id: id) { [weak self] newValue in
             self?.stage(id, make(newValue))
         }
@@ -291,7 +310,8 @@ private final class StepperRow: NSObject, NSTextFieldDelegate {
 extension ConfigTabViewController: NSTextFieldDelegate {
     func controlTextDidEndEditing(_ notification: Notification) {
         guard let field = notification.object as? NSTextField,
-              field.identifier?.rawValue == "image-field" else { return }
+            field.identifier?.rawValue == "image-field"
+        else { return }
         let value = field.stringValue.trimmingCharacters(in: .whitespaces)
         guard !value.isEmpty, value != snapshot?.image else { return }
         stage("image", .image(value))

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Covers the Command Line Tools probe: shell-output parsing, version
@@ -45,7 +46,8 @@ final class DevToolsTests: XCTestCase {
         CLTProbe(
             shell: ScriptedShell(
                 receipt: receiptResult ?? receipt("27.0.0.0.0"),
-                selected: selectedResult ?? ShellResult(exitCode: 0, stdout: "/Library/Developer/CommandLineTools\n", stderr: ""),
+                selected: selectedResult
+                    ?? ShellResult(exitCode: 0, stdout: "/Library/Developer/CommandLineTools\n", stderr: ""),
                 productVersion: productVersion
             )
         )
@@ -134,7 +136,9 @@ final class DevToolsTests: XCTestCase {
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),
             clt: .outdated(version: "26.6", macOSVersion: "27.0"),
             tartHealth: .healthy,
-            tartList: [TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "suspended")],
+            tartList: [
+                TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "suspended")
+            ],
             config: .loaded(cfg),
             tokenStored: true
         )

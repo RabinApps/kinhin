@@ -1,10 +1,12 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class SetupViewModelTests: XCTestCase {
     // MARK: Fixtures
 
-    private func check(id: String, ok: Bool, action: String? = nil, detail: String = "some detail") -> SetupCheckResult {
+    private func check(id: String, ok: Bool, action: String? = nil, detail: String = "some detail") -> SetupCheckResult
+    {
         SetupCheckResult(id: id, title: "T", ok: ok, detail: detail, action: action)
     }
 
@@ -68,7 +70,7 @@ final class SetupViewModelTests: XCTestCase {
     }
 
     func testAllFailedShowsFullRemainingCount() {
-        let checks = (0 ..< 5).map { check(id: "\($0)", ok: false) }
+        let checks = (0..<5).map { check(id: "\($0)", ok: false) }
         let vm = SetupViewModel(checks: checks)
         XCTAssertEqual(vm.headline, "5 of 5 steps to go.")
         XCTAssertFalse(vm.canStart)

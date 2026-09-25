@@ -41,7 +41,11 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
     /// the config doesn't use. Empty until a health pass fills it.
     public var availability: [RuntimeID: RuntimeHealth] = [:]
 
-    public init(pools: [PoolRow] = [], routes: [RouteRow] = [], defaultRuntime: RuntimeID = .tart, routingConfigured: Bool = false, containerConfigured: Bool = false, dockerConfigured: Bool = false, availability: [RuntimeID: RuntimeHealth] = [:]) {
+    public init(
+        pools: [PoolRow] = [], routes: [RouteRow] = [], defaultRuntime: RuntimeID = .tart,
+        routingConfigured: Bool = false, containerConfigured: Bool = false, dockerConfigured: Bool = false,
+        availability: [RuntimeID: RuntimeHealth] = [:]
+    ) {
         self.pools = pools
         self.routes = routes
         self.defaultRuntime = defaultRuntime
@@ -121,15 +125,16 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             default:
                 (shapeCPU, shapeMem) = (parsed.vm.cpuCount, parsed.vm.memoryGB)
             }
-            caps[primary] = Capacity.plan(
-                host: host,
-                vmCPU: shapeCPU,
-                vmMemoryGB: shapeMem,
-                reservedCPU: reserve.cpu,
-                reservedMemoryGB: reserve.memoryGB,
-                diskPerVMGB: parsed.diskGB ?? 0,
-                userMax: parsed.maxRunners
-            ).maxConcurrent
+            caps[primary] =
+                Capacity.plan(
+                    host: host,
+                    vmCPU: shapeCPU,
+                    vmMemoryGB: shapeMem,
+                    reservedCPU: reserve.cpu,
+                    reservedMemoryGB: reserve.memoryGB,
+                    diskPerVMGB: parsed.diskGB ?? 0,
+                    userMax: parsed.maxRunners
+                ).maxConcurrent
         }
 
         // Health probes: one per pool, concurrently — plus a full
@@ -137,7 +142,9 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
         // for every runtime this Mac could use, configured or not.
         var healths: [RuntimeID: RuntimeHealth] = [:]
         if loadHealth {
-            healths = await probeHealth(parsed: parsed, poolIDs: Set(model.pools.keys), tartHealth: tartHealth, containerHealth: containerHealth)
+            healths = await probeHealth(
+                parsed: parsed, poolIDs: Set(model.pools.keys), tartHealth: tartHealth, containerHealth: containerHealth
+            )
             vm.availability = await probeAvailability(
                 parsed: parsed,
                 tartHealth: tartHealth,
@@ -182,7 +189,14 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                 let runtime = TartRuntime(tart: controller, bootTimeout: { parsed.vmBootTimeout })
                 group.addTask { (.tart, await runtime.health()) }
             } else {
-                group.addTask { (.tart, RuntimeHealth.missing(tool: "tart", fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")) }
+                group.addTask {
+                    (
+                        .tart,
+                        RuntimeHealth.missing(
+                            tool: "tart",
+                            fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")
+                    )
+                }
             }
 
             if let injected = containerHealth {
@@ -228,7 +242,16 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                 } else {
                     // Controller construction fails when the binary is
                     // missing — that IS the health answer, not a probe error.
-                    group.addTask { (.tart, RuntimeHealth.missing(tool: "tart", fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")) }
+                    group.addTask {
+                        (
+                            .tart,
+                            RuntimeHealth.missing(
+                                tool: "tart",
+                                fix:
+                                    "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart"
+                            )
+                        )
+                    }
                 }
             }
             if poolIDs.contains(.appleContainer), parsed.container != nil {

@@ -155,7 +155,9 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     private let settingsSubtitle = NSTextField(wrappingLabelWithString: "")
     private let modePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let loginCheck = NSButton(checkboxWithTitle: "Launch kinhin at login", target: nil, action: nil)
-    private let loginHint = NSTextField(wrappingLabelWithString: "Applies to the installed kinhin.app — no effect while running unbundled from `swift run`.")
+    private let loginHint = NSTextField(
+        wrappingLabelWithString:
+            "Applies to the installed kinhin.app — no effect while running unbundled from `swift run`.")
     /// Where the App section persists prefs. The real app uses .standard;
     /// tests inject a scratch suite.
     private var prefs: UserDefaults = .standard
@@ -178,7 +180,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         )
         window.title = "kinhin"
         window.titlebarAppearsTransparent = true
-        window.appearance = nil // follow the system (light & dark)
+        window.appearance = nil  // follow the system (light & dark)
         window.backgroundColor = .windowBackgroundColor
         window.contentView = container
         window.center()
@@ -563,19 +565,21 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         selectedAdvancedSection = section
         advancedSegments.selectedSegment = AdvancedSection.allCases.firstIndex(of: section) ?? 0
         advancedContainer.subviews.forEach { $0.removeFromSuperview() }
-        let view = advancedViews[section] ?? {
-            let built: NSView
-            switch section {
-            case .accounts: built = buildAccountsSection()
-            case .capacity: built = buildCapacitySection()
-            case .routing: built = buildRoutingSection()
-            case .containers: built = buildContainersSection()
-            case .toolchains: built = buildToolchainsSection()
-            case .app: built = buildAppSection()
-            }
-            advancedViews[section] = built
-            return built
-        }()
+        let view =
+            advancedViews[section]
+            ?? {
+                let built: NSView
+                switch section {
+                case .accounts: built = buildAccountsSection()
+                case .capacity: built = buildCapacitySection()
+                case .routing: built = buildRoutingSection()
+                case .containers: built = buildContainersSection()
+                case .toolchains: built = buildToolchainsSection()
+                case .app: built = buildAppSection()
+                }
+                advancedViews[section] = built
+                return built
+            }()
         pin(view, in: advancedContainer)
         // Data-backed sections load when shown (Capacity is skipped: reloading
         // it would discard unapplied edits).
@@ -830,7 +834,9 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         if logsSheet == nil {
             let controller = LogsViewController()
             logsController = controller
-            let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 460), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+            let sheet = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 640, height: 460), styleMask: [.titled, .resizable],
+                backing: .buffered, defer: false)
             sheet.title = "Logs"
             let content = NSView(frame: sheet.contentRect(forFrameRect: sheet.frame))
             sheet.contentView = content
@@ -872,7 +878,8 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
 
     @objc private func modePopupChanged() {
         guard let raw = modePopup.selectedItem?.identifier?.rawValue,
-              let mode = LaunchMode(rawValue: raw) else { return }
+            let mode = LaunchMode(rawValue: raw)
+        else { return }
         Log.info("app", "launch mode set to \(mode.rawValue)")
         applyLaunchMode(mode)
     }

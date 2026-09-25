@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Runtimes pane: config section editing that preserves the rest of the
@@ -8,23 +9,23 @@ final class RuntimesPaneTests: XCTestCase {
     // MARK: - Fixtures
 
     private let baseConfig = """
-    # kinhin configuration
-    repo: "acme/ios-app"
+        # kinhin configuration
+        repo: "acme/ios-app"
 
-    labels: ["self-hosted", "macos", "arm64"]
+        labels: ["self-hosted", "macos", "arm64"]
 
-    max_runners: 4
+        max_runners: 4
 
-    vm:
-      cpu: 4
-      memory_gb: 8
+        vm:
+          cpu: 4
+          memory_gb: 8
 
-    image: "tahoe-base"
+        image: "tahoe-base"
 
-    reserve:
-      cpu: 2
-      memory_gb: 4
-    """
+        reserve:
+          cpu: 2
+          memory_gb: 4
+        """
 
     private func configWithContainer() -> String {
         baseConfig + "\n\ncontainer:\n  image: \"kinhin-ci-linux\"\n  cpus: 2\n  memory_gb: 4\n"
@@ -39,7 +40,9 @@ final class RuntimesPaneTests: XCTestCase {
     }
 
     func testParsedReadsFullSection() throws {
-        let yaml = baseConfig + "\nruntimes:\n  default: appleContainer\n  budget: {tart: 0.6, appleContainer: 0.4}\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n"
+        let yaml =
+            baseConfig
+            + "\nruntimes:\n  default: appleContainer\n  budget: {tart: 0.6, appleContainer: 0.4}\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n"
         let rc = try XCTUnwrap(RuntimesConfigEditor.parsed(from: yaml))
         XCTAssertEqual(rc.defaultRuntime, "appleContainer")
         XCTAssertEqual(rc.budget["tart"] ?? 0, 0.6, accuracy: 0.0001)
@@ -74,7 +77,9 @@ final class RuntimesPaneTests: XCTestCase {
     }
 
     func testApplyReplacesExistingSectionInPlace() throws {
-        let withSection = configWithContainer() + "\nruntimes:\n  default: tart\n  routes:\n    - pattern: \"acme/old\"\n      runtime: tart\n"
+        let withSection =
+            configWithContainer()
+            + "\nruntimes:\n  default: tart\n  routes:\n    - pattern: \"acme/old\"\n      runtime: tart\n"
         let url = try tempConfig(withSection)
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -162,7 +167,9 @@ final class RuntimesPaneTests: XCTestCase {
     }
 
     func testViewModelMixedFleetPoolsCapsAndRoutes() async throws {
-        let yaml = configWithContainer() + "\nruntimes:\n  default: tart\n  budget: {tart: 0.6, appleContainer: 0.4}\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n    - pattern: \"acme/web@Nightly\"\n      runtime: appleContainer\n"
+        let yaml =
+            configWithContainer()
+            + "\nruntimes:\n  default: tart\n  budget: {tart: 0.6, appleContainer: 0.4}\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n    - pattern: \"acme/web@Nightly\"\n      runtime: appleContainer\n"
         let vm = await RuntimesPaneViewModel.load(configYAML: yaml, host: testHost, reserve: .default)
 
         XCTAssertTrue(vm.routingConfigured)
@@ -194,7 +201,9 @@ final class RuntimesPaneTests: XCTestCase {
     }
 
     func testViewModelLabelsIncludePoolMarkers() async throws {
-        let yaml = configWithContainer() + "\nruntimes:\n  default: tart\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n"
+        let yaml =
+            configWithContainer()
+            + "\nruntimes:\n  default: tart\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n"
         let vm = await RuntimesPaneViewModel.load(configYAML: yaml, host: testHost, reserve: .default)
         let tart = try XCTUnwrap(vm.pools.first { $0.runtime == .tart })
         let container = try XCTUnwrap(vm.pools.first { $0.runtime == .appleContainer })
@@ -241,13 +250,17 @@ final class RuntimesPaneTests: XCTestCase {
             host: testHost,
             reserve: .default,
             loadHealth: true,
-            tartHealth: nil, // no injection: real path; construction fails when tart is absent
+            tartHealth: nil,  // no injection: real path; construction fails when tart is absent
             containerHealth: { .ready }
         )
         let tart = try XCTUnwrap(vm.pools.first { $0.runtime == .tart })
         let container = try XCTUnwrap(vm.pools.first { $0.runtime == .appleContainer })
         // Controller construction failure IS the health answer for tart.
-        XCTAssertEqual(tart.health, .missing(tool: "tart", fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart"))
+        XCTAssertEqual(
+            tart.health,
+            .missing(
+                tool: "tart", fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")
+        )
         XCTAssertEqual(container.health, .ready)
     }
 
@@ -267,7 +280,8 @@ final class RuntimesPaneTests: XCTestCase {
     // MARK: - Helpers
 
     private func tempConfig(_ contents: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-runtimes-\(UUID().uuidString).yaml")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "kinhin-runtimes-\(UUID().uuidString).yaml")
         try contents.write(to: url, atomically: true, encoding: .utf8)
         return url
     }

@@ -6,7 +6,7 @@ extension AppDelegate {
     // MARK: Update checking
 
     @objc func checkForUpdates() {
-        guard updateCheckTask == nil else { return } // one at a time
+        guard updateCheckTask == nil else { return }  // one at a time
         updateCheckTask = Task { [weak self] in
             await self?.runUpdateCheck()
         }
@@ -44,7 +44,8 @@ extension AppDelegate {
     func refreshUpdateItems() {
         guard let menu else { return }
         guard let idx = menu.items.firstIndex(where: { $0.identifier?.rawValue == "updateItem" }),
-              menu.items.indices.contains(idx + 1) else { return }
+            menu.items.indices.contains(idx + 1)
+        else { return }
         if let info = pendingUpdate {
             menu.items[idx].title = "Update available — kinhin \(info.version)…"
             menu.items[idx].isEnabled = true

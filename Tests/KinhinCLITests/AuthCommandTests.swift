@@ -1,5 +1,6 @@
-import XCTest
 import KinhinKit
+import XCTest
+
 @testable import kinhin
 
 /// The `auth` command flows — set/status/clear for both forges — driven

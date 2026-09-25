@@ -6,7 +6,9 @@ enum DoctorCommand {
     /// exactly the data it printed so tests can decode the emitted contract.
     /// `builder` is injectable: the live default probes the real machine,
     /// tests pass a fully-fixture builder (no Keychain, subprocess, network).
-    static func emitJSON(builder: DoctorReportBuilder = DoctorReportBuilder()) async throws -> (report: DoctorReport, data: Data) {
+    static func emitJSON(builder: DoctorReportBuilder = DoctorReportBuilder()) async throws -> (
+        report: DoctorReport, data: Data
+    ) {
         let report = await builder.build()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -79,7 +81,9 @@ enum DoctorCommand {
                     if names.contains(where: { $0 == wanted || $0.hasPrefix("\(wanted):") }) {
                         print("  cont image: \(wanted) ✓")
                     } else {
-                        print("  cont image: \(wanted) NOT LOCAL — prepare with: kinhin image prepare --container --target \(wanted)")
+                        print(
+                            "  cont image: \(wanted) NOT LOCAL — prepare with: kinhin image prepare --container --target \(wanted)"
+                        )
                     }
                 }
             case .missing:
@@ -95,7 +99,9 @@ enum DoctorCommand {
             print("  token:      \(KeychainTokenStore.load() != nil ? "stored ✓" : "missing — run: kinhin auth set")")
         }
         if doctorConfig?.gitea != nil {
-            print("  gitea tok:  \(KeychainTokenStore.load(forge: .gitea) != nil ? "stored ✓" : "missing — run: kinhin auth set --gitea")")
+            print(
+                "  gitea tok:  \(KeychainTokenStore.load(forge: .gitea) != nil ? "stored ✓" : "missing — run: kinhin auth set --gitea")"
+            )
         }
         let configExists = FileManager.default.fileExists(atPath: Paths.config.path)
         print("  config:     \(configExists ? Paths.config.path : "missing — run: kinhin config init")")
@@ -107,13 +113,21 @@ enum DoctorCommand {
         let shareCacheOn = cacheConfig?.toolchains?.shareCache ?? false
         if cache.usable {
             let gb = Double(cache.totalBytes) / 1_073_741_824
-            let detail = cache.ecosystems.map { "\($0.directory) \(String(format: "%.1f", Double($0.bytes) / 1_048_576)) MB" }.joined(separator: ", ")
-            print("  cache:      \(String(format: "%.1f", gb)) GB at \(cache.root) ✓\(detail.isEmpty ? " (empty)" : " — \(detail)")")
+            let detail = cache.ecosystems.map {
+                "\($0.directory) \(String(format: "%.1f", Double($0.bytes) / 1_048_576)) MB"
+            }.joined(separator: ", ")
+            print(
+                "  cache:      \(String(format: "%.1f", gb)) GB at \(cache.root) ✓\(detail.isEmpty ? " (empty)" : " — \(detail)")"
+            )
             if shareCacheOn, cache.totalBytes == 0 {
-                print("  cache note: share_cache is on but the cache is empty — runners will mount an empty dir until a prepare populates it")
+                print(
+                    "  cache note: share_cache is on but the cache is empty — runners will mount an empty dir until a prepare populates it"
+                )
             }
         } else {
-            print("  cache:      NOT USABLE ✗ at \(cache.root) — the next prepare recreates it\(shareCacheOn ? " (share_cache is on: runner mounts will be empty)" : "")")
+            print(
+                "  cache:      NOT USABLE ✗ at \(cache.root) — the next prepare recreates it\(shareCacheOn ? " (share_cache is on: runner mounts will be empty)" : "")"
+            )
         }
         if configExists, let cfg = try? ConfigLoader.load() {
             let plan = Capacity.plan(
@@ -126,13 +140,17 @@ enum DoctorCommand {
                 userMax: cfg.maxRunners
             )
             print("  capacity:   up to \(plan.maxConcurrent) concurrent VM(s) (binding: \(plan.bindingConstraint))")
-            print("  job slots:  up to \(plan.maxConcurrent * max(1, cfg.runnersPerVM)) concurrent jobs (\(plan.maxConcurrent) VM(s) × runners_per_vm \(max(1, cfg.runnersPerVM)))")
+            print(
+                "  job slots:  up to \(plan.maxConcurrent * max(1, cfg.runnersPerVM)) concurrent jobs (\(plan.maxConcurrent) VM(s) × runners_per_vm \(max(1, cfg.runnersPerVM)))"
+            )
             if !plan.fits {
                 print("  WARNING: a single VM does not fit the host within reserved headroom")
             }
             print("  image:      \(cfg.image)")
             if cfg.githubEnabled, !cfg.repo.contains("/") {
-                print("  scope:      organization '\(cfg.repo)' — runners serve every repo; PAT needs org runner permissions (admin:org)")
+                print(
+                    "  scope:      organization '\(cfg.repo)' — runners serve every repo; PAT needs org runner permissions (admin:org)"
+                )
                 // Active verification: mint (and discard) a registration token —
                 // the exact call the fleet's lifecycle depends on.
                 if let token = KeychainTokenStore.load() {

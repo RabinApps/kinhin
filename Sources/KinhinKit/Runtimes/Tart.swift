@@ -3,12 +3,13 @@ import Foundation
 public struct TartVM: Sendable, Equatable {
     public let name: String
     public let source: String
-    public let status: String // "running" | "suspended" | "stopped" | ...
+    public let status: String  // "running" | "suspended" | "stopped" | ...
     public let cpu: Int?
     public let memoryMB: Int?
     public let diskGB: Int?
 
-    public init(name: String, source: String, status: String, cpu: Int? = nil, memoryMB: Int? = nil, diskGB: Int? = nil) {
+    public init(name: String, source: String, status: String, cpu: Int? = nil, memoryMB: Int? = nil, diskGB: Int? = nil)
+    {
         self.name = name
         self.source = source
         self.status = status
@@ -26,7 +27,8 @@ public enum TartError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingBinary(let path):
-            return "tart not found at '\(path)'. Install it with: brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart"
+            return
+                "tart not found at '\(path)'. Install it with: brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart"
         case .commandFailed(let what, let stderr):
             return "tart \(what) failed: \(stderr.prefix(400))"
         case .ipNotFound(let vm):
@@ -44,7 +46,8 @@ public protocol TartControlling: Sendable {
     /// Convenience for callers that never mount host directories.
     func run(name: String) async throws
     func ip(of name: String, timeout: TimeInterval) async throws -> String
-    func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult
+    func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
+        -> ShellResult
     func stop(name: String) async throws
     func delete(name: String) async throws
     func pull(image: String) async throws
@@ -88,7 +91,9 @@ public struct TartController: TartControlling {
         text.split(separator: "\n").compactMap { line in
             let cols = line.split(separator: "\t", omittingEmptySubsequences: false)
             guard cols.count >= 3 else { return nil }
-            let mem = cols.count > 4 ? Int(cols[4].trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "GB", with: "")) : nil
+            let mem =
+                cols.count > 4
+                ? Int(cols[4].trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "GB", with: "")) : nil
             let cpu = cols.count > 3 ? Int(cols[3].trimmingCharacters(in: .whitespaces)) : nil
             return TartVM(
                 name: String(cols[0]).trimmingCharacters(in: .whitespaces),
@@ -143,11 +148,13 @@ public struct TartController: TartControlling {
         guard parts.count == 4 else { return false }
         return parts.allSatisfy { p in
             guard let v = UInt(p), v <= 255 else { return false }
-            return String(p) == p // no leading zeros / empty
+            return String(p) == p  // no leading zeros / empty
         }
     }
 
-    public func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
+    public func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
+        -> ShellResult
+    {
         // Write the script to a temp file and pipe it over stdin-free SSH:
         // we base64 the script into the command line to avoid quoting issues.
         let b64 = Data(script.utf8).base64EncodedString()
@@ -194,7 +201,9 @@ public struct UnavailableTart: TartControlling {
     public func clone(source: String, to name: String) async throws { throw missing }
     public func run(name: String, mounts: [String]) async throws { throw missing }
     public func ip(of name: String, timeout: TimeInterval) async throws -> String { throw missing }
-    public func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult { throw missing }
+    public func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
+        -> ShellResult
+    { throw missing }
     public func stop(name: String) async throws { throw missing }
     public func delete(name: String) async throws { throw missing }
     public func pull(image: String) async throws { throw missing }

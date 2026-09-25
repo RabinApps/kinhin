@@ -23,9 +23,15 @@ enum ToolchainsCommand {
         let toolchains = cfg?.toolchains
         print("Selections (config.yaml `toolchains:` section)")
         if let toolchains {
-            print("  specs:        \((toolchains.specs ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.specs ?? []).joined(separator: ", "))")
-            print("  brew:         \((toolchains.brew ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.brew ?? []).joined(separator: ", "))")
-            print("  stacks:       \((toolchains.stacks ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.stacks ?? []).joined(separator: ", "))")
+            print(
+                "  specs:        \((toolchains.specs ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.specs ?? []).joined(separator: ", "))"
+            )
+            print(
+                "  brew:         \((toolchains.brew ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.brew ?? []).joined(separator: ", "))"
+            )
+            print(
+                "  stacks:       \((toolchains.stacks ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.stacks ?? []).joined(separator: ", "))"
+            )
             let shareCacheOn = toolchains.shareCache ?? false
             if shareCacheOn {
                 let mounts = effectiveRuntimeMounts(hasContainer: cfg?.container != nil, hasDocker: cfg?.docker != nil)
@@ -37,7 +43,9 @@ enum ToolchainsCommand {
                 print("  share_cache:  no (add `share_cache: true` to share; baked installs always use the cache)")
             }
             let policy = ToolchainCachePolicy(from: toolchains)
-            print("  cache:        auto_prune: \(policy.autoPrune ? "on" : "off"), max_age_days: \(policy.maxAgeDays), max_gb: \(policy.maxGB)")
+            print(
+                "  cache:        auto_prune: \(policy.autoPrune ? "on" : "off"), max_age_days: \(policy.maxAgeDays), max_gb: \(policy.maxGB)"
+            )
         } else {
             print("  none configured — add a `toolchains:` section to config.yaml (see below)")
         }
@@ -46,7 +54,8 @@ enum ToolchainsCommand {
         // Catalog: stacks
         print("Stacks (curated recipes — each installs only its own pieces)")
         for stack in ToolchainCatalog.stacks {
-            let reqs = stack.requires.isEmpty ? "" : " · requires: \(stack.requires.map(\.rawValue).joined(separator: ", "))"
+            let reqs =
+                stack.requires.isEmpty ? "" : " · requires: \(stack.requires.map(\.rawValue).joined(separator: ", "))"
             print("  \(stack.id.padding(toLength: 14, withPad: " ", startingAt: 0)) \(stack.summary)\(reqs)")
         }
         print("")
@@ -54,26 +63,30 @@ enum ToolchainsCommand {
         // Catalog: tools
         print("Tools (mise by default; unknown specs pass through — this list is advisory)")
         for tool in ToolchainCatalog.tools {
-            let reqs = tool.requires.isEmpty ? "" : " · requires: \(tool.requires.map(\.rawValue).joined(separator: ", "))"
+            let reqs =
+                tool.requires.isEmpty ? "" : " · requires: \(tool.requires.map(\.rawValue).joined(separator: ", "))"
             print("  \(tool.id.padding(toLength: 14, withPad: " ", startingAt: 0)) \(tool.summary)\(reqs)")
         }
         print("")
 
-        print("Shared cache: \(Paths.toolchainCache.path) (\(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)))")
+        print(
+            "Shared cache: \(Paths.toolchainCache.path) (\(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)))"
+        )
         print("Prune manually: kinhin toolchains prune [--dry-run]")
         print("")
         print("Example config:")
-        print("""
-          toolchains:
-            specs: ["node@22", "pnpm"]
-            brew: ["yamllint"]
-            stacks: ["flutter@3.24.0", "vercel"]
-            share_cache: false
-            cache:
-              auto_prune: true
-              max_age_days: 30
-              max_gb: 50
-        """)
+        print(
+            """
+              toolchains:
+                specs: ["node@22", "pnpm"]
+                brew: ["yamllint"]
+                stacks: ["flutter@3.24.0", "vercel"]
+                share_cache: false
+                cache:
+                  auto_prune: true
+                  max_age_days: 30
+                  max_gb: 50
+            """)
         print("")
         print("Wire it up: set the section, then `kinhin image prepare` (bakes the tools into the base image).")
     }
@@ -111,7 +124,9 @@ enum ToolchainsCommand {
         for entry in report.entries {
             print("  \(entry.path)  (\(ByteCountFormatter.string(fromByteCount: entry.freedBytes, countStyle: .file)))")
         }
-        print("\(dryRun ? "Would free" : "Freed") \(ByteCountFormatter.string(fromByteCount: report.freedBytes, countStyle: .file)) total.")
+        print(
+            "\(dryRun ? "Would free" : "Freed") \(ByteCountFormatter.string(fromByteCount: report.freedBytes, countStyle: .file)) total."
+        )
     }
 
     static func jsonSummary() -> String {
@@ -138,7 +153,8 @@ enum ToolchainsCommand {
             "stacks": ToolchainCatalog.stacks.map { ["id": $0.id, "summary": $0.summary] },
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys, .prettyPrinted]),
-              let text = String(data: data, encoding: .utf8) else {
+            let text = String(data: data, encoding: .utf8)
+        else {
             return "{}"
         }
         return text

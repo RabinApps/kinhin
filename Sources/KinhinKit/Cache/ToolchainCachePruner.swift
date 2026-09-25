@@ -39,7 +39,7 @@ public struct ToolchainCachePolicy: Sendable, Equatable {
 public struct ToolchainPruneEntry: Sendable, Equatable {
     public let path: String
     public let freedBytes: Int64
-    public let deleted: Bool // false in dry-run mode
+    public let deleted: Bool  // false in dry-run mode
 
     public init(path: String, freedBytes: Int64, deleted: Bool) {
         self.path = path
@@ -135,11 +135,12 @@ public struct ToolchainCachePruner {
                     continue
                 }
             }
-            entries.append(ToolchainPruneEntry(
-                path: leaf.url.path.replacingOccurrences(of: cacheRoot.path + "/", with: ""),
-                freedBytes: freed,
-                deleted: !dryRun
-            ))
+            entries.append(
+                ToolchainPruneEntry(
+                    path: leaf.url.path.replacingOccurrences(of: cacheRoot.path + "/", with: ""),
+                    freedBytes: freed,
+                    deleted: !dryRun
+                ))
         }
 
         // Clean up empty directories left behind (skip the root itself).
@@ -149,7 +150,10 @@ public struct ToolchainCachePruner {
 
         let freed = entries.reduce(Int64(0)) { $0 + $1.freedBytes }
         if freed > 0 || !entries.isEmpty {
-            Log.info("cache", "\(dryRun ? "would prune" : "pruned") \(entries.count) entr\(entries.count == 1 ? "y" : "ies") (\(ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)))")
+            Log.info(
+                "cache",
+                "\(dryRun ? "would prune" : "pruned") \(entries.count) entr\(entries.count == 1 ? "y" : "ies") (\(ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)))"
+            )
         }
         return ToolchainPruneReport(entries: entries, freedBytes: freed, dryRun: dryRun)
     }
@@ -169,10 +173,15 @@ public struct ToolchainCachePruner {
     /// window: leaves touched within the last hour are skipped entirely —
     /// they may be mid-download right now.
     private func collectLeaves(at root: URL, into leaves: inout [(url: URL, size: Int64, modified: Date)], now: Date) {
-        guard let enumerator = fileManager.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey], options: [], errorHandler: { url, error in
-            Log.warn("cache", "skipping \(url.path) during cache walk: \(error.localizedDescription)")
-            return true
-        }) else { return }
+        guard
+            let enumerator = fileManager.enumerator(
+                at: root, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+                options: [],
+                errorHandler: { url, error in
+                    Log.warn("cache", "skipping \(url.path) during cache walk: \(error.localizedDescription)")
+                    return true
+                })
+        else { return }
 
         for case let url as URL in enumerator {
             let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey])

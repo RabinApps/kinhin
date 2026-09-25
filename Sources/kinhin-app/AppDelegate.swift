@@ -115,15 +115,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             setupIncomplete = false
             Log.info("app", "attaching to running daemon")
         } else if FileManager.default.fileExists(atPath: Paths.config.path),
-                  let cfg = try? ConfigLoader.load(),
-                  // A template config (placeholder repo, no gitea:) is not a
-                  // working config — keep onboarding up instead of booting a
-                  // fleet against "your-org/your-repo".
-                  ConfigLoader.hasAnyForge(cfg),
-                  // GitHub PAT, or (Gitea-only config) the Gitea token.
-                  let pat = ConfigLoader.engineToken(for: cfg),
-                  // tart, or a Linux runtime (Docker / Apple container) to run on.
-                  cfg.canRunOnThisHost() {
+            let cfg = try? ConfigLoader.load(),
+            // A template config (placeholder repo, no gitea:) is not a
+            // working config — keep onboarding up instead of booting a
+            // fleet against "your-org/your-repo".
+            ConfigLoader.hasAnyForge(cfg),
+            // GitHub PAT, or (Gitea-only config) the Gitea token.
+            let pat = ConfigLoader.engineToken(for: cfg),
+            // tart, or a Linux runtime (Docker / Apple container) to run on.
+            cfg.canRunOnThisHost()
+        {
             do {
                 let tart = try cfg.makeTartControlling()
                 // Factory-based init so a later token swap re-targets the
@@ -157,7 +158,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             status = await engine.status()
         } else if let client {
             if let response = try? client.send(method: .status),
-               response.ok, let payload = response.payload {
+                response.ok, let payload = response.payload
+            {
                 status = try? JSONDecoder().decode(FleetStatus.self, from: payload)
             }
         }

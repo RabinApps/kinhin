@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// The setup window's checklist flow, end to end: how SetupStatusComputer
@@ -20,7 +21,9 @@ final class SetupChecklistFlowTests: XCTestCase {
     }
 
     private func vm(name: String) -> TartVM {
-        TartVM(name: name, source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "suspended", cpu: nil, memoryMB: nil)
+        TartVM(
+            name: name, source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "suspended", cpu: nil,
+            memoryMB: nil)
     }
 
     private func config(
@@ -32,7 +35,8 @@ final class SetupChecklistFlowTests: XCTestCase {
         cfg.repo = repo
         cfg.image = "tahoe-base"
         if gitea {
-            cfg.gitea = kinhinConfig.GiteaForgeConfig(instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
+            cfg.gitea = kinhinConfig.GiteaForgeConfig(
+                instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
         }
         if container {
             cfg.container = kinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
@@ -130,14 +134,19 @@ final class SetupChecklistFlowTests: XCTestCase {
 
     func testGiteaRowSitsBetweenTokenAndImage() async {
         let status = await readyComputer(gitea: true).compute()
-        XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart", "config", "token", "gitea-token", "image", "toolchain-cache"])
+        XCTAssertEqual(
+            status.checks.map(\.id),
+            ["arch", "clt", "tart", "config", "token", "gitea-token", "image", "toolchain-cache"])
     }
 
     func testGiteaAndContainerRowsOrderTogether() async {
         let status = await readyComputer(gitea: true, container: true).compute()
-        XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart", "config", "token", "gitea-token", "image", "container-cli", "container-image", "toolchain-cache"])
+        XCTAssertEqual(
+            status.checks.map(\.id),
+            [
+                "arch", "clt", "tart", "config", "token", "gitea-token", "image", "container-cli", "container-image",
+                "toolchain-cache",
+            ])
         XCTAssertTrue(status.ready)
     }
 
@@ -153,8 +162,9 @@ final class SetupChecklistFlowTests: XCTestCase {
             tokenStored: true
         )
         let status = await computer.compute()
-        XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart-rollback", "config", "token", "image", "toolchain-cache"])
+        XCTAssertEqual(
+            status.checks.map(\.id),
+            ["arch", "clt", "tart-rollback", "config", "token", "image", "toolchain-cache"])
     }
 
     // MARK: Readiness — ready is exactly "every check ok"
@@ -163,12 +173,42 @@ final class SetupChecklistFlowTests: XCTestCase {
         // Probe the biconditional both ways: any single red row blocks ready,
         // and only the all-green checklist earns it.
         let blockers: [(String, SetupStatusComputer)] = [
-            ("arch", SetupStatusComputer(host: host(arm64: false), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .loaded(config()), tokenStored: true)),
-            ("clt", SetupStatusComputer(host: host(), clt: .missing, tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .loaded(config()), tokenStored: true)),
-            ("tart", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .broken("crash"), tartList: [], config: .loaded(config()), tokenStored: true)),
-            ("config", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .missing, tokenStored: true)),
-            ("token", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .loaded(config()), tokenStored: false)),
-            ("image", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "unrelated")], config: .loaded(config()), tokenStored: true)),
+            (
+                "arch",
+                SetupStatusComputer(
+                    host: host(arm64: false), clt: .ok(version: "27.0"), tartHealth: .healthy,
+                    tartList: [vm(name: "tahoe-base")], config: .loaded(config()), tokenStored: true)
+            ),
+            (
+                "clt",
+                SetupStatusComputer(
+                    host: host(), clt: .missing, tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+                    config: .loaded(config()), tokenStored: true)
+            ),
+            (
+                "tart",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .broken("crash"), tartList: [],
+                    config: .loaded(config()), tokenStored: true)
+            ),
+            (
+                "config",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+                    config: .missing, tokenStored: true)
+            ),
+            (
+                "token",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+                    config: .loaded(config()), tokenStored: false)
+            ),
+            (
+                "image",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "unrelated")],
+                    config: .loaded(config()), tokenStored: true)
+            ),
         ]
         for (blockedBy, computer) in blockers {
             let status = await computer.compute()
@@ -188,9 +228,25 @@ final class SetupChecklistFlowTests: XCTestCase {
         // The window shows at most one fix button per row; each failing row
         // must offer exactly one, each passing row none.
         let states: [(String, SetupStatusComputer)] = [
-            ("fresh", SetupStatusComputer(host: host(), clt: .missing, tartHealth: .missing, tartList: [], config: .missing, tokenStored: false)),
-            ("killed", SetupStatusComputer(host: host(), clt: .outdated(version: "26.6", macOSVersion: "27.0"), tartHealth: .killedOnLaunch, tartList: [], config: .template, tokenStored: false)),
-            ("mixed forges", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .loaded(config(gitea: true, container: true)), tokenStored: false, giteaTokenStored: false, containerHealth: .broken("service down"), containerImages: [])),
+            (
+                "fresh",
+                SetupStatusComputer(
+                    host: host(), clt: .missing, tartHealth: .missing, tartList: [], config: .missing,
+                    tokenStored: false)
+            ),
+            (
+                "killed",
+                SetupStatusComputer(
+                    host: host(), clt: .outdated(version: "26.6", macOSVersion: "27.0"), tartHealth: .killedOnLaunch,
+                    tartList: [], config: .template, tokenStored: false)
+            ),
+            (
+                "mixed forges",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+                    config: .loaded(config(gitea: true, container: true)), tokenStored: false, giteaTokenStored: false,
+                    containerHealth: .broken("service down"), containerImages: [])
+            ),
         ]
         for (name, computer) in states {
             let status = await computer.compute()
@@ -208,19 +264,60 @@ final class SetupChecklistFlowTests: XCTestCase {
         // One representative failure per check id, pinned action-for-action.
         // (Token rows always carry an action — enter vs replace — covered above.)
         let cases: [(id: String, action: String, computer: SetupStatusComputer)] = [
-            ("clt", "fix_clt", SetupStatusComputer(host: host(), clt: .missing, tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .loaded(config()), tokenStored: true)),
-            ("tart", "install_tart", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .missing, tartList: [], config: .loaded(config()), tokenStored: true)),
-            ("tart-rollback", "rollback_tart", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .killedOnLaunch, tartList: [], config: .loaded(config()), tokenStored: true)),
-            ("tart", "reinstall_tart", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .broken("crash"), tartList: [], config: .loaded(config()), tokenStored: true)),
-            ("config", "create_config", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .missing, tokenStored: true)),
-            ("config", "edit_config", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .template, tokenStored: true)),
-            ("token", "enter_token", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .loaded(config()), tokenStored: false)),
-            ("image", "prepare_image", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "unrelated")], config: .loaded(config()), tokenStored: true)),
+            (
+                "clt", "fix_clt",
+                SetupStatusComputer(
+                    host: host(), clt: .missing, tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+                    config: .loaded(config()), tokenStored: true)
+            ),
+            (
+                "tart", "install_tart",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .missing, tartList: [],
+                    config: .loaded(config()), tokenStored: true)
+            ),
+            (
+                "tart-rollback", "rollback_tart",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .killedOnLaunch, tartList: [],
+                    config: .loaded(config()), tokenStored: true)
+            ),
+            (
+                "tart", "reinstall_tart",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .broken("crash"), tartList: [],
+                    config: .loaded(config()), tokenStored: true)
+            ),
+            (
+                "config", "create_config",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+                    config: .missing, tokenStored: true)
+            ),
+            (
+                "config", "edit_config",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+                    config: .template, tokenStored: true)
+            ),
+            (
+                "token", "enter_token",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+                    config: .loaded(config()), tokenStored: false)
+            ),
+            (
+                "image", "prepare_image",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "unrelated")],
+                    config: .loaded(config()), tokenStored: true)
+            ),
         ]
         for (id, expectedAction, computer) in cases {
             let status = await computer.compute()
-            XCTAssertEqual(status.checks.first { $0.id == id }?.action, expectedAction,
-                           "\(id) with its failing state should repair via \(expectedAction)")
+            XCTAssertEqual(
+                status.checks.first { $0.id == id }?.action, expectedAction,
+                "\(id) with its failing state should repair via \(expectedAction)")
         }
     }
 
@@ -250,18 +347,37 @@ final class SetupChecklistFlowTests: XCTestCase {
         // The window dispatches on row.actionID; it must equal the contract's
         // action for every row, in every state the checklist can reach.
         let states: [(String, SetupStatusComputer)] = [
-            ("fresh", SetupStatusComputer(host: host(), clt: .missing, tartHealth: .missing, tartList: [], config: .missing, tokenStored: false)),
-            ("gitea", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .loaded(config(gitea: true)), tokenStored: true, giteaTokenStored: false)),
-            ("container down", SetupStatusComputer(host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")], config: .loaded(config(container: true)), tokenStored: true, containerHealth: .broken("service down"), containerImages: [])),
+            (
+                "fresh",
+                SetupStatusComputer(
+                    host: host(), clt: .missing, tartHealth: .missing, tartList: [], config: .missing,
+                    tokenStored: false)
+            ),
+            (
+                "gitea",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+                    config: .loaded(config(gitea: true)), tokenStored: true, giteaTokenStored: false)
+            ),
+            (
+                "container down",
+                SetupStatusComputer(
+                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+                    config: .loaded(config(container: true)), tokenStored: true,
+                    containerHealth: .broken("service down"), containerImages: [])
+            ),
         ]
         for (name, computer) in states {
             let status = await computer.compute()
             let vm = SetupViewModel(status: status)
             for (check, row) in zip(status.checks, vm.rows) {
                 XCTAssertEqual(row.id, check.id, "[\(name)] row order must mirror the contract")
-                XCTAssertEqual(row.actionID, check.action, "[\(name)] '\(check.id)' dispatch id must equal the contract action")
+                XCTAssertEqual(
+                    row.actionID, check.action, "[\(name)] '\(check.id)' dispatch id must equal the contract action")
                 if let action = check.action {
-                    XCTAssertEqual(row.actionTitle, SetupAction.title(for: action), "[\(name)] button label must be the shared title")
+                    XCTAssertEqual(
+                        row.actionTitle, SetupAction.title(for: action),
+                        "[\(name)] button label must be the shared title")
                 }
             }
         }
@@ -278,6 +394,7 @@ final class SetupChecklistFlowTests: XCTestCase {
         ).compute()
         let vm = SetupViewModel(status: status)
         let tartRow = vm.rows.first { $0.id == "tart" }
-        XCTAssertEqual(tartRow?.accessibilityLabel, "Tart installed: needs setup — action available: Install via Homebrew")
+        XCTAssertEqual(
+            tartRow?.accessibilityLabel, "Tart installed: needs setup — action available: Install via Homebrew")
     }
 }

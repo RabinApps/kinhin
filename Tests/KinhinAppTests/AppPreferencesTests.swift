@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import kinhin_app
 
 final class AppPreferencesTests: XCTestCase {
@@ -21,10 +22,12 @@ final class AppPreferencesTests: XCTestCase {
     // MARK: launch mode
 
     func testDefaultLaunchModeIsMainWindowAndMenuBar() {
-        XCTAssertEqual(AppPreferences.launchMode(in: suite), .mainWindowAndMenuBar,
-                       "kinhin presents as a normal app until the user opts into a tray-only setup")
-        XCTAssertNil(suite.string(forKey: AppPreferences.launchModeKey),
-                     "nothing is written until the user changes the setting")
+        XCTAssertEqual(
+            AppPreferences.launchMode(in: suite), .mainWindowAndMenuBar,
+            "kinhin presents as a normal app until the user opts into a tray-only setup")
+        XCTAssertNil(
+            suite.string(forKey: AppPreferences.launchModeKey),
+            "nothing is written until the user changes the setting")
     }
 
     func testLaunchModeRoundTripsThroughScratchDefaults() {

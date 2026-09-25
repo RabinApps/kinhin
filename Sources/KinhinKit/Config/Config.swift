@@ -99,7 +99,10 @@ public struct kinhinConfig: Sendable, Equatable {
 
         /// Memberwise init is internal; this public init supports CLI
         /// flag-only construction (e.g. `image prepare --toolchain go@1.23`).
-        public init(specs: [String]? = nil, brew: [String]? = nil, stacks: [String]? = nil, shareCache: Bool? = nil, cache: CachePolicy? = nil) {
+        public init(
+            specs: [String]? = nil, brew: [String]? = nil, stacks: [String]? = nil, shareCache: Bool? = nil,
+            cache: CachePolicy? = nil
+        ) {
             self.specs = specs
             self.brew = brew
             self.stacks = stacks
@@ -215,7 +218,9 @@ public struct kinhinConfig: Sendable, Equatable {
             }
         }
 
-        public init(defaultRuntime: String = RuntimeID.tart.rawValue, budget: [String: Double] = [:], routes: [Route] = []) {
+        public init(
+            defaultRuntime: String = RuntimeID.tart.rawValue, budget: [String: Double] = [:], routes: [Route] = []
+        ) {
             self.defaultRuntime = defaultRuntime
             self.budget = budget
             self.routes = routes
@@ -338,7 +343,9 @@ public struct ConfigLoader {
     /// alone (GitHub then reports its problem instead of blocking startup).
     /// Gitea-only configs also get the placeholder. Nil when no configured
     /// forge has a usable token.
-    public static func engineToken(for cfg: kinhinConfig, load: (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) }) -> String? {
+    public static func engineToken(
+        for cfg: kinhinConfig, load: (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) }
+    ) -> String? {
         let giteaReady = cfg.gitea != nil && load(.gitea) != nil
         if cfg.githubEnabled {
             if let token = load(.github) { return token }
@@ -390,8 +397,9 @@ public struct ConfigLoader {
         // Scope: "RabinApps/name" (one repository) or a single segment (an org —
         // org-level runners serve every repo in the organization).
         let scopeSegments = repo.split(separator: "/")
-        guard (1 ... 2).contains(scopeSegments.count),
-              scopeSegments.allSatisfy({ !$0.isEmpty }) else {
+        guard (1...2).contains(scopeSegments.count),
+            scopeSegments.allSatisfy({ !$0.isEmpty })
+        else {
             throw ConfigError.invalid("scope must be 'RabinApps/name' or an org name, got '\(repo)'")
         }
         guard let labels = partial.labels, !labels.isEmpty else {
@@ -410,7 +418,9 @@ public struct ConfigLoader {
             throw ConfigError.invalid("runners_per_vm must be <= 8 (each runner shares the VM's CPU and RAM)")
         }
         let poll = partial.poll_interval ?? 20
-        if poll < 5 { throw ConfigError.invalid("poll_interval must be >= 5 seconds to stay within GitHub rate limits") }
+        if poll < 5 {
+            throw ConfigError.invalid("poll_interval must be >= 5 seconds to stay within GitHub rate limits")
+        }
 
         var cfg = kinhinConfig.default
         cfg.repo = repo
@@ -439,7 +449,8 @@ public struct ConfigLoader {
         if let tartPath = partial.tart_path { cfg.tartPath = tartPath }
         if let provision = partial.provision_script {
             guard !provision.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ConfigError.invalid("provision_script must not be empty (remove the key or point it at a script file)")
+                throw ConfigError.invalid(
+                    "provision_script must not be empty (remove the key or point it at a script file)")
             }
             cfg.provisionScript = provision
         }
@@ -451,14 +462,16 @@ public struct ConfigLoader {
                 throw ConfigError.invalid("gitea.instance is required (e.g. https://gitea.example.com)")
             }
             guard (try? GiteaCredentials.validate(instance: instance)) != nil else {
-                throw ConfigError.invalid("gitea.instance must be a base URL like https://gitea.example.com (no path, no /api suffix)")
+                throw ConfigError.invalid(
+                    "gitea.instance must be a base URL like https://gitea.example.com (no path, no /api suffix)")
             }
             guard let scope = gitea.scope, !scope.isEmpty else {
                 throw ConfigError.invalid("gitea.scope is required ('RabinApps/name' or an org name)")
             }
             let scopeSegments = scope.split(separator: "/")
-            guard (1 ... 2).contains(scopeSegments.count),
-                  scopeSegments.allSatisfy({ !$0.isEmpty }) else {
+            guard (1...2).contains(scopeSegments.count),
+                scopeSegments.allSatisfy({ !$0.isEmpty })
+            else {
                 throw ConfigError.invalid("gitea.scope must be 'RabinApps/name' or an org name, got '\(scope)'")
             }
             if let giteaLabels = gitea.labels, giteaLabels.isEmpty {
@@ -468,7 +481,8 @@ public struct ConfigLoader {
         }
         if let container = partial.container {
             guard let containerImage = container.image, !containerImage.isEmpty else {
-                throw ConfigError.invalid("container.image must not be empty (a Linux OCI image baked with runner agents)")
+                throw ConfigError.invalid(
+                    "container.image must not be empty (a Linux OCI image baked with runner agents)")
             }
             if let cpus = container.cpus, cpus < 1 {
                 throw ConfigError.invalid("container.cpus must be >= 1")
@@ -508,7 +522,8 @@ public struct ConfigLoader {
             if let entries = runtimes.budget {
                 for (runtime, weight) in entries {
                     guard weight > 0, weight <= 1 else {
-                        throw ConfigError.invalid("runtimes.budget weights must be in (0, 1], got \(runtime): \(weight)")
+                        throw ConfigError.invalid(
+                            "runtimes.budget weights must be in (0, 1], got \(runtime): \(weight)")
                     }
                     budget[runtime] = weight
                 }
@@ -526,11 +541,13 @@ public struct ConfigLoader {
                 if isWorkflow {
                     let repoPart = String(pattern.split(separator: "@").first ?? "")
                     guard repoPart.split(separator: "/").count == 2, !repoPart.hasSuffix("@") else {
-                        throw ConfigError.invalid("runtimes.routes pattern '\(pattern)' must be RabinApps/name@Workflow or RabinApps/name")
+                        throw ConfigError.invalid(
+                            "runtimes.routes pattern '\(pattern)' must be RabinApps/name@Workflow or RabinApps/name")
                     }
                 } else {
                     guard segments.count == 2, segments.allSatisfy({ !$0.isEmpty }) else {
-                        throw ConfigError.invalid("runtimes.routes pattern '\(pattern)' must be RabinApps/name (or RabinApps/name@Workflow)")
+                        throw ConfigError.invalid(
+                            "runtimes.routes pattern '\(pattern)' must be RabinApps/name (or RabinApps/name@Workflow)")
                     }
                 }
                 routes.append(kinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime))
@@ -545,14 +562,18 @@ public struct ConfigLoader {
                 throw ConfigError.invalid("runtimes: unknown runtime '\(name)' (known: tart, appleContainer, docker)")
             }
             if referenced.contains("appleContainer"), cfg.container == nil {
-                throw ConfigError.invalid("runtimes routes reference 'appleContainer' but no container: section is configured (it needs an image)")
+                throw ConfigError.invalid(
+                    "runtimes routes reference 'appleContainer' but no container: section is configured (it needs an image)"
+                )
             }
             if referenced.contains("docker"), cfg.docker == nil {
-                throw ConfigError.invalid("runtimes routes reference 'docker' but no docker: section is configured (it needs an image)")
+                throw ConfigError.invalid(
+                    "runtimes routes reference 'docker' but no docker: section is configured (it needs an image)")
             }
             let totalWeight = budget.values.reduce(0, +)
             guard totalWeight <= 1.0001 else {
-                throw ConfigError.invalid("runtimes.budget weights sum to \(String(format: "%.2f", totalWeight)) — the total must be <= 1.0")
+                throw ConfigError.invalid(
+                    "runtimes.budget weights sum to \(String(format: "%.2f", totalWeight)) — the total must be <= 1.0")
             }
             cfg.runtimes = kinhinConfig.RuntimeConfig(
                 defaultRuntime: runtimes.default ?? "tart",
@@ -583,7 +604,9 @@ public struct ConfigLoader {
     ///
     /// Public so the CLI can validate `image prepare --toolchain/--stack`
     /// flag overrides through the exact same rules as config parsing.
-    public static func parseToolchains(_ partial: PartialConfig.PartialToolchains) throws -> kinhinConfig.ToolchainsConfig {
+    public static func parseToolchains(_ partial: PartialConfig.PartialToolchains) throws
+        -> kinhinConfig.ToolchainsConfig
+    {
         let specs = try Self.parseList(partial.specs, key: "toolchains.specs")
         let brew = try Self.parseList(partial.brew, key: "toolchains.brew")
         let stackNames = try Self.parseList(partial.stacks, key: "toolchains.stacks")
@@ -598,7 +621,9 @@ public struct ConfigLoader {
 
         if let cache = partial.cache {
             if let auto = cache.auto_prune, auto == false, cache.max_age_days == nil, cache.max_gb == nil {
-                throw ConfigError.invalid("toolchains.cache: set auto_prune: false together with explicit max_age_days / max_gb values, or remove the cache section (the defaults are auto_prune: true, 30 days, 50 GB)")
+                throw ConfigError.invalid(
+                    "toolchains.cache: set auto_prune: false together with explicit max_age_days / max_gb values, or remove the cache section (the defaults are auto_prune: true, 30 days, 50 GB)"
+                )
             }
             if let days = cache.max_age_days, days < 0 {
                 throw ConfigError.invalid("toolchains.cache.max_age_days must be >= 0 (0 = no age limit)")
@@ -620,7 +645,9 @@ public struct ConfigLoader {
         for name in stackNames {
             let (id, _) = ToolchainStack.splitSpec(name)
             guard let stack = ToolchainCatalog.stack(id: id) else {
-                throw ConfigError.invalid("toolchains.stacks: unknown stack '\(id)' (known: \(ToolchainCatalog.stacks.map(\.id).joined(separator: ", ")))")
+                throw ConfigError.invalid(
+                    "toolchains.stacks: unknown stack '\(id)' (known: \(ToolchainCatalog.stacks.map(\.id).joined(separator: ", ")))"
+                )
             }
             resolvedStacks.append(stack)
         }
@@ -637,7 +664,9 @@ public struct ConfigLoader {
                 case .dotnet: satisfied = specRoots.contains("dotnet")
                 }
                 guard satisfied else {
-                    throw ConfigError.invalid("toolchains: stack '\(stack.id)' requires \(requirement.rawValue) — add it to toolchains.specs (e.g. \"node@22\")")
+                    throw ConfigError.invalid(
+                        "toolchains: stack '\(stack.id)' requires \(requirement.rawValue) — add it to toolchains.specs (e.g. \"node@22\")"
+                    )
                 }
             }
         }
@@ -654,7 +683,9 @@ public struct ConfigLoader {
                 case .dotnet: satisfied = specRoots.contains("dotnet")
                 }
                 guard satisfied else {
-                    throw ConfigError.invalid("toolchains: '\(root)' requires \(requirement.rawValue) — add it to toolchains.specs (e.g. \"node@22\")")
+                    throw ConfigError.invalid(
+                        "toolchains: '\(root)' requires \(requirement.rawValue) — add it to toolchains.specs (e.g. \"node@22\")"
+                    )
                 }
             }
         }
@@ -888,7 +919,10 @@ public struct PartialConfig: Decodable {
         public var share_cache: Bool?
         public var cache: PartialCachePolicy?
 
-        public init(specs: [String]? = nil, brew: [String]? = nil, stacks: [String]? = nil, share_cache: Bool? = nil, cache: PartialCachePolicy? = nil) {
+        public init(
+            specs: [String]? = nil, brew: [String]? = nil, stacks: [String]? = nil, share_cache: Bool? = nil,
+            cache: PartialCachePolicy? = nil
+        ) {
             self.specs = specs
             self.brew = brew
             self.stacks = stacks

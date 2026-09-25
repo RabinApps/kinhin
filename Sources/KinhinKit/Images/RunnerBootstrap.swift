@@ -21,55 +21,55 @@ public enum RunnerBootstrap {
 
         guard runnerCount > 1 else {
             return """
-            set -euo pipefail
-            cd ~/actions-runner
+                set -euo pipefail
+                cd ~/actions-runner
 
-            # Register (idempotent: remove stale config first).
-            if [ -f .runner ]; then
-              ./config.sh remove --token '\(token)' >/dev/null 2>&1 || true
-            fi
-            ./config.sh --url \(configureURL) \\
-                        --token '\(token)' \\
-                        --labels '\(labelList)' \\
-                        --name '\(name)' \\
-                        --unattended \\
-                        --replace \\
-                        \(ephemeralFlag)--work _work >/dev/null
+                # Register (idempotent: remove stale config first).
+                if [ -f .runner ]; then
+                  ./config.sh remove --token '\(token)' >/dev/null 2>&1 || true
+                fi
+                ./config.sh --url \(configureURL) \\
+                            --token '\(token)' \\
+                            --labels '\(labelList)' \\
+                            --name '\(name)' \\
+                            --unattended \\
+                            --replace \\
+                            \(ephemeralFlag)--work _work >/dev/null
 
-            # Start serving jobs, detached from this SSH session.
-            nohup ./run.sh > run.log 2>&1 &
-            echo "runner started"
-            """
+                # Start serving jobs, detached from this SSH session.
+                nohup ./run.sh > run.log 2>&1 &
+                echo "runner started"
+                """
         }
 
         var registrations = ""
-        for index in 1 ... runnerCount {
+        for index in 1...runnerCount {
             let runnerName = "\(name)-r\(index)"
             let dir = "~/actions-runner-\(index)"
             registrations += """
-            # Runner \(index) of \(runnerCount).
-            cd \(dir)
-            if [ -f .runner ]; then
-              ./config.sh remove --token '\(token)' >/dev/null 2>&1 || true
-            fi
-            ./config.sh --url \(configureURL) \\
-                        --token '\(token)' \\
-                        --labels '\(labelList)' \\
-                        --name '\(runnerName)' \\
-                        --unattended \\
-                        --replace \\
-                        \(ephemeralFlag)--work _work-\(index) >/dev/null
+                # Runner \(index) of \(runnerCount).
+                cd \(dir)
+                if [ -f .runner ]; then
+                  ./config.sh remove --token '\(token)' >/dev/null 2>&1 || true
+                fi
+                ./config.sh --url \(configureURL) \\
+                            --token '\(token)' \\
+                            --labels '\(labelList)' \\
+                            --name '\(runnerName)' \\
+                            --unattended \\
+                            --replace \\
+                            \(ephemeralFlag)--work _work-\(index) >/dev/null
 
-            nohup ./run.sh > run-\(index).log 2>&1 &
+                nohup ./run.sh > run-\(index).log 2>&1 &
 
-            """
+                """
         }
         return """
-        set -euo pipefail
+            set -euo pipefail
 
-        # One runner agent directory per process (config.sh refuses shared dirs).
-        \(registrations)echo "\(runnerCount) runners started"
-        """
+            # One runner agent directory per process (config.sh refuses shared dirs).
+            \(registrations)echo "\(runnerCount) runners started"
+            """
     }
 
     /// Installs the GitHub Actions runner agent into a base image (used by
@@ -77,37 +77,37 @@ public enum RunnerBootstrap {
     /// per concurrent runner so first boot doesn't download N times.
     public static func installScript(runnerVersion: String, runnerCount: Int = 1) -> String {
         var dirs = "if [ ! -d \"$HOME/actions-runner\" ]; then"
-        for index in 1 ... max(1, runnerCount) {
+        for index in 1...max(1, runnerCount) {
             let dir = index == 1 ? "actions-runner" : "actions-runner-\(index)"
             dirs += """
 
-              mkdir -p "$HOME/\(dir)"
-              cd "$HOME/\(dir)"
-              ARCH="arm64"
-              curl -sL "https://github.com/actions/runner/releases/download/v\(runnerVersion)/actions-runner-osx-arm64-\(runnerVersion).tar.gz" -o runner.tar.gz
-              tar xzf runner.tar.gz
-              rm runner.tar.gz
-            """
+                  mkdir -p "$HOME/\(dir)"
+                  cd "$HOME/\(dir)"
+                  ARCH="arm64"
+                  curl -sL "https://github.com/actions/runner/releases/download/v\(runnerVersion)/actions-runner-osx-arm64-\(runnerVersion).tar.gz" -o runner.tar.gz
+                  tar xzf runner.tar.gz
+                  rm runner.tar.gz
+                """
         }
         dirs += """
 
-            echo "runner agent v\(runnerVersion) installed"
-          else
-            echo "runner agent already installed"
-          fi
-        """
+                echo "runner agent v\(runnerVersion) installed"
+              else
+                echo "runner agent already installed"
+              fi
+            """
 
         return """
-        set -euo pipefail
+            set -euo pipefail
 
-        RUNNER_VERSION=\(runnerVersion)
+            RUNNER_VERSION=\(runnerVersion)
 
-        \(dirs)
+            \(dirs)
 
-        # Runners need full disk access for some workloads; document, don't force.
-        # Ensure autologin-friendly settings for the admin user.
-        sudo -n true 2>/dev/null || echo "note: sudo may prompt for password once"
-        """
+            # Runners need full disk access for some workloads; document, don't force.
+            # Ensure autologin-friendly settings for the admin user.
+            sudo -n true 2>/dev/null || echo "note: sudo may prompt for password once"
+            """
     }
 
     /// Installs the Gitea runner binary (gitea-runner, formerly act_runner)
@@ -137,34 +137,36 @@ public enum RunnerBootstrap {
     /// `act_runner register --no-interactive` + `daemon`. Gitea has no
     /// --ephemeral, so the registration writes .runner once and the daemon
     /// runs until the lifecycle watch tears the VM down after the job.
-    public static func giteaRegistrationScript(instance: String, token: String, labels: [String], name: String, runnerCount: Int = 1) -> String {
+    public static func giteaRegistrationScript(
+        instance: String, token: String, labels: [String], name: String, runnerCount: Int = 1
+    ) -> String {
         let labelList = labels.joined(separator: ",")
         var blocks = ""
-        for index in 1 ... max(1, runnerCount) {
+        for index in 1...max(1, runnerCount) {
             let runnerName = runnerCount == 1 ? name : "\(name)-r\(index)"
             let dir = runnerCount == 1 ? "$HOME/gitea-runner" : "$HOME/gitea-runner-\(index)"
             blocks += """
-            # Gitea runner \(index) of \(runnerCount)
-            mkdir -p \(dir)
-            cd \(dir)
-            if [ ! -x gitea-runner ]; then
-              cp "$HOME/gitea-runner/gitea-runner" gitea-runner
-            fi
-            rm -f .runner
-            ./gitea-runner register --no-interactive \
-              --instance \(instance) \
-              --token '\(token)' \
-              --name '\(runnerName)' \
-              --labels '\(labelList)' >/dev/null
-            nohup ./gitea-runner daemon > daemon-\(index).log 2>&1 &
+                # Gitea runner \(index) of \(runnerCount)
+                mkdir -p \(dir)
+                cd \(dir)
+                if [ ! -x gitea-runner ]; then
+                  cp "$HOME/gitea-runner/gitea-runner" gitea-runner
+                fi
+                rm -f .runner
+                ./gitea-runner register --no-interactive \
+                  --instance \(instance) \
+                  --token '\(token)' \
+                  --name '\(runnerName)' \
+                  --labels '\(labelList)' >/dev/null
+                nohup ./gitea-runner daemon > daemon-\(index).log 2>&1 &
 
-            """
+                """
         }
         return """
-        set -euo pipefail
+            set -euo pipefail
 
-        \(blocks)echo "\(max(1, runnerCount)) gitea runner(s) started"
-        """
+            \(blocks)echo "\(max(1, runnerCount)) gitea runner(s) started"
+            """
     }
 
     // MARK: - Managed toolchains (toolchains: config section)
@@ -184,7 +186,8 @@ public enum RunnerBootstrap {
             fi
             """
         }
-        return "# Shared toolchain cache (skipped gracefully when the host share is absent)\n" + lines.joined(separator: "\n")
+        return "# Shared toolchain cache (skipped gracefully when the host share is absent)\n"
+            + lines.joined(separator: "\n")
     }
 
     /// The managed-toolchains script baked by `image prepare` when a
@@ -192,7 +195,9 @@ public enum RunnerBootstrap {
     /// formulas (idempotent), mise pins (`mise use --global`), npm globals,
     /// gems, then every verify command — a failing verify aborts the prepare
     /// with the previous image left intact.
-    public static func managedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?) -> String {
+    public static func managedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?)
+        -> String
+    {
         var lines: [String] = ["set -euo pipefail"]
 
         if let mountPath {
@@ -201,43 +206,47 @@ public enum RunnerBootstrap {
 
         if !selection.brewTaps.isEmpty {
             let taps = selection.brewTaps.joined(separator: " ")
-            lines.append("""
-            # Homebrew taps
-            for tap in \(taps); do
-              brew tap "$tap" 2>/dev/null || true
-            done
-            """)
+            lines.append(
+                """
+                # Homebrew taps
+                for tap in \(taps); do
+                  brew tap "$tap" 2>/dev/null || true
+                done
+                """)
         }
 
         if !selection.brewFormulas.isEmpty {
             let formulas = selection.brewFormulas.map(\.name).joined(separator: " ")
-            lines.append("""
-            # Homebrew formulas (casks included; guarded so re-runs no-op)
-            for f in \(formulas); do
-              if ! brew list --versions "$f" >/dev/null 2>&1; then
-                brew install "$f"
-              fi
-            done
-            """)
+            lines.append(
+                """
+                # Homebrew formulas (casks included; guarded so re-runs no-op)
+                for f in \(formulas); do
+                  if ! brew list --versions "$f" >/dev/null 2>&1; then
+                    brew install "$f"
+                  fi
+                done
+                """)
         }
 
         if !selection.miseSpecs.isEmpty {
             let specs = selection.miseSpecs.joined(separator: " ")
-            lines.append("""
-            # mise pins — installed AND set globally so every runner shell sees them
-            mise use --global \(specs)
-            """)
+            lines.append(
+                """
+                # mise pins — installed AND set globally so every runner shell sees them
+                mise use --global \(specs)
+                """)
         }
 
         if !selection.npmPackages.isEmpty {
             lines.append("# npm globals (guarded so re-runs no-op)")
             for package in selection.npmPackages {
                 let spec = package.version.isEmpty ? "\(package.name)" : "\(package.name)@\(package.version)"
-                lines.append("""
-                if ! npm ls -g --depth=0 \(package.name) >/dev/null 2>&1; then
-                  npm install -g \(spec)
-                fi
-                """
+                lines.append(
+                    """
+                    if ! npm ls -g --depth=0 \(package.name) >/dev/null 2>&1; then
+                      npm install -g \(spec)
+                    fi
+                    """
                 )
             }
             lines.append("# corepack: packageManager-field support (pnpm/yarn per project)")
@@ -246,12 +255,13 @@ public enum RunnerBootstrap {
 
         if !selection.gems.isEmpty {
             let gems = selection.gems.joined(separator: " ")
-            lines.append("""
-            # Ruby gems (user install; guarded so re-runs no-op)
-            for g in \(gems); do
-              if ! gem list -i "^$g$" >/dev/null 2>&1; then
-                gem install --user-install "$g"
-            """)
+            lines.append(
+                """
+                # Ruby gems (user install; guarded so re-runs no-op)
+                for g in \(gems); do
+                  if ! gem list -i "^$g$" >/dev/null 2>&1; then
+                    gem install --user-install "$g"
+                """)
             lines.append("  fi")
             lines.append("done")
         }
@@ -317,7 +327,9 @@ public enum RunnerBootstrap {
     /// a mise bootstrap (Linux base images don't ship it), `mise use --global`
     /// pins, npm globals, and verify-gated completion. Cache exports point at
     /// the container-side bind mount when present.
-    public static func linuxManagedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?) -> String {
+    public static func linuxManagedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?)
+        -> String
+    {
         var lines: [String] = ["set -euo pipefail"]
 
         if let mountPath {
@@ -326,55 +338,60 @@ public enum RunnerBootstrap {
 
         if !selection.aptPackages.isEmpty {
             let packages = selection.aptPackages.joined(separator: " ")
-            lines.append("""
-            # apt packages (guarded so re-runs no-op; containers run as root)
-            export DEBIAN_FRONTEND=noninteractive
-            for p in \(packages); do
-              if ! dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'install ok installed'; then
-                apt-get update -qq
-                apt-get install -y --no-install-recommends "$p"
-              fi
-            done
-            """)
+            lines.append(
+                """
+                # apt packages (guarded so re-runs no-op; containers run as root)
+                export DEBIAN_FRONTEND=noninteractive
+                for p in \(packages); do
+                  if ! dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'install ok installed'; then
+                    apt-get update -qq
+                    apt-get install -y --no-install-recommends "$p"
+                  fi
+                done
+                """)
         }
 
         if !selection.miseSpecs.isEmpty {
-            lines.append("""
-            # mise bootstrap (Linux base images don't ship it) + shims on PATH
-            if ! command -v mise >/dev/null 2>&1; then
-              curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
-            fi
-            export PATH="$HOME/.local/share/mise/shims:$PATH"
-            """)
+            lines.append(
+                """
+                # mise bootstrap (Linux base images don't ship it) + shims on PATH
+                if ! command -v mise >/dev/null 2>&1; then
+                  curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+                fi
+                export PATH="$HOME/.local/share/mise/shims:$PATH"
+                """)
             let specs = selection.miseSpecs.joined(separator: " ")
-            lines.append("""
-            # mise pins — installed AND set globally so every runner shell sees them
-            mise use --global \(specs)
-            """)
+            lines.append(
+                """
+                # mise pins — installed AND set globally so every runner shell sees them
+                mise use --global \(specs)
+                """)
         }
 
         if !selection.npmPackages.isEmpty {
             lines.append("# npm globals (guarded so re-runs no-op)")
             for package in selection.npmPackages {
                 let spec = package.version.isEmpty ? "\(package.name)" : "\(package.name)@\(package.version)"
-                lines.append("""
-                if ! npm ls -g --depth=0 \(package.name) >/dev/null 2>&1; then
-                  npm install -g \(spec)
-                fi
-                """)
+                lines.append(
+                    """
+                    if ! npm ls -g --depth=0 \(package.name) >/dev/null 2>&1; then
+                      npm install -g \(spec)
+                    fi
+                    """)
             }
         }
 
         if !selection.gems.isEmpty {
             let gems = selection.gems.joined(separator: " ")
-            lines.append("""
-            # Ruby gems (system install; guarded so re-runs no-op)
-            for g in \(gems); do
-              if ! gem list -i "^$g$" >/dev/null 2>&1; then
-                gem install "$g"
-              fi
-            done
-            """)
+            lines.append(
+                """
+                # Ruby gems (system install; guarded so re-runs no-op)
+                for g in \(gems); do
+                  if ! gem list -i "^$g$" >/dev/null 2>&1; then
+                    gem install "$g"
+                  fi
+                done
+                """)
         }
 
         if !selection.stackSteps.isEmpty {
@@ -424,66 +441,68 @@ public enum RunnerBootstrap {
         let labelList = labels.joined(separator: ",")
         let ephemeralFlag = ephemeral ? "--ephemeral " : ""
         var blocks = ""
-        for index in 1 ... max(1, runnerCount) {
+        for index in 1...max(1, runnerCount) {
             let runnerName = runnerCount == 1 ? name : "\(name)-r\(index)"
             let dir = runnerCount == 1 ? "/opt/actions-runner" : "/opt/actions-runner-\(index)"
             blocks += """
-            # GitHub runner \(index) of \(max(1, runnerCount))
-            mkdir -p "\(dir)"
-            cd "\(dir)"
-            if [ ! -x ./config.sh ]; then
-              cp -a /opt/actions-runner/. "\(dir)" 2>/dev/null || true
-            fi
-            if [ -f .runner ]; then
-              ./config.sh remove --token '\(token)' >/dev/null 2>&1 || true
-            fi
-            ./config.sh --url \(configureURL) \\
-                        --token '\(token)' \\
-                        --labels '\(labelList)' \\
-                        --name '\(runnerName)' \\
-                        --unattended \\
-                        --replace \\
-                        \(ephemeralFlag)--work /opt/work-\(index) >/dev/null
-            nohup ./run.sh > run-\(index).log 2>&1 &
+                # GitHub runner \(index) of \(max(1, runnerCount))
+                mkdir -p "\(dir)"
+                cd "\(dir)"
+                if [ ! -x ./config.sh ]; then
+                  cp -a /opt/actions-runner/. "\(dir)" 2>/dev/null || true
+                fi
+                if [ -f .runner ]; then
+                  ./config.sh remove --token '\(token)' >/dev/null 2>&1 || true
+                fi
+                ./config.sh --url \(configureURL) \\
+                            --token '\(token)' \\
+                            --labels '\(labelList)' \\
+                            --name '\(runnerName)' \\
+                            --unattended \\
+                            --replace \\
+                            \(ephemeralFlag)--work /opt/work-\(index) >/dev/null
+                nohup ./run.sh > run-\(index).log 2>&1 &
 
-            """
+                """
         }
         return """
-        set -euo pipefail
+            set -euo pipefail
 
-        \(blocks)echo "\(max(1, runnerCount)) linux runner(s) started"
-        """
+            \(blocks)echo "\(max(1, runnerCount)) linux runner(s) started"
+            """
     }
 
     /// Gitea registration inside a Linux container (gitea-runner register
     /// --no-interactive + daemon; no --ephemeral exists upstream).
-    public static func linuxGiteaRegistrationScript(instance: String, token: String, labels: [String], name: String, runnerCount: Int = 1) -> String {
+    public static func linuxGiteaRegistrationScript(
+        instance: String, token: String, labels: [String], name: String, runnerCount: Int = 1
+    ) -> String {
         let labelList = labels.joined(separator: ",")
         var blocks = ""
-        for index in 1 ... max(1, runnerCount) {
+        for index in 1...max(1, runnerCount) {
             let runnerName = runnerCount == 1 ? name : "\(name)-r\(index)"
             let dir = runnerCount == 1 ? "/opt/gitea-runner" : "/opt/gitea-runner-\(index)"
             blocks += """
-            # Gitea runner \(index) of \(max(1, runnerCount))
-            mkdir -p "\(dir)"
-            cd "\(dir)"
-            if [ ! -x gitea-runner ]; then
-              cp /opt/gitea-runner/gitea-runner gitea-runner
-            fi
-            rm -f .runner
-            ./gitea-runner register --no-interactive \\
-              --instance \(instance) \\
-              --token '\(token)' \\
-              --name '\(runnerName)' \\
-              --labels '\(labelList)' >/dev/null
-            nohup ./gitea-runner daemon > daemon-\(index).log 2>&1 &
+                # Gitea runner \(index) of \(max(1, runnerCount))
+                mkdir -p "\(dir)"
+                cd "\(dir)"
+                if [ ! -x gitea-runner ]; then
+                  cp /opt/gitea-runner/gitea-runner gitea-runner
+                fi
+                rm -f .runner
+                ./gitea-runner register --no-interactive \\
+                  --instance \(instance) \\
+                  --token '\(token)' \\
+                  --name '\(runnerName)' \\
+                  --labels '\(labelList)' >/dev/null
+                nohup ./gitea-runner daemon > daemon-\(index).log 2>&1 &
 
-            """
+                """
         }
         return """
-        set -euo pipefail
+            set -euo pipefail
 
-        \(blocks)echo "\(max(1, runnerCount)) linux gitea runner(s) started"
-        """
+            \(blocks)echo "\(max(1, runnerCount)) linux gitea runner(s) started"
+            """
     }
 }

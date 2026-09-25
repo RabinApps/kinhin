@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Locks the setup-status contract: `kinhin setup-status` and the menu bar
@@ -10,7 +11,9 @@ final class SetupStatusTests: XCTestCase {
         HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: arm64)
     }
 
-    private func vm(name: String, source: String = "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: String = "suspended") -> TartVM {
+    private func vm(
+        name: String, source: String = "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: String = "suspended"
+    ) -> TartVM {
         TartVM(name: name, source: source, status: status, cpu: nil, memoryMB: nil)
     }
 
@@ -69,8 +72,9 @@ final class SetupStatusTests: XCTestCase {
         let status = await computer.compute()
 
         XCTAssertEqual(status.ready, false)
-        XCTAssertEqual(status.checks.map(\.ok), [true, false, false, false, false, false, true],
-                       "the terminal toolchain-cache row is advisory-green even on a fresh machine")
+        XCTAssertEqual(
+            status.checks.map(\.ok), [true, false, false, false, false, false, true],
+            "the terminal toolchain-cache row is advisory-green even on a fresh machine")
 
         let byID = Dictionary(uniqueKeysWithValues: status.checks.map { ($0.id, $0) })
         XCTAssertEqual(byID["clt"]?.action, "fix_clt")
@@ -91,8 +95,9 @@ final class SetupStatusTests: XCTestCase {
             "create_config", "enter_token", "prepare_image",
         ]
         for action in labels {
-            XCTAssertNotEqual(SetupAction.title(for: action), action,
-                              "\(action) must have a human-readable title")
+            XCTAssertNotEqual(
+                SetupAction.title(for: action), action,
+                "\(action) must have a human-readable title")
         }
     }
 
@@ -197,8 +202,9 @@ final class SetupStatusTests: XCTestCase {
             tokenStored: true
         )
         let status = await computer.compute()
-        XCTAssertEqual(status.checks.first { $0.id == "token" }?.action, "replace_token",
-                       "a stored token stays replaceable (rotated/expired PATs are routine)")
+        XCTAssertEqual(
+            status.checks.first { $0.id == "token" }?.action, "replace_token",
+            "a stored token stays replaceable (rotated/expired PATs are routine)")
         XCTAssertTrue(status.checks.first { $0.id == "token" }?.detail.contains("Keychain") ?? false)
     }
 
@@ -220,8 +226,9 @@ final class SetupStatusTests: XCTestCase {
             tokenStored: true
         )
         let status = await computer.compute()
-        XCTAssertNil(status.checks.first { $0.id == "provision-script" },
-                     "no provision_script in config → no row")
+        XCTAssertNil(
+            status.checks.first { $0.id == "provision-script" },
+            "no provision_script in config → no row")
         XCTAssertEqual(status.checks.map(\.id), ["arch", "clt", "tart", "config", "token", "image", "toolchain-cache"])
         XCTAssertTrue(status.ready)
     }
@@ -243,8 +250,9 @@ final class SetupStatusTests: XCTestCase {
         XCTAssertTrue(row?.detail.contains(path) ?? false, "detail names the script: \(row?.detail ?? "")")
         XCTAssertTrue(status.ready, "a valid script must not block readiness")
         // The row sits right after config, before tokens.
-        XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart", "config", "provision-script", "token", "image", "toolchain-cache"])
+        XCTAssertEqual(
+            status.checks.map(\.id),
+            ["arch", "clt", "tart", "config", "provision-script", "token", "image", "toolchain-cache"])
     }
 
     func testMissingProvisionScriptProducesFixRowAndBlocksReady() async {
@@ -262,7 +270,8 @@ final class SetupStatusTests: XCTestCase {
         XCTAssertEqual(row?.ok, false)
         XCTAssertEqual(row?.action, "repair_provision_script")
         XCTAssertTrue(row?.detail.contains("missing or unreadable") ?? false)
-        XCTAssertFalse(status.ready, "a broken provision script must block readiness — prepare would fail after the download")
+        XCTAssertFalse(
+            status.ready, "a broken provision script must block readiness — prepare would fail after the download")
         XCTAssertEqual(SetupAction.title(for: "repair_provision_script"), "Fix Provision Script…")
     }
 
@@ -321,7 +330,8 @@ final class SetupStatusTests: XCTestCase {
         XCTAssertEqual(status.checks.map(\.id), ["arch", "clt", "tart", "config", "token", "image", "toolchain-cache"])
         let row = try! XCTUnwrap(status.checks.first { $0.id == "toolchain-cache" })
         XCTAssertEqual(row.action, "create_toolchain_cache")
-        XCTAssertTrue(row.detail.contains("runner mounts will be empty"), "the detail names the consequence: \(row.detail)")
+        XCTAssertTrue(
+            row.detail.contains("runner mounts will be empty"), "the detail names the consequence: \(row.detail)")
         XCTAssertTrue(status.ready, "the cache row is advisory — it never blocks onboarding")
     }
 
@@ -364,7 +374,7 @@ final class SetupStatusTests: XCTestCase {
 }
 
 /// Tiny fixture helpers for the provision-script row tests.
-enum ProvisionScriptFixtures { }
+enum ProvisionScriptFixtures {}
 
 /// Tiny convenience so scenario tests read cleanly.
 enum SetupCheckHelper {

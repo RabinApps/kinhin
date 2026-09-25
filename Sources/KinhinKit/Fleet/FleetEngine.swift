@@ -66,13 +66,22 @@ public final class FleetEngine {
     /// Daily host-cache sweep task (started/stopped with the engine).
     var cachePruneTask: Task<Void, Never>?
 
-    public init(config: kinhinConfig, github: GitHubServing, tart: TartControlling, store: FleetStore, ssh: SSHExecuting, host: HostResources, containerShell: ShellRunning? = nil) {
+    public init(
+        config: kinhinConfig, github: GitHubServing, tart: TartControlling, store: FleetStore, ssh: SSHExecuting,
+        host: HostResources, containerShell: ShellRunning? = nil
+    ) {
         let credentials = GitHubCredentials(token: "", scope: config.repo)
         self.credentials = credentials
         self.githubFactory = GitHubClientFactory { _ in github }
         self.githubInstance = github
-        self.forgesByPlatform = ["github": GitHubForge(credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels, client: github)]
-        let tartInstance = TartRuntime(tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh, toolchainsConfig: { [config] in config.toolchains })
+        self.forgesByPlatform = [
+            "github": GitHubForge(
+                credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels,
+                client: github)
+        ]
+        let tartInstance = TartRuntime(
+            tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh,
+            toolchainsConfig: { [config] in config.toolchains })
         var appleRuntime: AppleContainerRuntime?
         if let containerConfig = config.container {
             appleRuntime = AppleContainerRuntime(
@@ -173,7 +182,10 @@ public final class FleetEngine {
     /// Convenience initializer matching the production wiring: a client
     /// factory keyed off the credentials (live by default; injectable in
     /// tests to observe credential swaps).
-    public convenience init(config: kinhinConfig, pat: String, tart: TartControlling, store: FleetStore, ssh: SSHExecuting, host: HostResources, githubFactory: GitHubClientFactory = .live) {
+    public convenience init(
+        config: kinhinConfig, pat: String, tart: TartControlling, store: FleetStore, ssh: SSHExecuting,
+        host: HostResources, githubFactory: GitHubClientFactory = .live
+    ) {
         let credentials = GitHubCredentials(token: pat, scope: config.repo)
         self.init(
             config: config,
@@ -186,8 +198,13 @@ public final class FleetEngine {
         self.credentials = credentials
         self.githubFactory = githubFactory
         // Gitea-only configs never build a GitHub forge (no token, no scope).
-        self.forgesByPlatform = config.githubEnabled
-            ? ["github": GitHubForge(credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels, client: github)]
+        self.forgesByPlatform =
+            config.githubEnabled
+            ? [
+                "github": GitHubForge(
+                    credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels,
+                    client: github)
+            ]
             : [:]
         // NOTE: `runtime` was initialized in the designated init; convenience
         // inits cannot reassign let properties.
@@ -225,7 +242,8 @@ public final class FleetEngine {
         let attachedCount = forgesLock.withLock { forgesByPlatform.count }
         guard attachedCount > 0 else {
             let giteaProblem = await statusBox.get().lastError
-            let message = githubProblem
+            let message =
+                githubProblem
                 ?? giteaProblem
                 ?? "no forge configured — set a GitHub repo or a gitea: section"
             Log.error("engine", "startup blocked: \(message)")
@@ -302,7 +320,8 @@ public final class FleetEngine {
             githubInstance = client
         }
         forgesLock.withLock {
-            forgesByPlatform["github"] = GitHubForge(credentials: .github(token: fresh.token, scope: fresh.scope), labels: config.labels, client: client)
+            forgesByPlatform["github"] = GitHubForge(
+                credentials: .github(token: fresh.token, scope: fresh.scope), labels: config.labels, client: client)
             forgeRetry.githubDetached = false
         }
         registrationTokens.invalidate()

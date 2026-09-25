@@ -40,9 +40,11 @@ public struct RunnerVersionResolver {
 
     /// Latest stable actions-runner tag, e.g. "v2.325.0" → "2.325.0".
     func latestGitHub() async -> String? {
-        guard let data = try? await fetch(
-            url: URL(string: "https://api.github.com/repos/actions/runner/releases/latest")!
-        ) else { return nil }
+        guard
+            let data = try? await fetch(
+                url: URL(string: "https://api.github.com/repos/actions/runner/releases/latest")!
+            )
+        else { return nil }
         struct Payload: Decodable { let tag_name: String }
         guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else { return nil }
         let tag = payload.tag_name
@@ -52,9 +54,11 @@ public struct RunnerVersionResolver {
 
     /// Latest stable Gitea runner tag, e.g. "v3.5.0" → "3.5.0".
     func latestGitea() async -> String? {
-        guard let data = try? await fetch(
-            url: URL(string: "https://gitea.com/api/v1/repos/gitea/runner/releases/latest")!
-        ) else { return nil }
+        guard
+            let data = try? await fetch(
+                url: URL(string: "https://gitea.com/api/v1/repos/gitea/runner/releases/latest")!
+            )
+        else { return nil }
         struct Payload: Decodable { let tag_name: String }
         guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else { return nil }
         let tag = payload.tag_name
@@ -67,7 +71,7 @@ public struct RunnerVersionResolver {
         req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: req)
-        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw URLError(.badServerResponse)
         }
         return data

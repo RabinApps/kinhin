@@ -128,7 +128,8 @@ enum AuthCommand {
                 }
                 print("Gitea token stored (starts with \(token.prefix(4))…), checking \(gitea.instance)…")
                 do {
-                    try await environment.checkGitea(GiteaCredentials(token: token, scope: gitea.scope, instance: gitea.instance))
+                    try await environment.checkGitea(
+                        GiteaCredentials(token: token, scope: gitea.scope, instance: gitea.instance))
                     print("token works against \(gitea.scope) @ \(gitea.instance)")
                 } catch {
                     print("token check failed: \(error.localizedDescription)")

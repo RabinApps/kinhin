@@ -97,7 +97,10 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         /// when nothing is selected).
         public let ecosystems: [Ecosystem]
 
-        public init(root: String, usable: Bool, sharedWithRunners: Bool, warning: Bool, totalBytes: Int64, ecosystems: [Ecosystem]) {
+        public init(
+            root: String, usable: Bool, sharedWithRunners: Bool, warning: Bool, totalBytes: Int64,
+            ecosystems: [Ecosystem]
+        ) {
             self.root = root
             self.usable = usable
             self.sharedWithRunners = sharedWithRunners
@@ -147,8 +150,6 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         self.capacity = capacity
     }
 }
-
-
 
 /// Builds the merged DoctorReport. Every probe is injectable: pass a fixture
 /// to substitute it (tests), or leave nil to probe the real machine (the CLI).
@@ -395,7 +396,9 @@ public struct DoctorReportBuilder: Sendable {
             }
         } else {
             // No selection: report every populated top-level directory.
-            let children = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey, .totalFileAllocatedSizeKey])) ?? []
+            let children =
+                (try? fm.contentsOfDirectory(
+                    at: root, includingPropertiesForKeys: [.isDirectoryKey, .totalFileAllocatedSizeKey])) ?? []
             for child in children.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
                 let bytes = Self.directorySize(at: child)
                 guard bytes > 0 else { continue }
@@ -415,11 +418,13 @@ public struct DoctorReportBuilder: Sendable {
     /// same pruning-friendly convention: regular files only.
     static func directorySize(at url: URL) -> Int64 {
         let fm = FileManager.default
-        guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey]) else { return 0 }
+        guard let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey])
+        else { return 0 }
         var total: Int64 = 0
         for case let fileURL as URL in enumerator {
             guard let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
-                  values.isRegularFile == true else { continue }
+                values.isRegularFile == true
+            else { continue }
             total += Int64(values.fileSize ?? 0)
         }
         return total

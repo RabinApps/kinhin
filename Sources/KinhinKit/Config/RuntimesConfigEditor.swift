@@ -130,7 +130,8 @@ public enum RuntimesConfigEditor {
     }
 
     static func quote(_ value: String) -> String {
-        let escaped = value
+        let escaped =
+            value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
         return "\"\(escaped)\""

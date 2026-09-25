@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Intercepts URLSession traffic for deterministic tests.
@@ -47,9 +48,11 @@ final class GitHubClientTests: XCTestCase {
         // A full 100-item page keeps pagination going; the short page ends it.
         // Parse the page per request — a cached "page 1" branch would feed
         // the full page forever and hang pagination.
-        let fullPage = (1...100).map { "{\"full_name\":\"acme/p\($0)\",\"private\":false,\"has_actions\":true}" }.joined(separator: ",")
+        let fullPage = (1...100).map { "{\"full_name\":\"acme/p\($0)\",\"private\":false,\"has_actions\":true}" }
+            .joined(separator: ",")
         StubProtocol.handler = { request in
-            let page = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+            let page =
+                URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
                 .queryItems?.first(where: { $0.name == "page" })?.value ?? "1"
             if page == "1" {
                 return (200, Data("[\(fullPage)]".utf8), [:])
@@ -70,11 +73,13 @@ final class GitHubClientTests: XCTestCase {
             return (200, Data(body.utf8), [:])
         }
         defer { StubProtocol.handler = nil }
-        let client = GitHubClient(credentials: GitHubCredentials(token: "t", scope: "acme-corp"), session: {
-            let config = URLSessionConfiguration.ephemeral
-            config.protocolClasses = [StubProtocol.self]
-            return URLSession(configuration: config)
-        }())
+        let client = GitHubClient(
+            credentials: GitHubCredentials(token: "t", scope: "acme-corp"),
+            session: {
+                let config = URLSessionConfiguration.ephemeral
+                config.protocolClasses = [StubProtocol.self]
+                return URLSession(configuration: config)
+            }())
         let repos = try await client.listRepositories()
         XCTAssertEqual(repos.map(\.fullName), ["acme-corp/site"])
     }
@@ -85,15 +90,18 @@ final class GitHubClientTests: XCTestCase {
         StubProtocol.handler = { request in
             XCTAssertEqual(request.url!.path, "/user/repos")
             XCTAssertTrue(request.url!.query!.contains("affiliation=owner,collaborator,organization_member"))
-            let body = "[{\"full_name\":\"me/app\",\"private\":true,\"has_actions\":true},{\"full_name\":\"corp/site\",\"private\":false,\"has_actions\":true}]"
+            let body =
+                "[{\"full_name\":\"me/app\",\"private\":true,\"has_actions\":true},{\"full_name\":\"corp/site\",\"private\":false,\"has_actions\":true}]"
             return (200, Data(body.utf8), [:])
         }
         defer { StubProtocol.handler = nil }
-        let client = GitHubClient(credentials: GitHubCredentials(token: "t", scope: ""), session: {
-            let config = URLSessionConfiguration.ephemeral
-            config.protocolClasses = [StubProtocol.self]
-            return URLSession(configuration: config)
-        }())
+        let client = GitHubClient(
+            credentials: GitHubCredentials(token: "t", scope: ""),
+            session: {
+                let config = URLSessionConfiguration.ephemeral
+                config.protocolClasses = [StubProtocol.self]
+                return URLSession(configuration: config)
+            }())
         let repos = try await client.listRepositories()
         XCTAssertEqual(Set(repos.map(\.fullName)), ["me/app", "corp/site"])
     }
@@ -103,8 +111,8 @@ final class GitHubClientTests: XCTestCase {
             XCTAssertEqual(request.url?.path, "/repos/acme/widgets/actions/runners/registration-token")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
             let body = """
-            {"token":"FRank123","expires_at":"2026-09-21T12:00:00Z"}
-            """
+                {"token":"FRank123","expires_at":"2026-09-21T12:00:00Z"}
+                """
             return (201, Data(body.utf8), [:])
         }
         let token = try await makeClient().fetchRegistrationToken()
@@ -114,16 +122,18 @@ final class GitHubClientTests: XCTestCase {
     func testListRunnersPagination() async throws {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
-            let page = Int(URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "page" })?.value ?? "1") ?? 1
+            let page =
+                Int(
+                    URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                        .queryItems?.first(where: { $0.name == "page" })?.value ?? "1") ?? 1
             XCTAssertEqual(path, "/repos/acme/widgets/actions/runners")
             if page == 1 {
                 let body = """
-                {"total_count":2,"runners":[
-                  {"id":1,"name":"kinhin-1","status":"online","busy":true,"labels":[{"name":"self-hosted"}]},
-                  {"id":2,"name":"kinhin-2","status":"online","busy":false,"labels":[]}
-                ]}
-                """
+                    {"total_count":2,"runners":[
+                      {"id":1,"name":"kinhin-1","status":"online","busy":true,"labels":[{"name":"self-hosted"}]},
+                      {"id":2,"name":"kinhin-2","status":"online","busy":false,"labels":[]}
+                    ]}
+                    """
                 return (200, Data(body.utf8), [:])
             }
             return (200, Data("{\"total_count\":2,\"runners\":[]}".utf8), [:])
@@ -223,8 +233,8 @@ final class GitHubClientTests: XCTestCase {
             let path = request.url?.path ?? ""
             if path == "/repos/acme/widgets/actions/runs" {
                 let body = """
-                {"total_count":2,"workflow_runs":[{"id":101},{"id":102}]}
-                """
+                    {"total_count":2,"workflow_runs":[{"id":101},{"id":102}]}
+                    """
                 return (200, Data(body.utf8), [:])
             }
             if path.hasSuffix("/jobs") {
@@ -233,13 +243,13 @@ final class GitHubClientTests: XCTestCase {
                 if runID == 101 {
                     // matches: has all fleet labels + extra
                     jobs = """
-                    {"jobs":[{"id":1,"run_id":101,"name":"build","status":"queued","labels":["ubuntu-latest","macos","kinhin"]}]}
-                    """
+                        {"jobs":[{"id":1,"run_id":101,"name":"build","status":"queued","labels":["ubuntu-latest","macos","kinhin"]}]}
+                        """
                 } else {
                     // does not match: missing "kinhin"
                     jobs = """
-                    {"jobs":[{"id":2,"run_id":102,"name":"test","status":"queued","labels":["macos"]}]}
-                    """
+                        {"jobs":[{"id":2,"run_id":102,"name":"test","status":"queued","labels":["macos"]}]}
+                        """
                 }
                 return (200, Data(jobs.utf8), [:])
             }

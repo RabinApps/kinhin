@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Budget editing math: slider drags keep weights consistent with the
@@ -204,13 +205,13 @@ final class BudgetEditorTests: XCTestCase {
 
     func testBudgetRoundTripThroughConfigEditor() throws {
         let base = """
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        container:
-          image: "kinhin-ci-linux"
-          cpus: 2
-          memory_gb: 4
-        """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            container:
+              image: "kinhin-ci-linux"
+              cpus: 2
+              memory_gb: 4
+            """
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("kinhin-budget-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

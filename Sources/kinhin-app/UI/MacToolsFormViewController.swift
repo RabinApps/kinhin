@@ -33,7 +33,9 @@ final class MacToolsFormViewController: NSViewController {
         switch (tartReady, activeLinuxRuntimes.isEmpty) {
         case (true, true): return "macOS jobs (tart)"
         case (true, false): return "macOS jobs (tart) and Linux jobs (\(activeLinuxRuntimes.joined(separator: ", ")))"
-        case (false, false): return "Linux jobs only (\(activeLinuxRuntimes.joined(separator: ", "))) — macOS jobs need tart, which isn't set up"
+        case (false, false):
+            return
+                "Linux jobs only (\(activeLinuxRuntimes.joined(separator: ", "))) — macOS jobs need tart, which isn't set up"
         case (false, true): return "nothing yet"
         }
     }
@@ -97,7 +99,8 @@ final class MacToolsFormViewController: NSViewController {
     private func buildMacCard() -> NSView {
         let (card, column) = FormKit.card(
             title: "macOS jobs (optional)",
-            subtitle: "Run macOS workflows in disposable virtual machines powered by tart. Skip this if you only need Linux jobs."
+            subtitle:
+                "Run macOS workflows in disposable virtual machines powered by tart. Skip this if you only need Linux jobs."
         )
         for status in [tartStatus, imageStatus, busyLabel] {
             status.font = .systemFont(ofSize: 11)
@@ -117,8 +120,10 @@ final class MacToolsFormViewController: NSViewController {
         progress.controlSize = .small
         progress.isDisplayedWhenStopped = false
 
-        column.addArrangedSubview(FormKit.row([FormKit.label("tart", weight: .semibold), tartStatus, FormKit.spacer(), tartButton]))
-        column.addArrangedSubview(FormKit.row([FormKit.label("Base image", weight: .semibold), imageStatus, FormKit.spacer(), imageButton]))
+        column.addArrangedSubview(
+            FormKit.row([FormKit.label("tart", weight: .semibold), tartStatus, FormKit.spacer(), tartButton]))
+        column.addArrangedSubview(
+            FormKit.row([FormKit.label("Base image", weight: .semibold), imageStatus, FormKit.spacer(), imageButton]))
         column.addArrangedSubview(FormKit.row([progress, busyLabel]))
         return card
     }
@@ -149,7 +154,8 @@ final class MacToolsFormViewController: NSViewController {
             button.identifier = NSUserInterfaceItemIdentifier(id)
             button.isHidden = true
         }
-        column.addArrangedSubview(FormKit.row([containerToggle, containerStatus, FormKit.spacer(), containerInstallButton]))
+        column.addArrangedSubview(
+            FormKit.row([containerToggle, containerStatus, FormKit.spacer(), containerInstallButton]))
         column.addArrangedSubview(FormKit.row([dockerToggle, dockerStatus, FormKit.spacer(), dockerInstallButton]))
         return card
     }
@@ -202,7 +208,8 @@ final class MacToolsFormViewController: NSViewController {
                 return ((try? await tart.list()) ?? []).contains { $0.name == image }
             }.value
             guard let self else { return }
-            self.imageStatus.stringValue = present ? "\(image) ready ✓" : "\(image) not prepared yet — takes a while, once"
+            self.imageStatus.stringValue =
+                present ? "\(image) ready ✓" : "\(image) not prepared yet — takes a while, once"
             self.imageStatus.textColor = present ? .secondaryLabelColor : .systemOrange
             self.imageButton.isHidden = present
             self.setTartReady(present)
@@ -223,7 +230,9 @@ final class MacToolsFormViewController: NSViewController {
     /// on or off changes it immediately (no reload needed).
     private func recomputeReadiness() {
         var active: [String] = []
-        if containerToggle.state == .on, Paths.findExecutable(named: "container") != nil { active.append("Apple container") }
+        if containerToggle.state == .on, Paths.findExecutable(named: "container") != nil {
+            active.append("Apple container")
+        }
         if dockerToggle.state == .on, Paths.findExecutable(named: "docker") != nil { active.append("Docker") }
         activeLinuxRuntimes = active
         let ready = tartReady || !active.isEmpty
@@ -324,13 +333,25 @@ final class MacToolsFormViewController: NSViewController {
     }
 
     @objc private func containerToggled() {
-        let snap = (try? String(contentsOf: configURL, encoding: .utf8)).flatMap { try? GeneralConfigEditor.snapshot(from: $0) }
-        write(.container(containerToggle.state == .on ? (snap?.container ?? .init(image: "kinhin-ci-linux", cpus: 4, memoryGB: 8)) : nil), revert: containerToggle)
+        let snap = (try? String(contentsOf: configURL, encoding: .utf8)).flatMap {
+            try? GeneralConfigEditor.snapshot(from: $0)
+        }
+        write(
+            .container(
+                containerToggle.state == .on
+                    ? (snap?.container ?? .init(image: "kinhin-ci-linux", cpus: 4, memoryGB: 8)) : nil),
+            revert: containerToggle)
     }
 
     @objc private func dockerToggled() {
-        let snap = (try? String(contentsOf: configURL, encoding: .utf8)).flatMap { try? GeneralConfigEditor.snapshot(from: $0) }
-        write(.docker(dockerToggle.state == .on ? (snap?.docker ?? .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4, maxSlots: 8)) : nil), revert: dockerToggle)
+        let snap = (try? String(contentsOf: configURL, encoding: .utf8)).flatMap {
+            try? GeneralConfigEditor.snapshot(from: $0)
+        }
+        write(
+            .docker(
+                dockerToggle.state == .on
+                    ? (snap?.docker ?? .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4, maxSlots: 8)) : nil),
+            revert: dockerToggle)
     }
 
     private func write(_ field: GeneralConfigEditor.Field, revert toggle: NSButton) {
@@ -393,11 +414,12 @@ extension MacToolsFormViewController {
         stack.alignment = .leading
         stack.spacing = 8
         stack.frame = NSRect(x: 0, y: 0, width: 300, height: options.count > 1 ? 150 : 110)
-        alert.informativeText = "kinhin will run this with Homebrew. It may take several minutes, and some installers ask for your password or need a first launch afterwards."
+        alert.informativeText =
+            "kinhin will run this with Homebrew. It may take several minutes, and some installers ask for your password or need a first launch afterwards."
         alert.accessoryView = stack
 
         let response = alert.runModal()
-        _ = handler // keep alive for the popup's action
+        _ = handler  // keep alive for the popup's action
         let chosen = options[max(0, popup.indexOfSelectedItem)]
         switch response {
         case .alertFirstButtonReturn:
@@ -415,7 +437,8 @@ extension MacToolsFormViewController {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = "Homebrew isn't installed"
-        alert.informativeText = "kinhin installs \(tool.title) with Homebrew. Install Homebrew first, or download \(tool.title) yourself."
+        alert.informativeText =
+            "kinhin installs \(tool.title) with Homebrew. Install Homebrew first, or download \(tool.title) yourself."
         alert.addButton(withTitle: "Get Homebrew")
         if options.first?.manualURL != nil { alert.addButton(withTitle: "Download \(tool.title)") }
         alert.addButton(withTitle: "Cancel")

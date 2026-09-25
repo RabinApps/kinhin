@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// The user provision-script hook: `kinhin image prepare` runs a host-local
@@ -41,10 +42,10 @@ final class ImageProvisionScriptTests: XCTestCase {
 
     func testProvisionScriptRunsAsSecondSSHExecAfterAgents() async throws {
         let content = """
-        #!/bin/bash
-        mise install go@1.23.4 java@temurin-21
-        go version
-        """
+            #!/bin/bash
+            mise install go@1.23.4 java@temurin-21
+            go version
+            """
         let path = try writeScript(content)
         let tart = FakeTart()
         let ssh = FakeSSH()
@@ -139,7 +140,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         let tart = FakeTart()
         tart.vms["tahoe-base"] = TartVM(name: "tahoe-base", source: "old-source", status: "stopped")
         let ssh = FakeSSH()
-        ssh.failOnCall = 1 // the second exec: the user provision script
+        ssh.failOnCall = 1  // the second exec: the user provision script
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false)
         options.target = "tahoe-base"
@@ -175,7 +176,8 @@ final class ImageProvisionScriptTests: XCTestCase {
     }
 
     func testTildeExpansion() {
-        XCTAssertEqual(ImagePreparer.expandingTilde(in: "/absolute/path.sh"), "/absolute/path.sh", "plain paths pass through")
+        XCTAssertEqual(
+            ImagePreparer.expandingTilde(in: "/absolute/path.sh"), "/absolute/path.sh", "plain paths pass through")
         XCTAssertEqual(ImagePreparer.expandingTilde(in: "relative.sh"), "relative.sh")
         let expanded = ImagePreparer.expandingTilde(in: "~/kinhin/provision.sh")
         XCTAssertNotEqual(expanded, "~/kinhin/provision.sh", "leading ~ must be expanded")
@@ -191,25 +193,30 @@ final class ImageProvisionScriptTests: XCTestCase {
     // MARK: Config key
 
     func testConfigParsesProvisionScript() throws {
-        let cfg = try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        provision_script: "~/kinhin/provision.sh"
-        """)
+        let cfg = try ConfigLoader.parse(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            provision_script: "~/kinhin/provision.sh"
+            """)
         XCTAssertEqual(cfg.provisionScript, "~/kinhin/provision.sh")
     }
 
     func testConfigRejectsEmptyProvisionScript() {
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        provision_script: ""
-        """), "an empty path must be rejected")
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        provision_script: "   "
-        """), "a whitespace path must be rejected")
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["self-hosted"]
+                provision_script: ""
+                """), "an empty path must be rejected")
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["self-hosted"]
+                provision_script: "   "
+                """), "a whitespace path must be rejected")
     }
 
     func testTemplateHasNoProvisionScript() throws {

@@ -1,6 +1,7 @@
-import XCTest
 import AppKit
 import KinhinKit
+import XCTest
+
 @testable import kinhin_app
 
 /// The CALayer color-freeze bug class: `layer.backgroundColor = color.cgColor`
@@ -31,8 +32,9 @@ final class LayerStyleTests: XCTestCase {
         view.display()
         let first = view.layer?.backgroundColor
         view.display()
-        XCTAssertNotEqual(first, view.layer?.backgroundColor,
-                          "styleLayer must re-run on each update, re-resolving dynamic colors")
+        XCTAssertNotEqual(
+            first, view.layer?.backgroundColor,
+            "styleLayer must re-run on each update, re-resolving dynamic colors")
     }
 
     func testViewIsLayerBackedWithoutAutoresizingMask() {
@@ -47,7 +49,8 @@ final class LayerStyleTests: XCTestCase {
         var counter = 0
         let label = LayerStyleLabel(labelWithString: "✓") { layer in
             counter += 1
-            layer.backgroundColor = (counter % 2 == 0 ? NSColor.systemGreen : NSColor.systemRed).withAlphaComponent(0.18).cgColor
+            layer.backgroundColor =
+                (counter % 2 == 0 ? NSColor.systemGreen : NSColor.systemRed).withAlphaComponent(0.18).cgColor
         }
         label.frame = NSRect(x: 0, y: 0, width: 24, height: 24)
         label.display()
@@ -89,7 +92,8 @@ final class LayerStyleTests: XCTestCase {
             defer { NSAppearance.current = previous }
             return NSColor.controlBackgroundColor.cgColor
         }
-        XCTAssertNotEqual(light, dark,
-                          "controlBackgroundColor must resolve differently per current appearance")
+        XCTAssertNotEqual(
+            light, dark,
+            "controlBackgroundColor must resolve differently per current appearance")
     }
 }

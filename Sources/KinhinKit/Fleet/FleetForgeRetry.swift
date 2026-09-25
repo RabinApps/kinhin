@@ -36,9 +36,11 @@ extension FleetEngine {
     public func retryDetachedForgesIfDue(now: Date = Date(), ignoreBackoff: Bool = false) async {
         guard stateLock.withLock({ running }) else { return }
         let (githubDetached, giteaDetached, due) = forgesLock.withLock {
-            (forgeRetry.githubDetached,
-             config.gitea != nil && forgesByPlatform["gitea"] == nil,
-             now >= forgeRetry.nextAttempt)
+            (
+                forgeRetry.githubDetached,
+                config.gitea != nil && forgesByPlatform["gitea"] == nil,
+                now >= forgeRetry.nextAttempt
+            )
         }
         guard githubDetached || giteaDetached, ignoreBackoff || due else { return }
 

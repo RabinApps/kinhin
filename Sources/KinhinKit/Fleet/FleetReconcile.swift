@@ -108,10 +108,11 @@ extension FleetEngine {
                     let jobs = try await forge.queuedJobs()
                     // Org-scope forges contribute repo attribution; repo-scope
                     // forges suppress it (breakdown would carry no info).
-                    let scope = switch forge.credentials {
-                    case .github(_, let s): s
-                    case .gitea(_, let s, _): s
-                    }
+                    let scope =
+                        switch forge.credentials {
+                        case .github(_, let s): s
+                        case .gitea(_, let s, _): s
+                        }
                     perForgeJobs[forge.id] = (!scope.contains("/"), jobs)
                     demandByForge[forge.id] = jobs.count
                     queueDepth += jobs.count
@@ -138,9 +139,10 @@ extension FleetEngine {
                 do {
                     let running = try await forge.runningJobs()
                     if forge.id == .github {
-                        await applyRunningAttribution(running.map {
-                            RunningJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
-                        })
+                        await applyRunningAttribution(
+                            running.map {
+                                RunningJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
+                            })
                     }
                 } catch {
                     // Attribution is best-effort telemetry: never fail reconcile
@@ -275,7 +277,9 @@ extension FleetEngine {
     /// the one with the most unmet jobs — never beyond its capacity
     /// partition. Deterministic tie-breaks (alphabetical runtime id); with
     /// no demand anywhere, the default runtime wins.
-    func selectRuntime(demand: [RuntimeID: Int], active: [RuntimeID: Int], caps: [RuntimeID: Int], fallback: RuntimeID) -> RuntimeID {
+    func selectRuntime(demand: [RuntimeID: Int], active: [RuntimeID: Int], caps: [RuntimeID: Int], fallback: RuntimeID)
+        -> RuntimeID
+    {
         var best: RuntimeID = fallback
         var bestUnmet = -1
         for (id, unmet) in demand.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
@@ -317,14 +321,17 @@ extension FleetEngine {
         var jobByVM: [String: String] = [:]
         for job in running {
             guard let runnerName = job.runnerName,
-                  let vmID = vmID(forRunnerName: runnerName) else { continue }
+                let vmID = vmID(forRunnerName: runnerName)
+            else { continue }
             if isOrgScope, let repo = job.repository {
                 reposByVM[vmID, default: []].append(repo)
             }
             if jobByVM[vmID] == nil { jobByVM[vmID] = job.name }
         }
 
-        await statusBox.modify { $0.runningByRepo = isOrgScope ? attributionByRepo(running.compactMap(\.repository)) : nil }
+        await statusBox.modify {
+            $0.runningByRepo = isOrgScope ? attributionByRepo(running.compactMap(\.repository)) : nil
+        }
 
         // Stamp VMs that exist; clear the stamp on VMs whose jobs finished.
         for record in store.all {
@@ -345,8 +352,9 @@ extension FleetEngine {
             if runnerName == record.id { return record.id }
             let prefix = "\(record.id)-r"
             if runnerName.hasPrefix(prefix),
-               let index = Int(runnerName.dropFirst(prefix.count)),
-               (1 ... max(1, config.runnersPerVM)).contains(index) {
+                let index = Int(runnerName.dropFirst(prefix.count)),
+                (1...max(1, config.runnersPerVM)).contains(index)
+            {
                 return record.id
             }
         }

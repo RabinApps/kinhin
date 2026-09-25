@@ -21,17 +21,23 @@ public enum TokenHealthCheck {
 
     /// Check the GitHub provider. Requires a config scope; without one the
     /// probe cannot address any API and reports "not checkable".
-    public static func github(token: String, scope: String,
-                              client github: GitHubServing? = nil) async -> Report {
+    public static func github(
+        token: String, scope: String,
+        client github: GitHubServing? = nil
+    ) async -> Report {
         let client = github ?? GitHubClient(credentials: GitHubCredentials(token: token, scope: scope))
         let report = await OrgPermissionProbe.verify(github: client, scope: scope)
         return Report(ok: report.ok, message: report.ok ? "Token works — \(report.message)" : report.message)
     }
 
     /// Check the Gitea provider against its configured instance.
-    public static func gitea(token: String, config: kinhinConfig.GiteaForgeConfig,
-                             client gitea: GiteaClient? = nil) async -> Report {
-        let client = gitea ?? GiteaClient(credentials: GiteaCredentials(token: token, scope: config.scope, instance: config.instance))
+    public static func gitea(
+        token: String, config: kinhinConfig.GiteaForgeConfig,
+        client gitea: GiteaClient? = nil
+    ) async -> Report {
+        let client =
+            gitea
+            ?? GiteaClient(credentials: GiteaCredentials(token: token, scope: config.scope, instance: config.instance))
         do {
             _ = try await client.fetchRegistrationToken()
             return Report(ok: true, message: "Token works against \(config.scope) @ \(config.instance)")
@@ -45,11 +51,13 @@ public enum TokenHealthCheck {
     /// stored token (via `keychainToken`) and the config scope, and returns
     /// an actionable "not checkable" report when a prerequisite is missing
     /// (no token stored, or no config scope/section to check against).
-    public static func check(forge: ForgeID,
-                             config: kinhinConfig?,
-                             keychainToken: @escaping (ForgeID) -> String?,
-                             github: GitHubServing? = nil,
-                             gitea: GiteaClient? = nil) async -> Report {
+    public static func check(
+        forge: ForgeID,
+        config: kinhinConfig?,
+        keychainToken: @escaping (ForgeID) -> String?,
+        github: GitHubServing? = nil,
+        gitea: GiteaClient? = nil
+    ) async -> Report {
         guard let token = keychainToken(forge) else {
             return Report(ok: false, message: "No token stored yet — save one first.")
         }

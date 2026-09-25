@@ -22,7 +22,10 @@ public enum Capacity {
 
     /// Compute how many VMs of the given shape fit on this host while
     /// respecting reserved headroom and the user's max_runners.
-    public static func plan(host: HostResources, vmCPU: Int, vmMemoryGB: Int, reservedCPU: Int, reservedMemoryGB: Int, diskPerVMGB: Int, userMax: Int) -> Plan {
+    public static func plan(
+        host: HostResources, vmCPU: Int, vmMemoryGB: Int, reservedCPU: Int, reservedMemoryGB: Int, diskPerVMGB: Int,
+        userMax: Int
+    ) -> Plan {
         let usableCPU = max(0, host.logicalCores - reservedCPU)
         let usableMem = max(0, host.memoryGB - reservedMemoryGB)
 
@@ -33,8 +36,12 @@ public enum Capacity {
         var cap = min(cpuCap, memCap, diskCap)
         var binding = "none"
         if cap == cpuCap, cap != Int.max { binding = "cpu (need \(vmCPU) cores per VM, \(usableCPU) usable)" }
-        if cap == memCap, memCap < cap || binding == "none", cap == memCap { binding = "memory (need \(vmMemoryGB) GB per VM, \(usableMem) GB usable)" }
-        if diskPerVMGB > 0, diskCap <= cap { binding = "free disk (\(diskPerVMGB) GB per VM, \(host.freeDiskGB) GB free)" }
+        if cap == memCap, memCap < cap || binding == "none", cap == memCap {
+            binding = "memory (need \(vmMemoryGB) GB per VM, \(usableMem) GB usable)"
+        }
+        if diskPerVMGB > 0, diskCap <= cap {
+            binding = "free disk (\(diskPerVMGB) GB per VM, \(host.freeDiskGB) GB free)"
+        }
 
         cap = max(0, cap)
         let final = min(cap, userMax)
@@ -78,7 +85,8 @@ public struct ResourceProbe: Sendable {
     static func freeDiskGB() -> Int {
         let url = URL(fileURLWithPath: NSHomeDirectory())
         guard let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
-              let bytes = values.volumeAvailableCapacityForImportantUsage else {
+            let bytes = values.volumeAvailableCapacityForImportantUsage
+        else {
             return 0
         }
         return Int(bytes / (1024 * 1024 * 1024))
@@ -86,9 +94,9 @@ public struct ResourceProbe: Sendable {
 
     static func isArm64() -> Bool {
         #if arch(arm64)
-        return true
+            return true
         #else
-        return false
+            return false
         #endif
     }
 }

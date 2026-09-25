@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Guards the button-dispatch contract. Regression: buttons were wired with
@@ -59,7 +60,8 @@ final class ActionCoverageTests: XCTestCase {
     /// A config that also declares the Gitea forge (adds the gitea-token row).
     private var giteaConfig: kinhinConfig {
         var cfg = fixtureConfig
-        cfg.gitea = kinhinConfig.GiteaForgeConfig(instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
+        cfg.gitea = kinhinConfig.GiteaForgeConfig(
+            instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
         return cfg
     }
 
@@ -89,20 +91,91 @@ final class ActionCoverageTests: XCTestCase {
     /// Collects every action across all reachable checklist states.
     func testEveryEmittableActionIsHandledAndTitled() async {
         let scenarios: [(String, SetupStatusComputer)] = [
-            ("fresh machine", computer(cltState: .missing, tartHealth: .missing, configScenario: .missing, tokenStored: false)),
-            ("stored token", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(fixtureConfig), tokenStored: true)),
-            ("clt outdated", computer(cltState: .outdated(version: "26.6", macOSVersion: "27.0"), tartHealth: .healthy, configScenario: .loaded(fixtureConfig), tokenStored: true)),
-            ("template config", computer(cltState: .ok(version: "27.0"), tartHealth: .missing, configScenario: .template, tokenStored: false)),
-            ("killed on launch", computer(cltState: .ok(version: "27.0"), tartHealth: .killedOnLaunch, configScenario: .loaded(fixtureConfig), tokenStored: true)),
-            ("broken tart", computer(cltState: .ok(version: "27.0"), tartHealth: .broken("segfault"), configScenario: .loaded(fixtureConfig), tokenStored: true)),
-            ("image missing", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(fixtureConfig), tokenStored: true)),
-            ("gitea configured, token missing", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(giteaConfig), tokenStored: true, giteaTokenStored: false)),
-            ("gitea token stored", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(giteaConfig), tokenStored: true, giteaTokenStored: true)),
-            ("container CLI missing", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig), tokenStored: true, containerHealth: .missing(tool: "apple container", fix: "brew install container"))),
-            ("container service down", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig), tokenStored: true, containerHealth: .broken("the container system service is not running — start it with: container system start"))),
-            ("container image missing", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig), tokenStored: true, containerHealth: .ready, containerImages: [])),
-            ("container fully ready", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig), tokenStored: true, containerHealth: .ready, containerImages: ["kinhin-ci-linux"])),
-            ("provision script missing", computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(provisionScriptConfig(path: "/nonexistent/kinhin-provision.sh")), tokenStored: true)),
+            (
+                "fresh machine",
+                computer(cltState: .missing, tartHealth: .missing, configScenario: .missing, tokenStored: false)
+            ),
+            (
+                "stored token",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(fixtureConfig),
+                    tokenStored: true)
+            ),
+            (
+                "clt outdated",
+                computer(
+                    cltState: .outdated(version: "26.6", macOSVersion: "27.0"), tartHealth: .healthy,
+                    configScenario: .loaded(fixtureConfig), tokenStored: true)
+            ),
+            (
+                "template config",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .missing, configScenario: .template, tokenStored: false)
+            ),
+            (
+                "killed on launch",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .killedOnLaunch, configScenario: .loaded(fixtureConfig),
+                    tokenStored: true)
+            ),
+            (
+                "broken tart",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .broken("segfault"),
+                    configScenario: .loaded(fixtureConfig), tokenStored: true)
+            ),
+            (
+                "image missing",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(fixtureConfig),
+                    tokenStored: true)
+            ),
+            (
+                "gitea configured, token missing",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(giteaConfig),
+                    tokenStored: true, giteaTokenStored: false)
+            ),
+            (
+                "gitea token stored",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(giteaConfig),
+                    tokenStored: true, giteaTokenStored: true)
+            ),
+            (
+                "container CLI missing",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig),
+                    tokenStored: true, containerHealth: .missing(tool: "apple container", fix: "brew install container")
+                )
+            ),
+            (
+                "container service down",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig),
+                    tokenStored: true,
+                    containerHealth: .broken(
+                        "the container system service is not running — start it with: container system start"))
+            ),
+            (
+                "container image missing",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig),
+                    tokenStored: true, containerHealth: .ready, containerImages: [])
+            ),
+            (
+                "container fully ready",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig),
+                    tokenStored: true, containerHealth: .ready, containerImages: ["kinhin-ci-linux"])
+            ),
+            (
+                "provision script missing",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy,
+                    configScenario: .loaded(provisionScriptConfig(path: "/nonexistent/kinhin-provision.sh")),
+                    tokenStored: true)
+            ),
         ]
 
         var emitted: Set<String> = []
@@ -132,7 +205,9 @@ final class ActionCoverageTests: XCTestCase {
     /// The dispatch keys must differ from row ids where they historically
     /// collided — pinning the exact regression.
     func testActionIDsAreNotRowIDs() async {
-        let status = await computer(cltState: .missing, tartHealth: .missing, configScenario: .missing, tokenStored: false).compute()
+        let status = await computer(
+            cltState: .missing, tartHealth: .missing, configScenario: .missing, tokenStored: false
+        ).compute()
         for check in status.checks {
             if let action = check.action {
                 XCTAssertNotEqual(
@@ -146,7 +221,9 @@ final class ActionCoverageTests: XCTestCase {
     /// An auto-created template must NOT satisfy the config check — the
     /// placeholder repo would otherwise let the fleet "start" against nothing.
     func testTemplateConfigIsNotMarkedReady() async {
-        let status = await computer(cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .template, tokenStored: true).compute()
+        let status = await computer(
+            cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .template, tokenStored: true
+        ).compute()
         let configCheck = status.checks.first { $0.id == "config" }
         XCTAssertEqual(configCheck?.ok, false)
         XCTAssertEqual(configCheck?.action, "edit_config")
@@ -178,7 +255,8 @@ final class ActionCoverageTests: XCTestCase {
 
     /// Every action the row view-model exposes is the contract action, not the row id.
     func testRowViewModelCarriesActionIDForDispatch() {
-        let check = SetupCheckResult(id: "tart", title: "Tart installed", ok: false, detail: "d", action: "install_tart")
+        let check = SetupCheckResult(
+            id: "tart", title: "Tart installed", ok: false, detail: "d", action: "install_tart")
         let row = SetupRowViewModel(check: check)
         XCTAssertEqual(row.actionID, "install_tart")
         XCTAssertEqual(row.actionTitle, "Install via Homebrew")

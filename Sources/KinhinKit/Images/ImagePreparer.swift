@@ -42,7 +42,14 @@ public struct ImagePreparer {
         /// Timeout for the managed toolchain install's SSH exec (seconds).
         public var toolchainTimeout: TimeInterval
 
-        public init(source: String = ImagePreparer.defaultSource, target: String = ImagePreparer.defaultTarget, runnerVersion: String = ImagePreparer.defaultRunnerVersion, giteaRunnerVersion: String = ImagePreparer.defaultGiteaRunnerVersion, user: String = "admin", hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil, provisionScriptPath: String? = nil, provisionTimeout: TimeInterval = 1800, toolchains: kinhinConfig.ToolchainsConfig? = nil, toolchainTimeout: TimeInterval = 1800) {
+        public init(
+            source: String = ImagePreparer.defaultSource, target: String = ImagePreparer.defaultTarget,
+            runnerVersion: String = ImagePreparer.defaultRunnerVersion,
+            giteaRunnerVersion: String = ImagePreparer.defaultGiteaRunnerVersion, user: String = "admin",
+            hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil, provisionScriptPath: String? = nil,
+            provisionTimeout: TimeInterval = 1800, toolchains: kinhinConfig.ToolchainsConfig? = nil,
+            toolchainTimeout: TimeInterval = 1800
+        ) {
             self.source = source
             self.target = target
             self.runnerVersion = runnerVersion
@@ -61,7 +68,9 @@ public struct ImagePreparer {
     public func run(_ options: Options) async throws {
         let tmp = "kinhin-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
         defer {
-            Task { try? await tart.stop(name: tmp) ; try? await tart.delete(name: tmp) }
+            Task {
+                try? await tart.stop(name: tmp); try? await tart.delete(name: tmp)
+            }
         }
 
         // Resolve agent versions from the release feeds (pinned fallback
@@ -75,7 +84,8 @@ public struct ImagePreparer {
         let hasGitHubToken = options.hasGitHubToken ?? (KeychainTokenStore.load(forge: .github) != nil)
         let hasGiteaToken = options.hasGiteaToken ?? (KeychainTokenStore.load(forge: .gitea) != nil)
         guard hasGitHubToken || hasGiteaToken else {
-            throw ImageError.noCredentials("store at least one platform token first (kinhin auth set / kinhin auth set --gitea)")
+            throw ImageError.noCredentials(
+                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea)")
         }
 
         // Validate the user provision script up front: a broken path must
@@ -119,7 +129,8 @@ public struct ImagePreparer {
         do {
             try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
         } catch {
-            Log.warn("image", "could not create toolchain cache dir (\(error.localizedDescription)); continuing without it")
+            Log.warn(
+                "image", "could not create toolchain cache dir (\(error.localizedDescription)); continuing without it")
         }
 
         Log.info("image", "booting scratch VM (host toolchain cache shared via virtiofs)")
@@ -139,11 +150,17 @@ public struct ImagePreparer {
         // script still runs afterwards and can layer/override on top.
         if let toolchains = options.toolchains {
             let selection = ToolchainCatalog.selection(from: toolchains, mountPath: ToolchainCacheMount.guestPath)
-            let managed = RunnerBootstrap.managedToolchainsInstallScript(selection: selection, mountPath: ToolchainCacheMount.guestPath)
-            Log.info("image", "installing managed toolchains (\(selection.miseSpecs.count) mise spec(s), \(selection.brewFormulas.count) brew formula(s), \(selection.npmPackages.count) npm global(s))")
-            let provisioned = try await ssh.exec(vm: tmp, user: options.user, ip: ip, script: managed, timeout: options.toolchainTimeout)
+            let managed = RunnerBootstrap.managedToolchainsInstallScript(
+                selection: selection, mountPath: ToolchainCacheMount.guestPath)
+            Log.info(
+                "image",
+                "installing managed toolchains (\(selection.miseSpecs.count) mise spec(s), \(selection.brewFormulas.count) brew formula(s), \(selection.npmPackages.count) npm global(s))"
+            )
+            let provisioned = try await ssh.exec(
+                vm: tmp, user: options.user, ip: ip, script: managed, timeout: options.toolchainTimeout)
             guard provisioned.succeeded else {
-                throw ImageError.provisioningFailed("managed toolchain install failed: \(String(provisioned.stderr.prefix(500)))")
+                throw ImageError.provisioningFailed(
+                    "managed toolchain install failed: \(String(provisioned.stderr.prefix(500)))")
             }
             let tail = String(provisioned.stdout.trimmingCharacters(in: .whitespacesAndNewlines).suffix(400))
             if !tail.isEmpty {
@@ -158,9 +175,11 @@ public struct ImagePreparer {
         if let provision = provisionScript {
             Log.info("image", "running user provision script: \(provision.path)")
             let wrapper = Self.provisionWrapperScript(contentBase64: Data(provision.content.utf8).base64EncodedString())
-            let provisioned = try await ssh.exec(vm: tmp, user: options.user, ip: ip, script: wrapper, timeout: options.provisionTimeout)
+            let provisioned = try await ssh.exec(
+                vm: tmp, user: options.user, ip: ip, script: wrapper, timeout: options.provisionTimeout)
             guard provisioned.succeeded else {
-                throw ImageError.provisioningFailed("user provision script failed: \(String(provisioned.stderr.prefix(500)))")
+                throw ImageError.provisioningFailed(
+                    "user provision script failed: \(String(provisioned.stderr.prefix(500)))")
             }
             // Audit trail: the tail of the script's stdout (version prints
             // etc.) lands in the log, recording what went into this image.

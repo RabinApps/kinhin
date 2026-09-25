@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Live routing reload: the engine swaps pools/caps from a new config while
@@ -76,7 +77,7 @@ final class ReloadConfigTests: XCTestCase {
         // can't run the full loop hermetically, but a snapshot must carry
         // the reloaded default runtime and the pool must exist.
         let status = await engine.status()
-        XCTAssertEqual(status.desired, 0) // nothing started; reconcile not running
+        XCTAssertEqual(status.desired, 0)  // nothing started; reconcile not running
         // The reload itself is the contract under test — demand bucketing
         // with the new model is covered by RuntimeRoutingTests.
         _ = engine
@@ -102,20 +103,20 @@ final class ReloadConfigTests: XCTestCase {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("config.yaml")
         let yaml = """
-        repo: "acme/widgets"
-        labels: ["self-hosted", "macos", "arm64"]
-        max_runners: 4
-        container:
-          image: "kinhin-ci-linux"
-          cpus: 2
-          memory_gb: 4
-        runtimes:
-          default: tart
-          budget: {tart: 0.6, appleContainer: 0.4}
-          routes:
-            - pattern: "acme/api"
-              runtime: appleContainer
-        """
+            repo: "acme/widgets"
+            labels: ["self-hosted", "macos", "arm64"]
+            max_runners: 4
+            container:
+              image: "kinhin-ci-linux"
+              cpus: 2
+              memory_gb: 4
+            runtimes:
+              default: tart
+              budget: {tart: 0.6, appleContainer: 0.4}
+              routes:
+                - pattern: "acme/api"
+                  runtime: appleContainer
+            """
         try yaml.write(to: url, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: dir) }
 
@@ -127,7 +128,9 @@ final class ReloadConfigTests: XCTestCase {
             engineRef: ref,
             configURL: url,
             engineFactory: { cfg in
-                FleetEngine(config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: self.host)
+                FleetEngine(
+                    config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
+                    host: self.host)
             }
         )
         XCTAssertTrue(response.ok, "reload RPC should succeed: \(response.error ?? "")")
@@ -151,7 +154,8 @@ final class ReloadConfigTests: XCTestCase {
         try "repo: \"acme/widgets\"\nlabels: []\n".write(to: url, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        let response = await Daemon.handle(.init(id: 2, method: .reloadConfig), engineRef: .init(engine), configURL: url)
+        let response = await Daemon.handle(
+            .init(id: 2, method: .reloadConfig), engineRef: .init(engine), configURL: url)
         XCTAssertFalse(response.ok, "invalid config must fail the reload, not apply partially")
         // Engine keeps its previous (default) routing state — still usable.
         let status = await engine.status()
@@ -168,7 +172,9 @@ final class ReloadConfigTests: XCTestCase {
         // Routing-only edits (applyReloaded's exact set) stay live.
         XCTAssertFalse(FleetEngine.restartRequired(from: base, to: base), "identical configs never restart")
         var routes = makeTestConfig()
-        routes.runtimes = .init(defaultRuntime: "appleContainer", budget: ["tart": 0.5, "appleContainer": 0.5], routes: [.init(pattern: "acme/api", runtime: "appleContainer")])
+        routes.runtimes = .init(
+            defaultRuntime: "appleContainer", budget: ["tart": 0.5, "appleContainer": 0.5],
+            routes: [.init(pattern: "acme/api", runtime: "appleContainer")])
         XCTAssertFalse(FleetEngine.restartRequired(from: base, to: routes), "routes/budget/default are hot-reloaded")
         var labels = makeTestConfig()
         labels.labels = ["kinhin", "extra"]
@@ -180,17 +186,29 @@ final class ReloadConfigTests: XCTestCase {
             mutate(&cfg)
             return cfg
         }
-        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.repo = "acme/other" }), "scope change must restart")
+        XCTAssertTrue(
+            FleetEngine.restartRequired(from: base, to: with { $0.repo = "acme/other" }), "scope change must restart")
         XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.minRunners = 2 }), "bounds must restart")
         XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.maxRunners = 8 }), "bounds must restart")
         XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.runnersPerVM = 3 }), "density must restart")
-        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.pollInterval = 60 }), "poll cadence must restart")
+        XCTAssertTrue(
+            FleetEngine.restartRequired(from: base, to: with { $0.pollInterval = 60 }), "poll cadence must restart")
         XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.vm.cpuCount = 6 }), "VM shape must restart")
-        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.image = "other-base" }), "image must restart")
-        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.reserve.cpu = 4 }), "host headroom must restart")
-        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.container = .init(image: "linux", cpus: 2, memoryGB: 4) }), "runtime sections must restart")
-        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.gitea = .init(instance: "https://gitea.example.com", scope: "acme") }), "forge sections must restart")
-        XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.toolchains = .init(specs: ["node@22"]) }), "toolchains must restart")
+        XCTAssertTrue(
+            FleetEngine.restartRequired(from: base, to: with { $0.image = "other-base" }), "image must restart")
+        XCTAssertTrue(
+            FleetEngine.restartRequired(from: base, to: with { $0.reserve.cpu = 4 }), "host headroom must restart")
+        XCTAssertTrue(
+            FleetEngine.restartRequired(
+                from: base, to: with { $0.container = .init(image: "linux", cpus: 2, memoryGB: 4) }),
+            "runtime sections must restart")
+        XCTAssertTrue(
+            FleetEngine.restartRequired(
+                from: base, to: with { $0.gitea = .init(instance: "https://gitea.example.com", scope: "acme") }),
+            "forge sections must restart")
+        XCTAssertTrue(
+            FleetEngine.restartRequired(from: base, to: with { $0.toolchains = .init(specs: ["node@22"]) }),
+            "toolchains must restart")
     }
 
     // MARK: - Daemon reload: hot reload vs rebuild
@@ -217,14 +235,17 @@ final class ReloadConfigTests: XCTestCase {
         let engine = makeEngine(try ConfigLoader.parse(yaml()))
         let ref = Daemon.EngineRef(engine)
 
-        let routed = yaml(runtimes: "runtimes:\n  default: tart\n  routes:\n    - pattern: \"acme/api\"\n      runtime: tart\n")
+        let routed = yaml(
+            runtimes: "runtimes:\n  default: tart\n  routes:\n    - pattern: \"acme/api\"\n      runtime: tart\n")
         try routed.write(to: url, atomically: true, encoding: .utf8)
 
         let response = await Daemon.handle(
             .init(id: 20, method: .reloadConfig),
             engineRef: ref,
             configURL: url,
-            engineFactory: { _ in XCTFail("routing-only reload must not rebuild"); return engine }
+            engineFactory: { _ in
+                XCTFail("routing-only reload must not rebuild"); return engine
+            }
         )
         XCTAssertTrue(response.ok, "\(response.error ?? "")")
         XCTAssertTrue(ref.engine === engine, "routing-only edit keeps the same engine")
@@ -364,14 +385,14 @@ final class ReloadConfigTests: XCTestCase {
     /// Minimal valid YAML for a config shape (makeTestConfig's values).
     private func yaml(repo: String = "acme/widgets", vmCPU: Int = 4, runtimes: String? = nil) -> String {
         var text = """
-        repo: "\(repo)"
-        labels: ["kinhin"]
-        poll_interval: 5
-        vm:
-          cpu: \(vmCPU)
-          memory_gb: 8
-        image: "tahoe-base"
-        """
+            repo: "\(repo)"
+            labels: ["kinhin"]
+            poll_interval: 5
+            vm:
+              cpu: \(vmCPU)
+              memory_gb: 8
+            image: "tahoe-base"
+            """
         if let runtimes { text += "\n" + runtimes }
         return text
     }

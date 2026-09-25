@@ -110,7 +110,10 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
         githubRepo.action = #selector(githubRepoCommitted)
         githubRepo.widthAnchor.constraint(equalToConstant: 300).isActive = true
         column.addArrangedSubview(FormKit.row([FormKit.label("Repository or org"), githubRepo]))
-        column.addArrangedSubview(FormKit.hint("Use owner/name for one repo, or just an org name to serve every repo in it. The token is kept in your Keychain, never in a file."))
+        column.addArrangedSubview(
+            FormKit.hint(
+                "Use owner/name for one repo, or just an org name to serve every repo in it. The token is kept in your Keychain, never in a file."
+            ))
         return card
     }
 
@@ -185,7 +188,9 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
         let configuredRepo = (repo == ConfigLoader.templateRepo) ? "" : repo
         lastWrittenRepo = configuredRepo
         githubRepo.stringValue = configuredRepo
-        githubStatus.stringValue = hasGitHubToken ? "Token stored in your Keychain ✓ — paste a new one only to replace it." : "Not connected yet."
+        githubStatus.stringValue =
+            hasGitHubToken
+            ? "Token stored in your Keychain ✓ — paste a new one only to replace it." : "Not connected yet."
         githubStatus.textColor = hasGitHubToken ? .secondaryLabelColor : .systemOrange
         githubConnect.title = hasGitHubToken ? "Replace" : "Connect"
         githubTokenStored = hasGitHubToken
@@ -202,7 +207,9 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
             giteaInstance.stringValue = gitea.instance
             giteaScope.stringValue = gitea.scope
         }
-        giteaStatus.stringValue = hasGiteaToken ? "Token stored in your Keychain ✓ — paste a new one only to replace it." : "Not connected yet."
+        giteaStatus.stringValue =
+            hasGiteaToken
+            ? "Token stored in your Keychain ✓ — paste a new one only to replace it." : "Not connected yet."
         giteaStatus.textColor = hasGiteaToken ? .secondaryLabelColor : .systemOrange
         giteaConnect.title = hasGiteaToken ? "Replace" : "Connect"
         setRepoFieldEnabled(giteaScope, enabled: hasGiteaToken)
@@ -281,20 +288,24 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
     /// nil → use the stored one. Returns false (with a message) on failure.
     @discardableResult
     private func listRepos(forge: ForgeID, token: String?) async -> Bool {
-        let resolved: String? = if let token { token } else {
-            await Task.detached { KeychainTokenStore.load(forge: forge) }.value
-        }
+        let resolved: String? =
+            if let token { token } else {
+                await Task.detached { KeychainTokenStore.load(forge: forge) }.value
+            }
         guard let resolved else { return false }
         let status = forge == .github ? githubStatus : giteaStatus
         do {
             let refs: [RepoRef]
             switch forge {
             case .github:
-                refs = try await GitHubClient(credentials: GitHubCredentials(token: resolved, scope: "")).listRepositories()
+                refs = try await GitHubClient(credentials: GitHubCredentials(token: resolved, scope: ""))
+                    .listRepositories()
             case .gitea:
                 let instance = giteaInstance.stringValue.trimmingCharacters(in: .whitespaces)
                 guard !instance.isEmpty else { return false }
-                refs = try await GiteaClient(credentials: GiteaCredentials(token: resolved, scope: "", instance: instance)).listRepositories()
+                refs = try await GiteaClient(
+                    credentials: GiteaCredentials(token: resolved, scope: "", instance: instance)
+                ).listRepositories()
             }
             let combo = forge == .github ? githubRepo : giteaScope
             let current = combo.stringValue
@@ -320,7 +331,8 @@ final class ConnectFormViewController: NSViewController, NSComboBoxDelegate, NST
     /// with its remediation instead of the generic "Connected ✓". GitHub
     /// only: Gitea doesn't use OAuth runner-management tokens.
     private func verifyPermission(scope: String) async {
-        let report = await OrgPermissionProbe.verify(github: GitHubClient(credentials: GitHubCredentials(token: "", scope: scope)), scope: scope)
+        let report = await OrgPermissionProbe.verify(
+            github: GitHubClient(credentials: GitHubCredentials(token: "", scope: scope)), scope: scope)
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.githubStatus.stringValue = report.message

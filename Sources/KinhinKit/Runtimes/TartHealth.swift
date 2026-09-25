@@ -97,10 +97,8 @@ public struct TartHealthProbe {
     /// Scans the unified log for an AMFI / code-signature kill of tart.
     static func systemLogMentionsAMFIKill(shell: ShellRunning, timeout: TimeInterval) async -> Bool {
         let predicate =
-            "eventMessage CONTAINS[c] 'tart' AND " +
-            "(eventMessage CONTAINS[c] 'AMFI' OR " +
-            "eventMessage CONTAINS[c] 'Code Signature Invalid' OR " +
-            "eventMessage CONTAINS[c] 'notari')"
+            "eventMessage CONTAINS[c] 'tart' AND " + "(eventMessage CONTAINS[c] 'AMFI' OR "
+            + "eventMessage CONTAINS[c] 'Code Signature Invalid' OR " + "eventMessage CONTAINS[c] 'notari')"
         let argv = [
             "/usr/bin/log", "show",
             "--last", "5m",

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 @testable import kinhin_app
 
@@ -66,8 +67,9 @@ final class SetupRepairTests: XCTestCase {
     }
 
     func testRepairCommandlineJoendsWithAnd() {
-        XCTAssertEqual(install.commandLine,
-                       "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")
+        XCTAssertEqual(
+            install.commandLine,
+            "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")
     }
 
     // MARK: repair plans (same mapping the app's buttons rely on)

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class StoreAndLogTests: XCTestCase {
@@ -82,13 +83,15 @@ final class StoreAndLogTests: XCTestCase {
             .appendingPathComponent("kinhin-migrate-\(UUID().uuidString)", isDirectory: true)
         let legacy = root.appendingPathComponent("Orchard", isDirectory: true)
         let new = root.appendingPathComponent("Kinhin", isDirectory: true)
-        try FileManager.default.createDirectory(at: legacy.appendingPathComponent("logs"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: legacy.appendingPathComponent("logs"), withIntermediateDirectories: true)
         try Data("config".utf8).write(to: legacy.appendingPathComponent("config.yaml"))
         defer { try? FileManager.default.removeItem(at: root) }
 
         Paths.migrateLegacySupportDirectory(from: legacy, to: new)
 
-        XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.path), "legacy directory must be moved, not copied")
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: legacy.path), "legacy directory must be moved, not copied")
         XCTAssertTrue(FileManager.default.fileExists(atPath: new.appendingPathComponent("config.yaml").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: new.appendingPathComponent("logs").path))
     }
@@ -121,7 +124,7 @@ final class StoreAndLogTests: XCTestCase {
     func testLogRespectsMinimumLevel() {
         let previousMin = Log.minLevel
         let previousEcho = Log.echoToStderr
-        Log.echoToStderr = false // keep test output clean
+        Log.echoToStderr = false  // keep test output clean
         defer {
             Log.minLevel = previousMin
             Log.echoToStderr = previousEcho

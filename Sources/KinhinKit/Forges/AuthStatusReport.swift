@@ -64,30 +64,33 @@ public enum AuthStatusReporter {
         let gitea = config?.gitea
 
         var forges: [AuthStatusReport.Forge] = []
-        forges.append(AuthStatusReport.Forge(
-            id: ForgeID.github.rawValue,
-            stored: githubToken != nil,
-            prefix: githubToken.map { String($0.prefix(4)) },
-            configured: githubConfigured,
-            scope: githubConfigured ? repo : nil,
-            instance: nil,
-            detail: githubDetail(token: githubToken, scope: repo)
-        ))
-        forges.append(AuthStatusReport.Forge(
-            id: ForgeID.gitea.rawValue,
-            stored: giteaToken != nil,
-            prefix: giteaToken.map { String($0.prefix(4)) },
-            configured: gitea != nil,
-            scope: gitea?.scope,
-            instance: gitea?.instance,
-            detail: giteaDetail(token: giteaToken, config: gitea)
-        ))
+        forges.append(
+            AuthStatusReport.Forge(
+                id: ForgeID.github.rawValue,
+                stored: githubToken != nil,
+                prefix: githubToken.map { String($0.prefix(4)) },
+                configured: githubConfigured,
+                scope: githubConfigured ? repo : nil,
+                instance: nil,
+                detail: githubDetail(token: githubToken, scope: repo)
+            ))
+        forges.append(
+            AuthStatusReport.Forge(
+                id: ForgeID.gitea.rawValue,
+                stored: giteaToken != nil,
+                prefix: giteaToken.map { String($0.prefix(4)) },
+                configured: gitea != nil,
+                scope: gitea?.scope,
+                instance: gitea?.instance,
+                detail: giteaDetail(token: giteaToken, config: gitea)
+            ))
 
         // Every configured forge needs its token, and at least one forge must
         // be configured (GitHub and Gitea are each optional on their own).
         let githubOK = githubConfigured && githubToken != nil
         let giteaOK = gitea != nil && giteaToken != nil
-        let allGood = (githubOK || giteaOK)
+        let allGood =
+            (githubOK || giteaOK)
             && (!githubConfigured || githubToken != nil)
             && (gitea == nil || giteaToken != nil)
         return AuthStatusReport(forges: forges, allGood: allGood)

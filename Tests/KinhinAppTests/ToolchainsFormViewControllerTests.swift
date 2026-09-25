@@ -1,6 +1,7 @@
-import XCTest
 import AppKit
 import KinhinKit
+import XCTest
+
 @testable import kinhin_app
 
 /// Renders the wizard's ToolchainsFormViewController (all-off by default) and
@@ -37,10 +38,12 @@ import KinhinKit
         _ = vc.view
 
         let counts = vc.renderedCountsForTesting
-        XCTAssertEqual(counts.tools, ToolchainCatalog.tools.count,
-                       "every catalog tool must render a row: \\(counts.tools)")
-        XCTAssertEqual(counts.stacks, ToolchainCatalog.stacks.count,
-                       "every catalog stack must render a row: \\(counts.stacks)")
+        XCTAssertEqual(
+            counts.tools, ToolchainCatalog.tools.count,
+            "every catalog tool must render a row: \\(counts.tools)")
+        XCTAssertEqual(
+            counts.stacks, ToolchainCatalog.stacks.count,
+            "every catalog stack must render a row: \\(counts.stacks)")
 
         // All tool rows off by default.
         for entry in ToolchainCatalog.tools {
@@ -101,7 +104,8 @@ import KinhinKit
         // defaultVersion is \"\" (versionKind == nil), so the field shows "—".
         vc.stackChecksForTesting["expo"]!.state = NSButton.StateValue.on
         vc.entryToggled(vc.stackChecksForTesting["expo"]!)
-        XCTAssertEqual(vc.working.stacks["expo"], "—", "checking a stack must set its version to the field's placeholder")
+        XCTAssertEqual(
+            vc.working.stacks["expo"], "—", "checking a stack must set its version to the field's placeholder")
 
         // Uncheck.
         vc.stackChecksForTesting["expo"]!.state = NSButton.StateValue.off

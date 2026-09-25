@@ -20,9 +20,15 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
     var confirmRebuild: (_ runtime: RuntimeID, _ plan: ToolchainsConfigEditor.Plan) -> Bool = { runtime, plan in
         let alert = NSAlert()
         alert.messageText = "Rebuild the \(ToolchainsViewController.runtimeTitle(runtime)) image?"
-        var text = "This replaces the current image with a fresh one that includes your saved tools. It can take 10–30 minutes and downloads a lot."
-        text += plan.installing.isEmpty ? "\n\nNo tools are selected: the image will have only the runner agents." : "\n\nInstalling: \(plan.installing.joined(separator: ", "))."
-        if !plan.skipped.isEmpty { text += "\n\nSkipped (not available for this runtime): \(plan.skipped.joined(separator: ", "))." }
+        var text =
+            "This replaces the current image with a fresh one that includes your saved tools. It can take 10–30 minutes and downloads a lot."
+        text +=
+            plan.installing.isEmpty
+            ? "\n\nNo tools are selected: the image will have only the runner agents."
+            : "\n\nInstalling: \(plan.installing.joined(separator: ", "))."
+        if !plan.skipped.isEmpty {
+            text += "\n\nSkipped (not available for this runtime): \(plan.skipped.joined(separator: ", "))."
+        }
         alert.informativeText = text
         alert.addButton(withTitle: "Rebuild Image")
         alert.addButton(withTitle: "Cancel")
@@ -153,9 +159,12 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         toolChecks.removeAll(); toolVersions.removeAll(); stackChecks.removeAll(); stackVersions.removeAll()
         rebuildButtons.removeAll()
 
-        let intro = FormKit.hint("Pick what your jobs need preinstalled. Changes take effect when you rebuild an image below.")
+        let intro = FormKit.hint(
+            "Pick what your jobs need preinstalled. Changes take effect when you rebuild an image below.")
         stack.addArrangedSubview(intro)
-        let note = FormKit.hint("Every row shows its platform note: “macOS · Linux” applies to both, “macOS only” skips on Linux, “Linux only” skips on macOS. Version fields pin a specific version (e.g. node@22).")
+        let note = FormKit.hint(
+            "Every row shows its platform note: “macOS · Linux” applies to both, “macOS only” skips on Linux, “Linux only” skips on macOS. Version fields pin a specific version (e.g. node@22)."
+        )
         stack.addArrangedSubview(note)
 
         let mise = ToolchainCatalog.tools.filter { if case .mise = $0.installer { return true } else { return false } }
@@ -171,7 +180,8 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
 
     private func platformLabel(_ platforms: [ToolchainPlatform], hasLinuxInstaller: Bool = false) -> String {
         let set = Set(platforms)
-        return set.contains(.macOS) && set.contains(.linux) ? "macOS · Linux" : (set.contains(.macOS) ? "macOS only" : "Linux only")
+        return set.contains(.macOS) && set.contains(.linux)
+            ? "macOS · Linux" : (set.contains(.macOS) ? "macOS only" : "Linux only")
     }
 
     private func toolsCard(_ title: String, _ entries: [ToolchainEntry]) -> NSView {
@@ -188,8 +198,12 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
             default: versionable = false
             }
             let selected = working.tools[entry.id]
-            let field = NSTextField(string: selected.flatMap { !$0.isEmpty ? $0 : nil } ?? (entry.defaultSpec.isEmpty ? "—" : entry.defaultSpec))
-            field.placeholderString = versionable ? (entry.defaultSpec.split(separator: "@").dropFirst().first.map(String.init) ?? "latest") : "—"
+            let field = NSTextField(
+                string: selected.flatMap { !$0.isEmpty ? $0 : nil }
+                    ?? (entry.defaultSpec.isEmpty ? "—" : entry.defaultSpec))
+            field.placeholderString =
+                versionable
+                ? (entry.defaultSpec.split(separator: "@").dropFirst().first.map(String.init) ?? "latest") : "—"
             field.isEnabled = versionable && selected != nil
             field.identifier = NSUserInterfaceItemIdentifier("toolver:" + entry.id)
             field.delegate = self
@@ -197,7 +211,8 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
             field.setAccessibilityLabel("\(entry.id) version")
             toolVersions[entry.id] = field
 
-            let tag = NSTextField(labelWithString: platformLabel(entry.platforms, hasLinuxInstaller: entry.linuxInstaller != nil))
+            let tag = NSTextField(
+                labelWithString: platformLabel(entry.platforms, hasLinuxInstaller: entry.linuxInstaller != nil))
             tag.font = .systemFont(ofSize: 10)
             tag.textColor = .secondaryLabelColor
             let row = FormKit.row([check, FormKit.spacer(), tag, field])
@@ -216,8 +231,13 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
             check.identifier = NSUserInterfaceItemIdentifier("stack:\(stack.id)")
             stackChecks[stack.id] = check
             let selected = working.stacks[stack.id]
-            let field = NSTextField(string: selected.flatMap { !$0.isEmpty ? $0 : nil } ?? (stack.defaultVersion.isEmpty ? "—" : stack.defaultVersion))
-            field.placeholderString = stack.versionKind == nil ? "—" : (selected?.isEmpty ?? true ? (stack.defaultVersion.isEmpty ? "latest" : stack.defaultVersion) : "—")
+            let field = NSTextField(
+                string: selected.flatMap { !$0.isEmpty ? $0 : nil }
+                    ?? (stack.defaultVersion.isEmpty ? "—" : stack.defaultVersion))
+            field.placeholderString =
+                stack.versionKind == nil
+                ? "—"
+                : (selected?.isEmpty ?? true ? (stack.defaultVersion.isEmpty ? "latest" : stack.defaultVersion) : "—")
             field.isEnabled = stack.versionKind != nil && selected != nil
             field.identifier = NSUserInterfaceItemIdentifier("stackver:" + stack.id)
             field.delegate = self
@@ -253,19 +273,25 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         card.column.addArrangedSubview(FormKit.row([FormKit.label("Other tools"), specs]))
         card.column.addArrangedSubview(FormKit.hint("Any tool mise can install, as name@version."))
 
-        let share = NSButton(checkboxWithTitle: "Share the download cache with runners", target: self, action: #selector(shareToggled(_:)))
+        let share = NSButton(
+            checkboxWithTitle: "Share the download cache with runners", target: self,
+            action: #selector(shareToggled(_:)))
         share.state = working.shareCache ? .on : .off
         share.identifier = NSUserInterfaceItemIdentifier("share-cache")
         card.column.addArrangedSubview(share)
-        card.column.addArrangedSubview(FormKit.hint("Per-job installs (npm ci, mise install…) reuse downloads instead of fetching them again."))
+        card.column.addArrangedSubview(
+            FormKit.hint("Per-job installs (npm ci, mise install…) reuse downloads instead of fetching them again."))
         return card.card
     }
 
     /// One row per runtime that is actually set up, saying what its image will
     /// contain and offering a rebuild.
     private func imagesCard() -> NSView {
-        let card = FormKit.card(title: "Rebuild images", subtitle: "Your saved tools are baked in when an image is rebuilt.")
-        let snapshot = (try? String(contentsOf: configURL, encoding: .utf8)).flatMap { try? GeneralConfigEditor.snapshot(from: $0) }
+        let card = FormKit.card(
+            title: "Rebuild images", subtitle: "Your saved tools are baked in when an image is rebuilt.")
+        let snapshot = (try? String(contentsOf: configURL, encoding: .utf8)).flatMap {
+            try? GeneralConfigEditor.snapshot(from: $0)
+        }
         var runtimes: [(RuntimeID, ToolchainPlatform)] = []
         if TartController.isInstalled() { runtimes.append((.tart, .macOS)) }
         if snapshot?.container != nil { runtimes.append((.appleContainer, .linux)) }
@@ -277,7 +303,9 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
             let plan = ToolchainsConfigEditor.plan(baseline, for: platform)
             let title = NSTextField(labelWithString: Self.runtimeTitle(runtime))
             title.font = .systemFont(ofSize: 12, weight: .semibold)
-            var detailText = plan.installing.isEmpty ? "No tools selected." : "Installs \(plan.installing.count): \(plan.installing.joined(separator: ", "))"
+            var detailText =
+                plan.installing.isEmpty
+                ? "No tools selected." : "Installs \(plan.installing.count): \(plan.installing.joined(separator: ", "))"
             if !plan.skipped.isEmpty { detailText += " · skips \(plan.skipped.joined(separator: ", "))" }
             let detail = FormKit.hint(detailText)
             detail.preferredMaxLayoutWidth = 300
@@ -313,10 +341,12 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         let isStack = id.hasPrefix("stack:")
         let key = isStack ? String(id.dropFirst("stack:".count)) : String(id.dropFirst("tool:".count))
         if isStack {
-            working.stacks[key] = sender.state == .on ? (stackVersions[key]?.stringValue.trimmingCharacters(in: .whitespaces) ?? "") : nil
+            working.stacks[key] =
+                sender.state == .on ? (stackVersions[key]?.stringValue.trimmingCharacters(in: .whitespaces) ?? "") : nil
             stackVersions[key]?.isEnabled = stackVersions[key] != nil && sender.state == .on
         } else {
-            working.tools[key] = sender.state == .on ? (toolVersions[key]?.stringValue.trimmingCharacters(in: .whitespaces) ?? "") : nil
+            working.tools[key] =
+                sender.state == .on ? (toolVersions[key]?.stringValue.trimmingCharacters(in: .whitespaces) ?? "") : nil
             toolVersions[key]?.isEnabled = toolVersions[key] != nil && sender.state == .on
         }
         refreshState()
@@ -376,7 +406,9 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
         } else if pending {
             statusLabel.stringValue = "Unapplied changes. Apply, then rebuild an image."
             statusLabel.textColor = .systemOrange
-        } else if !busy, !statusLabel.stringValue.hasPrefix("Applied"), !statusLabel.stringValue.hasPrefix("Rebuilt"), !statusLabel.stringValue.hasPrefix("Not") {
+        } else if !busy, !statusLabel.stringValue.hasPrefix("Applied"), !statusLabel.stringValue.hasPrefix("Rebuilt"),
+            !statusLabel.stringValue.hasPrefix("Not")
+        {
             statusLabel.stringValue = ""
         }
     }
@@ -406,7 +438,8 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
 
     @objc private func rebuildClicked(_ sender: NSButton) {
         guard let raw = sender.identifier?.rawValue, raw.hasPrefix("rebuild:"),
-              let runtime = RuntimeID(rawValue: String(raw.dropFirst("rebuild:".count))) else { return }
+            let runtime = RuntimeID(rawValue: String(raw.dropFirst("rebuild:".count)))
+        else { return }
         startRebuild(runtime)
     }
 
@@ -441,8 +474,6 @@ class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
             self?.refreshState()
         }
     }
-
-
 
     /// The real image builds (same calls the setup checklist and CLI make).
     static func rebuildImage(runtime: RuntimeID, config cfg: kinhinConfig) async throws {

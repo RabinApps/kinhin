@@ -69,7 +69,12 @@ extension SetupWindowController {
                 let brew = Paths.findExecutable(named: "brew") ?? "/opt/homebrew/bin/brew"
                 let result = try await shell.run([brew, "install", "container"], cwd: nil, timeout: 900)
                 guard result.succeeded else {
-                    throw NSError(domain: "kinhin", code: 1, userInfo: [NSLocalizedDescriptionKey: result.stderr.isEmpty ? "brew install container failed" : result.stderr])
+                    throw NSError(
+                        domain: "kinhin", code: 1,
+                        userInfo: [
+                            NSLocalizedDescriptionKey: result.stderr.isEmpty
+                                ? "brew install container failed" : result.stderr
+                        ])
                 }
             }
             try await Self.startContainerSystem(shell: shell)
@@ -93,7 +98,11 @@ extension SetupWindowController {
             cwd: nil, timeout: 120
         )
         guard result.succeeded else {
-            throw NSError(domain: "kinhin", code: 1, userInfo: [NSLocalizedDescriptionKey: result.stderr.isEmpty ? "container system start failed" : result.stderr])
+            throw NSError(
+                domain: "kinhin", code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey: result.stderr.isEmpty ? "container system start failed" : result.stderr
+                ])
         }
     }
 
@@ -101,7 +110,9 @@ extension SetupWindowController {
     private func prepareContainerImage() {
         runLongTask(title: "Preparing container image (this takes a while)…") {
             guard let cfg = try? ConfigLoader.load(), let image = cfg.container?.image else {
-                throw NSError(domain: "kinhin", code: 2, userInfo: [NSLocalizedDescriptionKey: "config missing, invalid, or no container.image set"])
+                throw NSError(
+                    domain: "kinhin", code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "config missing, invalid, or no container.image set"])
             }
             try await Self.startContainerSystem(shell: Shell())
             let preparer = ContainerImagePreparer(shell: Shell())
@@ -117,7 +128,9 @@ extension SetupWindowController {
     private func prepareDockerImage() {
         runLongTask(title: "Preparing docker image (this takes a while)…") {
             guard let cfg = try? ConfigLoader.load(), let image = cfg.docker?.image else {
-                throw NSError(domain: "kinhin", code: 2, userInfo: [NSLocalizedDescriptionKey: "config missing, invalid, or no docker.image set"])
+                throw NSError(
+                    domain: "kinhin", code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "config missing, invalid, or no docker.image set"])
             }
             let preparer = DockerImagePreparer(shell: Shell())
             // The config's toolchains section bakes into the Linux image too
@@ -133,7 +146,9 @@ extension SetupWindowController {
     }
 
     private func rollbackTart() {
-        runRepair(TartHealthProbe.repairs(for: .killedOnLaunch)[0], progressTitle: "Rolling back to the notarized Cirrus Labs tart…")
+        runRepair(
+            TartHealthProbe.repairs(for: .killedOnLaunch)[0],
+            progressTitle: "Rolling back to the notarized Cirrus Labs tart…")
     }
 
     /// Runs a repair plan's commands, then verifies tart actually launches.
@@ -148,7 +163,9 @@ extension SetupWindowController {
             if health != .healthy {
                 let plan = TartHealthProbe.repairs(for: health).first
                 let hint = plan.map { " Follow up with: \($0.commandLine)" } ?? ""
-                throw NSError(domain: "kinhin", code: 1, userInfo: [NSLocalizedDescriptionKey: "tart did not launch after the operation.\(hint)"])
+                throw NSError(
+                    domain: "kinhin", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "tart did not launch after the operation.\(hint)"])
             }
         }
     }
@@ -158,7 +175,11 @@ extension SetupWindowController {
             let result = try await shell.run(command, cwd: nil, timeout: 900)
             guard result.succeeded else {
                 let what = command.joined(separator: " ")
-                throw NSError(domain: "kinhin", code: 1, userInfo: [NSLocalizedDescriptionKey: result.stderr.isEmpty ? "brew failed: \(what)" : result.stderr])
+                throw NSError(
+                    domain: "kinhin", code: 1,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: result.stderr.isEmpty ? "brew failed: \(what)" : result.stderr
+                    ])
             }
         }
     }
@@ -199,7 +220,8 @@ extension SetupWindowController {
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = "Reinstall Command Line Tools"
-        alert.informativeText = "The reinstall command was copied to your clipboard and Terminal is opening. Paste (⌘V), press Return, and approve the administrator prompt.\n\n\(CLTRepair.commandLine)\n\n\(CLTRepair.fallbackHint)"
+        alert.informativeText =
+            "The reinstall command was copied to your clipboard and Terminal is opening. Paste (⌘V), press Return, and approve the administrator prompt.\n\n\(CLTRepair.commandLine)\n\n\(CLTRepair.fallbackHint)"
         alert.addButton(withTitle: "OK")
         alert.runModal()
         NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"))
@@ -216,7 +238,8 @@ extension SetupWindowController {
     private func prepareImage() {
         runLongTask(title: "Preparing runner image (this takes a while)…") {
             guard let cfg = try? ConfigLoader.load() else {
-                throw NSError(domain: "kinhin", code: 2, userInfo: [NSLocalizedDescriptionKey: "config missing or invalid"])
+                throw NSError(
+                    domain: "kinhin", code: 2, userInfo: [NSLocalizedDescriptionKey: "config missing or invalid"])
             }
             let tart = try TartController(configuredPath: cfg.tartPath)
             let preparer = ImagePreparer(tart: tart, ssh: SSHExecutor())

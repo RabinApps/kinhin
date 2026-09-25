@@ -10,7 +10,9 @@ enum ImageCommand {
             // mirroring the VM path's token-gating.
             let shell = Shell()
             guard let containerBin = Paths.findExecutable(named: "container") else {
-                fail("the container CLI is not installed. Install it first: brew install container && container system start")
+                fail(
+                    "the container CLI is not installed. Install it first: brew install container && container system start"
+                )
             }
             do {
                 let status = try await shell.run([containerBin, "system", "status"])
@@ -120,7 +122,9 @@ enum ImageCommand {
             print("image ready: \(options.target)")
             print("set `image: \"\(options.target)\"` in your config to use it")
         } catch TartError.missingBinary {
-            fail("tart is not installed. Install it first (or click 'Install via Homebrew' in the app): brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")
+            fail(
+                "tart is not installed. Install it first (or click 'Install via Homebrew' in the app): brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart"
+            )
         } catch {
             fail(error.localizedDescription)
         }

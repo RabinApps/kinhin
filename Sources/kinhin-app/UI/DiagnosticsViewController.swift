@@ -112,11 +112,19 @@ final class DiagnosticsViewController: NSViewController {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         // Host
-        stack.addArrangedSubview(row("Host", detail: "\(report.host.logicalCores) cores · \(report.host.memoryGB) GB RAM · \(report.host.freeDiskGB) GB free · \(report.host.arm64 ? "Apple silicon" : "Intel")", ok: true))
+        stack.addArrangedSubview(
+            row(
+                "Host",
+                detail:
+                    "\(report.host.logicalCores) cores · \(report.host.memoryGB) GB RAM · \(report.host.freeDiskGB) GB free · \(report.host.arm64 ? "Apple silicon" : "Intel")",
+                ok: true))
 
         // Command Line Tools
         let cltOK = report.clt.ok
-        stack.addArrangedSubview(row("Command Line Tools", detail: report.clt.version ?? report.clt.state, ok: cltOK, fix: cltOK ? nil : report.clt.fixCommand))
+        stack.addArrangedSubview(
+            row(
+                "Command Line Tools", detail: report.clt.version ?? report.clt.state, ok: cltOK,
+                fix: cltOK ? nil : report.clt.fixCommand))
 
         // Tart
         let tartOK = report.tart.ok
@@ -129,7 +137,9 @@ final class DiagnosticsViewController: NSViewController {
         // Containers (only when configured)
         if let container = report.container {
             var detail = container.fix ?? "ready — image \(container.image)"
-            if !container.imageFound { detail += "\nimage \(container.image) not built yet (kinhin image prepare --container)" }
+            if !container.imageFound {
+                detail += "\nimage \(container.image) not built yet (kinhin image prepare --container)"
+            }
             stack.addArrangedSubview(row("Apple container (Linux)", detail: detail, ok: container.ok))
         }
         if let docker = report.docker {
@@ -140,11 +150,13 @@ final class DiagnosticsViewController: NSViewController {
 
         // Capacity (nil when the config can't parse — nothing to plan against)
         if let capacity = report.capacity {
-            stack.addArrangedSubview(row(
-                "Capacity",
-                detail: "\(capacity.maxConcurrent) VMs · \(capacity.jobSlots) job slots — \(capacity.bindingConstraint)",
-                ok: capacity.fits
-            ))
+            stack.addArrangedSubview(
+                row(
+                    "Capacity",
+                    detail:
+                        "\(capacity.maxConcurrent) VMs · \(capacity.jobSlots) job slots — \(capacity.bindingConstraint)",
+                    ok: capacity.fits
+                ))
         }
 
         // Toolchain cache

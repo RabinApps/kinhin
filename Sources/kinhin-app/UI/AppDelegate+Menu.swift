@@ -16,7 +16,9 @@ extension AppDelegate {
 
         let appItem = NSMenuItem()
         let app = NSMenu(title: "kinhin")
-        app.addItem(withTitle: "About kinhin", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        app.addItem(
+            withTitle: "About kinhin", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
+            keyEquivalent: "")
         app.addItem(.separator())
         let settings = app.addItem(withTitle: "Settings…", action: #selector(openSettingsTab), keyEquivalent: ",")
         settings.target = self
@@ -24,9 +26,11 @@ extension AppDelegate {
         setup.target = self
         app.addItem(.separator())
         app.addItem(withTitle: "Hide kinhin", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        let hideOthers = app.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        let hideOthers = app.addItem(
+            withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthers.keyEquivalentModifierMask = [.command, .option]
-        app.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        app.addItem(
+            withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         app.addItem(.separator())
         app.addItem(withTitle: "Quit kinhin", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = app
@@ -128,7 +132,8 @@ extension AppDelegate {
         }
 
         m.addItem(.separator())
-        let updateItem = m.addItem(withTitle: "Check for Updates…", action: #selector(updateItemClicked), keyEquivalent: "")
+        let updateItem = m.addItem(
+            withTitle: "Check for Updates…", action: #selector(updateItemClicked), keyEquivalent: "")
         updateItem.target = self
         updateItem.identifier = NSUserInterfaceItemIdentifier("updateItem")
         let versionItem = m.addItem(withTitle: "  kinhin \(kinhinVersion.current)", action: nil, keyEquivalent: "")
@@ -217,7 +222,9 @@ extension AppDelegate {
     func rebuildVMSection(status: FleetStatus?) {
         guard let menu else { return }
         // Remove everything between the "VMs" header and the trailing separator.
-        guard let startIdx = menu.items.firstIndex(where: { $0.identifier?.rawValue == "vmSectionStart" }) else { return }
+        guard let startIdx = menu.items.firstIndex(where: { $0.identifier?.rawValue == "vmSectionStart" }) else {
+            return
+        }
         while menu.items.count > startIdx + 1 {
             menu.removeItem(at: startIdx + 1)
         }
@@ -384,7 +391,9 @@ extension AppDelegate {
     private func applyConfigToEngine() async {
         if let engine {
             guard let cfg = try? ConfigLoader.load() else {
-                Log.warn("app", "config reload skipped — config.yaml does not parse; the running fleet keeps its current config")
+                Log.warn(
+                    "app",
+                    "config reload skipped — config.yaml does not parse; the running fleet keeps its current config")
                 return
             }
             if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
@@ -411,7 +420,10 @@ extension AppDelegate {
     /// path, then resumes serving at the previous running/paused state.
     private func rebuildInProcessEngine(from old: FleetEngine, config cfg: kinhinConfig) async {
         guard let pat = ConfigLoader.engineToken(for: cfg) else {
-            Log.warn("app", "config change needs an engine restart but the required forge token is missing — the fleet keeps running on the old config")
+            Log.warn(
+                "app",
+                "config change needs an engine restart but the required forge token is missing — the fleet keeps running on the old config"
+            )
             return
         }
         do {
@@ -442,9 +454,13 @@ extension AppDelegate {
             }
             await old.detachKeepingInstances()
             engine = replacement
-            Log.info("app", "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))")
+            Log.info(
+                "app",
+                "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))")
         } catch {
-            Log.error("app", "engine rebuild failed: \(error.localizedDescription) — the fleet keeps running on the old config")
+            Log.error(
+                "app",
+                "engine rebuild failed: \(error.localizedDescription) — the fleet keeps running on the old config")
         }
     }
 
@@ -523,7 +539,8 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation {
             mainController?.setupIncompleteFlag = true
             let alert = NSAlert()
             alert.messageText = "kinhin can't start the fleet yet"
-            alert.informativeText = "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open the Setup tab to finish."
+            alert.informativeText =
+                "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open the Setup tab to finish."
             alert.addButton(withTitle: "OK")
             alert.runModal()
             mainController?.showSetup()

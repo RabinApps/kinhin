@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Per-repo job attribution: which repository each queued job came from,
@@ -19,22 +20,30 @@ final class QueueAttributionTests: XCTestCase {
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
                 let body = """
-                {"total_count":2,"workflow_runs":[
-                  {"id":1,"repository":{"full_name":"acme/ios-app"}},
-                  {"id":2,"repository":{"full_name":"acme/api"}}
-                ]}
-                """
+                    {"total_count":2,"workflow_runs":[
+                      {"id":1,"repository":{"full_name":"acme/ios-app"}},
+                      {"id":2,"repository":{"full_name":"acme/api"}}
+                    ]}
+                    """
                 return (200, Data(body.utf8), [:])
             }
             if path == "/orgs/acme/actions/runs/1/jobs" {
-                return (200, Data("""
-                {"jobs":[{"id":11,"run_id":1,"name":"build","status":"queued","labels":["self-hosted"]}]}
-                """.utf8), [:])
+                return (
+                    200,
+                    Data(
+                        """
+                        {"jobs":[{"id":11,"run_id":1,"name":"build","status":"queued","labels":["self-hosted"]}]}
+                        """.utf8), [:]
+                )
             }
             if path == "/orgs/acme/actions/runs/2/jobs" {
-                return (200, Data("""
-                {"jobs":[{"id":22,"run_id":2,"name":"test","status":"queued","labels":["self-hosted"]}]}
-                """.utf8), [:])
+                return (
+                    200,
+                    Data(
+                        """
+                        {"jobs":[{"id":22,"run_id":2,"name":"test","status":"queued","labels":["self-hosted"]}]}
+                        """.utf8), [:]
+                )
             }
             XCTFail("unexpected path: \(path)")
             return (404, Data(), [:])
@@ -57,14 +66,22 @@ final class QueueAttributionTests: XCTestCase {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
-                return (200, Data("""
-                {"total_count":1,"workflow_runs":[{"id":9,"repository":{"full_name":"acme/ios-app"}}]}
-                """.utf8), [:])
+                return (
+                    200,
+                    Data(
+                        """
+                        {"total_count":1,"workflow_runs":[{"id":9,"repository":{"full_name":"acme/ios-app"}}]}
+                        """.utf8), [:]
+                )
             }
             if path == "/orgs/acme/actions/runs/9/jobs" {
-                return (200, Data("""
-                {"jobs":[{"id":77,"run_id":9,"name":"build","status":"in_progress","labels":["self-hosted"],"runner_name":"kinhin-123-a1-r2"}]}
-                """.utf8), [:])
+                return (
+                    200,
+                    Data(
+                        """
+                        {"jobs":[{"id":77,"run_id":9,"name":"build","status":"in_progress","labels":["self-hosted"],"runner_name":"kinhin-123-a1-r2"}]}
+                        """.utf8), [:]
+                )
             }
             XCTFail("unexpected path: \(path)")
             return (404, Data(), [:])
@@ -89,7 +106,8 @@ final class QueueAttributionTests: XCTestCase {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
-                runsStatus = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                runsStatus =
+                    URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
                     .queryItems?.first(where: { $0.name == "status" })?.value
                 return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
             }
@@ -128,7 +146,7 @@ final class QueueAttributionTests: XCTestCase {
     func testRepoScopeHasNoRepoBreakdown() async throws {
         let github = FakeGitHub()
         github.queueDepth = 3
-        github.queueRepos = ["acme/widgets"] // same repo anyway
+        github.queueRepos = ["acme/widgets"]  // same repo anyway
         let engine = makeEngine(scope: "acme/widgets", github: github)
 
         try await engine.reconcileOnce()
@@ -140,7 +158,7 @@ final class QueueAttributionTests: XCTestCase {
     func testOrgScopeWithMissingRepositoryFieldDegradesGracefully() async throws {
         let github = FakeGitHub()
         github.queueDepth = 2
-        github.queueRepos = [] // API returned no repository info
+        github.queueRepos = []  // API returned no repository info
         let engine = makeEngine(scope: "acme", github: github)
 
         try await engine.reconcileOnce()

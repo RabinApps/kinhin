@@ -2,13 +2,13 @@ import Foundation
 
 /// Lifecycle phases of a single runner VM.
 public enum VMPhase: String, Codable, Sendable, CaseIterable {
-    case cloning     // tart clone running
-    case booting     // tart run launched, waiting for IP
-    case registering // SSH: config.sh + run.sh in flight
-    case ready       // registered on GitHub, waiting for a job
-    case busy        // runner picked up a job (busy=true)
-    case deleting    // teardown in progress
-    case failed      // hit an error; awaiting cleanup
+    case cloning  // tart clone running
+    case booting  // tart run launched, waiting for IP
+    case registering  // SSH: config.sh + run.sh in flight
+    case ready  // registered on GitHub, waiting for a job
+    case busy  // runner picked up a job (busy=true)
+    case deleting  // teardown in progress
+    case failed  // hit an error; awaiting cleanup
 
     public var isActive: Bool {
         switch self {
@@ -22,7 +22,7 @@ public enum VMPhase: String, Codable, Sendable, CaseIterable {
 
 /// Tracked state for one VM. Persisted as JSON for crash recovery.
 public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
-    public let id: String // tart VM name, e.g. "kinhin-1717000000-a1b2"
+    public let id: String  // tart VM name, e.g. "kinhin-1717000000-a1b2"
     public var phase: VMPhase
     public var createdAt: Date
     public var updatedAt: Date

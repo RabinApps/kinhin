@@ -42,8 +42,10 @@ public struct InstallOption: Identifiable, Equatable, Sendable {
     /// Where to download it by hand when Homebrew is not available.
     public let manualURL: URL?
 
-    public init(id: String, title: String, detail: String, commands: [[String]], postInstall: [[String]] = [],
-                needsBrew: Bool = true, manualURL: URL? = nil) {
+    public init(
+        id: String, title: String, detail: String, commands: [[String]], postInstall: [[String]] = [],
+        needsBrew: Bool = true, manualURL: URL? = nil
+    ) {
         self.id = id
         self.title = title
         self.detail = detail
@@ -83,7 +85,8 @@ public enum RuntimeInstallerError: LocalizedError, Equatable {
             let detail = summarize(output)
             return "\(command) failed\(detail.isEmpty ? "." : ": \(detail)")"
         case .notInstalledAfterwards(let tool):
-            return "The install finished but \(tool.binaryName) still isn't on this Mac's PATH. Open a new Terminal or restart kinhin."
+            return
+                "The install finished but \(tool.binaryName) still isn't on this Mac's PATH. Open a new Terminal or restart kinhin."
         }
     }
 }
@@ -96,28 +99,35 @@ public enum RuntimeInstaller {
         switch tool {
         case .tart:
             let repair = TartHealthProbe.repairs(for: .missing)[0]
-            return [InstallOption(
-                id: "tart-brew",
-                title: "tart via Homebrew",
-                detail: "Runs macOS jobs in virtual machines. Adds the openai/tools tap, then installs tart. Takes a minute or two.",
-                commands: repair.commands,
-                manualURL: URL(string: "https://tart.run/")
-            )]
+            return [
+                InstallOption(
+                    id: "tart-brew",
+                    title: "tart via Homebrew",
+                    detail:
+                        "Runs macOS jobs in virtual machines. Adds the openai/tools tap, then installs tart. Takes a minute or two.",
+                    commands: repair.commands,
+                    manualURL: URL(string: "https://tart.run/")
+                )
+            ]
         case .appleContainer:
-            return [InstallOption(
-                id: "container-brew",
-                title: "Apple container via Homebrew",
-                detail: "Linux containers as lightweight VMs (Apple silicon, recent macOS). Installs the container CLI, then starts its system service.",
-                commands: [["brew", "install", "container"]],
-                postInstall: [["container", "system", "start", "--enable-kernel-install"]],
-                manualURL: URL(string: "https://github.com/apple/container/releases")
-            )]
+            return [
+                InstallOption(
+                    id: "container-brew",
+                    title: "Apple container via Homebrew",
+                    detail:
+                        "Linux containers as lightweight VMs (Apple silicon, recent macOS). Installs the container CLI, then starts its system service.",
+                    commands: [["brew", "install", "container"]],
+                    postInstall: [["container", "system", "start", "--enable-kernel-install"]],
+                    manualURL: URL(string: "https://github.com/apple/container/releases")
+                )
+            ]
         case .docker:
             return [
                 InstallOption(
                     id: "docker-desktop",
                     title: "Docker Desktop",
-                    detail: "The standard choice (large download). Open Docker once after installing to finish its setup.",
+                    detail:
+                        "The standard choice (large download). Open Docker once after installing to finish its setup.",
                     commands: [["brew", "install", "--cask", "docker-desktop"]],
                     manualURL: URL(string: "https://www.docker.com/products/docker-desktop/")
                 ),
@@ -153,13 +163,16 @@ public enum RuntimeInstaller {
     /// Runs the option's commands in order (install, then post-install), then
     /// checks the tool is really there. Throws with the failing command and
     /// its output so the UI can show it.
-    public static func install(_ option: InstallOption, tool: InstallableTool,
-                               shell: ShellRunning = Shell(), brew: String? = RuntimeInstaller.brewPath,
-                               isInstalled: (InstallableTool) -> Bool = { $0.isInstalled }) async throws {
+    public static func install(
+        _ option: InstallOption, tool: InstallableTool,
+        shell: ShellRunning = Shell(), brew: String? = RuntimeInstaller.brewPath,
+        isInstalled: (InstallableTool) -> Bool = { $0.isInstalled }
+    ) async throws {
         if option.needsBrew, brew == nil { throw RuntimeInstallerError.brewMissing }
         for command in option.commands + option.postInstall {
             guard let argv = resolve(command, brew: brew) else {
-                throw RuntimeInstallerError.commandFailed(command: command.joined(separator: " "), output: "\(command[0]) was not found")
+                throw RuntimeInstallerError.commandFailed(
+                    command: command.joined(separator: " "), output: "\(command[0]) was not found")
             }
             let result = try await shell.run(argv, cwd: nil, timeout: 1800)
             guard result.succeeded else {

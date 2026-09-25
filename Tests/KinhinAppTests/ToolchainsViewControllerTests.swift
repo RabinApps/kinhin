@@ -1,6 +1,7 @@
-import XCTest
 import AppKit
 import KinhinKit
+import XCTest
+
 @testable import kinhin_app
 
 /// Renders the real ToolchainsViewController against a scratch config and
@@ -31,12 +32,12 @@ import KinhinKit
     /// must render a row with a non-empty version field.
     func testToolRowsRenderWithNonBlankVersionFields() throws {
         let yaml = """
-        repo: "acme/widgets"
-        labels: [self-hosted]
-        toolchains:
-          specs: ["node@22", "go", "pnpm"]
-          stacks: ["expo", "vercel"]
-        """
+            repo: "acme/widgets"
+            labels: [self-hosted]
+            toolchains:
+              specs: ["node@22", "go", "pnpm"]
+              stacks: ["expo", "vercel"]
+            """
         try yaml.write(to: configURL, atomically: true, encoding: .utf8)
 
         let vc = makeVC()
@@ -45,19 +46,22 @@ import KinhinKit
 
         print("DEBUG: toolChecks=\(vc.renderedCountsForTesting)")
         let counts = vc.renderedCountsForTesting
-        XCTAssertEqual(counts.tools, ToolchainCatalog.tools.count,
-                       "every catalog tool must render a row: \\(counts.tools)")
+        XCTAssertEqual(
+            counts.tools, ToolchainCatalog.tools.count,
+            "every catalog tool must render a row: \\(counts.tools)")
 
-        XCTAssertEqual(counts.stacks, ToolchainCatalog.stacks.count,
-                       "every catalog stack must render a row: \\(counts.stacks)")
+        XCTAssertEqual(
+            counts.stacks, ToolchainCatalog.stacks.count,
+            "every catalog stack must render a row: \\(counts.stacks)")
 
         // Every rendered tool row has a non-blank version field.
         for entry in ToolchainCatalog.tools {
             let id = entry.id
             let field = vc.renderedToolFieldValuesForTesting[id]
             XCTAssertNotNil(field, "tool row '\\(id)' must be present")
-            XCTAssertFalse(field?.isEmpty ?? true,
-                           "tool '\\(id)' render's version field must not be blank")
+            XCTAssertFalse(
+                field?.isEmpty ?? true,
+                "tool '\\(id)' render's version field must not be blank")
         }
 
         // Every rendered stack row has a non-blank version field.
@@ -65,8 +69,9 @@ import KinhinKit
             let id = stack.id
             let field = vc.renderedStackFieldValuesForTesting[id]
             XCTAssertNotNil(field, "stack row '\\(id)' must be present")
-            XCTAssertFalse(field?.isEmpty ?? true,
-                           "stack '\\(id)' render's version field must not be blank")
+            XCTAssertFalse(
+                field?.isEmpty ?? true,
+                "stack '\\(id)' render's version field must not be blank")
         }
     }
 
@@ -121,7 +126,8 @@ import KinhinKit
         vc.toolChecksForTesting["node"]!.state = NSButton.StateValue.off
         vc.entryToggled(vc.toolChecksForTesting["node"]!)
         XCTAssertNil(vc.working.tools["node"])
-        XCTAssertFalse(vc.toolVersionsForTesting["node"]!.isEnabled, "version field must be disabled when tool is unchecked")
+        XCTAssertFalse(
+            vc.toolVersionsForTesting["node"]!.isEnabled, "version field must be disabled when tool is unchecked")
 
         // Re-check: field editor must be re-enabled and selection restored.
         vc.toolChecksForTesting["node"]!.state = NSButton.StateValue.on
@@ -206,9 +212,11 @@ import KinhinKit
 
         let counts = vc.renderedCountsForTesting
         // Every catalog tool + stack must have produced a row.
-        XCTAssertEqual(counts.tools, ToolchainCatalog.tools.count,
-                       "render must add a row per catalog tool")
-        XCTAssertEqual(counts.stacks, ToolchainCatalog.stacks.count,
-                       "render must add a row per catalog stack")
+        XCTAssertEqual(
+            counts.tools, ToolchainCatalog.tools.count,
+            "render must add a row per catalog tool")
+        XCTAssertEqual(
+            counts.stacks, ToolchainCatalog.stacks.count,
+            "render must add a row per catalog stack")
     }
 }

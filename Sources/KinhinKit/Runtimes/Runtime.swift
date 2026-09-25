@@ -90,7 +90,8 @@ public protocol Runtime: Sendable {
     /// Execute the registration script inside the instance. Runtimes whose
     /// `awaitReady` returned an address dial it (SSH); the rest exec locally
     /// inside the instance (container/docker exec).
-    func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws -> ShellResult
+    func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws
+        -> ShellResult
 
     /// Ids of this runtime's existing instances — the recovery/adopt path
     /// enumerates every configured runtime through this (no per-runtime
@@ -101,8 +102,10 @@ public protocol Runtime: Sendable {
     /// registered runners (GitHub/Gitea scripts today). The engine executes
     /// it inside the instance. `labels` overrides the forge's default label
     /// set for the GitHub branch — the pool's labels in mixed fleets.
-    func registrationScript(forge: Forge, token: String, name: String,
-                            runnerCount: Int, route: RepoRoute, labels: [String]?) async throws -> String
+    func registrationScript(
+        forge: Forge, token: String, name: String,
+        runnerCount: Int, route: RepoRoute, labels: [String]?
+    ) async throws -> String
 
     /// Watch the instance's runners until the ephemeral exit condition holds
     /// (all runners gone, or idle grace for runtimes without deregistration).
@@ -133,7 +136,10 @@ public struct TartRuntime: Runtime {
         return ToolchainCatalog.selection(from: config)
     }
 
-    public init(tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, ssh: SSHExecuting = SSHExecutor(), toolchainsConfig: @escaping @Sendable () -> kinhinConfig.ToolchainsConfig? = { nil }) {
+    public init(
+        tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, ssh: SSHExecuting = SSHExecutor(),
+        toolchainsConfig: @escaping @Sendable () -> kinhinConfig.ToolchainsConfig? = { nil }
+    ) {
         self.tart = tart
         self.bootTimeout = bootTimeout
         self.ssh = ssh
@@ -147,7 +153,8 @@ public struct TartRuntime: Runtime {
         case .healthy:
             return .ready
         case .missing:
-            return .missing(tool: "tart", fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")
+            return .missing(
+                tool: "tart", fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")
         case .killedOnLaunch:
             return .missing(tool: "tart (notarization rollback)", fix: "roll back to the notarized Cirrus Labs build")
         case .broken(let why):
@@ -171,7 +178,9 @@ public struct TartRuntime: Runtime {
         try await tart.ip(of: id, timeout: timeout)
     }
 
-    public func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws -> ShellResult {
+    public func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws
+        -> ShellResult
+    {
         guard let ip, !ip.isEmpty else {
             throw TartError.ipNotFound(vm: id)
         }
@@ -182,39 +191,44 @@ public struct TartRuntime: Runtime {
         (try? await tart.list())?.map(\.name) ?? []
     }
 
-    public func registrationScript(forge: Forge, token: String, name: String,
-                                   runnerCount: Int, route: RepoRoute, labels: [String]?) async throws -> String {
+    public func registrationScript(
+        forge: Forge, token: String, name: String,
+        runnerCount: Int, route: RepoRoute, labels: [String]?
+    ) async throws -> String {
         // Opt-in shared cache: point the selected ecosystems' caches at the
         // mounted host share so per-job installs reuse warm downloads. The
         // env prefix is prepended to whichever registration script the forge
         // produces; exports are guarded no-ops when the share is absent.
         let cachePrefix: String
         if route.cacheMount, let selection = cachedToolchainSelection {
-            cachePrefix = RunnerBootstrap.cacheEnvExports(
-                cacheEnvs: selection.cacheEnvs,
-                mountPath: ToolchainCacheMount.guestPath
-            ) + "\n\n"
+            cachePrefix =
+                RunnerBootstrap.cacheEnvExports(
+                    cacheEnvs: selection.cacheEnvs,
+                    mountPath: ToolchainCacheMount.guestPath
+                ) + "\n\n"
         } else {
             cachePrefix = ""
         }
         switch forge.credentials {
         case .github:
-            return cachePrefix + RunnerBootstrap.registrationScript(
-                configureURL: forge.registrationURL(),
-                token: token,
-                labels: labels ?? forge.labels,
-                ephemeral: route.ephemeral,
-                name: name,
-                runnerCount: runnerCount
-            )
+            return cachePrefix
+                + RunnerBootstrap.registrationScript(
+                    configureURL: forge.registrationURL(),
+                    token: token,
+                    labels: labels ?? forge.labels,
+                    ephemeral: route.ephemeral,
+                    name: name,
+                    runnerCount: runnerCount
+                )
         case .gitea:
-            return cachePrefix + RunnerBootstrap.giteaRegistrationScript(
-                instance: forge.registrationURL(),
-                token: token,
-                labels: forge.labels,
-                name: name,
-                runnerCount: runnerCount
-            )
+            return cachePrefix
+                + RunnerBootstrap.giteaRegistrationScript(
+                    instance: forge.registrationURL(),
+                    token: token,
+                    labels: forge.labels,
+                    name: name,
+                    runnerCount: runnerCount
+                )
         }
     }
 

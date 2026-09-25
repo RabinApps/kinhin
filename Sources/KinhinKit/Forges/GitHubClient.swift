@@ -45,7 +45,8 @@ public enum GitHubError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
-            return "GitHub rejected the token (401). Check it with `kinhin auth status` — it may be expired or lack the required scopes."
+            return
+                "GitHub rejected the token (401). Check it with `kinhin auth status` — it may be expired or lack the required scopes."
         case .forbidden(let why):
             return "GitHub forbidden (403): \(why)"
         case .notFound(let what):
@@ -69,7 +70,7 @@ public struct GHLabel: Codable, Sendable, Equatable {
 public struct GHRunner: Codable, Sendable, Equatable {
     public let id: Int
     public let name: String
-    public let status: String // "online" | "offline"
+    public let status: String  // "online" | "offline"
     public let busy: Bool
     public let labels: [GHLabel]?
 
@@ -188,8 +189,11 @@ public struct GitHubClient: GitHubServing {
         // A scope-less client is only for token-level calls (listing the repos
         // the token can see during onboarding); everything else needs a scope.
         let tokenLevel = credentials.scope.isEmpty && path.hasPrefix("/user/")
-        guard tokenLevel || ((segments.count == 1 || segments.count == 2)
-              && segments.allSatisfy({ !$0.isEmpty })) else {
+        guard
+            tokenLevel
+                || ((segments.count == 1 || segments.count == 2)
+                    && segments.allSatisfy({ !$0.isEmpty }))
+        else {
             throw GitHubError.http(0, "invalid scope spec \(credentials.scope) — use 'RabinApps/name' or an org name")
         }
         var req = URLRequest(url: URL(string: "https://api.github.com\(path)")!)
@@ -218,22 +222,23 @@ public struct GitHubClient: GitHubServing {
                     continue
                 }
                 switch http.statusCode {
-                case 200 ... 299:
+                case 200...299:
                     return (data, http)
                 case 401:
                     throw GitHubError.unauthorized
                 case 403:
                     if let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining"),
-                       remaining == "0",
-                       let resetStr = http.value(forHTTPHeaderField: "X-RateLimit-Reset"),
-                       let reset = TimeInterval(resetStr) {
+                        remaining == "0",
+                        let resetStr = http.value(forHTTPHeaderField: "X-RateLimit-Reset"),
+                        let reset = TimeInterval(resetStr)
+                    {
                         throw GitHubError.rateLimited(resetAt: Date(timeIntervalSince1970: reset))
                     }
                     lastError = GitHubError.forbidden(String(decoding: data.prefix(500), as: UTF8.self))
-                    continue // can be transient (secondary limits)
+                    continue  // can be transient (secondary limits)
                 case 404:
                     throw GitHubError.notFound(req.url?.path ?? "resource")
-                case 500 ... 599:
+                case 500...599:
                     lastError = GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
                     continue
                 default:
@@ -283,7 +288,8 @@ public struct GitHubClient: GitHubServing {
             if credentials.scope.isEmpty {
                 // No scope yet (onboarding): list every repo the token can
                 // see — its own, collaborator, and org repos.
-                path = "/user/repos?per_page=100&page=\(page)&sort=full_name&affiliation=owner,collaborator,organization_member"
+                path =
+                    "/user/repos?per_page=100&page=\(page)&sort=full_name&affiliation=owner,collaborator,organization_member"
             } else if credentials.isOrgScope {
                 path = "/orgs/\(credentials.scope)/repos?per_page=100&page=\(page)"
             } else {
@@ -310,9 +316,13 @@ public struct GitHubClient: GitHubServing {
                 }
             }
             let batch: [GHRepo]
-            do { batch = try JSONDecoder().decode([GHRepo].self, from: data) }
-            catch { throw GitHubError.decoding("repos: \(error.localizedDescription)") }
-            refs.append(contentsOf: batch.map { RepoRef(fullName: $0.full_name, isPrivate: $0.isPrivate, hasActionsEnabled: $0.has_actions) })
+            do { batch = try JSONDecoder().decode([GHRepo].self, from: data) } catch {
+                throw GitHubError.decoding("repos: \(error.localizedDescription)")
+            }
+            refs.append(
+                contentsOf: batch.map {
+                    RepoRef(fullName: $0.full_name, isPrivate: $0.isPrivate, hasActionsEnabled: $0.has_actions)
+                })
             if batch.count < 100 { break }
             page += 1
         }
@@ -359,14 +369,15 @@ public struct GitHubClient: GitHubServing {
         let queuedRuns = try await fetchRuns(status: "queued")
 
         var jobs: [QueuedJob] = []
-        for run in queuedRuns.prefix(50) { // safety bound on fan-out per poll
+        for run in queuedRuns.prefix(50) {  // safety bound on fan-out per poll
             for job in try await fetchJobs(runID: run.id) where job.status == "queued" {
                 let jobLabels = Set(job.labels ?? [])
                 if labels.isSubset(of: jobLabels) {
-                    jobs.append(QueuedJob(
-                        runID: run.id, jobID: job.id, name: job.name,
-                        labels: jobLabels.sorted(), repository: run.repository?.full_name
-                    ))
+                    jobs.append(
+                        QueuedJob(
+                            runID: run.id, jobID: job.id, name: job.name,
+                            labels: jobLabels.sorted(), repository: run.repository?.full_name
+                        ))
                 }
             }
         }
@@ -380,14 +391,15 @@ public struct GitHubClient: GitHubServing {
         let activeRuns = try await fetchRuns(status: "in_progress")
 
         var jobs: [RunningJob] = []
-        for run in activeRuns.prefix(50) { // same safety bound as queued
+        for run in activeRuns.prefix(50) {  // same safety bound as queued
             for job in try await fetchJobs(runID: run.id) where job.status == "in_progress" {
                 let jobLabels = Set(job.labels ?? [])
                 if labels.isSubset(of: jobLabels) {
-                    jobs.append(RunningJob(
-                        name: job.name, runnerName: job.runnerName,
-                        repository: run.repository?.full_name
-                    ))
+                    jobs.append(
+                        RunningJob(
+                            name: job.name, runnerName: job.runnerName,
+                            repository: run.repository?.full_name
+                        ))
                 }
             }
         }

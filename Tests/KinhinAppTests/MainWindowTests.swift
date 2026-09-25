@@ -1,6 +1,7 @@
-import XCTest
 import AppKit
 import KinhinKit
+import XCTest
+
 @testable import kinhin_app
 
 /// Records MainTabsWindowDelegate calls so window actions can be tested
@@ -46,7 +47,8 @@ final class MainWindowTests: XCTestCase {
         suiteName = "kinhin-tests.mainwindow-\(UUID().uuidString)"
         suite = UserDefaults(suiteName: suiteName)
         delegate = RecordingTabsDelegate()
-        scratchConfig = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-mainwindow-\(UUID().uuidString).yaml")
+        scratchConfig = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "kinhin-mainwindow-\(UUID().uuidString).yaml")
         try? "repo: \"your-org/your-repo\"\nlabels: [a]\n".write(to: scratchConfig, atomically: true, encoding: .utf8)
         window = MainTabsWindowController(defaults: suite)
         window.delegate = delegate
@@ -78,24 +80,29 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testQuitOnMainWindowCloseOnlyInMainWindowOnlyMode() {
-        XCTAssertFalse(shouldQuitOnMainWindowClose(launchMode: .mainWindowAndMenuBar),
-                       "menu bar must keep running when the window closes")
+        XCTAssertFalse(
+            shouldQuitOnMainWindowClose(launchMode: .mainWindowAndMenuBar),
+            "menu bar must keep running when the window closes")
         XCTAssertFalse(shouldQuitOnMainWindowClose(launchMode: .menuBarOnly))
-        XCTAssertTrue(shouldQuitOnMainWindowClose(launchMode: .mainWindowOnly),
-                      "without the menu bar, closing the window is quitting the app")
+        XCTAssertTrue(
+            shouldQuitOnMainWindowClose(launchMode: .mainWindowOnly),
+            "without the menu bar, closing the window is quitting the app")
     }
 
     // MARK: tab structure
 
     func testTabsAndAdvancedSectionsInDisplayOrder() {
         XCTAssertEqual(MainTab.allCases, [.fleet, .setup, .advanced])
-        XCTAssertEqual(AdvancedSection.allCases.map(\.label), ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "App"])
+        XCTAssertEqual(
+            AdvancedSection.allCases.map(\.label),
+            ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "App"])
     }
 
     func testSetupTabOnlyExistsWhileSetupIsUnfinished() {
         XCTAssertEqual(window.visibleTabs, [.fleet, .advanced], "a configured app has no Setup tab")
         XCTAssertEqual(segment().segmentCount, 2)
-        XCTAssertEqual((0..<segment().segmentCount).map { segment().label(forSegment: $0) ?? "" }, ["Fleet", "Advanced"])
+        XCTAssertEqual(
+            (0..<segment().segmentCount).map { segment().label(forSegment: $0) ?? "" }, ["Fleet", "Advanced"])
 
         window.setupIncompleteFlag = true
         XCTAssertEqual(window.visibleTabs, [.fleet, .setup, .advanced])
@@ -144,10 +151,10 @@ final class MainWindowTests: XCTestCase {
 
     func testFinishLaterKeepsTheSetupTab() {
         let wizard = showWizard()
-        wizard.nextClickedForTesting() // connect → mac
-        wizard.nextClickedForTesting() // mac → toolchains
-        wizard.nextClickedForTesting() // toolchains → start
-        wizard.skipClickedForTesting() // "Finish later" on start step
+        wizard.nextClickedForTesting()  // connect → mac
+        wizard.nextClickedForTesting()  // mac → toolchains
+        wizard.nextClickedForTesting()  // toolchains → start
+        wizard.skipClickedForTesting()  // "Finish later" on start step
         XCTAssertEqual(window.selectedTab, .fleet)
         XCTAssertEqual(window.visibleTabs, [.fleet, .setup, .advanced], "unfinished setup stays reachable")
     }
@@ -162,7 +169,7 @@ final class MainWindowTests: XCTestCase {
     func testAfterSetupAccountsLiveInAdvanced() {
         window.tokenProbe = { _ in false }
         window.setupIncompleteFlag = false
-        window.showSetup() // menu "Setup…" after onboarding lands here
+        window.showSetup()  // menu "Setup…" after onboarding lands here
         XCTAssertEqual(window.selectedTab, .advanced)
         XCTAssertEqual(window.selectedAdvancedSection, .accounts)
         XCTAssertNil(window.wizardController)
@@ -177,19 +184,19 @@ final class MainWindowTests: XCTestCase {
         let wizard = showWizard()
         XCTAssertEqual(wizard.step, .connect, "the wizard opens on connecting an account")
 
-        wizard.nextClickedForTesting() // connect → mac
+        wizard.nextClickedForTesting()  // connect → mac
         XCTAssertEqual(wizard.step, .mac)
-        wizard.nextClickedForTesting() // mac → toolchains
+        wizard.nextClickedForTesting()  // mac → toolchains
         XCTAssertEqual(wizard.step, .toolchains)
-        wizard.nextClickedForTesting() // toolchains → start
+        wizard.nextClickedForTesting()  // toolchains → start
         XCTAssertEqual(wizard.step, .start)
     }
 
     func testWizardCannotStartUntilConnectedAndReady() {
         let wizard = showWizard()
-        wizard.nextClickedForTesting() // connect → mac
-        wizard.nextClickedForTesting() // mac → toolchains
-        wizard.nextClickedForTesting() // toolchains → start
+        wizard.nextClickedForTesting()  // connect → mac
+        wizard.nextClickedForTesting()  // mac → toolchains
+        wizard.nextClickedForTesting()  // toolchains → start
         XCTAssertEqual(wizard.step, .start)
         // Nothing connected in a hermetic test: pressing Start must not
         // finish (it would bounce the app straight back into setup).
@@ -201,7 +208,7 @@ final class MainWindowTests: XCTestCase {
     func testWizardBackNavigation() {
         let wizard = showWizard()
         wizard.nextClickedForTesting()
-        wizard.nextClickedForTesting() // mac → start
+        wizard.nextClickedForTesting()  // mac → start
         wizard.backClickedForTesting()
         XCTAssertEqual(wizard.step, .mac)
         wizard.backClickedForTesting()
@@ -229,7 +236,6 @@ final class MainWindowTests: XCTestCase {
 
     // MARK: Fleet tab rendering
 
-
     func testRenderShowsNeedsSetupBeforeFirstStatus() {
         window.render(status: nil)
         XCTAssertTrue(allText().contains("Needs setup — open the Setup tab"), "got: \(allText())")
@@ -246,11 +252,14 @@ final class MainWindowTests: XCTestCase {
         busy.createdAt = Date()
         busy.repos = ["alpha/one", "beta/two"]
         busy.job = "build"
-        status.records = [busy, {
-            var ready = VMRecord(id: "kinhin-vm-idle", phase: .ready)
-            ready.createdAt = Date()
-            return ready
-        }()]
+        status.records = [
+            busy,
+            {
+                var ready = VMRecord(id: "kinhin-vm-idle", phase: .ready)
+                ready.createdAt = Date()
+                return ready
+            }(),
+        ]
 
         window.render(status: status)
 
@@ -261,7 +270,8 @@ final class MainWindowTests: XCTestCase {
         XCTAssertTrue(allText().contains("2 repos"))
         XCTAssertEqual(deleteButtons().count, 2, "one Delete button per VM row")
         // Current-jobs section: only the record carrying a job, with repo.
-        XCTAssertTrue(allText().contains("build — alpha/one, beta/two"), "current jobs list the workflow + repo: \(allText())")
+        XCTAssertTrue(
+            allText().contains("build — alpha/one, beta/two"), "current jobs list the workflow + repo: \(allText())")
         XCTAssertTrue(allText().contains("No jobs running.") == false)
     }
 
@@ -317,8 +327,9 @@ final class MainWindowTests: XCTestCase {
 
     func testChosenModePersistsToTheInjectedDefaults() {
         window.applyLaunchMode(.mainWindowOnly)
-        XCTAssertEqual(AppPreferences.launchMode(in: suite), .mainWindowOnly,
-                       "the choice must survive a relaunch via the injected suite")
+        XCTAssertEqual(
+            AppPreferences.launchMode(in: suite), .mainWindowOnly,
+            "the choice must survive a relaunch via the injected suite")
         window.applyLaunchMode(.menuBarOnly)
         XCTAssertEqual(AppPreferences.launchMode(in: suite), .menuBarOnly)
     }
@@ -346,7 +357,7 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testPauseButtonDispatchesBasedOnRenderedState() {
-        window.render(status: FleetStatus()) // not paused
+        window.render(status: FleetStatus())  // not paused
         fire(pauseButton)
         XCTAssertEqual(delegate.pauseCalls, 1)
         XCTAssertEqual(delegate.resumeCalls, 0)
@@ -509,14 +520,19 @@ final class MainWindowTests: XCTestCase {
     }
 
     private func segment() -> NSSegmentedControl {
-        guard let control = window.window?.contentView?.flattenedViews().compactMap({ $0 as? NSSegmentedControl }).first else {
+        guard let control = window.window?.contentView?.flattenedViews().compactMap({ $0 as? NSSegmentedControl }).first
+        else {
             fatalError("main window must carry the tab segment control")
         }
         return control
     }
 
     private func loginCheck() -> NSButton {
-        guard let button = window.window?.contentView?.flattenedButtons().first(where: { $0.title.contains("Launch kinhin at login") }) else {
+        guard
+            let button = window.window?.contentView?.flattenedButtons().first(where: {
+                $0.title.contains("Launch kinhin at login")
+            })
+        else {
             fatalError("App section must carry the login checkbox")
         }
         return button

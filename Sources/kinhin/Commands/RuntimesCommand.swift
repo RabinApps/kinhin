@@ -67,15 +67,19 @@ enum RuntimesCommand {
     static func route(_ args: [String], configURL: URL = Paths.config, notifyDaemon: Bool = true) async throws {
         let op = args.first
         guard op == "add" || op == "remove" else {
-            throw RouteError.usage("usage: kinhin runtimes route add <owner/repo[@Workflow]> <tart|appleContainer|docker>\n       kinhin runtimes route remove <owner/repo[@Workflow]>")
+            throw RouteError.usage(
+                "usage: kinhin runtimes route add <owner/repo[@Workflow]> <tart|appleContainer|docker>\n       kinhin runtimes route remove <owner/repo[@Workflow]>"
+            )
         }
 
         let pattern = args.count > 1 ? args[1].trimmingCharacters(in: .whitespaces) : ""
         guard !pattern.isEmpty else {
-            throw RouteError.usage("missing pattern — e.g. owner/repo for a whole repo, or owner/repo@Workflow Name for one workflow")
+            throw RouteError.usage(
+                "missing pattern — e.g. owner/repo for a whole repo, or owner/repo@Workflow Name for one workflow")
         }
         if pattern.contains("@"), pattern.hasSuffix("@") || pattern.hasPrefix("@") {
-            throw RouteError.usage("workflow routes look like owner/repo@Workflow Name — the '@' cannot be first or last")
+            throw RouteError.usage(
+                "workflow routes look like owner/repo@Workflow Name — the '@' cannot be first or last")
         }
 
         guard let yaml = try? String(contentsOf: configURL, encoding: .utf8) else {
@@ -96,10 +100,13 @@ enum RuntimesCommand {
         case "add":
             let runtimeName = args.count > 2 ? args[2] : ""
             guard !runtimeName.isEmpty, let runtime = RuntimeID(rawValue: runtimeName) else {
-                throw RouteError.usage("unknown or missing runtime '\(runtimeName)' — expected 'tart', 'appleContainer', or 'docker'")
+                throw RouteError.usage(
+                    "unknown or missing runtime '\(runtimeName)' — expected 'tart', 'appleContainer', or 'docker'")
             }
             guard !rc.routes.contains(where: { $0.pattern == pattern }) else {
-                throw RouteError.usage("a route for '\(pattern)' already exists — remove it first: kinhin runtimes route remove \(pattern)")
+                throw RouteError.usage(
+                    "a route for '\(pattern)' already exists — remove it first: kinhin runtimes route remove \(pattern)"
+                )
             }
             rc.routes.append(kinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime.rawValue))
             if !hadRouting {
@@ -174,9 +181,11 @@ enum RuntimesCommand {
         let shares = BudgetEditor.displayShares(current: budget, defaultRuntime: vm.defaultRuntime)
         for pool in vm.pools {
             let pct = Int((shares[pool.runtime.rawValue] ?? 0).rounded() * 100)
-            let bar = String(repeating: "█", count: max(0, pct / 5)) + String(repeating: "░", count: max(0, 20 - pct / 5))
+            let bar =
+                String(repeating: "█", count: max(0, pct / 5)) + String(repeating: "░", count: max(0, 20 - pct / 5))
             let marker = pool.runtime == vm.defaultRuntime ? " (default, remainder)" : ""
-            print("  \(pool.runtime.rawValue.padding(toLength: 16, withPad: " ", startingAt: 0)) \(bar) \(pct)%\(marker)")
+            print(
+                "  \(pool.runtime.rawValue.padding(toLength: 16, withPad: " ", startingAt: 0)) \(bar) \(pct)%\(marker)")
         }
         print("")
 
@@ -186,7 +195,9 @@ enum RuntimesCommand {
         } else {
             for route in vm.routes {
                 let kind = route.isWorkflow ? "workflow" : "repo"
-                print("  \(route.pattern.padding(toLength: 40, withPad: " ", startingAt: 0)) → \(route.runtime.rawValue)  [\(kind)]")
+                print(
+                    "  \(route.pattern.padding(toLength: 40, withPad: " ", startingAt: 0)) → \(route.runtime.rawValue)  [\(kind)]"
+                )
             }
         }
         print("")

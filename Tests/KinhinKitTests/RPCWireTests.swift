@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// The Fleet RPC wire layer: codec edge cases, Daemon dispatch for the
@@ -40,9 +41,11 @@ final class RPCWireTests: XCTestCase {
 
     func testMethodRawValuesAreTheWireNames() {
         // The daemon and old CLI binaries must agree on these strings forever.
-        for method in [RPCMethod.status, .start, .stop, .pause, .resume,
-                       .deleteVM, .replaceToken, .replaceGiteaToken,
-                       .reloadConfig, .logs, .ping] {
+        for method in [
+            RPCMethod.status, .start, .stop, .pause, .resume,
+            .deleteVM, .replaceToken, .replaceGiteaToken,
+            .reloadConfig, .logs, .ping,
+        ] {
             XCTAssertEqual(method.rawValue, wireName(method), "\(method) must keep its wire name")
         }
         XCTAssertEqual(wireName(.ping), "ping")
@@ -62,7 +65,8 @@ final class RPCWireTests: XCTestCase {
     }
 
     func testNullPayloadDecodesAsNil() throws {
-        let request = try JSONDecoder().decode(RPCRequest.self, from: Data(#"{"id": 5, "method": "ping", "payload": null}"#.utf8))
+        let request = try JSONDecoder().decode(
+            RPCRequest.self, from: Data(#"{"id": 5, "method": "ping", "payload": null}"#.utf8))
         XCTAssertNil(request.payload)
     }
 
@@ -70,7 +74,7 @@ final class RPCWireTests: XCTestCase {
         // Payload is an opaque Data blob end to end — including bytes that
         // are not valid UTF-8 (a malformed downstream payload must survive
         // the transport trip for the daemon's error path to report it).
-        let raw: [UInt8] = [0x7B, 0xFF, 0xFE, 0x7D] // {, invalid, invalid, }
+        let raw: [UInt8] = [0x7B, 0xFF, 0xFE, 0x7D]  // {, invalid, invalid, }
         let request = RPCRequest(id: 6, method: .deleteVM, payload: Data(raw))
         let roundTrip = try JSONDecoder().decode(RPCRequest.self, from: JSONEncoder().encode(request))
         XCTAssertEqual(roundTrip, request)
@@ -153,9 +157,10 @@ final class RPCWireTests: XCTestCase {
     }
 
     func testGarbageRequestGetsUndecodableErrorResponse() {
-        let response = decode(serveOne(requestLine: line("this is not json {{{")) { _ in
-            RPCResponse(id: 0, ok: true)
-        })
+        let response = decode(
+            serveOne(requestLine: line("this is not json {{{")) { _ in
+                RPCResponse(id: 0, ok: true)
+            })
         XCTAssertNotNil(response)
         XCTAssertFalse(response!.ok)
         XCTAssertEqual(response!.error, "undecodable request")
@@ -165,9 +170,10 @@ final class RPCWireTests: XCTestCase {
     func testValidJSONWithWrongShapeGetsUndecodableErrorResponse() {
         // Parseable JSON that isn't an RPCRequest must take the same error
         // path, not crash the connection handler.
-        let response = decode(serveOne(requestLine: line(#"[1, 2, 3]"#)) { _ in
-            RPCResponse(id: 0, ok: true)
-        })
+        let response = decode(
+            serveOne(requestLine: line(#"[1, 2, 3]"#)) { _ in
+                RPCResponse(id: 0, ok: true)
+            })
         XCTAssertEqual(response?.error, "undecodable request")
     }
 
@@ -187,20 +193,22 @@ final class RPCWireTests: XCTestCase {
             return RPCResponse(id: 0, ok: true)
         }
         let reader = FileHandle(fileDescriptor: client, closeOnDealloc: false)
-        let bytes = reader.availableData // blocks until server closes → EOF
+        let bytes = reader.availableData  // blocks until server closes → EOF
         XCTAssertTrue(bytes.isEmpty, "an empty connection must produce no response bytes")
     }
 
     func testOversizedRequestLineIsDropped() {
         // readLine's sanity cap (1 MB) must discard absurd frames instead of
         // buffering forever: an over-cap line gets no response at all.
-        let huge = line(#"{"id":1,"method":"ping","payload":"#)
+        let huge =
+            line(#"{"id":1,"method":"ping","payload":"#)
             + Data(repeating: 0x61, count: 1_200_000)
             + Data("\"}".utf8)
-        let response = decode(serveOne(requestLine: huge) { _ in
-            XCTFail("an over-cap line must never be dispatched")
-            return RPCResponse(id: 1, ok: true)
-        })
+        let response = decode(
+            serveOne(requestLine: huge) { _ in
+                XCTFail("an over-cap line must never be dispatched")
+                return RPCResponse(id: 1, ok: true)
+            })
         XCTAssertNil(response, "an over-cap line must be dropped, not answered")
     }
 
@@ -209,9 +217,10 @@ final class RPCWireTests: XCTestCase {
         // request (well under 1 MB) must still be answered.
         let filler = String(repeating: "a", count: 400_000)
         let json = #"{"id":2,"method":"ping","payload":"# + "\"\(filler)\"}"
-        let response = decode(serveOne(requestLine: line(json)) { request in
-            RPCResponse(id: request.id, ok: true)
-        })
+        let response = decode(
+            serveOne(requestLine: line(json)) { request in
+                RPCResponse(id: request.id, ok: true)
+            })
         XCTAssertEqual(response?.ok, true)
         XCTAssertEqual(response?.id, 2)
     }
@@ -226,8 +235,8 @@ final class RPCWireTests: XCTestCase {
         defer { close(client) }
 
         let writer = FileHandle(fileDescriptor: client, closeOnDealloc: false)
-        try? writer.write(contentsOf: Data(#"{"id":3,"method":"ping"}"#.utf8)) // no 0x0A
-        shutdown(client, Int32(SHUT_WR)) // EOF on the server's read side
+        try? writer.write(contentsOf: Data(#"{"id":3,"method":"ping"}"#.utf8))  // no 0x0A
+        shutdown(client, Int32(SHUT_WR))  // EOF on the server's read side
 
         RPCServer.handleConnection(fd: fds[1]) { request in
             XCTAssertEqual(request.id, 3)
@@ -292,7 +301,7 @@ final class RPCWireTests: XCTestCase {
 
     func testDaemonLogsReturnsDecodableSnapshot() async {
         let previousEcho = Log.echoToStderr
-        Log.echoToStderr = false // keep the marker out of test output
+        Log.echoToStderr = false  // keep the marker out of test output
         defer { Log.echoToStderr = previousEcho }
         let marker = "rpc-logs-\(UUID().uuidString)"
         Log.info("rpc-test", marker)
@@ -323,7 +332,9 @@ final class RPCWireTests: XCTestCase {
         XCTAssertTrue(bad.error?.contains("token") ?? false, "error should name the expected shape: \(bad.error ?? "")")
 
         let good = await Daemon.handle(
-            RPCRequest(id: 16, method: .replaceGiteaToken, payload: try! JSONEncoder().encode(GiteaTokenReplaceRequest(token: "gt-new"))),
+            RPCRequest(
+                id: 16, method: .replaceGiteaToken,
+                payload: try! JSONEncoder().encode(GiteaTokenReplaceRequest(token: "gt-new"))),
             engine: engine
         )
         XCTAssertTrue(good.ok, "a well-formed swap must be accepted: \(good.error ?? "")")
@@ -392,7 +403,8 @@ final class RPCWireTests: XCTestCase {
             guard case RPCError.connectionFailed = error else {
                 return XCTFail("expected connectionFailed, got \(error)")
             }
-            XCTAssertTrue(error.localizedDescription.contains("kinhin daemon"), "message must hint at the fix: \(error)")
+            XCTAssertTrue(
+                error.localizedDescription.contains("kinhin daemon"), "message must hint at the fix: \(error)")
         }
     }
 
@@ -401,7 +413,7 @@ final class RPCWireTests: XCTestCase {
         // instead of silently truncating the address.
         let long = FileManager.default.temporaryDirectory
             .appendingPathComponent(String(repeating: "d", count: 120) + ".sock")
-        try Data().write(to: long) // the existence check runs first
+        try Data().write(to: long)  // the existence check runs first
         defer { try? FileManager.default.removeItem(at: long) }
 
         XCTAssertThrowsError(try RPCClient(socketURL: long).send(method: .ping)) { error in

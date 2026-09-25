@@ -1,11 +1,14 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class FleetEngineTests: XCTestCase {
-    func makeEngine(config: kinhinConfig? = nil,
-                    tart: FakeTart,
-                    github: FakeGitHub,
-                    ssh: FakeSSH) -> FleetEngine {
+    func makeEngine(
+        config: kinhinConfig? = nil,
+        tart: FakeTart,
+        github: FakeGitHub,
+        ssh: FakeSSH
+    ) -> FleetEngine {
         FleetEngine(
             config: config ?? makeTestConfig(),
             github: github,

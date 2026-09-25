@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class FleetEdgeTests: XCTestCase {
@@ -40,7 +41,7 @@ final class FleetEdgeTests: XCTestCase {
         try await engine.reconcileOnce()
         try await waitUntil(timeout: 10) {
             let s = await engine.status()
-            return s.desired == 2 && s.queueDepth == 3 // max_runners default = 2
+            return s.desired == 2 && s.queueDepth == 3  // max_runners default = 2
         }
         try await waitUntil(timeout: 15) {
             let s = await engine.status()

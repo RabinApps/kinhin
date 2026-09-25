@@ -68,7 +68,8 @@ extension FleetEngine {
             updateRecord(id) { $0.phase = .registering }
             let platform = ForgeID(rawValue: store.all.first { $0.id == id }?.platform ?? "") ?? .github
             guard let forge = forgesLock.withLock({ forgesByPlatform[platform.rawValue] }) else {
-                throw EngineError.registrationFailed(vm: id, stderr: "no \(platform.rawValue) forge attached (missing token?)")
+                throw EngineError.registrationFailed(
+                    vm: id, stderr: "no \(platform.rawValue) forge attached (missing token?)")
             }
             let runnerCount = max(1, config.runnersPerVM)
             let result: ShellResult
@@ -134,9 +135,10 @@ extension FleetEngine {
     /// registration timeout, exactly like the GitHub path.
     func awaitGiteaExit(id: String, ip: String?) async throws {
         let runnerCount = max(1, config.runnersPerVM)
-        let expected: [String] = runnerCount == 1
+        let expected: [String] =
+            runnerCount == 1
             ? [id]
-            : (1 ... runnerCount).map { "\(id)-r\($0)" }
+            : (1...runnerCount).map { "\(id)-r\($0)" }
         let deadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 3600 * 6)))
         let registrationDeadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 120)))
         let idleGrace: TimeInterval = 30
@@ -198,9 +200,10 @@ extension FleetEngine {
     /// that never register trip the registration timeout instead.
     func awaitEphemeralExit(id: String, ip: String?) async throws {
         let runnerCount = max(1, config.runnersPerVM)
-        let expected: [String] = runnerCount == 1
+        let expected: [String] =
+            runnerCount == 1
             ? [id]
-            : (1 ... runnerCount).map { "\(id)-r\($0)" }
+            : (1...runnerCount).map { "\(id)-r\($0)" }
         func current(_ runners: [GHRunner]) -> [GHRunner] {
             runners.filter { expected.contains($0.name) }
         }

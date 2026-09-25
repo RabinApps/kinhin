@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class SubsystemTests: XCTestCase {
@@ -233,7 +234,7 @@ final class SubsystemTests: XCTestCase {
         XCTAssertGreaterThan(host.memoryGB, 0)
         XCTAssertGreaterThanOrEqual(host.freeDiskGB, 0)
         #if arch(arm64)
-        XCTAssertTrue(host.arm64)
+            XCTAssertTrue(host.arm64)
         #endif
     }
 }

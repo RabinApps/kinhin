@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Covers the Apple-container rows of the setup checklist: config-gated
@@ -9,7 +10,9 @@ final class ContainerSetupStatusTests: XCTestCase {
         HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true)
     }
 
-    private func config(container: kinhinConfig.ContainerConfig? = kinhinConfig.ContainerConfig(image: "kinhin-ci-linux")) -> kinhinConfig {
+    private func config(
+        container: kinhinConfig.ContainerConfig? = kinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
+    ) -> kinhinConfig {
         var cfg = kinhinConfig.default
         cfg.repo = "acme/widgets"
         cfg.container = container
@@ -25,7 +28,11 @@ final class ContainerSetupStatusTests: XCTestCase {
             host: host(),
             clt: .ok(version: "27.0"),
             tartHealth: .healthy,
-            tartList: [TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "suspended", cpu: nil, memoryMB: nil)],
+            tartList: [
+                TartVM(
+                    name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "suspended",
+                    cpu: nil, memoryMB: nil)
+            ],
             config: .loaded(config(container: container)),
             tokenStored: true,
             containerHealth: containerHealth,
@@ -42,8 +49,9 @@ final class ContainerSetupStatusTests: XCTestCase {
 
     func testRowOrderAppendsContainerRowsAfterImage() async {
         let status = await computer(containerHealth: .ready, containerImages: ["kinhin-ci-linux"]).compute()
-        XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart", "config", "token", "image", "container-cli", "container-image", "toolchain-cache"])
+        XCTAssertEqual(
+            status.checks.map(\.id),
+            ["arch", "clt", "tart", "config", "token", "image", "container-cli", "container-image", "toolchain-cache"])
         XCTAssertEqual(status.ready, true)
     }
 

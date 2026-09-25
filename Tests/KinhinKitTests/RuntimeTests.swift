@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Stage 1 of the runtime abstraction: the Runtime protocol plus the
@@ -26,7 +27,8 @@ final class RuntimeTests: XCTestCase {
         tart.vms["kinhin-1"] = TartVM(name: "kinhin-1", source: "tahoe-base", status: "stopped")
         let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
 
-        try await runtime.provision(id: "kinhin-1", route: RepoRoute(repo: "r", image: "tahoe-base", ephemeral: true, bootTimeout: 300))
+        try await runtime.provision(
+            id: "kinhin-1", route: RepoRoute(repo: "r", image: "tahoe-base", ephemeral: true, bootTimeout: 300))
 
         XCTAssertTrue(tart.cloneCalls.isEmpty, "recovery path: existing VM is reused, not cloned")
         XCTAssertTrue(tart.runCalls.isEmpty, "a running VM is left as-is")
@@ -38,7 +40,7 @@ final class RuntimeTests: XCTestCase {
         let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
 
         await runtime.teardown(id: "kinhin-1")
-        await runtime.teardown(id: "kinhin-1") // second call must not throw
+        await runtime.teardown(id: "kinhin-1")  // second call must not throw
 
         XCTAssertTrue(tart.stopCalls.contains("kinhin-1"))
         XCTAssertEqual(tart.deleteCalls.filter { $0 == "kinhin-1" }.count, 1, "delete runs once; second is a no-op")

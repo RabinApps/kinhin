@@ -26,7 +26,10 @@ public struct ContainerImagePreparer {
         public var hasGitHubToken: Bool?
         public var hasGiteaToken: Bool?
 
-        public init(image: String, target: String, user: String = "admin", toolchains: kinhinConfig.ToolchainsConfig? = nil, toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil) {
+        public init(
+            image: String, target: String, user: String = "admin", toolchains: kinhinConfig.ToolchainsConfig? = nil,
+            toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil
+        ) {
             self.image = image
             self.target = target
             self.user = user
@@ -57,7 +60,8 @@ public struct ContainerImagePreparer {
         let hasGitHubToken = options.hasGitHubToken ?? (KeychainTokenStore.load(forge: .github) != nil)
         let hasGiteaToken = options.hasGiteaToken ?? (KeychainTokenStore.load(forge: .gitea) != nil)
         guard hasGitHubToken || hasGiteaToken else {
-            throw ContainerImageError.noCredentials("store at least one platform token first (kinhin auth set / kinhin auth set --gitea)")
+            throw ContainerImageError.noCredentials(
+                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea)")
         }
 
         var lines: [String] = []
@@ -88,18 +92,23 @@ public struct ContainerImagePreparer {
         do {
             try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
         } catch {
-            Log.warn("container-image", "could not create toolchain cache dir (\(error.localizedDescription)); continuing without it")
+            Log.warn(
+                "container-image",
+                "could not create toolchain cache dir (\(error.localizedDescription)); continuing without it")
         }
 
         // 1. Boot a scratch container from the base image, with the host
         //    cache bind-mounted (`container run -v host:guest`).
         let scratch = "kinhin-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
         let hostCache = Paths.toolchainCache.path
-        Log.info("container-image", "starting scratch container from \(options.image) (host toolchain cache bind-mounted)")
-        _ = try await shell.run([containerBin, "run", "--detach",
-                                 "--volume", ToolchainCacheMount.volumeSpec(host: hostCache),
-                                 "--name", scratch, options.image,
-                                 "/bin/bash", "-lc", "while true; do sleep 3600; done"])
+        Log.info(
+            "container-image", "starting scratch container from \(options.image) (host toolchain cache bind-mounted)")
+        _ = try await shell.run([
+            containerBin, "run", "--detach",
+            "--volume", ToolchainCacheMount.volumeSpec(host: hostCache),
+            "--name", scratch, options.image,
+            "/bin/bash", "-lc", "while true; do sleep 3600; done",
+        ])
 
         do {
             // 2. Wait until it answers exec (the microVM takes a few seconds).
@@ -117,12 +126,18 @@ public struct ContainerImagePreparer {
             //    path. Failure aborts the bake so the previous target image
             //    stays intact.
             if let toolchains = options.toolchains {
-                let selection = ToolchainCatalog.selection(from: toolchains, platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath)
-                let managed = RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: selection, mountPath: ToolchainCacheMount.linuxGuestPath)
-                Log.info("container-image", "installing managed toolchains (\(selection.miseSpecs.count) mise spec(s), \(selection.aptPackages.count) apt package(s), \(selection.npmPackages.count) npm global(s); \(selection.skippedEntries.count) macOS-only entr(y/ies) skipped)")
+                let selection = ToolchainCatalog.selection(
+                    from: toolchains, platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath)
+                let managed = RunnerBootstrap.linuxManagedToolchainsInstallScript(
+                    selection: selection, mountPath: ToolchainCacheMount.linuxGuestPath)
+                Log.info(
+                    "container-image",
+                    "installing managed toolchains (\(selection.miseSpecs.count) mise spec(s), \(selection.aptPackages.count) apt package(s), \(selection.npmPackages.count) npm global(s); \(selection.skippedEntries.count) macOS-only entr(y/ies) skipped)"
+                )
                 let provisioned = try await shell.run([containerBin, "exec", scratch, "/bin/bash", "-lc", managed])
                 guard provisioned.succeeded else {
-                    throw ContainerImageError.provisioningFailed("managed toolchain install failed: \(String(provisioned.stderr.prefix(500)))")
+                    throw ContainerImageError.provisioningFailed(
+                        "managed toolchain install failed: \(String(provisioned.stderr.prefix(500)))")
                 }
                 let tail = String(provisioned.stdout.trimmingCharacters(in: .whitespacesAndNewlines).suffix(400))
                 if !tail.isEmpty {
@@ -140,7 +155,8 @@ public struct ContainerImagePreparer {
             try "FROM \(scratch)\n".write(to: dockerfile, atomically: true, encoding: .utf8)
             let build = try await shell.run([containerBin, "build", "--tag", options.target, workdir.path])
             guard build.succeeded else {
-                throw ContainerImageError.provisioningFailed("container build failed: \(String(build.stderr.prefix(500)))")
+                throw ContainerImageError.provisioningFailed(
+                    "container build failed: \(String(build.stderr.prefix(500)))")
             }
         } catch {
             _ = try? await shell.run([containerBin, "delete", "--force", scratch])
@@ -154,14 +170,17 @@ public struct ContainerImagePreparer {
     }
 
     /// Polls `container exec true` until the scratch container accepts exec.
-    func waitUntilReady(_ id: String, containerBin: String, timeout: TimeInterval = 120, pollInterval: TimeInterval = 2) async throws {
+    func waitUntilReady(_ id: String, containerBin: String, timeout: TimeInterval = 120, pollInterval: TimeInterval = 2)
+        async throws
+    {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             let probe = try await shell.run([containerBin, "exec", id, "/bin/true"])
             if probe.succeeded { return }
             try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
         }
-        throw ContainerImageError.provisioningFailed("scratch container never became ready for exec within \(Int(timeout))s")
+        throw ContainerImageError.provisioningFailed(
+            "scratch container never became ready for exec within \(Int(timeout))s")
     }
 }
 

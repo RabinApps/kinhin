@@ -15,7 +15,9 @@ public struct SSHExecutor: SSHExecuting {
         self.user = user
     }
 
-    public func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
+    public func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
+        -> ShellResult
+    {
         let b64 = Data(script.utf8).base64EncodedString()
         let remote = "echo \(b64) | base64 --decode | bash -s"
         var argv = [

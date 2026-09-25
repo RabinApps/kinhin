@@ -103,7 +103,9 @@ public struct GitHubForge: Forge {
 
     /// Build from a GitHubCredentials (the legacy single-forge path).
     public init(credentials: GitHubCredentials, labels: [String]) {
-        self.init(credentials: .github(token: credentials.token, scope: credentials.scope), labels: labels, client: GitHubClient(credentials: credentials))
+        self.init(
+            credentials: .github(token: credentials.token, scope: credentials.scope), labels: labels,
+            client: GitHubClient(credentials: credentials))
     }
 
     public func registrationURL() -> String {
@@ -158,7 +160,10 @@ public struct GiteaForge: Forge {
     /// Long-lived registration token captured at construction.
     let registrationToken: String
 
-    public init(credentials: ForgeCredentials, labels: [String], client: GiteaClient, demandFloor: Int = 0, registrationToken: String) {
+    public init(
+        credentials: ForgeCredentials, labels: [String], client: GiteaClient, demandFloor: Int = 0,
+        registrationToken: String
+    ) {
         self.credentials = credentials
         self.labels = labels
         self.client = client
@@ -168,7 +173,9 @@ public struct GiteaForge: Forge {
 
     /// Builds the forge from credentials, resolving the registration token
     /// up front (the same call the permission probe uses — fail fast here).
-    public static func make(credentials: GiteaCredentials, labels: [String], demandFloor: Int = 0) async throws -> GiteaForge {
+    public static func make(credentials: GiteaCredentials, labels: [String], demandFloor: Int = 0) async throws
+        -> GiteaForge
+    {
         let client = GiteaClient(credentials: credentials)
         let token = try await client.fetchRegistrationToken()
         return GiteaForge(
@@ -232,7 +239,10 @@ public struct ForgeFactory: Sendable {
         ForgeFactory { credentials, labels, floor in
             switch credentials {
             case .github:
-                return GitHubForge(credentials: credentials, labels: labels, client: GitHubClient(credentials: GitHubCredentials(token: token(of: credentials), scope: scope(of: credentials))))
+                return GitHubForge(
+                    credentials: credentials, labels: labels,
+                    client: GitHubClient(
+                        credentials: GitHubCredentials(token: token(of: credentials), scope: scope(of: credentials))))
             case .gitea(let token, let scope, let instance):
                 let gitea = GiteaCredentials(token: token, scope: scope, instance: instance)
                 return try await GiteaForge.make(credentials: gitea, labels: labels, demandFloor: floor)
@@ -261,7 +271,8 @@ public enum ForgeDemand {
     /// Merge queued jobs across forges into repo → count. Each contributing
     /// forge carries `attribution: Bool` — a repo-scoped forge suppresses its
     /// breakdown (it would carry no information), org-scoped forges keep it.
-    public static func mergeQueueByRepo(_ perForge: [ForgeID: (attribution: Bool, jobs: [ForgeJob])]) -> [String: Int]? {
+    public static func mergeQueueByRepo(_ perForge: [ForgeID: (attribution: Bool, jobs: [ForgeJob])]) -> [String: Int]?
+    {
         var merged: [String: Int] = [:]
         var any = false
         for (forge, entry) in perForge where entry.attribution {
@@ -276,7 +287,9 @@ public enum ForgeDemand {
     }
 
     /// Merge running jobs into repo → count (same suppression rule).
-    public static func mergeRunningByRepo(_ perForge: [ForgeID: (attribution: Bool, jobs: [ForgeJob])]) -> [String: Int]? {
+    public static func mergeRunningByRepo(_ perForge: [ForgeID: (attribution: Bool, jobs: [ForgeJob])]) -> [String:
+        Int]?
+    {
         mergeQueueByRepo(perForge)
     }
 
@@ -284,7 +297,8 @@ public enum ForgeDemand {
     /// unmet demand (queued jobs minus VMs already serving it). Ties prefer
     /// GitHub (the original platform): it is evaluated first and later
     /// forges need strictly greater unmet demand to take over.
-    public static func assignPlatform(demand: [ForgeID: Int], active: [ForgeID: Int], attached: Set<ForgeID>) -> ForgeID {
+    public static func assignPlatform(demand: [ForgeID: Int], active: [ForgeID: Int], attached: Set<ForgeID>) -> ForgeID
+    {
         var best: ForgeID = .github
         var bestUnmet = Int.min
         let ordered = attached.sorted { a, b in

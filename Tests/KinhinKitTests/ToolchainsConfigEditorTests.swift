@@ -1,13 +1,14 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class ToolchainsConfigEditorTests: XCTestCase {
     private let base = """
-    # my fleet
-    repo: "acme/widgets"
-    labels: [self-hosted, macOS]
-    max_runners: 2
-    """
+        # my fleet
+        repo: "acme/widgets"
+        labels: [self-hosted, macOS]
+        max_runners: 2
+        """
 
     func testRoundTripPreservesCommentsAndOtherKeys() throws {
         var sel = ToolchainsSelection()
@@ -47,15 +48,16 @@ final class ToolchainsConfigEditorTests: XCTestCase {
     }
 
     func testUnknownEntriesAndCachePolicySurviveAnEdit() throws {
-        let yaml = base + """
+        let yaml =
+            base + """
 
-        toolchains:
-          specs: ["zig@0.13", "go@1.22"]
-          cache:
-            auto_prune: false
-            max_age_days: 7
-            max_gb: 10
-        """
+                toolchains:
+                  specs: ["zig@0.13", "go@1.22"]
+                  cache:
+                    auto_prune: false
+                    max_age_days: 7
+                    max_gb: 10
+                """
         var sel = try ToolchainsConfigEditor.selection(from: yaml)
         XCTAssertEqual(sel.extraSpecs, ["zig@0.13"], "unknown specs are kept verbatim")
         XCTAssertEqual(sel.cache?.maxAgeDays, 7)
@@ -87,7 +89,7 @@ final class ToolchainsConfigEditorTests: XCTestCase {
         try base.write(to: url, atomically: true, encoding: .utf8)
 
         var bad = ToolchainsSelection()
-        bad.tools = ["pnpm": ""] // needs node: the engine rejects it
+        bad.tools = ["pnpm": ""]  // needs node: the engine rejects it
         XCTAssertThrowsError(try ToolchainsConfigEditor.apply(bad, to: url))
         XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), base, "the file is untouched")
 
@@ -118,12 +120,13 @@ final class ToolchainsConfigEditorTests: XCTestCase {
     /// Tools without a defaultSpec and stacks without a defaultVersion render
     /// an em dash, never a blank cell.
     func testVersionFieldsNeverBlank() throws {
-        let yaml = base + """
+        let yaml =
+            base + """
 
-        toolchains:
-          specs: ["node"]
-          stacks: ["expo", "vercel", "cloudflare"]
-        """
+                toolchains:
+                  specs: ["node"]
+                  stacks: ["expo", "vercel", "cloudflare"]
+                """
         var sel = try ToolchainsConfigEditor.selection(from: yaml)
         sel.tools["yamllint"] = ""
         sel.tools["fastlane"] = ""
@@ -143,16 +146,23 @@ final class ToolchainsConfigEditorTests: XCTestCase {
     // MARK: Selection is populated for a full active config
 
     func testFullActiveConfigSelectionIsPopulated() throws {
-        let yaml = base + """
+        let yaml =
+            base + """
 
-        toolchains:
-          specs: ["node", "go", "rust", "python", "ruby", "java", "bun", "deno", "uv", "terraform", "kubectl", "pnpm", "yarn", "playwright", "cypress", "netlify-cli", "firebase-tools", "yamllint", "awscli", "supabase", "flyctl", "gcloud", "php", "composer", "dotnet", "fastlane"]
-          stacks: ["flutter", "expo", "react-native", "vercel", "cloudflare"]
-        """
+                toolchains:
+                  specs: ["node", "go", "rust", "python", "ruby", "java", "bun", "deno", "uv", "terraform", "kubectl", "pnpm", "yarn", "playwright", "cypress", "netlify-cli", "firebase-tools", "yamllint", "awscli", "supabase", "flyctl", "gcloud", "php", "composer", "dotnet", "fastlane"]
+                  stacks: ["flutter", "expo", "react-native", "vercel", "cloudflare"]
+                """
         let sel = try ToolchainsConfigEditor.selection(from: yaml)
         // Every curated spec root maps to a known catalog tool.
         let knownRoots = Set(sel.tools.keys).intersection(Set(ToolchainCatalog.tools.map(\.id)))
-        XCTAssertEqual(knownRoots, Set(["node", "go", "rust", "python", "ruby", "java", "bun", "deno", "uv", "terraform", "kubectl", "pnpm", "yarn", "playwright", "cypress", "netlify-cli", "firebase-tools", "yamllint", "awscli", "supabase", "flyctl", "gcloud", "php", "composer", "dotnet", "fastlane"]))
+        XCTAssertEqual(
+            knownRoots,
+            Set([
+                "node", "go", "rust", "python", "ruby", "java", "bun", "deno", "uv", "terraform", "kubectl", "pnpm",
+                "yarn", "playwright", "cypress", "netlify-cli", "firebase-tools", "yamllint", "awscli", "supabase",
+                "flyctl", "gcloud", "php", "composer", "dotnet", "fastlane",
+            ]))
         // Every curated stack maps by id.
         XCTAssertEqual(sel.stacks.keys.sorted(), ["cloudflare", "expo", "flutter", "react-native", "vercel"])
         XCTAssertEqual(sel.extraSpecs, [] as [String])

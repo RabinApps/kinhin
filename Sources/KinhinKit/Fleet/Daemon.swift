@@ -11,7 +11,9 @@ public enum Daemon {
         Log.setLogFile(directory: Paths.logsDirectory)
 
         if RPCClient.isDaemonAlive() {
-            Log.warn("daemon", "another daemon appears to be running; continuing anyway (bind will fail if the socket is taken)")
+            Log.warn(
+                "daemon",
+                "another daemon appears to be running; continuing anyway (bind will fail if the socket is taken)")
         }
 
         let cfg: kinhinConfig
@@ -22,7 +24,8 @@ public enum Daemon {
             throw error
         }
         guard let pat = ConfigLoader.engineToken(for: cfg) else {
-            let message = cfg.githubEnabled
+            let message =
+                cfg.githubEnabled
                 ? "no GitHub token in Keychain — run `kinhin auth` first"
                 : "no forge ready — set a GitHub repo or a gitea: section, and store its token (`kinhin auth set`)"
             Log.error("daemon", message)
@@ -118,7 +121,8 @@ public enum Daemon {
             // Resolve the engine per request (a rebuild swaps the box's
             // contents mid-flight; every method reads it fresh).
             guard let engine = engineRef.engine else {
-                return RPCResponse(id: request.id, ok: false, error: "no engine (rebuild failed) — fix the config and edit again")
+                return RPCResponse(
+                    id: request.id, ok: false, error: "no engine (rebuild failed) — fix the config and edit again")
             }
             switch request.method {
             case .ping:
@@ -140,21 +144,24 @@ public enum Daemon {
                 return RPCResponse(id: request.id, ok: true)
             case .deleteVM:
                 guard let payload = request.payload,
-                      let id = try? decoder.decode(VMDeleteRequest.self, from: payload).id else {
+                    let id = try? decoder.decode(VMDeleteRequest.self, from: payload).id
+                else {
                     return RPCResponse(id: request.id, ok: false, error: "expected {\"id\": \"...\"}")
                 }
                 await engine.deleteVM(id: id)
                 return RPCResponse(id: request.id, ok: true)
             case .replaceGiteaToken:
                 guard let payload = request.payload,
-                      let replacement = try? decoder.decode(GiteaTokenReplaceRequest.self, from: payload) else {
+                    let replacement = try? decoder.decode(GiteaTokenReplaceRequest.self, from: payload)
+                else {
                     return RPCResponse(id: request.id, ok: false, error: "expected {\"token\": \"...\"}")
                 }
                 await engine.replaceGiteaToken(replacement.token)
                 return RPCResponse(id: request.id, ok: true)
             case .replaceToken:
                 guard let payload = request.payload,
-                      let replacement = try? decoder.decode(TokenReplaceRequest.self, from: payload) else {
+                    let replacement = try? decoder.decode(TokenReplaceRequest.self, from: payload)
+                else {
                     return RPCResponse(id: request.id, ok: false, error: "expected {\"pat\": \"...\"}")
                 }
                 // The caller (app or CLI) has already saved the token to the
@@ -190,7 +197,10 @@ public enum Daemon {
                         }
                         await engine.detachKeepingInstances()
                         engineRef.set(replacement)
-                        Log.info("daemon", "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))")
+                        Log.info(
+                            "daemon",
+                            "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))"
+                        )
                         return RPCResponse(id: request.id, ok: true)
                     }
                     await engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
@@ -236,28 +246,28 @@ public enum Daemon {
     /// Write the LaunchAgent plist pointing at the given kinhin binary.
     public static func installAgent(binaryPath: String) throws {
         let plist = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>Label</key>
-            <string>com.kinhin.daemon</string>
-            <key>ProgramArguments</key>
-            <array>
-                <string>\(binaryPath)</string>
-                <string>daemon</string>
-            </array>
-            <key>RunAtLoad</key>
-            <true/>
-            <key>KeepAlive</key>
-            <true/>
-            <key>StandardOutPath</key>
-            <string>\(Paths.logsDirectory.appendingPathComponent("daemon.out.log").path)</string>
-            <key>StandardErrorPath</key>
-            <string>\(Paths.logsDirectory.appendingPathComponent("daemon.err.log").path)</string>
-        </dict>
-        </plist>
-        """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>Label</key>
+                <string>com.kinhin.daemon</string>
+                <key>ProgramArguments</key>
+                <array>
+                    <string>\(binaryPath)</string>
+                    <string>daemon</string>
+                </array>
+                <key>RunAtLoad</key>
+                <true/>
+                <key>KeepAlive</key>
+                <true/>
+                <key>StandardOutPath</key>
+                <string>\(Paths.logsDirectory.appendingPathComponent("daemon.out.log").path)</string>
+                <key>StandardErrorPath</key>
+                <string>\(Paths.logsDirectory.appendingPathComponent("daemon.err.log").path)</string>
+            </dict>
+            </plist>
+            """
         let url = agentPlistPath()
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try plist.write(to: url, atomically: true, encoding: .utf8)

@@ -1,5 +1,6 @@
-import XCTest
 import KinhinKit
+import XCTest
+
 @testable import kinhin
 
 final class RenderStatusTests: XCTestCase {
@@ -45,7 +46,8 @@ final class RenderStatusTests: XCTestCase {
         var status = FleetStatus()
         status.queueDepth = 0
         status.queueByRepo = ["alpha/one": 0]
-        XCTAssertFalse(renderStatus(status).contains("queue by repo"), "stale per-repo rows must not render for an empty queue")
+        XCTAssertFalse(
+            renderStatus(status).contains("queue by repo"), "stale per-repo rows must not render for an empty queue")
     }
 
     func testRunningByRepoShownWhenJobsActive() {

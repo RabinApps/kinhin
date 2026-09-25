@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class GiteaClientTests: XCTestCase {
@@ -16,11 +17,11 @@ final class GiteaClientTests: XCTestCase {
             XCTAssertTrue(request.url!.path.hasPrefix("/api/v1/repos/search"))
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "token gt")
             let body = """
-            {"ok":true,"data":[
-              {"full_name":"acme/api","private":false,"has_actions":true},
-              {"full_name":"acme/web","private":true,"has_actions":false}
-            ]}
-            """
+                {"ok":true,"data":[
+                  {"full_name":"acme/api","private":false,"has_actions":true},
+                  {"full_name":"acme/web","private":true,"has_actions":false}
+                ]}
+                """
             return (200, Data(body.utf8), [:])
         }
         defer { StubProtocol.handler = nil }
@@ -35,8 +36,8 @@ final class GiteaClientTests: XCTestCase {
             // A bare top-level JSON array (older Gitea) is not valid inside
             // the wrapped shape's {ok,data} — exercise the fallback path.
             let body = """
-            [{"full_name":"acme/only","private":false,"has_actions":true}]
-            """
+                [{"full_name":"acme/only","private":false,"has_actions":true}]
+                """
             return (200, Data(body.utf8), [:])
         }
         defer { StubProtocol.handler = nil }

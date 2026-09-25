@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 final class AutoscalerTests: XCTestCase {
@@ -46,8 +47,11 @@ final class AutoscalerTests: XCTestCase {
                 for maxR in [1, 4] {
                     for cap in [1, 3, 8] {
                         XCTAssertEqual(
-                            Autoscaler.desiredCount(queueDepth: queue, minRunners: minR, maxRunners: maxR, capacityCap: cap, runnersPerVM: 1),
-                            Autoscaler.desiredCount(queueDepth: queue, minRunners: minR, maxRunners: maxR, capacityCap: cap),
+                            Autoscaler.desiredCount(
+                                queueDepth: queue, minRunners: minR, maxRunners: maxR, capacityCap: cap, runnersPerVM: 1
+                            ),
+                            Autoscaler.desiredCount(
+                                queueDepth: queue, minRunners: minR, maxRunners: maxR, capacityCap: cap),
                             "rpv=1 diverged from legacy at q=\(queue) min=\(minR) max=\(maxR) cap=\(cap)"
                         )
                     }
@@ -58,13 +62,17 @@ final class AutoscalerTests: XCTestCase {
 
     func testRunnersPerVMHalvesVMsNeeded() {
         // 12 queued jobs, 6 runners per VM → 2 VMs (bounded by max_runners).
-        XCTAssertEqual(Autoscaler.desiredCount(queueDepth: 12, minRunners: 0, maxRunners: 4, capacityCap: 4, runnersPerVM: 6), 2)
+        XCTAssertEqual(
+            Autoscaler.desiredCount(queueDepth: 12, minRunners: 0, maxRunners: 4, capacityCap: 4, runnersPerVM: 6), 2)
         // Odd remainder rounds up: 5 jobs at rpv=2 → 3 VMs.
-        XCTAssertEqual(Autoscaler.desiredCount(queueDepth: 5, minRunners: 0, maxRunners: 4, capacityCap: 4, runnersPerVM: 2), 3)
+        XCTAssertEqual(
+            Autoscaler.desiredCount(queueDepth: 5, minRunners: 0, maxRunners: 4, capacityCap: 4, runnersPerVM: 2), 3)
         // min_runners still counts VMs, not jobs.
-        XCTAssertEqual(Autoscaler.desiredCount(queueDepth: 0, minRunners: 2, maxRunners: 4, capacityCap: 4, runnersPerVM: 3), 2)
+        XCTAssertEqual(
+            Autoscaler.desiredCount(queueDepth: 0, minRunners: 2, maxRunners: 4, capacityCap: 4, runnersPerVM: 3), 2)
         // Capacity still clamps VM count regardless of density.
-        XCTAssertEqual(Autoscaler.desiredCount(queueDepth: 40, minRunners: 0, maxRunners: 8, capacityCap: 2, runnersPerVM: 8), 2)
+        XCTAssertEqual(
+            Autoscaler.desiredCount(queueDepth: 40, minRunners: 0, maxRunners: 8, capacityCap: 2, runnersPerVM: 8), 2)
     }
 
     func testJobCapacityMath() {

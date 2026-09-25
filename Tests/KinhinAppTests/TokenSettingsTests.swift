@@ -1,7 +1,8 @@
-import XCTest
 import KinhinKit
-@testable import kinhin_app
+import XCTest
+
 @testable import KinhinKit
+@testable import kinhin_app
 
 /// The token settings form's per-provider card content: stored/missing state,
 /// masked Keychain prefix, and the config-aware status lines (a Gitea card

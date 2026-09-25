@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 @testable import kinhin
 
@@ -13,11 +14,14 @@ final class DoctorReportTests: XCTestCase {
 
     private let host = HostResources(logicalCores: 10, memoryGB: 32, freeDiskGB: 200, arm64: true)
 
-    private static func config(repo: String = "acme/widgets", gitea: Bool = false, container: Bool = false) -> kinhinConfig {
+    private static func config(repo: String = "acme/widgets", gitea: Bool = false, container: Bool = false)
+        -> kinhinConfig
+    {
         var cfg = kinhinConfig.default
         cfg.repo = repo
         if gitea {
-            cfg.gitea = kinhinConfig.GiteaForgeConfig(instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
+            cfg.gitea = kinhinConfig.GiteaForgeConfig(
+                instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
         }
         if container {
             cfg.container = kinhinConfig.ContainerConfig(image: "kinhin-ci-linux", cpus: 4, memoryGB: 8)
@@ -37,7 +41,9 @@ final class DoctorReportTests: XCTestCase {
             host: host,
             clt: clt,
             tartHealth: tartHealth,
-            tartList: [TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "stopped")],
+            tartList: [
+                TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "stopped")
+            ],
             config: config.map(ConfigScenario.loaded) ?? .missing,
             authLoad: { stored[$0] },
             containerHealth: containerHealth,
@@ -77,7 +83,8 @@ final class DoctorReportTests: XCTestCase {
         ).build()
         XCTAssertEqual(found.container?.state, "ready")
         XCTAssertEqual(found.container?.image, "kinhin-ci-linux")
-        XCTAssertTrue(found.container?.imageFound ?? false, "a tag-prefixed local image matches (same rule as the checklist)")
+        XCTAssertTrue(
+            found.container?.imageFound ?? false, "a tag-prefixed local image matches (same rule as the checklist)")
 
         let absent = await builder(
             config: Self.config(container: true),
@@ -119,8 +126,9 @@ final class DoctorReportTests: XCTestCase {
             stored: [.github: "ghp_x", .gitea: "gt_x"],
             config: Self.config(gitea: true)
         ).build()
-        XCTAssertTrue(withGitea.checks.contains { $0.id == "gitea-token" && $0.ok },
-                      "the embedded checklist sees the same token source as the auth half")
+        XCTAssertTrue(
+            withGitea.checks.contains { $0.id == "gitea-token" && $0.ok },
+            "the embedded checklist sees the same token source as the auth half")
 
         let without = await builder(stored: [.github: "ghp_x"], config: Self.config()).build()
         XCTAssertFalse(without.checks.contains { $0.id == "gitea-token" })
@@ -132,7 +140,8 @@ final class DoctorReportTests: XCTestCase {
         let both = await builder(stored: [.github: "ghp_x"], config: Self.config()).build()
         XCTAssertTrue(both.ready, "green checklist + stored scoped token → ready")
 
-        let checklistBlocked = await builder(stored: [.github: "ghp_x"], config: Self.config(), tartHealth: .missing).build()
+        let checklistBlocked = await builder(stored: [.github: "ghp_x"], config: Self.config(), tartHealth: .missing)
+            .build()
         XCTAssertFalse(checklistBlocked.ready, "a red checklist row blocks ready even with tokens stored")
 
         let authBlocked = await builder(config: Self.config()).build()
@@ -187,15 +196,17 @@ final class DoctorReportTests: XCTestCase {
         XCTAssertFalse(killed.ok)
         XCTAssertTrue(killed.reason?.contains("openai/homebrew-tools#27") ?? false)
         XCTAssertEqual(killed.repairCommands.count, 2)
-        XCTAssertTrue(killed.repairCommands[0].contains("cirruslabs/cli/tart"),
-                      "a Gatekeeper kill rolls back to the notarized Cirrus build FIRST")
+        XCTAssertTrue(
+            killed.repairCommands[0].contains("cirruslabs/cli/tart"),
+            "a Gatekeeper kill rolls back to the notarized Cirrus build FIRST")
         XCTAssertTrue(killed.repairCommands[1].contains("openai/tools/tart"))
 
         let broken = DoctorReportBuilder.tartSection(from: .broken("exited with code 1"))
         XCTAssertEqual(broken.state, "broken")
         XCTAssertEqual(broken.reason, "exited with code 1")
-        XCTAssertTrue(broken.repairCommands[0].contains("openai/tools/tart"),
-                      "an unknown breakage tries a reinstall first")
+        XCTAssertTrue(
+            broken.repairCommands[0].contains("openai/tools/tart"),
+            "an unknown breakage tries a reinstall first")
         XCTAssertEqual(broken.repairCommands.count, 2)
 
         let missingRepair = DoctorReportBuilder.tartSection(from: .missing)
@@ -269,9 +280,12 @@ final class DoctorReportTests: XCTestCase {
             .appendingPathComponent("kinhin-doctor-cache-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        try FileManager.default.createDirectory(at: root.appendingPathComponent("npm/tarballs"), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: root.appendingPathComponent("mise/downloads"), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: root.appendingPathComponent("empty"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("npm/tarballs"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("mise/downloads"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("empty"), withIntermediateDirectories: true)
         try Data(repeating: 0x41, count: 2048).write(to: root.appendingPathComponent("npm/tarballs/react.tar"))
         try Data(repeating: 0x41, count: 512).write(to: root.appendingPathComponent("mise/downloads/node.tar.zst"))
         try Data(repeating: 0x41, count: 16).write(to: root.appendingPathComponent("empty/.keep"))
@@ -291,8 +305,9 @@ final class DoctorReportTests: XCTestCase {
         cfg.toolchains = kinhinConfig.ToolchainsConfig(specs: ["go@1.23", "go@latest"])
         let section = DoctorReportBuilder.toolchainCacheSection(config: cfg)
         if section.usable {
-            XCTAssertEqual(section.ecosystems.map(\.directory), ["mise", "go/mod", "go/build"],
-                           "the breakdown mirrors the selection's cache map (deduped, MISE umbrella first)")
+            XCTAssertEqual(
+                section.ecosystems.map(\.directory), ["mise", "go/mod", "go/build"],
+                "the breakdown mirrors the selection's cache map (deduped, MISE umbrella first)")
         }
     }
 

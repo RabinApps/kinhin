@@ -16,7 +16,9 @@ struct TokenSettingsRow: Equatable {
     /// `gitea:` block) — a token can still be stored, it just isn't in use.
     let configured: Bool
 
-    static func make(forge: ForgeID, token: String?, repo: String?, gitea: kinhinConfig.GiteaForgeConfig?) -> TokenSettingsRow {
+    static func make(forge: ForgeID, token: String?, repo: String?, gitea: kinhinConfig.GiteaForgeConfig?)
+        -> TokenSettingsRow
+    {
         let masked = token.map { String($0.prefix(4)) + "…" } ?? "—"
         switch forge {
         case .github:
@@ -98,7 +100,7 @@ final class TokenSettingsWindowController: NSWindowController {
             )
             window.title = "kinhin Tokens"
             window.titlebarAppearsTransparent = true
-            window.appearance = nil // follow the system (light & dark)
+            window.appearance = nil  // follow the system (light & dark)
             window.backgroundColor = .windowBackgroundColor
             window.contentView = contentContainer
             window.center()
@@ -133,7 +135,10 @@ final class TokenSettingsWindowController: NSWindowController {
         rowsStack.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(rowsStack)
 
-        let hint = NSTextField(wrappingLabelWithString: "Tokens live in your login Keychain — never in a file. A running fleet (app or daemon) picks up the new token without a restart.")
+        let hint = NSTextField(
+            wrappingLabelWithString:
+                "Tokens live in your login Keychain — never in a file. A running fleet (app or daemon) picks up the new token without a restart."
+        )
         hint.font = .systemFont(ofSize: 11)
         hint.textColor = .tertiaryLabelColor
         hint.translatesAutoresizingMaskIntoConstraints = false
@@ -259,8 +264,9 @@ final class TokenSettingsWindowController: NSWindowController {
 
     @objc private func replaceClicked(_ sender: NSButton) {
         guard let id = sender.identifier?.rawValue, id.hasPrefix("replace_"),
-              let forge = ForgeID(rawValue: String(id.dropFirst("replace_".count))),
-              let input = inputs[forge] else { return }
+            let forge = ForgeID(rawValue: String(id.dropFirst("replace_".count))),
+            let input = inputs[forge]
+        else { return }
         let token = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else {
             input.selectText(nil)
@@ -294,7 +300,8 @@ final class TokenSettingsWindowController: NSWindowController {
     /// the verdict inline on the card.
     @objc private func checkClicked(_ sender: NSButton) {
         guard let id = sender.identifier?.rawValue, id.hasPrefix("check_"),
-              let forge = ForgeID(rawValue: String(id.dropFirst("check_".count))) else { return }
+            let forge = ForgeID(rawValue: String(id.dropFirst("check_".count)))
+        else { return }
         let typed = inputs[forge]?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let config = try? ConfigLoader.load()
 

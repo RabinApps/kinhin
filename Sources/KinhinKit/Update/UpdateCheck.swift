@@ -3,14 +3,16 @@ import Foundation
 /// Everything the UI needs to know about the latest GitHub release.
 public struct UpdateInfo: Equatable, Sendable {
     public let tag: String
-    public let version: String // "1.2.3" without the leading "v"
+    public let version: String  // "1.2.3" without the leading "v"
     public let dmgName: String
     public let dmgURL: URL
     public let releaseURL: URL
     public let publishedAt: Date?
     public let notes: String?
 
-    public init(tag: String, version: String, dmgName: String, dmgURL: URL, releaseURL: URL, publishedAt: Date?, notes: String?) {
+    public init(
+        tag: String, version: String, dmgName: String, dmgURL: URL, releaseURL: URL, publishedAt: Date?, notes: String?
+    ) {
         self.tag = tag
         self.version = version
         self.dmgName = dmgName
@@ -58,13 +60,13 @@ public func isVersion(_ a: String, olderThan b: String) -> Bool {
         let digits = s.prefix(while: { $0.isNumber })
         return (Int(digits) ?? -1, String(s.dropFirst(digits.count)))
     }
-    for i in 0 ..< max(left.count, right.count) {
+    for i in 0..<max(left.count, right.count) {
         let l = i < left.count ? left[i] : "0"
         let r = i < right.count ? right[i] : "0"
         let (li, ls) = parts(l)
         let (ri, rs) = parts(r)
         if li != ri { return li < ri }
-        if ls.isEmpty != rs.isEmpty { return !ls.isEmpty } // "-beta" < ""
+        if ls.isEmpty != rs.isEmpty { return !ls.isEmpty }  // "-beta" < ""
         if ls != rs { return ls < rs }
     }
     return false
@@ -74,7 +76,7 @@ public func isVersion(_ a: String, olderThan b: String) -> Bool {
 /// thrown errors so the caller decides whether to stay silent; the comparison
 /// itself is pure and unit-tested.
 public struct UpdateChecker: Sendable {
-    public let repo: String // "RabinApps/name"
+    public let repo: String  // "RabinApps/name"
     public let currentVersion: String
     let session: URLSession
 
@@ -119,7 +121,7 @@ public struct UpdateChecker: Sendable {
         guard let http = response as? HTTPURLResponse else {
             throw UpdateCheckError.http(0, "non-HTTP response")
         }
-        guard (200 ... 299).contains(http.statusCode) else {
+        guard (200...299).contains(http.statusCode) else {
             if http.statusCode == 404 {
                 throw UpdateCheckError.notFound(repo)
             }
@@ -151,7 +153,10 @@ public struct UpdateChecker: Sendable {
 
         let version = release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name
         let wanted = Self.dmgAssetName(forVersion: version)
-        guard let dmg = release.assets.first(where: { $0.name == wanted }) ?? release.assets.first(where: { $0.name.hasSuffix("-arm64.dmg") }) else {
+        guard
+            let dmg = release.assets.first(where: { $0.name == wanted })
+                ?? release.assets.first(where: { $0.name.hasSuffix("-arm64.dmg") })
+        else {
             throw UpdateCheckError.noDMGAsset(release.tag_name)
         }
         return UpdateInfo(
@@ -175,7 +180,7 @@ public struct UpdateChecker: Sendable {
 
         let delegate = DownloadProgressDelegate(progress: progress)
         let (location, response) = try await session.download(for: URLRequest(url: info.dmgURL), delegate: delegate)
-        if let http = response as? HTTPURLResponse, !(200 ... 299).contains(http.statusCode) {
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
             try? FileManager.default.removeItem(at: location)
             throw UpdateCheckError.http(http.statusCode, "downloading \(info.dmgName)")
         }
@@ -192,7 +197,10 @@ final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate, @unc
         self.progress = progress
     }
 
-    func urlSession(_: URLSession, downloadTask _: URLSessionDownloadTask, didWriteData _: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+    func urlSession(
+        _: URLSession, downloadTask _: URLSessionDownloadTask, didWriteData _: Int64, totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
         guard totalBytesExpectedToWrite > 0 else { return }
         progress?(Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
     }

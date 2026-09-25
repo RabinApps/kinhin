@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Covers the Apple `container` execution runtime (github.com/apple/container):
@@ -125,7 +126,8 @@ final class AppleContainerRuntimeTests: XCTestCase {
         let gitea = GiteaForge(
             credentials: .gitea(token: "t", scope: "acme/widgets", instance: "https://gitea.example.com"),
             labels: ["linux:host"],
-            client: GiteaClient(credentials: GiteaCredentials(token: "t", scope: "acme/widgets", instance: "https://gitea.example.com")),
+            client: GiteaClient(
+                credentials: GiteaCredentials(token: "t", scope: "acme/widgets", instance: "https://gitea.example.com")),
             demandFloor: 0,
             registrationToken: "GT"
         )
@@ -142,8 +144,8 @@ final class AppleContainerRuntimeTests: XCTestCase {
     func testAwaitRunningPollsUntilContainerAppears() async throws {
         let shell = ScriptedShell()
         shell.responses = [
-            ShellResult(exitCode: 1, stdout: "", stderr: ""),   // not yet
-            ShellResult(exitCode: 1, stdout: "", stderr: ""),   // not yet
+            ShellResult(exitCode: 1, stdout: "", stderr: ""),  // not yet
+            ShellResult(exitCode: 1, stdout: "", stderr: ""),  // not yet
             ShellResult(exitCode: 0, stdout: "kinhin-abc\n", stderr: ""),  // up
         ]
         let runtime = AppleContainerRuntime(
@@ -192,34 +194,40 @@ final class AppleContainerRuntimeTests: XCTestCase {
 
     func testContainerConfigParsingAndValidation() throws {
         let yaml = """
-        repo: "acme/widgets"
-        labels: ["kinhin"]
-        container:
-          image: "kinhin-ci-linux"
-          cpus: 2
-          memory_gb: 4
-        """
+            repo: "acme/widgets"
+            labels: ["kinhin"]
+            container:
+              image: "kinhin-ci-linux"
+              cpus: 2
+              memory_gb: 4
+            """
         let cfg = try ConfigLoader.parse(yaml)
         let container = try XCTUnwrap(cfg.container)
         XCTAssertEqual(container.image, "kinhin-ci-linux")
         XCTAssertEqual(container.cpus, 2)
         XCTAssertEqual(container.memoryGB, 4)
 
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["kinhin"]
-        container:
-          image: ""
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["kinhin"]
+                container:
+                  image: ""
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("container.image must not be empty"))
         }
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["kinhin"]
-        container:
-          image: "x"
-          memory_gb: 1
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["kinhin"]
+                container:
+                  image: "x"
+                  memory_gb: 1
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("container.memory_gb must be >= 2"))
         }
     }
@@ -338,7 +346,9 @@ final class ContainerFakingShell: ShellRunning, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         argvs.append(argv)
-        guard argv.first == nil || argv.first == "/usr/local/bin/container" || argv.first?.hasSuffix("container") == true else {
+        guard
+            argv.first == nil || argv.first == "/usr/local/bin/container" || argv.first?.hasSuffix("container") == true
+        else {
             return ShellResult(exitCode: 0, stdout: "", stderr: "")
         }
         switch argv.dropFirst().first {

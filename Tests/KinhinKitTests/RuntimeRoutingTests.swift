@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Stage 2 routing: label pools, job→pool assignment (workflow route →
@@ -18,7 +19,9 @@ final class RuntimeRoutingTests: XCTestCase {
         ]
     }
 
-    private func mixedConfig(defaultRuntime: String = "tart", budget: [String: Double] = ["tart": 0.6, "appleContainer": 0.4]) -> kinhinConfig.RuntimeConfig {
+    private func mixedConfig(
+        defaultRuntime: String = "tart", budget: [String: Double] = ["tart": 0.6, "appleContainer": 0.4]
+    ) -> kinhinConfig.RuntimeConfig {
         kinhinConfig.RuntimeConfig(defaultRuntime: defaultRuntime, budget: budget, routes: mixedRoutes())
     }
 
@@ -49,7 +52,8 @@ final class RuntimeRoutingTests: XCTestCase {
 
     func testSingleContainerPoolWhenContainerConfiguredWithoutRouting() {
         let model = RuntimeConfigModel(config: nil, fleetLabels: fleetLabels, containerConfigured: true)
-        XCTAssertEqual(model.pools.count, 1, "no runtimes: section → the fleet stays single-pool (pre-routing behavior)")
+        XCTAssertEqual(
+            model.pools.count, 1, "no runtimes: section → the fleet stays single-pool (pre-routing behavior)")
         XCTAssertEqual(model.defaultRuntime, .appleContainer)
         XCTAssertTrue(model.pools[.appleContainer]?.labels.contains("kinhin-container") ?? false)
     }
@@ -190,12 +194,13 @@ final class RuntimeRoutingTests: XCTestCase {
 
     func testDemandBucketing() {
         let (model, _, _) = router()
-        let bucketed = model.demandByPool(for: jobs([
-            ("acme/ios-app", "build", nil),
-            ("acme/api", "build", nil),
-            ("acme/api", "build2", nil),
-            ("acme/other", "misc", nil),
-        ]), forgeID: .github)
+        let bucketed = model.demandByPool(
+            for: jobs([
+                ("acme/ios-app", "build", nil),
+                ("acme/api", "build", nil),
+                ("acme/api", "build2", nil),
+                ("acme/other", "misc", nil),
+            ]), forgeID: .github)
         XCTAssertEqual(bucketed[.tart], 2, "ios-app route + default")
         XCTAssertEqual(bucketed[.appleContainer], 2, "api route counts 2")
     }
@@ -240,20 +245,21 @@ final class RuntimeRoutingTests: XCTestCase {
     // MARK: - Config parsing & validation
 
     func testRuntimesSectionParses() throws {
-        let cfg = try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        container:
-          image: "kinhin-ci-linux"
-        runtimes:
-          default: tart
-          budget: {tart: 0.6, appleContainer: 0.4}
-          routes:
-            - pattern: "acme/api"
-              runtime: appleContainer
-            - pattern: "acme/web@Nightly"
-              runtime: appleContainer
-        """)
+        let cfg = try ConfigLoader.parse(
+            """
+            repo: "acme"
+            labels: ["kinhin"]
+            container:
+              image: "kinhin-ci-linux"
+            runtimes:
+              default: tart
+              budget: {tart: 0.6, appleContainer: 0.4}
+              routes:
+                - pattern: "acme/api"
+                  runtime: appleContainer
+                - pattern: "acme/web@Nightly"
+                  runtime: appleContainer
+            """)
         let runtimes = try XCTUnwrap(cfg.runtimes)
         XCTAssertEqual(runtimes.defaultRuntime, "tart")
         XCTAssertEqual(runtimes.routes.count, 2)
@@ -262,85 +268,103 @@ final class RuntimeRoutingTests: XCTestCase {
     }
 
     func testRuntimesRejectsUnknownRuntime() {
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        runtimes:
-          routes:
-            - pattern: "acme/api"
-              runtime: kubernetes
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme"
+                labels: ["kinhin"]
+                runtimes:
+                  routes:
+                    - pattern: "acme/api"
+                      runtime: kubernetes
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("unknown runtime"), "got: \(error)")
         }
     }
 
     func testRuntimesRejectsDockerRoutesWithoutDockerConfig() {
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        runtimes:
-          routes:
-            - pattern: "acme/api"
-              runtime: docker
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme"
+                labels: ["kinhin"]
+                runtimes:
+                  routes:
+                    - pattern: "acme/api"
+                      runtime: docker
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("no docker: section"), "got: \(error)")
         }
     }
 
     func testRuntimesRejectsContainerRoutesWithoutContainerConfig() {
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        runtimes:
-          routes:
-            - pattern: "acme/api"
-              runtime: appleContainer
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme"
+                labels: ["kinhin"]
+                runtimes:
+                  routes:
+                    - pattern: "acme/api"
+                      runtime: appleContainer
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("no container: section"))
         }
     }
 
     func testRuntimesRejectsOversubscribedBudget() {
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        container:
-          image: "img"
-        runtimes:
-          budget: {tart: 0.8, appleContainer: 0.8}
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme"
+                labels: ["kinhin"]
+                container:
+                  image: "img"
+                runtimes:
+                  budget: {tart: 0.8, appleContainer: 0.8}
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("must be <= 1.0"))
         }
     }
 
     func testRuntimesRejectsMalformedPatterns() {
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        container:
-          image: "img"
-        runtimes:
-          routes:
-            - pattern: "just-a-name"
-              runtime: tart
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme"
+                labels: ["kinhin"]
+                container:
+                  image: "img"
+                runtimes:
+                  routes:
+                    - pattern: "just-a-name"
+                      runtime: tart
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("RabinApps/name"))
         }
     }
 
     func testRuntimesRejectsDuplicatePatterns() {
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme"
-        labels: ["kinhin"]
-        container:
-          image: "img"
-        runtimes:
-          routes:
-            - pattern: "acme/api"
-              runtime: appleContainer
-            - pattern: "acme/api"
-              runtime: tart
-        """)) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme"
+                labels: ["kinhin"]
+                container:
+                  image: "img"
+                runtimes:
+                  routes:
+                    - pattern: "acme/api"
+                      runtime: appleContainer
+                    - pattern: "acme/api"
+                      runtime: tart
+                """)
+        ) { error in
             XCTAssertTrue("\(error)".contains("duplicate"))
         }
     }

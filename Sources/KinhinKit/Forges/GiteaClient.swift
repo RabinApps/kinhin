@@ -28,7 +28,8 @@ public enum GiteaError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
-            return "Gitea rejected the access token (401) — expired, revoked, or wrong instance. Fix: kinhin auth set --gitea"
+            return
+                "Gitea rejected the access token (401) — expired, revoked, or wrong instance. Fix: kinhin auth set --gitea"
         case .forbidden(let why):
             return "Gitea forbidden (403): \(why)"
         case .notFound(let what):
@@ -74,9 +75,10 @@ public struct GiteaCredentials: Sendable {
 
     static func validate(instance: String) throws -> URL {
         guard let url = URL(string: instance),
-              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
-              let host = url.host, !host.isEmpty,
-              url.path.isEmpty || url.path == "/" else {
+            let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+            let host = url.host, !host.isEmpty,
+            url.path.isEmpty || url.path == "/"
+        else {
             throw GiteaError.invalidInstance(instance)
         }
         return url
@@ -128,7 +130,8 @@ public struct GiteaClient: Sendable {
         var refs: [RepoRef] = []
         var page = 1
         while true {
-            let (data, _) = try await send(path: "/api/v1/repos/search?limit=50&private=true&sorted=updated&page=\(page)")
+            let (data, _) = try await send(
+                path: "/api/v1/repos/search?limit=50&private=true&sorted=updated&page=\(page)")
             struct SearchHit: Decodable { let ok: Bool? }
             struct GiteaRepo: Decodable {
                 let full_name: String
@@ -165,8 +168,9 @@ public struct GiteaClient: Sendable {
                         // fallback decodes [GiteaRepo] directly.
                         throw DecodingError.typeMismatch(
                             [GiteaRepo].self,
-                            .init(codingPath: decoder.codingPath,
-                                  debugDescription: "bare array response")
+                            .init(
+                                codingPath: decoder.codingPath,
+                                debugDescription: "bare array response")
                         )
                     }
                 }
@@ -184,7 +188,10 @@ public struct GiteaClient: Sendable {
             } catch {
                 throw GiteaError.decoding("repos/search: \(error.localizedDescription)")
             }
-            refs.append(contentsOf: batch.map { RepoRef(fullName: $0.full_name, isPrivate: $0.isPrivate, hasActionsEnabled: $0.has_actions) })
+            refs.append(
+                contentsOf: batch.map {
+                    RepoRef(fullName: $0.full_name, isPrivate: $0.isPrivate, hasActionsEnabled: $0.has_actions)
+                })
             if batch.count < 50 { break }
             page += 1
         }
@@ -253,7 +260,7 @@ public struct GiteaClient: Sendable {
             throw GiteaError.http(0, "non-HTTP response")
         }
         switch http.statusCode {
-        case 200 ... 299:
+        case 200...299:
             return (data, http)
         case 401:
             throw GiteaError.unauthorized

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Covers the Docker rows of the setup checklist: config-gated appearance
@@ -9,7 +10,9 @@ final class DockerSetupStatusTests: XCTestCase {
         HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true)
     }
 
-    private func config(docker: kinhinConfig.DockerForgeConfig? = kinhinConfig.DockerForgeConfig(image: "ghcr.io/acme/kinhin-ci-linux")) -> kinhinConfig {
+    private func config(
+        docker: kinhinConfig.DockerForgeConfig? = kinhinConfig.DockerForgeConfig(image: "ghcr.io/acme/kinhin-ci-linux")
+    ) -> kinhinConfig {
         var cfg = kinhinConfig.default
         cfg.repo = "acme/widgets"
         cfg.docker = docker
@@ -25,7 +28,11 @@ final class DockerSetupStatusTests: XCTestCase {
             host: host(),
             clt: .ok(version: "27.0"),
             tartHealth: .healthy,
-            tartList: [TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "suspended", cpu: nil, memoryMB: nil)],
+            tartList: [
+                TartVM(
+                    name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "suspended",
+                    cpu: nil, memoryMB: nil)
+            ],
             config: .loaded(config(docker: docker)),
             tokenStored: true,
             dockerHealth: dockerHealth,
@@ -43,9 +50,11 @@ final class DockerSetupStatusTests: XCTestCase {
     }
 
     func testRowOrderAppendsDockerRowsAfterImage() async {
-        let status = await computer(dockerHealth: .ready, dockerImages: ["ghcr.io/acme/kinhin-ci-linux:latest"]).compute()
-        XCTAssertEqual(status.checks.map(\.id),
-                       ["arch", "clt", "tart", "config", "token", "image", "docker-cli", "docker-image", "toolchain-cache"])
+        let status = await computer(dockerHealth: .ready, dockerImages: ["ghcr.io/acme/kinhin-ci-linux:latest"])
+            .compute()
+        XCTAssertEqual(
+            status.checks.map(\.id),
+            ["arch", "clt", "tart", "config", "token", "image", "docker-cli", "docker-image", "toolchain-cache"])
         XCTAssertEqual(status.ready, true)
     }
 
@@ -61,7 +70,8 @@ final class DockerSetupStatusTests: XCTestCase {
     }
 
     func testBrokenDaemonShowsReasonWithNoAction() async {
-        let status = await computer(dockerHealth: .broken("the Docker daemon is not reachable — start Docker Desktop")).compute()
+        let status = await computer(dockerHealth: .broken("the Docker daemon is not reachable — start Docker Desktop"))
+            .compute()
         let row = status.checks.first { $0.id == "docker-cli" }
         XCTAssertEqual(row?.ok, false)
         XCTAssertTrue(row?.detail.contains("daemon is not reachable") ?? false)
@@ -71,7 +81,8 @@ final class DockerSetupStatusTests: XCTestCase {
     }
 
     func testReadyDaemonGreenWithImagePresent() async {
-        let status = await computer(dockerHealth: .ready, dockerImages: ["ghcr.io/acme/kinhin-ci-linux:latest"]).compute()
+        let status = await computer(dockerHealth: .ready, dockerImages: ["ghcr.io/acme/kinhin-ci-linux:latest"])
+            .compute()
         let row = status.checks.first { $0.id == "docker-cli" }
         XCTAssertEqual(row?.ok, true)
         XCTAssertNil(row?.action)

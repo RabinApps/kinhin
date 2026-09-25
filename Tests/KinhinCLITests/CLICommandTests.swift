@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import kinhin
 
 final class CLICommandTests: XCTestCase {
@@ -49,7 +50,7 @@ final class CLICommandTests: XCTestCase {
     func testUnknownCommandReturnsNil() {
         XCTAssertNil(CLICommand.parse(["frobnicate"]))
         XCTAssertNil(CLICommand.parse(["--unknown-flag"]))
-        XCTAssertNil(CLICommand.parse(["CONFIG"])) // dispatch is case-sensitive
+        XCTAssertNil(CLICommand.parse(["CONFIG"]))  // dispatch is case-sensitive
     }
 
     // MARK: starter-config auto-create exemptions

@@ -1,12 +1,15 @@
-import XCTest
 import AppKit
 import KinhinKit
+import XCTest
+
 @testable import kinhin_app
 
 /// A tiny stateful Docker: enough to watch create/delete round-trip.
 private final class FakeDocker: ShellRunning, @unchecked Sendable {
     private let lock = NSLock()
-    var containers: [(id: String, image: String, state: String)] = [("web", "nginx", "running"), ("kinhin-1", "runner", "exited")]
+    var containers: [(id: String, image: String, state: String)] = [
+        ("web", "nginx", "running"), ("kinhin-1", "runner", "exited"),
+    ]
     var volumes = ["data"]
     var calls: [[String]] = []
     var failNext: String?
@@ -21,10 +24,14 @@ private final class FakeDocker: ShellRunning, @unchecked Sendable {
         }
         switch args {
         case _ where args.first == "ps":
-            let rows = containers.map { "{\"ID\":\"\($0.id)\",\"Image\":\"\($0.image)\",\"Names\":\"\($0.id)\",\"State\":\"\($0.state)\",\"Status\":\"\($0.state)\"}" }
+            let rows = containers.map {
+                "{\"ID\":\"\($0.id)\",\"Image\":\"\($0.image)\",\"Names\":\"\($0.id)\",\"State\":\"\($0.state)\",\"Status\":\"\($0.state)\"}"
+            }
             return ShellResult(exitCode: 0, stdout: rows.joined(separator: "\n"), stderr: "")
         case ["volume", "ls", "--format", "{{json .}}"]:
-            return ShellResult(exitCode: 0, stdout: volumes.map { "{\"Name\":\"\($0)\",\"Driver\":\"local\"}" }.joined(separator: "\n"), stderr: "")
+            return ShellResult(
+                exitCode: 0,
+                stdout: volumes.map { "{\"Name\":\"\($0)\",\"Driver\":\"local\"}" }.joined(separator: "\n"), stderr: "")
         case _ where args.first == "start":
             if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "running" }
         case _ where args.first == "stop":
@@ -51,7 +58,9 @@ final class ContainersViewTests: XCTestCase {
     override func setUp() async throws {
         docker = FakeDocker()
         controller = ContainersViewController()
-        controller.makeManager = { [docker] tool in ContainerManager(tool: tool, shell: docker!, binary: "/bin/\(tool.binaryName)") }
+        controller.makeManager = { [docker] tool in
+            ContainerManager(tool: tool, shell: docker!, binary: "/bin/\(tool.binaryName)")
+        }
         controller.confirm = { [unowned self] title, message, _ in
             confirmations.append((title, message))
             return answer
@@ -121,9 +130,9 @@ final class ContainersViewTests: XCTestCase {
 
     func testRowsShowTheRightLifecycleButtons() {
         let titles = allText().components(separatedBy: "\n")
-        XCTAssertTrue(titles.contains("Stop"))     // web is running
+        XCTAssertTrue(titles.contains("Stop"))  // web is running
         XCTAssertTrue(titles.contains("Restart"))
-        XCTAssertTrue(titles.contains("Start"))    // kinhin-1 is exited
+        XCTAssertTrue(titles.contains("Start"))  // kinhin-1 is exited
     }
 
     func testDeleteIsAcknowledged() async {

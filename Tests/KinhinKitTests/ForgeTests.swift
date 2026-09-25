@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Multi-forge support: the Gitea client, the unified Forge surface, demand
@@ -88,7 +89,8 @@ final class ForgeTests: XCTestCase {
         github.register(name: "kinhin-1", busy: true)
         github.queueDepth = 2
         github.queueRepos = ["acme/ios-app"]
-        let forge = GitHubForge(credentials: .github(token: "t", scope: "acme/widgets"), labels: ["kinhin"], client: github)
+        let forge = GitHubForge(
+            credentials: .github(token: "t", scope: "acme/widgets"), labels: ["kinhin"], client: github)
 
         let runners = try await forge.runners()
         XCTAssertEqual(runners, [ForgeRunner(id: runners.first?.id ?? 0, name: "kinhin-1", busy: true)])
@@ -129,7 +131,8 @@ final class ForgeTests: XCTestCase {
         )
         // Gitea now has the bigger backlog → Gitea.
         XCTAssertEqual(
-            ForgeDemand.assignPlatform(demand: [.github: 1, .gitea: 4], active: [.gitea: 2], attached: [.github, .gitea]),
+            ForgeDemand.assignPlatform(
+                demand: [.github: 1, .gitea: 4], active: [.gitea: 2], attached: [.github, .gitea]),
             .gitea
         )
         // No demand anywhere → GitHub (stable default).
@@ -172,7 +175,9 @@ final class ForgeTests: XCTestCase {
 
     func testGiteaRunnerInstallScriptDownloadsDarwinArm64() {
         let script = RunnerBootstrap.giteaRunnerInstallScript(version: "3.5.0")
-        XCTAssertTrue(script.contains("https://gitea.com/gitea/runner/releases/download/v3.5.0/gitea-runner-3.5.0-darwin-arm64.xz"))
+        XCTAssertTrue(
+            script.contains(
+                "https://gitea.com/gitea/runner/releases/download/v3.5.0/gitea-runner-3.5.0-darwin-arm64.xz"))
     }
 
     // MARK: Token-gated image provisioning
@@ -214,13 +219,13 @@ final class ForgeTests: XCTestCase {
 
     func testConfigParsesGiteaSection() throws {
         let yaml = """
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        gitea:
-          instance: "https://gitea.example.com"
-          scope: "acme"
-          labels: ["macos:host"]
-        """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            gitea:
+              instance: "https://gitea.example.com"
+              scope: "acme"
+              labels: ["macos:host"]
+            """
         let cfg = try ConfigLoader.parse(yaml)
         XCTAssertEqual(cfg.gitea?.instance, "https://gitea.example.com")
         XCTAssertEqual(cfg.gitea?.scope, "acme")
@@ -228,26 +233,32 @@ final class ForgeTests: XCTestCase {
     }
 
     func testConfigRejectsInvalidGiteaSection() {
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        gitea:
-          scope: "acme"
-        """), "missing instance must be rejected")
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        gitea:
-          instance: "not a url"
-          scope: "acme"
-        """), "non-URL instance must be rejected")
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        gitea:
-          instance: "https://gitea.example.com"
-          scope: "a/b/c"
-        """), "invalid scope must be rejected")
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["self-hosted"]
+                gitea:
+                  scope: "acme"
+                """), "missing instance must be rejected")
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["self-hosted"]
+                gitea:
+                  instance: "not a url"
+                  scope: "acme"
+                """), "non-URL instance must be rejected")
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["self-hosted"]
+                gitea:
+                  instance: "https://gitea.example.com"
+                  scope: "a/b/c"
+                """), "invalid scope must be rejected")
     }
 
     func testConfigWithoutGiteaSectionParsesCleanly() throws {

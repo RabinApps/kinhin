@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import KinhinKit
 
 /// Managed toolchains + shared cache: catalog selection, the managed
@@ -20,19 +21,20 @@ final class ToolchainsTests: XCTestCase {
     // MARK: Config validation
 
     func testConfigParsesToolchainsSection() throws {
-        let cfg = try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains:
-          specs: ["go@1.23.4", "node@22"]
-          brew: ["yamllint"]
-          stacks: ["flutter@3.24.0", "vercel"]
-          share_cache: true
-          cache:
-            auto_prune: true
-            max_age_days: 14
-            max_gb: 20
-        """)
+        let cfg = try ConfigLoader.parse(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains:
+              specs: ["go@1.23.4", "node@22"]
+              brew: ["yamllint"]
+              stacks: ["flutter@3.24.0", "vercel"]
+              share_cache: true
+              cache:
+                auto_prune: true
+                max_age_days: 14
+                max_gb: 20
+            """)
         let toolchains = try XCTUnwrap(cfg.toolchains)
         XCTAssertEqual(toolchains.specs, ["go@1.23.4", "node@22"])
         XCTAssertEqual(toolchains.brew, ["yamllint"])
@@ -48,24 +50,29 @@ final class ToolchainsTests: XCTestCase {
     }
 
     func testDuplicateAndEmptyEntriesRejected() {
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["go@1", "go@1"]}
-        """))
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {brew: [""]}
-        """))
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["self-hosted"]
+                toolchains: {specs: ["go@1", "go@1"]}
+                """))
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["self-hosted"]
+                toolchains: {brew: [""]}
+                """))
     }
 
     func testUnknownStackRejectedWithKnownList() {
-        let error = self.thrownConfigError("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {stacks: ["flutterish"]}
-        """)
+        let error = self.thrownConfigError(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {stacks: ["flutterish"]}
+            """)
         XCTAssertTrue(error.contains("unknown stack 'flutterish'"), error)
         XCTAssertTrue(error.contains("flutter"), "the error should list known stacks: \(error)")
     }
@@ -73,45 +80,52 @@ final class ToolchainsTests: XCTestCase {
     /// No implicit installs: a stack requiring node fails validation naming
     /// the fix until the user selects node themselves.
     func testStackWithoutNodeRequirementFailsNamingTheFix() {
-        let error = self.thrownConfigError("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {stacks: ["vercel"]}
-        """)
+        let error = self.thrownConfigError(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {stacks: ["vercel"]}
+            """)
         XCTAssertTrue(error.contains("requires node"), error)
         XCTAssertTrue(error.contains("node@22"), error)
     }
 
     func testStackWithExplicitNodeRequirementPasses() throws {
-        let cfg = try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["node@22"], stacks: ["vercel"]}
-        """)
+        let cfg = try ConfigLoader.parse(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22"], stacks: ["vercel"]}
+            """)
         XCTAssertEqual(cfg.toolchains?.specs, ["node@22"])
     }
 
     /// Tool-level requirements are validated the same way (pnpm needs node).
     func testNpmToolWithoutNodeRequirementFails() {
-        let error = self.thrownConfigError("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["pnpm"]}
-        """)
+        let error = self.thrownConfigError(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["pnpm"]}
+            """)
         XCTAssertTrue(error.contains("'pnpm' requires node"), error)
     }
 
     func testNegativeCacheValuesRejected() {
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {cache: {max_age_days: -5}}
-        """))
-        XCTAssertThrowsError(try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {cache: {max_gb: -1}}
-        """))
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["self-hosted"]
+                toolchains: {cache: {max_age_days: -5}}
+                """))
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                repo: "acme/widgets"
+                labels: ["self-hosted"]
+                toolchains: {cache: {max_gb: -1}}
+                """))
     }
 
     private func thrownConfigError(_ yaml: String) -> String {
@@ -134,60 +148,67 @@ final class ToolchainsTests: XCTestCase {
     }
 
     func testKnownSpecResolvesToMiseWithCacheEnvsAndVerify() throws {
-        let sel = try selection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["go@1.23.4"]}
-        """)
+        let sel = try selection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["go@1.23.4"]}
+            """)
         XCTAssertEqual(sel.miseSpecs, ["go@1.23.4"])
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "GOMODCACHE", subdirectory: "go/mod")))
         XCTAssertTrue(sel.verifications.contains("go version"))
     }
 
     func testUnknownSpecPassesThroughToMise() throws {
-        let sel = try selection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["zig@0.13"]}
-        """)
+        let sel = try selection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["zig@0.13"]}
+            """)
         XCTAssertEqual(sel.miseSpecs, ["zig@0.13"], "long tail: unknown specs go to mise verbatim")
     }
 
     func testNodeSelectionBringsNpmCache() throws {
-        let sel = try selection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["node@22"]}
-        """)
+        let sel = try selection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22"]}
+            """)
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "NPM_CONFIG_CACHE", subdirectory: "npm")))
     }
 
     func testNpmToolResolvesAsGlobalInstall() throws {
-        let sel = try selection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["node@22", "pnpm"]}
-        """)
+        let sel = try selection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22", "pnpm"]}
+            """)
         XCTAssertEqual(sel.npmPackages, [.init(name: "pnpm")])
-        XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "npm_config_store_dir", subdirectory: "pnpm-store")))
+        XCTAssertTrue(
+            sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "npm_config_store_dir", subdirectory: "pnpm-store")))
     }
 
     func testVercelStackResolvesToEASStyleGlobalWithVersion() throws {
-        let sel = try selection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["node@22"], stacks: ["vercel@1.2.3"]}
-        """)
+        let sel = try selection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22"], stacks: ["vercel@1.2.3"]}
+            """)
         XCTAssertEqual(sel.npmPackages, [.init(name: "vercel", version: "1.2.3")])
         XCTAssertTrue(sel.verifications.contains("vercel --version"))
     }
 
     func testFlutterStackResolvesToBrewFvmWithCacheAndPin() throws {
-        let sel = try selection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {stacks: ["flutter@3.24.0"]}
-        """)
+        let sel = try selection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {stacks: ["flutter@3.24.0"]}
+            """)
         XCTAssertEqual(sel.brewTaps, ["leoafarias/fvm"])
         XCTAssertTrue(sel.brewFormulas.contains(BrewFormula(name: "fvm", isCask: false)))
         XCTAssertTrue(sel.brewFormulas.contains(BrewFormula(name: "cocoapods", isCask: false)))
@@ -196,22 +217,24 @@ final class ToolchainsTests: XCTestCase {
     }
 
     func testDotnetResolvesToCaskWithNugetCache() throws {
-        let sel = try selection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["dotnet"]}
-        """)
+        let sel = try selection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["dotnet"]}
+            """)
         XCTAssertEqual(sel.brewFormulas, [BrewFormula(name: "dotnet-sdk", isCask: true)])
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget")))
         XCTAssertTrue(sel.verifications.contains("dotnet --list-sdks"))
     }
 
     func testDeduplicatesAcrossSelectionSurfaces() throws {
-        let sel = try selection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["node@22", "pnpm"], brew: ["cocoapods"], stacks: ["react-native"]}
-        """)
+        let sel = try selection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22", "pnpm"], brew: ["cocoapods"], stacks: ["react-native"]}
+            """)
         let pods = sel.brewFormulas.filter { $0.name == "cocoapods" }
         XCTAssertEqual(pods.count, 1, "cocoapods from brew + react-native stack dedupes")
     }
@@ -219,19 +242,21 @@ final class ToolchainsTests: XCTestCase {
     // MARK: Managed install script
 
     private func toolchainsConfig(_ toolchainsYAML: String) throws -> kinhinConfig {
-        try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains:
-        \(toolchainsYAML)
-        """)
+        try ConfigLoader.parse(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains:
+            \(toolchainsYAML)
+            """)
     }
 
     func testManagedScriptCoversAllSectionsAndGuards() throws {
-        let cfg = try self.toolchainsConfig("""
-          specs: ["node@22", "pnpm"]
-          brew: ["yamllint"]
-        """)
+        let cfg = try self.toolchainsConfig(
+            """
+              specs: ["node@22", "pnpm"]
+              brew: ["yamllint"]
+            """)
         let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains), mountPath: "/mnt/cache")
         let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: "/mnt/cache")
 
@@ -249,9 +274,10 @@ final class ToolchainsTests: XCTestCase {
     }
 
     func testManagedScriptSkipsCacheExportsWithoutMount() throws {
-        let cfg = try self.toolchainsConfig("""
-          specs: ["node@22"]
-        """)
+        let cfg = try self.toolchainsConfig(
+            """
+              specs: ["node@22"]
+            """)
         let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains))
         let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: nil)
         XCTAssertFalse(script.contains("export "), "no mount → no cache exports (defaults apply)")
@@ -275,31 +301,37 @@ final class ToolchainsTests: XCTestCase {
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         try await preparer.run(ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false))
         XCTAssertEqual(tart.runMounts.count, 1)
-        XCTAssertEqual(tart.runMounts[0], [ToolchainCacheMount.guestPath], "prepare shares the host cache unconditionally")
+        XCTAssertEqual(
+            tart.runMounts[0], [ToolchainCacheMount.guestPath], "prepare shares the host cache unconditionally")
     }
 
     func testRunnerVMsMountCacheOnlyWhenShareCacheIsOn() async throws {
         let tart = FakeTart()
         let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
         // Default route: no mount.
-        try await runtime.provision(id: "kinhin-a", route: RepoRoute(repo: "r", image: "tahoe-base", ephemeral: true, bootTimeout: 300))
+        try await runtime.provision(
+            id: "kinhin-a", route: RepoRoute(repo: "r", image: "tahoe-base", ephemeral: true, bootTimeout: 300))
         XCTAssertEqual(tart.runMounts.last, [], "share_cache off → no virtiofs mount")
         // Opt-in route: mount.
-        try await runtime.provision(id: "kinhin-b", route: RepoRoute(repo: "r", image: "tahoe-base", ephemeral: true, bootTimeout: 300, cacheMount: true))
+        try await runtime.provision(
+            id: "kinhin-b",
+            route: RepoRoute(repo: "r", image: "tahoe-base", ephemeral: true, bootTimeout: 300, cacheMount: true))
         XCTAssertEqual(tart.runMounts.last, [ToolchainCacheMount.guestPath], "share_cache on → cache mounted")
     }
 
     func testRepoRouteCarriesShareCacheFromConfig() throws {
-        let cfg = try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {share_cache: true}
-        """)
+        let cfg = try ConfigLoader.parse(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {share_cache: true}
+            """)
         XCTAssertEqual(RepoRoute.from(config: cfg).cacheMount, true)
-        let plain = try ConfigLoader.parse("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        """)
+        let plain = try ConfigLoader.parse(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            """)
         XCTAssertEqual(RepoRoute.from(config: plain).cacheMount, false)
     }
 
@@ -308,22 +340,30 @@ final class ToolchainsTests: XCTestCase {
         let runtime = TartRuntime(
             tart: tart,
             bootTimeout: { 300 },
-            toolchainsConfig: { try? ConfigLoader.parse("""
-            repo: "acme/widgets"
-            labels: ["self-hosted"]
-            toolchains: {specs: ["node@22", "pnpm"]}
-            """).toolchains }
+            toolchainsConfig: {
+                try? ConfigLoader.parse(
+                    """
+                    repo: "acme/widgets"
+                    labels: ["self-hosted"]
+                    toolchains: {specs: ["node@22", "pnpm"]}
+                    """
+                ).toolchains
+            }
         )
         let forge = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
             labels: ["self-hosted"],
             client: FakeGitHub()
         )
-        let route = RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 300, cacheMount: true)
-        let script = try await runtime.registrationScript(forge: forge, token: "tok", name: "vm", runnerCount: 1, route: route, labels: nil)
+        let route = RepoRoute(
+            repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 300, cacheMount: true)
+        let script = try await runtime.registrationScript(
+            forge: forge, token: "tok", name: "vm", runnerCount: 1, route: route, labels: nil)
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE"), "registration script exports cache envs")
         XCTAssertTrue(script.contains("config.sh --url"), "registration script itself still present")
-        XCTAssertTrue(script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "config.sh --url")!.lowerBound, "exports come first")
+        XCTAssertTrue(
+            script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "config.sh --url")!.lowerBound,
+            "exports come first")
     }
 
     // MARK: Pruner
@@ -386,7 +426,9 @@ final class ToolchainsTests: XCTestCase {
         XCTAssertEqual(report.freedBytes, 500)
         XCTAssertTrue(report.dryRun)
         XCTAssertFalse(report.entries.isEmpty)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("npm/old.tar").path), "dry run deletes nothing")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: root.appendingPathComponent("npm/old.tar").path),
+            "dry run deletes nothing")
     }
 
     func testPruneWithoutAutoPruneIsNoopUnlessDryRunRequested() throws {
@@ -411,7 +453,8 @@ final class ToolchainsTests: XCTestCase {
     }
 
     func testCachePolicyDefaultsFromConfig() {
-        XCTAssertEqual(ToolchainCachePolicy(from: nil), ToolchainCachePolicy(autoPrune: true, maxAgeDays: 30, maxGB: 50))
+        XCTAssertEqual(
+            ToolchainCachePolicy(from: nil), ToolchainCachePolicy(autoPrune: true, maxAgeDays: 30, maxGB: 50))
         let partial = kinhinConfig.ToolchainsConfig(cache: .init(autoPrune: false, maxAgeDays: 7, maxGB: 0))
         let policy = ToolchainCachePolicy(from: partial)
         XCTAssertEqual(policy, ToolchainCachePolicy(autoPrune: false, maxAgeDays: 7, maxGB: 0))
@@ -432,17 +475,19 @@ final class ToolchainsTests: XCTestCase {
 
     private func linuxSelection(_ yaml: String) throws -> ManagedToolchainSelection {
         let cfg = try ConfigLoader.parse(yaml)
-        return ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains), platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath)
+        return ToolchainCatalog.selection(
+            from: try XCTUnwrap(cfg.toolchains), platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath)
     }
 
     func testLinuxSelectionFiltersMacOSOnlyEntries() throws {
         // flutter (fvm/CocoaPods) and brew tools are macOS-only: skipped with
         // a note, never an error. Cross-platform mise/npm tools remain.
-        let sel = try linuxSelection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["node@22", "go@1.23"], brew: ["yamllint", "awscli"], stacks: ["flutter@3.24.0", "vercel"]}
-        """)
+        let sel = try linuxSelection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22", "go@1.23"], brew: ["yamllint", "awscli"], stacks: ["flutter@3.24.0", "vercel"]}
+            """)
         XCTAssertTrue(sel.miseSpecs.contains("node@22"))
         XCTAssertTrue(sel.miseSpecs.contains("go@1.23"))
         XCTAssertTrue(sel.npmPackages.contains(.init(name: "vercel")))
@@ -452,40 +497,48 @@ final class ToolchainsTests: XCTestCase {
     }
 
     func testLinuxDotnetUsesAptInstallerWithNugetCache() throws {
-        let sel = try linuxSelection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["dotnet"]}
-        """)
+        let sel = try linuxSelection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["dotnet"]}
+            """)
         XCTAssertEqual(sel.aptPackages, ["dotnet-sdk-8.0"])
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget")))
         XCTAssertTrue(sel.verifications.contains("dotnet --list-sdks"))
     }
 
     func testLinuxSelectionAutoInjectsMiseCacheAndSkipsHomebrewCache() throws {
-        let sel = try linuxSelection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["node@22"], brew: ["wget"]}
-        """)
+        let sel = try linuxSelection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22"], brew: ["wget"]}
+            """)
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "MISE_CACHE_DIR", subdirectory: "mise")))
-        XCTAssertFalse(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "HOMEBREW_CACHE", subdirectory: "brew")), "no brew install happens on Linux")
+        XCTAssertFalse(
+            sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "HOMEBREW_CACHE", subdirectory: "brew")),
+            "no brew install happens on Linux")
     }
 
     func testLinuxManagedScriptCoversAptMiseNpmAndGuards() throws {
-        let sel = try linuxSelection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["dotnet", "node@22"], stacks: ["vercel"]}
-        """)
-        let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: sel, mountPath: ToolchainCacheMount.linuxGuestPath)
+        let sel = try linuxSelection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["dotnet", "node@22"], stacks: ["vercel"]}
+            """)
+        let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(
+            selection: sel, mountPath: ToolchainCacheMount.linuxGuestPath)
         XCTAssertTrue(script.contains("dpkg-query -W -f='${Status}'"), "guarded apt install: \(script)")
         XCTAssertTrue(script.contains("apt-get install -y --no-install-recommends"))
         XCTAssertTrue(script.contains("dotnet-sdk-8.0"))
         XCTAssertTrue(script.contains("mise.run"), "mise is bootstrapped on Linux (not preinstalled)")
         XCTAssertTrue(script.contains("mise use --global node@22"))
         XCTAssertTrue(script.contains("npm install -g vercel"))
-        XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""), "cache exports point at the Linux guest path")
+        XCTAssertTrue(
+            script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""),
+            "cache exports point at the Linux guest path")
         XCTAssertTrue(script.contains("export NUGET_PACKAGES=\"/var/kinhin-cache/nuget\""))
         XCTAssertTrue(script.contains("dotnet --list-sdks"), "verify commands still gate the bake")
         // Guarded exports: a missing mount must not fail the script.
@@ -493,11 +546,12 @@ final class ToolchainsTests: XCTestCase {
     }
 
     func testLinuxManagedScriptSkipsCacheExportsWithoutMount() throws {
-        let sel = try linuxSelection("""
-        repo: "acme/widgets"
-        labels: ["self-hosted"]
-        toolchains: {specs: ["node@22"]}
-        """)
+        let sel = try linuxSelection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22"]}
+            """)
         let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: sel, mountPath: nil)
         XCTAssertFalse(script.contains("export NPM_CONFIG_CACHE"))
         XCTAssertTrue(script.contains("mise use --global node@22"))
@@ -512,7 +566,8 @@ final class ToolchainsTests: XCTestCase {
     func testContainerPrepareAlwaysBindMountsTheCache() async throws {
         let shell = RecordingShell()
         let preparer = ContainerImagePreparer(shell: shell)
-        try await preparer.prepare(.init(image: "ubuntu:24.04", target: "kinhin-ci-linux", hasGitHubToken: true, hasGiteaToken: false))
+        try await preparer.prepare(
+            .init(image: "ubuntu:24.04", target: "kinhin-ci-linux", hasGitHubToken: true, hasGiteaToken: false))
         let runArgv = try XCTUnwrap(shell.argvs.first { $0.contains("run") })
         XCTAssertTrue(runArgv.contains("--volume"), "prepare bind-mounts the host cache unconditionally: \(runArgv)")
         XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
@@ -521,11 +576,12 @@ final class ToolchainsTests: XCTestCase {
     func testContainerPrepareBakesManagedToolchainsBeforeBuild() async throws {
         let shell = RecordingShell()
         let preparer = ContainerImagePreparer(shell: shell)
-        try await preparer.prepare(.init(
-            image: "ubuntu:24.04", target: "kinhin-ci-linux",
-            toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
-            hasGitHubToken: true, hasGiteaToken: false
-        ))
+        try await preparer.prepare(
+            .init(
+                image: "ubuntu:24.04", target: "kinhin-ci-linux",
+                toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
+                hasGitHubToken: true, hasGiteaToken: false
+            ))
         // Order: run → ready-probe exec → agent exec → managed exec → build.
         let runIdx = try XCTUnwrap(shell.argvs.firstIndex { $0.contains("run") })
         let bashExecs = shell.argvs.enumerated().filter { _, argv in
@@ -551,11 +607,12 @@ final class ToolchainsTests: XCTestCase {
         ]
         let preparer = ContainerImagePreparer(shell: shell)
         do {
-            try await preparer.prepare(.init(
-                image: "ubuntu:24.04", target: "kinhin-ci-linux",
-                toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
-                hasGitHubToken: true, hasGiteaToken: false
-            ))
+            try await preparer.prepare(
+                .init(
+                    image: "ubuntu:24.04", target: "kinhin-ci-linux",
+                    toolchains: kinhinConfig.ToolchainsConfig(specs: ["node@22"]),
+                    hasGitHubToken: true, hasGiteaToken: false
+                ))
             XCTFail("expected the bake to fail")
         } catch let error as ContainerImageError {
             guard case .provisioningFailed(let why) = error, why.contains("managed toolchain install failed") else {
@@ -564,16 +621,21 @@ final class ToolchainsTests: XCTestCase {
         }
         let argvs = await shell.argvSnapshot()
         XCTAssertFalse(argvs.contains { $0.contains("build") }, "no image is built when a bake step fails")
-        XCTAssertTrue(argvs.contains { $0.contains("delete") && $0.contains("--force") }, "the scratch container is cleaned up")
+        XCTAssertTrue(
+            argvs.contains { $0.contains("delete") && $0.contains("--force") }, "the scratch container is cleaned up")
     }
 
     func testContainerRunnerMountsCacheOnlyWhenShareCacheIsOn() async throws {
         let shell = RecordingShell()
-        let runtime = AppleContainerRuntime(shell: shell, image: "img", cpus: 2, memoryGB: 4, binPath: "/usr/local/bin/container")
-        try await runtime.provision(id: "kinhin-a", route: RepoRoute(repo: "r", image: "img", ephemeral: true, bootTimeout: 30))
+        let runtime = AppleContainerRuntime(
+            shell: shell, image: "img", cpus: 2, memoryGB: 4, binPath: "/usr/local/bin/container")
+        try await runtime.provision(
+            id: "kinhin-a", route: RepoRoute(repo: "r", image: "img", ephemeral: true, bootTimeout: 30))
         var runArgv = try XCTUnwrap(shell.argvs.last { $0.contains("run") })
         XCTAssertFalse(runArgv.contains("--volume"), "share_cache off → no bind mount")
-        try await runtime.provision(id: "kinhin-b", route: RepoRoute(repo: "r", image: "img", ephemeral: true, bootTimeout: 30, cacheMount: true))
+        try await runtime.provision(
+            id: "kinhin-b",
+            route: RepoRoute(repo: "r", image: "img", ephemeral: true, bootTimeout: 30, cacheMount: true))
         runArgv = try XCTUnwrap(shell.argvs.last { $0.contains("run") })
         XCTAssertTrue(runArgv.contains("--volume"))
         XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
@@ -584,11 +646,15 @@ final class ToolchainsTests: XCTestCase {
         let runtime = AppleContainerRuntime(
             shell: shell, image: "img", cpus: 2, memoryGB: 4,
             binPath: "/usr/local/bin/container",
-            toolchainsConfig: { try? ConfigLoader.parse("""
-            repo: "acme/widgets"
-            labels: ["self-hosted"]
-            toolchains: {specs: ["node@22", "pnpm"]}
-            """).toolchains }
+            toolchainsConfig: {
+                try? ConfigLoader.parse(
+                    """
+                    repo: "acme/widgets"
+                    labels: ["self-hosted"]
+                    toolchains: {specs: ["node@22", "pnpm"]}
+                    """
+                ).toolchains
+            }
         )
         let forge = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
@@ -596,11 +662,14 @@ final class ToolchainsTests: XCTestCase {
             client: FakeGitHub()
         )
         let route = RepoRoute(repo: "acme/widgets", image: "img", ephemeral: true, bootTimeout: 30, cacheMount: true)
-        let script = try await runtime.registrationScript(forge: forge, token: "tok", name: "c", runnerCount: 1, route: route, labels: nil)
+        let script = try await runtime.registrationScript(
+            forge: forge, token: "tok", name: "c", runnerCount: 1, route: route, labels: nil)
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""))
         XCTAssertTrue(script.contains("export npm_config_store_dir=\"/var/kinhin-cache/pnpm-store\""))
         XCTAssertTrue(script.contains("/opt/actions-runner"), "registration script itself still present")
-        XCTAssertTrue(script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "config.sh --url")!.lowerBound, "exports come first")
+        XCTAssertTrue(
+            script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "config.sh --url")!.lowerBound,
+            "exports come first")
     }
 
     func testContainerRegistrationScriptWithoutMountHasNoExports() async throws {
@@ -614,7 +683,9 @@ final class ToolchainsTests: XCTestCase {
             labels: ["self-hosted"],
             client: FakeGitHub()
         )
-        let script = try await runtime.registrationScript(forge: forge, token: "tok", name: "c", runnerCount: 1, route: RepoRoute(repo: "r", image: "img", ephemeral: true, bootTimeout: 30), labels: nil)
+        let script = try await runtime.registrationScript(
+            forge: forge, token: "tok", name: "c", runnerCount: 1,
+            route: RepoRoute(repo: "r", image: "img", ephemeral: true, bootTimeout: 30), labels: nil)
         XCTAssertFalse(script.contains("export NPM_CONFIG_CACHE"), "no mount → no cache exports")
     }
 
@@ -636,8 +707,10 @@ final class ToolchainsTests: XCTestCase {
             labels: ["kinhin"],
             client: FakeGitHub()
         )
-        let route = RepoRoute(repo: "acme/widgets", image: "kinhin-ci-linux", ephemeral: true, bootTimeout: 30, cacheMount: true)
-        let script = try await runtime.registrationScript(forge: forge, token: "tok", name: "c", runnerCount: 1, route: route, labels: nil)
+        let route = RepoRoute(
+            repo: "acme/widgets", image: "kinhin-ci-linux", ephemeral: true, bootTimeout: 30, cacheMount: true)
+        let script = try await runtime.registrationScript(
+            forge: forge, token: "tok", name: "c", runnerCount: 1, route: route, labels: nil)
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""))
     }
 }
