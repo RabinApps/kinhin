@@ -51,6 +51,11 @@ final class MacToolsFormViewController: NSViewController {
     private let containerStatus = NSTextField(labelWithString: "")
     private let dockerToggle = NSButton(checkboxWithTitle: "Docker", target: nil, action: nil)
     private let dockerStatus = NSTextField(labelWithString: "")
+    /// Base image each Linux runtime's image is baked on (shown while it's enabled).
+    let containerBasePicker = BaseImagePicker(value: nil)
+    let dockerBasePicker = BaseImagePicker(value: nil)
+    private var containerBaseRow: NSView?
+    private var dockerBaseRow: NSView?
     private let containerInstallButton = NSButton(title: "Install…", target: nil, action: nil)
     private let dockerInstallButton = NSButton(title: "Install…", target: nil, action: nil)
 
@@ -156,8 +161,39 @@ final class MacToolsFormViewController: NSViewController {
         }
         column.addArrangedSubview(
             FormKit.row([containerToggle, containerStatus, FormKit.spacer(), containerInstallButton]))
+        containerBaseRow = baseImageRow(containerBasePicker, runtime: .appleContainer, in: column)
         column.addArrangedSubview(FormKit.row([dockerToggle, dockerStatus, FormKit.spacer(), dockerInstallButton]))
+        dockerBaseRow = baseImageRow(dockerBasePicker, runtime: .docker, in: column)
         return card
+    }
+
+    /// "Base image" row under a runtime's toggle; hidden until it is enabled.
+    private func baseImageRow(_ picker: BaseImagePicker, runtime: RuntimeID, in column: NSStackView) -> NSView {
+        picker.onChange = { [weak self] value in self?.saveBaseImage(value, for: runtime) }
+        let row = FormKit.row([FormKit.label("Base image"), FormKit.spacer(), picker])
+        row.isHidden = true
+        column.addArrangedSubview(row)
+        return row
+    }
+
+    private func saveBaseImage(_ value: String?, for runtime: RuntimeID) {
+        do {
+            try GeneralConfigEditor.setBaseImage(value, for: runtime, at: configURL)
+            onChanged?()
+        } catch {
+            busyLabel.stringValue = "Not saved — \(error.localizedDescription)"
+            busyLabel.textColor = .systemRed
+            refreshBaseImagePickers()
+        }
+    }
+
+    /// Shows each picker while its runtime is enabled, with the saved value.
+    private func refreshBaseImagePickers() {
+        let snapshot = ConfigStore.snapshotOrLog(at: configURL)
+        containerBasePicker.setValue(snapshot?.baseImage(for: .appleContainer))
+        dockerBasePicker.setValue(snapshot?.baseImage(for: .docker))
+        containerBaseRow?.isHidden = containerToggle.state != .on
+        dockerBaseRow?.isHidden = dockerToggle.state != .on
     }
 
     // MARK: State
@@ -166,6 +202,7 @@ final class MacToolsFormViewController: NSViewController {
         let snapshot = ConfigStore.snapshotOrLog(at: configURL)
         containerToggle.state = snapshot?.container != nil ? .on : .off
         dockerToggle.state = snapshot?.docker != nil ? .on : .off
+        refreshBaseImagePickers()
         let containerInstalled = Paths.findExecutable(named: "container") != nil
         let dockerInstalled = Paths.findExecutable(named: "docker") != nil
         recomputeReadiness()
@@ -353,6 +390,7 @@ final class MacToolsFormViewController: NSViewController {
         do {
             try GeneralConfigEditor.apply(field, to: configURL)
             recomputeReadiness()
+            refreshBaseImagePickers()
             onChanged?()
         } catch {
             toggle.state = toggle.state == .on ? .off : .on

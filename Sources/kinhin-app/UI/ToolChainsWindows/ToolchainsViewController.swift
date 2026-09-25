@@ -63,6 +63,7 @@ final class ToolchainsViewController: NSViewController, NSTextFieldDelegate {
     var brewField: NSTextField?
     var specsField: NSTextField?
     var rebuildButtons: [RuntimeID: NSButton] = [:]
+    var baseImagePickers: [RuntimeID: BaseImagePicker] = [:]
     var busy = false
 
     init(seed: Seed = .fromConfig) {

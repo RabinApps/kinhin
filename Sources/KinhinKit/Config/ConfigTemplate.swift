@@ -117,6 +117,7 @@ extension ConfigLoader {
         # runner agents — prepare it with: kinhin image prepare --container-image <name>
         # container:
         #   image: "kinhin-ci-linux"
+        #   base_image: "ubuntu:24.04"   # optional: what the image is built on (Debian/Ubuntu-based)
         #   cpus: 4
         #   memory_gb: 8
 
@@ -127,6 +128,7 @@ extension ConfigLoader {
         # baked with the runner agents: kinhin image prepare --docker
         # docker:
         #   image: "kinhin-ci-linux"
+        #   base_image: "ubuntu:24.04"   # optional: what the image is built on (Debian/Ubuntu-based)
         #   cpus: 2
         #   memory_gb: 4
         #   max_slots: 8   # hard cap on concurrent runner containers

@@ -67,6 +67,17 @@ public struct ConfigLoader {
         return try Self.parse(yaml)
     }
 
+    /// `base_image:` is optional; when present it must be usable as a bare
+    /// image reference (see `LinuxBaseImage.problem(with:)`).
+    static func validatedBaseImage(_ value: String?, key: String) throws -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        if let problem = LinuxBaseImage.problem(with: trimmed) {
+            throw ConfigError.invalid("\(key) \(problem) (an image like ubuntu:24.04 or debian:12)")
+        }
+        return trimmed
+    }
+
     public static func parse(_ yaml: String) throws -> KinhinConfig {
         let partial = try YAMLDecoder().decode(PartialConfig.self, from: yaml)
 
@@ -171,11 +182,13 @@ public struct ConfigLoader {
             if let mem = container.memoryGB, mem < 2 {
                 throw ConfigError.invalid("container.memory_gb must be >= 2")
             }
+            let containerBase = try Self.validatedBaseImage(container.baseImage, key: "container.base_image")
             cfg.container = KinhinConfig.ContainerConfig(
                 image: containerImage,
                 cpus: container.cpus ?? 4,
                 memoryGB: container.memoryGB ?? 8,
-                labels: container.labels
+                labels: container.labels,
+                baseImage: containerBase
             )
         }
         if let docker = partial.docker {
@@ -191,11 +204,13 @@ public struct ConfigLoader {
             if let slots = docker.maxSlots, slots < 1 {
                 throw ConfigError.invalid("docker.max_slots must be >= 1")
             }
+            let dockerBase = try Self.validatedBaseImage(docker.baseImage, key: "docker.base_image")
             cfg.docker = KinhinConfig.DockerForgeConfig(
                 image: dockerImage,
                 cpus: docker.cpus ?? 2,
                 memoryGB: docker.memoryGB ?? 4,
-                maxSlots: docker.maxSlots ?? 8
+                maxSlots: docker.maxSlots ?? 8,
+                baseImage: dockerBase
             )
         }
         if let runtimes = partial.runtimes {

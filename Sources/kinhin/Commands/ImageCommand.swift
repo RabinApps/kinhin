@@ -21,7 +21,8 @@ enum ImageCommand {
                         "the container system service is not running. Start it first: container system start",
                         exit: .runtime)
                 }
-                let image = flag("--container-image", in: args) ?? "ubuntu:24.04"
+                let image = LinuxBaseImage.resolve(
+                    configured: cfg.container?.baseImage, flagOverride: flag("--container-image", in: args))
                 let target = flag("--target", in: args) ?? "kinhin-ci-linux"
                 let preparer = ContainerImagePreparer(shell: shell)
                 var options = ContainerImagePreparer.Options(image: image, target: target)
@@ -63,7 +64,8 @@ enum ImageCommand {
             case .ready:
                 break
             }
-            let image = flag("--docker-image", in: args) ?? "ubuntu:24.04"
+            let image = LinuxBaseImage.resolve(
+                configured: cfg.docker?.baseImage, flagOverride: flag("--docker-image", in: args))
             let target = flag("--target", in: args) ?? "kinhin-ci-linux"
             do {
                 let preparer = DockerImagePreparer(shell: shell)

@@ -36,7 +36,7 @@ extension LinuxImageOptions {
     /// local to start from, and `configured` is only a name kinhin gives its
     /// own output — not something a registry has. Fall back to `fallback`.
     public static func baseImage(
-        configured: String, localImages: [String], fallback: String = "ubuntu:24.04"
+        configured: String, localImages: [String], fallback: String = LinuxBaseImage.defaultReference
     ) -> String {
         let present = localImages.contains { $0 == configured || $0.hasPrefix("\(configured):") }
         return present ? configured : fallback
@@ -114,8 +114,10 @@ struct LinuxImageBaker {
         let startArgv = [
             bin, "run", "--detach",
             "--volume", ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path),
+            // POSIX sh, not bash: minimal non-Debian images (Alpine) have no bash,
+            // and the apt-get check below should be what rejects them, clearly.
             "--name", scratch, options.image,
-            "/bin/bash", "-lc", "while true; do sleep 3600; done",
+            "/bin/sh", "-c", "while true; do sleep 3600; done",
         ]
         var started = try await shell.run(startArgv)
         if !started.succeeded, let recover = backend.recoverStartFailure, await recover(shell, started.stderr) {
@@ -134,6 +136,15 @@ struct LinuxImageBaker {
         do {
             // 2. Wait until it answers exec.
             try await waitUntilReady(scratch)
+
+            // The install scripts below use apt-get; say so now instead of
+            // failing after a long download on an Alpine or Fedora base.
+            let apt = try await shell.run([bin, "exec", scratch, "/bin/sh", "-c", "command -v apt-get"])
+            guard apt.succeeded else {
+                throw ImageError.containerProvisioningFailed(
+                    "'\(options.image)' isn't Debian/Ubuntu-based — kinhin's install scripts need apt-get. Pick a Debian or Ubuntu base image."
+                )
+            }
 
             // 3. Inject the agents.
             Log.info(tag, "installing runner agents")

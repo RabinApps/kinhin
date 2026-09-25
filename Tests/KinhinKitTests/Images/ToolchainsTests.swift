@@ -597,10 +597,12 @@ final class ToolchainsTests: XCTestCase {
     }
 
     func testContainerPrepareManagedFailureAbortsBeforeBuild() async throws {
-        // Scripted per call: run ok, ready-probe ok, agent exec ok, managed
-        // exec FAILS (probes after that never happen — the error throws).
+        // Scripted per call: run ok, ready-probe ok, apt-get probe ok, agent
+        // exec ok, managed exec FAILS (probes after that never happen — the
+        // error throws).
         let shell = FakeShell()
         shell.responses = [
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),
             ShellResult(exitCode: 0, stdout: "", stderr: ""),
             ShellResult(exitCode: 0, stdout: "", stderr: ""),
             ShellResult(exitCode: 0, stdout: "", stderr: ""),

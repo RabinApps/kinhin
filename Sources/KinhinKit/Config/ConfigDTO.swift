@@ -48,12 +48,14 @@ public struct PartialConfig: Decodable {
         var cpus: Int?
         var memoryGB: Int?
         var labels: [String]?
+        var baseImage: String?
 
         enum CodingKeys: String, CodingKey {
             case image
             case cpus
             case memoryGB = "memory_gb"
             case labels
+            case baseImage = "base_image"
         }
     }
 
@@ -62,12 +64,14 @@ public struct PartialConfig: Decodable {
         var cpus: Int?
         var memoryGB: Int?
         var maxSlots: Int?
+        var baseImage: String?
 
         enum CodingKeys: String, CodingKey {
             case image
             case cpus
             case memoryGB = "memory_gb"
             case maxSlots = "max_slots"
+            case baseImage = "base_image"
         }
     }
 

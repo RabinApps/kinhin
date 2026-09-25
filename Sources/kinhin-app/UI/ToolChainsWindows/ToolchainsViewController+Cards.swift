@@ -10,6 +10,7 @@ extension ToolchainsViewController {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         toolChecks.removeAll(); toolVersions.removeAll(); stackChecks.removeAll(); stackVersions.removeAll()
         rebuildButtons.removeAll()
+        baseImagePickers.removeAll()
 
         let intro = FormKit.hint(
             "Pick what your jobs need preinstalled. Changes take effect when you rebuild an image below.")
@@ -174,6 +175,17 @@ extension ToolchainsViewController {
             let row = FormKit.row([text, FormKit.spacer(), button])
             row.widthAnchor.constraint(equalToConstant: FormKit.formWidth - 28).isActive = true
             card.column.addArrangedSubview(row)
+
+            // Linux images are baked on a base image the user can change.
+            if runtime != .tart {
+                let picker = BaseImagePicker(value: snapshot?.baseImage(for: runtime))
+                picker.onChange = { [weak self, weak picker] value in
+                    self?.saveBaseImage(value, for: runtime, picker: picker)
+                }
+                baseImagePickers[runtime] = picker
+                card.column.addArrangedSubview(
+                    FormKit.row([FormKit.label("Base image", weight: .semibold), FormKit.spacer(), picker]))
+            }
         }
         return card.card
     }
@@ -184,6 +196,22 @@ extension ToolchainsViewController {
         case .appleContainer: return "Linux image (Apple container)"
         case .docker: return "Linux image (Docker)"
         case .host: return "host"
+        }
+    }
+}
+
+extension ToolchainsViewController {
+    /// Writes the chosen base image; on failure says why and shows what is
+    /// actually saved.
+    func saveBaseImage(_ value: String?, for runtime: RuntimeID, picker: BaseImagePicker?) {
+        do {
+            try GeneralConfigEditor.setBaseImage(value, for: runtime, at: configURL)
+            statusLabel.stringValue = "Base image saved — rebuild the image to use it."
+            statusLabel.textColor = .secondaryLabelColor
+            onEdited?()
+        } catch {
+            AlertKit.present(error: error, title: "Couldn't save the base image")
+            picker?.setValue(ConfigStore.snapshotOrLog(at: configURL)?.baseImage(for: runtime))
         }
     }
 }

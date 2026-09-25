@@ -134,7 +134,8 @@ extension SetupWindowController {
             // The config's toolchains section bakes into the Linux image too
             // (macOS-only entries are skipped for containers, never an error).
             let base = LinuxImageOptions.baseImage(
-                configured: image, localImages: await AppleContainerRuntime().localImageNames())
+                configured: image, localImages: await AppleContainerRuntime().localImageNames(),
+                fallback: LinuxBaseImage.resolve(configured: cfg.container?.baseImage))
             var options = ContainerImagePreparer.Options(image: base, target: image)
             options.toolchains = cfg.toolchains
             try await preparer.prepare(options)
@@ -152,7 +153,8 @@ extension SetupWindowController {
             // The config's toolchains section bakes into the Linux image too
             // (macOS-only entries are skipped for containers, never an error).
             let base = LinuxImageOptions.baseImage(
-                configured: image, localImages: await DockerRuntime(image: image).localImageNames())
+                configured: image, localImages: await DockerRuntime(image: image).localImageNames(),
+                fallback: LinuxBaseImage.resolve(configured: cfg.docker?.baseImage))
             var options = DockerImagePreparer.Options(image: base, target: image)
             options.toolchains = cfg.toolchains
             try await preparer.prepare(options)

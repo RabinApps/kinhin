@@ -140,12 +140,18 @@ public struct KinhinConfig: Sendable, Equatable {
         public var cpus: Int
         /// RAM (GB) per runner container.
         public var memoryGB: Int
+        /// Image `kinhin image prepare --container` bakes on top of; nil uses
+        /// `LinuxBaseImage.defaultReference`. Debian/Ubuntu-based images only.
+        public var baseImage: String?
 
-        public init(image: String, cpus: Int = 4, memoryGB: Int = 8, labels: [String]? = nil) {
+        public init(
+            image: String, cpus: Int = 4, memoryGB: Int = 8, labels: [String]? = nil, baseImage: String? = nil
+        ) {
             self.image = image
             self.cpus = cpus
             self.memoryGB = memoryGB
             self.labels = labels
+            self.baseImage = baseImage
         }
 
         /// Extra labels the Apple-container pool's runners register with, so
@@ -156,6 +162,7 @@ public struct KinhinConfig: Sendable, Equatable {
         enum CodingKeys: String, CodingKey {
             case image, cpus, labels
             case memoryGB = "memory_gb"
+            case baseImage = "base_image"
         }
     }
 
@@ -172,18 +179,23 @@ public struct KinhinConfig: Sendable, Equatable {
         public var memoryGB: Int
         /// Hard upper bound on concurrent container slots.
         public var maxSlots: Int
+        /// Image `kinhin image prepare --docker` bakes on top of; nil uses
+        /// `LinuxBaseImage.defaultReference`. Debian/Ubuntu-based images only.
+        public var baseImage: String?
 
-        public init(image: String, cpus: Int = 2, memoryGB: Int = 4, maxSlots: Int = 8) {
+        public init(image: String, cpus: Int = 2, memoryGB: Int = 4, maxSlots: Int = 8, baseImage: String? = nil) {
             self.image = image
             self.cpus = cpus
             self.memoryGB = memoryGB
             self.maxSlots = maxSlots
+            self.baseImage = baseImage
         }
 
         enum CodingKeys: String, CodingKey {
             case image, cpus
             case memoryGB = "memory_gb"
             case maxSlots = "max_slots"
+            case baseImage = "base_image"
         }
     }
 

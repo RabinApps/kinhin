@@ -34,6 +34,15 @@ public enum GeneralConfigEditor {
         public var container: Container?
         public var docker: Docker?
 
+        /// The configured base image for a Linux runtime (nil = default).
+        public func baseImage(for runtime: RuntimeID) -> String? {
+            switch runtime {
+            case .appleContainer: return container?.baseImage
+            case .docker: return docker?.baseImage
+            default: return nil
+            }
+        }
+
         public struct Gitea: Equatable, Sendable {
             public var instance: String
             public var scope: String
@@ -47,10 +56,18 @@ public enum GeneralConfigEditor {
             public var image: String
             public var cpus: Int
             public var memoryGB: Int
-            public init(image: String, cpus: Int, memoryGB: Int) {
+            /// See `KinhinConfig.ContainerConfig.baseImage` / `.labels`; carried so a
+            /// section rewrite doesn't drop them.
+            public var baseImage: String?
+            public var labels: [String]?
+            public init(
+                image: String, cpus: Int, memoryGB: Int, baseImage: String? = nil, labels: [String]? = nil
+            ) {
                 self.image = image
                 self.cpus = cpus
                 self.memoryGB = memoryGB
+                self.baseImage = baseImage
+                self.labels = labels
             }
         }
 
@@ -59,11 +76,13 @@ public enum GeneralConfigEditor {
             public var cpus: Int
             public var memoryGB: Int
             public var maxSlots: Int
-            public init(image: String, cpus: Int, memoryGB: Int, maxSlots: Int) {
+            public var baseImage: String?
+            public init(image: String, cpus: Int, memoryGB: Int, maxSlots: Int, baseImage: String? = nil) {
                 self.image = image
                 self.cpus = cpus
                 self.memoryGB = memoryGB
                 self.maxSlots = maxSlots
+                self.baseImage = baseImage
             }
         }
     }
@@ -95,12 +114,14 @@ public enum GeneralConfigEditor {
             reserveMemoryGB: reserve?.memoryGB ?? d.reserve.memoryGB,
             gitea: partial?.gitea.map { .init(instance: $0.instance ?? "", scope: $0.scope ?? "") },
             container: partial?.container.map {
-                .init(image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memoryGB ?? 8)
+                .init(
+                    image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memoryGB ?? 8,
+                    baseImage: $0.baseImage, labels: $0.labels)
             },
             docker: partial?.docker.map {
                 .init(
                     image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 2, memoryGB: $0.memoryGB ?? 4,
-                    maxSlots: $0.maxSlots ?? 8)
+                    maxSlots: $0.maxSlots ?? 8, baseImage: $0.baseImage)
             }
         )
     }
@@ -287,6 +308,32 @@ public enum GeneralConfigEditor {
         return lines.joined(separator: "\n")
     }
 
+    // MARK: Base image
+
+    /// Sets (or, with nil, clears) `base_image:` for the Apple container or
+    /// Docker section, leaving everything else in the file alone. Validated
+    /// like any other edit: nothing is written if the result doesn't parse.
+    @discardableResult
+    public static func setBaseImage(_ image: String?, for runtime: RuntimeID, at url: URL) throws -> String {
+        guard let snapshot = try ConfigStore.snapshot(at: url) else { throw ConfigEditError.notFound(url.path) }
+        switch runtime {
+        case .appleContainer:
+            guard var container = snapshot.container else {
+                throw ConfigEditError.unsupported("Apple container isn't enabled in config.yaml")
+            }
+            container.baseImage = image
+            return try apply(.container(container), to: url)
+        case .docker:
+            guard var docker = snapshot.docker else {
+                throw ConfigEditError.unsupported("Docker isn't enabled in config.yaml")
+            }
+            docker.baseImage = image
+            return try apply(.docker(docker), to: url)
+        default:
+            throw ConfigEditError.unsupported("only Apple container and Docker are baked from a base image")
+        }
+    }
+
     // MARK: Section toggles (gitea / container / docker)
 
     /// Remove or (re)write a whole top-level section block. `newText` renders
@@ -334,22 +381,18 @@ public enum GeneralConfigEditor {
     }
 
     private static func sectionText(_ c: Snapshot.Container) -> String {
-        """
-        container:
-          image: \(quote(c.image))
-          cpus: \(c.cpus)
-          memory_gb: \(c.memoryGB)
-        """
+        var lines = ["container:", "  image: \(quote(c.image))"]
+        if let base = c.baseImage, !base.isEmpty { lines.append("  base_image: \(quote(base))") }
+        lines += ["  cpus: \(c.cpus)", "  memory_gb: \(c.memoryGB)"]
+        if let labels = c.labels { lines.append("  labels: [\(labels.map(quote).joined(separator: ", "))]") }
+        return lines.joined(separator: "\n")
     }
 
     private static func sectionText(_ d: Snapshot.Docker) -> String {
-        """
-        docker:
-          image: \(quote(d.image))
-          cpus: \(d.cpus)
-          memory_gb: \(d.memoryGB)
-          max_slots: \(d.maxSlots)
-        """
+        var lines = ["docker:", "  image: \(quote(d.image))"]
+        if let base = d.baseImage, !base.isEmpty { lines.append("  base_image: \(quote(base))") }
+        lines += ["  cpus: \(d.cpus)", "  memory_gb: \(d.memoryGB)", "  max_slots: \(d.maxSlots)"]
+        return lines.joined(separator: "\n")
     }
 
     private static func quote(_ value: String) -> String {

@@ -61,14 +61,16 @@ extension ToolchainsViewController {
             guard let image = cfg.container?.image else { throw ToolchainRebuildError.notConfigured("container") }
             try await SetupWindowController.startContainerSystem(shell: Shell())
             let base = LinuxImageOptions.baseImage(
-                configured: image, localImages: await AppleContainerRuntime().localImageNames())
+                configured: image, localImages: await AppleContainerRuntime().localImageNames(),
+                fallback: LinuxBaseImage.resolve(configured: cfg.container?.baseImage))
             var options = ContainerImagePreparer.Options(image: base, target: image)
             options.toolchains = cfg.toolchains
             try await ContainerImagePreparer(shell: Shell()).prepare(options)
         case .docker:
             guard let image = cfg.docker?.image else { throw ToolchainRebuildError.notConfigured("docker") }
             let base = LinuxImageOptions.baseImage(
-                configured: image, localImages: await DockerRuntime(image: image).localImageNames())
+                configured: image, localImages: await DockerRuntime(image: image).localImageNames(),
+                fallback: LinuxBaseImage.resolve(configured: cfg.docker?.baseImage))
             var options = DockerImagePreparer.Options(image: base, target: image)
             options.toolchains = cfg.toolchains
             try await DockerImagePreparer(shell: Shell()).prepare(options)

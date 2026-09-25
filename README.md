@@ -520,6 +520,7 @@ gitea:
 ```yaml
 container:
   image: "kinhin-ci-linux" # built by: kinhin image prepare --container --target kinhin-ci-linux
+  base_image: "ubuntu:24.04" # optional: what that image is built on (any Debian/Ubuntu-based image)
   cpus: 4
   memory_gb: 8
 ```
@@ -533,10 +534,13 @@ Managed toolchains and the shared cache work on this path: `image prepare --cont
 ```yaml
 docker:
   image: "ghcr.io/acme/kinhin-ci-linux" # built by: kinhin image prepare --docker --target <name>
+  base_image: "ubuntu:24.04" # optional: what that image is built on (any Debian/Ubuntu-based image)
   cpus: 2
   memory_gb: 4
   max_slots: 8 # hard cap on concurrent container slots
 ```
+
+**Choosing the base image.** `image prepare --container|--docker` bakes the agents on top of a base image: `ubuntu:24.04` by default. Pick another in the app (Advanced → Toolchains → Rebuild images, or the Linux card in Setup) or set `base_image:` under `container:` / `docker:`; `--container-image` / `--docker-image` override it for one run. The install scripts use `apt-get`, so the base must be Debian- or Ubuntu-based (an Alpine or Fedora base is rejected up front with a clear message).
 
 When `docker:` is configured, the checklist and `kinhin doctor` gain Docker rows (daemon reachable, image present) exactly like the container rows; without it, they never appear. Docker slots register with an `kinhin-docker` label so jobs opt in via `runs-on: [kinhin-docker]`, and `max_slots` clamps the budget partition. The shared toolchain cache works here too: `image prepare --docker` bind-mounts the host cache into the scratch container and bakes the config's `toolchains:` (macOS-only entries are skipped with a note; override per prepare with `--linux-toolchain`/`--linux-stack`), and with `share_cache: true` every Docker slot gets the same `-v` mount plus the guarded cache-env exports in its registration script.
 

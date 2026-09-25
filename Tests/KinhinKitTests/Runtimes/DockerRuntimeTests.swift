@@ -413,10 +413,12 @@ final class DockerRuntimeTests: XCTestCase {
     }
 
     func testPrepareManagedFailureAbortsBeforeCommit() async throws {
-        // Scripted per call: run ok, ready-probe ok, agent exec ok, managed
-        // exec FAILS — no commit must happen, scratch container removed.
+        // Scripted per call: run ok, ready-probe ok, apt-get probe ok, agent
+        // exec ok, managed exec FAILS — no commit must happen, scratch
+        // container removed.
         let shell = FakeShell()
         shell.responses = [
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),
             ShellResult(exitCode: 0, stdout: "", stderr: ""),
             ShellResult(exitCode: 0, stdout: "", stderr: ""),
             ShellResult(exitCode: 0, stdout: "", stderr: ""),
