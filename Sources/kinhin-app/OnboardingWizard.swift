@@ -71,7 +71,7 @@ class OnboardingWizardViewController: NSViewController {
 
     private let connectForm = ConnectFormViewController()
     private let macForm = MacToolsFormViewController()
-    private let toolchainsForm = ToolchainsFormViewController()
+    private let toolchainsForm = ToolchainsViewController(seed: .allOff)
     private let summaryLabel = NSTextField(wrappingLabelWithString: "")
 
     init() { super.init(nibName: nil, bundle: nil) }

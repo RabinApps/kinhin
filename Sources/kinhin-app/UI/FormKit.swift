@@ -60,6 +60,24 @@ enum FormKit {
         return label
     }
 
+    /// Small uppercase caption above a group of rows.
+    static func sectionHeader(_ text: String) -> NSTextField {
+        let label = NSTextField(labelWithString: text.uppercased())
+        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .tertiaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }
+
+    /// One line of small secondary text (optionally monospaced); unlike
+    /// `hint`, it does not wrap.
+    static func secondaryLabel(_ text: String, mono: Bool = false) -> NSTextField {
+        let label = NSTextField(labelWithString: text)
+        label.font = mono ? .monospacedSystemFont(ofSize: 11, weight: .regular) : .systemFont(ofSize: 11)
+        label.textColor = .secondaryLabelColor
+        return label
+    }
+
     static func row(_ views: [NSView]) -> NSStackView {
         let row = NSStackView(views: views)
         row.orientation = .horizontal

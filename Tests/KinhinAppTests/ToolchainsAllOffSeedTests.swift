@@ -4,9 +4,9 @@ import XCTest
 @testable import KinhinKit
 @testable import kinhin_app
 
-/// Renders the wizard's ToolchainsFormViewController (all-off by default) and
+/// Renders the wizard's all-off ToolchainsViewController and
 /// asserts the catalog tool/stack rows actually appear and can be toggled.
-@MainActor final class ToolchainsFormViewControllerTests: XCTestCase {
+@MainActor final class ToolchainsAllOffSeedTests: XCTestCase {
     private var scratch: URL!
     private var configURL: URL!
 
@@ -21,8 +21,8 @@ import XCTest
         try? FileManager.default.removeItem(at: scratch)
     }
 
-    private func makeVC() -> ToolchainsFormViewController {
-        let c = ToolchainsFormViewController()
+    private func makeVC() -> ToolchainsViewController {
+        let c = ToolchainsViewController(seed: .allOff)
         c.configURL = configURL
         return c
     }

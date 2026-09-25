@@ -18,7 +18,7 @@ swift build 2>/dev/null
 
 # App sources minus AppMain.swift, plus the harness (which carries @main).
 APP_SOURCES="Sources/kinhin-app"
-SOURCES=$(ls $APP_SOURCES/*.swift $APP_SOURCES/UI/*.swift | grep -v "AppMain.swift")
+SOURCES=$(find "$APP_SOURCES" -name '*.swift' | sort | grep -v "/AppMain.swift")
 SOURCES="$SOURCES shots/capture/AppMainLite.swift shots/capture/harness_main.swift"
 
 swiftc -o shots/capture/harness $SOURCES \

@@ -1,0 +1,108 @@
+import AppKit
+import KinhinKit
+
+// Pushing config edits to a running engine (live reload or rebuild).
+
+@MainActor
+extension AppDelegate {
+    /// Config writes (Runtimes pane, Config tab) reach whoever owns the
+    /// engine so the running fleet picks up the change. Routing-only edits
+    /// apply live; anything else (scope, bounds, VM shape, images, forge
+    /// sections) restarts the engine automatically — the old behavior was
+    /// to silently keep the stale config until a manual daemon restart.
+    /// Edits are debounced: a save burst (e.g. a stepper drag) flushes once.
+    func pushConfigToEngine() {
+        pendingConfigEdits = true
+        guard !isConfigPushScheduled else { return }
+        isConfigPushScheduled = true
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard let self else { return }
+            while self.pendingConfigEdits {
+                self.pendingConfigEdits = false
+                await self.applyConfigToEngine()
+            }
+            self.isConfigPushScheduled = false
+        }
+    }
+
+    private func applyConfigToEngine() async {
+        if let engine {
+            let cfg: KinhinConfig
+            do {
+                cfg = try ConfigLoader.load()
+            } catch {
+                Log.warn(
+                    "app",
+                    "config reload skipped — \(error.localizedDescription); the running fleet keeps its current config"
+                )
+                return
+            }
+            if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
+                await rebuildInProcessEngine(from: engine, config: cfg)
+            } else {
+                engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
+                Log.info("app", "routing reloaded into in-process engine")
+            }
+        } else if let client {
+            do {
+                _ = try client.reloadConfig()
+                Log.info("app", "daemon notified: config reloaded (restarted if the change required it)")
+            } catch {
+                Log.warn("app", "daemon reload failed: \(error.localizedDescription)")
+            }
+        }
+        await refresh()
+    }
+
+    /// Rebuild the in-process engine from a new config. Deliberately not
+    /// stop()→start(): stop tears every active VM down. The old engine is
+    /// detached (scaling stops, lifecycle tasks cancel) while its instances
+    /// keep running; the replacement adopts them via the standard recovery
+    /// path, then resumes serving at the previous running/paused state.
+    private func rebuildInProcessEngine(from old: FleetEngine, config cfg: KinhinConfig) async {
+        guard let pat = ConfigLoader.engineToken(for: cfg) else {
+            Log.warn(
+                "app",
+                "config change needs an engine restart but the required forge token is missing — the fleet keeps running on the old config"
+            )
+            return
+        }
+        do {
+            let tart = try cfg.makeTartControlling()
+            let wasRunning = await old.status().running
+            let wasPaused = await old.status().paused
+            let replacement = FleetEngine(
+                config: cfg,
+                pat: pat,
+                tart: tart,
+                store: FleetStore(),
+                ssh: SSHExecutor(),
+                host: ResourceProbe().snapshot()
+            )
+            // A stopped fleet stays stopped across a rebuild — a config edit
+            // must never start spawning VMs.
+            if wasRunning {
+                await replacement.start()
+                if wasPaused { await replacement.setPaused(true) }
+            }
+            let status = await replacement.status()
+            if wasRunning, !status.running, let error = status.lastError {
+                // Startup verification failed (bad PAT, transient network):
+                // keep the old engine instead of trading a running fleet for
+                // a dead one.
+                Log.error("app", "rebuild did not start: \(error) — keeping the previous engine and config")
+                return
+            }
+            await old.detachKeepingInstances()
+            engine = replacement
+            Log.info(
+                "app",
+                "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))")
+        } catch {
+            Log.error(
+                "app",
+                "engine rebuild failed: \(error.localizedDescription) — the fleet keeps running on the old config")
+        }
+    }
+}
