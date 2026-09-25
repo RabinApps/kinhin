@@ -132,6 +132,7 @@ extension ConfigLoader {
         #   cpus: 2
         #   memory_gb: 4
         #   max_slots: 8   # hard cap on concurrent runner containers
+        #   platform: "linux/arm64"   # native; "linux/amd64" runs x86_64 under emulation (slower, some gaps)
         """
     }
 }

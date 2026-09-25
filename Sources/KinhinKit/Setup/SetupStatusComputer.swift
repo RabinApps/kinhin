@@ -22,6 +22,9 @@ public struct SetupStatusComputer: Sendable {
     let containerKernelInstalled: Bool?
     let dockerHealth: RuntimeHealth?
     let dockerImages: [String]?
+    /// Architecture of the configured Docker image (fixture). nil probes the
+    /// real image when `dockerImages` is not injected.
+    let dockerImageArchitecture: String?
     /// Shared toolchain cache state (fixture). nil probes the real host: the
     /// cache root's existence/writability, plus the config's `share_cache`.
     /// No live mount is probed — runners bind on demand.
@@ -40,6 +43,7 @@ public struct SetupStatusComputer: Sendable {
         containerKernelInstalled: Bool? = nil,
         dockerHealth: RuntimeHealth? = nil,
         dockerImages: [String]? = nil,
+        dockerImageArchitecture: String? = nil,
         toolchainCacheState: (usable: Bool, shareCacheOn: Bool)? = nil
     ) {
         self.host = host
@@ -54,6 +58,7 @@ public struct SetupStatusComputer: Sendable {
         self.containerKernelInstalled = containerKernelInstalled
         self.dockerHealth = dockerHealth
         self.dockerImages = dockerImages
+        self.dockerImageArchitecture = dockerImageArchitecture
         self.toolchainCacheState = toolchainCacheState
     }
 
@@ -354,15 +359,30 @@ public struct SetupStatusComputer: Sendable {
                 listed = []
             }
             let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
+            // The image must match docker.platform: a stale arm64 image under
+            // a linux/amd64 config (or the reverse) would run the wrong agent.
+            let platform = cfg.docker?.platform ?? .arm64
+            var imageArch = dockerImageArchitecture
+            if imageArch == nil, dockerImages == nil, imageFound {
+                imageArch = await docker.imageArchitecture(of: wanted)
+            }
+            let archMismatch = imageFound && (imageArch.map { $0 != platform.dockerArchitecture } ?? false)
+            var detail =
+                !resolvedHealth.isReady
+                ? "run after the Docker daemon is reachable"
+                : (imageFound ? "image '\(wanted)' found" : "image '\(wanted)' not local yet")
+            if archMismatch, let imageArch {
+                detail =
+                    "image '\(wanted)' is \(imageArch) but docker.platform is \(platform.rawValue) — run image prepare"
+            }
+            if platform.isEmulated { detail += " · \(LinuxPlatform.emulationNotice)" }
             checks.append(
                 SetupCheckResult(
                     id: "docker-image",
                     title: "Docker image prepared",
-                    ok: imageFound,
-                    detail: !resolvedHealth.isReady
-                        ? "run after the Docker daemon is reachable"
-                        : (imageFound ? "image '\(wanted)' found" : "image '\(wanted)' not local yet"),
-                    action: imageFound ? nil : "prepare_docker_image"
+                    ok: imageFound && !archMismatch,
+                    detail: detail,
+                    action: (imageFound && !archMismatch) ? nil : "prepare_docker_image"
                 ))
         }
 

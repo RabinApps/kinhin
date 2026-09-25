@@ -573,7 +573,15 @@ docker:
   cpus: 2
   memory_gb: 4
   max_slots: 8 # hard cap on concurrent container slots
+  platform: "linux/arm64" # default and native; "linux/amd64" runs x86_64 under emulation (see below)
 ```
+
+**Architecture and emulation.** kinhin runs on Apple Silicon, so Docker runner containers are `linux/arm64` by default (native speed). If a workflow needs x86_64, set `docker.platform: "linux/amd64"` (or pick it in the app under This Mac → Linux jobs, or bake once with `kinhin image prepare --docker --platform linux/amd64`). Disclosure: **`linux/amd64` runs under emulation** — Rosetta if you enabled it in Docker Desktop, otherwise QEMU. Expect slower jobs (QEMU can be several times slower), and some software fails under emulation: JITs, certain Go/Java/.NET builds, and anything using unsupported CPU instructions. Prefer arm64 unless a job needs x86_64. Emulation is provided by your Docker provider; kinhin does not configure it. Details:
+
+- The baked agents follow the platform (`actions-runner-linux-x64` / `gitea-runner-linux-amd64`), so rebuild the image after changing `platform` — the checklist and `kinhin doctor` flag an image whose architecture doesn't match, and a rebuild never reuses an image of the other architecture as its base.
+- amd64 Docker slots register with an `x64` label instead of `arm64`, so `runs-on: [kinhin-docker, x64]` selects them and `arm64` jobs never land on emulated slots.
+- Apple `container` is arm64-only (`container.platform` is rejected). Toolchains are architecture-neutral.
+- kinhin warns whenever amd64 is selected: on `image prepare`, in the checklist / `kinhin doctor`, in the app, and once at fleet start.
 
 **Choosing the base image.** `image prepare --container|--docker` bakes the agents on top of a base image: `ubuntu:24.04` by default. Pick another in the app (Advanced → Toolchains → Rebuild images, or the Linux card in Setup) or set `base_image:` under `container:` / `docker:`; `--container-image` / `--docker-image` override it for one run. The install scripts use `apt-get`, so the base must be Debian- or Ubuntu-based (an Alpine or Fedora base is rejected up front with a clear message).
 
@@ -581,31 +589,34 @@ When `docker:` is configured, the checklist and `kinhin doctor` gain Docker rows
 
 #### Building the Docker image with a Dockerfile (CI-friendly)
 
-`kinhin image prepare --docker` bakes the image on the spot — fine for a one-host setup, but it needs a stored token and a live daemon on the machine doing the baking. For a reproducible, CI-buildable image, use a Dockerfile instead: it lands the runner agents at exactly the paths the registration scripts expect (`/opt/actions-runner` with `config.sh`, `/opt/gitea-runner/gitea-runner`), performs the same downloads `image prepare` would, and can be built anywhere with an `linux/arm64` builder (Apple silicon hosts run arm64 containers — keep the platform pinned):
+`kinhin image prepare --docker` bakes the image on the spot — fine for a one-host setup, but it needs a stored token and a live daemon on the machine doing the baking. For a reproducible, CI-buildable image, use a Dockerfile instead: it lands the runner agents at exactly the paths the registration scripts expect (`/opt/actions-runner` with `config.sh`, `/opt/gitea-runner/gitea-runner`), performs the same downloads `image prepare` would, and can be built anywhere with a `linux/arm64` builder (Apple silicon hosts run arm64 containers natively — keep the platform pinned unless you set `docker.platform: "linux/amd64"`, in which case build with `--platform linux/amd64`; the Dockerfile picks the matching agent from `TARGETARCH`):
 
 ```dockerfile
-# kinhin-ci-linux — kinhin runner agents on arm64 Linux
+# kinhin-ci-linux — kinhin runner agents on Linux (arm64 native; amd64 runs emulated)
 # docker build --platform linux/arm64 -t ghcr.io/acme/kinhin-ci-linux:latest .
 FROM ubuntu:24.04
+
+ARG TARGETARCH  # set by BuildKit: arm64 or amd64
 
 ARG RUNNER_VERSION=2.325.0      # pin to a github/actions/runner release
 ARG GITEA_RUNNER_VERSION=3.5.0  # pin to a gitea/runner release
 
 # GitHub Actions agent at /opt/actions-runner (config.sh must be executable there)
-RUN mkdir -p /opt/actions-runner \
+RUN GH_ARCH=$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo arm64) \
+ && mkdir -p /opt/actions-runner \
  && cd /opt/actions-runner \
- && curl -fsSL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz" | tar xz \
+ && curl -fsSL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${GH_ARCH}-${RUNNER_VERSION}.tar.gz" | tar xz \
  && ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
 
 # Gitea runner at /opt/gitea-runner/gitea-runner
 RUN mkdir -p /opt/gitea-runner \
  && cd /opt/gitea-runner \
- && curl -fsSL "https://gitea.com/gitea/runner/releases/download/v${GITEA_RUNNER_VERSION}/gitea-runner-${GITEA_RUNNER_VERSION}-linux-arm64.xz" -o runner.xz \
+ && curl -fsSL "https://gitea.com/gitea/runner/releases/download/v${GITEA_RUNNER_VERSION}/gitea-runner-${GITEA_RUNNER_VERSION}-linux-${TARGETARCH}.xz" -o runner.xz \
  && xz -d runner.xz && chmod +x runner && mv runner gitea-runner \
  && ./gitea-runner --version
 ```
 
-Build and push from CI (any linux/arm64 runner — or amd64 with QEMU):
+Build and push from CI (any linux/arm64 runner — or amd64 with QEMU; use `--platform linux/amd64` for an x86_64 image):
 
 ```bash
 docker build --platform linux/arm64 -t ghcr.io/acme/kinhin-ci-linux:latest .

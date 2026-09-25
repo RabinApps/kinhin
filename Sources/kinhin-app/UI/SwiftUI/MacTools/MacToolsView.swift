@@ -61,6 +61,7 @@ struct MacToolsView: View {
                 installID: "mac-install-docker", install: { model.installDocker() })
             if model.dockerOn {
                 baseImageRow(value: model.dockerBaseImage, runtime: .docker)
+                platformRow
             }
         }
     }
@@ -99,6 +100,31 @@ struct MacToolsView: View {
             Spacer(minLength: 0)
             BaseImagePickerField(value: value) { model.saveBaseImage($0, for: runtime) }
                 .fixedSize()
+        }
+    }
+
+    /// Native arm64 by default; amd64 is an explicit opt-in that runs under
+    /// emulation, so the trade-off is stated right under the picker.
+    private var platformRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 8) {
+                Text("Architecture").font(.system(size: 12))
+                Spacer(minLength: 0)
+                Picker(
+                    "Architecture",
+                    selection: Binding(get: { model.dockerPlatform }, set: { model.saveDockerPlatform($0) })
+                ) {
+                    Text("arm64 (native)").tag(LinuxPlatform.arm64)
+                    Text("amd64 (emulated)").tag(LinuxPlatform.amd64)
+                }
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityIdentifier("mac-docker-platform")
+            }
+            if model.dockerPlatform.isEmulated {
+                HintText(LinuxPlatform.emulationNotice + " Rebuild the Docker image after changing this.")
+                    .accessibilityIdentifier("mac-docker-platform-notice")
+            }
         }
     }
 

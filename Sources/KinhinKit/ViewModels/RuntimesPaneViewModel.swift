@@ -98,7 +98,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             fleetLabels: fleetLabels,
             containerLabels: parsed.container?.labels,
             containerConfigured: vm.containerConfigured,
-            dockerConfigured: vm.dockerConfigured
+            dockerConfigured: vm.dockerConfigured,
+            dockerPlatform: parsed.docker?.platform ?? .arm64
         )
 
         // Capacity: partition math identical to the engine's init.

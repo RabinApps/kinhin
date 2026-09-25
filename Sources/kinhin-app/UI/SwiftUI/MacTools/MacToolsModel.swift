@@ -64,6 +64,7 @@ final class MacToolsModel {
     /// shown while the runtime is enabled.
     private(set) var containerBaseImage: String?
     private(set) var dockerBaseImage: String?
+    private(set) var dockerPlatform: LinuxPlatform = .arm64
 
     /// Installed but its background service isn't running: offer to start it
     /// (a fresh install leaves it stopped).
@@ -167,6 +168,18 @@ final class MacToolsModel {
         let snapshot = ConfigStore.snapshotOrLog(at: configURL)
         containerBaseImage = snapshot?.baseImage(for: .appleContainer)
         dockerBaseImage = snapshot?.baseImage(for: .docker)
+        dockerPlatform = snapshot?.dockerPlatform ?? .arm64
+    }
+
+    func saveDockerPlatform(_ platform: LinuxPlatform) {
+        do {
+            try GeneralConfigEditor.setDockerPlatform(platform, at: configURL)
+            refreshBaseImages()
+            onChanged?()
+        } catch {
+            busyLine = Line(text: "Not saved — \(error.localizedDescription)", style: .error)
+            refreshBaseImages()
+        }
     }
 
     func saveBaseImage(_ value: String?, for runtime: RuntimeID) {

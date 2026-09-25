@@ -52,6 +52,12 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let image: String
         /// Whether that image is available locally.
         public let imageFound: Bool
+        /// Configured container platform (`linux/arm64` or `linux/amd64`).
+        public let platform: String
+        /// Architecture the local image was built for, when known.
+        public let imageArchitecture: String?
+        /// Emulation disclosure, present only for `linux/amd64`.
+        public let note: String?
     }
 
     public struct CapacitySection: Codable, Equatable, Sendable {

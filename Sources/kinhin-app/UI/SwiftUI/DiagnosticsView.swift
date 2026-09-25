@@ -60,6 +60,7 @@ final class DiagnosticsModel {
         if let docker = report.docker {
             var detail = docker.fix ?? "ready — image \(docker.image)"
             if !docker.imageFound { detail += "\nimage \(docker.image) not built yet (kinhin image prepare --docker)" }
+            if let note = docker.note { detail += "\n\(note)" }
             rows.append(Row(title: "Docker (Linux)", detail: detail, ok: docker.ok))
         }
 

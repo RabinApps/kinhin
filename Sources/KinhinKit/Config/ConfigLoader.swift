@@ -182,6 +182,11 @@ public struct ConfigLoader {
             if let mem = container.memoryGB, mem < 2 {
                 throw ConfigError.invalid("container.memory_gb must be >= 2")
             }
+            if container.platform != nil {
+                throw ConfigError.invalid(
+                    "container.platform is not supported: Apple container runs linux/arm64 only "
+                        + "(docker.platform can select linux/amd64)")
+            }
             let containerBase = try Self.validatedBaseImage(container.baseImage, key: "container.base_image")
             cfg.container = KinhinConfig.ContainerConfig(
                 image: containerImage,
@@ -205,12 +210,20 @@ public struct ConfigLoader {
                 throw ConfigError.invalid("docker.max_slots must be >= 1")
             }
             let dockerBase = try Self.validatedBaseImage(docker.baseImage, key: "docker.base_image")
+            var dockerPlatform = LinuxPlatform.arm64
+            if let raw = docker.platform {
+                guard let parsed = LinuxPlatform(configValue: raw) else {
+                    throw ConfigError.invalid("docker.platform must be linux/arm64 or linux/amd64, got \"\(raw)\"")
+                }
+                dockerPlatform = parsed
+            }
             cfg.docker = KinhinConfig.DockerForgeConfig(
                 image: dockerImage,
                 cpus: docker.cpus ?? 2,
                 memoryGB: docker.memoryGB ?? 4,
                 maxSlots: docker.maxSlots ?? 8,
-                baseImage: dockerBase
+                baseImage: dockerBase,
+                platform: dockerPlatform
             )
         }
         if let runtimes = partial.runtimes {

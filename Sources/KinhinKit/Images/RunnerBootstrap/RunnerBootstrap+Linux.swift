@@ -27,14 +27,14 @@ extension RunnerBootstrap {
     /// Installs the GitHub Actions runner agent into a Linux image for the
     /// Apple-container runtime (baked during `kinhin image prepare` when a
     /// GitHub credential exists). Mirrors installScript but for Linux tarballs.
-    static func linuxGitHubAgentInstallScript(runnerVersion: String) -> String {
+    static func linuxGitHubAgentInstallScript(runnerVersion: String, arch: String = "arm64") -> String {
         """
         set -euo pipefail
         \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("tar", "tar"), ("gzip", "gzip")]))
         mkdir -p /opt/actions-runner
         cd /opt/actions-runner
         if [ ! -x ./config.sh ]; then
-          curl -sL "https://github.com/actions/runner/releases/download/v\(runnerVersion)/actions-runner-linux-arm64-\(runnerVersion).tar.gz" -o runner.tar.gz
+          curl -sL "https://github.com/actions/runner/releases/download/v\(runnerVersion)/actions-runner-linux-\(arch)-\(runnerVersion).tar.gz" -o runner.tar.gz
           tar xzf runner.tar.gz
           rm runner.tar.gz
           ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
@@ -137,15 +137,15 @@ extension RunnerBootstrap {
     }
 
     /// Installs the Gitea runner binary into a Linux image (gitea-runner,
-    /// formerly act_runner — linux-arm64 build).
-    static func linuxGiteaRunnerInstallScript(version: String) -> String {
+    /// formerly act_runner — arm64 by default, amd64 for emulated bakes).
+    static func linuxGiteaRunnerInstallScript(version: String, arch: String = "arm64") -> String {
         """
         set -euo pipefail
         \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("xz", "xz-utils")]))
         if [ ! -x /opt/gitea-runner/gitea-runner ]; then
           mkdir -p /opt/gitea-runner
           cd /opt/gitea-runner
-          curl -sL "https://gitea.com/gitea/runner/releases/download/v\(version)/gitea-runner-\(version)-linux-arm64.xz" -o runner.xz
+          curl -sL "https://gitea.com/gitea/runner/releases/download/v\(version)/gitea-runner-\(version)-linux-\(arch).xz" -o runner.xz
           xz -d runner.xz
           chmod +x runner
           mv runner gitea-runner

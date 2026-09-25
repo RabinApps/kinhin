@@ -155,11 +155,21 @@ public struct DoctorReportBuilder: Sendable {
                 listed = []
             }
             let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
+            var imageArch: String?
+            if imageFound, dockerImages == nil, resolvedHealth.isReady {
+                imageArch = await runtime.imageArchitecture(of: wanted)
+            }
+            let archMismatch = imageFound && (imageArch.map { $0 != docker.platform.dockerArchitecture } ?? false)
             if ok, !imageFound {
                 fix = "kinhin image prepare --docker --target \(wanted)"
+            } else if ok, archMismatch, let imageArch {
+                fix =
+                    "image is \(imageArch) but docker.platform is \(docker.platform.rawValue): kinhin image prepare --docker --target \(wanted)"
             }
             dockerSection = DoctorReport.DockerSection(
-                state: state, ok: ok, fix: fix, image: wanted, imageFound: imageFound
+                state: state, ok: ok, fix: fix, image: wanted, imageFound: imageFound,
+                platform: docker.platform.rawValue, imageArchitecture: imageArch,
+                note: docker.platform.isEmulated ? LinuxPlatform.emulationNotice : nil
             )
         }
 

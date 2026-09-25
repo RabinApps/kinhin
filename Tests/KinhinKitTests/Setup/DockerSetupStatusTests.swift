@@ -22,6 +22,7 @@ final class DockerSetupStatusTests: XCTestCase {
     private func computer(
         dockerHealth: RuntimeHealth?,
         dockerImages: [String]? = nil,
+        dockerImageArchitecture: String? = nil,
         docker: KinhinConfig.DockerForgeConfig? = KinhinConfig.DockerForgeConfig(image: "ghcr.io/acme/kinhin-ci-linux")
     ) -> SetupStatusComputer {
         SetupStatusComputer(
@@ -36,7 +37,8 @@ final class DockerSetupStatusTests: XCTestCase {
             config: .loaded(config(docker: docker)),
             tokenStored: true,
             dockerHealth: dockerHealth,
-            dockerImages: dockerImages
+            dockerImages: dockerImages,
+            dockerImageArchitecture: dockerImageArchitecture
         )
     }
 
@@ -156,7 +158,8 @@ final class DockerSetupStatusTests: XCTestCase {
     func testDoctorJSONRoundTripsDockerSection() throws {
         let section = DoctorReport.DockerSection(
             state: "ready", ok: true, fix: nil,
-            image: "ghcr.io/acme/kinhin-ci-linux", imageFound: true
+            image: "ghcr.io/acme/kinhin-ci-linux", imageFound: true,
+            platform: "linux/arm64", imageArchitecture: nil, note: nil
         )
         let data = try JSONEncoder().encode(["docker": section])
         let decoded = try JSONDecoder().decode(forKey: "docker", of: DoctorReport.DockerSection.self, from: data)

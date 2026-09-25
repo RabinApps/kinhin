@@ -126,7 +126,9 @@ func helpText() -> String {
                                     bakes `toolchains:` too — macOS-only entries are
                                     skipped (use --linux-toolchain/--linux-stack to override)
         image prepare --docker      Build the Linux container image (Docker Desktop /
-                                    OrbStack / colima); bakes `toolchains:` the same way
+                                    OrbStack / colima); bakes `toolchains:` the same way.
+                                    --platform linux/amd64 bakes an x86_64 image that runs
+                                    under emulation (slower; see docs)
         toolchains                  Managed-toolchain catalog, selections, and cache state
         toolchains prune [--dry-run]   Expire stale host-cache entries now
 

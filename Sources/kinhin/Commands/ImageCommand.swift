@@ -70,6 +70,19 @@ enum ImageCommand {
             do {
                 let preparer = DockerImagePreparer(shell: shell)
                 var options = DockerImagePreparer.Options(image: image, target: target)
+                // --platform overrides docker.platform for this bake; amd64
+                // runs under emulation, so say so before the long work starts.
+                if let raw = flag("--platform", in: args) {
+                    guard let parsed = LinuxPlatform(configValue: raw) else {
+                        fail("--platform must be linux/arm64 or linux/amd64, got \"\(raw)\"", exit: .usage)
+                    }
+                    options.platform = parsed
+                } else {
+                    options.platform = cfg.docker?.platform ?? .arm64
+                }
+                if options.platform.isEmulated {
+                    warn(LinuxPlatform.emulationNotice)
+                }
                 // Managed toolchains for the Linux bake: config section by
                 // default; --linux-toolchain / --linux-stack flags
                 // (repeatable) override it for this prepare. A bare flag

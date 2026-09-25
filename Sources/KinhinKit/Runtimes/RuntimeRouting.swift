@@ -19,10 +19,19 @@ struct RuntimePool: Sendable, Equatable {
     /// The fleet's default label set for this runtime: the config labels
     /// plus the runtime's marker ("kinhin-container" for Apple containers,
     /// "kinhin-docker" for Docker slots).
-    static func labelsFor(_ runtime: RuntimeID, fleetLabels: [String], containerExtra: [String]? = nil)
-        -> [String]
-    {
+    static func labelsFor(
+        _ runtime: RuntimeID, fleetLabels: [String], containerExtra: [String]? = nil,
+        dockerPlatform: LinuxPlatform = .arm64
+    ) -> [String] {
         var labels = fleetLabels
+        // Emulated amd64 containers must not advertise the fleet's native
+        // `arm64` label: swap it for `x64` so jobs land on the right architecture.
+        if runtime == .docker, dockerPlatform == .amd64 {
+            labels.removeAll { $0.lowercased() == LinuxPlatform.arm64.runnerLabel }
+            if !labels.contains(where: { $0.lowercased() == dockerPlatform.runnerLabel }) {
+                labels.append(dockerPlatform.runnerLabel)
+            }
+        }
         if let marker = exclusiveMarker(for: runtime) {
             if !labels.contains(marker) { labels.append(marker) }
         }
@@ -150,7 +159,7 @@ struct RuntimeConfigModel: Sendable {
 
     public init(
         config: KinhinConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil,
-        containerConfigured: Bool = false, dockerConfigured: Bool = false
+        containerConfigured: Bool = false, dockerConfigured: Bool = false, dockerPlatform: LinuxPlatform = .arm64
     ) {
         if let config {
             // Explicit routing: tart is always available (macOS workloads),
@@ -170,7 +179,7 @@ struct RuntimeConfigModel: Sendable {
             if dockerConfigured {
                 pools[.docker] = RuntimePool(
                     runtime: .docker,
-                    labels: RuntimePool.labelsFor(.docker, fleetLabels: fleetLabels)
+                    labels: RuntimePool.labelsFor(.docker, fleetLabels: fleetLabels, dockerPlatform: dockerPlatform)
                 )
             }
             self.pools = pools
@@ -185,7 +194,9 @@ struct RuntimeConfigModel: Sendable {
             self.pools = [
                 primary: RuntimePool(
                     runtime: primary,
-                    labels: RuntimePool.labelsFor(primary, fleetLabels: fleetLabels, containerExtra: containerLabels)
+                    labels: RuntimePool.labelsFor(
+                        primary, fleetLabels: fleetLabels, containerExtra: containerLabels,
+                        dockerPlatform: dockerPlatform)
                 )
             ]
         }

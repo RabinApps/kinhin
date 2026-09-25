@@ -35,6 +35,11 @@ public enum GeneralConfigEditor {
         public var docker: Docker?
 
         /// The configured base image for a Linux runtime (nil = default).
+        /// The configured Docker platform (arm64 when absent or unrecognized).
+        public var dockerPlatform: LinuxPlatform {
+            docker?.platform.flatMap { LinuxPlatform(configValue: $0) } ?? .arm64
+        }
+
         public func baseImage(for runtime: RuntimeID) -> String? {
             switch runtime {
             case .appleContainer: return container?.baseImage
@@ -77,12 +82,18 @@ public enum GeneralConfigEditor {
             public var memoryGB: Int
             public var maxSlots: Int
             public var baseImage: String?
-            public init(image: String, cpus: Int, memoryGB: Int, maxSlots: Int, baseImage: String? = nil) {
+            /// Raw `docker.platform:` value, carried so a rewrite of the section keeps it.
+            public var platform: String?
+            public init(
+                image: String, cpus: Int, memoryGB: Int, maxSlots: Int, baseImage: String? = nil,
+                platform: String? = nil
+            ) {
                 self.image = image
                 self.cpus = cpus
                 self.memoryGB = memoryGB
                 self.maxSlots = maxSlots
                 self.baseImage = baseImage
+                self.platform = platform
             }
         }
     }
@@ -121,7 +132,7 @@ public enum GeneralConfigEditor {
             docker: partial?.docker.map {
                 .init(
                     image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 2, memoryGB: $0.memoryGB ?? 4,
-                    maxSlots: $0.maxSlots ?? 8, baseImage: $0.baseImage)
+                    maxSlots: $0.maxSlots ?? 8, baseImage: $0.baseImage, platform: $0.platform)
             }
         )
     }
@@ -334,6 +345,22 @@ public enum GeneralConfigEditor {
         }
     }
 
+    // MARK: Docker platform
+
+    /// Sets `docker.platform:` (arm64 is the default and is written out only
+    /// when explicitly chosen away from it, so existing files stay tidy).
+    /// Leaves everything else in the file alone; nothing is written if the
+    /// result doesn't parse.
+    @discardableResult
+    public static func setDockerPlatform(_ platform: LinuxPlatform, at url: URL) throws -> String {
+        guard let snapshot = try ConfigStore.snapshot(at: url) else { throw ConfigEditError.notFound(url.path) }
+        guard var docker = snapshot.docker else {
+            throw ConfigEditError.unsupported("Docker isn't enabled in config.yaml")
+        }
+        docker.platform = platform == .arm64 ? nil : platform.rawValue
+        return try apply(.docker(docker), to: url)
+    }
+
     // MARK: Section toggles (gitea / container / docker)
 
     /// Remove or (re)write a whole top-level section block. `newText` renders
@@ -392,6 +419,7 @@ public enum GeneralConfigEditor {
         var lines = ["docker:", "  image: \(quote(d.image))"]
         if let base = d.baseImage, !base.isEmpty { lines.append("  base_image: \(quote(base))") }
         lines += ["  cpus: \(d.cpus)", "  memory_gb: \(d.memoryGB)", "  max_slots: \(d.maxSlots)"]
+        if let platform = d.platform, !platform.isEmpty { lines.append("  platform: \(quote(platform))") }
         return lines.joined(separator: "\n")
     }
 

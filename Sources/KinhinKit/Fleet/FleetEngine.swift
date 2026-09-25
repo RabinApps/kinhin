@@ -99,6 +99,7 @@ public final class FleetEngine {
                 image: dockerConfig.image,
                 cpus: dockerConfig.cpus,
                 memoryGB: dockerConfig.memoryGB,
+                platform: dockerConfig.platform,
                 toolchainsConfig: { [config] in config.toolchains }
             )
         }
@@ -143,7 +144,8 @@ public final class FleetEngine {
             fleetLabels: config.labels,
             containerLabels: config.container?.labels,
             containerConfigured: config.container != nil,
-            dockerConfigured: config.docker != nil
+            dockerConfigured: config.docker != nil,
+            dockerPlatform: config.docker?.platform ?? .arm64
         )
 
         if config.runtimes != nil, config.container != nil || config.docker != nil {
@@ -219,6 +221,10 @@ public final class FleetEngine {
             return was
         }
         guard !alreadyRunning else { return }
+
+        if let platform = config.docker?.platform, platform.isEmulated {
+            Log.warn("engine", LinuxPlatform.emulationNotice)
+        }
 
         // Verify the PAT can manage runners for the scope BEFORE spawning
         // anything — a forbidden org token otherwise surfaces as per-VM
@@ -450,7 +456,8 @@ public final class FleetEngine {
             fleetLabels: newConfig.labels,
             containerLabels: newConfig.container?.labels,
             containerConfigured: newConfig.container != nil,
-            dockerConfigured: newConfig.docker != nil
+            dockerConfigured: newConfig.docker != nil,
+            dockerPlatform: newConfig.docker?.platform ?? .arm64
         )
         var caps: [RuntimeID: Int] = [:]
         if newConfig.runtimes != nil, newConfig.container != nil || newConfig.docker != nil {

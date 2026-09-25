@@ -60,6 +60,24 @@ delegates the VM — it never starts, stops, or configures the provider:
 kinhin image prepare --docker
 ```
 
+### Architecture and emulation
+
+Docker runner containers are `linux/arm64` by default: native on Apple Silicon. Set
+`docker.platform: "linux/amd64"` (or bake with `kinhin image prepare --docker --platform linux/amd64`,
+or use the picker under This Mac → Linux jobs) when a workflow needs x86_64.
+
+::: warning linux/amd64 runs under emulation
+Rosetta if enabled in Docker Desktop, otherwise QEMU. Expect slower jobs (QEMU can be several
+times slower), and some software fails under emulation: JITs, certain Go/Java/.NET builds, and
+anything using unsupported CPU instructions. Prefer arm64 unless a job needs x86_64. Emulation
+is provided by your Docker provider; kinhin does not configure it.
+:::
+
+- Rebuild the image after changing `platform`. The checklist and `kinhin doctor` flag an image
+  built for the other architecture.
+- amd64 slots register with an `x64` label instead of `arm64`: use `runs-on: [kinhin-docker, x64]`.
+- Apple `container` is arm64-only.
+
 ## Inspecting the split
 
 `kinhin runtimes` (or the menu bar's **Runtimes…** pane) shows the pools with their per-runtime

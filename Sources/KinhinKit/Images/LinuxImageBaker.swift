@@ -15,11 +15,16 @@ public struct LinuxImageOptions {
     /// Token presence overrides for tests (nil = probe the Keychain).
     public var hasGitHubToken: Bool?
     public var hasGiteaToken: Bool?
+    /// Architecture of the image being baked. Anything but arm64 (native on
+    /// Apple Silicon) is Docker-only and runs under emulation.
+    public var platform: LinuxPlatform
 
     public init(
         image: String, target: String, user: String = "admin", toolchains: KinhinConfig.ToolchainsConfig? = nil,
-        toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil
+        toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil,
+        platform: LinuxPlatform = .arm64
     ) {
+        self.platform = platform
         self.image = image
         self.target = target
         self.user = user
@@ -81,13 +86,17 @@ struct LinuxImageBaker {
         var lines: [String] = []
         if hasGitHubToken {
             Log.info(tag, "GitHub PAT found — baking actions-runner \(versions.github)")
-            lines.append(RunnerBootstrap.linuxGitHubAgentInstallScript(runnerVersion: versions.github))
+            lines.append(
+                RunnerBootstrap.linuxGitHubAgentInstallScript(
+                    runnerVersion: versions.github, arch: options.platform.githubRunnerArch))
         } else {
             Log.info(tag, "no GitHub PAT stored — skipping actions-runner install")
         }
         if hasGiteaToken {
             Log.info(tag, "Gitea token found — baking gitea-runner \(versions.gitea)")
-            lines.append(RunnerBootstrap.linuxGiteaRunnerInstallScript(version: versions.gitea))
+            lines.append(
+                RunnerBootstrap.linuxGiteaRunnerInstallScript(
+                    version: versions.gitea, arch: options.platform.giteaRunnerArch))
         } else {
             Log.info(tag, "no Gitea token stored — skipping gitea-runner install")
         }
@@ -111,8 +120,14 @@ struct LinuxImageBaker {
         //    cache bind-mounted (`<bin> run -v host:guest`).
         let scratch = "kinhin-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
         Log.info(tag, "starting scratch container from \(options.image) (host toolchain cache bind-mounted)")
-        let startArgv = [
-            bin, "run", "--detach",
+        var startArgv = [bin, "run", "--detach"]
+        // Native arm64 keeps the argv unchanged; anything else is pinned
+        // explicitly so the scratch container (and the committed image) match.
+        if options.platform != .arm64 {
+            Log.warn(tag, LinuxPlatform.emulationNotice)
+            startArgv += ["--platform", options.platform.rawValue]
+        }
+        startArgv += [
             "--volume", ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path),
             // POSIX sh, not bash: minimal non-Debian images (Alpine) have no bash,
             // and the apt-get check below should be what rejects them, clearly.

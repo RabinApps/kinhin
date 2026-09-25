@@ -24,6 +24,8 @@ public struct DockerRuntime: Runtime {
     let cpus: Int
     /// Memory per runner container (bytes).
     let memoryBytes: Int64
+    /// Container architecture (`--platform`). arm64 is native; amd64 is emulated.
+    let platform: LinuxPlatform
     /// Binary-path override (tests); nil resolves from PATH/well-known paths.
     let binPath: String?
     /// Existence probe for the binary (tests inject a constant; production
@@ -38,6 +40,7 @@ public struct DockerRuntime: Runtime {
         image: String,
         cpus: Int = 2,
         memoryGB: Int = 4,
+        platform: LinuxPlatform = .arm64,
         binPath: String? = nil,
         exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
         toolchainsConfig: @escaping @Sendable () -> KinhinConfig.ToolchainsConfig? = { nil }
@@ -46,6 +49,7 @@ public struct DockerRuntime: Runtime {
         self.image = image
         self.cpus = cpus
         self.memoryBytes = Int64(memoryGB) * 1_073_741_824
+        self.platform = platform
         self.binPath = binPath
         self.exists = exists
         self.toolchainsConfig = toolchainsConfig
@@ -111,7 +115,7 @@ public struct DockerRuntime: Runtime {
             _ = try await run([bin, "start", id])
             return
         }
-        Log.info(id, "starting Linux container from \(image) (\(cpus) vCPU, \(memoryGBLabel), linux/arm64)")
+        Log.info(id, "starting Linux container from \(image) (\(cpus) vCPU, \(memoryGBLabel), \(platform.rawValue))")
         var argv = [bin, "run", "--detach"]
         // Opt-in shared cache: bind-mount the host toolchain cache into the
         // container (`docker run -v host:guest`) so per-job installs reuse
@@ -127,7 +131,7 @@ public struct DockerRuntime: Runtime {
             "--name", id,
             "--cpus", String(cpus),
             "--memory", memoryLabel,
-            "--platform", "linux/arm64",
+            "--platform", platform.rawValue,
             "--rm",  // agent exit removes the container: belt + suspenders
             image,
             "/bin/bash", "-lc", "while true; do sleep 3600; done",
@@ -243,6 +247,31 @@ public struct DockerRuntime: Runtime {
         let result = try await run(argv)
         guard result.succeeded else { return [] }
         return result.outputLines
+    }
+
+    /// The CPU architecture of a local image (`arm64`/`amd64`), nil when the
+    /// image is absent or the CLI can't say.
+    public func imageArchitecture(of reference: String) async -> String? {
+        do {
+            let result = try await run([bin, "image", "inspect", "--format", "{{.Architecture}}", reference])
+            guard result.succeeded else { return nil }
+            let arch = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            return arch.isEmpty ? nil : arch
+        } catch {
+            Log.warn("docker", "could not inspect \(reference): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Local image names, minus `reference` when it was baked for another
+    /// architecture — such an image can't be the incremental base of a bake
+    /// for `platform` (Docker would try to pull the missing variant).
+    public func localImageNames(reusing reference: String, for platform: LinuxPlatform) async -> [String] {
+        let names = await localImageNames()
+        guard let arch = await imageArchitecture(of: reference), arch != platform.dockerArchitecture else {
+            return names
+        }
+        return names.filter { $0 != reference && !$0.hasPrefix("\(reference):") }
     }
 
     /// Local list of image references (for the checklist's image-present

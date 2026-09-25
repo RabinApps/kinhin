@@ -49,6 +49,8 @@ public struct PartialConfig: Decodable {
         var memoryGB: Int?
         var labels: [String]?
         var baseImage: String?
+        /// Only present so `container.platform` can be rejected with a clear message.
+        var platform: String?
 
         enum CodingKeys: String, CodingKey {
             case image
@@ -56,6 +58,7 @@ public struct PartialConfig: Decodable {
             case memoryGB = "memory_gb"
             case labels
             case baseImage = "base_image"
+            case platform
         }
     }
 
@@ -65,6 +68,7 @@ public struct PartialConfig: Decodable {
         var memoryGB: Int?
         var maxSlots: Int?
         var baseImage: String?
+        var platform: String?
 
         enum CodingKeys: String, CodingKey {
             case image
@@ -72,6 +76,7 @@ public struct PartialConfig: Decodable {
             case memoryGB = "memory_gb"
             case maxSlots = "max_slots"
             case baseImage = "base_image"
+            case platform
         }
     }
 
