@@ -53,6 +53,11 @@ toolchains:
 - **The catalog is advisory.** Unknown specs pass through to mise and unknown brew entries to
   brew — so the long tail works today with zero kinhin code. Run `kinhin toolchains` to see
   the curated list.
+- **Works on macOS and Linux.** Nearly everything installs on both. mise is the
+  cross-platform installer (languages, cloud CLIs, build tools); Homebrew-only tools such as
+  `awscli`, `gcloud`, `flyctl`, `supabase`, `php`, `composer` and `yamllint` use mise or apt
+  inside Linux images. Only stacks that need Apple tooling (`react-native`) are macOS-only.
+  JVM tools (`gradle`, `maven`, `sbt`, `kotlin`, `scala`, `clojure`) need `java` selected too.
 - **Verification is the audit trail.** Each tool/stack carries a verify command; the prepare
   aborts with the old image intact if any check fails.
 

@@ -59,12 +59,16 @@ extension AppDelegate {
             item.target = self
             item.identifier = NSUserInterfaceItemIdentifier(id)
         }
+        applyFleetControlVisibility(to: m, status: lastStatus)
 
         m.addItem(.separator())
+        // Hidden until a background check finds a newer release; manual checks
+        // live in Settings → App.
         let updateItem = m.addItem(
-            withTitle: "Check for Updates…", action: #selector(updateItemClicked), keyEquivalent: "")
+            withTitle: "Update available…", action: #selector(updateItemClicked), keyEquivalent: "")
         updateItem.target = self
         updateItem.identifier = NSUserInterfaceItemIdentifier("updateItem")
+        updateItem.isHidden = true
         let versionItem = m.addItem(withTitle: "  kinhin \(kinhinVersion.current)", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
         m.addItem(withTitle: "Open Logs", action: #selector(openLogs), keyEquivalent: "").target = self
@@ -128,8 +132,25 @@ extension AppDelegate {
         return line
     }
 
+    /// Hides the fleet actions that make no sense in the current state.
+    /// Items stay in the menu (hidden, not removed) so indices are stable.
+    func applyFleetControlVisibility(to menu: NSMenu?, status: FleetStatus?) {
+        guard let menu else { return }
+        let visibility = FleetControlVisibility(status: status)
+        for item in menu.items {
+            switch item.identifier?.rawValue {
+            case "startFleet": item.isHidden = !visibility.start
+            case "stopFleet": item.isHidden = !visibility.stop
+            case "pauseFleet": item.isHidden = !visibility.pause
+            case "resumeFleet": item.isHidden = !visibility.resume
+            default: break
+            }
+        }
+    }
+
     func apply(status: FleetStatus?) {
         lastStatus = status
+        applyFleetControlVisibility(to: menu, status: status)
         // Title reflects state at a glance.
         if let status {
             statusItem?.button?.title = statusTitle(for: status)
@@ -172,5 +193,25 @@ extension AppDelegate {
             item.target = self
             item.representedObject = record.id
         }
+    }
+}
+
+// MARK: - Fleet control visibility
+
+/// Which fleet actions apply to a state. A nil status (no engine or daemon
+/// reachable) counts as stopped.
+struct FleetControlVisibility: Equatable {
+    let start: Bool
+    let stop: Bool
+    let pause: Bool
+    let resume: Bool
+
+    init(status: FleetStatus?) {
+        let running = status?.running ?? false
+        let paused = status?.paused ?? false
+        start = !running
+        stop = running
+        pause = running && !paused
+        resume = running && paused
     }
 }

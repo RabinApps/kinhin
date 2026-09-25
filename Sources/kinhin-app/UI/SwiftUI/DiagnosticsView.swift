@@ -68,7 +68,8 @@ final class DiagnosticsModel {
             rows.append(
                 Row(
                     title: "Capacity",
-                    detail: "\(capacity.maxConcurrent) VMs · \(capacity.jobSlots) job slots — \(capacity.bindingConstraint)",
+                    detail:
+                        "\(capacity.maxConcurrent) VMs · \(capacity.jobSlots) job slots — \(capacity.bindingConstraint)",
                     ok: capacity.fits))
         }
 

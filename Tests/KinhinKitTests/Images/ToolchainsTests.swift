@@ -481,20 +481,23 @@ final class ToolchainsTests: XCTestCase {
     }
 
     func testLinuxSelectionFiltersMacOSOnlyEntries() throws {
-        // Brew tools are macOS-only: skipped with a note, never an error.
-        // Cross-platform mise/npm tools and stacks with a Linux recipe
-        // (flutter) remain.
+        // Raw brew formulas and macOS-only stacks are skipped with a note,
+        // never an error. Cross-platform mise/npm tools, catalog tools with a
+        // Linux installer (yamllint via apt, awscli via mise) and stacks with
+        // a Linux recipe (flutter) remain.
         let sel = try linuxSelection(
             """
             repo: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["node@22", "go@1.23"], brew: ["yamllint", "awscli"], stacks: ["flutter@3.24.0", "vercel"]}
+            toolchains: {specs: ["node@22", "go@1.23"], brew: ["yamllint", "awscli", "wget"], stacks: ["flutter@3.24.0", "vercel", "react-native"]}
             """)
         XCTAssertTrue(sel.miseSpecs.contains("node@22"))
         XCTAssertTrue(sel.miseSpecs.contains("go@1.23"))
         XCTAssertTrue(sel.npmPackages.contains(.init(name: "vercel")))
         XCTAssertTrue(sel.brewFormulas.isEmpty, "brew formulas never resolve on Linux")
-        XCTAssertEqual(Set(sel.skippedEntries), ["yamllint", "awscli"])
+        XCTAssertEqual(Set(sel.skippedEntries), ["wget", "react-native"])
+        XCTAssertTrue(sel.aptPackages.contains("yamllint"))
+        XCTAssertTrue(sel.miseSpecs.contains("awscli@latest"))
         XCTAssertTrue(sel.aptPackages.contains("git"), "flutter's prerequisites come from apt")
     }
 
@@ -519,7 +522,8 @@ final class ToolchainsTests: XCTestCase {
         XCTAssertTrue(sel.skippedEntries.isEmpty)
         let steps = sel.stackSteps.joined(separator: "\n")
         XCTAssertTrue(steps.contains("flutter_ref='3.24.0'"), steps)
-        XCTAssertTrue(steps.contains("git clone --filter=blob:none https://github.com/flutter/flutter.git /opt/flutter"))
+        XCTAssertTrue(
+            steps.contains("git clone --filter=blob:none https://github.com/flutter/flutter.git /opt/flutter"))
         XCTAssertTrue(steps.contains("/etc/profile.d/kinhin-flutter.sh"))
         XCTAssertTrue(steps.contains("flutter precache --universal --web --linux"))
         XCTAssertFalse(steps.contains("snap"), "no snap")

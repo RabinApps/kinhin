@@ -114,7 +114,8 @@ final class MacToolsModel {
                 noteAutoEnabled("Apple container")
             }
         }
-        tartLine = Line(text: tartInstalled ? "installed ✓" : "not installed", style: tartInstalled ? .secondary : .warn)
+        tartLine = Line(
+            text: tartInstalled ? "installed ✓" : "not installed", style: tartInstalled ? .secondary : .warn)
         tartInstallVisible = !tartInstalled
         if containerInstalled { checkContainerService() }
         guard tartInstalled else {

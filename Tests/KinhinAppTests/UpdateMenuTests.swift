@@ -41,12 +41,11 @@ final class UpdateMenuTests: XCTestCase {
 
     // MARK: menu states
 
-    func testNoPendingUpdateShowsCheckItem() {
+    func testNoPendingUpdateHidesUpdateItem() {
         delegate.pendingUpdate = nil
         delegate.refreshUpdateItems()
 
-        XCTAssertEqual(updateItem?.title, "Check for Updates…")
-        XCTAssertEqual(updateItem?.isEnabled, true)
+        XCTAssertEqual(updateItem?.isHidden, true)
         XCTAssertEqual(versionItem?.title, "  kinhin \(kinhinVersion.current)")
         XCTAssertEqual(versionItem?.isEnabled, false)
     }
@@ -57,17 +56,18 @@ final class UpdateMenuTests: XCTestCase {
 
         XCTAssertEqual(updateItem?.title, "Update available — kinhin 9.9.9…")
         XCTAssertEqual(updateItem?.isEnabled, true)
+        XCTAssertEqual(updateItem?.isHidden, false)
         XCTAssertEqual(versionItem?.title, "  kinhin \(kinhinVersion.current) (up to date)")
         XCTAssertEqual(versionItem?.isEnabled, false)
     }
 
-    func testPendingUpdateClearsBackToCheckState() {
+    func testPendingUpdateClearsBackToHiddenState() {
         delegate.pendingUpdate = makeInfo()
         delegate.refreshUpdateItems()
         delegate.pendingUpdate = nil
         delegate.refreshUpdateItems()
 
-        XCTAssertEqual(updateItem?.title, "Check for Updates…")
+        XCTAssertEqual(updateItem?.isHidden, true)
         XCTAssertEqual(versionItem?.title, "  kinhin \(kinhinVersion.current)")
     }
 

@@ -22,7 +22,8 @@ final class DiagnosticsViewController: NSViewController {
     }
 
     override func loadView() {
-        let host = NSHostingView(rootView: DiagnosticsView(model: model, onClose: { [weak self] in self?.closeSheet() }))
+        let host = NSHostingView(
+            rootView: DiagnosticsView(model: model, onClose: { [weak self] in self?.closeSheet() }))
         host.frame = NSRect(origin: .zero, size: DiagnosticsView.size)
         view = host
         Task { await load() }

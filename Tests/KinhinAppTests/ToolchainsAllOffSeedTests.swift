@@ -20,7 +20,9 @@ import XCTest
         try? FileManager.default.removeItem(at: scratch)
     }
 
-    private func makeVC(_ yaml: String = "repo: \"acme/widgets\"\nlabels: [self-hosted]\ntoolchains:\n  specs: [\"node@22\"]\n") throws
+    private func makeVC(
+        _ yaml: String = "repo: \"acme/widgets\"\nlabels: [self-hosted]\ntoolchains:\n  specs: [\"node@22\"]\n"
+    ) throws
         -> ToolchainsViewController
     {
         try yaml.write(to: configURL, atomically: true, encoding: .utf8)

@@ -35,6 +35,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Update check state
     var lastUpdateCheck: Date?
     var pendingUpdate: UpdateInfo?
+    /// Drives the Settings → App update card; every change is pushed to the window.
+    var updateCardState: UpdateCardState = .idle(lastChecked: UpdatePreferences.lastCheck) {
+        didSet { mainController?.renderUpdate(state: updateCardState) }
+    }
     var updateDownloadTask: Task<Void, Never>?
     var updateCheckTask: Task<Void, Never>?
     var updateChecker: UpdateChecker {

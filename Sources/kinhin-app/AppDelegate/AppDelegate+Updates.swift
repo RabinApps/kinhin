@@ -7,6 +7,7 @@ extension AppDelegate {
 
     @objc func checkForUpdates() {
         guard updateCheckTask == nil else { return }  // one at a time
+        updateCardState = .checking
         updateCheckTask = Task { [weak self] in
             await self?.runUpdateCheck()
         }
@@ -20,6 +21,7 @@ extension AppDelegate {
             UpdatePreferences.lastCheck = lastUpdateCheck ?? Date()
             switch result {
             case .upToDate:
+                updateCardState = .upToDate(lastChecked: lastUpdateCheck)
                 if pendingUpdate != nil {
                     Log.info("app", "update superseded; installed version is current again")
                 }
@@ -30,17 +32,21 @@ extension AppDelegate {
                     Log.info("app", "update available: \(info.tag) (running v\(kinhinVersion.current))")
                 }
                 pendingUpdate = info
+                updateCardState = .available(version: info.version)
             }
             refreshUpdateItems()
         } catch is CancellationError {
             // shutting down or superseded; stay quiet
+            updateCardState = .idle(lastChecked: lastUpdateCheck)
         } catch {
             Log.info("app", "update check skipped: \(error.localizedDescription)")
+            updateCardState = .failed(error.localizedDescription)
         }
     }
 
-    /// Syncs the two update menu items with the current pending-update
-    /// state. Internal so tests can drive it against a built menu.
+    /// Syncs the status-bar update items with the pending-update state: the
+    /// "Update available" item only shows while a newer release is waiting.
+    /// Internal so tests can drive it against a built menu.
     func refreshUpdateItems() {
         guard let menu else { return }
         guard let idx = menu.items.firstIndex(where: { $0.identifier?.rawValue == "updateItem" }),
@@ -49,14 +55,13 @@ extension AppDelegate {
         if let info = pendingUpdate {
             menu.items[idx].title = "Update available — kinhin \(info.version)…"
             menu.items[idx].isEnabled = true
+            menu.items[idx].isHidden = false
             menu.items[idx + 1].title = "  \("kinhin " + kinhinVersion.current) (up to date)"
-            menu.items[idx + 1].isEnabled = false
         } else {
-            menu.items[idx].title = "Check for Updates…"
-            menu.items[idx].isEnabled = true
+            menu.items[idx].isHidden = true
             menu.items[idx + 1].title = "  \("kinhin " + kinhinVersion.current)"
-            menu.items[idx + 1].isEnabled = false
         }
+        menu.items[idx + 1].isEnabled = false
     }
 
     @objc func updateItemClicked() {
@@ -75,6 +80,7 @@ extension AppDelegate {
     private func downloadAndPresent(_ info: UpdateInfo) async {
         defer { updateDownloadTask = nil }
         do {
+            updateCardState = .downloading(name: info.dmgName)
             if let item = menu?.items.first(where: { $0.identifier?.rawValue == "updateItem" }) {
                 item.title = "Downloading \(info.dmgName)…"
                 item.isEnabled = false
@@ -82,14 +88,14 @@ extension AppDelegate {
             let url = try await updateChecker.downloadDMG(info)
             Log.info("app", "update downloaded to \(url.path)")
             NSWorkspace.shared.open(url)
-            if let item = menu?.items.first(where: { $0.identifier?.rawValue == "updateItem" }) {
-                item.title = "Check for Updates…"
-                item.isEnabled = true
-            }
+            updateCardState = .available(version: info.version)
+            refreshUpdateItems()
         } catch is CancellationError {
+            updateCardState = .available(version: info.version)
             refreshUpdateItems()
         } catch {
             Log.error("app", "update download failed: \(error.localizedDescription)")
+            updateCardState = .failed(error.localizedDescription)
             refreshUpdateItems()
         }
     }

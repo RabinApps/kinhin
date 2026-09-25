@@ -52,19 +52,19 @@ final class ToolchainsConfigEditorTests: XCTestCase {
             base + """
 
                 toolchains:
-                  specs: ["zig@0.13", "go@1.22"]
+                  specs: ["sometool@0.13", "go@1.22"]
                   cache:
                     auto_prune: false
                     max_age_days: 7
                     max_gb: 10
                 """
         var sel = try ToolchainsConfigEditor.selection(from: yaml)
-        XCTAssertEqual(sel.extraSpecs, ["zig@0.13"], "unknown specs are kept verbatim")
+        XCTAssertEqual(sel.extraSpecs, ["sometool@0.13"], "unknown specs are kept verbatim")
         XCTAssertEqual(sel.cache?.maxAgeDays, 7)
         sel.tools["node"] = ""
         let updated = try ToolchainsConfigEditor.replace(sel, in: yaml)
         let back = try ToolchainsConfigEditor.selection(from: updated)
-        XCTAssertEqual(back.extraSpecs, ["zig@0.13"])
+        XCTAssertEqual(back.extraSpecs, ["sometool@0.13"])
         XCTAssertEqual(back.tools["go"], "1.22")
         XCTAssertNotNil(back.tools["node"])
         XCTAssertEqual(back.cache?.autoPrune, false)
@@ -102,7 +102,7 @@ final class ToolchainsConfigEditorTests: XCTestCase {
     func testPlanSeparatesWhatEachPlatformCanInstall() {
         var sel = ToolchainsSelection()
         sel.tools = ["node": "", "go": "", "yamllint": "", "fastlane": ""]
-        sel.stacks = ["flutter": ""]
+        sel.stacks = ["flutter": "", "react-native": ""]
         sel.extraBrew = ["wget"]
         let mac = ToolchainsConfigEditor.plan(sel, for: .macOS)
         XCTAssertTrue(mac.skipped.isEmpty)
@@ -112,7 +112,10 @@ final class ToolchainsConfigEditorTests: XCTestCase {
         let linux = ToolchainsConfigEditor.plan(sel, for: .linux)
         XCTAssertTrue(linux.installing.contains("node"))
         XCTAssertTrue(linux.installing.contains("go"))
-        for macOnly in ["yamllint", "fastlane", "wget"] {
+        for crossPlatform in ["yamllint", "fastlane"] {
+            XCTAssertTrue(linux.installing.contains(crossPlatform), "\(crossPlatform) has a Linux installer")
+        }
+        for macOnly in ["react-native", "wget"] {
             XCTAssertTrue(linux.skipped.contains(macOnly), "\(macOnly) can't be baked into a Linux image")
         }
         XCTAssertTrue(linux.installing.contains("flutter"), "flutter has a Linux (git) install")
@@ -200,10 +203,10 @@ final class ToolchainVersionNormalizationTests: XCTestCase {
             repo: "acme/widgets"
             labels: [self-hosted]
             toolchains:
-              specs: ["node@node@22", "java", "supabase@—", "zig@0.13"]
+              specs: ["node@node@22", "java", "supabase@—", "sometool@0.13"]
               stacks: ["expo@—"]
             """)
-        XCTAssertEqual(cfg.toolchains?.specs, ["node@22", "java", "supabase", "zig@0.13"])
+        XCTAssertEqual(cfg.toolchains?.specs, ["node@22", "java", "supabase", "sometool@0.13"])
         XCTAssertEqual(cfg.toolchains?.stacks, ["expo"])
     }
 }

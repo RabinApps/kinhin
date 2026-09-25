@@ -19,7 +19,10 @@ struct MacToolsView: View {
             subtitle:
                 "Run macOS workflows in disposable virtual machines powered by tart. Skip this if you only need Linux jobs."
         ) {
-            statusRow("tart", line: model.tartLine, visible: model.tartInstallVisible, button: "Install…", id: "mac-install-tart") {
+            statusRow(
+                "tart", line: model.tartLine, visible: model.tartInstallVisible, button: "Install…",
+                id: "mac-install-tart"
+            ) {
                 model.installTart()
             }
             statusRow(

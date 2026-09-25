@@ -29,6 +29,7 @@ private final class RecordingTabsDelegate: MainTabsWindowDelegate {
     func deleteVM(id: String) { deletedVMIDs.append(id) }
     func openLogsFolder() { logsCalls += 1 }
     func checkForUpdatesNow() { updateCalls += 1 }
+    var updateCardState: UpdateCardState = .idle(lastChecked: nil)
     func launchModeChanged(_ mode: LaunchMode) { changedModes.append(mode) }
     func launchAtLoginChanged(_ enabled: Bool) { loginToggles.append(enabled) }
     func mainTabsWindowWillClose() { closeCalls += 1 }
@@ -207,7 +208,9 @@ final class MainWindowTests: XCTestCase {
         // finish (it would bounce the app straight back into setup).
         wizard.nextClickedForTesting()
         XCTAssertEqual(delegate.setupFinishedCalls, 0)
-        XCTAssertTrue(wizard.summaryTextForTesting.contains("Still needed"), "the summary says what is missing: \(wizard.summaryTextForTesting)")
+        XCTAssertTrue(
+            wizard.summaryTextForTesting.contains("Still needed"),
+            "the summary says what is missing: \(wizard.summaryTextForTesting)")
     }
 
     func testWizardBackNavigation() {
@@ -376,10 +379,45 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testSecondaryButtonsReachTheDelegate() {
-        fire(button(titled: "Check for Updates…"))
-        XCTAssertEqual(delegate.updateCalls, 1)
         XCTAssertNotNil(button(titled: "Logs…"), "logs open from the Fleet tab")
         XCTAssertNotNil(button(titled: "Diagnostics…"))
+    }
+
+    func testUpdateCheckLivesInSettingsNotTheFleetTab() {
+        window.showAdvanced(.app)
+        fire(button(titled: "Check for Updates…"))
+        XCTAssertEqual(delegate.updateCalls, 1)
+    }
+
+    func testUpdateCardRendersEachState() {
+        window.showAdvanced(.app)
+        window.renderUpdate(state: .checking)
+        XCTAssertEqual(button(titled: "Check for Updates…")?.isEnabled, false)
+        XCTAssertTrue(allText().contains("checking…"))
+
+        window.renderUpdate(state: .available(version: "9.9.9"))
+        XCTAssertNotNil(button(titled: "Download…"))
+        XCTAssertTrue(allText().contains("Update available — kinhin 9.9.9"))
+
+        window.renderUpdate(state: .upToDate(lastChecked: nil))
+        XCTAssertTrue(allText().contains("is up to date"))
+
+        window.renderUpdate(state: .failed("offline"))
+        XCTAssertTrue(allText().contains("Update check failed: offline"))
+    }
+
+    func testFleetButtonsShowOnlyApplicableActions() {
+        window.render(status: FleetStatus())  // stopped
+        XCTAssertEqual(window.startButton?.isHidden, false)
+        XCTAssertEqual(window.stopButton?.isHidden, true)
+        XCTAssertEqual(pauseButton?.isHidden, true)
+
+        var status = FleetStatus()
+        status.running = true
+        window.render(status: status)
+        XCTAssertEqual(window.startButton?.isHidden, true)
+        XCTAssertEqual(window.stopButton?.isHidden, false)
+        XCTAssertEqual(pauseButton?.isHidden, false)
     }
 
     func testLogsSheetRendersSearchableViewer() throws {
@@ -456,13 +494,17 @@ final class MainWindowTests: XCTestCase {
 
         // Regression: the report used to collapse to 0x0 and render nothing.
         // It must lay out at the sheet's size and carry every check row.
-        XCTAssertGreaterThan(controller.view.frame.width, 300, "report must span the sheet, got \(controller.view.frame)")
+        XCTAssertGreaterThan(
+            controller.view.frame.width, 300, "report must span the sheet, got \(controller.view.frame)")
         XCTAssertTrue(controller.view is NSHostingView<DiagnosticsView>)
 
         let titles = controller.model.rows.map(\.title)
         XCTAssertEqual(
             titles,
-            ["Host", "Command Line Tools", "Tart (macOS VMs)", "Apple container (Linux)", "Capacity", "Toolchain cache"])
+            [
+                "Host", "Command Line Tools", "Tart (macOS VMs)", "Apple container (Linux)", "Capacity",
+                "Toolchain cache",
+            ])
         XCTAssertTrue(controller.model.rows.allSatisfy(\.ok), "the fixture report is all green")
     }
 

@@ -34,6 +34,8 @@ extension MainTabsWindowController {
         pause.setAccessibilityLabel("Pause or resume the fleet")
         pauseButton = pause
 
+        self.startButton = startButton
+        self.stopButton = stopButton
         let controlRow = NSStackView(views: [startButton, stopButton, pause])
         controlRow.orientation = .horizontal
         controlRow.spacing = 8
@@ -74,11 +76,9 @@ extension MainTabsWindowController {
 
         let diagnosticsButton = NSButton(title: "Diagnostics…", target: self, action: #selector(diagnosticsClicked))
         diagnosticsButton.bezelStyle = .rounded
-        let updateButton = NSButton(title: "Check for Updates…", target: self, action: #selector(updateClicked))
-        updateButton.bezelStyle = .rounded
         let logsButton = NSButton(title: "Logs…", target: self, action: #selector(showLogsClicked))
         logsButton.bezelStyle = .rounded
-        let footer = NSStackView(views: [logsButton, diagnosticsButton, updateButton])
+        let footer = NSStackView(views: [logsButton, diagnosticsButton])
         footer.orientation = .horizontal
         footer.spacing = 8
         footer.translatesAutoresizingMaskIntoConstraints = false
@@ -129,6 +129,12 @@ extension MainTabsWindowController {
         statusLineLabel.stringValue = AppDelegate.statusLineText(for: status)
         isPaused = status?.paused ?? false
         pauseButton?.title = isPaused ? "Resume" : "Pause"
+        // Only offer actions that apply: Start when stopped; Stop and
+        // Pause/Resume when running.
+        let running = status?.running ?? false
+        startButton?.isHidden = running
+        stopButton?.isHidden = !running
+        pauseButton?.isHidden = !running
 
         if let vmStack {
             vmStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -212,5 +218,4 @@ extension MainTabsWindowController {
     }
 
     @objc func logsClicked() { delegate?.openLogsFolder() }
-    @objc func updateClicked() { delegate?.checkForUpdatesNow() }
 }

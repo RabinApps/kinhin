@@ -70,14 +70,9 @@ extension ConfigLoader {
         let specRoots = Set(specs.map { ToolchainCatalog.rootTool(of: $0) })
         for stack in resolvedStacks {
             for requirement in stack.requires {
-                let satisfied: Bool
-                switch requirement {
-                case .node: satisfied = specRoots.contains("node")
-                case .dotnet: satisfied = specRoots.contains("dotnet")
-                }
-                guard satisfied else {
+                guard specRoots.contains(requirement.toolID) else {
                     throw ConfigError.invalid(
-                        "toolchains: stack '\(stack.id)' requires \(requirement.rawValue) — add it to toolchains.specs (e.g. \"node@22\")"
+                        "toolchains: stack '\(stack.id)' requires \(requirement.rawValue) — add it to toolchains.specs (e.g. \"\(requirement.example)\")"
                     )
                 }
             }
@@ -89,14 +84,9 @@ extension ConfigLoader {
             let root = ToolchainCatalog.rootTool(of: spec)
             guard let tool = ToolchainCatalog.tool(id: root), !tool.requires.isEmpty else { continue }
             for requirement in tool.requires {
-                let satisfied: Bool
-                switch requirement {
-                case .node: satisfied = specRoots.contains("node")
-                case .dotnet: satisfied = specRoots.contains("dotnet")
-                }
-                guard satisfied else {
+                guard specRoots.contains(requirement.toolID) else {
                     throw ConfigError.invalid(
-                        "toolchains: '\(root)' requires \(requirement.rawValue) — add it to toolchains.specs (e.g. \"node@22\")"
+                        "toolchains: '\(root)' requires \(requirement.rawValue) — add it to toolchains.specs (e.g. \"\(requirement.example)\")"
                     )
                 }
             }

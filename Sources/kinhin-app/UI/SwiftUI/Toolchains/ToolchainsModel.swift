@@ -178,7 +178,8 @@ final class ToolchainsModel {
                 let selected = working.stacks[stack.id]
                 return (
                     stack.id,
-                    selected.flatMap { !$0.isEmpty ? $0 : nil } ?? (stack.defaultVersion.isEmpty ? "—" : stack.defaultVersion)
+                    selected.flatMap { !$0.isEmpty ? $0 : nil }
+                        ?? (stack.defaultVersion.isEmpty ? "—" : stack.defaultVersion)
                 )
             })
         brewText = working.extraBrew.joined(separator: ", ")
@@ -214,7 +215,8 @@ final class ToolchainsModel {
     func setToolText(_ id: String, _ text: String) {
         toolText[id] = text
         if working.tools[id] != nil {
-            working.tools[id] = ToolchainsConfigEditor.normalizedVersion(text.trimmingCharacters(in: .whitespaces), for: id)
+            working.tools[id] = ToolchainsConfigEditor.normalizedVersion(
+                text.trimmingCharacters(in: .whitespaces), for: id)
         }
         refreshState()
     }

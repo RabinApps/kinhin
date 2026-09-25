@@ -46,6 +46,8 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     let statusLineLabel = NSTextField(wrappingLabelWithString: "Loading…")
     var isPaused = false
     var pauseButton: NSButton?
+    var startButton: NSButton?
+    var stopButton: NSButton?
     var vmStack: NSStackView?
     var jobsStack: NSStackView?
 
@@ -62,6 +64,8 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
 
     // App section controls
     let settingsSubtitle = NSTextField(wrappingLabelWithString: "")
+    let updateStatusLabel = NSTextField(wrappingLabelWithString: "")
+    let updateButton = NSButton(title: "Check for Updates…", target: nil, action: nil)
     let modePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let loginCheck = NSButton(checkboxWithTitle: "Launch kinhin at login", target: nil, action: nil)
     let loginHint = NSTextField(

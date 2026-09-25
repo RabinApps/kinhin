@@ -28,7 +28,7 @@ extension ToolchainCatalog {
             }
             switch entry.installer(for: platform) {
             case .mise:
-                out.miseSpecs.append(version.map { "\(entry.id)@\($0)" } ?? entry.defaultSpec)
+                out.miseSpecs.append(entry.miseSpec(version: version))
             case .brew(let formula, let isCask):
                 let target = BrewFormula(name: formula, isCask: isCask)
                 if !out.brewFormulas.contains(target) { out.brewFormulas.append(target) }
@@ -36,6 +36,12 @@ extension ToolchainCatalog {
                 out.npmPackages.append(.init(name: package, version: version ?? ""))
             case .gem(let gem):
                 if !out.gems.contains(gem) { out.gems.append(gem) }
+                if platform == .linux {
+                    // Gems need a Ruby and a compiler for native extensions.
+                    for package in ["ruby", "ruby-dev", "build-essential"] where !out.aptPackages.contains(package) {
+                        out.aptPackages.append(package)
+                    }
+                }
             case .apt(let packages):
                 for package in packages where !out.aptPackages.contains(package) {
                     out.aptPackages.append(package)
@@ -77,6 +83,8 @@ extension ToolchainCatalog {
                     for package in packages where !out.aptPackages.contains(package) {
                         out.aptPackages.append(package)
                     }
+                } else if case .mise = tool.installer(for: platform) {
+                    out.miseSpecs.append(tool.miseSpec(version: nil))
                 }
                 for env in tool.cacheEnvs where !out.cacheEnvs.contains(env) {
                     out.cacheEnvs.append(env)

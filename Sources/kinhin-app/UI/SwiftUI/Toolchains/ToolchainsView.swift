@@ -15,8 +15,10 @@ struct ToolchainsView: View {
         VStack(alignment: .leading, spacing: 8) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    HintText("Pick what your jobs need preinstalled. Changes take effect when you rebuild an image below.")
-                        .frame(width: FormMetrics.width, alignment: .leading)
+                    HintText(
+                        "Pick what your jobs need preinstalled. Changes take effect when you rebuild an image below."
+                    )
+                    .frame(width: FormMetrics.width, alignment: .leading)
                     HintText(
                         "Every row shows its platform note: “macOS · Linux” applies to both, “macOS only” skips on Linux, “Linux only” skips on macOS. Version fields pin a specific version (e.g. node@22)."
                     )
@@ -40,12 +42,9 @@ struct ToolchainsView: View {
     // MARK: Tool cards
 
     private var toolGroups: [(title: String, entries: [ToolchainEntry])] {
-        let mise = ToolchainCatalog.tools.filter { if case .mise = $0.installer { return true } else { return false } }
-        let npm = ToolchainCatalog.tools.filter { if case .npm = $0.installer { return true } else { return false } }
-        let other = ToolchainCatalog.tools.filter { entry in !mise.contains(entry) && !npm.contains(entry) }
-        return [
-            ("Languages & runtimes", mise), ("JavaScript tools (need Node)", npm), ("CLIs & other", other),
-        ]
+        ToolchainCategory.allCases.map { category in
+            (category.title, ToolchainCatalog.tools.filter { $0.category == category })
+        }
     }
 
     private func platformLabel(_ platforms: [ToolchainPlatform]) -> String {
@@ -111,18 +110,24 @@ struct ToolchainsView: View {
         FormCard(title: "Other", subtitle: "Anything not in the lists above. Comma-separated.") {
             HStack(spacing: 8) {
                 Text("Homebrew").font(.system(size: 12))
-                TextField("", text: Binding(get: { model.brewText }, set: { model.setBrewText($0) }), prompt: Text(verbatim: "wget, cmake"))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 260)
-                    .accessibilityIdentifier("extra-brew")
+                TextField(
+                    "", text: Binding(get: { model.brewText }, set: { model.setBrewText($0) }),
+                    prompt: Text(verbatim: "wget, cmake")
+                )
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 260)
+                .accessibilityIdentifier("extra-brew")
             }
             HintText("Homebrew packages: macOS images only.")
             HStack(spacing: 8) {
                 Text("Other tools").font(.system(size: 12))
-                TextField("", text: Binding(get: { model.specsText }, set: { model.setSpecsText($0) }), prompt: Text(verbatim: "zig@0.13"))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 260)
-                    .accessibilityIdentifier("extra-specs")
+                TextField(
+                    "", text: Binding(get: { model.specsText }, set: { model.setSpecsText($0) }),
+                    prompt: Text(verbatim: "zig@0.13")
+                )
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 260)
+                .accessibilityIdentifier("extra-specs")
             }
             HintText("Any tool mise can install, as name@version.")
             Toggle(

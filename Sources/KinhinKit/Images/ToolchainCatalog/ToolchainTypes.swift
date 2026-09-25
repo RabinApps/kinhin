@@ -47,6 +47,38 @@ public enum ToolchainPlatform: String, Sendable, Equatable, CaseIterable {
 public enum ToolchainRequirement: String, Sendable, CaseIterable {
     case node
     case dotnet
+    case java
+
+    /// The catalog tool id that satisfies this requirement.
+    public var toolID: String { rawValue }
+
+    /// A `toolchains.specs` entry that satisfies it, for error messages.
+    public var example: String {
+        switch self {
+        case .node: return "node@22"
+        case .dotnet: return "dotnet"
+        case .java: return "java@temurin-21"
+        }
+    }
+}
+
+// MARK: - Categories
+
+/// How the Toolchains UI groups tools. Purely presentational.
+public enum ToolchainCategory: String, Sendable, CaseIterable {
+    case languages
+    case javascript
+    case build
+    case cloud
+
+    public var title: String {
+        switch self {
+        case .languages: return "Languages & runtimes"
+        case .javascript: return "JavaScript tools (need Node)"
+        case .build: return "Build & quality tools"
+        case .cloud: return "Cloud & DevOps"
+        }
+    }
 }
 
 // MARK: - Cache map
@@ -104,12 +136,16 @@ public struct ToolchainEntry: Sendable, Equatable {
     /// instead of the Homebrew cask). nil = the primary installer serves
     /// every supported platform.
     public let linuxInstaller: Installer?
+    /// UI grouping.
+    public let category: ToolchainCategory
 
     public init(
         id: String, summary: String, installer: Installer, requires: [ToolchainRequirement] = [],
         cacheEnvs: [ToolchainCacheEnv] = [], verify: String, defaultSpec: String = "",
-        platforms: [ToolchainPlatform] = ToolchainPlatform.allCases, linuxInstaller: Installer? = nil
+        platforms: [ToolchainPlatform] = ToolchainPlatform.allCases, linuxInstaller: Installer? = nil,
+        category: ToolchainCategory = .build
     ) {
+        self.category = category
         self.id = id
         self.summary = summary
         self.installer = installer
@@ -119,6 +155,14 @@ public struct ToolchainEntry: Sendable, Equatable {
         self.defaultSpec = defaultSpec
         self.platforms = platforms
         self.linuxInstaller = linuxInstaller
+    }
+
+    /// The `mise use` spec for this entry: the pinned version, else the
+    /// default, else `id@latest` (entries whose mise install is Linux-only
+    /// carry no default so config files stay free of `@latest`).
+    func miseSpec(version: String?) -> String {
+        if let version { return "\(id)@\(version)" }
+        return defaultSpec.isEmpty ? "\(id)@latest" : defaultSpec
     }
 
     /// The installer for the given platform (the Linux override when set).

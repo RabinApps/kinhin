@@ -57,7 +57,8 @@ final class SetupFormsTests: XCTestCase {
         var checked: [(scope: String, token: String?)] = []
         form.model.checkPermission = { scope, token in
             checked.append((scope, token))
-            return OrgPermissionProbe.Report(ok: false, message: "PAT lacks runner-management permission for '\(scope)'.")
+            return OrgPermissionProbe.Report(
+                ok: false, message: "PAT lacks runner-management permission for '\(scope)'.")
         }
         form.markTokensStoredForTesting(github: true, gitea: false)
         form.enterGitHubRepoForTesting("acme")
@@ -72,9 +73,9 @@ final class SetupFormsTests: XCTestCase {
     /// unconnected (wizard step 4 said so) and kept the repo picker locked.
     func testStoringATokenUnlocksTheRepoPickerAndConnects() async throws {
         try """
-            repo: "acme/api"
-            labels: [self-hosted]
-            """.write(to: configURL, atomically: true, encoding: .utf8)
+        repo: "acme/api"
+        labels: [self-hosted]
+        """.write(to: configURL, atomically: true, encoding: .utf8)
         let form = connectForm()
         // Let the initial async reload (which reads the configured repo) settle.
         try await Task.sleep(nanoseconds: 100_000_000)

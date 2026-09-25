@@ -85,9 +85,23 @@ protocol MainTabsWindowDelegate: AnyObject {
     func deleteVM(id: String)
     func openLogsFolder()
     func checkForUpdatesNow()
+    /// What the Settings → App update card should show right now.
+    var updateCardState: UpdateCardState { get }
     func launchModeChanged(_ mode: LaunchMode)
     func launchAtLoginChanged(_ enabled: Bool)
     func mainTabsWindowWillClose()
     /// Setup finished (its Start Fleet was pressed): re-bootstrap the engine.
     func setupTabFinished()
+}
+
+// MARK: - Update card state
+
+/// Where the update check/download stands, rendered by Settings → App.
+enum UpdateCardState: Equatable {
+    case idle(lastChecked: Date?)
+    case checking
+    case upToDate(lastChecked: Date?)
+    case available(version: String)
+    case downloading(name: String)
+    case failed(String)
 }

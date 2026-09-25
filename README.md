@@ -266,12 +266,23 @@ toolchains:
   stack that needs a runtime (e.g. `vercel` needs node) is a **validation error naming
   the fix** ("add `node@22` to toolchains.specs") until you select that runtime too.
 - **The catalog is advisory.** Unknown specs pass through to mise and unknown brew
-  entries to brew — so the long tail (`zig`, `ghc`, `erlang`, `perl`, …) works today
-  with zero kinhin code. Run `kinhin toolchains` to see the curated list: mise
-  runtimes (go, rust, node, bun, deno, python, ruby, java, uv, terraform, kubectl),
-  npm globals (pnpm, yarn, playwright, cypress, netlify-cli, firebase-tools), brew
-  tools (awscli, gcloud, flyctl, supabase, php, composer, yamllint, dotnet-sdk, and
-  fastlane as a gem), and curated stacks:
+  entries to brew — so the long tail (`ghc`, `perl`, …) works with zero kinhin code.
+  Run `kinhin toolchains` to see the curated list. Everything below installs on **both
+  macOS and Linux** images unless marked otherwise (mise is the cross-platform
+  installer; Homebrew-only tools use apt or mise on Linux):
+  - **Languages & runtimes** (mise): node, go, rust, python, ruby, java, bun, deno, uv,
+    zig, erlang, elixir, kotlin\*, scala\*, clojure\*, dart, swift, lua, julia; plus
+    php and dotnet (Homebrew on macOS, apt on Linux). \*needs `java` selected too.
+  - **JavaScript tools** (npm globals, need node): pnpm, yarn, playwright, cypress,
+    netlify-cli, firebase-tools, typescript, eslint, prettier, turbo, nx.
+  - **Build & quality**: cmake, ninja, maven\*, gradle\*, sbt\*, just, task, jq, yq,
+    direnv, shellcheck, hadolint, yamllint, composer, and fastlane (a gem; Linux gets
+    Ruby and a compiler from apt).
+  - **Cloud & DevOps**: terraform, opentofu, kubectl, helm, kustomize, k9s, pulumi,
+    packer, vault, gh, and awscli, gcloud, flyctl, supabase (Homebrew on macOS, mise on
+    Linux; a `@version` pin applies to the Linux install only).
+  Curated stacks:
+
   - **`flutter[@version]`** — Flutter SDK; `@version` pins it (a release tag such as
     `3.24.0`, or a channel), default `stable`. On macOS: `fvm` (brew tap
     `leoafarias/fvm`) + CocoaPods (`fvm install` + `fvm global`). On Linux images

@@ -3,123 +3,229 @@ import Foundation
 extension ToolchainCatalog {
     // MARK: Tools
 
+    /// `mise` is the cross-platform installer (macOS and Linux); prefer it for
+    /// new entries. Homebrew entries need a `linuxInstaller` to reach Linux
+    /// images (`CatalogInvariantTests` enforces this).
     public static let tools: [ToolchainEntry] = [
-        // --- mise-managed runtimes ---
+        // --- mise-managed languages & runtimes ---
         ToolchainEntry(
             id: "node", summary: "JavaScript runtime (npm included)", installer: .mise,
-            cacheEnvs: [
-                ToolchainCacheEnv(variable: "NPM_CONFIG_CACHE", subdirectory: "npm")
-            ], verify: "node --version && npm --version", defaultSpec: "node@22"),
+            cacheEnvs: [ToolchainCacheEnv(variable: "NPM_CONFIG_CACHE", subdirectory: "npm")],
+            verify: "node --version && npm --version", defaultSpec: "node@22", category: .languages),
         ToolchainEntry(
             id: "go", summary: "Go toolchain", installer: .mise,
             cacheEnvs: [
                 ToolchainCacheEnv(variable: "GOMODCACHE", subdirectory: "go/mod"),
                 ToolchainCacheEnv(variable: "GOCACHE", subdirectory: "go/build"),
-            ], verify: "go version", defaultSpec: "go@latest"),
+            ], verify: "go version", defaultSpec: "go@latest", category: .languages),
         ToolchainEntry(
             id: "rust", summary: "Rust toolchain (rustc + cargo)", installer: .mise,
-            cacheEnvs: [
-                ToolchainCacheEnv(variable: "CARGO_HOME", subdirectory: "cargo")
-            ], verify: "cargo --version", defaultSpec: "rust@stable"),
+            cacheEnvs: [ToolchainCacheEnv(variable: "CARGO_HOME", subdirectory: "cargo")], verify: "cargo --version",
+            defaultSpec: "rust@stable", category: .languages),
         ToolchainEntry(
             id: "python", summary: "Python (mise-managed)", installer: .mise,
             cacheEnvs: [
                 ToolchainCacheEnv(variable: "UV_CACHE_DIR", subdirectory: "uv"),
                 ToolchainCacheEnv(variable: "PIP_CACHE_DIR", subdirectory: "pip"),
-            ], verify: "python --version", defaultSpec: "python@3.13"),
+            ], verify: "python --version", defaultSpec: "python@3.13", category: .languages),
         ToolchainEntry(
             id: "ruby", summary: "Ruby (mise-managed)", installer: .mise, verify: "ruby --version",
-            defaultSpec: "ruby@latest"),
+            defaultSpec: "ruby@latest", category: .languages),
         ToolchainEntry(
             id: "java", summary: "JDK (Temurin via mise)", installer: .mise,
-            cacheEnvs: [
-                ToolchainCacheEnv(variable: "GRADLE_USER_HOME", subdirectory: "gradle")
-            ], verify: "java -version", defaultSpec: "java@temurin-21"),
+            cacheEnvs: [ToolchainCacheEnv(variable: "GRADLE_USER_HOME", subdirectory: "gradle")],
+            verify: "java -version", defaultSpec: "java@temurin-21", category: .languages),
         ToolchainEntry(
             id: "bun", summary: "Bun runtime and package manager", installer: .mise,
-            cacheEnvs: [
-                ToolchainCacheEnv(variable: "BUN_INSTALL_CACHE_DIR", subdirectory: "bun")
-            ], verify: "bun --version", defaultSpec: "bun@latest"),
+            cacheEnvs: [ToolchainCacheEnv(variable: "BUN_INSTALL_CACHE_DIR", subdirectory: "bun")],
+            verify: "bun --version", defaultSpec: "bun@latest", category: .languages),
         ToolchainEntry(
             id: "deno", summary: "Deno runtime", installer: .mise,
-            cacheEnvs: [
-                ToolchainCacheEnv(variable: "DENO_DIR", subdirectory: "deno")
-            ], verify: "deno --version", defaultSpec: "deno@2"),
+            cacheEnvs: [ToolchainCacheEnv(variable: "DENO_DIR", subdirectory: "deno")], verify: "deno --version",
+            defaultSpec: "deno@2", category: .languages),
         ToolchainEntry(
             id: "uv", summary: "Astral uv Python package manager", installer: .mise,
-            cacheEnvs: [
-                ToolchainCacheEnv(variable: "UV_CACHE_DIR", subdirectory: "uv")
-            ], verify: "uv --version", defaultSpec: "uv@latest"),
+            cacheEnvs: [ToolchainCacheEnv(variable: "UV_CACHE_DIR", subdirectory: "uv")], verify: "uv --version",
+            defaultSpec: "uv@latest", category: .languages),
         ToolchainEntry(
-            id: "terraform", summary: "Terraform CLI", installer: .mise, verify: "terraform version",
-            defaultSpec: "terraform@latest"),
+            id: "zig", summary: "Zig compiler and build system", installer: .mise, verify: "zig version",
+            defaultSpec: "zig@latest", category: .languages),
         ToolchainEntry(
-            id: "kubectl", summary: "Kubernetes CLI", installer: .mise, verify: "kubectl version --client",
-            defaultSpec: "kubectl@latest"),
-
-        // --- npm globals (require node, validated — never auto-installed) ---
+            id: "erlang", summary: "Erlang/OTP", installer: .mise, verify: "erl -noshell -eval 'halt().'",
+            defaultSpec: "erlang@latest", category: .languages),
         ToolchainEntry(
-            id: "pnpm", summary: "pnpm package manager (global)", installer: .npm(package: "pnpm"), requires: [.node],
-            cacheEnvs: [
-                ToolchainCacheEnv(variable: "npm_config_store_dir", subdirectory: "pnpm-store")
-            ], verify: "pnpm --version"),
+            id: "elixir", summary: "Elixir (mise installs Erlang alongside it)", installer: .mise,
+            verify: "elixir --version", defaultSpec: "elixir@latest", category: .languages),
         ToolchainEntry(
-            id: "yarn", summary: "Yarn classic (global)", installer: .npm(package: "yarn"), requires: [.node],
-            cacheEnvs: [
-                ToolchainCacheEnv(variable: "YARN_CACHE_FOLDER", subdirectory: "yarn")
-            ], verify: "yarn --version"),
+            id: "kotlin", summary: "Kotlin compiler", installer: .mise, requires: [.java], verify: "kotlin -version",
+            defaultSpec: "kotlin@latest", category: .languages),
         ToolchainEntry(
-            id: "playwright", summary: "Playwright e2e runner + browsers cache", installer: .npm(package: "playwright"),
-            requires: [.node],
-            cacheEnvs: [
-                ToolchainCacheEnv(variable: "PLAYWRIGHT_BROWSERS_PATH", subdirectory: "playwright")
-            ], verify: "playwright --version"),
+            id: "scala", summary: "Scala 3", installer: .mise, requires: [.java], verify: "scala --version",
+            defaultSpec: "scala@latest", category: .languages),
         ToolchainEntry(
-            id: "cypress", summary: "Cypress e2e runner + binary cache", installer: .npm(package: "cypress"),
-            requires: [.node],
-            cacheEnvs: [
-                ToolchainCacheEnv(variable: "CYPRESS_CACHE_FOLDER", subdirectory: "cypress")
-            ], verify: "cypress --version"),
+            id: "clojure", summary: "Clojure CLI tools", installer: .mise, requires: [.java],
+            verify: "clojure --version", defaultSpec: "clojure@latest", category: .languages),
         ToolchainEntry(
-            id: "netlify-cli", summary: "Netlify deploy CLI", installer: .npm(package: "netlify-cli"),
-            requires: [.node], verify: "netlify --version"),
+            id: "dart", summary: "Dart SDK", installer: .mise, verify: "dart --version", defaultSpec: "dart@latest",
+            category: .languages),
         ToolchainEntry(
-            id: "firebase-tools", summary: "Firebase deploy CLI", installer: .npm(package: "firebase-tools"),
-            requires: [.node], verify: "firebase --version"),
-
-        // --- Homebrew (macOS guests only; no Linux equivalent in the catalog) ---
+            id: "swift", summary: "Swift toolchain (Linux and macOS)", installer: .mise, verify: "swift --version",
+            defaultSpec: "swift@latest", category: .languages),
         ToolchainEntry(
-            id: "yamllint", summary: "YAML linter", installer: .brew(formula: "yamllint", isCask: false),
-            verify: "yamllint --version", platforms: [.macOS]),
+            id: "lua", summary: "Lua and LuaRocks", installer: .mise, verify: "lua -v", defaultSpec: "lua@latest",
+            category: .languages),
         ToolchainEntry(
-            id: "awscli", summary: "AWS CLI", installer: .brew(formula: "awscli", isCask: false),
-            verify: "aws --version", platforms: [.macOS]),
+            id: "julia", summary: "Julia", installer: .mise, verify: "julia --version", defaultSpec: "julia@latest",
+            category: .languages),
         ToolchainEntry(
-            id: "supabase", summary: "Supabase CLI", installer: .brew(formula: "supabase", isCask: false),
-            verify: "supabase --version", platforms: [.macOS]),
-        ToolchainEntry(
-            id: "flyctl", summary: "Fly.io deploy CLI", installer: .brew(formula: "flyctl", isCask: false),
-            verify: "flyctl version", platforms: [.macOS]),
-        ToolchainEntry(
-            id: "gcloud", summary: "Google Cloud SDK", installer: .brew(formula: "google-cloud-sdk", isCask: true),
-            verify: "gcloud --version", platforms: [.macOS]),
-        ToolchainEntry(
-            id: "php", summary: "PHP runtime (Composer via the composer tool)",
-            installer: .brew(formula: "php", isCask: false), verify: "php --version", platforms: [.macOS]),
-        ToolchainEntry(
-            id: "composer", summary: "PHP dependency manager", installer: .brew(formula: "composer", isCask: false),
-            verify: "composer --version", platforms: [.macOS]),
+            id: "php", summary: "PHP runtime: Homebrew on macOS, apt on Linux (no @version)",
+            installer: .brew(formula: "php", isCask: false), verify: "php --version",
+            linuxInstaller: .apt(packages: ["php-cli"]), category: .languages),
         ToolchainEntry(
             id: "dotnet", summary: ".NET SDK (C#/F#/VB): brew cask on macOS, apt on Linux; no @version",
             installer: .brew(formula: "dotnet-sdk", isCask: true),
             cacheEnvs: [
                 ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget")
-            ], verify: "dotnet --list-sdks", linuxInstaller: .apt(packages: ["dotnet-sdk-8.0"])),
+            ], verify: "dotnet --list-sdks", linuxInstaller: .apt(packages: ["dotnet-sdk-8.0"]),
+            category: .languages),
 
-        // --- gems (macOS guests; Linux bakes use mise-managed ruby + plain gem) ---
+        // --- npm globals (require node, validated — never auto-installed) ---
         ToolchainEntry(
-            id: "fastlane", summary: "iOS/Android release automation (uses the system Ruby)",
-            installer: .gem(name: "fastlane"), verify: "fastlane --version", platforms: [.macOS]),
+            id: "pnpm", summary: "pnpm package manager (global)", installer: .npm(package: "pnpm"), requires: [.node],
+            cacheEnvs: [ToolchainCacheEnv(variable: "npm_config_store_dir", subdirectory: "pnpm-store")],
+            verify: "pnpm --version", category: .javascript),
+        ToolchainEntry(
+            id: "yarn", summary: "Yarn classic (global)", installer: .npm(package: "yarn"), requires: [.node],
+            cacheEnvs: [ToolchainCacheEnv(variable: "YARN_CACHE_FOLDER", subdirectory: "yarn")],
+            verify: "yarn --version", category: .javascript),
+        ToolchainEntry(
+            id: "playwright", summary: "Playwright e2e runner + browsers cache", installer: .npm(package: "playwright"),
+            requires: [.node],
+            cacheEnvs: [ToolchainCacheEnv(variable: "PLAYWRIGHT_BROWSERS_PATH", subdirectory: "playwright")],
+            verify: "playwright --version", category: .javascript),
+        ToolchainEntry(
+            id: "cypress", summary: "Cypress e2e runner + binary cache", installer: .npm(package: "cypress"),
+            requires: [.node],
+            cacheEnvs: [ToolchainCacheEnv(variable: "CYPRESS_CACHE_FOLDER", subdirectory: "cypress")],
+            verify: "cypress --version", category: .javascript),
+        ToolchainEntry(
+            id: "netlify-cli", summary: "Netlify deploy CLI", installer: .npm(package: "netlify-cli"),
+            requires: [.node], verify: "netlify --version", category: .javascript),
+        ToolchainEntry(
+            id: "firebase-tools", summary: "Firebase deploy CLI", installer: .npm(package: "firebase-tools"),
+            requires: [.node], verify: "firebase --version", category: .javascript),
+        ToolchainEntry(
+            id: "typescript", summary: "TypeScript compiler (tsc)", installer: .npm(package: "typescript"),
+            requires: [.node], verify: "tsc --version", category: .javascript),
+        ToolchainEntry(
+            id: "eslint", summary: "ESLint", installer: .npm(package: "eslint"), requires: [.node],
+            verify: "eslint --version", category: .javascript),
+        ToolchainEntry(
+            id: "prettier", summary: "Prettier formatter", installer: .npm(package: "prettier"), requires: [.node],
+            verify: "prettier --version", category: .javascript),
+        ToolchainEntry(
+            id: "turbo", summary: "Turborepo build system", installer: .npm(package: "turbo"), requires: [.node],
+            verify: "turbo --version", category: .javascript),
+        ToolchainEntry(
+            id: "nx", summary: "Nx monorepo build system", installer: .npm(package: "nx"), requires: [.node],
+            verify: "nx --version", category: .javascript),
+
+        // --- build & quality tools ---
+        ToolchainEntry(
+            id: "cmake", summary: "CMake", installer: .mise, verify: "cmake --version", defaultSpec: "cmake@latest",
+            category: .build),
+        ToolchainEntry(
+            id: "ninja", summary: "Ninja build system", installer: .mise, verify: "ninja --version",
+            defaultSpec: "ninja@latest", category: .build),
+        ToolchainEntry(
+            id: "maven", summary: "Apache Maven", installer: .mise, requires: [.java], verify: "mvn --version",
+            defaultSpec: "maven@latest", category: .build),
+        ToolchainEntry(
+            id: "gradle", summary: "Gradle", installer: .mise, requires: [.java], verify: "gradle --version",
+            defaultSpec: "gradle@latest", category: .build),
+        ToolchainEntry(
+            id: "sbt", summary: "sbt (Scala build tool)", installer: .mise, requires: [.java], verify: "sbt --version",
+            defaultSpec: "sbt@latest", category: .build),
+        ToolchainEntry(
+            id: "just", summary: "just command runner", installer: .mise, verify: "just --version",
+            defaultSpec: "just@latest", category: .build),
+        ToolchainEntry(
+            id: "task", summary: "Task (go-task) runner", installer: .mise, verify: "task --version",
+            defaultSpec: "task@latest", category: .build),
+        ToolchainEntry(
+            id: "jq", summary: "jq JSON processor", installer: .mise, verify: "jq --version", defaultSpec: "jq@latest",
+            category: .build),
+        ToolchainEntry(
+            id: "yq", summary: "yq YAML processor", installer: .mise, verify: "yq --version", defaultSpec: "yq@latest",
+            category: .build),
+        ToolchainEntry(
+            id: "direnv", summary: "direnv", installer: .mise, verify: "direnv version", defaultSpec: "direnv@latest",
+            category: .build),
+        ToolchainEntry(
+            id: "shellcheck", summary: "ShellCheck shell linter", installer: .mise, verify: "shellcheck --version",
+            defaultSpec: "shellcheck@latest", category: .build),
+        ToolchainEntry(
+            id: "hadolint", summary: "hadolint Dockerfile linter", installer: .mise, verify: "hadolint --version",
+            defaultSpec: "hadolint@latest", category: .build),
+        ToolchainEntry(
+            id: "yamllint", summary: "YAML linter: Homebrew on macOS, apt on Linux (no @version)",
+            installer: .brew(formula: "yamllint", isCask: false), verify: "yamllint --version",
+            linuxInstaller: .apt(packages: ["yamllint"]), category: .build),
+        ToolchainEntry(
+            id: "composer", summary: "PHP dependency manager: Homebrew on macOS, apt on Linux (no @version)",
+            installer: .brew(formula: "composer", isCask: false), verify: "composer --version",
+            linuxInstaller: .apt(packages: ["composer"]), category: .build),
+        ToolchainEntry(
+            id: "fastlane", summary: "iOS/Android release automation (gem; needs Ruby, apt provides it on Linux)",
+            installer: .gem(name: "fastlane"), verify: "fastlane --version", category: .build),
+
+        // --- cloud & DevOps ---
+        ToolchainEntry(
+            id: "terraform", summary: "Terraform CLI", installer: .mise, verify: "terraform version",
+            defaultSpec: "terraform@latest", category: .cloud),
+        ToolchainEntry(
+            id: "opentofu", summary: "OpenTofu (Terraform-compatible CLI)", installer: .mise, verify: "tofu --version",
+            defaultSpec: "opentofu@latest", category: .cloud),
+        ToolchainEntry(
+            id: "kubectl", summary: "Kubernetes CLI", installer: .mise, verify: "kubectl version --client",
+            defaultSpec: "kubectl@latest", category: .cloud),
+        ToolchainEntry(
+            id: "helm", summary: "Helm (Kubernetes package manager)", installer: .mise, verify: "helm version --short",
+            defaultSpec: "helm@latest", category: .cloud),
+        ToolchainEntry(
+            id: "kustomize", summary: "Kustomize", installer: .mise, verify: "kustomize version",
+            defaultSpec: "kustomize@latest", category: .cloud),
+        ToolchainEntry(
+            id: "k9s", summary: "k9s Kubernetes TUI", installer: .mise, verify: "k9s version --short",
+            defaultSpec: "k9s@latest", category: .cloud),
+        ToolchainEntry(
+            id: "pulumi", summary: "Pulumi CLI", installer: .mise, verify: "pulumi version",
+            defaultSpec: "pulumi@latest", category: .cloud),
+        ToolchainEntry(
+            id: "packer", summary: "HashiCorp Packer", installer: .mise, verify: "packer --version",
+            defaultSpec: "packer@latest", category: .cloud),
+        ToolchainEntry(
+            id: "vault", summary: "HashiCorp Vault CLI", installer: .mise, verify: "vault version",
+            defaultSpec: "vault@latest", category: .cloud),
+        ToolchainEntry(
+            id: "gh", summary: "GitHub CLI (auth via $GH_TOKEN per job)", installer: .mise, verify: "gh --version",
+            defaultSpec: "gh@latest", category: .cloud),
+        ToolchainEntry(
+            id: "awscli", summary: "AWS CLI v2: Homebrew on macOS, mise on Linux (no @version on macOS)",
+            installer: .brew(formula: "awscli", isCask: false), verify: "aws --version", linuxInstaller: .mise,
+            category: .cloud),
+        ToolchainEntry(
+            id: "gcloud", summary: "Google Cloud SDK: Homebrew on macOS, mise on Linux (no @version on macOS)",
+            installer: .brew(formula: "google-cloud-sdk", isCask: true), verify: "gcloud --version",
+            linuxInstaller: .mise, category: .cloud),
+        ToolchainEntry(
+            id: "supabase", summary: "Supabase CLI: Homebrew on macOS, mise on Linux (no @version on macOS)",
+            installer: .brew(formula: "supabase", isCask: false), verify: "supabase --version", linuxInstaller: .mise,
+            category: .cloud),
+        ToolchainEntry(
+            id: "flyctl", summary: "Fly.io deploy CLI: Homebrew on macOS, mise on Linux (no @version on macOS)",
+            installer: .brew(formula: "flyctl", isCask: false), verify: "flyctl version", linuxInstaller: .mise,
+            category: .cloud),
     ]
 
     // MARK: Stacks

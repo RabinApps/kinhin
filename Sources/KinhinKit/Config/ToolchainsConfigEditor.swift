@@ -117,10 +117,7 @@ public enum ToolchainsConfigEditor {
     /// installed implicitly, so the user has to pick the runtime too.
     public static func requirementProblems(_ selection: ToolchainsSelection) -> [String] {
         func satisfied(_ requirement: ToolchainRequirement) -> Bool {
-            switch requirement {
-            case .node: return selection.tools["node"] != nil
-            case .dotnet: return selection.tools["dotnet"] != nil
-            }
+            selection.tools[requirement.toolID] != nil
         }
         var problems: [String] = []
         for entry in ToolchainCatalog.tools where selection.tools[entry.id] != nil {
