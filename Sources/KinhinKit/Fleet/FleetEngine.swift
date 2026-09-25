@@ -268,6 +268,12 @@ public final class FleetEngine {
         Log.info("engine", "starting fleet engine for \(served) (capacity cap: \(capacity.maxConcurrent))")
         await recoverIfNeeded()
         startCachePruneSweepIfNeeded()
+        // Mirror the flag into the status snapshot before returning (as
+        // `stop()` does): the first reconcile pass that would sync it runs in
+        // the task below, so callers reading status() right after start()
+        // (e.g. the daemon's config reload) could otherwise see running=false.
+        let isRunning = stateLock.withLock { running }
+        await statusBox.modify { $0.running = isRunning }
         let task = Task { [weak self] () -> Void in
             guard let self else { return }
             await self.reconcileLoop()
