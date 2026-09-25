@@ -207,7 +207,7 @@ final class MainWindowTests: XCTestCase {
         // finish (it would bounce the app straight back into setup).
         wizard.nextClickedForTesting()
         XCTAssertEqual(delegate.setupFinishedCalls, 0)
-        XCTAssertTrue(allText().contains("Still needed"), "the summary says what is missing: \(allText())")
+        XCTAssertTrue(wizard.summaryTextForTesting.contains("Still needed"), "the summary says what is missing: \(wizard.summaryTextForTesting)")
     }
 
     func testWizardBackNavigation() {

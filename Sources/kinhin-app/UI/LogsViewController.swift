@@ -22,7 +22,10 @@ final class LogsViewController: NSViewController {
     }
 
     override func loadView() {
-        view = NSHostingView(rootView: LogsView(model: model))
+        let host = NSHostingView(rootView: LogsView(model: model))
+        // Fills whatever it is pinned into; the log scrolls.
+        host.sizingOptions = []
+        view = host
         refreshNow()
         startTimer()
     }

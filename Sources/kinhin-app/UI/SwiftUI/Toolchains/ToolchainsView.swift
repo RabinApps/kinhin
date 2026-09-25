@@ -5,6 +5,11 @@ import SwiftUI
 /// card, and an Apply / Revert footer.
 struct ToolchainsView: View {
     let model: ToolchainsModel
+    /// Whether Return triggers Apply. The wizard turns this off so Return
+    /// stays bound to its Continue button.
+    var appliesOnReturn = true
+    /// Leading/trailing inset around the cards and footer.
+    var inset: CGFloat = 4
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -23,7 +28,7 @@ struct ToolchainsView: View {
                     extrasCard
                     imagesCard
                 }
-                .padding(.horizontal, 4)
+                .padding(.horizontal, inset)
                 .padding(.top, 4)
                 .padding(.bottom, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -190,11 +195,11 @@ struct ToolchainsView: View {
             Button("Revert") { model.revert() }
                 .disabled(!model.revertEnabled)
             Button("Apply") { model.apply() }
-                .keyboardShortcut(.defaultAction)
+                .keyboardShortcut(appliesOnReturn ? .defaultAction : nil)
                 .disabled(!model.applyEnabled)
                 .accessibilityIdentifier("toolchains-apply")
         }
-        .padding(.leading, 4)
+        .padding(.leading, inset)
         .frame(width: FormMetrics.width, alignment: .leading)
     }
 }

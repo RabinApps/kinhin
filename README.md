@@ -272,15 +272,23 @@ toolchains:
   npm globals (pnpm, yarn, playwright, cypress, netlify-cli, firebase-tools), brew
   tools (awscli, gcloud, flyctl, supabase, php, composer, yamllint, dotnet-sdk, and
   fastlane as a gem), and curated stacks:
-  - **`flutter[@version]`** — Flutter SDK via `fvm` (brew tap `leoafarias/fvm`) +
-    CocoaPods; `@version` pins the SDK (`fvm install` + `fvm global`), default `stable`.
+  - **`flutter[@version]`** — Flutter SDK; `@version` pins it (a release tag such as
+    `3.24.0`, or a channel), default `stable`. On macOS: `fvm` (brew tap
+    `leoafarias/fvm`) + CocoaPods (`fvm install` + `fvm global`). On Linux images
+    (Apple container / Docker): a plain `git clone` of the SDK into `/opt/flutter`
+    (no snap, no Homebrew) plus Flutter's documented prerequisites
+    (`curl git unzip xz-utils zip libglu1-mesa`) and the Linux desktop toolchain
+    (`clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev`), put on `PATH` for
+    job shells. It builds web and Linux desktop (`flutter build linux`) out of the
+    box, and Android once you also select `java` and provide an Android SDK; iOS
+    builds need a macOS image.
   - **`expo[@eas-cli-version]`** — `eas-cli` npm-global (requires node).
   - **`react-native`** — direct (no Expo): watchman + CocoaPods + JDK 17; add node
     yourself if you build JS.
   - **`vercel[@cli-version]`** — `vercel` CLI (requires node); **`cloudflare[@version]`**
     — `wrangler` (requires node).
 - **Verification is the audit trail.** Each tool/stack carries a verify command
-  (`go version`, `dotnet --list-sdks`, `fvm flutter --version`…); the prepare aborts
+  (`go version`, `dotnet --list-sdks`, `flutter --version`…); the prepare aborts
   with the old image intact if any check fails, and the version prints land in
   `kinhin logs`.
 - **Deploy auth stays per-job.** `VERCEL_TOKEN`, `CLOUDFLARE_API_TOKEN`, and cloud
@@ -297,7 +305,7 @@ Flutter SDKs. Every ecosystem gets its own env redirect at install time:
 | ----------------------- | ---------------------------------------------------------------------------------------- |
 | mise / Homebrew         | `MISE_CACHE_DIR`, `HOMEBREW_CACHE`                                                       |
 | npm / pnpm / yarn / bun | `NPM_CONFIG_CACHE`, `npm_config_store_dir`, `YARN_CACHE_FOLDER`, `BUN_INSTALL_CACHE_DIR` |
-| Flutter (fvm)           | `FVM_CACHE_PATH`                                                                         |
+| Flutter (fvm, macOS)    | `FVM_CACHE_PATH`                                                                         |
 | Go / Rust               | `GOMODCACHE` + `GOCACHE`, `CARGO_HOME`                                                   |
 | Python                  | `UV_CACHE_DIR`, `PIP_CACHE_DIR`                                                          |
 | JVM                     | `GRADLE_USER_HOME`                                                                       |
@@ -474,6 +482,7 @@ Inside the targets, code is organized by domain:
 | `kinhin-app/AppMain.swift`     | @main entry: AppKit bootstrap, synchronous run loop                                                          |
 | `kinhin-app/AppDelegate/`      | Lifecycle + engine wiring + refresh; extensions for main menu, status item, fleet actions, engine reconfig   |
 | `kinhin-app/UI/`               | Window and form controllers (per-tab / per-card extension files), `AlertKit`, `FormKit`, setup repairs      |
+| `kinhin-app/UI/SwiftUI/`       | SwiftUI forms hosted by thin `NSViewController`s: models (`@Observable`) + views for Connect, This Mac, Toolchains, the wizard, Diagnostics, Logs |
 
 Tests: `swift test` (750+ tests across three targets: the engine suite (KinhinKitTests — store, RPC, SSH, image pipeline, tart-health, CLT probe, org permissions, queue attribution (queued and running,
 per repo), token replacement (Keychain upsert, live engine swap, daemon RPC), multi-forge (Gitea client, per-VM platform assignment, bootstrap, token-gated image provisioning), runtime

@@ -1,3 +1,4 @@
+import KinhinKit
 import SwiftUI
 
 /// SwiftUI counterparts of the `FormKit` builders, so hosted forms look the
@@ -84,5 +85,54 @@ extension View {
             RoundedRectangle(cornerRadius: cornerRadius)
                 .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
         )
+    }
+}
+
+/// A collapsible "Token permissions" list: exactly what a forge token needs,
+/// with a link to where it is created. Expands itself when `expandOnError`.
+struct TokenRequirementsView: View {
+    let requirements: TokenRequirements
+    var expandOnError = false
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                expanded.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .frame(width: 10)
+                    Text("Token permissions needed").font(.system(size: 11, weight: .semibold))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Token permissions needed")
+            .accessibilityValue(expanded ? "expanded" : "collapsed")
+
+            if expanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(requirements.options, id: \.kind) { option in
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(option.kind).font(.system(size: 11, weight: .semibold))
+                                if let url = URL(string: option.url), option.url.hasPrefix("http") {
+                                    Link("Create…", destination: url).font(.system(size: 11))
+                                }
+                            }
+                            ForEach(option.permissions, id: \.self) { line in
+                                HintText("• " + line).textSelection(.enabled)
+                            }
+                        }
+                    }
+                    if let note = requirements.note { HintText(note) }
+                }
+                .padding(.leading, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .onChange(of: expandOnError) { _, isError in if isError { expanded = true } }
     }
 }

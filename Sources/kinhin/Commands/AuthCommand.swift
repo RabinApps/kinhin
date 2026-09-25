@@ -81,6 +81,15 @@ enum AuthCommand {
         return (report, data)
     }
 
+    /// The permissions the token for `forge` needs, for the configured scope
+    /// (both repo and org cases when there is no config yet).
+    static func requirements(for forge: ForgeID, config: KinhinConfig?) -> TokenRequirements {
+        if forge == .gitea {
+            return TokenRequirements.gitea(scope: config?.gitea?.scope ?? "", instance: config?.gitea?.instance)
+        }
+        return TokenRequirements.github(scope: config?.repo ?? "")
+    }
+
     /// `environment` is injectable so tests can drive every flow with
     /// recording doubles — no real Keychain, stdin, or network.
     static func run(_ args: [String], environment: AuthEnvironment = .live) async throws {
@@ -95,6 +104,12 @@ enum AuthCommand {
             if let explicit = flag("--token", in: args) {
                 token = explicit
             } else {
+                // Say what the token needs before asking for it, so it is
+                // created with the right permissions the first time.
+                let config: KinhinConfig? =
+                    if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
+                print(Self.requirements(for: forge, config: config).plainText)
+                print("")
                 print("Paste your \(forgeName) (input hidden), then press Enter:")
                 let entered = environment.readToken()?.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard let entered, !entered.isEmpty else {
@@ -132,6 +147,8 @@ enum AuthCommand {
                     print("token works against \(gitea.scope) @ \(gitea.instance)")
                 } catch {
                     print("token check failed: \(error.localizedDescription)")
+                    print("")
+                    print(Self.requirements(for: .gitea, config: cfg).plainText)
                     try environment.exit(1)
                 }
             } else {
@@ -141,6 +158,8 @@ enum AuthCommand {
                     print("token works against \(cfg.repo)")
                 } catch {
                     print("token check failed: \(error.localizedDescription)")
+                    print("")
+                    print(Self.requirements(for: .github, config: cfg).plainText)
                     try environment.exit(1)
                 }
             }

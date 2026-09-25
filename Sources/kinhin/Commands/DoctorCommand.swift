@@ -148,9 +148,10 @@ enum DoctorCommand {
             }
             print("  image:      \(cfg.image)")
             if cfg.githubEnabled, !cfg.repo.contains("/") {
+                print("  scope:      organization '\(cfg.repo)' — runners serve every repo")
                 print(
-                    "  scope:      organization '\(cfg.repo)' — runners serve every repo; PAT needs org runner permissions (admin:org)"
-                )
+                    TokenRequirements.github(scope: cfg.repo).plainText
+                        .split(separator: "\n").map { "  \($0)" }.joined(separator: "\n"))
                 // Active verification: mint (and discard) a registration token —
                 // the exact call the fleet's lifecycle depends on.
                 if let token = KeychainTokenStore.load() {

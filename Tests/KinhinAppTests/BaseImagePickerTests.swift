@@ -99,11 +99,12 @@ final class BaseImagePickerTests: XCTestCase {
         let vc = ToolchainsViewController()
         vc.configURL = configURL
         _ = vc.view
-        XCTAssertEqual(Set(vc.baseImagePickers.keys), [.appleContainer, .docker])
+        XCTAssertEqual(
+            Set(vc.model.imageRuntimes.map(\.runtime).filter { $0 != .tart }), [.appleContainer, .docker])
 
         var edited = 0
         vc.onEdited = { edited += 1 }
-        vc.baseImagePickers[.docker]?.commitCustom("debian:12")
+        vc.model.saveBaseImage("debian:12", for: .docker)
         XCTAssertEqual(try saved(.docker), "debian:12")
         XCTAssertNil(try saved(.appleContainer), "the other runtime is untouched")
         XCTAssertEqual(edited, 1)
@@ -116,9 +117,9 @@ final class BaseImagePickerTests: XCTestCase {
         // Remove the docker section behind the page's back so the save is refused.
         try "repo: \"acme/widgets\"\nlabels: [self-hosted]\ncontainer:\n  image: \"kinhin-ci-linux\"\n"
             .write(to: configURL, atomically: true, encoding: .utf8)
-        vc.baseImagePickers[.docker]?.commitCustom("debian:12")
+        vc.model.saveBaseImage("debian:12", for: .docker)
         XCTAssertEqual(alerts, 1, "the failure is shown")
-        XCTAssertNil(vc.baseImagePickers[.docker]?.value, "the picker shows what is actually saved")
+        XCTAssertNil(vc.model.baseImage(for: .docker), "the page shows what is actually saved")
     }
 
     // MARK: Mac tools form

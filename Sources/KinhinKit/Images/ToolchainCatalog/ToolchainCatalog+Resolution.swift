@@ -133,35 +133,56 @@ extension ToolchainCatalog {
                 if !out.skippedEntries.contains(stack.id) { out.skippedEntries.append(stack.id) }
                 continue
             }
-            out.brewTaps.append(contentsOf: stack.brewTaps)
-            for formula in stack.brewFormulas {
-                let target = BrewFormula(name: formula, isCask: false)
-                if !out.brewFormulas.contains(target) { out.brewFormulas.append(target) }
+            let version = stack.effectiveVersion(pinned: pinned)
+            // A stack with its own Linux recipe (flutter) swaps the macOS
+            // Homebrew/fvm pieces for apt + shell steps on Linux; every other
+            // stack contributes the same pieces on both platforms.
+            let linuxRecipe = platform == .linux && !stack.linuxSteps.isEmpty
+            if platform == .linux {
+                for package in stack.linuxAptPackages where !out.aptPackages.contains(package) {
+                    out.aptPackages.append(package)
+                }
+                let quoted = "'" + version.replacingOccurrences(of: "'", with: "'\\''") + "'"
+                for step in stack.linuxSteps {
+                    guard !step.contains("<version>") || !version.isEmpty else { continue }
+                    out.stackSteps.append(step.replacingOccurrences(of: "<version>", with: quoted))
+                }
+            } else {
+                out.brewTaps.append(contentsOf: stack.brewTaps)
+                for formula in stack.brewFormulas {
+                    let target = BrewFormula(name: formula, isCask: false)
+                    if !out.brewFormulas.contains(target) { out.brewFormulas.append(target) }
+                }
             }
             out.miseSpecs.append(contentsOf: stack.miseSpecs)
             for var package in stack.npmPackages {
-                let version = stack.effectiveVersion(pinned: pinned)
                 if !version.isEmpty { package = .init(name: package.name, version: version) }
                 if !out.npmPackages.contains(package) { out.npmPackages.append(package) }
             }
-            // Post-install steps (fvm SDK pin): emitted only when the step
-            // carries a concrete version — with the host cache unmounted the
-            // SDK would land inside the throwaway scratch VM, so the pin is
-            // skipped (the install steps above still no-op safely).
-            let version = stack.effectiveVersion(pinned: pinned)
-            let hasMount = mountPath != nil
-            for step in stack.postInstall where step.contains("<version>") {
-                guard hasMount, !version.isEmpty else { continue }
-                out.stackSteps.append(step.replacingOccurrences(of: "<version>", with: version))
+            // macOS post-install steps (fvm SDK pin): emitted only when the
+            // step carries a concrete version — with the host cache unmounted
+            // the SDK would land inside the throwaway scratch VM, so the pin
+            // is skipped (the install steps above still no-op safely).
+            if platform == .macOS {
+                let hasMount = mountPath != nil
+                for step in stack.postInstall where step.contains("<version>") {
+                    guard hasMount, !version.isEmpty else { continue }
+                    out.stackSteps.append(step.replacingOccurrences(of: "<version>", with: version))
+                }
+                for step in stack.postInstall where !step.contains("<version>") {
+                    out.stackSteps.append(step)
+                }
             }
-            for step in stack.postInstall where !step.contains("<version>") {
-                out.stackSteps.append(step)
+            // The cache envs (fvm's) belong to the macOS recipe; a Linux
+            // recipe installs inside the image instead.
+            if !linuxRecipe {
+                for env in stack.cacheEnvs where !out.cacheEnvs.contains(env) {
+                    out.cacheEnvs.append(env)
+                }
             }
-            for env in stack.cacheEnvs where !out.cacheEnvs.contains(env) {
-                out.cacheEnvs.append(env)
-            }
-            if !stack.verify.isEmpty, !out.verifications.contains(stack.verify) {
-                out.verifications.append(stack.verify)
+            let verify = linuxRecipe ? (stack.linuxVerify ?? stack.verify) : stack.verify
+            if !verify.isEmpty, !out.verifications.contains(verify) {
+                out.verifications.append(verify)
             }
         }
 

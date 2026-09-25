@@ -50,7 +50,7 @@ final class ToolchainsModel {
             text += "\n\nSkipped (not available for this runtime): \(plan.skipped.joined(separator: ", "))."
         }
         return AlertKit.confirm(
-            title: "Rebuild the \(ToolchainsModel.runtimeTitle(runtime)) image?", message: text,
+            title: "Rebuild the \(ToolchainsModel.runtimeTitle(runtime))?", message: text,
             confirmTitle: "Rebuild Image", style: .informational)
     }
     /// Runs the actual image build for a runtime (real implementation below).

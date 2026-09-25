@@ -43,7 +43,7 @@ final class DiagnosticsModel {
         if !cltOK, let fix = report.clt.fixCommand { cltDetail += "\n\(fix)" }
         rows.append(Row(title: "Command Line Tools", detail: cltDetail, ok: cltOK))
 
-        var tartDetail = report.tart.reason ?? "healthy"
+        var tartDetail = report.tart.reason ?? (report.tart.ok ? "healthy" : report.tart.state)
         if !report.tart.repairCommands.isEmpty {
             tartDetail += "\nFix: \(report.tart.repairCommands[0])"
         }

@@ -83,11 +83,6 @@ public enum OrgPermissionProbe {
     }
 
     private static func remediation(for scope: String) -> String {
-        if scope.contains("/") {
-            return
-                " grant the classic PAT 'repo' scope, or give a fine-grained token 'Administration: write' on the repository (github.com/settings/tokens)"
-        }
-        return
-            " for an org scope the PAT needs 'admin:org' (classic) or 'Organization administration: write' (fine-grained) — create/update it at github.com/settings/tokens"
+        "\n" + TokenRequirements.github(scope: scope).plainText
     }
 }

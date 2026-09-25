@@ -35,7 +35,7 @@ final class OrgPermissionTests: XCTestCase {
         github.permissionDenied = true
         let report = await OrgPermissionProbe.verify(github: github, scope: "acme/widgets")
         XCTAssertFalse(report.ok)
-        XCTAssertTrue(report.message.contains("Administration: write"), report.message)
+        XCTAssertTrue(report.message.contains("Administration: Read and write"), report.message)
         XCTAssertFalse(report.message.contains("admin:org"), "repo hint must not leak org advice")
     }
 
@@ -55,7 +55,7 @@ final class OrgPermissionTests: XCTestCase {
         XCTAssertTrue(report.message.contains("lacks runner-management permission"))
         XCTAssertTrue(report.message.contains("admin:org"), "org remediation must mention the scope: \(report.message)")
         XCTAssertTrue(
-            report.message.contains("Organization administration: write"), "fine-grained remediation must be present")
+            report.message.contains("Self-hosted runners: Read and write"), "fine-grained remediation must be present")
     }
 
     func testRepoScopeNotFoundMapsToRepoMessage() async {

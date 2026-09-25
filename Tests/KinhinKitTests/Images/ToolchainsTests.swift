@@ -481,8 +481,9 @@ final class ToolchainsTests: XCTestCase {
     }
 
     func testLinuxSelectionFiltersMacOSOnlyEntries() throws {
-        // flutter (fvm/CocoaPods) and brew tools are macOS-only: skipped with
-        // a note, never an error. Cross-platform mise/npm tools remain.
+        // Brew tools are macOS-only: skipped with a note, never an error.
+        // Cross-platform mise/npm tools and stacks with a Linux recipe
+        // (flutter) remain.
         let sel = try linuxSelection(
             """
             repo: "acme/widgets"
@@ -493,8 +494,63 @@ final class ToolchainsTests: XCTestCase {
         XCTAssertTrue(sel.miseSpecs.contains("go@1.23"))
         XCTAssertTrue(sel.npmPackages.contains(.init(name: "vercel")))
         XCTAssertTrue(sel.brewFormulas.isEmpty, "brew formulas never resolve on Linux")
-        XCTAssertTrue(sel.aptPackages.isEmpty)
-        XCTAssertEqual(Set(sel.skippedEntries), ["yamllint", "awscli", "flutter"])
+        XCTAssertEqual(Set(sel.skippedEntries), ["yamllint", "awscli"])
+        XCTAssertTrue(sel.aptPackages.contains("git"), "flutter's prerequisites come from apt")
+    }
+
+    /// Flutter installs on Linux from git (no snap, no Homebrew/fvm), pinned
+    /// to the configured version, on PATH for job shells, and verified.
+    func testLinuxFlutterInstallsFromGit() throws {
+        let sel = try linuxSelection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {stacks: ["flutter@3.24.0"]}
+            """)
+        XCTAssertTrue(
+            Set(["curl", "git", "unzip", "xz-utils", "zip", "libglu1-mesa"]).isSubset(of: sel.aptPackages),
+            "Flutter's documented Linux prerequisites")
+        XCTAssertTrue(
+            Set(["clang", "cmake", "ninja-build", "pkg-config", "libgtk-3-dev", "liblzma-dev"])
+                .isSubset(of: sel.aptPackages),
+            "the toolchain `flutter build linux` needs")
+        XCTAssertTrue(sel.brewFormulas.isEmpty)
+        XCTAssertTrue(sel.brewTaps.isEmpty)
+        XCTAssertTrue(sel.skippedEntries.isEmpty)
+        let steps = sel.stackSteps.joined(separator: "\n")
+        XCTAssertTrue(steps.contains("flutter_ref='3.24.0'"), steps)
+        XCTAssertTrue(steps.contains("git clone --filter=blob:none https://github.com/flutter/flutter.git /opt/flutter"))
+        XCTAssertTrue(steps.contains("/etc/profile.d/kinhin-flutter.sh"))
+        XCTAssertTrue(steps.contains("flutter precache --universal --web --linux"))
+        XCTAssertFalse(steps.contains("snap"), "no snap")
+        XCTAssertFalse(steps.contains("fvm"), "fvm is the macOS path")
+        XCTAssertEqual(sel.verifications, ["/opt/flutter/bin/flutter --version"])
+
+        let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(
+            selection: sel, mountPath: ToolchainCacheMount.linuxGuestPath)
+        let apt = try XCTUnwrap(script.range(of: "apt-get install"))
+        let clone = try XCTUnwrap(script.range(of: "git clone --filter=blob:none"))
+        XCTAssertLessThan(apt.lowerBound, clone.lowerBound, "prerequisites install before the clone")
+    }
+
+    func testLinuxFlutterDefaultsToTheStableChannel() throws {
+        let sel = try linuxSelection(
+            """
+            repo: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {stacks: ["flutter"]}
+            """)
+        XCTAssertTrue(sel.stackSteps.joined().contains("flutter_ref='stable'"))
+    }
+
+    func testLinuxFlutterVersionIsShellQuoted() throws {
+        // A pinned version lands in a shell script: it must never be able to
+        // break out of its quotes (' becomes '\'' inside single quotes).
+        var cfg = KinhinConfig.ToolchainsConfig()
+        cfg.stacks = ["flutter@1'; touch /tmp/pwned; echo '"]
+        let sel = ToolchainCatalog.selection(from: cfg, platform: .linux, mountPath: nil)
+        let steps = sel.stackSteps.joined()
+        XCTAssertTrue(steps.contains(#"flutter_ref='1'\''; touch /tmp/pwned; echo '\'''"#), steps)
     }
 
     func testLinuxDotnetUsesAptInstallerWithNugetCache() throws {

@@ -164,15 +164,26 @@ public struct ToolchainStack: Sendable, Equatable {
     /// placeholder are dropped when no version is pinned.
     let postInstall: [String]
     /// Platforms this stack installs on (macOS-only for the iOS-adjacent
-    /// recipes: CocoaPods, watchman, and fvm do not exist on Linux).
+    /// recipes: CocoaPods and watchman do not exist on Linux).
     public let platforms: [ToolchainPlatform]
+    /// Linux guests have no Homebrew: a stack that supports Linux installs
+    /// through these instead of `brewTaps`/`brewFormulas`. apt packages
+    /// (guarded, run as root) ...
+    let linuxAptPackages: [String]
+    /// ... then these shell steps (`<version>` is replaced with the effective
+    /// version, shell-quoted; the version is always applied — no cache mount
+    /// is needed because the install lands inside the image) ...
+    let linuxSteps: [String]
+    /// ... and this verify command (nil = reuse `verify`).
+    let linuxVerify: String?
 
     public init(
         id: String, summary: String, requires: [ToolchainRequirement] = [], brewTaps: [String] = [],
         brewFormulas: [String] = [], miseSpecs: [String] = [], npmPackages: [NPMPackage] = [],
         cacheEnvs: [ToolchainCacheEnv] = [], verify: String, versionKind: String? = nil, defaultVersion: String = "",
         versionHint: String? = nil, postInstall: [String] = [],
-        platforms: [ToolchainPlatform] = ToolchainPlatform.allCases
+        platforms: [ToolchainPlatform] = ToolchainPlatform.allCases,
+        linuxAptPackages: [String] = [], linuxSteps: [String] = [], linuxVerify: String? = nil
     ) {
         self.id = id
         self.summary = summary
@@ -188,6 +199,9 @@ public struct ToolchainStack: Sendable, Equatable {
         self.defaultVersion = defaultVersion
         self.postInstall = postInstall
         self.platforms = platforms
+        self.linuxAptPackages = linuxAptPackages
+        self.linuxSteps = linuxSteps
+        self.linuxVerify = linuxVerify
     }
 
     /// Splits "flutter@3.24.0" into ("flutter", "3.24.0"); a bare id or a

@@ -136,7 +136,47 @@ extension ToolchainCatalog {
             defaultVersion: "stable",
             versionHint: "flutter@3.24.0",
             postInstall: ["fvm install <version>", "fvm global <version>"],
-            platforms: [.macOS]
+            platforms: [.macOS, .linux],
+            // Linux: a plain git install of the SDK (Flutter's documented
+            // manual install; no snap, no fvm, no Homebrew). Git rather than
+            // the release tarball because the tarball is x64-only while the
+            // Linux containers are arm64 — the flutter script fetches the
+            // right Dart SDK for the host on first run. No CocoaPods: iOS
+            // builds need macOS, so a Linux image builds Android, web and Linux desktop.
+            // Flutter's documented prerequisites, plus its Linux desktop
+            // build toolchain (`flutter build linux`: clang, CMake, Ninja,
+            // pkg-config, GTK 3 headers, liblzma).
+            linuxAptPackages: [
+                "curl", "git", "unzip", "xz-utils", "zip", "libglu1-mesa",
+                "clang", "cmake", "ninja-build", "pkg-config", "libgtk-3-dev", "liblzma-dev",
+            ],
+            linuxSteps: [
+                """
+                # Flutter SDK (git install into /opt/flutter; blobless clone keeps history + tags small)
+                flutter_ref=<version>
+                if [ ! -x /opt/flutter/bin/flutter ]; then
+                  git clone --filter=blob:none https://github.com/flutter/flutter.git /opt/flutter
+                fi
+                git -C /opt/flutter fetch --tags --force --quiet origin
+                if git -C /opt/flutter rev-parse --verify --quiet "origin/$flutter_ref" >/dev/null; then
+                  git -C /opt/flutter checkout --quiet -B "$flutter_ref" "origin/$flutter_ref"
+                else
+                  git -C /opt/flutter checkout --quiet "$flutter_ref"
+                fi
+                """,
+                """
+                # PATH for this script and for every runner login shell
+                export PATH="/opt/flutter/bin:$PATH"
+                printf '%s\\n' 'export PATH="/opt/flutter/bin:$PATH"' > /etc/profile.d/kinhin-flutter.sh
+                """,
+                """
+                # fetch the Dart SDK plus web and Linux-desktop artifacts now, not during the first job
+                flutter config --no-analytics --no-cli-animations >/dev/null 2>&1 || true
+                flutter --version
+                flutter precache --universal --web --linux
+                """,
+            ],
+            linuxVerify: "/opt/flutter/bin/flutter --version"
         ),
         ToolchainStack(
             id: "expo",

@@ -56,6 +56,8 @@ final class ConnectFormViewController: NSViewController {
 
     // MARK: Test hooks
 
+    func didStoreTokenForTesting(_ forge: ForgeID) { model.didStoreToken(forge) }
+
     var repoFieldsEnabledForTesting: (github: Bool, gitea: Bool) { model.repoFieldsEnabledForTesting }
     func markTokensStoredForTesting(github: Bool, gitea: Bool) {
         model.markTokensStoredForTesting(github: github, gitea: gitea)

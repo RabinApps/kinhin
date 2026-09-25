@@ -54,6 +54,8 @@ struct ConnectView: View {
             HintText(
                 "Use owner/name for one repo, or just an org name to serve every repo in it. The token is kept in your Keychain, never in a file."
             )
+            TokenRequirementsView(
+                requirements: model.githubRequirements, expandOnError: model.githubStatus.style == .error)
         }
     }
 
@@ -104,6 +106,8 @@ struct ConnectView: View {
                     )
                     .frame(width: 300)
                 }
+                TokenRequirementsView(
+                    requirements: model.giteaRequirements, expandOnError: model.giteaStatus.style == .error)
             }
         }
     }

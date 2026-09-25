@@ -25,7 +25,7 @@ swiftc -o shots/capture/harness $SOURCES \
   -I $PROD \
   -I .build/checkouts/Yams/Sources/CYaml/include \
   $PROD/CYaml.o $PROD/Yams.o $PROD/KinhinKit.o \
-  -framework AppKit -framework Security 2> shots/capture/harness-build.err || {
+  -framework AppKit -framework SwiftUI -framework Security 2> shots/capture/harness-build.err || {
   echo "BUILD FAILED — first errors:"
   grep -m8 "error:" shots/capture/harness-build.err
   exit 1

@@ -21,7 +21,10 @@ final class ToolchainsViewController: NSViewController {
     required init?(coder: NSCoder) { fatalError("created in code") }
 
     override func loadView() {
-        view = NSHostingView(rootView: ToolchainsView(model: model))
+        let host = NSHostingView(rootView: ToolchainsView(model: model))
+        // Fills whatever it is pinned into; the cards scroll.
+        host.sizingOptions = []
+        view = host
         reload()
     }
 

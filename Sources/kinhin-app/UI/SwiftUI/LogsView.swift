@@ -58,7 +58,7 @@ final class LogsModel {
         }
     }
 
-    var statusText: String { "\(entries.count) lines" }
+    var statusText: String { entries.count == 1 ? "1 line" : "\(entries.count) lines" }
 
     /// Re-reads the log ring buffer and re-renders.
     func refresh() {

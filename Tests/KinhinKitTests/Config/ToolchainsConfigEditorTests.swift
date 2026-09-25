@@ -112,9 +112,11 @@ final class ToolchainsConfigEditorTests: XCTestCase {
         let linux = ToolchainsConfigEditor.plan(sel, for: .linux)
         XCTAssertTrue(linux.installing.contains("node"))
         XCTAssertTrue(linux.installing.contains("go"))
-        for macOnly in ["yamllint", "fastlane", "flutter", "wget"] {
+        for macOnly in ["yamllint", "fastlane", "wget"] {
             XCTAssertTrue(linux.skipped.contains(macOnly), "\(macOnly) can't be baked into a Linux image")
         }
+        XCTAssertTrue(linux.installing.contains("flutter"), "flutter has a Linux (git) install")
+        XCTAssertFalse(linux.skipped.contains("flutter"))
     }
 
     /// Tools without a defaultSpec and stacks without a defaultVersion render

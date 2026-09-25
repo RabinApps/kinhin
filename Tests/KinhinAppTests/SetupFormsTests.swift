@@ -32,6 +32,7 @@ final class SetupFormsTests: XCTestCase {
         let form = ConnectFormViewController()
         form.configURL = configURL
         form.hasStoredToken = { _ in false }
+        form.model.checkPermission = { _, _ in nil }
         _ = form.view
         return form
     }
@@ -44,6 +45,61 @@ final class SetupFormsTests: XCTestCase {
         form.enterGitHubRepoForTesting("acme/api")
         XCTAssertEqual(try snapshot().repo, "acme/api")
         XCTAssertEqual(changed, 1)
+        XCTAssertTrue(form.isConnected)
+    }
+
+    /// Choosing a repo/org triggers the runner-permission check for exactly
+    /// that scope, and its verdict replaces the generic "Now serving" line.
+    func testChoosingARepoChecksRunnerPermissionForThatScope() async throws {
+        let form = connectForm()
+        // Let the form's initial async reload settle; it resets token state.
+        try await Task.sleep(nanoseconds: 100_000_000)
+        var checked: [(scope: String, token: String?)] = []
+        form.model.checkPermission = { scope, token in
+            checked.append((scope, token))
+            return OrgPermissionProbe.Report(ok: false, message: "PAT lacks runner-management permission for '\(scope)'.")
+        }
+        form.markTokensStoredForTesting(github: true, gitea: false)
+        form.enterGitHubRepoForTesting("acme")
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(checked.map(\.scope), ["acme"])
+        XCTAssertNil(checked.first?.token, "uses the stored token, never an empty one")
+        XCTAssertEqual(form.model.githubStatus.style, .error)
+        XCTAssertTrue(form.model.githubStatus.text.contains("lacks runner-management permission"))
+    }
+
+    /// Regression: after a token was saved the form still called the forge
+    /// unconnected (wizard step 4 said so) and kept the repo picker locked.
+    func testStoringATokenUnlocksTheRepoPickerAndConnects() async throws {
+        try """
+            repo: "acme/api"
+            labels: [self-hosted]
+            """.write(to: configURL, atomically: true, encoding: .utf8)
+        let form = connectForm()
+        // Let the initial async reload (which reads the configured repo) settle.
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertFalse(form.isConnected)
+        XCTAssertFalse(form.repoFieldsEnabledForTesting.github)
+
+        form.didStoreTokenForTesting(.github)
+        XCTAssertTrue(form.repoFieldsEnabledForTesting.github, "the repo picker unlocks once a token is stored")
+        XCTAssertTrue(form.isConnected, "token + configured repo counts as connected")
+    }
+
+    func testStoringATokenWritesARepoChosenBeforeConnecting() throws {
+        let form = connectForm()
+        form.model.githubRepo = "acme/web"
+        form.didStoreTokenForTesting(.github)
+        XCTAssertEqual(try snapshot().repo, "acme/web")
+        XCTAssertTrue(form.isConnected)
+    }
+
+    func testStoringAGiteaTokenWritesTheServerAndScope() throws {
+        let form = connectForm()
+        form.model.giteaInstance = "https://git.example.com"
+        form.model.giteaScope = "team/repo"
+        form.didStoreTokenForTesting(.gitea)
+        XCTAssertEqual(try snapshot().gitea?.scope, "team/repo")
         XCTAssertTrue(form.isConnected)
     }
 

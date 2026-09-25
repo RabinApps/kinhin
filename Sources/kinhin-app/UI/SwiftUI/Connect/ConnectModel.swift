@@ -36,6 +36,17 @@ final class ConnectModel {
     @ObservationIgnored var hasStoredToken: @Sendable (ForgeID) -> Bool = { KeychainTokenStore.load(forge: $0) != nil }
     /// Fired after any successful token or config change.
     @ObservationIgnored var onChanged: (() -> Void)?
+    /// Checks runner-management permission for a scope. `token` nil → use the
+    /// stored one. Returns nil when there is nothing to check (no token, or
+    /// no repo/org chosen yet). Injectable so tests never hit the network.
+    @ObservationIgnored var checkPermission: (_ scope: String, _ token: String?) async -> OrgPermissionProbe.Report? = {
+        scope, token in
+        let resolved: String? =
+            if let token { token } else { await Task.detached { KeychainTokenStore.load(forge: .github) }.value }
+        guard let resolved, !scope.isEmpty else { return nil }
+        return await OrgPermissionProbe.verify(
+            github: GitHubClient(credentials: GitHubCredentials(token: resolved, scope: scope)), scope: scope)
+    }
 
     // MARK: Form state
 
@@ -76,6 +87,10 @@ final class ConnectModel {
     /// token there is nothing to list or verify against.
     var githubRepoEnabled: Bool { githubTokenStored }
     var giteaScopeEnabled: Bool { giteaTokenStored }
+
+    /// What each forge's token needs, for the scope currently entered.
+    var githubRequirements: TokenRequirements { TokenRequirements.github(scope: githubRepo) }
+    var giteaRequirements: TokenRequirements { TokenRequirements.gitea(scope: giteaScope, instance: giteaInstance) }
 
     static func repoPlaceholder(enabled: Bool) -> String {
         enabled ? "owner/name, or an org name" : "Connect first to choose a repository"
@@ -143,9 +158,8 @@ final class ConnectModel {
             do {
                 try await self.saveToken(.github, typed)
                 self.githubTokenText = ""
-                self.githubButtonTitle = "Replace"
-                self.onChanged?()
-                await self.verifyPermission(scope: self.githubRepo.trimmingCharacters(in: .whitespaces))
+                self.didStoreToken(.github)
+                await self.verifyPermission(scope: self.githubRepo.trimmingCharacters(in: .whitespaces), token: typed)
             } catch {
                 self.githubStatus = Line(text: "Couldn't save the token — \(error.localizedDescription)", style: .error)
             }
@@ -171,13 +185,32 @@ final class ConnectModel {
             do {
                 try await self.saveToken(.gitea, typed)
                 self.giteaTokenText = ""
-                self.commitGitea()
-                self.onChanged?()
+                self.didStoreToken(.gitea)
                 // Gitea has no runner-management token model; no probe needed.
             } catch {
                 self.giteaStatus = Line(text: "Couldn't save the token — \(error.localizedDescription)", style: .error)
             }
         }
+    }
+
+    /// A token was just saved: unlock the repo picker, count the forge as
+    /// connected when a repo/org is already chosen, and write any repo or
+    /// server the user entered before connecting. Without this the form kept
+    /// treating the forge as unconnected until the next reload.
+    func didStoreToken(_ forge: ForgeID) {
+        switch forge {
+        case .github:
+            githubTokenStored = true
+            githubButtonTitle = "Replace"
+            githubConnected = !lastWrittenRepo.isEmpty
+            commitGitHubRepo()
+        case .gitea:
+            giteaTokenStored = true
+            giteaButtonTitle = "Replace"
+            giteaConnected = lastWrittenGitea != nil
+            commitGitea()
+        }
+        onChanged?()
     }
 
     /// Lists the repos a token can see and fills the matching picker. `token`
@@ -212,20 +245,24 @@ final class ConnectModel {
             return true
         } catch {
             if token != nil {
-                let line = Line(text: "That token didn't work — \(error.localizedDescription)", style: .error)
+                let needs = forge == .github ? githubRequirements : giteaRequirements
+                let line = Line(
+                    text: "That token didn't work — \(error.localizedDescription)\nIt needs — \(needs.summary)",
+                    style: .error)
                 if forge == .github { githubStatus = line } else { giteaStatus = line }
             }
             return false
         }
     }
 
-    /// After a token is stored, verify the runner-management permission for
-    /// the live scope. For org scopes this surfaces the PAT-permission error
-    /// with its remediation instead of the generic "Connected ✓". GitHub
-    /// only: Gitea doesn't use OAuth runner-management tokens.
-    private func verifyPermission(scope: String) async {
-        let report = await OrgPermissionProbe.verify(
-            github: GitHubClient(credentials: GitHubCredentials(token: "", scope: scope)), scope: scope)
+    /// Verify the runner-management permission for the live scope, with the
+    /// token just entered (or the stored one when `token` is nil). For org
+    /// scopes this surfaces the PAT-permission error with its remediation
+    /// instead of the generic "Connected ✓". Nothing is shown when there is
+    /// no repo or org to check yet. GitHub only: Gitea doesn't use OAuth
+    /// runner-management tokens.
+    private func verifyPermission(scope: String, token: String?) async {
+        guard let report = await checkPermission(scope, token) else { return }
         githubStatus = Line(text: report.message, style: report.ok ? .ok : .error)
         githubButtonTitle = report.ok ? "Replace" : "Connect"
     }
@@ -241,6 +278,8 @@ final class ConnectModel {
             githubStatus = Line(text: "Now serving \(value) ✓", style: .ok)
             githubConnected = githubTokenStored
             onChanged?()
+            // Now that there is a scope, check the token can manage its runners.
+            Task { [weak self] in await self?.verifyPermission(scope: value, token: nil) }
         } catch {
             githubStatus = Line(text: "Not saved — \(error.localizedDescription)", style: .error)
         }
