@@ -67,4 +67,24 @@ final class AppPreferencesTests: XCTestCase {
         AppPreferences.setLaunchAtLogin(false, in: suite)
         XCTAssertFalse(AppPreferences.launchAtLogin(in: suite))
     }
+
+    // MARK: auto-start fleet
+
+    func testAutoStartFleetRoundTripsAndDefaultsToOff() {
+        XCTAssertFalse(AppPreferences.autoStartFleet(in: suite), "an upgrade must not start the fleet by itself")
+        AppPreferences.setAutoStartFleet(true, in: suite)
+        XCTAssertTrue(AppPreferences.autoStartFleet(in: suite))
+        AppPreferences.setAutoStartFleet(false, in: suite)
+        XCTAssertFalse(AppPreferences.autoStartFleet(in: suite))
+    }
+
+    @MainActor
+    func testWizardSavesTheAutoStartChoiceWhenTheFleetStarts() {
+        let model = WizardModel(defaults: suite)
+        XCTAssertTrue(model.autoStartFleet, "the wizard offers auto-start on by default")
+        // Not finished (steps missing): nothing is saved.
+        model.show(.start)
+        model.next()
+        XCTAssertFalse(AppPreferences.autoStartFleet(in: suite))
+    }
 }

@@ -68,6 +68,8 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     let updateButton = NSButton(title: "Check for Updates…", target: nil, action: nil)
     let modePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let loginCheck = NSButton(checkboxWithTitle: "Launch kinhin at login", target: nil, action: nil)
+    let autoStartCheck = NSButton(
+        checkboxWithTitle: "Start the fleet when kinhin opens", target: nil, action: nil)
     let loginHint = NSTextField(
         wrappingLabelWithString:
             "Applies to the installed kinhin.app — no effect while running unbundled from `swift run`.")
@@ -109,6 +111,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         applyLaunchMode(AppPreferences.launchMode(in: prefs), notify: false)
         loginCheck.state = AppPreferences.launchAtLogin(in: prefs) ? .on : .off
         loginHint.isHidden = LaunchAtLoginService.isBundled
+        autoStartCheck.state = AppPreferences.autoStartFleet(in: prefs) ? .on : .off
         render(status: nil)
     }
 

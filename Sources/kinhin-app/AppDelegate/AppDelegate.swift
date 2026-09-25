@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             installStatusItem()
         }
         bootstrapEngine()
+        autoStartFleetIfEnabled()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
             Task { await self?.refresh() }
         }
@@ -151,6 +152,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.info("app", "setup incomplete — the guided setup opens")
             mainController?.setupIncompleteFlag = true
             if reopenSetupOnFailure { openMainWindow() }
+        }
+    }
+
+    /// Starts the in-process fleet at launch when the user asked for it. A
+    /// running daemon owns its own lifecycle, and an incomplete setup has no
+    /// engine, so neither is touched.
+    func autoStartFleetIfEnabled() {
+        guard AppPreferences.autoStartFleet, let engine else { return }
+        Log.info("app", "auto-starting the fleet (Settings → App)")
+        Task {
+            await engine.start()
+            await refresh()
         }
     }
 

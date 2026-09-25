@@ -7,6 +7,12 @@ VERSION="${KINHIN_VERSION:-0.1.0}"
 OUT_DIR="${1:-dist}"
 APP="$OUT_DIR/kinhin.app"
 CONFIGURATION="${CONFIGURATION:-release}" # lowercase: debug|release
+BUNDLE_ID="${KINHIN_BUNDLE_ID:-com.RabinApps.kinhin}"
+# Signing identity (see `security find-identity -v -p codesigning`). "-" is an
+# ad-hoc signature (CI, forks); set e.g. CODESIGN_IDENTITY="Developer ID
+# Application: Your Name (TEAMID)" for a signed build. Siri/Shortcuts index
+# App Intents most reliably for apps signed with a real identity.
+CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 
 # Build the shipped products explicitly: the test-support target is testable-only
 # and does not compile in release.
@@ -52,7 +58,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleDisplayName</key>
     <string>kinhin</string>
     <key>CFBundleIdentifier</key>
-    <string>com.kinhin.runner</string>
+    <string>$BUNDLE_ID</string>
     <key>CFBundleVersion</key>
     <string>$VERSION</string>
     <key>CFBundleShortVersionString</key>
@@ -72,5 +78,41 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+
+# App Intents (Siri / Shortcuts / Spotlight): SwiftPM does not run Xcode's
+# metadata step, so generate Metadata.appintents from the compiler's
+# const-values output and put it in the bundle's Resources.
+echo "==> generating App Intents metadata"
+BUILD_ROOT="$(dirname "$(dirname "$BIN_DIR")")"
+META_TMP="$(mktemp -d)"
+trap 'rm -rf "$META_TMP"' EXIT
+find "$BUILD_ROOT" -path "*kinhin-app*" -name '*.swiftconstvalues' > "$META_TMP/constvalues.txt"
+find Sources/kinhin-app -name '*.swift' | sed "s|^|$PWD/|" > "$META_TMP/sources.txt"
+if [ ! -s "$META_TMP/constvalues.txt" ]; then
+    echo "FATAL: no .swiftconstvalues found under $BUILD_ROOT; App Intents metadata cannot be generated" >&2
+    exit 1
+fi
+xcrun appintentsmetadataprocessor \
+    --output "$APP/Contents/Resources" \
+    --toolchain-dir "$(dirname "$(dirname "$(dirname "$(xcrun --find swiftc)")")")" \
+    --module-name kinhin_app \
+    --sdk-root "$(xcrun --show-sdk-path)" \
+    --xcode-version "$(xcodebuild -version | awk '/Build version/ {print $3}')" \
+    --platform-family macOS \
+    --deployment-target 14.0 \
+    --target-triple arm64-apple-macos14.0 \
+    --source-file-list "$META_TMP/sources.txt" \
+    --swift-const-vals-list "$META_TMP/constvalues.txt"
+
+# Sign inside-out (nested CLI first, then the bundle). A real identity gets the
+# hardened runtime + secure timestamp that notarization requires.
+SIGN_ARGS=(--force --sign "$CODESIGN_IDENTITY")
+if [ "$CODESIGN_IDENTITY" != "-" ]; then
+    SIGN_ARGS+=(--options runtime --timestamp)
+fi
+echo "==> codesign ($CODESIGN_IDENTITY)"
+codesign "${SIGN_ARGS[@]}" "$APP/Contents/Resources/bin/kinhin"
+codesign "${SIGN_ARGS[@]}" --identifier "$BUNDLE_ID" "$APP"
+codesign --verify --deep --strict "$APP"
 
 echo "==> app bundle ready: $APP"

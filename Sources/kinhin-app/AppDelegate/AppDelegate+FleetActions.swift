@@ -43,25 +43,49 @@ extension AppDelegate {
     }
 
     @objc func pauseFleet() {
+        setPausedFromMenu(true, failureTitle: "Couldn't pause the fleet")
+    }
+
+    @objc func resumeFleet() {
+        setPausedFromMenu(false, failureTitle: "Couldn't resume the fleet")
+    }
+
+    private func setPausedFromMenu(_ paused: Bool, failureTitle: String) {
         Task {
-            if let engine {
-                await engine.setPaused(true)
-            } else if client != nil {
-                sendDaemonCommand(.pause, failureTitle: "Couldn't pause the fleet")
+            do {
+                try await setFleetPaused(paused)
+            } catch {
+                AlertKit.present(error: error, title: failureTitle)
             }
             await refresh()
         }
     }
 
-    @objc func resumeFleet() {
-        Task {
-            if let engine {
-                await engine.setPaused(false)
-            } else if client != nil {
-                sendDaemonCommand(.resume, failureTitle: "Couldn't resume the fleet")
-            }
-            await refresh()
+    // MARK: Throwing fleet access (menu actions and App Intents)
+
+    /// Pauses or resumes the fleet through whichever backend is live.
+    /// Throws when there is none (setup incomplete) or the daemon fails.
+    func setFleetPaused(_ paused: Bool) async throws {
+        if let engine {
+            await engine.setPaused(paused)
+        } else if let client {
+            try client.command(paused ? .pause : .resume)
+        } else {
+            throw FleetAccessError.notSetUp
         }
+    }
+
+    /// Current fleet status from the in-process engine or the daemon.
+    func fleetStatus() async throws -> FleetStatus {
+        if let engine {
+            return await engine.status()
+        }
+        guard let client else { throw FleetAccessError.notSetUp }
+        let response = try client.send(method: .status)
+        guard response.ok, let payload = response.payload else {
+            throw RPCError.rejected(response.error ?? "no status payload")
+        }
+        return try JSONDecoder().decode(FleetStatus.self, from: payload)
     }
 
     @objc func deleteVM(_ sender: NSMenuItem) {

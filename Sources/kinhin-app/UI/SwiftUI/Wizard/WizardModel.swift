@@ -63,8 +63,13 @@ final class WizardModel {
     /// The "Ready to go" summary, refreshed each time that step is shown.
     private(set) var summaryText = ""
     private var toolchainsLoaded = false
+    /// "Start the fleet whenever kinhin opens": defaults on here (a CI
+    /// runner is usually wanted running); saved when the user starts the fleet.
+    var autoStartFleet = true
+    @ObservationIgnored private let defaults: UserDefaults
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         // Setup with nothing to run jobs on switches on an installed Linux
         // runtime so the wizard can finish.
         mac.autoEnableLinuxRuntime = true
@@ -126,7 +131,10 @@ final class WizardModel {
 
     func next() {
         guard let next = Step(rawValue: step.rawValue + 1) else {
-            if missingItems.isEmpty { onFinished?() }
+            if missingItems.isEmpty {
+                AppPreferences.setAutoStartFleet(autoStartFleet, in: defaults)
+                onFinished?()
+            }
             return
         }
         show(next)

@@ -47,11 +47,16 @@ struct WizardView: View {
         case .toolchains:
             ToolchainsView(model: model.toolchains, appliesOnReturn: false, inset: 0)
         case .start:
-            Text(model.summaryText)
-                .font(.system(size: 13))
-                .textSelection(.enabled)
-                .frame(width: FormMetrics.width, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
+            @Bindable var model = model
+            VStack(alignment: .leading, spacing: 14) {
+                Text(model.summaryText)
+                    .font(.system(size: 13))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                Toggle("Start the fleet automatically whenever kinhin opens", isOn: $model.autoStartFleet)
+                    .accessibilityLabel("Start the fleet automatically whenever kinhin opens")
+            }
+            .frame(width: FormMetrics.width, alignment: .topLeading)
         }
     }
 }

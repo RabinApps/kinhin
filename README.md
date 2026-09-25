@@ -419,6 +419,21 @@ PAT lives in the login Keychain.
 Config edits made from the **Runtimes…** pane (routes, budget split, labels) reach a running fleet
 live via `reload_config` — no restart; a running fleet simply re-buckets demand on its next poll.
 
+## Siri, Shortcuts & Spotlight
+
+The menu bar app exposes App Intents (in the release `.app`; `scripts/build-app.sh` generates the metadata), so
+you can ask about the fleet without opening a window:
+
+| Say / run | What it does |
+| --- | --- |
+| "How's my kinhin fleet" / "kinhin status" | Running or paused, active VMs, queued jobs, last error |
+| "Pause kinhin" | Stops new runner VMs from starting; running jobs finish |
+| "Resume kinhin" | Lets a paused fleet start VMs again |
+| "Run kinhin diagnostics" | One-line result of the `kinhin doctor` checks |
+
+They also appear as actions in Shortcuts, so you can automate them (for example, pause the fleet when a call
+starts). Pause and resume are idempotent and work with both the in-process engine and the background daemon.
+
 ## Headless + menu bar together
 
 The menu bar app runs the engine in-process when no daemon is active, and attaches read/write to

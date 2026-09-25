@@ -355,6 +355,22 @@ final class MainWindowTests: XCTestCase {
         XCTAssertFalse(AppPreferences.launchAtLogin(in: suite))
     }
 
+    func testAutoStartCheckboxPersists() {
+        window.showAdvanced(.app)
+        let check = try? XCTUnwrap(
+            window.window?.contentView?.flattenedButtons().first {
+                $0.title.contains("Start the fleet when kinhin opens")
+            })
+        guard let check else { return XCTFail("App section must carry the auto-start checkbox") }
+        XCTAssertEqual(check.state, .off)
+        check.state = .on
+        fire(check)
+        XCTAssertTrue(AppPreferences.autoStartFleet(in: suite))
+        check.state = .off
+        fire(check)
+        XCTAssertFalse(AppPreferences.autoStartFleet(in: suite))
+    }
+
     // MARK: delegate plumbing
 
     func testFleetControlButtonsReachTheDelegate() {

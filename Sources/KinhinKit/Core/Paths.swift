@@ -48,6 +48,8 @@ public enum Paths {
 
     public static var logsDirectory: URL { appSupport.appendingPathComponent("logs", isDirectory: true) }
 
+    /// Deliberately NOT the app's bundle id: tokens saved by earlier builds
+    /// (bundle id `com.kinhin.runner`) must stay readable after the rename.
     static var keychainService: String { "com.kinhin.runner" }
 
     /// Shared toolchain download cache (mise, brew, npm, fvm, Go, Cargo…).

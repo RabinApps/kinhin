@@ -43,6 +43,7 @@ extension LaunchMode {
 enum AppPreferences {
     static let launchModeKey = "kinhin.launchMode"
     static let launchAtLoginKey = "kinhin.launchAtLogin"
+    static let autoStartFleetKey = "kinhin.autoStartFleet"
 
     /// The effective default: a normal app. Existing installs upgrading see
     /// the same behavior plus the new window, since the mode also controls
@@ -57,6 +58,13 @@ enum AppPreferences {
     static var launchAtLogin: Bool {
         get { launchAtLogin(in: .standard) }
         set { setLaunchAtLogin(newValue, in: .standard) }
+    }
+
+    /// Start the fleet whenever kinhin opens. Off by default so an upgrade
+    /// never starts spawning VMs on its own; the onboarding wizard asks.
+    static var autoStartFleet: Bool {
+        get { autoStartFleet(in: .standard) }
+        set { setAutoStartFleet(newValue, in: .standard) }
     }
 
     static func launchMode(in defaults: UserDefaults) -> LaunchMode {
@@ -78,6 +86,14 @@ enum AppPreferences {
 
     static func setLaunchAtLogin(_ enabled: Bool, in defaults: UserDefaults) {
         defaults.set(enabled, forKey: launchAtLoginKey)
+    }
+
+    static func autoStartFleet(in defaults: UserDefaults) -> Bool {
+        defaults.bool(forKey: autoStartFleetKey)
+    }
+
+    static func setAutoStartFleet(_ enabled: Bool, in defaults: UserDefaults) {
+        defaults.set(enabled, forKey: autoStartFleetKey)
     }
 }
 

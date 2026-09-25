@@ -25,12 +25,16 @@ extension MainTabsWindowController {
         loginCheck.target = self
         loginCheck.action = #selector(loginToggled)
         loginCheck.setAccessibilityLabel("Launch kinhin at login")
+        autoStartCheck.target = self
+        autoStartCheck.action = #selector(autoStartToggled)
+        autoStartCheck.setAccessibilityLabel("Start the fleet when kinhin opens")
         loginHint.font = .systemFont(ofSize: 10)
         loginHint.textColor = .tertiaryLabelColor
         loginHint.preferredMaxLayoutWidth = FormKit.formWidth - 28
         launchColumn.addArrangedSubview(FormKit.row([modeLabel, modePopup]))
         launchColumn.addArrangedSubview(settingsSubtitle)
         launchColumn.addArrangedSubview(loginCheck)
+        launchColumn.addArrangedSubview(autoStartCheck)
         launchColumn.addArrangedSubview(loginHint)
 
         let (updatesCard, updatesColumn) = FormKit.card(title: "Updates")
@@ -133,6 +137,10 @@ extension MainTabsWindowController {
         else { return }
         Log.info("app", "launch mode set to \(mode.rawValue)")
         applyLaunchMode(mode)
+    }
+
+    @objc func autoStartToggled() {
+        AppPreferences.setAutoStartFleet(autoStartCheck.state == .on, in: prefs)
     }
 
     @objc func loginToggled() {
