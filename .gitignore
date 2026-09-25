@@ -8,3 +8,6 @@ kinhin-cli-*.zip
 node_modules/
 .freebuff/
 bad.sha256
+# Stray screencapture output and local scratch files at the repo root
+/-R*
+/*.png
