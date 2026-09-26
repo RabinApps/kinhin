@@ -25,6 +25,13 @@ public final class FleetEngine {
     /// Resolves an account's token (forge, account name). Keychain in
     /// production; tests inject their own.
     var tokenLoader: @Sendable (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
+    /// Host snapshot for the pre-spawn disk guard. Defaults to the static
+    /// construction-time host value (hermetic — tests inject their own);
+    /// production wiring swaps in a live statfs probe via `useLiveDiskProbe`.
+    var hostProbe: @Sendable () -> HostResources = { ResourceProbe().snapshot() }
+    /// Opts the disk guard into live probing (production wiring only; tests
+    /// keep the hermetic construction snapshot or set their own probe).
+    public func useLiveDiskProbe() { hostProbe = { ResourceProbe().snapshot() } }
 
     /// The API client in use. Swapped atomically by replaceCredentials.
     public var github: GitHubServing { credentialsLock.withLock { githubInstance } }
@@ -134,18 +141,27 @@ public final class FleetEngine {
         }
         self.runtimesByRuntime = runtimeMap
         self.config = config
+        self.hostProbe = { [host] in host }
         self.tart = tart
         self.store = store
         self.ssh = ssh
         self.registrationTokens = RegistrationTokenCache(ttl: TimeInterval(config.tokenTTL))
         self.statusBox = FleetStatusBox()
+        // The primary runtime's per-instance disk footprint: the explicit
+        // disk_gb when set, else a runtime default (50 GB tart VMs, 8 GB
+        // Linux container slots, 0 for host). The same estimate feeds the
+        // pre-spawn disk guard and `kinhin doctor`.
+        let primaryRuntimeID =
+            config.container != nil ? RuntimeID.appleContainer
+            : config.docker != nil ? RuntimeID.docker : RuntimeID.tart
+        let diskPerVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: primaryRuntimeID.rawValue)
         self.capacity = Capacity.plan(
             host: host,
             vmCPU: config.container?.cpus ?? config.docker?.cpus ?? config.vm.cpuCount,
             vmMemoryGB: config.container?.memoryGB ?? config.docker?.memoryGB ?? config.vm.memoryGB,
             reservedCPU: config.reserve.cpu,
             reservedMemoryGB: config.reserve.memoryGB,
-            diskPerVMGB: 0,
+            diskPerVMGB: diskPerVM,
             userMax: config.maxRunners
         )
         self.routing = RuntimeConfigModel(

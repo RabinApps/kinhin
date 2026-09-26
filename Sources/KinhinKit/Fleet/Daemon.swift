@@ -79,7 +79,7 @@ public enum Daemon {
             throw DaemonError.missingToken
         }
         let tart = try cfg.makeTartControlling()
-        return FleetEngine(
+        let engine = FleetEngine(
             config: cfg,
             pat: pat,
             tart: tart,
@@ -87,6 +87,8 @@ public enum Daemon {
             ssh: SSHExecutor(),
             host: ResourceProbe().snapshot()
         )
+        engine.useLiveDiskProbe()
+        return engine
     }
 
     /// Thread-safe box around the "current" engine. A config edit that the

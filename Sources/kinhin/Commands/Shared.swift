@@ -207,7 +207,7 @@ func engineFromConfig(_ cfg: KinhinConfig) throws -> FleetEngine {
     }
     let tart = try cfg.makeTartControlling()
     let host = ResourceProbe().snapshot()
-    return FleetEngine(
+    let engine = FleetEngine(
         config: cfg,
         pat: tokenOrExit(for: cfg),
         tart: tart,
@@ -215,6 +215,8 @@ func engineFromConfig(_ cfg: KinhinConfig) throws -> FleetEngine {
         ssh: SSHExecutor(),
         host: host
     )
+    engine.useLiveDiskProbe()
+    return engine
 }
 
 func renderStatus(_ status: FleetStatus) -> String {

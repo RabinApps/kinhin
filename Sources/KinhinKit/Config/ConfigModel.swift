@@ -46,7 +46,9 @@ public struct KinhinConfig: Sendable, Equatable {
     public var image: String
     /// How long a freshly booted VM may take to join as a registered runner (seconds).
     var vmBootTimeout: Int
-    /// Optional extra disk (GB) attached to each VM.
+    /// Extra scratch disk (GB) attached to each VM. 0 disables the extra
+    /// disk; nil means "not configured" (the scaler then assumes a default
+    /// per-VM disk footprint — see `effectiveDiskPerVMGB`).
     public var diskGB: Int?
     /// Optional tart binary path override.
     public var tartPath: String?
@@ -277,13 +279,18 @@ public struct KinhinConfig: Sendable, Equatable {
         public var cpu: Int
         /// Host memory (GB) kept free from VM budgets.
         public var memoryGB: Int
+        /// Host disk (GB) kept free from VM scratch. The scaler holds new
+        /// spawns when free disk would dip below this plus one VM's disk
+        /// footprint.
+        public var diskGB: Int
 
         enum CodingKeys: String, CodingKey {
             case cpu
             case memoryGB = "memory_gb"
+            case diskGB = "disk_gb"
         }
 
-        public static let `default` = Reserve(cpu: 2, memoryGB: 4)
+        public static let `default` = Reserve(cpu: 2, memoryGB: 4, diskGB: 10)
     }
 
     enum CodingKeys: String, CodingKey {

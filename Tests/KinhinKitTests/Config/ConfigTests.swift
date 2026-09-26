@@ -58,6 +58,7 @@ final class ConfigTests: XCTestCase {
             reserve:
               cpu: 1
               memory_gb: 2
+              disk_gb: 15
             """
         let cfg = try ConfigLoader.parse(yaml)
         XCTAssertEqual(cfg.minRunners, 1)
@@ -68,6 +69,23 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.image, "kinhin-base")
         XCTAssertEqual(cfg.diskGB, 40)
         XCTAssertEqual(cfg.reserve.cpu, 1)
+        XCTAssertEqual(cfg.reserve.diskGB, 15)
+    }
+
+    func testReserveDiskDefaultsToTen() throws {
+        let cfg = try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [x]\n")
+        XCTAssertEqual(cfg.reserve.diskGB, 10, "the default reserve keeps disk headroom too")
+    }
+
+    func testNegativeReserveDiskThrows() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [x]\nreserve:\n  disk_gb: -1\n")
+        ) { error in
+            guard case .invalid(let message) = error as? ConfigError else {
+                return XCTFail("wrong error: \(error)")
+            }
+            XCTAssertTrue(message.contains("reserve.disk_gb"), "\(message)")
+        }
     }
 
     func testMissingRepoThrows() {

@@ -188,15 +188,20 @@ public struct DoctorReportBuilder: Sendable {
         let cacheSection = Self.toolchainCacheSection(config: parsed)
 
         // Capacity — the same math the human doctor prints, plus job slots.
+        // The disk estimate matches the engine's scaler (explicit disk_gb or
+        // the runtime default), so doctor's cap is the cap the fleet enforces.
         var capacitySection: DoctorReport.CapacitySection?
         if let cfg = parsed {
+            let runtimeID =
+                cfg.container != nil ? RuntimeID.appleContainer.rawValue
+                : cfg.docker != nil ? RuntimeID.docker.rawValue : RuntimeID.tart.rawValue
             let plan = Capacity.plan(
                 host: resolvedHost,
                 vmCPU: cfg.vm.cpuCount,
                 vmMemoryGB: cfg.vm.memoryGB,
                 reservedCPU: cfg.reserve.cpu,
                 reservedMemoryGB: cfg.reserve.memoryGB,
-                diskPerVMGB: cfg.diskGB ?? 0,
+                diskPerVMGB: ResourceProbe.effectiveDiskPerVMGB(diskGB: cfg.diskGB, runtime: runtimeID),
                 userMax: cfg.maxRunners
             )
             capacitySection = DoctorReport.CapacitySection(

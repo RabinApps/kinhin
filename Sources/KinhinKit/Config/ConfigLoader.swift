@@ -358,6 +358,10 @@ public struct ConfigLoader {
                 guard mem >= 0 else { throw ConfigError.invalid("reserve.memory_gb must be >= 0") }
                 cfg.reserve.memoryGB = mem
             }
+            if let disk = reserve.diskGB {
+                guard disk >= 0 else { throw ConfigError.invalid("reserve.disk_gb must be >= 0") }
+                cfg.reserve.diskGB = disk
+            }
         }
         return cfg
     }

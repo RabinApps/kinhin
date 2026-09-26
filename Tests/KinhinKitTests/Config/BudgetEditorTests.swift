@@ -9,7 +9,7 @@ final class BudgetEditorTests: XCTestCase {
     // MARK: - Fixtures
 
     private let host = HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 200, arm64: true)
-    private let reserve = KinhinConfig.Reserve(cpu: 2, memoryGB: 4)
+    private let reserve = KinhinConfig.Reserve(cpu: 2, memoryGB: 4, diskGB: 10)
 
     // MARK: setShare
 

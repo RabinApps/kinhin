@@ -80,6 +80,7 @@ extension AppDelegate {
                 ssh: SSHExecutor(),
                 host: ResourceProbe().snapshot()
             )
+            replacement.useLiveDiskProbe()
             // A stopped fleet stays stopped across a rebuild — a config edit
             // must never start spawning VMs.
             if wasRunning {

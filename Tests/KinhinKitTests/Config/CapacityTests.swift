@@ -49,4 +49,20 @@ final class CapacityTests: XCTestCase {
         // cpu 10/5=2, mem 32/8=4 -> 2
         XCTAssertEqual(plan.maxConcurrent, 2)
     }
+
+    // MARK: Effective per-VM disk estimate (scaler / doctor parity)
+
+    func testEffectiveDiskDefaultsPerRuntime() {
+        XCTAssertEqual(ResourceProbe.effectiveDiskPerVMGB(diskGB: nil, runtime: "tart"), 50)
+        XCTAssertEqual(ResourceProbe.effectiveDiskPerVMGB(diskGB: nil, runtime: "appleContainer"), 8)
+        XCTAssertEqual(ResourceProbe.effectiveDiskPerVMGB(diskGB: nil, runtime: "docker"), 8)
+        XCTAssertEqual(ResourceProbe.effectiveDiskPerVMGB(diskGB: nil, runtime: "host"), 0)
+    }
+
+    func testEffectiveDiskExplicitOverridesDefaultIncludingZero() {
+        XCTAssertEqual(ResourceProbe.effectiveDiskPerVMGB(diskGB: 30, runtime: "tart"), 30)
+        XCTAssertEqual(
+            ResourceProbe.effectiveDiskPerVMGB(diskGB: 0, runtime: "tart"), 0,
+            "disk_gb: 0 explicitly disables the estimate")
+    }
 }

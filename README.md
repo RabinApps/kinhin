@@ -183,10 +183,14 @@ Key fields:
 | `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                            |
 | `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](#baking-toolchains-into-the-base-image))                                               |
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                              |
+| `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                 |
 
 The effective concurrency cap is
-`min(max_runners, (cores − reserve.cpu) / vm.cpu, (RAM − reserve.memory_gb) / vm.memory_gb)` —
-`kinhin doctor` prints the result and the binding constraint.
+`min(max_runners, (cores − reserve.cpu) / vm.cpu, (RAM − reserve.memory_gb) / vm.memory_gb, free_disk / disk_per_vm)` —
+`disk_per_vm` is your `disk_gb` when set, else a runtime default (50 GB for Tart VMs, 8 GB for
+Linux container slots). The scaler re-checks free disk before every spawn and holds new VMs when
+the disk would dip below `reserve.disk_gb` plus one instance's footprint — a queue burst can
+never fill your disk. `kinhin doctor` prints the cap and the binding constraint.
 
 ## Baking toolchains into the base image
 
@@ -402,7 +406,7 @@ Every `poll_interval` seconds the engine:
    `desired = clamp(ceil(pool_queue / runners_per_vm), min_runners, pool_cap)`, where `pool_cap`
    is that runtime's slice of the host budget (`budget` weights) when multiple runtimes are
    configured, or the full `min(max_runners, (cores − reserve.cpu) / vm.cpu, (RAM −
-reserve.memory_gb) / vm.memory_gb)` for a single-pool fleet.
+reserve.memory_gb) / vm.memory_gb, free_disk / disk_per_vm)` for a single-pool fleet.
 5. Spawns instances up to `desired` (linked clone → boot → SSH → register `runners_per_vm`
    runners → `run.sh`) — Tart VMs for macOS pools, apple containers for Linux pools.
 6. Deletes idle instances when `desired` drops (scale to zero by default).

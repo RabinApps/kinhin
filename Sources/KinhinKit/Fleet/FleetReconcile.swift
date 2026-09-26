@@ -186,12 +186,16 @@ extension FleetEngine {
 
         guard !pausedNow else { return }
 
-        // 4. Spawn up to desired.
+        // 4. Spawn up to desired — but never past what the disk can hold.
+        // The plan-time cap uses the last probed free space; this re-probe
+        // catches queue bursts that would otherwise fill the disk between
+        // spawns. Host-runtime slots cost no disk, so they skip the guard.
         let currentActive = store.all.filter { $0.phase.isActive }.count
         var toSpawn = desired - currentActive
         if toSpawn > 0 {
             Log.info("engine", "scaling up: \(currentActive) active, want \(desired) (queue \(queueDepth))")
         }
+        var diskPressureMessage: String?
         while toSpawn > 0 {
             let id = VMRecord.newName()
             var record = VMRecord(id: id, phase: .cloning)
@@ -218,11 +222,31 @@ extension FleetEngine {
             )
             record.runtime = chosen.rawValue
             record.poolLabels = chosen.rawValue
+            if chosen != .host {
+                let diskPerVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: chosen.rawValue)
+                let freeDisk = hostProbe().freeDiskGB
+                let needed = diskPerVM + config.reserve.diskGB
+                if freeDisk < needed {
+                    diskPressureMessage =
+                        "disk pressure: \(freeDisk) GB free, a new \(chosen.rawValue) instance needs \(diskPerVM) GB + \(config.reserve.diskGB) GB reserve — holding spawns"
+                    break
+                }
+            }
             store.upsert(record)
             spawnLifecycle(for: record)
             toSpawn -= 1
             // Stagger spawns slightly so disk I/O doesn't stampede.
             try? await Task.sleep(for: .milliseconds(1500))
+        }
+        if let diskPressureMessage {
+            Log.warn("engine", diskPressureMessage)
+            await statusBox.modify { $0.lastError = diskPressureMessage }
+        } else {
+            // Spawns resumed: clear a stale disk-pressure message (other
+            // errors belong to their own flows).
+            await statusBox.modify {
+                if $0.lastError?.contains("disk pressure") == true { $0.lastError = nil }
+            }
         }
 
         // 5. Scale down: if we have more ready instances than desired, delete

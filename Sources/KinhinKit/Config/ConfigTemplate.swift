@@ -45,13 +45,16 @@ extension ConfigLoader {
         # Seconds a freshly booted VM has to register as a runner.
         vm_boot_timeout: 300
 
-        # Host headroom kept free so your Mac stays responsive.
+        # Host headroom kept free so your Mac stays responsive. The scaler
+        # holds new VMs when free disk would dip below reserve.disk_gb plus
+        # one VM's disk footprint (50 GB unless disk_gb is set).
         reserve:
           cpu: 2
           memory_gb: 4
+          disk_gb: 10
 
         # Optional overrides:
-        # disk_gb: 0           # extra scratch disk per VM
+        # disk_gb: 0           # extra scratch disk per VM (0 = none)
         # tart_path: /opt/homebrew/bin/tart
         # token_ttl: 3000      # seconds to cache the runner registration token
 

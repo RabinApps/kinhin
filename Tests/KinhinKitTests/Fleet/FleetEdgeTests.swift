@@ -24,6 +24,51 @@ final class FleetEdgeTests: XCTestCase {
         XCTFail("condition not met within \(timeout)s")
     }
 
+    // MARK: Disk-pressure guard
+
+    func testDiskPressureHoldsSpawnsAndSurfacesLastError() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        github.queueDepth = 2
+        let engine = makeEngine(tart: tart, github: github, ssh: FakeSSH())
+        // 15 GB free < 50 GB default VM footprint + 10 GB reserve.
+        engine.hostProbe = { HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 15, arm64: true) }
+
+        try await engine.reconcileOnce()
+        let status = await engine.status()
+        XCTAssertEqual(status.desired, 2, "desired is computed from the queue")
+        XCTAssertTrue(tart.cloneCalls.isEmpty, "no VM may spawn under disk pressure")
+        let lastError = await status.lastError ?? ""
+        XCTAssertTrue(lastError.contains("disk pressure"), "\(lastError)")
+
+        // Freeing disk lets the next pass spawn again (desired = 2 → both clone).
+        engine.hostProbe = { HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 200, arm64: true) }
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { tart.cloneCalls.count == 2 }
+    }
+
+    func testDiskGuardCountsExplicitDiskGB() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        github.queueDepth = 1
+        var cfg = makeTestConfig()
+        cfg.diskGB = 30  // explicit footprint: 30 + 10 reserve = 40 needed
+        let engine = makeEngine(config: cfg, tart: tart, github: github, ssh: FakeSSH())
+        engine.hostProbe = { HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 39, arm64: true) }
+
+        try await engine.reconcileOnce()
+        var status = await engine.status()
+        XCTAssertTrue(status.lastError?.contains("disk pressure") ?? false)
+        XCTAssertTrue(tart.cloneCalls.isEmpty)
+
+        // 41 GB free clears 40 needed.
+        engine.hostProbe = { HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 41, arm64: true) }
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { tart.cloneCalls.count == 1 }
+        status = await engine.status()
+        XCTAssertNil(status.lastError ?? nil, "the guard clears once spawns resume")
+    }
+
     func testPauseHoldsFleetAndSkipsQueuePolling() async throws {
         let tart = FakeTart()
         let github = FakeGitHub()

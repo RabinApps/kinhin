@@ -15,9 +15,13 @@
 | `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                            |
 | `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Toolchains](/guide/toolchains))                                                                           |
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                              |
+| `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                 |
 
 The effective concurrency cap is
-`min(max_runners, (cores − reserve.cpu) / vm.cpu, (RAM − reserve.memory_gb) / vm.memory_gb)` —
+`min(max_runners, (cores − reserve.cpu) / vm.cpu, (RAM − reserve.memory_gb) / vm.memory_gb, free_disk / disk_per_vm)` —
+`disk_per_vm` is your `disk_gb` when set, else a runtime default (50 GB for Tart VMs, 8 GB for
+Linux container slots). The scaler re-checks free disk before every spawn and holds new VMs when
+the disk would dip below `reserve.disk_gb` plus one instance's footprint.
 `kinhin doctor` prints the result and the binding constraint.
 
 ## Live reload

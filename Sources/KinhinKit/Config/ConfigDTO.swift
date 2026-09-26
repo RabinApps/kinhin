@@ -103,10 +103,12 @@ public struct PartialConfig: Decodable {
     struct PartialReserve: Decodable {
         var cpu: Int?
         var memoryGB: Int?
+        var diskGB: Int?
 
         enum CodingKeys: String, CodingKey {
             case cpu
             case memoryGB = "memory_gb"
+            case diskGB = "disk_gb"
         }
     }
 

@@ -134,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let tart = try cfg.makeTartControlling()
                 // Factory-based init so a later token swap re-targets the
                 // client without an app restart.
-                engine = FleetEngine(
+                let built = FleetEngine(
                     config: cfg,
                     pat: pat,
                     tart: tart,
@@ -142,6 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     ssh: SSHExecutor(),
                     host: ResourceProbe().snapshot()
                 )
+                built.useLiveDiskProbe()
+                engine = built
                 setupIncomplete = false
                 Log.info("app", "no daemon; running engine in-process (not started yet)")
             } catch {
