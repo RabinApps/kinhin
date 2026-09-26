@@ -51,7 +51,10 @@ public enum Log {
     /// In-memory ring buffer of recent entries (also mirrored to disk).
     private static let ring = Runaround<Entry>(capacity: 5000)
     private static let lock = NSLock()
-    private static var fileHandle: FileHandle?
+    private static var logFile: RotatingLogFile?
+    /// Set once a write to the log file has failed, so a full disk or revoked
+    /// permission is reported to stderr a single time instead of every line.
+    private static var reportedFileFailure = false
 
     public static func snapshot(limit: Int = 200) -> [Entry] {
         ring.snapshot(limit: limit)
@@ -74,21 +77,32 @@ public enum Log {
     }
 
     /// Configure file logging under the given directory (created if missing).
+    /// The file rotates by size (see `RotatingLogFile`). A failure to create
+    /// the directory or open the file is reported on stderr and file logging
+    /// stays off; it never crashes the caller.
     public static func setLogFile(directory: URL) {
         lock.lock()
         defer { lock.unlock() }
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let path = directory.appendingPathComponent("kinhin.log")
-        if fileHandle == nil {
-            FileManager.default.createFile(atPath: path.path, contents: nil)
-            fileHandle = try? FileHandle(forWritingTo: path)
-            _ = try? fileHandle?.seekToEnd()
+        guard logFile == nil else { return }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            logFile = try RotatingLogFile(url: directory.appendingPathComponent("kinhin.log"))
+            reportedFileFailure = false
+        } catch {
+            reportFileFailure("could not open log file in \(directory.path): \(error.localizedDescription)")
         }
+    }
+
+    /// Caller must hold `lock`.
+    private static func reportFileFailure(_ message: String) {
+        guard !reportedFileFailure else { return }
+        reportedFileFailure = true
+        FileHandle.standardError.write(Data("kinhin: \(message); continuing without file logging\n".utf8))
     }
 
     private static func emit(_ level: Level, _ component: String, _ message: String) {
         guard level >= minLevel else { return }
-        let entry = Entry.make(level: level.rawValue, component: component, message: message)
+        let entry = Entry.make(level: level.rawValue, component: component, message: LogRedactor.redact(message))
 
         if echoToStderr {
             FileHandle.standardError.write(Data(entry.formatted.appending("\n").utf8))
@@ -99,8 +113,12 @@ public enum Log {
 
         lock.lock()
         defer { lock.unlock() }
-        if let handle = fileHandle {
-            try? handle.write(contentsOf: Data(entryToStore.formatted.appending("\n").utf8))
+        if let logFile {
+            do {
+                try logFile.append(Data(entryToStore.formatted.appending("\n").utf8))
+            } catch {
+                reportFileFailure("log file write failed: \(error.localizedDescription)")
+            }
         }
     }
 }

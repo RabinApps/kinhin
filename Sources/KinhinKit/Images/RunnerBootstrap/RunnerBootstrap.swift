@@ -90,8 +90,7 @@ enum RunnerBootstrap {
 
                   mkdir -p "$HOME/\(dir)"
                   cd "$HOME/\(dir)"
-                  ARCH="arm64"
-                  curl -sL "https://github.com/actions/runner/releases/download/v\(runnerVersion)/actions-runner-osx-arm64-\(runnerVersion).tar.gz" -o runner.tar.gz
+                  \(githubRunnerDownloadScript(version: runnerVersion, platform: "osx-arm64", file: "runner.tar.gz").replacingOccurrences(of: "\n", with: "\n      "))
                   tar xzf runner.tar.gz
                   rm runner.tar.gz
                 """
@@ -128,7 +127,7 @@ enum RunnerBootstrap {
         if [ ! -x "$HOME/gitea-runner/gitea-runner" ]; then
           mkdir -p "$HOME/gitea-runner"
           cd "$HOME/gitea-runner"
-          curl -sL "https://gitea.com/gitea/runner/releases/download/v\(version)/gitea-runner-\(version)-darwin-arm64.xz" -o runner.xz
+          \(giteaRunnerDownloadScript(version: version, platform: "darwin-arm64", file: "runner.xz").replacingOccurrences(of: "\n", with: "\n  "))
           xz -d runner.xz
           chmod +x runner
           mv runner gitea-runner

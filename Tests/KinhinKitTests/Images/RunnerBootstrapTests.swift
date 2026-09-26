@@ -70,7 +70,8 @@ final class RunnerBootstrapTests: XCTestCase {
         let script = RunnerBootstrap.installScript(runnerVersion: "2.319.1", runnerCount: 2)
         XCTAssertTrue(script.contains("mkdir -p \"$HOME/actions-runner\""), "base agent dir")
         XCTAssertTrue(script.contains("mkdir -p \"$HOME/actions-runner-2\""), "second agent dir")
-        XCTAssertEqual(script.components(separatedBy: "curl -sL").count - 1, 2, "one download per dir")
+        let download = "curl -fsSL 'https://github.com/actions/runner/releases/download/"
+        XCTAssertEqual(script.components(separatedBy: download).count - 1, 2, "one verified download per dir")
     }
 }
 

@@ -10,10 +10,20 @@ public enum Daemon {
         Paths.ensureSupportDirectories()
         Log.setLogFile(directory: Paths.logsDirectory)
 
+        // One daemon per host: two would both scale the fleet, and the second
+        // RPC bind would silently steal the first one's socket.
+        let instanceLock: DaemonLock
+        do {
+            instanceLock = try DaemonLock.acquire()
+        } catch {
+            Log.error("daemon", "not starting: \(error.localizedDescription)")
+            throw error
+        }
+        defer { withExtendedLifetime(instanceLock) {} }
+        // A daemon from before the lock existed still answers on the socket.
         if RPCClient.isDaemonAlive() {
-            Log.warn(
-                "daemon",
-                "another daemon appears to be running; continuing anyway (bind will fail if the socket is taken)")
+            Log.error("daemon", "not starting: another daemon is already serving \(RPCPaths.socket.path)")
+            throw DaemonError.alreadyRunning
         }
 
         let cfg: KinhinConfig
@@ -235,15 +245,17 @@ public enum Daemon {
         public init(id: String) { self.id = id }
     }
 
-    enum DaemonError: LocalizedError {
+    enum DaemonError: LocalizedError, Equatable {
         case missingToken
         case alreadyRunning
+        case lockFailed(String)
         case configProblem(String)
 
         public var errorDescription: String? {
             switch self {
             case .missingToken: return "no GitHub token stored — run `kinhin auth`"
             case .alreadyRunning: return "a daemon is already running"
+            case .lockFailed(let why): return "could not take the daemon lock: \(why)"
             case .configProblem(let why): return "config problem: \(why)"
             }
         }

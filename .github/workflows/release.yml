@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: macos-14
+    runs-on: [self-hosted, macos, arm64]
     timeout-minutes: 60
     env:
       KEYCHAIN_PATH: ${{ runner.temp }}/kinhin-signing.keychain-db

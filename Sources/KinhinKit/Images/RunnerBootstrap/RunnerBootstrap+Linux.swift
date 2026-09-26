@@ -34,7 +34,7 @@ extension RunnerBootstrap {
         mkdir -p /opt/actions-runner
         cd /opt/actions-runner
         if [ ! -x ./config.sh ]; then
-          curl -sL "https://github.com/actions/runner/releases/download/v\(runnerVersion)/actions-runner-linux-\(arch)-\(runnerVersion).tar.gz" -o runner.tar.gz
+          \(githubRunnerDownloadScript(version: runnerVersion, platform: "linux-\(arch)", file: "runner.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
           tar xzf runner.tar.gz
           rm runner.tar.gz
           ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
@@ -145,7 +145,7 @@ extension RunnerBootstrap {
         if [ ! -x /opt/gitea-runner/gitea-runner ]; then
           mkdir -p /opt/gitea-runner
           cd /opt/gitea-runner
-          curl -sL "https://gitea.com/gitea/runner/releases/download/v\(version)/gitea-runner-\(version)-linux-\(arch).xz" -o runner.xz
+          \(giteaRunnerDownloadScript(version: version, platform: "linux-\(arch)", file: "runner.xz").replacingOccurrences(of: "\n", with: "\n  "))
           xz -d runner.xz
           chmod +x runner
           mv runner gitea-runner
