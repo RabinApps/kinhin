@@ -1,5 +1,6 @@
 import AppKit
 import KinhinKit
+import Observation
 
 // MARK: - Main tabs window
 
@@ -31,7 +32,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     var configController: ConfigTabViewController?
     var containersController: ContainersViewController?
     var toolchainsController: ToolchainsViewController?
-    var runtimesController: RuntimesWindowController?
+    @ObservationIgnored var runtimesModel: RuntimesModel?
     var logsController: LogsViewController?
     var diagnosticsController: DiagnosticsViewController?
     /// Config writes from Setup/Advanced must reach the engine/daemon; the
@@ -235,7 +236,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
                 connectModel?.reload()
                 macToolsModel?.reload()
             case .capacity: configController?.reload()
-            case .routing: runtimesController?.reload()
+            case .routing: runtimesModel?.reload()
             case .containers: containersController?.reload()
             case .toolchains: break
             case .app: break

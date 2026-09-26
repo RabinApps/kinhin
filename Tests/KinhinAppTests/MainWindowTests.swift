@@ -229,7 +229,7 @@ final class MainWindowTests: XCTestCase {
 
     func testAdvancedSectionsEmbedTheirControllers() {
         window.showAdvanced(.routing)
-        XCTAssertNotNil(window.runtimesController, "Routing embeds the runtimes pane")
+        XCTAssertNotNil(window.runtimesModel, "Routing embeds the runtimes pane")
         window.showAdvanced(.app)
         XCTAssertEqual(window.selectedAdvancedSection, .app)
         XCTAssertTrue(

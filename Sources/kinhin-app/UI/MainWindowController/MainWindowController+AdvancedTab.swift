@@ -1,5 +1,6 @@
 import AppKit
 import KinhinKit
+import SwiftUI
 
 // The Advanced tab and its sections.
 @MainActor
@@ -56,7 +57,7 @@ extension MainTabsWindowController {
         // Data-backed sections load when shown (Capacity is skipped: reloading
         // it would discard unapplied edits).
         switch section {
-        case .routing: runtimesController?.reload()
+        case .routing: runtimesModel?.reload()
         case .containers: containersController?.reload()
         case .toolchains: break
         case .accounts:
@@ -100,9 +101,22 @@ extension MainTabsWindowController {
 
     func buildRoutingSection() -> NSView {
         let tab = NSView()
-        let controller = RuntimesWindowController(embeddedIn: tab)
-        controller.onEdited = { [weak self] in self?.runtimesEdited?() }
-        runtimesController = controller
+        let model = RuntimesModel()
+        model.configURL = Paths.config
+        model.onEdited = { [weak self] in self?.runtimesEdited?() }
+        runtimesModel = model
+        let host = NSHostingView(rootView: RuntimesView(model: model))
+        // Fills whatever it is pinned into; the cards scroll.
+        host.sizingOptions = []
+        host.translatesAutoresizingMaskIntoConstraints = false
+        tab.addSubview(host)
+        NSLayoutConstraint.activate([
+            host.topAnchor.constraint(equalTo: tab.topAnchor),
+            host.bottomAnchor.constraint(equalTo: tab.bottomAnchor),
+            host.leadingAnchor.constraint(equalTo: tab.leadingAnchor),
+            host.trailingAnchor.constraint(equalTo: tab.trailingAnchor),
+        ])
+        model.reload()
         return tab
     }
 }
