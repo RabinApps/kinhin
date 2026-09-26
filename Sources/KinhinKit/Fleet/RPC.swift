@@ -119,13 +119,11 @@ enum RPCServer {
         // Mask signals on the accept loop; shutdown happens by unlinking.
         signal(SIGPIPE, SIG_IGN)
 
-        let acceptQueue = DispatchQueue(label: "kinhin.rpc.accept")
-        let workerQueue = DispatchQueue.global(qos: .userInitiated)
         let socketPath = socketURL.path
-
-        acceptQueue.async {
+        // One blocking accept thread; each connection is handled on its own
+        // task, so a slow reader never stalls the next accept.
+        let acceptThread = Thread {
             while true {
-                var clientFD: Int32 = -1
                 var len = socklen_t(MemoryLayout<sockaddr_un>.size)
                 var clientAddr = sockaddr_un()
                 let accepted = withUnsafeMutablePointer(to: &clientAddr) { ptr in
@@ -140,14 +138,17 @@ enum RPCServer {
                     }
                     break
                 }
-                clientFD = accepted
-                workerQueue.async {
-                    handleConnection(fd: clientFD, handler: handler)
+                let clientFD = accepted
+                Task {
+                    RPCServer.handleConnection(fd: clientFD, handler: handler)
                 }
             }
         }
+        acceptThread.name = "kinhin.rpc.accept"
+        acceptThread.start()
 
-        // Park this call forever — serving runs on its queues.
+        // Park this call forever — serving runs on the accept thread and the
+        // per-connection tasks. Returning would release the daemon lock.
         dispatchMain()
     }
 
