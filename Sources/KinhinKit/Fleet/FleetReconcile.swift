@@ -135,29 +135,28 @@ extension FleetEngine {
 
             // Stamp each VM with the repos of the jobs its runners are
             // currently executing (attribution where the forge exposes it).
-            // Running attribution merges every GitHub account's jobs: runner
-            // names are VM ids, so one pass stamps each VM whichever account
-            // it serves. A failed account is skipped, but if none answered
-            // the stamps are left as they were.
-            var runningGitHub: [RunningJob] = []
+            // Runner names are VM ids, so one pass stamps each VM whichever
+            // account it serves. Every attached forge contributes: GitHub
+            // carries repo attribution per job; Gitea (and Forgejo) attribute
+            // busy runners per VM. A failed forge is skipped, but if none
+            // answered the stamps are left as they were.
+            var runningAll: [RunningJob] = []
             var answered = false
             for forge in attached {
                 do {
                     let running = try await forge.runningJobs()
-                    if forge.id == .github {
-                        answered = true
-                        runningGitHub.append(
-                            contentsOf: running.map {
-                                RunningJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
-                            })
-                    }
+                    answered = true
+                    runningAll.append(
+                        contentsOf: running.map {
+                            RunningJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
+                        })
                 } catch {
                     // Attribution is best-effort telemetry: never fail reconcile
                     // over it (the queued-fetch handler above already logged).
                     Log.warn("engine", "could not fetch \(forge.name) running jobs: \(error)")
                 }
             }
-            if answered { await applyRunningAttribution(runningGitHub) }
+            if answered { await applyRunningAttribution(runningAll) }
         } else {
             // Paused: clear attribution so stale repos don't linger.
             await statusBox.modify { $0.runningByRepo = nil }

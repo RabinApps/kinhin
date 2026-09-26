@@ -148,6 +148,113 @@ final class ForgeTests: XCTestCase {
         )
     }
 
+    // MARK: Gitea demand attribution
+
+    /// A GiteaForge whose client rides StubProtocol (make() builds its own
+    /// session, which would escape the stub and hit the network).
+    private func makeStubbedGiteaForge(demandFloor: Int = 0) -> GiteaForge {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        let client = GiteaClient(
+            credentials: GiteaCredentials(token: "gt", scope: "acme", instance: "https://gitea.example.com"),
+            session: URLSession(configuration: config))
+        return GiteaForge(
+            credentials: .gitea(token: "gt", scope: "acme", instance: "https://gitea.example.com"),
+            labels: ["macos:host"], client: client, demandFloor: demandFloor, registrationToken: "reg")
+    }
+
+    func testGiteaQueuedJobsCarryRepoAttribution() async throws {
+        StubProtocol.handler = { request in
+            if request.url?.path.hasSuffix("/actions/tasks") == true {
+                return (
+                    200,
+                    Data(
+                        """
+                        {"total_count":2,"entries":[
+                          {"id":1,"name":"build","status":"waiting","repo_full_name":"acme/api"},
+                          {"id":2,"name":"test","status":"waiting","repo_full_name":"acme/web"}
+                        ]}
+                        """.utf8), [:]
+                )
+            }
+            return (200, Data("{\"total_count\":0,\"runners\":[]}".utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let jobs = try await makeStubbedGiteaForge().queuedJobs()
+        XCTAssertEqual(jobs.map { $0.repository ?? "-" }, ["acme/api", "acme/web"])
+        XCTAssertEqual(jobs.first?.name, "build")
+    }
+
+    func testGiteaQueuedJobsPropagateEndpointFailures() async throws {
+        StubProtocol.handler = { _ in (200, Data("<html>not json</html>".utf8), [:]) }
+        defer { StubProtocol.handler = nil }
+        do {
+            _ = try await makeStubbedGiteaForge().queuedJobs()
+            XCTFail("expected the endpoint failure to propagate")
+        } catch let error as GiteaError {
+            guard case .decoding = error else { return XCTFail("wrong error: \(error)") }
+        }
+    }
+
+    func testGiteaQueuedJobsHoldFloorOnlyWhenQueueLooksEmpty() async throws {
+        StubProtocol.handler = { _ in
+            (200, Data("{\"total_count\":0,\"entries\":[]}".utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let heldCount = try await makeStubbedGiteaForge(demandFloor: 2).queuedJobs().count
+        XCTAssertEqual(heldCount, 2, "empty answer holds the floor")
+    }
+
+    func testGiteaQueuedJobsRealZeroOverridesFloor() async throws {
+        StubProtocol.handler = { _ in
+            // A genuine empty queue with a zero total_count: 0 wins over the
+            // floor (the TaskQueueWrapper only synthesizes when count > 0).
+            (200, Data("{\"total_count\":0,\"entries\":[]}".utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let overrideCount = try await makeStubbedGiteaForge(demandFloor: 3).queuedJobs().count
+        XCTAssertEqual(overrideCount, 3)
+    }
+
+    func testGiteaRunningJobsPreferRunningTasks() async throws {
+        StubProtocol.handler = { request in
+            if request.url?.query?.contains("status=running") == true {
+                return (
+                    200,
+                    Data(
+                        """
+                        {"total_count":1,"entries":[{"id":9,"name":"deploy","status":"running",
+                         "runner_name":"kinhin-vm1","repo_full_name":"acme/api"}]}
+                        """.utf8), [:]
+                )
+            }
+            return (200, Data("{\"total_count\":0,\"runners\":[]}".utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let running = try await makeStubbedGiteaForge().runningJobs()
+        XCTAssertEqual(running.first?.runnerName, "kinhin-vm1")
+        XCTAssertEqual(running.first?.repository, "acme/api")
+    }
+
+    func testGiteaRunningJobsFallBackToBusyRunners() async throws {
+        StubProtocol.handler = { request in
+            if request.url?.query?.contains("status=running") == true {
+                return (200, Data("{\"total_count\":0,\"entries\":[]}".utf8), [:])
+            }
+            return (
+                200,
+                Data(
+                    """
+                    {"total_count":2,"runners":[{"id":1,"name":"kinhin-a","status":"busy"},
+                    {"id":2,"name":"kinhin-b","status":"idle"}]}
+                    """.utf8), [:]
+            )
+        }
+        defer { StubProtocol.handler = nil }
+        let running = try await makeStubbedGiteaForge().runningJobs()
+        XCTAssertEqual(running.compactMap(\.runnerName), ["kinhin-a"], "only busy runners attribute")
+    }
+
     // MARK: Gitea bootstrap script
 
     func testGiteaRegistrationScriptSingleRunner() {

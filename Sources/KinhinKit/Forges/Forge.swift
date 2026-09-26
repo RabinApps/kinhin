@@ -154,10 +154,11 @@ struct GitHubForge: Forge {
 
 /// Forge implementation for Gitea instances. Gitea's runner API differs from
 /// GitHub's: registration tokens are long-lived (not 1 h), so the token is
-/// captured at forge construction instead of minted per VM; queued demand is
-/// a count (not a job list), so `queuedJobs` synthesizes attribution-less
-/// placeholders and honors a floor (min_runners) when the queue looks empty —
-/// the documented fallback for Gitea's thinner cross-scope reporting.
+/// captured at forge construction instead of minted per VM; queued demand
+/// comes from the instance's task-queue entries (per-task repo attribution
+/// when the instance exposes it) and honors a floor (min_runners) only when
+/// the endpoint fails or reports no usable entries — the fallback for older
+/// Gitea shapes, never overriding a legitimate zero.
 struct GiteaForge: Forge {
     public let id: ForgeID = .gitea
     public let name = "gitea"
@@ -224,18 +225,38 @@ struct GiteaForge: Forge {
     }
 
     func queuedJobs() async throws -> [ForgeJob] {
-        var count = try await client.queuedTaskCount()
-        if count == 0, demandFloor > 0 {
-            count = demandFloor
+        // Real task entries with per-task repo attribution. A failed request
+        // propagates (the engine's poll handler logs it and keeps the previous
+        // scaling state — the pre-attribution behavior); an empty-but-valid
+        // answer holds the demand floor below.
+        let tasks = try await client.queuedTasks()
+        if tasks.isEmpty, demandFloor > 0 {
+            // The endpoint answered with no entries (older Gitea reports only
+            // a count): hold the floor instead of scaling to zero. A real
+            // empty queue overrides the floor (0 tasks → 0 jobs).
+            return (0..<demandFloor).map { _ in
+                ForgeJob(name: "gitea-task", runnerName: nil, repository: nil)
+            }
         }
-        return (0..<count).map { _ in ForgeJob(name: "gitea-task", runnerName: nil, repository: nil) }
+        return tasks.map { task in
+            ForgeJob(name: task.name ?? "gitea-task", runnerName: nil, repository: task.repository)
+        }
     }
 
     func runningJobs() async throws -> [ForgeJob] {
-        // Gitea's runner list carries busy state; per-runner job attribution
-        // is not exposed uniformly across versions, so running attribution
-        // for Gitea VMs comes from the busy flag in the lifecycle watch.
-        []
+        // Preferred: running tasks keyed by runner_name (repo attribution
+        // when the instance exposes it) — mirrors GitHub's running jobs.
+        let tasks = try await client.runningTasks().filter { $0.runnerName != nil }
+        if !tasks.isEmpty {
+            return tasks.map { task in
+                ForgeJob(name: task.name ?? "gitea-task", runnerName: task.runnerName, repository: task.repository)
+            }
+        }
+        // Fallback: busy runners carry per-VM attribution even where per-task
+        // runner names are absent from the queue endpoint.
+        return try await client.listRunners().filter { $0.status == "busy" }.map { runner in
+            ForgeJob(name: "gitea-task", runnerName: runner.name, repository: nil)
+        }
     }
 }
 

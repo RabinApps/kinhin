@@ -17,6 +17,32 @@ public struct GiteaRunner: Codable, Sendable, Equatable {
     }
 }
 
+/// One entry of the instance's task queue (`/actions/tasks`). Field shapes
+/// vary across Gitea versions, so decoding is defensive: anything that can
+/// be missing is optional, and an entry with no usable name still yields a
+/// count (the engine degrades attribution, never demand).
+public struct GiteaTask: Sendable, Equatable {
+    public let id: Int?
+    /// Task or workflow name ("build", "Nightly / build"); nil when the
+    /// entry's name fields are absent.
+    public let name: String?
+    /// `owner/name` of the repository the task belongs to, when the instance
+    /// exposes attribution (repo-scoped queues may not).
+    public let repository: String?
+    /// Raw status string ("waiting", "running").
+    public let status: String?
+    /// The runner (→ VM) executing the task; running tasks only.
+    public let runnerName: String?
+
+    public init(id: Int?, name: String?, repository: String?, status: String?, runnerName: String? = nil) {
+        self.id = id
+        self.name = name
+        self.repository = repository
+        self.status = status
+        self.runnerName = runnerName
+    }
+}
+
 enum GiteaError: LocalizedError, Equatable {
     case unauthorized
     case forbidden(String)
@@ -236,6 +262,32 @@ public struct GiteaClient: Sendable {
         }
     }
 
+    // MARK: Task queue (attribution)
+
+    /// The scope's task queue with per-task attribution. Requests up to 50
+    /// entries (the same cap the count endpoint polls); entries the instance
+    /// renders in an unknown shape still contribute via `total_count`.
+    func queuedTasks() async throws -> [GiteaTask] {
+        try await tasks(status: "waiting")
+    }
+
+    /// Tasks currently executing on the scope. `runner_name` keys each task
+    /// to the runner (and therefore VM) executing it, mirroring GitHub's
+    /// running-job attribution.
+    func runningTasks() async throws -> [GiteaTask] {
+        try await tasks(status: "running")
+    }
+
+    private func tasks(status: String) async throws -> [GiteaTask] {
+        let (data, _) = try await send(path: "\(credentials.actionsBase)/tasks?status=\(status)&page=1&limit=50")
+        do {
+            let wrapper = try JSONDecoder().decode(TaskQueueWrapper.self, from: data)
+            return wrapper.tasks
+        } catch {
+            throw GiteaError.decoding("tasks: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: Plumbing
 
     /// Sends with retry on transient failures (network errors, 5xx), matching
@@ -265,7 +317,14 @@ public struct GiteaClient: Sendable {
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             throw GiteaError.invalidInstance(credentials.instance)
         }
-        components.path = path
+        // Path strings may carry a query ("/tasks?status=waiting"); assigning
+        // it to .path would percent-encode the '?'. Split at the first one.
+        if let queryStart = path.firstIndex(of: "?") {
+            components.path = String(path[..<queryStart])
+            components.query = String(path[path.index(after: queryStart)...])
+        } else {
+            components.path = path
+        }
         guard let url = components.url else {
             throw GiteaError.invalidInstance(credentials.instance)
         }
@@ -291,5 +350,78 @@ public struct GiteaClient: Sendable {
         default:
             throw GiteaError.http(http.statusCode, String(decoding: data.prefix(300), as: UTF8.self))
         }
+    }
+}
+
+// MARK: - Task queue decoding
+
+/// Tolerant decoder for the `/actions/tasks` queue body. Gitea versions wrap
+/// the list differently; unknown-shape entries decode with nils rather than
+/// failing the batch, so demand is never lost to attribution gaps.
+private struct TaskQueueWrapper: Decodable {
+    let total_count: Int?
+    let entries: [TaskEntry]?
+
+    struct TaskEntry: Decodable {
+        // Keys that appear across Gitea versions, all optional:
+        let id: Int?
+        let name: String?
+        let title: String?
+        let status: String?
+        let runner_name: String?
+        let repo_full_name: String?
+        let repository: String?
+        // Nested attribution shape: {"repository":{"full_name":...}}.
+        let repositoryObject: RepoObject?
+
+        struct RepoObject: Decodable { let full_name: String? }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decodeIfPresent(Int.self, forKey: .id)
+            name = try c.decodeIfPresent(String.self, forKey: .name)
+            title = try c.decodeIfPresent(String.self, forKey: .title)
+            status = try c.decodeIfPresent(String.self, forKey: .status)
+            runner_name = try c.decodeIfPresent(String.self, forKey: .runner_name)
+            repo_full_name = try c.decodeIfPresent(String.self, forKey: .repo_full_name)
+            // Some versions put a string here, others the {full_name} object
+            // below — a type mismatch degrades to nil instead of failing the
+            // whole entry.
+            repository = try? c.decodeIfPresent(String.self, forKey: .repository)
+            repositoryObject = try? c.decodeIfPresent(RepoObject.self, forKey: .repository)
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case id, name, title, status, runner_name
+            case repo_full_name = "repo_full_name"
+            case repository
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        total_count = try c.decodeIfPresent(Int.self, forKey: .total_count)
+        entries = try c.decodeIfPresent([TaskEntry].self, forKey: .entries)
+    }
+
+    enum CodingKeys: String, CodingKey { case total_count, entries }
+
+    var tasks: [GiteaTask] {
+        let decoded = (entries ?? []).map { entry -> GiteaTask in
+            let repository =
+                entry.repo_full_name
+                ?? entry.repositoryObject?.full_name
+                ?? (entry.repository.flatMap { value in value.contains("/") ? value : nil })
+            let name = entry.name ?? entry.title
+            return GiteaTask(
+                id: entry.id, name: name, repository: repository, status: entry.status,
+                runnerName: entry.runner_name)
+        }
+        // When entries are absent but the instance reports a count (older
+        // shapes), fall back to count-only placeholders so demand survives.
+        if decoded.isEmpty, let count = total_count, count > 0 {
+            return (0..<count).map { _ in GiteaTask(id: nil, name: nil, repository: nil, status: nil) }
+        }
+        return decoded
     }
 }
