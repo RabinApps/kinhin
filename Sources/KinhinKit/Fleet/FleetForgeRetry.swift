@@ -34,7 +34,7 @@ extension FleetEngine {
     /// backoff has elapsed (30s, doubling to 5 min), and stops on its own once
     /// every configured forge is attached. `ignoreBackoff` is for tests.
     func retryDetachedForgesIfDue(now: Date = Date(), ignoreBackoff: Bool = false) async {
-        guard stateLock.withLock({ running }) else { return }
+        guard running else { return }
         let (githubDetached, giteaDetached, forgejoDetached, due) = forgesLock.withLock {
             (
                 forgeRetry.githubDetached,

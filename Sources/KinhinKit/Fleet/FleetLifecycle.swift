@@ -6,14 +6,16 @@ extension FleetEngine {
     // MARK: - Lifecycle
 
     func spawnLifecycle(for record: VMRecord) {
-        let existing = lifecycleLock.withLock { lifecycleTasks[record.id] }
-        guard existing == nil else { return }
-
-        let task = Task { [weak self] () -> Void in
-            guard let self else { return }
-            await self.runLifecycle(id: record.id)
+        // Check, create and insert under one lock: a concurrent spawn cannot
+        // start a second task, and the task's own finishLifecycle cannot run
+        // before the entry exists (which would leave a stale entry behind).
+        lifecycleTasks.withLock { tasks in
+            guard tasks[record.id] == nil else { return }
+            tasks[record.id] = Task { [weak self] () -> Void in
+                guard let self else { return }
+                await self.runLifecycle(id: record.id)
+            }
         }
-        lifecycleLock.withLock { lifecycleTasks[record.id] = task }
     }
 
     func updateRecord(_ id: String, mutate: (inout VMRecord) -> Void) {
@@ -28,7 +30,7 @@ extension FleetEngine {
     }
 
     func finishLifecycle(id: String) {
-        lifecycleLock.withLock { lifecycleTasks[id] = nil }
+        lifecycleTasks.withLock { $0[id] = nil }
     }
 
     func runLifecycle(id: String) async {
@@ -271,7 +273,7 @@ extension FleetEngine {
     func deleteVMRecord(id: String, reason: String) async {
         Log.info(id, "deleting VM (\(reason))")
         updateRecord(id) { $0.phase = .deleting }
-        let task = lifecycleLock.withLock { lifecycleTasks[id] }
+        let task = lifecycleTasks.withLock { $0[id] }
         task?.cancel()
 
         // Clean up any lingering runner registrations for this VM on every
@@ -298,10 +300,9 @@ extension FleetEngine {
     func runTelemetryIfPossible(_ id: String) async {}
 
     func pauseAllVMs() async {
-        let tasks = lifecycleLock.withLock { () -> [Task<Void, Never>] in
-            let tasks = Array(lifecycleTasks.values)
-            lifecycleTasks.removeAll()
-            return tasks
+        let tasks = lifecycleTasks.withLock { tasks -> [Task<Void, Never>] in
+            defer { tasks.removeAll() }
+            return Array(tasks.values)
         }
         for task in tasks {
             task.cancel()

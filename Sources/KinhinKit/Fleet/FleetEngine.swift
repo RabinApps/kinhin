@@ -9,6 +9,12 @@ struct RoutingState {
     var caps: [RuntimeID: Int]
 }
 
+/// The engine's serving flags, read by the reconcile loop and forge retry.
+struct RunState {
+    var running = false
+    var paused = false
+}
+
 // MARK: - Engine
 
 public final class FleetEngine {
@@ -56,12 +62,13 @@ public final class FleetEngine {
     var forgeRetry = ForgeRetryState()
 
     var reconcileTask: Task<Void, Never>?
-    var lifecycleTasks: [String: Task<Void, Never>] = [:]
-    let lifecycleLock = NSLock()
+    /// One lifecycle task per VM id (removed by the task itself on finish).
+    let lifecycleTasks = Mutex<[String: Task<Void, Never>]>([:])
 
-    public private(set) var paused = false
-    var running = false
-    let stateLock = NSLock()
+    /// Whether the fleet is serving and whether it is paused.
+    let runState = Mutex(RunState())
+    public var paused: Bool { runState.withLock { $0.paused } }
+    var running: Bool { runState.withLock { $0.running } }
 
     /// The execution runtime backing this fleet. With `container:` config
     /// present this is the Apple-container runtime (Linux microVMs); else
@@ -273,9 +280,9 @@ public final class FleetEngine {
     // MARK: - Control
 
     public func start() async {
-        let alreadyRunning = stateLock.withLock { () -> Bool in
-            let was = running
-            running = true
+        let alreadyRunning = runState.withLock { state -> Bool in
+            let was = state.running
+            state.running = true
             return was
         }
         guard !alreadyRunning else { return }
@@ -332,7 +339,7 @@ public final class FleetEngine {
         // `stop()` does): the first reconcile pass that would sync it runs in
         // the task below, so callers reading status() right after start()
         // (e.g. the daemon's config reload) could otherwise see running=false.
-        let isRunning = stateLock.withLock { running }
+        let isRunning = running
         await statusBox.modify { $0.running = isRunning }
         let task = Task { [weak self] () -> Void in
             guard let self else { return }
@@ -342,7 +349,7 @@ public final class FleetEngine {
     }
 
     public func stop() async {
-        stateLock.withLock { running = false }
+        runState.withLock { $0.running = false }
         Log.info("engine", "stopping fleet engine")
         reconcileTask?.cancel()
         reconcileTask = nil
@@ -521,7 +528,7 @@ public final class FleetEngine {
     }
 
     public func setPaused(_ value: Bool) async {
-        stateLock.withLock { paused = value }
+        runState.withLock { $0.paused = value }
         Log.info("engine", value ? "paused (no new VMs will be started)" : "resumed")
         await statusBox.modify { $0.paused = value }
     }
@@ -556,15 +563,14 @@ public final class FleetEngine {
     /// Deliberately NOT `stop()` — that tears all instances down, which a
     /// config rebuild must never do.
     public func detachKeepingInstances() async {
-        stateLock.withLock { running = false }
+        runState.withLock { $0.running = false }
         reconcileTask?.cancel()
         reconcileTask = nil
         cachePruneTask?.cancel()
         cachePruneTask = nil
-        let tasks = lifecycleLock.withLock { () -> [Task<Void, Never>] in
-            let tasks = Array(lifecycleTasks.values)
-            lifecycleTasks.removeAll()
-            return tasks
+        let tasks = lifecycleTasks.withLock { tasks -> [Task<Void, Never>] in
+            defer { tasks.removeAll() }
+            return Array(tasks.values)
         }
         for task in tasks { task.cancel() }
         invalidateRegistrationTokens()

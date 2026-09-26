@@ -76,10 +76,10 @@ extension FleetEngine {
 
     /// One pass of the control loop. Public for tests.
     func reconcileOnce() async throws {
-        let pausedNow = stateLock.withLock { paused }
+        let state = runState.withLock { $0 }
         await statusBox.modify {
-            $0.running = stateLock.withLock { running }
-            $0.paused = pausedNow
+            $0.running = state.running
+            $0.paused = state.paused
         }
 
         // Forges that failed at startup get another chance (backed off).
@@ -101,7 +101,7 @@ extension FleetEngine {
         var demandByForge: [String: Int] = [:]
         var demandByPool: [RuntimeID: Int] = [:]
         let attached = forgesLock.withLock { Array(forgesByPlatform.values) }
-        if !pausedNow {
+        if !state.paused {
             var perForgeJobs: [String: (attribution: Bool, jobs: [ForgeJob])] = [:]
             for forge in attached {
                 do {
@@ -185,7 +185,7 @@ extension FleetEngine {
             $0.updatedAt = Date()
         }
 
-        guard !pausedNow else { return }
+        guard !state.paused else { return }
 
         // 4. Spawn up to desired — but never past what the disk can hold.
         // The plan-time cap uses the last probed free space; this re-probe
