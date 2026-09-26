@@ -113,4 +113,20 @@ final class RuntimeInstallerTests: XCTestCase {
         }
         XCTAssertTrue(shell.calls.isEmpty, "brew never runs for something that can't run here")
     }
+
+    func testMethodNamesAreTheIDSuffix() {
+        XCTAssertEqual(RuntimeInstaller.options(for: .docker).map(\.method), ["desktop", "orbstack", "colima"])
+        XCTAssertEqual(RuntimeInstaller.options(for: .appleContainer).map(\.method), ["brew"])
+    }
+
+    func testUnknownMethodListsTheValidOnes() {
+        let host = HostFacts(
+            arm64: true, memoryGB: 16,
+            osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
+        XCTAssertThrowsError(try RuntimeInstaller.option(for: .docker, method: "podman", on: host)) {
+            XCTAssertEqual(
+                $0 as? RuntimeInstallerError,
+                .unknownMethod(method: "podman", tool: .docker, valid: ["desktop", "orbstack", "colima"]))
+        }
+    }
 }

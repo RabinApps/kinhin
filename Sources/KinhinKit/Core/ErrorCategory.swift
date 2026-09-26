@@ -19,7 +19,7 @@ public enum ErrorCategory: Equatable, Sendable {
         case is GitHubError, is GiteaError, is KeychainTokenStore.TokenError:
             self = .auth
         case is TartError, is ImageError, is RuntimeWatchError, is ContainerManagerError, is EngineError,
-            is Daemon.DaemonError, is RPCError, is ShellError:
+            is Daemon.DaemonError, is RPCError, is ShellError, is RuntimeInstallerError:
             self = .runtime
         default:
             self = .other

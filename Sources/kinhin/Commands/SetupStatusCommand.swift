@@ -13,10 +13,24 @@ enum SetupStatusCommand {
         } else {
             for check in setup.checks {
                 let mark = check.ok ? "✓" : "✗"
-                let act = check.action.map { "  → \(SetupAction.title(for: $0))" } ?? ""
+                let act =
+                    check.action.map { action in
+                        "  → \(SetupAction.title(for: action))" + (cliCommand(for: action).map { " (\($0))" } ?? "")
+                    } ?? ""
                 print("  [\(mark)] \(check.title): \(check.detail)\(act)")
             }
             print("ready: \(setup.ready ? "yes — kinhin start when you're ready" : "no")")
+        }
+    }
+
+    /// The CLI command that performs an action, for the ones it can.
+    static func cliCommand(for action: String) -> String? {
+        switch action {
+        case "install_tart": return "kinhin setup repair tart"
+        case "install_container_cli": return "kinhin setup repair container"
+        case "install_docker": return "kinhin setup repair docker"
+        case "install_host_agent": return "kinhin setup repair host-agent"
+        default: return nil
         }
     }
 }

@@ -55,6 +55,10 @@ public struct InstallOption: Identifiable, Equatable, Sendable {
         self.manualURL = manualURL
     }
 
+    /// Short name picked with `kinhin setup repair <tool> --method`: the id
+    /// after the tool prefix ("desktop", "orbstack", "colima", "brew").
+    public var method: String { id.split(separator: "-").last.map(String.init) ?? id }
+
     /// The exact commands, as a user could paste them into Terminal.
     public var commandLine: String {
         (commands + postInstall).map { $0.joined(separator: " ") }.joined(separator: " && ")
@@ -77,6 +81,7 @@ enum RuntimeInstallerError: LocalizedError, Equatable {
     case commandFailed(command: String, output: String)
     case notInstalledAfterwards(InstallableTool)
     case unsupportedHost(String)
+    case unknownMethod(method: String, tool: InstallableTool, valid: [String])
 
     public var errorDescription: String? {
         switch self {
@@ -90,6 +95,8 @@ enum RuntimeInstallerError: LocalizedError, Equatable {
                 "The install finished but \(tool.binaryName) still isn't on this Mac's PATH. Open a new Terminal or restart kinhin."
         case .unsupportedHost(let reason):
             return reason
+        case .unknownMethod(let method, let tool, let valid):
+            return "'\(method)' is not a way to install \(tool.title). Use one of: \(valid.joined(separator: ", "))."
         }
     }
 }
@@ -151,6 +158,30 @@ public enum RuntimeInstaller {
                 ),
             ]
         }
+    }
+
+    /// The option to install with: the named method, or the first one this
+    /// Mac supports. Throws when the method is unknown or can't run here.
+    public static func option(
+        for tool: InstallableTool, method: String?, on host: HostFacts
+    ) throws -> InstallOption {
+        try HostRequirements.ensureSupported(tool, on: host)
+        let offered = HostRequirements.offeredOptions(for: tool, on: host)
+        guard let method else {
+            guard let first = offered.first else {
+                throw RuntimeInstallerError.unsupportedHost("\(tool.title) has no install option for this Mac.")
+            }
+            return first
+        }
+        let all = options(for: tool)
+        guard let known = all.first(where: { $0.method == method }) else {
+            throw RuntimeInstallerError.unknownMethod(method: method, tool: tool, valid: all.map(\.method))
+        }
+        guard let chosen = offered.first(where: { $0.method == method }) else {
+            throw RuntimeInstallerError.unsupportedHost(
+                HostRequirements.verdict(for: known, on: host).reason ?? "\(known.title) can't run on this Mac.")
+        }
+        return chosen
     }
 
     /// Replaces a bare tool name at the start of a command with its absolute
