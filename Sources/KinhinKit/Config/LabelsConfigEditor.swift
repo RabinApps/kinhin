@@ -14,13 +14,21 @@ public enum LabelsConfigEditor {
         case container
     }
 
-    public static func labels(in yaml: String, scope: Scope) -> [String] {
-        let partial = try? YAMLDecoder().decode(PartialConfig.self, from: yaml)
+    /// The scope's current labels. Blank text (no config yet) has none;
+    /// text that does not decode throws instead of reading as empty.
+    public static func labels(in yaml: String, scope: Scope) throws -> [String] {
+        guard !yaml.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        let partial: PartialConfig
+        do {
+            partial = try YAMLDecoder().decode(PartialConfig.self, from: yaml)
+        } catch {
+            throw ConfigEditError.decoding(error)
+        }
         switch scope {
         case .fleet:
-            return partial?.labels ?? []
+            return partial.labels ?? []
         case .container:
-            return partial?.container?.labels ?? []
+            return partial.container?.labels ?? []
         }
     }
 

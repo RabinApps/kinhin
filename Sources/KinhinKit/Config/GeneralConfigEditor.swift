@@ -106,30 +106,35 @@ public enum GeneralConfigEditor {
         guard let root = try? Yams.compose(yaml: yaml), root.mapping != nil else {
             throw ConfigEditError.yamlParse("top level must be a mapping")
         }
-        let partial = try? YAMLDecoder().decode(PartialConfig.self, from: yaml)
+        let partial: PartialConfig
+        do {
+            partial = try YAMLDecoder().decode(PartialConfig.self, from: yaml)
+        } catch {
+            throw ConfigEditError.decoding(error)
+        }
         let d = KinhinConfig.default
-        let vm = partial?.vm
-        let reserve = partial?.reserve
+        let vm = partial.vm
+        let reserve = partial.reserve
         return Snapshot(
-            repo: partial?.repo ?? "",
-            labels: partial?.labels ?? d.labels,
-            minRunners: partial?.minRunners ?? d.minRunners,
-            maxRunners: partial?.maxRunners ?? d.maxRunners,
-            runnersPerVM: partial?.runnersPerVM ?? d.runnersPerVM,
-            pollInterval: partial?.pollInterval ?? d.pollInterval,
+            repo: partial.repo ?? "",
+            labels: partial.labels ?? d.labels,
+            minRunners: partial.minRunners ?? d.minRunners,
+            maxRunners: partial.maxRunners ?? d.maxRunners,
+            runnersPerVM: partial.runnersPerVM ?? d.runnersPerVM,
+            pollInterval: partial.pollInterval ?? d.pollInterval,
             vmCPU: vm?.cpu ?? d.vm.cpuCount,
             vmMemoryGB: vm?.memoryGB ?? d.vm.memoryGB,
             vmEphemeral: vm?.ephemeral ?? d.vm.ephemeral,
-            image: partial?.image ?? d.image,
+            image: partial.image ?? d.image,
             reserveCPU: reserve?.cpu ?? d.reserve.cpu,
             reserveMemoryGB: reserve?.memoryGB ?? d.reserve.memoryGB,
-            gitea: partial?.gitea.map { .init(instance: $0.instance ?? "", scope: $0.scope ?? "") },
-            container: partial?.container.map {
+            gitea: partial.gitea.map { .init(instance: $0.instance ?? "", scope: $0.scope ?? "") },
+            container: partial.container.map {
                 .init(
                     image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memoryGB ?? 8,
                     baseImage: $0.baseImage, labels: $0.labels)
             },
-            docker: partial?.docker.map {
+            docker: partial.docker.map {
                 .init(
                     image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 2, memoryGB: $0.memoryGB ?? 4,
                     maxSlots: $0.maxSlots ?? 8, baseImage: $0.baseImage, platform: $0.platform)

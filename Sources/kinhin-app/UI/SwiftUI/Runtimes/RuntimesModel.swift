@@ -320,8 +320,30 @@ final class RuntimesModel {
 
     private func refreshLabelFields() {
         let yaml = ConfigStore.textOrLog(at: configURL)
-        fleetLabelsText = LabelsConfigEditor.labels(in: yaml, scope: .fleet).joined(separator: ", ")
-        containerLabelsText = LabelsConfigEditor.labels(in: yaml, scope: .container).joined(separator: ", ")
+        do {
+            fleetLabelsText = try LabelsConfigEditor.labels(in: yaml, scope: .fleet).joined(separator: ", ")
+            containerLabelsText = try LabelsConfigEditor.labels(in: yaml, scope: .container).joined(separator: ", ")
+        } catch {
+            // Leave the fields as they were and say why they are not current.
+            Log.warn("runtimes-pane", "could not read labels: \(error.localizedDescription)")
+            labelsStatus = Line(text: "Labels not loaded — \(error.localizedDescription)", style: .error)
+        }
+    }
+
+    /// Restores one label field from disk after a failed commit (the other
+    /// field may hold the user's own edit, so it is left alone).
+    private func snapBackLabelField(_ scope: LabelsConfigEditor.Scope) {
+        let yaml = ConfigStore.textOrLog(at: configURL)
+        do {
+            let labels = try LabelsConfigEditor.labels(in: yaml, scope: scope).joined(separator: ", ")
+            if scope == .fleet {
+                fleetLabelsText = labels
+            } else {
+                containerLabelsText = labels
+            }
+        } catch {
+            Log.warn("runtimes-pane", "could not re-read labels: \(error.localizedDescription)")
+        }
     }
 
     /// Commit a label field edit (called on Enter or focus loss).
@@ -335,13 +357,7 @@ final class RuntimesModel {
         } catch {
             presentError(error)
             // Snap the field back to the on-disk truth.
-            let yaml = ConfigStore.textOrLog(at: configURL)
-            let labels = LabelsConfigEditor.labels(in: yaml, scope: scope).joined(separator: ", ")
-            if scope == .fleet {
-                fleetLabelsText = labels
-            } else {
-                containerLabelsText = labels
-            }
+            snapBackLabelField(scope)
         }
     }
 

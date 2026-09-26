@@ -31,13 +31,23 @@ final class LabelsConfigEditorTests: XCTestCase {
     // MARK: Reading
 
     func testReadsBothScopes() throws {
-        XCTAssertEqual(LabelsConfigEditor.labels(in: baseConfig, scope: .fleet), ["self-hosted", "macos", "arm64"])
-        XCTAssertEqual(LabelsConfigEditor.labels(in: baseConfig, scope: .container), [])
+        XCTAssertEqual(try LabelsConfigEditor.labels(in: baseConfig, scope: .fleet), ["self-hosted", "macos", "arm64"])
+        XCTAssertEqual(try LabelsConfigEditor.labels(in: baseConfig, scope: .container), [])
+    }
+
+    func testBlankConfigHasNoLabels() throws {
+        XCTAssertEqual(try LabelsConfigEditor.labels(in: "  \n", scope: .fleet), [])
+    }
+
+    func testMistypedLabelsThrowInsteadOfReadingEmpty() {
+        XCTAssertThrowsError(try LabelsConfigEditor.labels(in: "repo: acme/x\nlabels: 7\n", scope: .fleet)) { error in
+            XCTAssertTrue(error.localizedDescription.contains("labels"), error.localizedDescription)
+        }
     }
 
     func testReadsContainerLabelsWhenPresent() throws {
         let yaml = baseConfig + "\n  labels: [\"gpu\", \"kinhin-extra\"]\n"
-        XCTAssertEqual(LabelsConfigEditor.labels(in: yaml, scope: .container), ["gpu", "kinhin-extra"])
+        XCTAssertEqual(try LabelsConfigEditor.labels(in: yaml, scope: .container), ["gpu", "kinhin-extra"])
     }
 
     // MARK: Fleet scope
@@ -77,7 +87,7 @@ final class LabelsConfigEditorTests: XCTestCase {
         }
         // Disk untouched.
         XCTAssertEqual(
-            LabelsConfigEditor.labels(in: try String(contentsOf: url, encoding: .utf8), scope: .fleet),
+            try LabelsConfigEditor.labels(in: String(contentsOf: url, encoding: .utf8), scope: .fleet),
             ["self-hosted", "macos", "arm64"])
     }
 

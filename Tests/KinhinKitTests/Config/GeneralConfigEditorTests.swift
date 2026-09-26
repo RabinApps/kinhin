@@ -71,6 +71,16 @@ final class GeneralConfigEditorTests: XCTestCase {
         XCTAssertThrowsError(try GeneralConfigEditor.snapshot(from: "- just\n- a\n- list\n"))
     }
 
+    func testSnapshotNamesAWrongTypedKeyInsteadOfShowingDefaults() {
+        // A mistyped value must not render as the default (the form would
+        // then show a number the file does not contain).
+        let yaml = "repo: \"acme/x\"\nvm:\n  cpu: four\n"
+        XCTAssertThrowsError(try GeneralConfigEditor.snapshot(from: yaml)) { error in
+            let message = error.localizedDescription
+            XCTAssertTrue(message.contains("vm.cpu"), message)
+        }
+    }
+
     // MARK: Targeted surgery
 
     func testRepoEditPreservesCommentsAndNeighbors() throws {
