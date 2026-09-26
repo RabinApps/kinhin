@@ -66,28 +66,6 @@ final class SetupRepairRunner {
 
     // MARK: Container system
 
-    /// Installs Apple's `container` CLI via Homebrew, then starts its
-    /// system service. Skips the install when the CLI is already healthy.
-    func installContainerCLI() {
-        runWithProgress("Installing Apple container via Homebrew…") {
-            let shell = Shell()
-            if !(await AppleContainerRuntime(shell: shell).health()).isReady {
-                try HostRequirements.ensureSupported(.appleContainer)
-                let brew = Paths.findExecutable(named: "brew") ?? "/opt/homebrew/bin/brew"
-                let result = try await shell.run([brew, "install", "container"], cwd: nil, timeout: 900)
-                guard result.succeeded else {
-                    throw NSError(
-                        domain: "kinhin", code: 1,
-                        userInfo: [
-                            NSLocalizedDescriptionKey: result.stderr.isEmpty
-                                ? "brew install container failed" : result.stderr
-                        ])
-                }
-            }
-            try await Self.startContainerSystem(shell: shell)
-        }
-    }
-
     /// Starts the container system service if it isn't running.
     func startContainerSystem() {
         runWithProgress("Starting the container system…") {
