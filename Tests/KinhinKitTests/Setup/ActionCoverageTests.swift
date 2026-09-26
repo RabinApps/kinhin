@@ -8,9 +8,10 @@ import XCTest
 /// impossible: every action the checklist can ever emit must be a known,
 /// titled, handler-mapped action.
 final class ActionCoverageTests: XCTestCase {
-    /// The complete set of dispatch keys the setup window implements.
-    /// A new action in SetupStatusComputer MUST be added here (and to the
-    /// window's switch) or buttons silently stop working again.
+    /// The complete set of dispatch keys the checklist actions map to. A new
+    /// action in SetupStatusComputer MUST be added here (and given a handler
+    /// wherever the checklist is rendered) or buttons silently stop working
+    /// again.
     static let handledActions: Set<String> = [
         "fix_clt",
         "install_tart",

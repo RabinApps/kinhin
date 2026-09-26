@@ -349,7 +349,7 @@ final class ToolchainsModel {
             try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(options)
         case .appleContainer:
             guard let image = cfg.container?.image else { throw ToolchainRebuildError.notConfigured("container") }
-            try await SetupWindowController.startContainerSystem(shell: Shell())
+            try await SetupRepairRunner.startContainerSystem(shell: Shell())
             let base = LinuxImageOptions.baseImage(
                 configured: image, localImages: await AppleContainerRuntime().localImageNames(),
                 fallback: LinuxBaseImage.resolve(configured: cfg.container?.baseImage))

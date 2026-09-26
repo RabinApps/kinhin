@@ -20,7 +20,7 @@ extension AppDelegate {
             guard health == .killedOnLaunch else { return }
             Log.error("app", "tart is killed on launch; starting automatic rollback repair")
             let repair = TartHealthProbe.repairs(for: .killedOnLaunch)[0]
-            let repairRunner = SetupWindowController(embeddedIn: NSView())
+            let repairRunner = SetupRepairRunner()
             repairRunner.runRepair(
                 repair,
                 progressTitle: "Tart is blocked by Gatekeeper — rolling back to the notarized Cirrus Labs build…"

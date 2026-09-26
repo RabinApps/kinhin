@@ -235,7 +235,7 @@ final class MacToolsModel {
     func startContainerService() -> Task<Void, Never> {
         let shell = installShell
         return run("Starting the Apple container service…") {
-            try await SetupWindowController.startContainerSystem(shell: shell)
+            try await SetupRepairRunner.startContainerSystem(shell: shell)
         }
     }
 

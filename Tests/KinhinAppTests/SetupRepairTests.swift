@@ -19,7 +19,7 @@ final class SetupRepairTests: XCTestCase {
 
     func testRepairRunsEveryCommandInOrder() async throws {
         let shell = FakeShell()
-        try await SetupWindowController.run(install, shell: shell)
+        try await SetupRepairRunner.run(install, shell: shell)
 
         XCTAssertEqual(shell.calls.count, 3)
         XCTAssertEqual(shell.calls[0], ["brew", "tap", "openai/tools"])
@@ -32,7 +32,7 @@ final class SetupRepairTests: XCTestCase {
         shell.defaultResult = ShellResult(exitCode: 1, stdout: "", stderr: "brew: no such tap")
 
         do {
-            try await SetupWindowController.run(install, shell: shell)
+            try await SetupRepairRunner.run(install, shell: shell)
             XCTFail("a failed command must stop the repair with an error")
         } catch {
             XCTAssertTrue("\(error)".contains("brew: no such tap"), "the user must see the tool's own error: \(error)")
@@ -46,7 +46,7 @@ final class SetupRepairTests: XCTestCase {
         shell.defaultResult = ShellResult(exitCode: 2, stdout: "", stderr: "")
 
         do {
-            try await SetupWindowController.run(install, shell: shell)
+            try await SetupRepairRunner.run(install, shell: shell)
             XCTFail("expected an error")
         } catch {
             // With empty stderr the failing command itself is the message.
