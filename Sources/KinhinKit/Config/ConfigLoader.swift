@@ -28,16 +28,17 @@ public struct ConfigLoader {
     ) -> String? {
         let extraReady = cfg.accounts.contains { loadAccount($0.forge, $0.name) != nil }
         let giteaReady = extraReady || (cfg.gitea != nil && load(.gitea) != nil)
+        let forgejoReady = cfg.forgejo != nil && load(.forgejo) != nil
         if cfg.githubEnabled {
             if let token = load(.github) { return token }
-            return giteaReady ? "" : nil
+            return giteaReady || forgejoReady ? "" : nil
         }
-        return giteaReady ? "" : nil
+        return giteaReady || forgejoReady ? "" : nil
     }
 
     /// True when at least one forge is configured for real work.
     public static func hasAnyForge(_ cfg: KinhinConfig) -> Bool {
-        cfg.githubEnabled || cfg.gitea != nil || !cfg.accounts.isEmpty
+        cfg.githubEnabled || cfg.gitea != nil || cfg.forgejo != nil || !cfg.accounts.isEmpty
     }
 
     /// Creates the starter config on first run. Never overwrites: an existing
@@ -80,6 +81,35 @@ public struct ConfigLoader {
         return trimmed
     }
 
+    /// Validates one Gitea-family forge section (`gitea:`, `forgejo:` — the
+    /// two share the instance/scope/labels shape and validation rules).
+    static func parseGiteaFamily(
+        partial: PartialConfig.PartialGitea, section: String
+    ) throws -> KinhinConfig.GiteaForgeConfig {
+        guard let instance = partial.instance, !instance.isEmpty else {
+            throw ConfigError.invalid("\(section).instance is required (e.g. https://gitea.example.com)")
+        }
+        do {
+            _ = try GiteaCredentials.validate(instance: instance)
+        } catch {
+            throw ConfigError.invalid(
+                "\(section).instance must be a base URL like https://gitea.example.com (no path, no /api suffix)")
+        }
+        guard let scope = partial.scope, !scope.isEmpty else {
+            throw ConfigError.invalid("\(section).scope is required ('RabinApps/name' or an org name)")
+        }
+        let scopeSegments = scope.split(separator: "/")
+        guard (1...2).contains(scopeSegments.count),
+            scopeSegments.allSatisfy({ !$0.isEmpty })
+        else {
+            throw ConfigError.invalid("\(section).scope must be 'RabinApps/name' or an org name, got '\(scope)'")
+        }
+        if let labels = partial.labels, labels.isEmpty {
+            throw ConfigError.invalid("\(section).labels must be non-empty when present")
+        }
+        return KinhinConfig.GiteaForgeConfig(instance: instance, scope: scope, labels: partial.labels)
+    }
+
     /// Validates the `accounts:` list: unique tame names (not the legacy
     /// `github`/`gitea`), a known forge, a scope, and a Gitea instance URL.
     static func parseAccounts(_ entries: [PartialConfig.PartialAccount]) throws -> [AccountConfig] {
@@ -96,14 +126,14 @@ public struct ConfigLoader {
             }
             guard !AccountConfig.reservedNames.contains(name) else {
                 throw ConfigError.invalid(
-                    "\(position).name '\(name)' is reserved for the top-level repo:/gitea: sections — pick another name"
+                    "\(position).name '\(name)' is reserved for the top-level repo:/gitea:/forgejo: sections — pick another name"
                 )
             }
             guard seen.insert(name).inserted else {
                 throw ConfigError.invalid("duplicate account name '\(name)'")
             }
             guard let rawForge = entry.forge, let forge = ForgeID(rawValue: rawForge) else {
-                throw ConfigError.invalid("account '\(name)': forge must be github or gitea")
+                throw ConfigError.invalid("account '\(name)': forge must be github, gitea or forgejo")
             }
             guard let scope = entry.scope, AccountConfig.isValidScope(scope) else {
                 throw ConfigError.invalid("account '\(name)': scope must be 'RabinApps/name' or an org name")
@@ -114,7 +144,7 @@ public struct ConfigLoader {
                     throw ConfigError.invalid("account '\(name)': instance and labels apply to gitea accounts only")
                 }
                 result.append(AccountConfig(name: name, forge: forge, scope: scope))
-            case .gitea:
+            case .gitea, .forgejo:
                 guard let instance = entry.instance, !instance.isEmpty else {
                     throw ConfigError.invalid(
                         "account '\(name)': instance is required (e.g. https://gitea.example.com)")
@@ -207,28 +237,10 @@ public struct ConfigLoader {
             cfg.toolchains = try Self.parseToolchains(toolchains)
         }
         if let gitea = partial.gitea {
-            guard let instance = gitea.instance, !instance.isEmpty else {
-                throw ConfigError.invalid("gitea.instance is required (e.g. https://gitea.example.com)")
-            }
-            do {
-                _ = try GiteaCredentials.validate(instance: instance)
-            } catch {
-                throw ConfigError.invalid(
-                    "gitea.instance must be a base URL like https://gitea.example.com (no path, no /api suffix)")
-            }
-            guard let scope = gitea.scope, !scope.isEmpty else {
-                throw ConfigError.invalid("gitea.scope is required ('RabinApps/name' or an org name)")
-            }
-            let scopeSegments = scope.split(separator: "/")
-            guard (1...2).contains(scopeSegments.count),
-                scopeSegments.allSatisfy({ !$0.isEmpty })
-            else {
-                throw ConfigError.invalid("gitea.scope must be 'RabinApps/name' or an org name, got '\(scope)'")
-            }
-            if let giteaLabels = gitea.labels, giteaLabels.isEmpty {
-                throw ConfigError.invalid("gitea.labels must be non-empty when present")
-            }
-            cfg.gitea = KinhinConfig.GiteaForgeConfig(instance: instance, scope: scope, labels: gitea.labels)
+            cfg.gitea = try Self.parseGiteaFamily(partial: gitea, section: "gitea")
+        }
+        if let forgejo = partial.forgejo {
+            cfg.forgejo = try Self.parseGiteaFamily(partial: forgejo, section: "forgejo")
         }
         if let container = partial.container {
             guard let containerImage = container.image, !containerImage.isEmpty else {

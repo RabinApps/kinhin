@@ -35,15 +35,18 @@ extension FleetEngine {
     /// every configured forge is attached. `ignoreBackoff` is for tests.
     func retryDetachedForgesIfDue(now: Date = Date(), ignoreBackoff: Bool = false) async {
         guard stateLock.withLock({ running }) else { return }
-        let (githubDetached, giteaDetached, due) = forgesLock.withLock {
+        let (githubDetached, giteaDetached, forgejoDetached, due) = forgesLock.withLock {
             (
                 forgeRetry.githubDetached,
                 config.gitea != nil && forgesByPlatform["gitea"] == nil,
+                config.forgejo != nil && forgesByPlatform["forgejo"] == nil,
                 now >= forgeRetry.nextAttempt
             )
         }
         let accountsDetached = !detachedAccounts().isEmpty
-        guard githubDetached || giteaDetached || accountsDetached, ignoreBackoff || due else { return }
+        guard githubDetached || giteaDetached || forgejoDetached || accountsDetached, ignoreBackoff || due else {
+            return
+        }
 
         if githubDetached { await retryGitHub() }
         if giteaDetached {
@@ -52,12 +55,19 @@ extension FleetEngine {
                 await statusBox.modify { if $0.lastError?.hasPrefix("gitea") == true { $0.lastError = nil } }
             }
         }
+        if forgejoDetached {
+            await attachForgejoForgeIfNeeded()
+            if forgesLock.withLock({ forgesByPlatform["forgejo"] != nil }) {
+                await statusBox.modify { if $0.lastError?.hasPrefix("forgejo") == true { $0.lastError = nil } }
+            }
+        }
 
         if accountsDetached { await attachAccountsIfNeeded() }
 
         let accountsStillMissing = !detachedAccounts().isEmpty
         let stillMissing = forgesLock.withLock {
             forgeRetry.githubDetached || (config.gitea != nil && forgesByPlatform["gitea"] == nil)
+                || (config.forgejo != nil && forgesByPlatform["forgejo"] == nil)
         }
         let anyMissing = stillMissing || accountsStillMissing
         forgesLock.withLock {

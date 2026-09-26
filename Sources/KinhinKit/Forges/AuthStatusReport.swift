@@ -128,13 +128,26 @@ public enum AuthStatusReporter {
                 configured: gitea != nil,
                 scope: gitea?.scope,
                 instance: gitea?.instance,
-                detail: giteaDetail(token: giteaToken, config: gitea)
+                detail: giteaDetail(token: giteaToken, config: gitea, section: "gitea", fix: "--gitea")
+            ))
+        let forgejoToken = load(.forgejo)
+        let forgejo = config?.forgejo
+        forges.append(
+            AuthStatusReport.Forge(
+                id: ForgeID.forgejo.rawValue,
+                stored: forgejoToken != nil,
+                prefix: forgejoToken.map { String($0.prefix(4)) },
+                configured: forgejo != nil,
+                scope: forgejo?.scope,
+                instance: forgejo?.instance,
+                detail: giteaDetail(token: forgejoToken, config: forgejo, section: "forgejo", fix: "--forgejo")
             ))
 
         // Every configured forge needs its token, and at least one forge must
-        // be configured (GitHub and Gitea are each optional on their own).
+        // be configured (each forge is optional on its own).
         let githubOK = githubConfigured && githubToken != nil
         let giteaOK = gitea != nil && giteaToken != nil
+        let forgejoOK = forgejo != nil && forgejoToken != nil
         let accounts = (config?.accounts ?? []).map { account -> AuthStatusReport.Account in
             let token = loadAccount(account.forge, account.name)
             let masked = token.map { "\(String($0.prefix(4)))…" }
@@ -147,11 +160,12 @@ public enum AuthStatusReporter {
                 detail: detail)
         }
         let accountsOK = accounts.allSatisfy(\.stored)
-        let anyForge = githubOK || giteaOK || accounts.contains(where: \.stored)
+        let anyForge = githubOK || giteaOK || forgejoOK || accounts.contains(where: \.stored)
         let allGood =
             anyForge
             && (!githubConfigured || githubToken != nil)
             && (gitea == nil || giteaToken != nil)
+            && (forgejo == nil || forgejoToken != nil)
             && accountsOK
         return AuthStatusReport(forges: forges, allGood: allGood, accounts: accounts)
     }
@@ -170,17 +184,19 @@ public enum AuthStatusReporter {
         }
     }
 
-    private static func giteaDetail(token: String?, config: KinhinConfig.GiteaForgeConfig?) -> String {
+    private static func giteaDetail(
+        token: String?, config: KinhinConfig.GiteaForgeConfig?, section: String, fix: String
+    ) -> String {
         let masked = token.map { "\(String($0.prefix(4)))…" } ?? "—"
         switch (token != nil, config != nil) {
         case (true, true):
             return "stored in Keychain (\(masked)) · scope: \(config!.scope) @ \(config!.instance)"
         case (true, false):
-            return "stored in Keychain (\(masked)) — no gitea: section in config.yaml, not in use"
+            return "stored in Keychain (\(masked)) — no \(section): section in config.yaml, not in use"
         case (false, true):
-            return "no token stored — run: kinhin auth set --gitea"
+            return "no token stored — run: kinhin auth set \(fix)"
         case (false, false):
-            return "no token stored — add a gitea: section to config.yaml to use this forge"
+            return "no token stored — add a \(section): section to config.yaml to use this forge"
         }
     }
 }

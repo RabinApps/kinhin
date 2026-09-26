@@ -95,10 +95,14 @@ enum AuthCommand {
     /// The permissions the token for `forge` needs, for the configured scope
     /// (both repo and org cases when there is no config yet).
     static func requirements(for forge: ForgeID, config: KinhinConfig?) -> TokenRequirements {
-        if forge == .gitea {
+        switch forge {
+        case .gitea:
             return TokenRequirements.gitea(scope: config?.gitea?.scope ?? "", instance: config?.gitea?.instance)
+        case .forgejo:
+            return TokenRequirements.gitea(scope: config?.forgejo?.scope ?? "", instance: config?.forgejo?.instance)
+        case .github:
+            return TokenRequirements.github(scope: config?.repo ?? "")
         }
-        return TokenRequirements.github(scope: config?.repo ?? "")
     }
 
     /// Resolves `--account NAME` to its forge: "github"/"gitea" are the legacy
@@ -112,13 +116,14 @@ enum AuthCommand {
     private static func add(_ args: [String], environment: AuthEnvironment) throws {
         guard let name = args.dropFirst(2).first, !name.hasPrefix("--") else {
             try environment.fail(
-                "usage: kinhin auth add NAME --github|--gitea --scope SCOPE [--instance URL] [--token T]")
+                "usage: kinhin auth add NAME --github|--gitea|--forgejo --scope SCOPE [--instance URL] [--token T]")
         }
         let forge: ForgeID
-        switch (args.contains("--github"), args.contains("--gitea")) {
-        case (true, false): forge = .github
-        case (false, true): forge = .gitea
-        default: try environment.fail("choose exactly one of --github or --gitea")
+        switch (args.contains("--github"), args.contains("--gitea"), args.contains("--forgejo")) {
+        case (true, false, false): forge = .github
+        case (false, true, false): forge = .gitea
+        case (false, false, true): forge = .forgejo
+        default: try environment.fail("choose exactly one of --github, --gitea or --forgejo")
         }
         guard let scope = flag("--scope", in: args) else {
             try environment.fail("--scope is required (an org name, or owner/name for one repository)")
@@ -189,10 +194,11 @@ enum AuthCommand {
         case "remove": return try remove(args, environment: environment)
         default: break
         }
-        // Platform selection: --gitea targets the Gitea token; default is GitHub.
-        // --account NAME targets a named account (an accounts: entry).
-        var giteaMode = args.contains("--gitea")
-        var forge: ForgeID = giteaMode ? .gitea : .github
+        // Platform selection: --gitea/--forgejo target those tokens; default
+        // is GitHub. --account NAME targets a named account (an accounts:
+        // entry).
+        var giteaMode = args.contains("--gitea") || args.contains("--forgejo")
+        var forge: ForgeID = args.contains("--forgejo") ? .forgejo : (giteaMode ? .gitea : .github)
         var namedAccount: AccountConfig?
         if let accountName = flag("--account", in: args) {
             let config: KinhinConfig? =
@@ -203,13 +209,20 @@ enum AuthCommand {
                 )
             }
             forge = resolved.forge
-            giteaMode = forge == .gitea
+            giteaMode = forge != .github
             // The legacy names keep their original Keychain items and RPCs.
             if resolved.name != resolved.forge.rawValue { namedAccount = resolved }
         }
+        let forgeLabel = { (forge: ForgeID) -> String in
+            switch forge {
+            case .github: return "GitHub PAT"
+            case .gitea: return "Gitea access token"
+            case .forgejo: return "Forgejo access token"
+            }
+        }
         let forgeName =
-            namedAccount.map { "\($0.forge == .gitea ? "Gitea access token" : "GitHub PAT") for account '\($0.name)'" }
-            ?? (giteaMode ? "Gitea access token" : "GitHub PAT")
+            namedAccount.map { "\(forgeLabel($0.forge)) for account '\($0.name)'" }
+            ?? forgeLabel(forge)
         let load: (ForgeID) -> String? = { f in
             namedAccount.map { environment.loadAccount($0.forge, $0.name) } ?? environment.load(f)
         }

@@ -25,6 +25,7 @@ public struct PartialConfig: Decodable {
     var provisionScript: String?
     var toolchains: PartialToolchains?
     var accounts: [PartialAccount]?
+    var forgejo: PartialForgejo?
 
     struct PartialAccount: Decodable {
         var name: String?
@@ -39,6 +40,10 @@ public struct PartialConfig: Decodable {
         var scope: String?
         var labels: [String]?
     }
+
+    /// Typealias so both Gitea-family sections validate through one function
+    /// (the instance/scope/labels shape is identical for gitea: and forgejo:).
+    typealias PartialForgejo = PartialGitea
 
     struct PartialVM: Decodable {
         var cpu: Int?
@@ -174,6 +179,7 @@ public struct PartialConfig: Decodable {
         case tartPath = "tart_path"
         case reserve
         case gitea
+        case forgejo
         case container
         case docker
         case runtimes

@@ -64,7 +64,7 @@ final class DoctorReportTests: XCTestCase {
         XCTAssertEqual(report.host, host, "the host snapshot passes through verbatim")
         XCTAssertEqual(report.clt.state, "ok")
         XCTAssertEqual(report.tart.state, "healthy")
-        XCTAssertEqual(report.auth.forges.map(\.id), ["github", "gitea"])
+        XCTAssertEqual(report.auth.forges.map(\.id), ["github", "gitea", "forgejo"])
         XCTAssertEqual(report.checks.first?.id, "arch", "the checklist rows are embedded in order")
         XCTAssertNotNil(report.capacity, "a parsed config yields the capacity section")
         XCTAssertNotNil(report.container, "a container: config yields the container section")
@@ -248,7 +248,7 @@ final class DoctorReportTests: XCTestCase {
         let decoded = try JSONDecoder().decode(DoctorReport.self, from: data)
         XCTAssertTrue(decoded.auth.forges[0].stored)
         XCTAssertFalse(decoded.auth.forges[0].prefix!.contains("cli"), "the emitted prefix is masked, never the secret")
-        XCTAssertEqual(decoded.auth.forges.map(\.id), ["github", "gitea"], "both forges are always reported")
+        XCTAssertEqual(decoded.auth.forges.map(\.id), ["github", "gitea", "forgejo"], "all forges are always reported")
     }
 
     // MARK: - Config resolution parity

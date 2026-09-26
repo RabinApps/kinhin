@@ -27,7 +27,7 @@ final class TokenSettingsTests: XCTestCase {
     }
 
     func testGitHubMissingRowOffersSave() {
-        let row = TokenSettingsRow.make(forge: .github, token: nil, repo: "acme/widgets", gitea: nil)
+        let row = TokenSettingsRow.makeGitHub(token: nil, repo: "acme/widgets")
         XCTAssertEqual(row.buttonTitle, "Save…")
         XCTAssertTrue(row.status.contains("Not stored"))
         XCTAssertTrue(row.status.contains("acme/widgets"))
@@ -67,6 +67,24 @@ final class TokenSettingsTests: XCTestCase {
         XCTAssertFalse(row.configured)
         XCTAssertTrue(row.status.contains("Not in use"))
         XCTAssertTrue(row.status.contains("gitea:"))
+    }
+
+    // MARK: Forgejo (shares the Gitea card shape)
+
+    func testForgejoStoredWithConfigShowsInstanceAndScope() {
+        let row = TokenSettingsRow.make(forge: .forgejo, token: "fj_token_9999", repo: nil, gitea: giteaConfig)
+        XCTAssertEqual(row.title, "Forgejo")
+        XCTAssertTrue(row.configured)
+        XCTAssertTrue(row.status.contains("gitea.example.com"))
+        XCTAssertTrue(row.status.contains("acme"))
+        XCTAssertFalse(row.status.contains("token_9999"), "the status line must never leak the token")
+    }
+
+    func testForgejoMissingWithoutConfigSaysNotInUse() {
+        let row = TokenSettingsRow.make(forge: .forgejo, token: nil, repo: nil, gitea: nil)
+        XCTAssertFalse(row.configured)
+        XCTAssertTrue(row.status.contains("Not in use"))
+        XCTAssertTrue(row.status.contains("forgejo:"))
     }
 
     // MARK: Coverage

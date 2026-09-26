@@ -10,6 +10,7 @@ public enum RPCMethod: String, Codable, Sendable {
     case deleteVM = "delete_vm"
     case replaceToken = "replace_token"
     case replaceGiteaToken = "replace_gitea_token"
+    case replaceForgejoToken = "replace_forgejo_token"
     /// Swap the token of one named account (multi-account configs).
     case replaceAccountToken = "replace_account_token"
     /// Reload the routing config from disk (the Runtimes pane's edit hook).
@@ -26,6 +27,12 @@ struct TokenReplaceRequest: Codable, Sendable, Equatable {
 
 /// Payload for `replace_gitea_token`: swaps the daemon's Gitea access token.
 struct GiteaTokenReplaceRequest: Codable, Sendable, Equatable {
+    public let token: String
+    public init(token: String) { self.token = token }
+}
+
+/// Payload for `replace_forgejo_token`: swaps the daemon's Forgejo access token.
+struct ForgejoTokenReplaceRequest: Codable, Sendable, Equatable {
     public let token: String
     public init(token: String) { self.token = token }
 }
@@ -260,6 +267,17 @@ public struct RPCClient: Sendable {
     public func replaceGiteaToken(_ token: String) throws -> Bool {
         let payload = try JSONEncoder().encode(GiteaTokenReplaceRequest(token: token))
         let response = try send(method: .replaceGiteaToken, payload: payload)
+        guard response.ok else {
+            throw RPCError.rejected(response.error ?? "unknown error")
+        }
+        return true
+    }
+
+    /// Ask the daemon to swap its Forgejo access token.
+    @discardableResult
+    public func replaceForgejoToken(_ token: String) throws -> Bool {
+        let payload = try JSONEncoder().encode(ForgejoTokenReplaceRequest(token: token))
+        let response = try send(method: .replaceForgejoToken, payload: payload)
         guard response.ok else {
             throw RPCError.rejected(response.error ?? "unknown error")
         }

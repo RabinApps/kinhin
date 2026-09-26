@@ -83,11 +83,13 @@ extension FleetEngine {
                 token = try await registrationCache(for: account).token {
                     try await forge.mintRegistrationToken()
                 }
-            case .gitea:
-                guard let giteaForge = forge as? GiteaForge else {
-                    throw EngineError.registrationFailed(vm: id, stderr: "gitea forge misconfigured")
+            case .gitea, .forgejo:
+                // Gitea and Forgejo tokens are long-lived, captured at forge
+                // construction (Forgejo shares the Gitea runner and flow).
+                guard let giteaFamilyForge = forge as? GiteaForge else {
+                    throw EngineError.registrationFailed(vm: id, stderr: "gitea-family forge misconfigured")
                 }
-                token = giteaForge.registrationToken
+                token = giteaFamilyForge.registrationToken
             }
             let script = try await recordRuntime.registrationScript(
                 forge: forge, token: token, name: id,
@@ -109,7 +111,7 @@ extension FleetEngine {
                 switch forge.id {
                 case .github:
                     try await awaitEphemeralExit(id: id, ip: ip, forge: forge)
-                case .gitea:
+                case .gitea, .forgejo:
                     try await awaitGiteaExit(id: id, ip: ip, forge: forge)
                 }
             }

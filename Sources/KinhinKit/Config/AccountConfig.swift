@@ -47,8 +47,9 @@ public struct AccountConfig: Sendable, Equatable, Codable {
 }
 
 extension KinhinConfig {
-    /// Every account this config serves: the legacy `github` / `gitea`
-    /// accounts (when configured) followed by the explicit `accounts:` list.
+    /// Every account this config serves: the legacy `github` / `gitea` /
+    /// `forgejo` accounts (when configured) followed by the explicit
+    /// `accounts:` list.
     public var allAccounts: [AccountConfig] {
         var result: [AccountConfig] = []
         if githubEnabled {
@@ -59,6 +60,12 @@ extension KinhinConfig {
                 AccountConfig(
                     name: ForgeID.gitea.rawValue, forge: .gitea, scope: gitea.scope, instance: gitea.instance,
                     labels: gitea.labels))
+        }
+        if let forgejo {
+            result.append(
+                AccountConfig(
+                    name: ForgeID.forgejo.rawValue, forge: .forgejo, scope: forgejo.scope,
+                    instance: forgejo.instance, labels: forgejo.labels))
         }
         return result + accounts
     }

@@ -15,7 +15,7 @@ final class AuthStatusAccountsTests: XCTestCase {
     func testReportListsAccountsAndKeepsLegacyForges() {
         let report = AuthStatusReporter.report(
             config: config, load: { _ in "ghp_legacy" }, loadAccount: { _, _ in "ghp_work" })
-        XCTAssertEqual(report.forges.map(\.id), ["github", "gitea"])
+        XCTAssertEqual(report.forges.map(\.id), ["github", "gitea", "forgejo"])
         XCTAssertEqual(report.accounts.map(\.name), ["work"])
         XCTAssertEqual(report.accounts.first?.prefix, "ghp_")
         XCTAssertTrue(report.allGood)

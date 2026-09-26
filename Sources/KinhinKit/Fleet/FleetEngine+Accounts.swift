@@ -76,6 +76,16 @@ extension FleetEngine {
                     demandFloor: config.minRunners,
                     account: account.name
                 )
+            case .forgejo:
+                guard let instance = account.instance else {
+                    throw AccountAttachError.unverified("no instance URL configured")
+                }
+                forge = try await ForgejoForge.make(
+                    credentials: GiteaCredentials(token: token, scope: account.scope, instance: instance),
+                    labels: account.labels ?? ["macos:host"],
+                    demandFloor: config.minRunners,
+                    account: account.name
+                )
             }
             forgesLock.withLock { forgesByPlatform[account.name] = forge }
             registrationCache(for: account.name).invalidate()

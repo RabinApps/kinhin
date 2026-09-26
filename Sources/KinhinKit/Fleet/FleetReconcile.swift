@@ -112,6 +112,7 @@ extension FleetEngine {
                         switch forge.credentials {
                         case .github(_, let s): s
                         case .gitea(_, let s, _): s
+                        case .forgejo(_, let s, _): s
                         }
                     perForgeJobs[forge.account] = (!scope.contains("/"), jobs)
                     demandByForge[forge.account] = jobs.count

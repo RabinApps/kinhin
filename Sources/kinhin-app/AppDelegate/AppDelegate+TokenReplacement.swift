@@ -44,6 +44,17 @@ extension AppDelegate {
             } else {
                 Log.info("app", "replaced Gitea token (no engine running yet)")
             }
+        case .forgejo:
+            try KeychainTokenStore.save(token, forge: .forgejo)
+            if let engine {
+                await engine.replaceForgejoToken(token)
+                Log.info("app", "replaced Forgejo token (in-process engine)")
+            } else if let client {
+                try client.replaceForgejoToken(token)
+                Log.info("app", "replaced Forgejo token (daemon notified)")
+            } else {
+                Log.info("app", "replaced Forgejo token (no engine running yet)")
+            }
         }
         await refresh()
     }

@@ -212,7 +212,7 @@ final class ConnectModel {
             githubButtonTitle = "Replace"
             githubConnected = !lastWrittenRepo.isEmpty
             commitGitHubRepo()
-        case .gitea:
+        case .gitea, .forgejo:
             giteaTokenStored = true
             giteaButtonTitle = "Replace"
             giteaConnected = lastWrittenGitea != nil
@@ -236,7 +236,7 @@ final class ConnectModel {
             case .github:
                 refs = try await GitHubClient(credentials: GitHubCredentials(token: resolved, scope: ""))
                     .listRepositories()
-            case .gitea:
+            case .gitea, .forgejo:
                 let instance = giteaInstance.trimmingCharacters(in: .whitespaces)
                 guard !instance.isEmpty else { return false }
                 refs = try await GiteaClient(

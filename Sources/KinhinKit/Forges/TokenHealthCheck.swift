@@ -72,6 +72,11 @@ public enum TokenHealthCheck {
                 return Report(ok: false, message: "No gitea: section in config.yaml — add one to check the token.")
             }
             return await Self.gitea(token: token, config: giteaConfig, client: gitea)
+        case .forgejo:
+            guard let forgejoConfig = config?.forgejo else {
+                return Report(ok: false, message: "No forgejo: section in config.yaml — add one to check the token.")
+            }
+            return await Self.gitea(token: token, config: forgejoConfig, client: gitea)
         }
     }
 }

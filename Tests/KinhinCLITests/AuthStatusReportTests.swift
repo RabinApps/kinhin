@@ -35,7 +35,7 @@ final class AuthStatusReportTests: XCTestCase {
 
     func testOneForgeEntryPerForgeInStableOrder() {
         let report = report(config: Self.config(gitea: true))
-        XCTAssertEqual(report.forges.map(\.id), ["github", "gitea"], "github first — ForgeID order is the API order")
+        XCTAssertEqual(report.forges.map(\.id), ["github", "gitea", "forgejo"], "github first — ForgeID order is the API order")
     }
 
     func testJSONRoundTripPreservesTheContract() throws {
@@ -127,7 +127,7 @@ final class AuthStatusReportTests: XCTestCase {
 
     func testNilConfigStillProducesAGithubEntry() {
         let report = report(config: nil)
-        XCTAssertEqual(report.forges.count, 2, "both forges are always reported")
+        XCTAssertEqual(report.forges.count, 3, "all forges are always reported")
         XCTAssertFalse(report.forges[0].configured)
         XCTAssertFalse(report.allGood)
     }
@@ -169,7 +169,7 @@ final class AuthStatusReportTests: XCTestCase {
         let (_, data) = try AuthCommand.emitStatusJSON(environment: env)
         let decoded = try JSONDecoder().decode(AuthStatusReport.self, from: data)
         XCTAssertTrue(decoded.allGood)
-        XCTAssertEqual(decoded.forges.map(\.id), ["github", "gitea"])
+        XCTAssertEqual(decoded.forges.map(\.id), ["github", "gitea", "forgejo"])
         XCTAssertTrue(decoded.forges[0].stored)
         XCTAssertFalse(decoded.forges[0].prefix!.contains("live"), "the emitted prefix is masked, never the secret")
     }

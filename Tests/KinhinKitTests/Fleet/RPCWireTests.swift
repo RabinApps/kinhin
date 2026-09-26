@@ -34,6 +34,7 @@ final class RPCWireTests: XCTestCase {
         case .deleteVM: return "delete_vm"
         case .replaceToken: return "replace_token"
         case .replaceGiteaToken: return "replace_gitea_token"
+        case .replaceForgejoToken: return "replace_forgejo_token"
         case .replaceAccountToken: return "replace_account_token"
         case .reloadConfig: return "reload_config"
         case .logs: return "logs"

@@ -77,7 +77,9 @@ struct LinuxImageBaker {
         let tag = backend.logTag
         // Token-gated provisioning: identical policy to the VM path.
         let hasGitHubToken = options.hasGitHubToken ?? AccountTokens.anyStored(for: .github)
-        let hasGiteaToken = options.hasGiteaToken ?? AccountTokens.anyStored(for: .gitea)
+        // Forgejo uses the gitea-runner binary: bake it when either
+        // Gitea-family platform has a token.
+        let hasGiteaToken = options.hasGiteaToken ?? (AccountTokens.anyStored(for: .gitea) || AccountTokens.anyStored(for: .forgejo))
         guard hasGitHubToken || hasGiteaToken else {
             throw ImageError.noCredentials(
                 "store at least one platform token first (kinhin auth set / kinhin auth set --gitea)")

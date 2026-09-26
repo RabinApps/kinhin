@@ -56,6 +56,8 @@ public struct KinhinConfig: Sendable, Equatable {
     public var reserve: Reserve
     /// Gitea forge settings (absent → Gitea not served by this fleet).
     public var gitea: GiteaForgeConfig?
+    /// Forgejo forge settings (nil → Forgejo not served by this fleet).
+    public var forgejo: ForgejoForgeConfig?
     /// Apple-container runtime settings (nil → feature off; VMs always used).
     public var container: ContainerConfig?
     /// Per-repo/per-workflow runtime routing (nil → the legacy single-pool
@@ -274,6 +276,10 @@ public struct KinhinConfig: Sendable, Equatable {
         }
     }
 
+    /// Forgejo forge settings (Gitea's upstream — wire-compatible, so the
+    /// same client and runner binary serve it; nil → Forgejo not served).
+    public typealias ForgejoForgeConfig = GiteaForgeConfig
+
     public struct Reserve: Sendable, Equatable {
         /// Host cores kept free from VM budgets.
         public var cpu: Int
@@ -305,6 +311,7 @@ public struct KinhinConfig: Sendable, Equatable {
         case tartPath = "tart_path"
         case reserve
         case gitea
+        case forgejo
         case container
         case docker
         case runtimes

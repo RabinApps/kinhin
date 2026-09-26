@@ -178,6 +178,12 @@ public enum Daemon {
                 }
                 await engine.replaceGiteaToken(replacement.token)
                 return RPCResponse(id: request.id, ok: true)
+            case .replaceForgejoToken:
+                guard let replacement = decodePayload(ForgejoTokenReplaceRequest.self) else {
+                    return RPCResponse(id: request.id, ok: false, error: "expected {\"token\": \"...\"}")
+                }
+                await engine.replaceForgejoToken(replacement.token)
+                return RPCResponse(id: request.id, ok: true)
             case .replaceAccountToken:
                 guard let replacement = decodePayload(AccountTokenReplaceRequest.self) else {
                     return RPCResponse(

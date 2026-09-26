@@ -19,44 +19,62 @@ struct TokenSettingsRow: Equatable {
     static func make(forge: ForgeID, token: String?, repo: String?, gitea: KinhinConfig.GiteaForgeConfig?)
         -> TokenSettingsRow
     {
+        if forge == .github { return makeGitHub(token: token, repo: repo) }
+        // Forgejo shares the Gitea shape (instance + scope + labels), so the
+        // same card text works with the section's own name.
+        return makeGiteaFamily(
+            forge: forge, token: token,
+            section: forge == .gitea ? "gitea" : "forgejo",
+            title: forge == .gitea ? "Gitea" : "Forgejo",
+            placeholder: forge == .gitea ? "gitea token…" : "forgejo token…",
+            config: gitea, repo: repo
+        )
+    }
+
+    /// The shared card builder for the Gitea-family forges (gitea, forgejo).
+    private static func makeGiteaFamily(
+        forge: ForgeID, token: String?, section: String, title: String, placeholder: String,
+        config: KinhinConfig.GiteaForgeConfig?, repo: String?
+    ) -> TokenSettingsRow {
         let masked = token.map { String($0.prefix(4)) + "…" } ?? "—"
-        switch forge {
-        case .github:
-            let scope = repo.flatMap { $0.isEmpty ? nil : $0 } ?? "your repo (set it in config.yaml)"
+        if let config {
             return TokenSettingsRow(
                 forge: forge,
-                title: "GitHub",
+                title: title,
                 status: token != nil
-                    ? "Stored in Keychain (\(masked)) · scope: \(scope) — a new token takes effect immediately."
-                    : "Not stored — a PAT with repo scope is required (scope: \(scope)).",
-                placeholder: "ghp_…",
+                    ? "Stored in Keychain (\(masked)) · scope: \(config.scope) @ \(config.instance) — a new token takes effect immediately."
+                    : "Not stored — a token with runner-management rights is required (scope: \(config.scope) @ \(config.instance)).",
+                placeholder: placeholder,
                 buttonTitle: token != nil ? "Replace…" : "Save…",
                 configured: true
             )
-        case .gitea:
-            if let gitea {
-                return TokenSettingsRow(
-                    forge: forge,
-                    title: "Gitea",
-                    status: token != nil
-                        ? "Stored in Keychain (\(masked)) · scope: \(gitea.scope) @ \(gitea.instance) — a new token takes effect immediately."
-                        : "Not stored — a token with runner-management rights is required (scope: \(gitea.scope) @ \(gitea.instance)).",
-                    placeholder: "gitea token…",
-                    buttonTitle: token != nil ? "Replace…" : "Save…",
-                    configured: true
-                )
-            }
-            return TokenSettingsRow(
-                forge: forge,
-                title: "Gitea",
-                status: token != nil
-                    ? "Stored in Keychain (\(masked)) — no gitea: section in config.yaml yet, so it is not in use."
-                    : "Not in use — add a gitea: section to config.yaml; a token saved here is kept ready.",
-                placeholder: "gitea token…",
-                buttonTitle: token != nil ? "Replace…" : "Save…",
-                configured: false
-            )
         }
+        return TokenSettingsRow(
+            forge: forge,
+            title: title,
+            status: token != nil
+                ? "Stored in Keychain (\(masked)) — no \(section): section in config.yaml yet, so it is not in use."
+                : "Not in use — add a \(section): section to config.yaml; a token saved here is kept ready.",
+            placeholder: placeholder,
+            buttonTitle: token != nil ? "Replace…" : "Save…",
+            configured: false
+        )
+    }
+
+    /// The GitHub card.
+    static func makeGitHub(token: String?, repo: String?) -> TokenSettingsRow {
+        let masked = token.map { String($0.prefix(4)) + "…" } ?? "—"
+        let scope = repo.flatMap { $0.isEmpty ? nil : $0 } ?? "your repo (set it in config.yaml)"
+        return TokenSettingsRow(
+            forge: .github,
+            title: "GitHub",
+            status: token != nil
+                ? "Stored in Keychain (\(masked)) · scope: \(scope) — a new token takes effect immediately."
+                : "Not stored — a PAT with repo scope is required (scope: \(scope)).",
+            placeholder: "ghp_…",
+            buttonTitle: token != nil ? "Replace…" : "Save…",
+            configured: true
+        )
     }
 }
 
@@ -169,12 +187,17 @@ final class TokenSettingsWindowController: NSWindowController {
         rowsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         let cfg = try? ConfigLoader.load()
         for forge in ForgeID.allCases {
-            let row = TokenSettingsRow.make(
-                forge: forge,
-                token: KeychainTokenStore.load(forge: forge),
-                repo: cfg?.repo,
-                gitea: cfg?.gitea
-            )
+            let row: TokenSettingsRow
+            switch forge {
+            case .github:
+                row = TokenSettingsRow.makeGitHub(token: KeychainTokenStore.load(forge: forge), repo: cfg?.repo)
+            case .gitea:
+                row = TokenSettingsRow.make(
+                    forge: forge, token: KeychainTokenStore.load(forge: forge), repo: cfg?.repo, gitea: cfg?.gitea)
+            case .forgejo:
+                row = TokenSettingsRow.make(
+                    forge: forge, token: KeychainTokenStore.load(forge: forge), repo: nil, gitea: cfg?.forgejo)
+            }
             rowsStack.addArrangedSubview(makeCard(for: row))
         }
     }

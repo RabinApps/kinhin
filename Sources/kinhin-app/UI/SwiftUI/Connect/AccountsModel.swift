@@ -174,7 +174,7 @@ final class AccountsModel {
             let client = GitHubClient(credentials: GitHubCredentials(token: token, scope: account.scope))
             let report = await OrgPermissionProbe.verify(github: client, scope: account.scope)
             return StatusLine(text: report.message, style: report.ok ? .ok : .error)
-        case .gitea:
+        case .gitea, .forgejo:
             guard let instance = account.instance else {
                 return StatusLine(text: "This account has no server address in config.yaml.", style: .error)
             }

@@ -227,7 +227,8 @@ struct TartRuntime: Runtime {
                     name: name,
                     runnerCount: runnerCount
                 )
-        case .gitea:
+        case .gitea, .forgejo:
+            // Forgejo shares Gitea's runner binary and registration flow.
             return cachePrefix
                 + RunnerBootstrap.giteaRegistrationScript(
                     instance: forge.registrationURL(),

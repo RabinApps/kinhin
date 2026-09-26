@@ -270,6 +270,7 @@ public final class FleetEngine {
             }
         }
         await attachGiteaForgeIfNeeded()
+        await attachForgejoForgeIfNeeded()
         await attachAccountsIfNeeded()
         let attachedCount = forgesLock.withLock { forgesByPlatform.count }
         guard attachedCount > 0 else {
@@ -415,6 +416,57 @@ public final class FleetEngine {
             let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             Log.error("engine", "gitea token replacement failed: \(message)")
             await statusBox.modify { $0.lastError = "gitea: \(message)" }
+        }
+    }
+
+    /// Build the Forgejo forge when the config declares one. Wire-compatible
+    /// with Gitea (same client and runner binary); a failure here keeps the
+    /// fleet running with the reason in lastError.
+    func attachForgejoForgeIfNeeded() async {
+        guard let forgejoConfig = config.forgejo else { return }
+        guard forgesLock.withLock({ forgesByPlatform["forgejo"] == nil }) else { return }
+        guard let token = KeychainTokenStore.load(forge: .forgejo) else {
+            let message = "forgejo configured but no access token stored — run: kinhin auth set --forgejo"
+            Log.error("engine", message)
+            await statusBox.modify { $0.lastError = message }
+            return
+        }
+        do {
+            let credentials = GiteaCredentials(token: token, scope: forgejoConfig.scope, instance: forgejoConfig.instance)
+            let forge = try await ForgejoForge.make(
+                credentials: credentials,
+                labels: forgejoConfig.labels ?? ["macos:host"],
+                demandFloor: config.minRunners
+            )
+            forgesLock.withLock { forgesByPlatform["forgejo"] = forge }
+            Log.info("engine", "forgejo forge attached (\(forgejoConfig.scope) @ \(forgejoConfig.instance))")
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            Log.error("engine", "forgejo forge unavailable: \(message)")
+            await statusBox.modify { $0.lastError = "forgejo: \(message)" }
+        }
+    }
+
+    /// Swap the Forgejo access token live: rebuilds the forge (re-minting its
+    /// registration token) or attaches one for the first time.
+    public func replaceForgejoToken(_ token: String) async {
+        guard let forgejoConfig = config.forgejo else {
+            Log.warn("engine", "forgejo token replaced but no forgejo forge is configured")
+            return
+        }
+        do {
+            let credentials = GiteaCredentials(token: token, scope: forgejoConfig.scope, instance: forgejoConfig.instance)
+            let forge = try await ForgejoForge.make(
+                credentials: credentials,
+                labels: forgejoConfig.labels ?? ["macos:host"],
+                demandFloor: config.minRunners
+            )
+            forgesLock.withLock { forgesByPlatform["forgejo"] = forge }
+            Log.info("engine", "forgejo credentials replaced (\(forgejoConfig.scope) @ \(forgejoConfig.instance))")
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            Log.error("engine", "forgejo token replacement failed: \(message)")
+            await statusBox.modify { $0.lastError = "forgejo: \(message)" }
         }
     }
 

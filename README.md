@@ -526,16 +526,17 @@ Contributor conventions (layout, style, error handling, formatting) are in [CLAU
 CI: `.github/workflows/ci.yml` lints, builds, and tests on `macos-14`; `release.yml` publishes the DMG,
 CLI zip, installer, and checksums to GitHub Releases on `v*` tags.
 
-## Forge support (GitHub, Gitea, & the future)
+## Forge support (GitHub, Gitea, Forgejo, & the future)
 
-kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today two forges ship:
+kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today three forges ship:
 
 | Forge          | Status       | Runner agent                             | Scope shape                              |
 | -------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
 | GitHub Actions | ✅ supported | actions-runner (GitHub's official agent) | `owner/name` repo or org                 |
 | Gitea Actions  | ✅ supported | gitea-runner (formerly act_runner)       | `owner/name` repo or org on any instance |
+| Forgejo        | ✅ supported | gitea-runner (wire-compatible)           | `owner/name` repo or org on any instance |
 
-One fleet can serve **both at the same time** from a shared VM pool: each VM is assigned at spawn to whichever forge has the most pending work, registers there, and is deleted when its job finishes. Token-gating ties platforms to credentials — an agent is baked into the image and a forge attaches only when that platform's token exists.
+One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned at spawn to whichever forge has the most pending work, registers there, and is deleted when its job finishes. Token-gating ties platforms to credentials — an agent is baked into the image and a forge attaches only when that platform's token exists.
 
 **Adding Gitea:** store a Gitea access token with runner-management rights on the scope, then declare the forge in `config.yaml`:
 
@@ -549,13 +550,24 @@ gitea:
 - Token: `kinhin auth set --gitea` (or the checklist's Gitea token row). Both tokens live in the Keychain; replace either live without restarting.
 - Image provisioning is **token-gated**: `kinhin image prepare` bakes the GitHub agent only if a GitHub PAT is stored, and the gitea-runner binary only if a Gitea token is stored — no credential, no agent. Both runner versions are resolved from the vendors' release feeds at prepare time (pinned fallback when offline).
 - Gitea VMs are ephemeral like GitHub's: gitea-runner has no `--ephemeral`, so kinhin watches for all of the VM's runners to go idle and deletes the VM after a short grace period.
-- Demand polling uses the scope's task-queue endpoints; when the instance reports nothing usable, a `min_runners` floor keeps capacity available.
+- Demand polling uses the scope's task-queue endpoints — real task entries with per-repo attribution when the instance exposes them (org scopes contribute to `queueByRepo`), with per-VM running attribution from busy runners; a `min_runners` floor keeps capacity available when an older instance reports nothing usable.
 
-**Multiple accounts:** serve as many GitHub orgs/repos and Gitea instances as you like from one fleet. `repo:` and `gitea:` remain the built-in accounts (named `github` and `gitea`, tokens under the original Keychain items — nothing to migrate); add more with an `accounts:` list, each with its own token:
+**Adding Forgejo:** Forgejo is Gitea's upstream and is wire-compatible — the same `/api/v1` endpoints, the same task queue, the same gitea-runner binary. Declare it alongside (or instead of) `gitea:`:
+
+```yaml
+forgejo:
+  instance: "https://code.example.com"
+  scope: "owner/name" # or an org name
+  labels: ["macos:host"]
+```
+
+Token: `kinhin auth set --forgejo` (or a `forge: forgejo` entry in `accounts:`). `kinhin image prepare` bakes the gitea-runner binary when either a Gitea or a Forgejo token is stored — the same binary serves both platforms.
+
+**Multiple accounts:** serve as many GitHub orgs/repos and Gitea/Forgejo instances as you like from one fleet. `repo:`, `gitea:`, and `forgejo:` remain the built-in accounts (named `github`, `gitea`, and `forgejo`, tokens under the original Keychain items — nothing to migrate); add more with an `accounts:` list, each with its own token:
 
 ```yaml
 accounts:
-  - name: work # lowercase letters, digits, - or _ (not "github"/"gitea")
+  - name: work # lowercase letters, digits, - or _ (not "github"/"gitea"/"forgejo")
     forge: github
     scope: "bigco" # org, or owner/name
   - name: home-gitea
@@ -570,7 +582,7 @@ accounts:
 - `repo:` may be omitted when every account is in `accounts:`. Older kinhin builds ignore the `accounts:` key, so don't share one config with a build that predates it.
 - `kinhin auth status --json` keeps its `forges` entries and adds an `accounts` array.
 
-**More forges are planned.** The Forge protocol was designed so new platforms slot in without touching the engine: Forgejo (Gitea's upstream, wire-compatible with the Gitea forge), GitLab (its runner is Docker-executor-oriented, so a macOS host-mode path needs design work), Sourcehut, Buildkite, and others are all candidates. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
+**More forges are planned.** The Forge protocol was designed so new platforms slot in without touching the engine — Forgejo (shipped) landed as a thin re-brand of the Gitea forge: GitLab (its runner is Docker-executor-oriented, so a macOS host-mode path needs design work), Sourcehut, Buildkite, and others are all candidates. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
 
 **Execution runtimes are the second axis** (design: [docs/runtime-abstraction-design.md](docs/runtime-abstraction-design.md)): every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the agent, and tears down. Three backends ship: **Tart** (macOS VMs), **apple/container** (Linux microVMs), and **Docker** (Linux containers in your provider's shared VM); opt-in host-direct execution is a candidate behind the same interface. The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the protocol, so new backends slot in without touching lifecycle code.
 

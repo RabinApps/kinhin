@@ -1,16 +1,17 @@
-# Forge support (GitHub, Gitea, & the future)
+# Forge support (GitHub, Gitea, Forgejo, & the future)
 
 Kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a
 registration token, list/delete runners, report queued demand, track running jobs — and each
-CI platform implements it behind that interface. Today two forges ship:
+CI platform implements it behind that interface. Today three forges ship:
 
 | Forge          | Status       | Runner agent                             | Scope shape                                  |
 | -------------- | ------------ | ---------------------------------------- | -------------------------------------------- |
 | GitHub Actions | ✅ supported | actions-runner (GitHub's official agent) | `RabinApps/name` repo or org                 |
 | Gitea Actions  | ✅ supported | gitea-runner (formerly act_runner)       | `RabinApps/name` repo or org on any instance |
+| Forgejo        | ✅ supported | gitea-runner (wire-compatible)           | `RabinApps/name` repo or org on any instance |
 
-One fleet can serve **both at the same time** from a shared VM pool: each VM is assigned at
-spawn to whichever forge has the most pending work, registers there, and is deleted when its
+One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned
+at spawn to whichever forge has the most pending work, registers there, and is deleted when its
 job finishes.
 
 ## Adding Gitea
@@ -31,8 +32,28 @@ gitea:
   a GitHub PAT is stored, and the gitea-runner binary only if a Gitea token is stored.
 - Gitea VMs are ephemeral like GitHub's: gitea-runner has no `--ephemeral`, so kinhin watches
   for all of the VM's runners to go idle and deletes the VM after a short grace period.
-- Demand polling uses the scope's task-queue endpoints; when the instance reports nothing
-  usable, a `min_runners` floor keeps capacity available.
+- Demand polling uses the scope's task-queue endpoints — real task entries with per-repo
+  attribution when the instance exposes them (org scopes contribute to `queueByRepo`), with
+  per-VM running attribution from busy runners; a `min_runners` floor keeps capacity available
+  when an older instance reports nothing usable.
+
+## Adding Forgejo
+
+Forgejo is Gitea's upstream and is wire-compatible: the same `/api/v1` endpoints, the same
+task queue, the same gitea-runner binary. Declare it alongside (or instead of) `gitea:`:
+
+```yaml
+forgejo:
+  instance: "https://code.example.com"
+  scope: "acme/api" # or an org name
+  labels: ["macos:host"]
+```
+
+- Token: `kinhin auth set --forgejo` (or a `forge: forgejo` entry in `accounts:`).
+- `kinhin image prepare` bakes the gitea-runner binary when either a Gitea or a Forgejo token
+  is stored — the same binary serves both platforms.
+- All Gitea semantics apply unchanged: long-lived registration tokens, idle-grace ephemeral
+  watches, and task-queue demand polling.
 
 ## Multiple accounts
 
@@ -42,7 +63,7 @@ scope and its own token:
 
 ```yaml
 accounts:
-  - name: work # lowercase letters, digits, - or _ (not "github"/"gitea")
+  - name: work # lowercase letters, digits, - or _ (not "github"/"gitea"/"forgejo")
     forge: github
     scope: "bigco" # org, or owner/name
   - name: home-gitea
