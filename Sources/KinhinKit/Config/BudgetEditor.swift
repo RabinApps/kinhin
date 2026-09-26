@@ -121,16 +121,24 @@ public enum BudgetEditor {
     /// Routes whose target runtime cannot run a single instance at this
     /// split (cap 0) — or whose runtime isn't configured at all. Each entry
     /// is a human-readable warning; empty means the split can serve every
-    /// route.
+    /// route. Host routes are never starved: host runners draw no VM/container
+    /// budget ("cap n/a" in the pane), so no split can strand them.
     public static func starvedRoutes(
         routes: [KinhinConfig.RuntimeConfig.Route],
         caps: [RuntimeID: Int],
-        configuredRuntimes: Set<RuntimeID>
+        configuredRuntimes: Set<RuntimeID>,
+        isPartitioned: Bool = true
     ) -> [String] {
+        // No budget configured: the fleet isn't partitioned (pools read
+        // "cap n/a"), so no split has stranded anything yet.
+        guard isPartitioned else { return [] }
         var warnings: [String] = []
         var seen: Set<String> = []
         for route in routes {
             guard let runtime = RuntimeID(rawValue: route.runtime) else { continue }
+            // Host runners draw no partitioned budget, so they have no cap
+            // entry at all — without this skip they would read as cap 0.
+            guard runtime != .host else { continue }
             guard configuredRuntimes.contains(runtime) else { continue }  // validation's job
             let cap = caps[runtime] ?? 0
             guard cap == 0, seen.insert(runtime.rawValue).inserted else { continue }

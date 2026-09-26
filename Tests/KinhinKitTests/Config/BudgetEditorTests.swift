@@ -157,6 +157,32 @@ final class BudgetEditorTests: XCTestCase {
         XCTAssertTrue(warnings.isEmpty)
     }
 
+    func testStarvedRoutesIsQuietWhenTheFleetIsNotPartitioned() {
+        // No budget configured: pools read "cap n/a", so a missing cap entry
+        // is not a starved route — nothing has been stranded by a split.
+        let routes = [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer")]
+        let warnings = BudgetEditor.starvedRoutes(
+            routes: routes,
+            caps: [.tart: 2, .appleContainer: 1],
+            configuredRuntimes: [.tart, .appleContainer],
+            isPartitioned: false
+        )
+        XCTAssertTrue(warnings.isEmpty)
+    }
+
+    func testStarvedRoutesNeverFlagsHostRoutes() {
+        // Host runners draw no partitioned budget, so they have no cap
+        // entry — a regression here warned that host routes "will never get
+        // a runner" on every split.
+        let routes = [KinhinConfig.RuntimeConfig.Route(pattern: "acme/scripts", runtime: "host")]
+        let warnings = BudgetEditor.starvedRoutes(
+            routes: routes,
+            caps: [.tart: 0],
+            configuredRuntimes: [.tart, .host]
+        )
+        XCTAssertTrue(warnings.isEmpty)
+    }
+
     // MARK: previewCaps
 
     func testPreviewCapsMatchPartitionMath() {
