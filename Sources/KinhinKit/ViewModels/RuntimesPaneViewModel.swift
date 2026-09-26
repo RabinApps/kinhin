@@ -205,6 +205,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                 let runtime = TartRuntime(tart: controller, bootTimeout: { parsed.vmBootTimeout })
                 group.addTask { (.tart, await runtime.health()) }
             } else {
+                // Construction fails only when the binary is missing, which is the answer.
                 group.addTask {
                     (
                         .tart,

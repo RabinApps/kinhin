@@ -184,6 +184,7 @@ public struct ToolchainCachePruner {
         else { return }
 
         for case let url as URL in enumerator {
+            // An entry that vanished or cannot be stat'ed mid-walk is simply not pruned this sweep.
             let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey])
             guard let values else { continue }
             let isDir = values.isDirectory ?? false
@@ -208,6 +209,7 @@ public struct ToolchainCachePruner {
         var dirs: [URL] = []
         if let enumerator = fileManager.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey]) {
             for case let url as URL in enumerator {
+                // Unreadable entries are treated as non-directories and kept.
                 if (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
                     dirs.append(url)
                 }
@@ -215,9 +217,10 @@ public struct ToolchainCachePruner {
         }
         // Deepest first so parents empty out as children are removed.
         for dir in dirs.sorted(by: { $0.path.count > $1.path.count }) {
+            // An unlistable directory reads as non-empty, so it is kept.
             let contents = (try? fileManager.contentsOfDirectory(atPath: dir.path)) ?? ["keep"]
             if contents.isEmpty {
-                try? fileManager.removeItem(at: dir)
+                bestEffort("cache", "removing empty directory \(dir.path)") { try fileManager.removeItem(at: dir) }
             }
         }
     }

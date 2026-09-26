@@ -64,10 +64,13 @@ public enum Paths {
 
     public static func ensureSupportDirectories() {
         migrateLegacySupportDirectory()
-        try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
-        try? FileManager.default.createDirectory(at: logsDirectory, withIntermediateDirectories: true)
-        try? FileManager.default.createDirectory(at: stateDirectory, withIntermediateDirectories: true)
-        try? FileManager.default.createDirectory(at: toolchainCache, withIntermediateDirectories: true)
+        // Best effort: a directory that cannot be created is logged here, and
+        // the first write into it fails with the real error.
+        for directory in [appSupport, logsDirectory, stateDirectory, toolchainCache] {
+            bestEffort("paths", "creating \(directory.path)") {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            }
+        }
     }
 
     /// Locate a binary: explicit override, PATH, then Homebrew prefixes.

@@ -191,12 +191,14 @@ public struct UpdateChecker: Sendable {
     public func downloadDMG(_ info: UpdateInfo, progress: (@Sendable (Double) -> Void)? = nil) async throws -> URL {
         let temp = FileManager.default.temporaryDirectory
             .appendingPathComponent("kinhin-update-\(info.dmgName)")
+        // A leftover from an earlier download usually isn't there; if it is and
+        // cannot be removed, the moveItem below throws the real error.
         try? FileManager.default.removeItem(at: temp)
 
         let delegate = DownloadProgressDelegate(progress: progress)
         let (location, response) = try await session.download(for: URLRequest(url: info.dmgURL), delegate: delegate)
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            try? FileManager.default.removeItem(at: location)
+            try? FileManager.default.removeItem(at: location)  // system temp file; the HTTP error is what matters
             throw UpdateCheckError.http(http.statusCode, "downloading \(info.dmgName)")
         }
         try FileManager.default.moveItem(at: location, to: temp)
