@@ -1,5 +1,5 @@
-// Capture harness: renders the REAL OnboardingWizardViewController (all 4
-// steps) and ConfigTabViewController into PNGs, in light AND dark appearance.
+// Capture harness: renders the REAL wizard (all 4 steps), the Routing pane,
+// Containers, and Capacity into PNGs, in light AND dark appearance.
 // AppKit-only: no engine, no Keychain, no daemon, no writes to the real
 // config. Built together with the app sources (same module → internal
 // access); AppMain.swift is excluded so this file's @main is the entry.
@@ -7,6 +7,8 @@
 // Env: KINHIN_HARNESS_OUT (default ".") — destination directory.
 import AppKit
 import KinhinKit
+import Observation
+import SwiftUI
 
 let scale: CGFloat = 2
 
@@ -146,57 +148,79 @@ struct HarnessMain {
             // The wizard's forms are created with it: point them at the
             // scratch file and stub the Keychain probe BEFORE the view loads.
             // Steps: connect → mac → toolchains → start (4 total).
-            let wizard = OnboardingWizardViewController()
-            wizard.connectFormForTesting.configURL = scratch
-            wizard.connectFormForTesting.hasStoredToken = { _ in false }
-            wizard.macFormForTesting.configURL = scratch
-            wizard.loadViewIfNeeded()
-            render(wizard, size: size, name: "cap-wizard1-\([tag])", appearance: appearance)
-            wizard.nextClickedForTesting(); wizard.loadViewIfNeeded()
-            render(wizard, size: size, name: "cap-wizard2-\([tag])", appearance: appearance)
-            wizard.nextClickedForTesting(); wizard.loadViewIfNeeded()
-            render(wizard, size: size, name: "cap-wizard3-\([tag])", appearance: appearance)
+            let wizardModel = WizardModel()
+            wizardModel.connect.configURL = scratch
+            wizardModel.connect.hasStoredToken = { _ in false }
+            wizardModel.mac.configURL = scratch
+            wizardModel.mac.autoEnableLinuxRuntime = false
+            let wizardVC = NSViewController()
+            let wizardHost = NSHostingView(rootView: WizardView(model: wizardModel))
+            wizardHost.sizingOptions = []
+            wizardHost.frame = NSRect(origin: .zero, size: size)
+            wizardVC.view = wizardHost
+            wizardModel.show(.connect)
+            render(wizardVC, size: size, name: "cap-wizard1-\(tag)", appearance: appearance)
+            wizardModel.next()  // → mac
+            render(wizardVC, size: size, name: "cap-wizard2-\(tag)", appearance: appearance)
+            wizardModel.next()  // → toolchains
+            render(wizardVC, size: size, name: "cap-wizard3-\(tag)", appearance: appearance)
             // Step 3: select toolchains (all disabled by default).
-            wizard.nextClickedForTesting(); wizard.loadViewIfNeeded()
-            render(wizard, size: size, name: "cap-wizard4-\([tag])", appearance: appearance)
+            wizardModel.next()  // → start
+            render(wizardVC, size: size, name: "cap-wizard4-\(tag)", appearance: appearance)
             // Step 4: the Ready-to-go summary shows the selected toolchains.
-            wizard.nextClickedForTesting(); wizard.loadViewIfNeeded()
-            render(wizard, size: size, name: "cap-wizard5-\([tag])", appearance: appearance)
+            wizardModel.refreshSummary()
+            render(wizardVC, size: size, name: "cap-wizard5-\(tag)", appearance: appearance)
 
             // Setup tab (post-onboarding): the same two forms on one page.
-            let connect = ConnectFormViewController()
-            connect.configURL = scratch
-            connect.hasStoredToken = { _ in false }
-            let mac = MacToolsFormViewController()
-            mac.configURL = scratch
-            let page = NSViewController()
-            let (scroll, column) = FormKit.scrollingColumn(spacing: 14)
-            column.addArrangedSubview(connect.view)
-            column.addArrangedSubview(mac.view)
-            let holder = NSView()
-            holder.addSubview(scroll)
-            NSLayoutConstraint.activate([
-                scroll.topAnchor.constraint(equalTo: holder.topAnchor),
-                scroll.bottomAnchor.constraint(equalTo: holder.bottomAnchor),
-                scroll.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 16),
-                scroll.trailingAnchor.constraint(equalTo: holder.trailingAnchor, constant: -16),
-            ])
-            page.view = holder
-            render(page, size: NSSize(width: 620, height: 820), name: "cap-setup-\(tag)", appearance: appearance)
+            let connectModel = ConnectModel()
+            connectModel.configURL = scratch
+            connectModel.hasStoredToken = { _ in false }
+            let macModel = MacToolsModel()
+            macModel.configURL = scratch
+            macModel.autoEnableLinuxRuntime = false
+            let pageVC = NSViewController()
+            let pageHost = NSHostingView(
+                rootView: ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        SectionHeader("Connect")
+                        ConnectView(model: connectModel)
+                        SectionHeader("This Mac")
+                        MacToolsView(model: macModel)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(4)
+                })
+            pageHost.sizingOptions = []
+            pageHost.frame = NSRect(origin: .zero, size: NSSize(width: 620, height: 820))
+            pageVC.view = pageHost
+            render(pageVC, size: NSSize(width: 620, height: 820), name: "cap-setup-\(tag)", appearance: appearance)
 
-            let containers = ContainersViewController()
-            containers.makeManager = { ContainerManager(tool: $0, shell: CannedShell(), binary: "/bin/docker") }
-            containers.loadViewIfNeeded()
+            // Advanced → Containers (canned Docker output).
+            let containersModel = ContainersModel()
+            containersModel.makeManager = { ContainerManager(tool: $0, shell: CannedShell(), binary: "/bin/docker") }
+            let containersVC = NSViewController()
+            let containersHost = NSHostingView(rootView: ContainersView(model: containersModel))
+            containersHost.sizingOptions = []
+            containersHost.frame = NSRect(origin: .zero, size: NSSize(width: 600, height: 620))
+            containersVC.view = containersHost
             let wait = DispatchSemaphore(value: 0)
-            Task { @MainActor in await containers.reloadAndWait(); wait.signal() }
+            Task { @MainActor in
+                await containersModel.reloadAndWait()
+                wait.signal()
+            }
             while wait.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
-            render(containers, size: NSSize(width: 600, height: 620), name: "cap-containers-\(tag)", appearance: appearance)
+            render(containersVC, size: NSSize(width: 600, height: 620), name: "cap-containers-\(tag)", appearance: appearance)
 
-            let config = ConfigTabViewController()
-            config.configURL = scratch
-            config.loadViewIfNeeded()
-            config.renderForTesting(snapshot)
-            render(config, size: NSSize(width: 600, height: 760), name: "cap-config-\(tag)", appearance: appearance)
+            // Advanced → Capacity (scratch config, no real-file access).
+            let capacityModel = CapacityModel()
+            capacityModel.configURL = scratch
+            capacityModel.reload()
+            let capacityVC = NSViewController()
+            let capacityHost = NSHostingView(rootView: CapacityView(model: capacityModel))
+            capacityHost.sizingOptions = []
+            capacityHost.frame = NSRect(origin: .zero, size: NSSize(width: 600, height: 760))
+            capacityVC.view = capacityHost
+            render(capacityVC, size: NSSize(width: 600, height: 760), name: "cap-config-\(tag)", appearance: appearance)
         }
 
         // Whole-window walkthrough with the real MainTabsWindowController.
@@ -227,7 +251,7 @@ struct HarnessMain {
             captureWindow(main, name: "win-advanced-capacity-\(tag)", dark: dark)
             main.showAdvanced(.routing)
             // The pane loads asynchronously (config read + health probes).
-            for _ in 0..<150 where main.runtimesController?.hasLoadedForTesting != true {
+            for _ in 0..<150 where main.runtimesModel?.hasLoadedForTesting != true {
                 RunLoop.main.run(until: Date().addingTimeInterval(0.05))
             }
             RunLoop.main.run(until: Date().addingTimeInterval(1.0))
