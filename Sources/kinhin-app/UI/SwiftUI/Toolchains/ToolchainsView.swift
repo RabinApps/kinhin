@@ -53,8 +53,15 @@ struct ToolchainsView: View {
             ? "macOS · Linux" : (set.contains(.macOS) ? "macOS only" : "Linux only")
     }
 
+    /// Header note on a collapsed card, so picks stay visible without expanding it.
+    private func selectedBadge(_ count: Int) -> String? {
+        count > 0 ? "\(count) selected" : nil
+    }
+
     private func toolsCard(_ title: String, _ entries: [ToolchainEntry]) -> some View {
-        FormCard(title: title) {
+        CollapsibleFormCard(
+            title: title, badge: selectedBadge(entries.filter { model.isToolOn($0.id) }.count)
+        ) {
             ForEach(entries, id: \.id) { entry in
                 entryRow(
                     id: entry.id, tag: platformLabel(entry.platforms),
@@ -67,7 +74,10 @@ struct ToolchainsView: View {
     }
 
     private var stacksCard: some View {
-        FormCard(title: "Stacks", subtitle: "Bundled recipes: several tools installed together.") {
+        CollapsibleFormCard(
+            title: "Stacks", subtitle: "Bundled recipes: several tools installed together.",
+            badge: selectedBadge(ToolchainCatalog.stacks.filter { model.isStackOn($0.id) }.count)
+        ) {
             ForEach(ToolchainCatalog.stacks, id: \.id) { stack in
                 entryRow(
                     id: stack.id, tag: platformLabel(stack.platforms),

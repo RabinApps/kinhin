@@ -23,10 +23,12 @@ final class ContainerSetupStatusTests: XCTestCase {
     private func computer(
         containerHealth: RuntimeHealth?,
         containerImages: [String]? = nil,
-        container: KinhinConfig.ContainerConfig? = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
+        container: KinhinConfig.ContainerConfig? = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux"),
+        host: HostResources? = nil,
+        macOS: Int = 26
     ) -> SetupStatusComputer {
         SetupStatusComputer(
-            host: host(),
+            host: host ?? self.host(),
             clt: .ok(version: "27.0"),
             tartHealth: .healthy,
             tartList: [
@@ -37,7 +39,8 @@ final class ContainerSetupStatusTests: XCTestCase {
             config: .loaded(config(container: container)),
             tokenStored: true,
             containerHealth: containerHealth,
-            containerImages: containerImages
+            containerImages: containerImages,
+            osVersion: OperatingSystemVersion(majorVersion: macOS, minorVersion: 0, patchVersion: 0)
         )
     }
 
@@ -66,6 +69,20 @@ final class ContainerSetupStatusTests: XCTestCase {
         let imageRow = status.checks.first { $0.id == "container-image" }
         XCTAssertEqual(imageRow?.action, "prepare_container_image")
         XCTAssertTrue(imageRow?.detail.contains("after the container system is running") ?? false)
+    }
+
+    func testMissingCLIOnAnUnsupportedMacExplainsInsteadOfOfferingAnInstall() async {
+        let intel = HostResources(logicalCores: 8, memoryGB: 16, freeDiskGB: 120, arm64: false)
+        let missing = RuntimeHealth.missing(tool: "apple container", fix: "brew")
+        for status in [
+            await computer(containerHealth: missing, host: intel).compute(),
+            await computer(containerHealth: missing, macOS: 15).compute(),
+        ] {
+            let row = status.checks.first { $0.id == "container-cli" }
+            XCTAssertEqual(row?.ok, false)
+            XCTAssertNil(row?.action, "no install button for something that can't run here")
+            XCTAssertTrue(row?.detail.contains("Apple container needs") ?? false, row?.detail ?? "")
+        }
     }
 
     func testServiceDownEmitsStartAction() async {

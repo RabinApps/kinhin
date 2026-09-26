@@ -76,6 +76,7 @@ enum RuntimeInstallerError: LocalizedError, Equatable {
     case brewMissing
     case commandFailed(command: String, output: String)
     case notInstalledAfterwards(InstallableTool)
+    case unsupportedHost(String)
 
     public var errorDescription: String? {
         switch self {
@@ -87,6 +88,8 @@ enum RuntimeInstallerError: LocalizedError, Equatable {
         case .notInstalledAfterwards(let tool):
             return
                 "The install finished but \(tool.binaryName) still isn't on this Mac's PATH. Open a new Terminal or restart kinhin."
+        case .unsupportedHost(let reason):
+            return reason
         }
     }
 }
@@ -162,12 +165,17 @@ public enum RuntimeInstaller {
 
     /// Runs the option's commands in order (install, then post-install), then
     /// checks the tool is really there. Throws with the failing command and
-    /// its output so the UI can show it.
+    /// its output so the UI can show it. Refuses up front when this Mac cannot
+    /// run what the option installs.
     public static func install(
         _ option: InstallOption, tool: InstallableTool,
         shell: ShellRunning = Shell(), brew: String? = RuntimeInstaller.brewPath,
+        host: HostFacts = .current(),
         isInstalled: (InstallableTool) -> Bool = { $0.isInstalled }
     ) async throws {
+        if case .unsupported(let reason) = HostRequirements.verdict(for: option, on: host) {
+            throw RuntimeInstallerError.unsupportedHost(reason)
+        }
         if option.needsBrew, brew == nil { throw RuntimeInstallerError.brewMissing }
         for command in option.commands + option.postInstall {
             guard let argv = resolve(command, brew: brew) else {

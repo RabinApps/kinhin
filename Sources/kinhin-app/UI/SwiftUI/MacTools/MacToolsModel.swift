@@ -86,6 +86,12 @@ final class MacToolsModel {
     /// Whether a tool is installed afterwards (real PATH lookup by default).
     @ObservationIgnored var installedCheck: @Sendable (InstallableTool) -> Bool = { $0.isInstalled }
     @ObservationIgnored var brewPath: () -> String? = { RuntimeInstaller.brewPath }
+    /// The Mac install options are judged against (real probe by default).
+    @ObservationIgnored var hostFacts: () -> HostFacts = { .current() }
+    /// Shown instead of the confirmation when no option can run on this Mac.
+    @ObservationIgnored var explainUnsupported: (InstallableTool, Error) -> Void = { tool, error in
+        AlertKit.present(error: error, title: "\(tool.title) can't run on this Mac")
+    }
 
     // MARK: State
 
@@ -97,12 +103,16 @@ final class MacToolsModel {
         let containerInstalled = Paths.findExecutable(named: "container") != nil
         let dockerInstalled = Paths.findExecutable(named: "docker") != nil
         recomputeReadiness()
-        containerInstallVisible = !containerInstalled
+        // Don't offer an install that can't run here; say why instead.
+        let host = hostFacts()
+        let containerBlocked = HostRequirements.blockingReason(for: .appleContainer, on: host)
+        let dockerBlocked = HostRequirements.blockingReason(for: .docker, on: host)
+        containerInstallVisible = !containerInstalled && containerBlocked == nil
         containerInstallTitle = "Install…"
         containerServiceNeedsStart = false
-        dockerInstallVisible = !dockerInstalled
-        containerLine = Line(text: containerInstalled ? "installed ✓" : "not installed")
-        dockerLine = Line(text: dockerInstalled ? "installed ✓" : "not installed")
+        dockerInstallVisible = !dockerInstalled && dockerBlocked == nil
+        containerLine = Self.installLine(installed: containerInstalled, blocked: containerBlocked)
+        dockerLine = Self.installLine(installed: dockerInstalled, blocked: dockerBlocked)
 
         let image = snapshot?.image ?? "tahoe-base"
         let tartInstalled = TartController.isInstalled()
@@ -211,6 +221,12 @@ final class MacToolsModel {
         }
     }
 
+    private static func installLine(installed: Bool, blocked: String?) -> Line {
+        if installed { return Line(text: "installed ✓") }
+        if let blocked { return Line(text: "not supported — \(blocked)", style: .warn) }
+        return Line(text: "not installed")
+    }
+
     func installTart() { install(.tart) }
 
     func installContainer() {
@@ -243,7 +259,14 @@ final class MacToolsModel {
     /// a missing Homebrew gets an explanation instead of a failing command.
     @discardableResult
     func install(_ tool: InstallableTool) -> Task<Void, Never>? {
-        let options = RuntimeInstaller.options(for: tool)
+        let host = hostFacts()
+        do {
+            try HostRequirements.ensureSupported(tool, on: host)
+        } catch {
+            explainUnsupported(tool, error)
+            return nil
+        }
+        let options = HostRequirements.offeredOptions(for: tool, on: host)
         guard brewPath() != nil || options.contains(where: { !$0.needsBrew }) else {
             explainMissingBrew(tool, options)
             return nil
@@ -254,7 +277,8 @@ final class MacToolsModel {
         let installed = installedCheck
         let name = tool.title
         let task = run("Installing \(name)… this can take several minutes.") {
-            try await RuntimeInstaller.install(choice, tool: tool, shell: shell, brew: brew, isInstalled: installed)
+            try await RuntimeInstaller.install(
+                choice, tool: tool, shell: shell, brew: brew, host: host, isInstalled: installed)
         }
         // On failure, tell the user how to do it by hand.
         Task { [weak self] in

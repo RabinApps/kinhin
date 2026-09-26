@@ -107,6 +107,23 @@ final class DoctorReportTests: XCTestCase {
         XCTAssertFalse(report.container?.imageFound ?? true, "no images when the runtime is not ready")
     }
 
+    func testDockerAvailabilityIsReportedEvenWithoutDockerConfig() async {
+        let macOS26 = OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)
+        func build(installed: Bool) async -> DoctorReport {
+            await DoctorReportBuilder(
+                host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
+                config: .loaded(Self.config()), authLoad: { _ in nil }, dockerInstalled: installed, osVersion: macOS26
+            ).build()
+        }
+        let missing = await build(installed: false)
+        XCTAssertNil(missing.docker, "no docker: section → no runtime half")
+        XCTAssertEqual(
+            missing.dockerAvailability,
+            DoctorReport.DockerAvailabilitySection(installed: false, supported: true, reason: nil))
+        let installedReport = await build(installed: true)
+        XCTAssertEqual(installedReport.dockerAvailability?.installed, true)
+    }
+
     func testCapacityOnlyPresentForParsedConfig() async {
         let present = await builder(config: Self.config()).build()
         XCTAssertEqual(

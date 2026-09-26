@@ -20,6 +20,11 @@ public struct DoctorReportBuilder: Sendable {
     let dockerHealth: RuntimeHealth?
     let dockerImages: [String]?
     let hostHealth: RuntimeHealth?
+    /// Whether the docker CLI is installed (fixture). nil infers it from an
+    /// injected `dockerHealth`, else looks it up on PATH.
+    let dockerInstalled: Bool?
+    /// macOS version the host requirements are judged against (fixture).
+    let osVersion: OperatingSystemVersion?
 
     public init(
         host: HostResources? = nil,
@@ -35,7 +40,9 @@ public struct DoctorReportBuilder: Sendable {
         containerImages: [String]? = nil,
         dockerHealth: RuntimeHealth? = nil,
         dockerImages: [String]? = nil,
-        hostHealth: RuntimeHealth? = nil
+        hostHealth: RuntimeHealth? = nil,
+        dockerInstalled: Bool? = nil,
+        osVersion: OperatingSystemVersion? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -49,6 +56,8 @@ public struct DoctorReportBuilder: Sendable {
         self.dockerHealth = dockerHealth
         self.dockerImages = dockerImages
         self.hostHealth = hostHealth
+        self.dockerInstalled = dockerInstalled
+        self.osVersion = osVersion
     }
 
     public func build() async -> DoctorReport {
@@ -203,6 +212,22 @@ public struct DoctorReportBuilder: Sendable {
             )
         }
 
+        // Docker availability — always reported, so Diagnostics can say
+        // whether Docker is installed and supported before it's enabled.
+        let facts = HostFacts(
+            resources: resolvedHost, osVersion: osVersion ?? ProcessInfo.processInfo.operatingSystemVersion)
+        let dockerBlocked = HostRequirements.blockingReason(for: .docker, on: facts)
+        let dockerFound: Bool
+        if let dockerInstalled {
+            dockerFound = dockerInstalled
+        } else if let dockerHealth {
+            if case .missing = dockerHealth { dockerFound = false } else { dockerFound = true }
+        } else {
+            dockerFound = InstallableTool.docker.isInstalled
+        }
+        let dockerAvailability = DoctorReport.DockerAvailabilitySection(
+            installed: dockerFound, supported: dockerBlocked == nil, reason: dockerBlocked)
+
         // Host section — present only when a route targets `host`; the
         // unisolated warning is always attached.
         var hostSection: DoctorReport.HostSection?
@@ -269,6 +294,7 @@ public struct DoctorReportBuilder: Sendable {
             tart: Self.tartSection(from: resolvedTart),
             container: containerSection,
             docker: dockerSection,
+            dockerAvailability: dockerAvailability,
             hostRuntime: hostSection,
             toolchainCache: cacheSection,
             auth: authReport,

@@ -97,4 +97,20 @@ final class RuntimeInstallerTests: XCTestCase {
             XCTFail()
         } catch { XCTAssertEqual(error as? RuntimeInstallerError, .notInstalledAfterwards(.docker)) }
     }
+
+    func testUnsupportedHostFailsBeforeRunningAnything() async throws {
+        let shell = FakeShell()
+        let option = try XCTUnwrap(RuntimeInstaller.options(for: .appleContainer).first)
+        let intel = HostFacts(
+            arm64: false, memoryGB: 16,
+            osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
+        do {
+            try await RuntimeInstaller.install(
+                option, tool: .appleContainer, shell: shell, brew: "/b/brew", host: intel, isInstalled: { _ in true })
+            XCTFail()
+        } catch {
+            guard case .unsupportedHost = error as? RuntimeInstallerError else { return XCTFail("\(error)") }
+        }
+        XCTAssertTrue(shell.calls.isEmpty, "brew never runs for something that can't run here")
+    }
 }

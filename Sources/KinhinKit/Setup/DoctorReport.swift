@@ -60,6 +60,23 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let note: String?
     }
 
+    /// Whether Docker is installed and can run on this Mac, reported whether
+    /// or not the config enables it.
+    public struct DockerAvailabilitySection: Codable, Equatable, Sendable {
+        /// Whether the `docker` CLI was found.
+        public let installed: Bool
+        /// Whether at least one Docker install option can run on this Mac.
+        public let supported: Bool
+        /// Why Docker can't run here, null when supported.
+        public let reason: String?
+
+        public init(installed: Bool, supported: Bool, reason: String?) {
+            self.installed = installed
+            self.supported = supported
+            self.reason = reason
+        }
+    }
+
     /// Host runtime state — present only when a `runtimes.routes` entry
     /// targets `host` (same presence rule as the checklist's host row).
     public struct HostSection: Codable, Equatable, Sendable {
@@ -142,6 +159,9 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     /// Docker runtime — present only when config.yaml declares a `docker:`
     /// section (same presence rule as the checklist's docker rows).
     public let docker: DockerSection?
+    /// Docker install state and host support, present even when the config
+    /// has no `docker:` section.
+    public let dockerAvailability: DockerAvailabilitySection?
     /// Host runtime — present only when a route targets `host`.
     public let hostRuntime: HostSection?
     /// Shared toolchain cache state.
@@ -157,7 +177,8 @@ public struct DoctorReport: Codable, Equatable, Sendable {
 
     public init(
         host: HostResources, clt: CLTSection, tart: TartSection, container: ContainerSection?,
-        docker: DockerSection?, hostRuntime: HostSection? = nil, toolchainCache: ToolchainCacheSection,
+        docker: DockerSection?, dockerAvailability: DockerAvailabilitySection? = nil, hostRuntime: HostSection? = nil,
+        toolchainCache: ToolchainCacheSection,
         auth: AuthStatusReport, checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?
     ) {
         self.host = host
@@ -165,6 +186,7 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         self.tart = tart
         self.container = container
         self.docker = docker
+        self.dockerAvailability = dockerAvailability
         self.hostRuntime = hostRuntime
         self.toolchainCache = toolchainCache
         self.auth = auth

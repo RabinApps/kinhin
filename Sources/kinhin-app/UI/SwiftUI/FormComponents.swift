@@ -87,6 +87,46 @@ struct FormCard<Content: View>: View {
     }
 }
 
+/// A `FormCard` whose body folds away behind its title row. Starts collapsed;
+/// `badge` stays visible in the header (e.g. "2 selected").
+struct CollapsibleFormCard<Content: View>: View {
+    let title: String
+    var subtitle: String?
+    var badge: String?
+    @ViewBuilder var content: Content
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                expanded.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 10)
+                    Text(title).font(.system(size: 13, weight: .semibold))
+                    Spacer(minLength: 0)
+                    if let badge { Text(badge).font(.system(size: 11)).foregroundStyle(.secondary) }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(title)
+            .accessibilityValue(expanded ? "expanded" : "collapsed")
+
+            if expanded {
+                if let subtitle { HintText(subtitle) }
+                content
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(width: FormMetrics.width, alignment: .leading)
+        .formSurface(cornerRadius: 10)
+    }
+}
+
 extension View {
     /// Card background and hairline border, following light/dark appearance.
     func formSurface(cornerRadius: CGFloat) -> some View {

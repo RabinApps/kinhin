@@ -72,6 +72,7 @@ final class SetupRepairRunner {
         runWithProgress("Installing Apple container via Homebrew…") {
             let shell = Shell()
             if !(await AppleContainerRuntime(shell: shell).health()).isReady {
+                try HostRequirements.ensureSupported(.appleContainer)
                 let brew = Paths.findExecutable(named: "brew") ?? "/opt/homebrew/bin/brew"
                 let result = try await shell.run([brew, "install", "container"], cwd: nil, timeout: 900)
                 guard result.succeeded else {

@@ -38,6 +38,9 @@ public struct SetupStatusComputer: Sendable {
     /// cache root's existence/writability, plus the config's `share_cache`.
     /// No live mount is probed — runners bind on demand.
     let toolchainCacheState: (usable: Bool, shareCacheOn: Bool)?
+    /// macOS version runtime install options are judged against (fixture).
+    /// nil reads the real version.
+    let osVersion: OperatingSystemVersion?
 
     public init(
         host: HostResources? = nil,
@@ -56,7 +59,8 @@ public struct SetupStatusComputer: Sendable {
         dockerImages: [String]? = nil,
         dockerImageArchitecture: String? = nil,
         hostHealth: RuntimeHealth? = nil,
-        toolchainCacheState: (usable: Bool, shareCacheOn: Bool)? = nil
+        toolchainCacheState: (usable: Bool, shareCacheOn: Bool)? = nil,
+        osVersion: OperatingSystemVersion? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -75,6 +79,7 @@ public struct SetupStatusComputer: Sendable {
         self.dockerImageArchitecture = dockerImageArchitecture
         self.hostHealth = hostHealth
         self.toolchainCacheState = toolchainCacheState
+        self.osVersion = osVersion
     }
 
     // MARK: - Token rows
@@ -142,6 +147,8 @@ public struct SetupStatusComputer: Sendable {
             health = await TartHealthProbe(configuredPath: parsed?.tartPath).check()
         }
 
+        let facts = HostFacts(
+            resources: realHost, osVersion: osVersion ?? ProcessInfo.processInfo.operatingSystemVersion)
         var checks: [SetupCheckResult] = []
 
         // 1. Host
@@ -299,13 +306,15 @@ public struct SetupStatusComputer: Sendable {
                         action: nil
                     ))
             case .missing:
+                // No install button when it can't run here: say why instead.
+                let blocked = HostRequirements.blockingReason(for: .appleContainer, on: facts)
                 checks.append(
                     SetupCheckResult(
                         id: "container-cli",
                         title: "Apple container",
                         ok: false,
-                        detail: "the container CLI is required for Linux container runners",
-                        action: "install_container_cli"
+                        detail: blocked ?? "the container CLI is required for Linux container runners",
+                        action: blocked == nil ? "install_container_cli" : nil
                     ))
             case .broken(let why):
                 checks.append(
@@ -381,14 +390,15 @@ public struct SetupStatusComputer: Sendable {
                         action: nil
                     ))
             case .missing:
+                let blocked = HostRequirements.blockingReason(for: .docker, on: facts)
                 checks.append(
                     SetupCheckResult(
                         id: "docker-cli",
                         title: "Docker",
                         ok: false,
-                        detail:
-                            "the docker CLI is required for Linux container runners (Docker Desktop, OrbStack, or colima)",
-                        action: "install_container_cli"
+                        detail: blocked
+                            ?? "the docker CLI is required for Linux container runners (Docker Desktop, OrbStack, or colima)",
+                        action: blocked == nil ? "install_container_cli" : nil
                     ))
             case .broken(let why):
                 checks.append(

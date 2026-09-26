@@ -254,15 +254,22 @@ final class SetupFormsTests: XCTestCase {
 
     // MARK: Install flow
 
-    private func installModel(shell: FakeShell, brew: String? = "/opt/homebrew/bin/brew") -> MacToolsModel {
+    private func installModel(
+        shell: FakeShell, brew: String? = "/opt/homebrew/bin/brew", host: HostFacts = supportedHost
+    ) -> MacToolsModel {
         let model = MacToolsModel()
         model.configURL = configURL
         model.installShell = shell
         model.brewPath = { brew }
         model.installedCheck = { _ in true }
+        model.hostFacts = { host }
         model.reload()
         return model
     }
+
+    private static let supportedHost = HostFacts(
+        arm64: true, memoryGB: 16, osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)
+    )
 
     func testCancellingTheInstallConfirmationRunsNothing() {
         let shell = FakeShell()
@@ -319,6 +326,28 @@ final class SetupFormsTests: XCTestCase {
         XCTAssertTrue(text.contains("Failed"), text)
         XCTAssertTrue(text.contains("no space left"))
         XCTAssertTrue(text.contains("brew install container"), "shows the command to run by hand")
+    }
+
+    func testUnsupportedMacExplainsInsteadOfAskingOrRunning() {
+        let shell = FakeShell()
+        let intel = HostFacts(
+            arm64: false, memoryGB: 16,
+            osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
+        let model = installModel(shell: shell, host: intel)
+        var explained: String?
+        var confirmed = false
+        model.explainUnsupported = { _, error in explained = error.localizedDescription }
+        model.confirmInstall = { _, _ in
+            confirmed = true; return nil
+        }
+        XCTAssertNil(model.install(.appleContainer))
+        XCTAssertTrue(explained?.contains("Apple silicon") ?? false)
+        XCTAssertFalse(confirmed)
+        XCTAssertTrue(shell.calls.isEmpty)
+        if Paths.findExecutable(named: "container") == nil {
+            XCTAssertFalse(model.containerInstallVisible, "no install button on a Mac that can't run it")
+            XCTAssertTrue(model.containerLine.text.contains("not supported"))
+        }
     }
 
     func testEveryInstallableToolHasAnInstallButtonWhenMissing() {

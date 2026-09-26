@@ -64,6 +64,17 @@ final class DiagnosticsModel {
             if !docker.imageFound { detail += "\nimage \(docker.image) not built yet (kinhin image prepare --docker)" }
             if let note = docker.note { detail += "\n\(note)" }
             rows.append(Row(title: "Docker (Linux)", detail: detail, ok: docker.ok))
+        } else if let availability = report.dockerAvailability {
+            // Not enabled in the config: still say whether it could be.
+            let detail: String
+            if let reason = availability.reason {
+                detail = "not supported on this Mac — \(reason)"
+            } else if availability.installed {
+                detail = "installed — not enabled for Linux jobs (turn it on in This Mac)"
+            } else {
+                detail = "not installed — optional, runs Linux jobs (install it from This Mac)"
+            }
+            rows.append(Row(title: "Docker (Linux)", detail: detail, ok: availability.supported))
         }
 
         // Capacity (nil when the config can't parse — nothing to plan against)
