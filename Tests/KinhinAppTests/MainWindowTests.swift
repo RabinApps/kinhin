@@ -141,22 +141,22 @@ final class MainWindowTests: XCTestCase {
         window.showSetup()
         XCTAssertEqual(window.selectedTab, .setup)
         XCTAssertTrue(segment().isEnabled, "the tab bar is never locked out")
-        XCTAssertNotNil(window.wizardController, "first run shows the guided wizard")
+        XCTAssertNotNil(window.wizardModel, "first run shows the guided wizard")
 
         // Finishing removes the Setup tab and hands the window to Fleet.
         finishSetupForTesting()
         XCTAssertEqual(window.selectedTab, .fleet)
         XCTAssertEqual(window.visibleTabs, [.fleet, .advanced])
-        XCTAssertNil(window.wizardController)
+        XCTAssertNil(window.wizardModel)
         XCTAssertEqual(delegate.setupFinishedCalls, 1, "the delegate re-bootstraps the engine")
     }
 
     func testFinishLaterKeepsTheSetupTab() {
         let wizard = showWizard()
-        wizard.nextClickedForTesting()  // connect → mac
-        wizard.nextClickedForTesting()  // mac → toolchains
-        wizard.nextClickedForTesting()  // toolchains → start
-        wizard.skipClickedForTesting()  // "Finish later" on start step
+        wizard.next()  // connect → mac
+        wizard.next()  // mac → toolchains
+        wizard.next()  // toolchains → start
+        wizard.skip()  // "Finish later" on start step
         XCTAssertEqual(window.selectedTab, .fleet)
         XCTAssertEqual(window.visibleTabs, [.fleet, .setup, .advanced], "unfinished setup stays reachable")
     }
@@ -165,7 +165,7 @@ final class MainWindowTests: XCTestCase {
         window.setupIncompleteFlag = true
         window.applySetupInProgress()
         XCTAssertEqual(window.selectedTab, .setup)
-        XCTAssertNotNil(window.wizardController)
+        XCTAssertNotNil(window.wizardModel)
     }
 
     func testAfterSetupAccountsLiveInAdvanced() {
@@ -174,7 +174,7 @@ final class MainWindowTests: XCTestCase {
         window.showSetup()  // menu "Setup…" after onboarding lands here
         XCTAssertEqual(window.selectedTab, .advanced)
         XCTAssertEqual(window.selectedAdvancedSection, .accounts)
-        XCTAssertNil(window.wizardController)
+        XCTAssertNil(window.wizardModel)
         XCTAssertNotNil(window.connectModel)
         XCTAssertNotNil(window.macToolsModel)
         let page = window.advancedContainer.subviews.first
@@ -186,36 +186,36 @@ final class MainWindowTests: XCTestCase {
         let wizard = showWizard()
         XCTAssertEqual(wizard.step, .connect, "the wizard opens on connecting an account")
 
-        wizard.nextClickedForTesting()  // connect → mac
+        wizard.next()  // connect → mac
         XCTAssertEqual(wizard.step, .mac)
-        wizard.nextClickedForTesting()  // mac → toolchains
+        wizard.next()  // mac → toolchains
         XCTAssertEqual(wizard.step, .toolchains)
-        wizard.nextClickedForTesting()  // toolchains → start
+        wizard.next()  // toolchains → start
         XCTAssertEqual(wizard.step, .start)
     }
 
     func testWizardCannotStartUntilConnectedAndReady() {
         let wizard = showWizard()
-        wizard.nextClickedForTesting()  // connect → mac
-        wizard.nextClickedForTesting()  // mac → toolchains
-        wizard.nextClickedForTesting()  // toolchains → start
+        wizard.next()  // connect → mac
+        wizard.next()  // mac → toolchains
+        wizard.next()  // toolchains → start
         XCTAssertEqual(wizard.step, .start)
         // Nothing connected in a hermetic test: pressing Start must not
         // finish (it would bounce the app straight back into setup).
-        wizard.nextClickedForTesting()
+        wizard.next()
         XCTAssertEqual(delegate.setupFinishedCalls, 0)
         XCTAssertTrue(
-            wizard.summaryTextForTesting.contains("Still needed"),
-            "the summary says what is missing: \(wizard.summaryTextForTesting)")
+            wizard.summaryText.contains("Still needed"),
+            "the summary says what is missing: \(wizard.summaryText)")
     }
 
     func testWizardBackNavigation() {
         let wizard = showWizard()
-        wizard.nextClickedForTesting()
-        wizard.nextClickedForTesting()  // mac → start
-        wizard.backClickedForTesting()
+        wizard.next()
+        wizard.next()  // mac → start
+        wizard.back()
         XCTAssertEqual(wizard.step, .mac)
-        wizard.backClickedForTesting()
+        wizard.back()
         XCTAssertEqual(wizard.step, .connect)
     }
 
@@ -533,14 +533,14 @@ final class MainWindowTests: XCTestCase {
 
     /// Opens the wizard with its forms pointed at a scratch config, so
     /// stepping through never touches (or auto-edits) the real one.
-    private func showWizard() -> OnboardingWizardViewController {
+    private func showWizard() -> WizardModel {
         window.setupIncompleteFlag = true
         window.showSetup()
-        let wizard = window.wizardController!
-        wizard.macFormForTesting.configURL = scratchConfig
-        wizard.connectFormForTesting.configURL = scratchConfig
-        wizard.connectFormForTesting.hasStoredToken = { _ in false }
-        wizard.macFormForTesting.autoEnableLinuxRuntime = false
+        let wizard = window.wizardModel!
+        wizard.mac.configURL = scratchConfig
+        wizard.connect.configURL = scratchConfig
+        wizard.connect.hasStoredToken = { _ in false }
+        wizard.mac.autoEnableLinuxRuntime = false
         return wizard
     }
 
@@ -558,7 +558,7 @@ final class MainWindowTests: XCTestCase {
 
     /// Drives the wizard's Finish → onFinished → dismiss path.
     private func finishSetupForTesting() {
-        window.wizardController?.onFinished?()
+        window.wizardModel?.onFinished?()
     }
 
     private func allText() -> String {

@@ -26,7 +26,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     let tabContentContainer = NSView()
 
     // State behind the tab sections (created once with their tabs).
-    var wizardController: OnboardingWizardViewController?
+    var wizardModel: WizardModel?
     var connectModel: ConnectModel?
     var macToolsModel: MacToolsModel?
     var capacityModel: CapacityModel?

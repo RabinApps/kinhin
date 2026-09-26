@@ -91,18 +91,18 @@ final class BaseImagePickerTests: XCTestCase {
     // MARK: Mac tools form
 
     func testMacToolsFormShowsThePickerOnlyWhileTheRuntimeIsEnabled() throws {
-        let form = MacToolsFormViewController()
-        form.configURL = configURL
-        _ = form.view
-        XCTAssertTrue(form.model.containerOn, "the picker is shown while the runtime is enabled")
-        form.model.saveBaseImage("debian:12", for: .appleContainer)
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        XCTAssertTrue(model.containerOn, "the picker is shown while the runtime is enabled")
+        model.saveBaseImage("debian:12", for: .appleContainer)
         XCTAssertEqual(try saved(.appleContainer), "debian:12")
-        XCTAssertEqual(form.model.containerBaseImage, "debian:12")
+        XCTAssertEqual(model.containerBaseImage, "debian:12")
 
-        form.setContainerForTesting(false)
-        XCTAssertFalse(form.model.containerOn, "hidden once the runtime is off")
-        form.setContainerForTesting(true)
-        XCTAssertEqual(form.model.containerBaseImage, nil, "a re-enabled section starts from the saved default")
+        model.setContainerForTesting(false)
+        XCTAssertFalse(model.containerOn, "hidden once the runtime is off")
+        model.setContainerForTesting(true)
+        XCTAssertEqual(model.containerBaseImage, nil, "a re-enabled section starts from the saved default")
     }
 }
 

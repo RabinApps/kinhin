@@ -32,27 +32,30 @@ extension MainTabsWindowController {
     func buildSetupTab() -> NSView {
         let tab = NSView()
         tab.translatesAutoresizingMaskIntoConstraints = false
-        let wizard = OnboardingWizardViewController()
-        wizard.saveToken = { [weak self] forge, token in
+        let model = WizardModel()
+        model.connect.saveToken = { [weak self] forge, token in
             try await self?.tokenSaved?(forge, token)
         }
-        wizard.saveAccountToken = { [weak self] account, token in
+        model.connect.accounts.saveToken = { [weak self] account, token in
             try await self?.accountTokenSaved?(account, token)
         }
-        wizard.onFinished = { [weak self] in
+        model.onFinished = { [weak self] in
             // Setup is done: the Setup tab goes away for good.
             self?.setupIncompleteFlag = false
             self?.tabViews[.setup] = nil
-            self?.wizardController = nil
+            self?.wizardModel = nil
             self?.selectTab(.fleet, notify: false)
             self?.delegate?.setupTabFinished()
         }
-        wizard.onFinishLater = { [weak self] in
+        model.onFinishLater = { [weak self] in
             // Leave setup as it is; the Setup tab stays until it is finished.
             self?.selectTab(.fleet, notify: false)
         }
-        wizardController = wizard
-        pin(wizard.view, in: tab)
+        wizardModel = model
+        let host = NSHostingView(rootView: WizardView(model: model))
+        // The wizard fills whatever it is pinned into; its content scrolls.
+        host.sizingOptions = []
+        pin(host, in: tab)
         return tab
     }
 

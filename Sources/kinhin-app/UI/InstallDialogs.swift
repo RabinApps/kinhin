@@ -2,89 +2,12 @@ import AppKit
 import KinhinKit
 import SwiftUI
 
-/// "This Mac": what kinhin runs jobs on, with real actions instead of
-/// instructions. macOS jobs need tart and a prepared base image (both can be
-/// fixed here); Linux jobs can optionally use Apple container or Docker
-/// (toggling writes the config section with sensible defaults).
-///
-/// Shared by the onboarding wizard and the Setup tab. A thin AppKit host:
-/// state and actions live in `MacToolsModel`, the UI in `MacToolsView`.
+// The install dialogs for the This-Mac form, invoked from `MacToolsModel`'s
+// injectable seams. Kept AppKit on purpose: an NSAlert accessory view is the
+// right tool for a method picker, and the model's seams keep them out of tests.
+
 @MainActor
-final class MacToolsFormViewController: NSViewController {
-    let model = MacToolsModel()
-
-    init() { super.init(nibName: nil, bundle: nil) }
-    required init?(coder: NSCoder) { fatalError("created in code") }
-
-    override func loadView() {
-        view = NSHostingView(rootView: MacToolsView(model: model))
-        reload()
-    }
-
-    // MARK: Forwarding (the wizard, Accounts page, and tests use these)
-
-    /// The config file this form edits (tests point it at a scratch file).
-    var configURL: URL {
-        get { model.configURL }
-        set { model.configURL = newValue }
-    }
-    var onChanged: (() -> Void)? {
-        get { model.onChanged }
-        set { model.onChanged = newValue }
-    }
-    var onReadinessChanged: (() -> Void)? {
-        get { model.onReadinessChanged }
-        set { model.onReadinessChanged = newValue }
-    }
-    /// True when the fleet has something to run jobs on (see `MacToolsModel`).
-    var isReady: Bool { model.isReady }
-    var autoEnableLinuxRuntime: Bool {
-        get { model.autoEnableLinuxRuntime }
-        set { model.autoEnableLinuxRuntime = newValue }
-    }
-    var activeLinuxRuntimes: [String] { model.activeLinuxRuntimes }
-    /// Plain-language summary of what jobs can run here (for the final step).
-    var runsOnDescription: String { model.runsOnDescription }
-
-    var confirmInstall: (InstallableTool, [InstallOption]) -> InstallOption? {
-        get { model.confirmInstall }
-        set { model.confirmInstall = newValue }
-    }
-    var explainMissingBrew: (InstallableTool, [InstallOption]) -> Void {
-        get { model.explainMissingBrew }
-        set { model.explainMissingBrew = newValue }
-    }
-    var installShell: ShellRunning {
-        get { model.installShell }
-        set { model.installShell = newValue }
-    }
-    var installedCheck: @Sendable (InstallableTool) -> Bool {
-        get { model.installedCheck }
-        set { model.installedCheck = newValue }
-    }
-    var brewPath: () -> String? {
-        get { model.brewPath }
-        set { model.brewPath = newValue }
-    }
-
-    func reload() { model.reload() }
-
-    @discardableResult
-    func install(_ tool: InstallableTool) -> Task<Void, Never>? { model.install(tool) }
-
-    @discardableResult
-    func startContainerService() -> Task<Void, Never> { model.startContainerService() }
-
-    // MARK: Test hooks
-
-    func setTartReadyForTesting(_ ready: Bool) { model.setTartReadyForTesting(ready) }
-    func setContainerForTesting(_ on: Bool) { model.setContainerForTesting(on) }
-    func setDockerForTesting(_ on: Bool) { model.setDockerForTesting(on) }
-}
-
-// MARK: - Install dialogs
-
-extension MacToolsFormViewController {
+enum InstallDialogs {
     /// "Install X?" — states exactly what will run, lets the user pick a
     /// method when there are several, and offers to copy the command instead.
     static func presentInstallConfirmation(tool: InstallableTool, options: [InstallOption]) -> InstallOption? {

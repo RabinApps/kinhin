@@ -76,11 +76,11 @@ final class MacToolsModel {
     /// chosen option, or nil when cancelled. Injectable so tests never open a
     /// modal alert or run Homebrew.
     @ObservationIgnored var confirmInstall: (InstallableTool, [InstallOption]) -> InstallOption? = { tool, options in
-        MacToolsFormViewController.presentInstallConfirmation(tool: tool, options: options)
+        InstallDialogs.presentInstallConfirmation(tool: tool, options: options)
     }
     /// Shown instead of the confirmation when Homebrew is missing.
     @ObservationIgnored var explainMissingBrew: (InstallableTool, [InstallOption]) -> Void = { tool, options in
-        MacToolsFormViewController.presentMissingBrew(tool: tool, options: options)
+        InstallDialogs.presentMissingBrew(tool: tool, options: options)
     }
     @ObservationIgnored var installShell: ShellRunning = Shell()
     /// Whether a tool is installed afterwards (real PATH lookup by default).

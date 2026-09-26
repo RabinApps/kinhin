@@ -28,45 +28,45 @@ final class SetupFormsTests: XCTestCase {
         try GeneralConfigEditor.snapshot(from: String(contentsOf: configURL, encoding: .utf8))
     }
 
-    private func connectForm() -> ConnectFormViewController {
-        let form = ConnectFormViewController()
-        form.configURL = configURL
-        form.hasStoredToken = { _ in false }
-        form.model.checkPermission = { _, _ in nil }
-        _ = form.view
-        return form
+    private func connectModel() -> ConnectModel {
+        let model = ConnectModel()
+        model.configURL = configURL
+        model.hasStoredToken = { _ in false }
+        model.checkPermission = { _, _ in nil }
+        model.reload()
+        return model
     }
 
     func testChoosingARepoWritesItToConfig() throws {
-        let form = connectForm()
+        let model = connectModel()
         var changed = 0
-        form.onChanged = { changed += 1 }
-        form.markTokensStoredForTesting(github: true, gitea: false)
-        form.enterGitHubRepoForTesting("acme/api")
+        model.onChanged = { changed += 1 }
+        model.markTokensStoredForTesting(github: true, gitea: false)
+        model.enterGitHubRepoForTesting("acme/api")
         XCTAssertEqual(try snapshot().repo, "acme/api")
         XCTAssertEqual(changed, 1)
-        XCTAssertTrue(form.isConnected)
+        XCTAssertTrue(model.isConnected)
     }
 
     /// Choosing a repo/org triggers the runner-permission check for exactly
     /// that scope, and its verdict replaces the generic "Now serving" line.
     func testChoosingARepoChecksRunnerPermissionForThatScope() async throws {
-        let form = connectForm()
+        let model = connectModel()
         // Let the form's initial async reload settle; it resets token state.
         try await Task.sleep(nanoseconds: 100_000_000)
         var checked: [(scope: String, token: String?)] = []
-        form.model.checkPermission = { scope, token in
+        model.checkPermission = { scope, token in
             checked.append((scope, token))
             return OrgPermissionProbe.Report(
                 ok: false, message: "PAT lacks runner-management permission for '\(scope)'.")
         }
-        form.markTokensStoredForTesting(github: true, gitea: false)
-        form.enterGitHubRepoForTesting("acme")
+        model.markTokensStoredForTesting(github: true, gitea: false)
+        model.enterGitHubRepoForTesting("acme")
         try await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(checked.map(\.scope), ["acme"])
         XCTAssertNil(checked.first?.token, "uses the stored token, never an empty one")
-        XCTAssertEqual(form.model.githubStatus.style, .error)
-        XCTAssertTrue(form.model.githubStatus.text.contains("lacks runner-management permission"))
+        XCTAssertEqual(model.githubStatus.style, .error)
+        XCTAssertTrue(model.githubStatus.text.contains("lacks runner-management permission"))
     }
 
     /// Regression: after a token was saved the form still called the forge
@@ -76,98 +76,98 @@ final class SetupFormsTests: XCTestCase {
         repo: "acme/api"
         labels: [self-hosted]
         """.write(to: configURL, atomically: true, encoding: .utf8)
-        let form = connectForm()
+        let model = connectModel()
         // Let the initial async reload (which reads the configured repo) settle.
         try await Task.sleep(nanoseconds: 100_000_000)
-        XCTAssertFalse(form.isConnected)
-        XCTAssertFalse(form.repoFieldsEnabledForTesting.github)
+        XCTAssertFalse(model.isConnected)
+        XCTAssertFalse(model.repoFieldsEnabledForTesting.github)
 
-        form.didStoreTokenForTesting(.github)
-        XCTAssertTrue(form.repoFieldsEnabledForTesting.github, "the repo picker unlocks once a token is stored")
-        XCTAssertTrue(form.isConnected, "token + configured repo counts as connected")
+        model.didStoreToken(.github)
+        XCTAssertTrue(model.repoFieldsEnabledForTesting.github, "the repo picker unlocks once a token is stored")
+        XCTAssertTrue(model.isConnected, "token + configured repo counts as connected")
     }
 
     func testStoringATokenWritesARepoChosenBeforeConnecting() throws {
-        let form = connectForm()
-        form.model.githubRepo = "acme/web"
-        form.didStoreTokenForTesting(.github)
+        let model = connectModel()
+        model.githubRepo = "acme/web"
+        model.didStoreToken(.github)
         XCTAssertEqual(try snapshot().repo, "acme/web")
-        XCTAssertTrue(form.isConnected)
+        XCTAssertTrue(model.isConnected)
     }
 
     func testStoringAGiteaTokenWritesTheServerAndScope() throws {
-        let form = connectForm()
-        form.model.giteaInstance = "https://git.example.com"
-        form.model.giteaScope = "team/repo"
-        form.didStoreTokenForTesting(.gitea)
+        let model = connectModel()
+        model.giteaInstance = "https://git.example.com"
+        model.giteaScope = "team/repo"
+        model.didStoreToken(.gitea)
         XCTAssertEqual(try snapshot().gitea?.scope, "team/repo")
-        XCTAssertTrue(form.isConnected)
+        XCTAssertTrue(model.isConnected)
     }
 
     func testRepoCannotBeChosenBeforeTheForgeIsConnected() throws {
-        let form = connectForm()
-        form.enterGitHubRepoForTesting("acme/api")
+        let model = connectModel()
+        model.enterGitHubRepoForTesting("acme/api")
         XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "no token, so no repo is written")
-        form.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
+        model.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
         XCTAssertNil(try snapshot().gitea, "no Gitea token, so no gitea section is written")
-        XCTAssertFalse(form.isConnected)
-        XCTAssertFalse(form.repoFieldsEnabledForTesting.github, "the repo field is locked until connected")
-        XCTAssertFalse(form.repoFieldsEnabledForTesting.gitea)
+        XCTAssertFalse(model.isConnected)
+        XCTAssertFalse(model.repoFieldsEnabledForTesting.github, "the repo field is locked until connected")
+        XCTAssertFalse(model.repoFieldsEnabledForTesting.gitea)
     }
 
     func testInvalidRepoIsRejectedAndNotWritten() throws {
-        let form = connectForm()
-        form.markTokensStoredForTesting(github: true, gitea: false)
-        form.enterGitHubRepoForTesting("a/b/c")
+        let model = connectModel()
+        model.markTokensStoredForTesting(github: true, gitea: false)
+        model.enterGitHubRepoForTesting("a/b/c")
         XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "engine validation gates every write")
-        XCTAssertTrue(form.model.githubStatus.text.contains("Not saved"))
+        XCTAssertTrue(model.githubStatus.text.contains("Not saved"))
     }
 
     func testGiteaInstanceAndScopeAreWrittenTogether() throws {
-        let form = connectForm()
-        form.markTokensStoredForTesting(github: false, gitea: true)
-        form.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
+        let model = connectModel()
+        model.markTokensStoredForTesting(github: false, gitea: true)
+        model.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
         let gitea = try XCTUnwrap(snapshot().gitea)
         XCTAssertEqual(gitea.instance, "https://git.example.com")
         XCTAssertEqual(gitea.scope, "team/repo")
     }
 
     func testGiteaNeedsBothServerAndScopeBeforeWriting() throws {
-        let form = connectForm()
-        form.markTokensStoredForTesting(github: false, gitea: true)
-        form.enterGiteaForTesting(instance: "https://git.example.com", scope: "")
+        let model = connectModel()
+        model.markTokensStoredForTesting(github: false, gitea: true)
+        model.enterGiteaForTesting(instance: "https://git.example.com", scope: "")
         XCTAssertNil(try snapshot().gitea, "a half-filled gitea: section would make the config invalid")
     }
 
     func testEitherForgeAloneCountsAsConnected() throws {
-        let form = connectForm()
-        XCTAssertFalse(form.isConnected)
+        let model = connectModel()
+        XCTAssertFalse(model.isConnected)
 
-        form.markTokensStoredForTesting(github: false, gitea: true)
-        form.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
-        XCTAssertTrue(form.isConnected, "a Gitea-only setup can finish onboarding")
+        model.markTokensStoredForTesting(github: false, gitea: true)
+        model.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
+        XCTAssertTrue(model.isConnected, "a Gitea-only setup can finish onboarding")
         XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "no GitHub repo is required")
     }
 
     func testTartIsOptionalWhenALinuxRuntimeIsReady() throws {
-        let form = MacToolsFormViewController()
-        form.configURL = configURL
-        _ = form.view
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
         var changes = 0
-        form.onReadinessChanged = { changes += 1 }
-        form.setTartReadyForTesting(false)
-        XCTAssertFalse(form.isReady, "nothing to run jobs on yet")
-        XCTAssertEqual(form.runsOnDescription, "nothing yet")
+        model.onReadinessChanged = { changes += 1 }
+        model.setTartReadyForTesting(false)
+        XCTAssertFalse(model.isReady, "nothing to run jobs on yet")
+        XCTAssertEqual(model.runsOnDescription, "nothing yet")
 
         // Docker is installed on the machine running the tests; only assert
         // the Linux path when it really is.
         guard Paths.findExecutable(named: "docker") != nil else { return }
-        form.setDockerForTesting(true)
-        XCTAssertTrue(form.isReady, "a Linux runtime alone is enough — tart is optional")
-        XCTAssertTrue(form.runsOnDescription.hasPrefix("Linux jobs only (Docker)"), form.runsOnDescription)
+        model.setDockerForTesting(true)
+        XCTAssertTrue(model.isReady, "a Linux runtime alone is enough — tart is optional")
+        XCTAssertTrue(model.runsOnDescription.hasPrefix("Linux jobs only (Docker)"), model.runsOnDescription)
         XCTAssertEqual(changes, 1)
-        form.setDockerForTesting(false)
-        XCTAssertFalse(form.isReady)
+        model.setDockerForTesting(false)
+        XCTAssertFalse(model.isReady)
     }
 
     func testWizardTurnsOnAnInstalledLinuxRuntimeWhenTartIsMissing() throws {
@@ -175,118 +175,116 @@ final class SetupFormsTests: XCTestCase {
         guard !TartController.isInstalled(), Paths.findExecutable(named: "docker") != nil,
             Paths.findExecutable(named: "container") == nil
         else { return }
-        let form = MacToolsFormViewController()
-        form.configURL = configURL
-        form.autoEnableLinuxRuntime = true
-        _ = form.view
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.autoEnableLinuxRuntime = true
+        model.reload()
         XCTAssertNotNil(try snapshot().docker, "Docker was switched on so setup can finish")
-        XCTAssertTrue(form.isReady)
+        XCTAssertTrue(model.isReady)
 
         // The Accounts page (flag off) never changes choices on its own.
         try? FileManager.default.removeItem(at: configURL)
         try? "repo: \"acme/widgets\"\nlabels: [a]\n".write(to: configURL, atomically: true, encoding: .utf8)
-        let quiet = MacToolsFormViewController()
+        let quiet = MacToolsModel()
         quiet.configURL = configURL
-        _ = quiet.view
+        quiet.reload()
         XCTAssertNil(try snapshot().docker)
     }
 
     func testLinuxRuntimeTogglesPersist() throws {
-        let form = MacToolsFormViewController()
-        form.configURL = configURL
-        _ = form.view
-        form.setContainerForTesting(true)
-        form.setDockerForTesting(true)
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        model.setContainerForTesting(true)
+        model.setDockerForTesting(true)
         XCTAssertNotNil(try snapshot().container)
         XCTAssertNotNil(try snapshot().docker)
-        form.setDockerForTesting(false)
+        model.setDockerForTesting(false)
         XCTAssertNil(try snapshot().docker)
         XCTAssertNotNil(try snapshot().container)
     }
 
     func testCapacityWritesNothingUntilApplyThenOnce() throws {
-        let form = CapacityModel()
-        form.configURL = configURL
-        form.reload()
+        let model = CapacityModel()
+        model.configURL = configURL
+        model.reload()
         var edited = 0
-        form.onEdited = { edited += 1 }
+        model.onEdited = { edited += 1 }
 
         let originalMax = try snapshot().maxRunners
-        form.stage("max-runners", .maxRunners(6))
-        form.stage("min-runners", .minRunners(2))
-        form.stage("poll", .pollInterval(45))
-        XCTAssertTrue(form.hasPendingChanges)
+        model.stage("max-runners", .maxRunners(6))
+        model.stage("min-runners", .minRunners(2))
+        model.stage("poll", .pollInterval(45))
+        XCTAssertTrue(model.hasPendingChanges)
         XCTAssertEqual(try snapshot().maxRunners, originalMax, "nothing is written while editing")
         XCTAssertEqual(edited, 0)
 
-        form.applyPending()
+        model.applyPending()
         let snap = try snapshot()
         XCTAssertEqual(snap.maxRunners, 6)
         XCTAssertEqual(snap.minRunners, 2)
         XCTAssertEqual(snap.pollInterval, 45)
         XCTAssertEqual(edited, 1, "one engine reload for the whole batch")
-        XCTAssertFalse(form.hasPendingChanges)
+        XCTAssertFalse(model.hasPendingChanges)
     }
 
     func testCapacityApplyHandlesMinMaxOrdering() throws {
         // Min 4 first would transiently exceed the current Max of 1.
-        let form = CapacityModel()
-        form.configURL = configURL
-        form.reload()
-        form.stage("min-runners", .minRunners(4))
-        form.stage("max-runners", .maxRunners(8))
-        form.applyPending()
+        let model = CapacityModel()
+        model.configURL = configURL
+        model.reload()
+        model.stage("min-runners", .minRunners(4))
+        model.stage("max-runners", .maxRunners(8))
+        model.applyPending()
         let snap = try snapshot()
         XCTAssertEqual(snap.minRunners, 4)
         XCTAssertEqual(snap.maxRunners, 8)
     }
 
     func testCapacityRejectedEditStaysPendingWithAnError() throws {
-        let form = CapacityModel()
-        form.configURL = configURL
-        form.reload()
-        form.stage("min-runners", .minRunners(99))  // far above Max
-        form.applyPending()
-        XCTAssertTrue(form.hasPendingChanges, "a rejected edit is kept so it can be fixed")
-        XCTAssertTrue(form.status.text.contains("Not applied"))
+        let model = CapacityModel()
+        model.configURL = configURL
+        model.reload()
+        model.stage("min-runners", .minRunners(99))  // far above Max
+        model.applyPending()
+        XCTAssertTrue(model.hasPendingChanges, "a rejected edit is kept so it can be fixed")
+        XCTAssertTrue(model.status.text.contains("Not applied"))
         XCTAssertEqual(try snapshot().minRunners, 0)
     }
 
     // MARK: Install flow
 
-    private func installForm(shell: FakeShell, brew: String? = "/opt/homebrew/bin/brew")
-        -> MacToolsFormViewController
-    {
-        let form = MacToolsFormViewController()
-        form.configURL = configURL
-        form.installShell = shell
-        form.brewPath = { brew }
-        form.installedCheck = { _ in true }
-        _ = form.view
-        return form
+    private func installModel(shell: FakeShell, brew: String? = "/opt/homebrew/bin/brew") -> MacToolsModel {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.installShell = shell
+        model.brewPath = { brew }
+        model.installedCheck = { _ in true }
+        model.reload()
+        return model
     }
 
     func testCancellingTheInstallConfirmationRunsNothing() {
         let shell = FakeShell()
-        let form = installForm(shell: shell)
+        let model = installModel(shell: shell)
         var asked: [InstallableTool] = []
-        form.confirmInstall = { tool, _ in
+        model.confirmInstall = { tool, _ in
             asked.append(tool); return nil
         }
-        XCTAssertNil(form.install(.docker))
+        XCTAssertNil(model.install(.docker))
         XCTAssertEqual(asked, [.docker], "the user is always asked first")
         XCTAssertTrue(shell.calls.isEmpty)
     }
 
     func testConfirmedInstallRunsTheChosenOptionsCommands() async {
         let shell = FakeShell()
-        let form = installForm(shell: shell)
+        let model = installModel(shell: shell)
         var offered: [String] = []
-        form.confirmInstall = { _, options in
+        model.confirmInstall = { _, options in
             offered = options.map(\.id)
             return options.first { $0.id == "docker-colima" }  // the user picks Colima
         }
-        await form.install(.docker)?.value
+        await model.install(.docker)?.value
         XCTAssertEqual(
             offered, ["docker-desktop", "docker-orbstack", "docker-colima"], "all Docker options are offered")
         XCTAssertEqual(shell.calls.first, ["/opt/homebrew/bin/brew", "install", "colima", "docker"])
@@ -296,14 +294,14 @@ final class SetupFormsTests: XCTestCase {
 
     func testMissingHomebrewExplainsInsteadOfAskingOrRunning() {
         let shell = FakeShell()
-        let form = installForm(shell: shell, brew: nil)
+        let model = installModel(shell: shell, brew: nil)
         var explained: InstallableTool?
         var confirmed = false
-        form.explainMissingBrew = { tool, _ in explained = tool }
-        form.confirmInstall = { _, _ in
+        model.explainMissingBrew = { tool, _ in explained = tool }
+        model.confirmInstall = { _, _ in
             confirmed = true; return nil
         }
-        XCTAssertNil(form.install(.appleContainer))
+        XCTAssertNil(model.install(.appleContainer))
         XCTAssertEqual(explained, .appleContainer)
         XCTAssertFalse(confirmed)
         XCTAssertTrue(shell.calls.isEmpty)
@@ -312,20 +310,19 @@ final class SetupFormsTests: XCTestCase {
     func testFailedInstallShowsTheErrorAndATerminalFallback() async {
         let shell = FakeShell()
         shell.failAll = "no space left"
-        let form = installForm(shell: shell)
-        form.confirmInstall = { _, options in options.first }
-        let task = form.install(.appleContainer)
+        let model = installModel(shell: shell)
+        model.confirmInstall = { _, options in options.first }
+        let task = model.install(.appleContainer)
         await task?.value
         try? await Task.sleep(nanoseconds: 100_000_000)
-        let text = form.model.busyLine.text
+        let text = model.busyLine.text
         XCTAssertTrue(text.contains("Failed"), text)
         XCTAssertTrue(text.contains("no space left"))
         XCTAssertTrue(text.contains("brew install container"), "shows the command to run by hand")
     }
 
     func testEveryInstallableToolHasAnInstallButtonWhenMissing() {
-        let form = installForm(shell: FakeShell())
-        let model = form.model
+        let model = installModel(shell: FakeShell())
         XCTAssertTrue(model.tartInstallVisible || TartController.isInstalled())
         XCTAssertTrue(model.containerInstallVisible || Paths.findExecutable(named: "container") != nil)
         XCTAssertTrue(model.dockerInstallVisible || Paths.findExecutable(named: "docker") != nil)
