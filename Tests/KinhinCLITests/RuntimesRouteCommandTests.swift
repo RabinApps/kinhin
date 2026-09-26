@@ -162,6 +162,51 @@ final class RuntimesRouteCommandTests: XCTestCase {
         XCTAssertEqual(rc.routes.first?.runtime, "docker")
     }
 
+    func testAddHostRouteWithConsentPersistsConsent() async throws {
+        try installConfig(baseConfig)
+        try await runRoute(["add", "acme/scripts", "host", "--consent"])
+
+        let rc = try XCTUnwrap(try routedSection())
+        XCTAssertEqual(rc.routes.first?.runtime, "host")
+        XCTAssertEqual(rc.routes.first?.consent, true)
+        XCTAssertTrue(try onDiskText().contains("consent: true"))
+        XCTAssertTrue(try ConfigLoader.parse(onDiskText()).hostRoutesConfigured)
+    }
+
+    func testAddHostRouteWithoutConsentIsRefused() async throws {
+        try installConfig(baseConfig)
+        let original = try onDiskText()
+        do {
+            try await runRoute(["add", "acme/scripts", "host"])
+            XCTFail("expected a usage error")
+        } catch let error as RuntimesCommand.RouteError {
+            XCTAssertTrue(error.message.contains("--consent"), error.message)
+        }
+        XCTAssertEqual(try onDiskText(), original)
+    }
+
+    func testConsentOnNonHostRouteIsRefused() async throws {
+        try installConfig(baseConfig)
+        do {
+            try await runRoute(["add", "acme/api", "appleContainer", "--consent"])
+            XCTFail("expected a usage error")
+        } catch let error as RuntimesCommand.RouteError {
+            XCTAssertTrue(error.message.contains("host routes only"), error.message)
+        }
+    }
+
+    func testRemovingAnotherRouteKeepsHostConsent() async throws {
+        try installConfig(
+            baseConfig
+                + "\nruntimes:\n  default: tart\n  routes:\n    - pattern: \"acme/scripts\"\n      runtime: host\n      consent: true\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n"
+        )
+        try await runRoute(["remove", "acme/api"])
+
+        let rc = try XCTUnwrap(try routedSection())
+        XCTAssertEqual(rc.routes.map(\.pattern), ["acme/scripts"])
+        XCTAssertEqual(rc.routes.first?.consent, true, "the editor must round-trip consent, not drop it")
+    }
+
     // MARK: remove
 
     func testRemoveDeletesOnlyTheTargetRoute() async throws {

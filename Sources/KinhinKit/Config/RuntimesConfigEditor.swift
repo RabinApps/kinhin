@@ -28,7 +28,7 @@ public enum RuntimesConfigEditor {
             budget: rt.budget ?? [:],
             routes: (rt.routes ?? []).compactMap { route in
                 guard let pattern = route.pattern, let runtime = route.runtime else { return nil }
-                return KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime)
+                return KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime, consent: route.consent)
             }
         )
     }
@@ -50,6 +50,9 @@ public enum RuntimesConfigEditor {
             for route in rc.routes {
                 lines.append("    - pattern: \(quote(route.pattern))")
                 lines.append("      runtime: \(route.runtime)")
+                if let consent = route.consent {
+                    lines.append("      consent: \(consent)")
+                }
             }
         }
         return lines.joined(separator: "\n")
