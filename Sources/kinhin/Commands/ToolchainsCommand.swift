@@ -89,6 +89,10 @@ enum ToolchainsCommand {
             """)
         print("")
         print("Wire it up: set the section, then `kinhin image prepare` (bakes the tools into the base image).")
+        print("")
+        print("Per job: every prepared image also carries `kinhin-toolchain`, so a workflow step can install")
+        print("only what it needs (`run: kinhin-toolchain install node@22 pnpm`). Keep the image lean and set")
+        print("`share_cache: true` so those installs hit the warm host cache. Inspect: kinhin toolchains helper")
     }
 
     /// The runtime-specific mount lines reflecting the effective wiring:
@@ -106,6 +110,12 @@ enum ToolchainsCommand {
             lines.append("docker slots:     \(ToolchainCacheMount.linuxGuestPath) via -v bind mount")
         }
         return lines
+    }
+
+    /// `kinhin toolchains helper [--linux]`: the per-job helper script as
+    /// `image prepare` bakes it, for auditing (stdout only).
+    static func helper(_ args: [String]) {
+        print(ToolchainCatalog.helperScript(for: hasFlag("--linux", in: args) ? .linux : .macOS), terminator: "")
     }
 
     /// `kinhin toolchains prune [--dry-run]`.

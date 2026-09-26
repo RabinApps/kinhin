@@ -153,6 +153,7 @@ func helpText() -> String {
                                     under emulation (slower; see docs)
         toolchains                  Managed-toolchain catalog, selections, and cache state
         toolchains prune [--dry-run]   Expire stale host-cache entries now
+        toolchains helper [--linux]    Print the per-job `kinhin-toolchain` helper baked into images
 
     RUNNING:
         start                       Start the fleet in this terminal (Ctrl-C to stop)

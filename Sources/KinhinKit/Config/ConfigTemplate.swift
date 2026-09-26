@@ -76,7 +76,9 @@ extension ConfigLoader {
         # exactly its own pieces; a stack that needs a runtime (vercel needs
         # node) is a validation error until you list that runtime too.
         # Unknown specs pass through to mise, unknown brew entries to brew —
-        # see `kinhin toolchains` for the curated catalog.
+        # see `kinhin toolchains` for the curated catalog. To install per job
+        # instead, keep this lean and add `run: kinhin-toolchain install node@22`
+        # to the workflows that need it (every prepared image carries it).
         # toolchains:
         #   specs: ["go@1.23.4", "node@22", "bun@1.1.27", "deno@2", "java@temurin-17", "dotnet", "uv"]
         #   brew: ["wget", "cmake", "yamllint"]

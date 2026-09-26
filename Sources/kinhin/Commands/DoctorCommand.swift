@@ -137,6 +137,10 @@ enum DoctorCommand {
                 print(
                     "  cache note: share_cache is on but the cache is empty — runners will mount an empty dir until a prepare populates it"
                 )
+            } else if !shareCacheOn {
+                print(
+                    "  cache note: share_cache is off — per-job `kinhin-toolchain install` steps download from scratch every job"
+                )
             }
         } else {
             print(

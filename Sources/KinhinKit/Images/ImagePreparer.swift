@@ -113,6 +113,9 @@ public struct ImagePreparer {
         } else {
             Log.info("image", "no Gitea token stored — skipping gitea-runner install")
         }
+        scripts.append(
+            try RunnerBootstrap.toolchainHelperInstallScript(platform: .macOS, mountPath: ToolchainCacheMount.guestPath)
+        )
         let script = scripts.joined(separator: "\n\n")
 
         Log.info("image", "ensuring base image \(options.source) is present (this can download gigabytes once)")

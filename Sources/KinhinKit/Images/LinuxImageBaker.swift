@@ -104,6 +104,9 @@ struct LinuxImageBaker {
         } else {
             Log.info(tag, "no Gitea token stored — skipping gitea-runner install")
         }
+        lines.append(
+            try RunnerBootstrap.toolchainHelperInstallScript(
+                platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath))
         let script = lines.joined(separator: "\n\n")
         let bin = backend.binary
 

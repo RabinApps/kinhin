@@ -314,6 +314,39 @@ toolchains:
 - **Deploy auth stays per-job.** `VERCEL_TOKEN`, `CLOUDFLARE_API_TOKEN`, and cloud
   credentials are passed via workflow `env:` — never baked into an image.
 
+### Per-job toolchains
+
+Baking suits tools every job needs. For tools only some workflows need, keep
+`toolchains:` lean and let each workflow install what it needs. Every prepared
+image (Tart, apple/container, and Docker) carries `kinhin-toolchain`, a helper
+generated from the same catalog:
+
+```yaml
+jobs:
+  web:
+    runs-on: [self-hosted, kinhin]
+    steps:
+      - run: kinhin-toolchain install node@22 pnpm playwright
+      - uses: actions/checkout@v4
+      - run: pnpm install && pnpm test
+```
+
+- **Same recipes as the bake.** Each id runs the catalog's install and verify
+  steps for the guest's platform, so a failed install fails the step.
+  `kinhin-toolchain list` shows the ids available in the image, and unknown ids
+  pass through to `mise use --global`.
+- **Later steps see the tools.** New `PATH` entries and cache variables are
+  appended to `$GITHUB_PATH`/`$GITHUB_ENV`. This works on GitHub and Gitea runners.
+- **Order and requirements are handled.** Runtimes (`node`, `dotnet`, `java`)
+  install first. A tool that needs a runtime you didn't list, and that isn't
+  already on `PATH`, fails with the command to fix it.
+- **Pair it with `share_cache: true`.** Otherwise every job downloads from
+  scratch. With the host cache mounted, a repeat install is mostly a cache hit.
+- **Versions are validated.** Only `[A-Za-z0-9._+-]` is accepted, and an
+  installer that ignores versions (brew, apt) rejects `@version` instead of
+  silently dropping it.
+- Audit what gets baked with `kinhin toolchains helper [--linux]`.
+
 ### The shared download cache
 
 `image prepare` always mounts a host-side cache —
@@ -390,6 +423,8 @@ kinhin image prepare --toolchain <spec> [--stack <name>]
 kinhin toolchains           Managed-toolchain catalog, selections, shared-cache state
 kinhin toolchains prune [--dry-run]
                              Expire stale host-cache entries now
+kinhin toolchains helper [--linux]
+                             Print the per-job `kinhin-toolchain` helper baked into images
 kinhin start                Run the fleet in the foreground
 kinhin daemon               Run the daemon in the foreground
 kinhin daemon install       Install + start the LaunchAgent
