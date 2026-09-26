@@ -26,6 +26,9 @@ final class RuntimesModel {
     @ObservationIgnored var presentNotice: (_ title: String, _ message: String) -> Void = { title, message in
         AlertKit.notice(title, message)
     }
+    /// Host facts the budget previews partition (tests pin them so cap
+    /// assertions are exact instead of machine-dependent).
+    @ObservationIgnored var hostSnapshot: () -> HostResources = { ResourceProbe().snapshot() }
 
     // MARK: Read state
 
@@ -78,7 +81,27 @@ final class RuntimesModel {
         Task { await reloadWithHealth() }
     }
 
+    /// True while a reload's two passes are in flight; tests wait for this
+    /// to clear before asserting preview state.
+    private(set) var isProbingHealth = false
+    /// A reload was requested while one was already probing. It re-runs when
+    /// the in-flight pass finishes — dropping it would hide a change the
+    /// user just wrote (e.g. a route added mid-probe).
+    private var reloadRequestedWhileProbing = false
+
     func reloadWithHealth() async {
+        guard !isProbingHealth else {
+            reloadRequestedWhileProbing = true
+            return
+        }
+        isProbingHealth = true
+        defer {
+            isProbingHealth = false
+            if reloadRequestedWhileProbing {
+                reloadRequestedWhileProbing = false
+                reload()
+            }
+        }
         guard FileManager.default.fileExists(atPath: configURL.path) else {
             loadFailed = true
             emptyMessage = "No config file yet — finish the Setup tab first."
@@ -232,7 +255,7 @@ final class RuntimesModel {
         guard let parsed = parsedConfig, let rc = currentRuntimeConfig else { return }
         let def = defaultRuntimeID
         let caps = BudgetEditor.previewCaps(
-            host: ResourceProbe().snapshot(),
+            host: hostSnapshot(),
             reserve: parsed.reserve,
             vmShape: (parsed.vm.cpuCount, parsed.vm.memoryGB),
             containerShape: parsed.container.map { ($0.cpus, $0.memoryGB) },
@@ -250,9 +273,13 @@ final class RuntimesModel {
         }
         percentShares = shares
         // Starved-route strip: recomputed on every tick so a drag that would
-        // strand a route shows the warning before the user lets go.
+        // strand a route shows the warning before the user lets go. With no
+        // budget on disk the fleet isn't partitioned ("cap n/a"), so nothing
+        // can be starved yet.
         let configured = Set(viewModel?.pools.map(\.runtime) ?? [])
-        starvedRoutes = BudgetEditor.starvedRoutes(routes: rc.routes, caps: caps, configuredRuntimes: configured)
+        starvedRoutes = BudgetEditor.starvedRoutes(
+            routes: rc.routes, caps: caps, configuredRuntimes: configured,
+            isPartitioned: !(rc.budget.isEmpty && budget.isEmpty))
         let pct = Int(((budget[def.rawValue] ?? 0) * 100).rounded())
         remainderNote = String(format: "%@ keeps the remaining %d%% — %d inst", def.rawValue, pct, caps[def] ?? 0)
     }
