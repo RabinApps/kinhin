@@ -2,8 +2,9 @@ import KinhinKit
 import SwiftUI
 
 /// Advanced → Routing: the fleet's runtime pools, capacity budget, routes,
-/// and labels. State and actions live in `RuntimesModel`; the two heavy
-/// modals (Add Route, Edit YAML) stay AppKit in `RuntimesSheets`.
+/// and labels. State and actions live in `RuntimesModel`, which owns the
+/// Add Route and Edit YAML sheets too (presented from `routeOffer` and
+/// `isYAMLEditorOpen`).
 struct RuntimesView: View {
     @Bindable var model: RuntimesModel
 
@@ -59,6 +60,17 @@ struct RuntimesView: View {
         }
         .padding(.leading, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .sheet(isPresented: $model.isYAMLEditorOpen) {
+            EditYAMLSheet(model: model)
+        }
+        .sheet(
+            item: Binding(
+                get: { model.routeOffer },
+                set: { if $0 == nil { model.cancelAddRoute() } }
+            )
+        ) { offer in
+            AddRouteSheet(model: model, runtimes: offer.runtimes)
+        }
     }
 
     // MARK: Sections
@@ -73,9 +85,7 @@ struct RuntimesView: View {
     private var footer: some View {
         HStack(spacing: 12) {
             Button("Add Route…") { model.addRouteClicked() }
-            Button("Edit YAML…") {
-                RuntimesSheets.editConfigYAML(configURL: model.configURL); model.reload()
-            }
+            Button("Edit YAML…") { model.editYAMLClicked() }
             HintText("Slider changes apply on release; validation gates every write.")
             Spacer()
         }

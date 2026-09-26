@@ -22,10 +22,6 @@ final class RuntimesModel {
     @ObservationIgnored var configURL: URL = Paths.config
     /// Fired after any successful config write.
     @ObservationIgnored var onEdited: (() -> Void)?
-    /// Asks before adding a route: returns (pattern, runtime, consent) or nil.
-    /// Overridable so tests never open a modal.
-    @ObservationIgnored var promptForRoute: ([RuntimeID]) -> (pattern: String, runtime: RuntimeID, consent: Bool)? =
-        { runtimes in RuntimesSheets.promptForRoute(runtimes: runtimes) }
     /// Where routing problems and "nothing to do" explanations are shown.
     @ObservationIgnored var presentNotice: (_ title: String, _ message: String) -> Void = { title, message in
         AlertKit.notice(title, message)
@@ -327,66 +323,21 @@ final class RuntimesModel {
         text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
-    // MARK: Routes
+    // MARK: Sheets (Add Route / Edit YAML)
 
-    /// Runtimes a route can target: tart always, plus whichever Linux runtimes
-    /// the config has enabled (a route to an unconfigured runtime is rejected).
-    static func routableRuntimes(in config: KinhinConfig?) -> [RuntimeID] {
-        var ids: [RuntimeID] = [.tart]
-        if config?.container != nil { ids.append(.appleContainer) }
-        if config?.docker != nil { ids.append(.docker) }
-        // Host needs no config section (only the runner agent, which the
-        // setup checklist installs); the route itself carries the consent.
-        ids.append(.host)
-        return ids
-    }
+    // Settable from the sheet-lifecycle extensions (RuntimesModel+Routes,
+    // RuntimesModel+YAML); the views only read them or bind for presentation.
 
-    func addRouteClicked() {
-        guard viewModel != nil, let parsed = parsedConfig else {
-            presentNotice(
-                "Routes are still loading",
-                "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Advanced → App → Open config file)."
-            )
-            reload()
-            return
-        }
-        let runtimes = Self.routableRuntimes(in: parsed)
-        guard let (patternValue, runtimeID, consent) = promptForRoute(runtimes) else { return }
-        let runtimeValue = runtimeID.rawValue
-
-        var rc = currentRuntimeConfig ?? KinhinConfig.RuntimeConfig()
-        guard !rc.routes.contains(where: { $0.pattern == patternValue }) else {
-            presentError(
-                NSError(
-                    domain: "kinhin", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "A route for '\(patternValue)' already exists."]))
-            return
-        }
-        rc.routes.append(
-            KinhinConfig.RuntimeConfig.Route(
-                pattern: patternValue, runtime: runtimeValue, consent: runtimeID == .host && consent ? true : nil))
-
-        do {
-            try RuntimesConfigEditor.apply(rc, to: configURL)
-            reload()
-            onEdited?()
-        } catch {
-            presentError(error)
-        }
-    }
-
-    func removeRoute(pattern: String) {
-        guard let rc = currentRuntimeConfig else { return }
-        var updated = rc
-        updated.routes.removeAll { $0.pattern == pattern }
-        do {
-            try RuntimesConfigEditor.apply(updated, to: configURL)
-            reload()
-            onEdited?()
-        } catch {
-            presentError(error)
-        }
-    }
+    /// The open Add Route sheet's offer: which runtimes the route may target.
+    /// `RuntimesView` presents `AddRouteSheet` while this is non-nil.
+    var routeOffer: RouteOffer?
+    /// A problem with the pending sheet values (Add Route or Edit YAML,
+    /// which are never open at once), shown inside the sheet.
+    var sheetProblem = ""
+    /// Whether the Edit YAML sheet is open.
+    var isYAMLEditorOpen = false
+    /// The config's exact on-disk bytes, captured when the YAML editor opened.
+    var yamlAtOpen = ""
 
     // MARK: Errors
 
