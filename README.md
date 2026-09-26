@@ -9,14 +9,15 @@ kinhin runs [Tart](https://tart.run) macOS virtual machines on your Apple Silico
 Linux jobs in [apple/container](https://github.com/apple/container) microVMs or in Docker
 containers — and turns them into ephemeral self-hosted CI runners. It watches your repositories'
 queued jobs and grows or shrinks the fleet to match — a fresh VM (or container) boots for each
-job, runs it, and is deleted. Your Mac stays usable: host CPU, memory, and disk headroom are
-always reserved.
+job, runs it, and is deleted. For repos you fully trust, an opt-in **host** mode runs jobs directly
+on your Mac instead — no VM, no isolation (see [Host mode](#host-mode-run-jobs-directly-on-your-mac)).
+Your Mac stays usable: host CPU, memory, and disk headroom are always reserved.
 
 ```
 ┌─────────────────────────── your Mac ───────────────────────────┐
 │  menu bar ○  ── FleetEngine ── poll forges (queued jobs)         │
 │                     │                 GitHub · Gitea            │
-│     routes each job: repo/workflow → Tart VM or container       │
+│   routes each job: repo/workflow → Tart VM, container, or host  │
 │     ┌───────────────┬───────────────┬─────────────────┐         │
 │   tart VM #1    tart VM #2    🐧 container #1 … (up to cap)     │
 │   macOS jobs    macOS jobs    Linux jobs    runners_per_vm/VM   │
@@ -30,7 +31,8 @@ always reserved.
 - **Multi-runtime** — macOS jobs run in Tart VMs, Linux jobs in [apple/container](https://github.com/apple/container)
   microVMs or Docker containers, from one fleet: each job is routed by repo, workflow, or `runs-on:` label, and the host
   budget is partitioned across the pools so neither can overcommit your Mac (see
-  [Per-repo & per-workflow runtime routing](#per-repo--per-workflow-runtime-routing)).
+  [Per-repo & per-workflow runtime routing](#per-repo--per-workflow-runtime-routing)). Trusted repos can opt in to
+  [host mode](#host-mode-run-jobs-directly-on-your-mac): jobs run directly on your Mac, unisolated.
 - **Many jobs per VM** — `runners_per_vm` registers several runner processes on one Tart VM, so
   small jobs share a VM instead of each paying a full boot.
 - **Fast** — VMs are linked clones of one prepared base image, so boots take seconds, not minutes.
@@ -370,11 +372,14 @@ kinhin doctor [--json]      Prerequisites + computed capacity (--json: host, run
                              and capacity in one machine-readable document; ready=false until every half passes)
 kinhin setup-status [--json] First-run checklist; exit 1 until ready (--json for scripts)
 kinhin runtimes [--json]    Pools, capacity, budget split, live health, and routes (--no-health skips probes)
-kinhin runtimes route add <pattern> <tart|appleContainer|docker>
+kinhin runtimes route add <pattern> <tart|appleContainer|docker|host> [--consent]
                              Route a repo (`owner/repo`) or workflow (`owner/repo@Name`) — same validated
-                             editor as the Runtimes pane; a running daemon reloads routing live
+                             editor as the Runtimes pane; a running daemon reloads routing live.
+                             `host` runs jobs unisolated on this Mac and requires --consent
 kinhin runtimes route remove <pattern>
                              Delete that route (e.g. `acme/api` or `acme/web@Nightly`)
+kinhin setup repair host-agent
+                             Install the GitHub runner agent used by host routes (one time)
 kinhin image prepare        Build the runner base image (once); --provision-script <file>
                              bakes your toolchains in (see below); `toolchains:`
                              config entries are baked automatically and downloads
@@ -408,7 +413,8 @@ Every `poll_interval` seconds the engine:
    configured, or the full `min(max_runners, (cores − reserve.cpu) / vm.cpu, (RAM −
 reserve.memory_gb) / vm.memory_gb, free_disk / disk_per_vm)` for a single-pool fleet.
 5. Spawns instances up to `desired` (linked clone → boot → SSH → register `runners_per_vm`
-   runners → `run.sh`) — Tart VMs for macOS pools, apple containers for Linux pools.
+   runners → `run.sh`) — Tart VMs for macOS pools, apple containers or Docker slots for Linux pools,
+   and a runner process on the Mac itself for host routes.
 6. Deletes idle instances when `desired` drops (scale to zero by default).
 
 `runners_per_vm` is the density knob: with the default `1`, each job gets its own VM (most
@@ -502,14 +508,14 @@ Inside the targets, code is organized by domain:
 | `KinhinKit/Core/`              | Shell, logging, paths, keychain, RPC, mutex/box primitives                                                   |
 | `KinhinKit/Config/`            | YAML config, validation, template, capacity math, runtime routing                                            |
 | `KinhinKit/Forges/`            | GitHub + Gitea forges, org-permission probe                                                                  |
-| `KinhinKit/Runtimes/`          | Runtime protocol, Tart + Apple-container runtimes, routing pools                                             |
+| `KinhinKit/Runtimes/`          | Runtime protocol, Tart, Apple-container, Docker and Host runtimes, routing pools                             |
 | `KinhinKit/Fleet/`             | FleetEngine (split: shell / reconcile / lifecycle), status model, records                                    |
 | `KinhinKit/Images/`            | VM and container image preparation                                                                           |
 | `KinhinKit/Setup/`             | Setup checklist, doctor probes (tart health, CLT)                                                            |
 | `KinhinKit/ViewModels/`        | UI-agnostic view models (setup checklist rows, Runtimes pane)                                                |
 | `KinhinKit/Update/`            | GitHub-release update check                                                                                  |
 | `kinhin/KinhinCLI.swift`       | @main entry: arg parsing + dispatch only                                                                     |
-| `kinhin/Commands/`             | One file per command group (auth, doctor, image, run, runtimes, setup-status) + the CLICommand routing table |
+| `kinhin/Commands/`             | One file per command group (auth, doctor, image, run, runtimes, setup) + the CLICommand routing table |
 | `kinhin-app/AppMain.swift`     | @main entry: AppKit bootstrap, synchronous run loop                                                          |
 | `kinhin-app/AppDelegate/`      | Lifecycle + engine wiring + refresh; extensions for main menu, status item, fleet actions, engine reconfig   |
 | `kinhin-app/UI/`               | Window and form controllers (per-tab / per-card extension files), `AlertKit`, `FormKit`, setup repairs      |
@@ -584,7 +590,7 @@ accounts:
 
 **More forges are planned.** The Forge protocol was designed so new platforms slot in without touching the engine — Forgejo (shipped) landed as a thin re-brand of the Gitea forge: GitLab (its runner is Docker-executor-oriented, so a macOS host-mode path needs design work), Sourcehut, Buildkite, and others are all candidates. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
 
-**Execution runtimes are the second axis** (design: [docs/runtime-abstraction-design.md](docs/runtime-abstraction-design.md)): every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the agent, and tears down. Three backends ship: **Tart** (macOS VMs), **apple/container** (Linux microVMs), and **Docker** (Linux containers in your provider's shared VM); opt-in host-direct execution is a candidate behind the same interface. The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the protocol, so new backends slot in without touching lifecycle code.
+**Execution runtimes are the second axis** (design: [docs/runtime-abstraction-design.md](docs/runtime-abstraction-design.md)): every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the agent, and tears down. Four backends ship: **Tart** (macOS VMs), **apple/container** (Linux microVMs), **Docker** (Linux containers in your provider's shared VM), and **Host** (opt-in direct execution on your Mac, unisolated). The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the protocol, so new backends slot in without touching lifecycle code.
 
 **Apple `container` is here for Linux jobs** — as an alternative to the planned Docker runtime, kinhin can run Linux jobs in [apple/container](https://github.com/apple/container) microVMs: one lightweight VM per runner container on Apple silicon, no Docker daemon, stronger isolation than a shared Docker VM. Add this to your config and run `kinhin image prepare --container` to bake the agents into a Linux image:
 
@@ -681,6 +687,28 @@ runtimes:
 Routing precedence: **workflow route → repo route → `runs-on:` label → default**. Container runners always register with an `kinhin-container` label (plus optional `container.labels`), and Docker slots with `kinhin-docker`, so any job can opt into a Linux pool with `runs-on: [kinhin-container]` or `runs-on: [kinhin-docker]` without touching kinhin's config. No route and no label → the `runtimes.default` pool. Capacity is partitioned by the `budget` weights — the tightest density that can still never overcommit your Mac — and `kinhin status` reports `capacityByRuntime` so the split is visible. If a split starves a configured route (its runtime's cap hits 0), the pane warns you before you can save it.
 
 In the menu bar app, **Runtimes…** opens a pane showing the pools with their per-runtime caps and budget shares, plus every route (repo and workflow). Each pool card carries a **live health chip** (● ready / ● missing / ● error) from the runtime's own probe — tart launch check, `container system status`, `docker info` — with the fix hint shown alongside any problem. The pane's **Budget** card edits the split directly: a slider per non-default runtime (the default keeps the remainder), a default-runtime picker, a **live cap preview** per row ("3 inst" updates as you drag), and a warning strip when the split on screen would starve a configured route with a cap of zero. The **Labels** card edits the fleet's base label set and `container.labels` (commit on Enter or focus loss; empty label lists are rejected, and the `kinhin-container` routing marker is always merged in at pool build). Routes can be added and removed in place. Every change rewrites only the relevant section of `config.yaml` — comments elsewhere are preserved — and lands only if the updated file still passes the engine's full config validation; all of it reaches a running fleet live via `reload_config` (budget weights re-partition capacity, label edits rebuild the forges' demand query — no restart). Prefer the terminal? `kinhin runtimes` prints the same pools/caps/budget/routes/health summary (see [Commands](#commands)).
+
+### Host mode: run jobs directly on your Mac
+
+Host mode is the fourth runtime: a job runs as an **ephemeral GitHub runner process on your Mac itself** — no VM and no container. It is fast (nothing boots) and sees your real toolchains, but it has **no isolation at all**: the job runs with your user's privileges and can read and modify your files and reach your network. Use it only for repositories and workflows you fully trust (your own private scripts, never a public repo that accepts pull requests from strangers).
+
+Because of that, host mode is opt-in per route and needs explicit consent:
+
+```yaml
+runtimes:
+  default: tart # `default: host` is rejected — host is never a fallback
+  routes:
+    - pattern: "acme/scripts" # whole repo → runs on this Mac, unisolated
+      runtime: host
+      consent: true # required for host routes (and rejected on other runtimes)
+```
+
+- **Consent is enforced everywhere.** Config validation rejects a host route without `consent: true`. `kinhin runtimes route add <pattern> host --consent` refuses to run without the flag. In the app, **Runtimes… → Add Route** lists "Host — this Mac, no isolation" and won't add the route until you tick the consent checkbox; host routes show a ⚠︎ *unisolated* marker in the route list.
+- **Install the agent once.** Host runs use the GitHub actions-runner agent installed under `~/Library/Application Support/Kinhin/host-runner`. When a host route exists, the setup checklist and `kinhin doctor` gain a *Host runner agent* row with a one-click **Install Host Runner Agent** fix; from the terminal run `kinhin setup repair host-agent`. Without host routes, none of this appears.
+- **Explicit `runs-on` marker.** The host pool always registers with the `kinhin-host` label, so a workflow can also opt in with `runs-on: [kinhin-host]` and only opted-in workflows can ever land on your Mac.
+- **Ephemeral process, warm machine.** Each runner registers with `--ephemeral`, gets its own work directory under kinhin's support directory, and that directory is scrubbed when the runner is torn down. The Mac itself is not reset between jobs, so anything a job installs or leaves outside its work directory persists.
+- **GitHub only.** Gitea and Forgejo repos can't use host routes (their runners need a VM or container); such a job fails to register with a clear error.
+- `kinhin runtimes` shows the Host pool and its health (agent installed or not) alongside the others; `kinhin doctor --json` includes a `hostRuntime` section (state, routed patterns, and the unisolated warning) only when a host route exists.
 
 ## License
 
