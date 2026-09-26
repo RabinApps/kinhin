@@ -1,6 +1,16 @@
 import Foundation
 import Yams
 
+// MARK: - Routing state
+
+/// The live routing model and its per-runtime caps, swapped together on reload.
+struct RoutingState {
+    var model: RuntimeConfigModel
+    var caps: [RuntimeID: Int]
+}
+
+// MARK: - Engine
+
 public final class FleetEngine {
     let config: KinhinConfig
     let tart: TartControlling
@@ -69,11 +79,12 @@ public final class FleetEngine {
     let hostRuntime: HostRuntime?
     /// Routing model: label pools + per-repo/per-workflow routes. Built from
     /// the `runtimes:` config (nil → single default pool, legacy behavior).
-    /// Reloaded live by applyReloaded(config:) — guarded by routingLock, so
-    /// a running fleet picks up route changes without a restart.
-    var routing: RuntimeConfigModel
-    var capsByRuntime: [RuntimeID: Int]
-    let routingLock = NSLock()
+    /// Reloaded live by applyReloaded(config:), so a running fleet picks up
+    /// route changes without a restart. Read through `routing` and
+    /// `capsByRuntime`, which take the lock.
+    let routingState: Mutex<RoutingState>
+    var routing: RuntimeConfigModel { routingState.withLock { $0.model } }
+    var capsByRuntime: [RuntimeID: Int] { routingState.withLock { $0.caps } }
     /// The Tart runtime instance (always available; mixed fleets select it
     /// per record while container-routed records use containerRuntime).
     let tartRuntime: TartRuntime
@@ -178,7 +189,7 @@ public final class FleetEngine {
             diskPerVMGB: diskPerVM,
             userMax: config.maxRunners
         )
-        self.routing = RuntimeConfigModel(
+        let routing = RuntimeConfigModel(
             config: config.runtimes,
             fleetLabels: config.labels,
             containerLabels: config.container?.labels,
@@ -188,6 +199,7 @@ public final class FleetEngine {
             hostConfigured: config.hostRoutesConfigured
         )
 
+        let caps: [RuntimeID: Int]
         if config.runtimes != nil, config.container != nil || config.docker != nil {
             // Mixed fleet: partition the usable host budget between runtimes
             // by the configured weights (deterministic, no overcommit).
@@ -212,18 +224,19 @@ public final class FleetEngine {
                     }
                 }
             )
-            var caps = partition.caps
+            var partitioned = partition.caps
             // Docker's hard slot cap applies on top of the budget partition.
-            if let dockerConfig = config.docker, let partitionCap = caps[.docker] {
-                caps[.docker] = min(partitionCap, dockerConfig.maxSlots)
+            if let dockerConfig = config.docker, let partitionCap = partitioned[.docker] {
+                partitioned[.docker] = min(partitionCap, dockerConfig.maxSlots)
             }
-            self.capsByRuntime = caps
+            caps = partitioned
         } else {
             // Single-pool fleets (legacy tart-only and container-only) keep
             // the fleet cap semantics and the legacy status shape (nil
             // capacityByRuntime).
-            self.capsByRuntime = [:]
+            caps = [:]
         }
+        self.routingState = Mutex(RoutingState(model: routing, caps: caps))
     }
 
     /// Convenience initializer matching the production wiring: a client
@@ -607,10 +620,7 @@ public final class FleetEngine {
                 caps[.docker] = min(partitionCap, dockerConfig.maxSlots)
             }
         }
-        routingLock.withLock {
-            routing = model
-            capsByRuntime = caps
-        }
+        routingState.withLock { $0 = RoutingState(model: model, caps: caps) }
         // Fleet label edits must reach the forge's demand query too —
         // queuedJobs(matching:) filters by the forge's label set.
         forgesLock.withLock {
@@ -636,9 +646,10 @@ public final class FleetEngine {
         // never go stale relative to store mutations.
         status.records = store.all
         status.runtime = runtime.id.rawValue
-        if !capsByRuntime.isEmpty {
+        let runtimeCaps = capsByRuntime
+        if !runtimeCaps.isEmpty {
             var caps: [String: String] = [:]
-            for (id, cap) in capsByRuntime {
+            for (id, cap) in runtimeCaps {
                 caps[id.rawValue] = String(cap)
             }
             status.capacityByRuntime = caps
