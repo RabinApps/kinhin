@@ -9,11 +9,11 @@ permissions:
 
 jobs:
   release:
+    # Belt and braces: the push trigger is already tag-filtered, so this only
+    # matters if another trigger is added later — skip instead of releasing.
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: [self-hosted, macos, arm64]
     timeout-minutes: 60
-    env:
-      KEYCHAIN_PATH: ${{ runner.temp }}/kinhin-signing.keychain-db
-      NOTARY_KEY_PATH: ${{ runner.temp }}/notary-key.p8
     steps:
       - uses: actions/checkout@v4
 
@@ -51,6 +51,14 @@ jobs:
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
         run: |
           KEYCHAIN_PASSWORD="$(uuidgen)"
+          # The runner context is not available in job-level env, so resolve
+          # the temp paths here and export them for the later steps.
+          KEYCHAIN_PATH="$RUNNER_TEMP/kinhin-signing.keychain-db"
+          NOTARY_KEY_PATH="$RUNNER_TEMP/notary-key.p8"
+          {
+            echo "KEYCHAIN_PATH=$KEYCHAIN_PATH"
+            echo "NOTARY_KEY_PATH=$NOTARY_KEY_PATH"
+          } >> "$GITHUB_ENV"
           echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
