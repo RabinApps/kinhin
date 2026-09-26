@@ -51,6 +51,7 @@ public enum SetupAction {
         case "enter_account_token": return "Enter Token…"
         case "replace_account_token": return "Replace Token…"
         case "install_container_cli": return "Install Apple container"
+        case "install_docker": return "Install Docker"
         case "start_container_system": return "Start container system"
         case "install_container_kernel": return "Install Linux kernel"
         case "prepare_container_image": return "Prepare Container Image"

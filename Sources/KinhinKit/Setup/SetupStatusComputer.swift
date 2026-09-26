@@ -398,7 +398,7 @@ public struct SetupStatusComputer: Sendable {
                         ok: false,
                         detail: blocked
                             ?? "the docker CLI is required for Linux container runners (Docker Desktop, OrbStack, or colima)",
-                        action: blocked == nil ? "install_container_cli" : nil
+                        action: blocked == nil ? "install_docker" : nil
                     ))
             case .broken(let why):
                 checks.append(

@@ -64,7 +64,8 @@ final class DockerSetupStatusTests: XCTestCase {
         let status = await computer(dockerHealth: .missing(tool: "docker", fix: "install Docker Desktop")).compute()
         let row = status.checks.first { $0.id == "docker-cli" }
         XCTAssertEqual(row?.ok, false)
-        XCTAssertEqual(row?.action, "install_container_cli", "docker reuses the container-install repair handler")
+        XCTAssertEqual(row?.action, "install_docker", "Docker has its own install action, not Apple container's")
+        XCTAssertEqual(SetupAction.title(for: "install_docker"), "Install Docker")
         XCTAssertFalse(status.ready)
         let imageRow = status.checks.first { $0.id == "docker-image" }
         XCTAssertEqual(imageRow?.action, "prepare_docker_image")

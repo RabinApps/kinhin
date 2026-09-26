@@ -27,6 +27,8 @@ final class ActionCoverageTests: XCTestCase {
         "replace_account_token",
         "prepare_image",
         "install_container_cli",
+        "install_docker",
+        "prepare_docker_image",
         "start_container_system",
         "prepare_container_image",
         "repair_provision_script",
@@ -39,7 +41,8 @@ final class ActionCoverageTests: XCTestCase {
         tokenStored: Bool,
         giteaTokenStored: Bool? = nil,
         containerHealth: RuntimeHealth? = nil,
-        containerImages: [String]? = nil
+        containerImages: [String]? = nil,
+        dockerHealth: RuntimeHealth? = nil
     ) -> SetupStatusComputer {
         SetupStatusComputer(
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),
@@ -50,7 +53,9 @@ final class ActionCoverageTests: XCTestCase {
             tokenStored: tokenStored,
             giteaTokenStored: giteaTokenStored,
             containerHealth: containerHealth,
-            containerImages: containerImages
+            containerImages: containerImages,
+            dockerHealth: dockerHealth,
+            dockerImages: []
         )
     }
 
@@ -83,6 +88,13 @@ final class ActionCoverageTests: XCTestCase {
     private var containerConfig: KinhinConfig {
         var cfg = fixtureConfig
         cfg.container = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
+        return cfg
+    }
+
+    /// A config that also enables the Docker runtime (adds the docker rows).
+    private var dockerConfig: KinhinConfig {
+        var cfg = fixtureConfig
+        cfg.docker = KinhinConfig.DockerForgeConfig(image: "kinhin-ci-linux")
         return cfg
     }
 
@@ -189,6 +201,12 @@ final class ActionCoverageTests: XCTestCase {
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig),
                     tokenStored: true, containerHealth: .ready, containerImages: ["kinhin-ci-linux"])
+            ),
+            (
+                "docker CLI missing",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(dockerConfig),
+                    tokenStored: true, dockerHealth: .missing(tool: "docker", fix: "install Docker Desktop"))
             ),
             (
                 "provision script missing",
