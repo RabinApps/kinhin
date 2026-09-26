@@ -518,8 +518,8 @@ Inside the targets, code is organized by domain:
 | `kinhin/Commands/`             | One file per command group (auth, doctor, image, run, runtimes, setup) + the CLICommand routing table |
 | `kinhin-app/AppMain.swift`     | @main entry: AppKit bootstrap, synchronous run loop                                                          |
 | `kinhin-app/AppDelegate/`      | Lifecycle + engine wiring + refresh; extensions for main menu, status item, fleet actions, engine reconfig   |
-| `kinhin-app/UI/`               | Window and form controllers (per-tab / per-card extension files), `AlertKit`, `FormKit`, setup repairs      |
-| `kinhin-app/UI/SwiftUI/`       | SwiftUI forms hosted by thin `NSViewController`s: models (`@Observable`) + views for Connect, This Mac, Toolchains, the wizard, Diagnostics, Logs |
+| `kinhin-app/UI/`               | `MainTabsWindowController` (per-tab extension files), `AlertKit`, the setup repair runner, and the AppKit modals (Routing sheets, install dialogs) |
+| `kinhin-app/UI/SwiftUI/`       | SwiftUI forms: models (`@Observable`) + views for Connect, This Mac, Routing, Capacity, Toolchains, Containers, the wizard, Diagnostics, Logs |
 
 Tests: `swift test` (750+ tests across three targets: the engine suite (KinhinKitTests — store, RPC, SSH, image pipeline, tart-health, CLT probe, org permissions, queue attribution (queued and running,
 per repo), token replacement (Keychain upsert, live engine swap, daemon RPC), multi-forge (Gitea client, per-VM platform assignment, bootstrap, token-gated image provisioning), runtime
