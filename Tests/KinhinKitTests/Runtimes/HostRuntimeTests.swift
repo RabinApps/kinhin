@@ -97,11 +97,20 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertTrue(tool.contains("host runner agent"))
     }
 
-    func testHealthReadyWhenAgentPresent() async throws {
+    func testHealthReadyWhenBothAgentsPresent() async throws {
         let (runtime, _, dir) = makeRuntime()
         FileManager.default.createFile(atPath: dir.appendingPathComponent("config.sh").path, contents: Data())
+        let gitea = dir.appendingPathComponent("gitea-runner").path
+        FileManager.default.createFile(atPath: gitea, contents: Data(), attributes: [.posixPermissions: 0o755])
         let health = await runtime.health()
         XCTAssertEqual(health, .ready)
+    }
+
+    func testHealthMissingWhenOnlyTheGitHubAgentIsPresent() async throws {
+        let (runtime, _, dir) = makeRuntime()
+        FileManager.default.createFile(atPath: dir.appendingPathComponent("config.sh").path, contents: Data())
+        guard case .missing(_, let fix) = await runtime.health() else { return XCTFail("expected missing") }
+        XCTAssertTrue(fix.contains("kinhin setup repair host-agent"))
     }
 
     // MARK: Provision / teardown lifecycle
@@ -133,26 +142,79 @@ final class HostRuntimeTests: XCTestCase {
 
     // MARK: Registration script
 
-    func testRegistrationScriptIsGitHubOnly() async {
-        let (runtime, _, _) = makeRuntime()
-        // A Gitea-family forge (Forgejo shares it) must be refused: the host
-        // path only runs the GitHub agent.
+    private func giteaForge(family: ForgeID = .gitea, labels: [String] = ["macos:host"]) -> GiteaForge {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubProtocol.self]
         let client = GiteaClient(
             credentials: GiteaCredentials(token: "gt", scope: "acme", instance: "https://gitea.example.com"),
             session: URLSession(configuration: config))
-        let gitea = GiteaForge(
-            credentials: .gitea(token: "gt", scope: "acme", instance: "https://gitea.example.com"),
-            labels: ["macos:host"], client: client, registrationToken: "reg")
-        do {
-            _ = try await runtime.registrationScript(
-                forge: gitea, token: "t", name: "kinhin-1", runnerCount: 1,
-                route: RepoRoute(repo: "acme", image: "img", ephemeral: true, bootTimeout: 5), labels: nil)
-            XCTFail("Gitea forges must not register on the host")
-        } catch {
-            // expected
-        }
+        let credentials: ForgeCredentials =
+            family == .forgejo
+            ? .forgejo(token: "gt", scope: "acme", instance: "https://gitea.example.com")
+            : .gitea(token: "gt", scope: "acme", instance: "https://gitea.example.com")
+        return GiteaForge(credentials: credentials, labels: labels, client: client, registrationToken: "reg")
+    }
+
+    private let route = RepoRoute(repo: "acme", image: "img", ephemeral: true, bootTimeout: 5)
+
+    func testGiteaRegistrationScriptRunsTheDaemonOnTheHost() async throws {
+        let (runtime, _, agentDir) = makeRuntime()
+        let script = try await runtime.registrationScript(
+            forge: giteaForge(), token: "ignored", name: "kinhin-g1", runnerCount: 1, route: route, labels: nil)
+        XCTAssertTrue(script.contains(agentDir.appendingPathComponent("gitea-runner").path))
+        XCTAssertTrue(script.contains("register --no-interactive"))
+        XCTAssertTrue(script.contains("--instance 'https://gitea.example.com'"))
+        XCTAssertTrue(script.contains("--token 'reg'"), "the forge's long-lived registration token is used")
+        XCTAssertTrue(script.contains("--name 'kinhin-g1'"))
+        XCTAssertTrue(script.contains("--labels 'macos:host,kinhin-host:host'"), script)
+        XCTAssertTrue(script.contains("host-instances/kinhin-g1/gitea-1"), "state lives in the scrubbed instance dir")
+        XCTAssertTrue(script.contains("workdir_parent"), "job workspaces are redirected into the instance dir")
+        XCTAssertTrue(script.contains("daemon.pid"), "teardown needs the pid to stop the daemon")
+        XCTAssertFalse(script.contains("--ephemeral"))
+    }
+
+    func testForgejoUsesTheSameHostFlow() async throws {
+        let (runtime, _, _) = makeRuntime()
+        let script = try await runtime.registrationScript(
+            forge: giteaForge(family: .forgejo), token: "", name: "kinhin-f1", runnerCount: 1, route: route,
+            labels: nil)
+        XCTAssertTrue(script.contains("register --no-interactive"))
+    }
+
+    func testGiteaRunnersPerVMGetIndexedNames() async throws {
+        let (runtime, _, _) = makeRuntime()
+        let script = try await runtime.registrationScript(
+            forge: giteaForge(), token: "", name: "kinhin-g2", runnerCount: 2, route: route, labels: nil)
+        XCTAssertTrue(script.contains("--name 'kinhin-g2-r1'"))
+        XCTAssertTrue(script.contains("--name 'kinhin-g2-r2'"), "matches the names awaitGiteaExit expects")
+        XCTAssertTrue(script.contains("gitea-2"))
+    }
+
+    func testHostLabelsForceTheHostSchemeAndAddTheMarker() {
+        XCTAssertEqual(
+            HostRuntime.hostLabels(["macos:host", "ubuntu-latest:docker://node:20", "arm64", "arm64:host"]),
+            ["macos:host", "ubuntu-latest:host", "arm64:host", "kinhin-host:host"],
+            "docker-scheme and bare labels must not make the daemon start containers; duplicates collapse")
+    }
+
+    func testTeardownStopsGiteaDaemonsBeforeScrubbing() async throws {
+        let (runtime, shell, _) = makeRuntime()
+        let id = "kinhin-gtd\(UUID().uuidString.prefix(6))"
+        try await runtime.provision(id: id, route: route)
+        let instanceDir = runtime.workDirectory(for: id).appendingPathComponent("gitea-1", isDirectory: true)
+        try FileManager.default.createDirectory(at: instanceDir, withIntermediateDirectories: true)
+        await runtime.teardown(id: id)
+        let stop = try XCTUnwrap(shell.calls.first { $0.last?.contains("daemon.pid") == true }, "\(shell.calls)")
+        XCTAssertTrue(stop.last?.contains("gitea-runner.* daemon") ?? false, "only kills a pid that is still a daemon")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: runtime.workDirectory(for: id).path))
+    }
+
+    func testTeardownOfAGitHubInstanceRunsNoShellCommands() async throws {
+        let (runtime, shell, _) = makeRuntime()
+        let id = "kinhin-ghd\(UUID().uuidString.prefix(6))"
+        try await runtime.provision(id: id, route: route)
+        await runtime.teardown(id: id)
+        XCTAssertTrue(shell.calls.isEmpty)
     }
 
     func testRegistrationScriptRedirectsWorkDirAndMergesHostLabel() async throws {

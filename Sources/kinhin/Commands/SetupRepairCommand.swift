@@ -1,8 +1,8 @@
 import Foundation
 import KinhinKit
 
-/// `kinhin setup repair host-agent` — installs the actions-runner agent that
-/// host-mode routes run on this Mac (the fix `HostRuntime.health()` advertises).
+/// `kinhin setup repair host-agent` — installs the runner agents (GitHub and Gitea/Forgejo)
+/// that host-mode routes run on this Mac (the fix `HostRuntime.health()` advertises).
 enum SetupRepairCommand {
     static func run(_ args: [String]) async throws {
         guard args.dropFirst().first == "repair", args.dropFirst(2).first == "host-agent" else {
@@ -14,8 +14,8 @@ enum SetupRepairCommand {
             print("host runner agent already installed")
             return
         }
-        print("installing the GitHub runner agent for host runs…")
-        let version = try await installer.install()
-        print("installed actions-runner \(version)")
+        print("installing the GitHub and Gitea runner agents for host runs…")
+        let versions = try await installer.install()
+        print("installed actions-runner \(versions.github) and gitea-runner \(versions.gitea)")
     }
 }

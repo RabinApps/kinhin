@@ -464,7 +464,8 @@ public struct SetupStatusComputer: Sendable {
                         id: "host-agent",
                         title: "Host runner agent",
                         ok: false,
-                        detail: "the GitHub runner agent isn't installed (host routes run directly on this Mac)",
+                        detail:
+                            "the GitHub and Gitea runner agents aren't installed (host routes run directly on this Mac)",
                         action: "install_host_agent"
                     ))
             case .broken(let why):

@@ -128,7 +128,7 @@ func helpText() -> String {
         auth clear                  Remove the stored token
         doctor [--json]             Check prerequisites and print the computed capacity (--json: merged machine-readable diagnostics document)
         setup-status [--json]       First-run checklist (pass --json for machine output)
-        setup repair host-agent     Install the GitHub runner agent for host runs (unisolated, on this Mac)
+        setup repair host-agent     Install the GitHub + Gitea runner agents for host runs (unisolated, on this Mac)
         runtimes [--json]           Pools, capacity, budget, health, and routes (--no-health skips probes)
         runtimes route add <pat> <rt>   Route a repo (owner/repo) or workflow (owner/repo@Name) to tart|appleContainer|docker|host
                                     (host runs unisolated on this Mac and needs --consent)

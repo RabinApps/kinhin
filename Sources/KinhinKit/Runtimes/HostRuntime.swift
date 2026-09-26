@@ -9,8 +9,8 @@ import Foundation
 /// `kinhin-host` label so only opted-in workflows can land here.
 ///
 /// Ephemeral semantics without VMs: the runner *process* is ephemeral
-/// (`--ephemeral` deregistration, same as GitHub-on-Tart) while the machine
-/// stays warm. Each instance gets its own work directory under kinhin's
+/// (GitHub `--ephemeral` deregistration; Gitea daemons are stopped by
+/// teardown once the engine sees the job finish) while the machine stays warm. Each instance gets its own work directory under kinhin's
 /// support dir, scrubbed at teardown so job state never outlives the record.
 final class HostRuntime: Runtime {
     let id: RuntimeID = .host
@@ -33,11 +33,10 @@ final class HostRuntime: Runtime {
     // MARK: Runtime protocol
 
     func health() async -> RuntimeHealth {
-        let agent = agentDir.appendingPathComponent("config.sh")
-        guard FileManager.default.fileExists(atPath: agent.path) else {
+        guard HostAgentInstaller(shell: shell, agentDir: agentDir).isInstalled else {
             return .missing(
-                tool: "host runner agent",
-                fix: "kinhin setup repair host-agent (installs the actions-runner agent on this Mac)")
+                tool: "host runner agents",
+                fix: "kinhin setup repair host-agent (installs the GitHub and Gitea runner agents on this Mac)")
         }
         return .ready
     }
@@ -69,16 +68,25 @@ final class HostRuntime: Runtime {
         return entries.filter { $0.hasPrefix("kinhin-") }
     }
 
-    /// The GitHub registration script, run from the agent directory with the
+    /// The registration script for the forge (GitHub here; Gitea-family in
+    /// `HostRuntime+Gitea`), run from the agent directory with the
     /// work directory redirected into the instance's scrubbed dir. Labels:
     /// the pool's labels (already merged with `kinhin-host` at pool build).
     func registrationScript(
         forge: Forge, token: String, name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String {
-        guard case .github = forge.credentials else {
-            throw EngineError.registrationFailed(
-                vm: name, stderr: "host mode supports GitHub repos only (Gitea/Forgejo agents need a VM or container)")
+        switch forge.credentials {
+        case .github:
+            break
+        case .gitea, .forgejo:
+            // Forgejo shares Gitea's runner binary and registration flow.
+            guard let giteaFamilyForge = forge as? GiteaForge else {
+                throw EngineError.registrationFailed(vm: name, stderr: "gitea-family forge misconfigured")
+            }
+            return giteaRegistrationScript(
+                instance: giteaFamilyForge.registrationURL(), token: giteaFamilyForge.registrationToken,
+                labels: forge.labels, name: name, runnerCount: runnerCount)
         }
         let workDir = workDirectory(for: name)
         let base = RunnerBootstrap.registrationScript(
@@ -105,10 +113,12 @@ final class HostRuntime: Runtime {
     /// semantics, same as GitHub-on-Tart).
     func watchExit(id: String, forge: Forge, runnerCount: Int, route: RepoRoute) async throws {}
 
-    /// Deregisters any leftover runner (best-effort) and scrubs the work dir.
-    /// Idempotent: missing dirs are already clean.
+    /// Stops any Gitea daemons (they never exit on their own) and scrubs the
+    /// work dir. Runner registrations are removed by the engine's forge
+    /// cleanup. Idempotent: missing dirs are already clean.
     func teardown(id: String) async {
         let workDir = workDirectory(for: id)
+        await stopGiteaDaemons(id: id)
         await bestEffortAsync(id, "removing host work directory") {
             if FileManager.default.fileExists(atPath: workDir.path) {
                 try FileManager.default.removeItem(at: workDir)
@@ -119,7 +129,7 @@ final class HostRuntime: Runtime {
     // MARK: Helpers
 
     /// Per-instance scratch dir, scrubbed at teardown.
-    private func workDirectory(for id: String) -> URL {
+    func workDirectory(for id: String) -> URL {
         Paths.appSupport.appendingPathComponent("host-instances/\(id)", isDirectory: true)
     }
 }

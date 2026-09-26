@@ -379,7 +379,7 @@ kinhin runtimes route add <pattern> <tart|appleContainer|docker|host> [--consent
 kinhin runtimes route remove <pattern>
                              Delete that route (e.g. `acme/api` or `acme/web@Nightly`)
 kinhin setup repair host-agent
-                             Install the GitHub runner agent used by host routes (one time)
+                             Install the GitHub + Gitea runner agents used by host routes (one time)
 kinhin image prepare        Build the runner base image (once); --provision-script <file>
                              bakes your toolchains in (see below); `toolchains:`
                              config entries are baked automatically and downloads
@@ -704,10 +704,10 @@ runtimes:
 ```
 
 - **Consent is enforced everywhere.** Config validation rejects a host route without `consent: true`. `kinhin runtimes route add <pattern> host --consent` refuses to run without the flag. In the app, **Runtimes… → Add Route** lists "Host — this Mac, no isolation" and won't add the route until you tick the consent checkbox; host routes show a ⚠︎ *unisolated* marker in the route list.
-- **Install the agent once.** Host runs use the GitHub actions-runner agent installed under `~/Library/Application Support/Kinhin/host-runner`. When a host route exists, the setup checklist and `kinhin doctor` gain a *Host runner agent* row with a one-click **Install Host Runner Agent** fix; from the terminal run `kinhin setup repair host-agent`. Without host routes, none of this appears.
+- **Install the agent once.** Host runs use the GitHub actions-runner and the Gitea runner (which also serves Forgejo), installed — with SHA-256 verification — under `~/Library/Application Support/Kinhin/host-runner`. When a host route exists, the setup checklist and `kinhin doctor` gain a *Host runner agent* row with a one-click **Install Host Runner Agent** fix; from the terminal run `kinhin setup repair host-agent`. Without host routes, none of this appears.
 - **Explicit `runs-on` marker.** The host pool always registers with the `kinhin-host` label, so a workflow can also opt in with `runs-on: [kinhin-host]` and only opted-in workflows can ever land on your Mac.
 - **Ephemeral process, warm machine.** Each runner registers with `--ephemeral`, gets its own work directory under kinhin's support directory, and that directory is scrubbed when the runner is torn down. The Mac itself is not reset between jobs, so anything a job installs or leaves outside its work directory persists.
-- **GitHub only.** Gitea and Forgejo repos can't use host routes (their runners need a VM or container); such a job fails to register with a clear error.
+- **Every forge.** Host routes work for GitHub, Gitea and Forgejo. Gitea-family runners have no `--ephemeral`, so kinhin watches the runner go idle after its job (the same watch it uses for VMs), then stops the daemon and scrubs the work directory. Gitea host runners always register with `:host` labels (your configured labels are forced to the host scheme, plus `kinhin-host:host`), so a job can never be picked up in a container by mistake.
 - `kinhin runtimes` shows the Host pool and its health (agent installed or not) alongside the others; `kinhin doctor --json` includes a `hostRuntime` section (state, routed patterns, and the unisolated warning) only when a host route exists.
 
 ## License

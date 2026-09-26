@@ -1,4 +1,3 @@
-import AppKit
 import XCTest
 
 @testable import KinhinKit
@@ -49,15 +48,15 @@ private final class FakeDocker: ShellRunning, @unchecked Sendable {
 }
 
 @MainActor
-final class ContainersViewTests: XCTestCase {
+final class ContainersModelTests: XCTestCase {
     private var docker: FakeDocker!
-    private var controller: ContainersViewController!
+    private var controller: ContainersModel!
     private var confirmations: [(title: String, message: String)] = []
     private var answer = true
 
     override func setUp() async throws {
         docker = FakeDocker()
-        controller = ContainersViewController()
+        controller = ContainersModel()
         controller.makeManager = { [docker] tool in
             ContainerManager(tool: tool, shell: docker!, binary: "/bin/\(tool.binaryName)")
         }
@@ -65,23 +64,19 @@ final class ContainersViewTests: XCTestCase {
             confirmations.append((title, message))
             return answer
         }
-        _ = controller.view
         await controller.reloadAndWait()
     }
 
     func testListsContainersAndVolumes() {
-        XCTAssertEqual(controller.containersForTesting.map(\.name), ["web", "kinhin-1"])
-        XCTAssertEqual(controller.volumesForTesting.map(\.name), ["data"])
-        let text = allText()
-        XCTAssertTrue(text.contains("web"))
-        XCTAssertTrue(text.contains("data"))
+        XCTAssertEqual(controller.containers.map(\.name), ["web", "kinhin-1"])
+        XCTAssertEqual(controller.volumes.map(\.name), ["data"])
     }
 
     func testDeleteAsksForConfirmationThenDeletes() async {
         await controller.deleteContainer(id: "kinhin-1")?.value
         XCTAssertEqual(confirmations.count, 1)
         XCTAssertTrue(confirmations[0].message.contains("CI runner"), "kinhin runner containers get an extra warning")
-        XCTAssertEqual(controller.containersForTesting.map(\.name), ["web"])
+        XCTAssertEqual(controller.containers.map(\.name), ["web"])
     }
 
     func testDeletingARunningContainerWarnsAndForces() async {
@@ -97,23 +92,23 @@ final class ContainersViewTests: XCTestCase {
         XCTAssertNil(controller.deleteVolume(name: "data"))
         XCTAssertEqual(confirmations.count, 2, "both deletes asked first")
         XCTAssertFalse(docker.calls.contains { $0.contains("rm") })
-        XCTAssertEqual(controller.containersForTesting.count, 2)
-        XCTAssertEqual(controller.volumesForTesting.count, 1)
+        XCTAssertEqual(controller.containers.count, 2)
+        XCTAssertEqual(controller.volumes.count, 1)
     }
 
     func testDeleteVolumeConfirmsThenDeletes() async {
         await controller.deleteVolume(name: "data")?.value
         XCTAssertTrue(confirmations[0].message.contains("data stored"), confirmations[0].message)
-        XCTAssertTrue(controller.volumesForTesting.isEmpty)
+        XCTAssertTrue(controller.volumes.isEmpty)
     }
 
     func testStartStopRestart() async {
         await controller.startContainer(id: "kinhin-1")?.value
-        XCTAssertEqual(controller.containersForTesting.first { $0.id == "kinhin-1" }?.state, "running")
+        XCTAssertEqual(controller.containers.first { $0.id == "kinhin-1" }?.state, "running")
         XCTAssertTrue(confirmations.isEmpty, "starting never needs confirmation")
 
         await controller.stopContainer(id: "web")?.value
-        XCTAssertEqual(controller.containersForTesting.first { $0.id == "web" }?.state, "exited")
+        XCTAssertEqual(controller.containers.first { $0.id == "web" }?.state, "exited")
         XCTAssertTrue(confirmations.isEmpty, "ordinary containers stop without a prompt")
 
         await controller.restartContainer(id: "kinhin-1")?.value
@@ -125,41 +120,25 @@ final class ContainersViewTests: XCTestCase {
         await controller.startContainer(id: "kinhin-1")?.value
         answer = false
         XCTAssertNil(controller.stopContainer(id: "kinhin-1"))
-        XCTAssertEqual(controller.containersForTesting.first { $0.id == "kinhin-1" }?.state, "running")
+        XCTAssertEqual(controller.containers.first { $0.id == "kinhin-1" }?.state, "running")
     }
 
     func testRowsShowTheRightLifecycleButtons() {
-        let titles = allText().components(separatedBy: "\n")
-        XCTAssertTrue(titles.contains("Stop"))  // web is running
-        XCTAssertTrue(titles.contains("Restart"))
-        XCTAssertTrue(titles.contains("Start"))  // kinhin-1 is exited
+        let web = controller.containers.first { $0.id == "web" }!  // running
+        let runner = controller.containers.first { $0.id == "kinhin-1" }!  // exited
+        XCTAssertEqual(controller.lifecycle(for: web), [.stop, .restart])
+        XCTAssertEqual(controller.lifecycle(for: runner), [.start])
     }
 
     func testDeleteIsAcknowledged() async {
         await controller.deleteVolume(name: "data")?.value
-        XCTAssertTrue(controller.statusTextForTesting.contains("Deleted volume"), controller.statusTextForTesting)
+        XCTAssertTrue(controller.status.text.contains("Deleted volume"), controller.status.text)
     }
 
     func testToolErrorsShowInline() async {
         docker.failNext = "volume is in use"
         await controller.deleteVolume(name: "data")?.value
-        XCTAssertTrue(controller.statusTextForTesting.contains("in use"), controller.statusTextForTesting)
-        XCTAssertEqual(controller.volumesForTesting.count, 1, "a failed delete leaves the volume listed")
-    }
-
-    func testThereAreNoCreateButtons() {
-        let titles = allText().components(separatedBy: "\n")
-        XCTAssertFalse(titles.contains { $0.hasPrefix("New ") }, "kinhin never creates containers or volumes by hand")
-    }
-
-    private func allText() -> String {
-        var out: [String] = []
-        func walk(_ v: NSView) {
-            if let t = v as? NSTextField { out.append(t.stringValue) }
-            if let b = v as? NSButton { out.append(b.title) }
-            v.subviews.forEach(walk)
-        }
-        walk(controller.view)
-        return out.joined(separator: "\n")
+        XCTAssertTrue(controller.status.text.contains("in use"), controller.status.text)
+        XCTAssertEqual(controller.volumes.count, 1, "a failed delete leaves the volume listed")
     }
 }

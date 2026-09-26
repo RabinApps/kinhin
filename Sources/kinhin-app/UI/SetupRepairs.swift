@@ -53,9 +53,9 @@ extension SetupWindowController {
         }
     }
 
-    /// Downloads the GitHub runner agent that host-mode routes run on this Mac.
+    /// Downloads the GitHub and Gitea runner agents that host-mode routes run on this Mac.
     private func installHostAgent() {
-        runLongTask(title: "Installing the host runner agent…") {
+        runLongTask(title: "Installing the host runner agents…") {
             try await HostAgentInstaller().install()
         }
     }
