@@ -103,19 +103,18 @@ public enum Daemon {
     /// a rebuild — the server's handler keeps answering through this box
     /// while the swap happens.
     final class EngineRef: @unchecked Sendable {
-        private let lock = NSLock()
-        private var wrapped: FleetEngine?
+        private let wrapped: Mutex<FleetEngine?>
 
         public init(_ initial: FleetEngine? = nil) {
-            wrapped = initial
+            wrapped = Mutex(initial)
         }
 
         public var engine: FleetEngine? {
-            lock.withLock { wrapped }
+            wrapped.withLock { $0 }
         }
 
         func set(_ engine: FleetEngine?) {
-            lock.withLock { wrapped = engine }
+            wrapped.withLock { $0 = engine }
         }
     }
 
