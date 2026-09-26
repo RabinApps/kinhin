@@ -205,16 +205,16 @@ final class SetupFormsTests: XCTestCase {
     }
 
     func testCapacityWritesNothingUntilApplyThenOnce() throws {
-        let form = ConfigTabViewController()
+        let form = CapacityModel()
         form.configURL = configURL
-        _ = form.view
+        form.reload()
         var edited = 0
         form.onEdited = { edited += 1 }
 
         let originalMax = try snapshot().maxRunners
-        form.stageForTesting(.maxRunners(6), id: "max-runners")
-        form.stageForTesting(.minRunners(2), id: "min-runners")
-        form.stageForTesting(.pollInterval(45), id: "poll")
+        form.stage("max-runners", .maxRunners(6))
+        form.stage("min-runners", .minRunners(2))
+        form.stage("poll", .pollInterval(45))
         XCTAssertTrue(form.hasPendingChanges)
         XCTAssertEqual(try snapshot().maxRunners, originalMax, "nothing is written while editing")
         XCTAssertEqual(edited, 0)
@@ -230,11 +230,11 @@ final class SetupFormsTests: XCTestCase {
 
     func testCapacityApplyHandlesMinMaxOrdering() throws {
         // Min 4 first would transiently exceed the current Max of 1.
-        let form = ConfigTabViewController()
+        let form = CapacityModel()
         form.configURL = configURL
-        _ = form.view
-        form.stageForTesting(.minRunners(4), id: "min-runners")
-        form.stageForTesting(.maxRunners(8), id: "max-runners")
+        form.reload()
+        form.stage("min-runners", .minRunners(4))
+        form.stage("max-runners", .maxRunners(8))
         form.applyPending()
         let snap = try snapshot()
         XCTAssertEqual(snap.minRunners, 4)
@@ -242,24 +242,14 @@ final class SetupFormsTests: XCTestCase {
     }
 
     func testCapacityRejectedEditStaysPendingWithAnError() throws {
-        let form = ConfigTabViewController()
+        let form = CapacityModel()
         form.configURL = configURL
-        _ = form.view
-        form.stageForTesting(.minRunners(99), id: "min-runners")  // far above Max
+        form.reload()
+        form.stage("min-runners", .minRunners(99))  // far above Max
         form.applyPending()
         XCTAssertTrue(form.hasPendingChanges, "a rejected edit is kept so it can be fixed")
-        XCTAssertTrue(allText(in: form.view).contains("Not applied"))
+        XCTAssertTrue(form.status.text.contains("Not applied"))
         XCTAssertEqual(try snapshot().minRunners, 0)
-    }
-
-    private func allText(in view: NSView) -> String {
-        var out: [String] = []
-        func walk(_ v: NSView) {
-            if let t = v as? NSTextField { out.append(t.stringValue) }
-            v.subviews.forEach(walk)
-        }
-        walk(view)
-        return out.joined(separator: "\n")
     }
 
     // MARK: Install flow
