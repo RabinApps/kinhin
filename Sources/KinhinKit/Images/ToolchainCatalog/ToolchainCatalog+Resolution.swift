@@ -196,7 +196,7 @@ extension ToolchainCatalog {
 
         // Umbrella caches: mise (whenever any mise tool is selected) and
         // Homebrew's download cache (macOS brew installs only). These were
-        // documented in the README's cache map but previously missing from
+        // documented in the docs/toolchains.md cache map but previously missing from
         // the resolved selection.
         if !out.miseSpecs.isEmpty {
             let mise = ToolchainCacheEnv(variable: "MISE_CACHE_DIR", subdirectory: "mise")

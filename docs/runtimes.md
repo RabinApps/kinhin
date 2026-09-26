@@ -1,0 +1,183 @@
+# Runtimes & routing
+
+Where jobs execute: Tart VMs, Apple `container` microVMs, Docker containers, or directly on your
+Mac — and how one fleet routes each job between them.
+
+[← Back to README](../README.md)
+
+Every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the
+agent, and tears down. Four backends ship:
+
+| Runtime             | Runs            | Isolation                                    |
+| ------------------- | --------------- | -------------------------------------------- |
+| **Tart**            | macOS jobs      | One VM per runner (linked clone)             |
+| **apple/container** | Linux jobs      | One lightweight microVM per runner container |
+| **Docker**          | Linux jobs      | Containers in your provider's shared VM      |
+| **Host**            | Jobs on the Mac | None — opt-in, trusted repos only            |
+
+The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the
+protocol, so new backends slot in without touching lifecycle code. The design is written up in
+[runtime-abstraction-design.md](runtime-abstraction-design.md).
+
+Both Linux runtimes support [managed toolchains and the shared cache](toolchains.md#linux-runtimes):
+`image prepare --container|--docker` bakes the config's `toolchains:` into the Linux image, and
+`share_cache: true` mounts the host cache into every runner container at `/var/kinhin-cache`.
+
+## Apple `container` (Linux microVMs)
+
+kinhin can run Linux jobs in [apple/container](https://github.com/apple/container) microVMs: one
+lightweight VM per runner container on Apple silicon, no Docker daemon, and stronger isolation than
+a shared Docker VM. Add this to your config and run `kinhin image prepare --container` to bake the
+agents into a Linux image:
+
+```yaml
+container:
+  image: "kinhin-ci-linux" # built by: kinhin image prepare --container --target kinhin-ci-linux
+  base_image: "ubuntu:24.04" # optional: what that image is built on (any Debian/Ubuntu-based image)
+  cpus: 4
+  memory_gb: 8
+```
+
+Requires the container CLI (`brew install container && container system start`). macOS jobs still
+need Tart — containers run Linux workloads only. When `container:` is configured, the setup
+checklist and `kinhin doctor` gain container rows (CLI health, system-service state, image present)
+with one-click fix actions; without it, the rows never appear. Run `kinhin runtimes` (or the menu
+bar's **Runtimes…** pane) to see the pool, its cap, and its live health once configured.
+
+## Docker (Linux containers)
+
+Linux runner containers inside your provider's shared Linux VM (Docker Desktop, OrbStack, or
+colima): one container per job slot with per-slot `--cpus`/`--memory` limits, registration over
+`docker exec` (no SSH, no guest IP), and the daemon teardown as soon as the job is done. kinhin
+delegates the VM — it never starts, stops, or configures the provider. Add this to your config and
+run `kinhin image prepare --docker` to bake the agents into a Linux image:
+
+```yaml
+docker:
+  image: "ghcr.io/acme/kinhin-ci-linux" # built by: kinhin image prepare --docker --target <name>
+  base_image: "ubuntu:24.04" # optional: what that image is built on (any Debian/Ubuntu-based image)
+  cpus: 2
+  memory_gb: 4
+  max_slots: 8 # hard cap on concurrent container slots
+  platform: "linux/arm64" # default and native; "linux/amd64" runs x86_64 under emulation (see below)
+```
+
+When `docker:` is configured, the checklist and `kinhin doctor` gain Docker rows (daemon reachable,
+image present) exactly like the container rows; without it, they never appear. Docker slots
+register with a `kinhin-docker` label so jobs opt in via `runs-on: [kinhin-docker]`, and
+`max_slots` clamps the budget partition.
+
+### Architecture and emulation
+
+kinhin runs on Apple Silicon, so Docker runner containers are `linux/arm64` by default (native
+speed). If a workflow needs x86_64, set `docker.platform: "linux/amd64"` (or pick it in the app
+under This Mac → Linux jobs, or bake once with `kinhin image prepare --docker --platform linux/amd64`).
+Disclosure: **`linux/amd64` runs under emulation** — Rosetta if you enabled it in Docker Desktop,
+otherwise QEMU. Expect slower jobs (QEMU can be several times slower), and some software fails
+under emulation: JITs, certain Go/Java/.NET builds, and anything using unsupported CPU
+instructions. Prefer arm64 unless a job needs x86_64. Emulation is provided by your Docker
+provider; kinhin does not configure it. Details:
+
+- The baked agents follow the platform (`actions-runner-linux-x64` / `gitea-runner-linux-amd64`), so rebuild the image after changing `platform` — the checklist and `kinhin doctor` flag an image whose architecture doesn't match, and a rebuild never reuses an image of the other architecture as its base.
+- amd64 Docker slots register with an `x64` label instead of `arm64`, so `runs-on: [kinhin-docker, x64]` selects them and `arm64` jobs never land on emulated slots.
+- Apple `container` is arm64-only (`container.platform` is rejected). Toolchains are architecture-neutral.
+- kinhin warns whenever amd64 is selected: on `image prepare`, in the checklist / `kinhin doctor`, in the app, and once at fleet start.
+
+### Choosing the base image
+
+`image prepare --container|--docker` bakes the agents on top of a base image: `ubuntu:24.04` by
+default. Pick another in the app (Advanced → Toolchains → Rebuild images, or the Linux card in
+Setup) or set `base_image:` under `container:` / `docker:`; `--container-image` / `--docker-image`
+override it for one run. The install scripts use `apt-get`, so the base must be Debian- or
+Ubuntu-based (an Alpine or Fedora base is rejected up front with a clear message).
+
+### Building the Docker image with a Dockerfile (CI-friendly)
+
+`kinhin image prepare --docker` bakes the image on the spot — fine for a one-host setup, but it needs a stored token and a live daemon on the machine doing the baking. For a reproducible, CI-buildable image, use a Dockerfile instead: it lands the runner agents at exactly the paths the registration scripts expect (`/opt/actions-runner` with `config.sh`, `/opt/gitea-runner/gitea-runner`), performs the same downloads `image prepare` would, and can be built anywhere with a `linux/arm64` builder (Apple silicon hosts run arm64 containers natively — keep the platform pinned unless you set `docker.platform: "linux/amd64"`, in which case build with `--platform linux/amd64`; the Dockerfile picks the matching agent from `TARGETARCH`):
+
+```dockerfile
+# kinhin-ci-linux — kinhin runner agents on Linux (arm64 native; amd64 runs emulated)
+# docker build --platform linux/arm64 -t ghcr.io/acme/kinhin-ci-linux:latest .
+FROM ubuntu:24.04
+
+ARG TARGETARCH  # set by BuildKit: arm64 or amd64
+
+ARG RUNNER_VERSION=2.325.0      # pin to a github/actions/runner release
+ARG GITEA_RUNNER_VERSION=3.5.0  # pin to a gitea/runner release
+
+# GitHub Actions agent at /opt/actions-runner (config.sh must be executable there)
+RUN GH_ARCH=$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo arm64) \
+ && mkdir -p /opt/actions-runner \
+ && cd /opt/actions-runner \
+ && curl -fsSL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${GH_ARCH}-${RUNNER_VERSION}.tar.gz" | tar xz \
+ && ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
+
+# Gitea runner at /opt/gitea-runner/gitea-runner
+RUN mkdir -p /opt/gitea-runner \
+ && cd /opt/gitea-runner \
+ && curl -fsSL "https://gitea.com/gitea/runner/releases/download/v${GITEA_RUNNER_VERSION}/gitea-runner-${GITEA_RUNNER_VERSION}-linux-${TARGETARCH}.xz" -o runner.xz \
+ && xz -d runner.xz && chmod +x runner && mv runner gitea-runner \
+ && ./gitea-runner --version
+```
+
+Build and push from CI (any linux/arm64 runner — or amd64 with QEMU; use `--platform linux/amd64` for an x86_64 image):
+
+```bash
+docker build --platform linux/arm64 -t ghcr.io/acme/kinhin-ci-linux:latest .
+docker push ghcr.io/acme/kinhin-ci-linux:latest
+```
+
+Then point `docker.image:` at the pushed reference. Bake your toolchains into the image the same way (`toolchains:` via a provision script in the Dockerfile) — a CI-built image has no access to the host cache during its build, so anything the jobs need must live in the image (runners on your own host still get the shared-cache mount at runtime when `share_cache: true`). Unlike `image prepare`, the Dockerfile bakes both agents unconditionally; that's harmless, since agents only register when your fleet has a stored token for their platform. Pin the `ARG`s to a release (the versions above match kinhin's current pinned fallbacks) and bump them deliberately.
+
+## Per-repo & per-workflow runtime routing
+
+One fleet can mix runtimes: macOS repos on Tart VMs, Linux repos in Apple containers. Add a `runtimes:` section to route per repo — and override per **workflow** (or per job) with labels:
+
+```yaml
+runtimes:
+  default: tart # repos with no route
+  budget: { tart: 0.6, appleContainer: 0.4 } # host-budget split (no overcommit by construction)
+  routes:
+    - pattern: "acme/ios-app" # whole repo → Tart VMs
+      runtime: tart
+    - pattern: "acme/api" # whole repo → Linux containers
+      runtime: appleContainer
+    - pattern: "acme/web@Nightly" # one workflow → containers
+      runtime: appleContainer
+```
+
+Routing precedence: **workflow route → repo route → `runs-on:` label → default**. Container runners always register with a `kinhin-container` label (plus optional `container.labels`), and Docker slots with `kinhin-docker`, so any job can opt into a Linux pool with `runs-on: [kinhin-container]` or `runs-on: [kinhin-docker]` without touching kinhin's config. No route and no label → the `runtimes.default` pool. Capacity is partitioned by the `budget` weights — the tightest density that can still never overcommit your Mac — and `kinhin status` reports `capacityByRuntime` so the split is visible. If a split starves a configured route (its runtime's cap hits 0), the pane warns you before you can save it.
+
+Routes can also be managed from the terminal with `kinhin runtimes route add|remove` (see [Commands](../README.md#commands)).
+
+### The Runtimes pane
+
+In the menu bar app, **Runtimes…** opens a pane showing the pools with their per-runtime caps and budget shares, plus every route (repo and workflow). Each pool card carries a **live health chip** (● ready / ● missing / ● error) from the runtime's own probe — tart launch check, `container system status`, `docker info` — with the fix hint shown alongside any problem.
+
+- The **Budget** card edits the split directly: a slider per non-default runtime (the default keeps the remainder), a default-runtime picker, a **live cap preview** per row ("3 inst" updates as you drag), and a warning strip when the split on screen would starve a configured route with a cap of zero.
+- The **Labels** card edits the fleet's base label set and `container.labels` (commit on Enter or focus loss; empty label lists are rejected, and the `kinhin-container` routing marker is always merged in at pool build).
+- Routes can be added and removed in place.
+
+Every change rewrites only the relevant section of `config.yaml` — comments elsewhere are preserved — and lands only if the updated file still passes the engine's full config validation; all of it reaches a running fleet live via `reload_config` (budget weights re-partition capacity, label edits rebuild the forges' demand query — no restart). Prefer the terminal? `kinhin runtimes` prints the same pools/caps/budget/routes/health summary.
+
+## Host mode: run jobs directly on your Mac
+
+Host mode is the fourth runtime: a job runs as an **ephemeral GitHub runner process on your Mac itself** — no VM and no container. It is fast (nothing boots) and sees your real toolchains, but it has **no isolation at all**: the job runs with your user's privileges and can read and modify your files and reach your network. Use it only for repositories and workflows you fully trust (your own private scripts, never a public repo that accepts pull requests from strangers).
+
+Because of that, host mode is opt-in per route and needs explicit consent:
+
+```yaml
+runtimes:
+  default: tart # `default: host` is rejected — host is never a fallback
+  routes:
+    - pattern: "acme/scripts" # whole repo → runs on this Mac, unisolated
+      runtime: host
+      consent: true # required for host routes (and rejected on other runtimes)
+```
+
+- **Consent is enforced everywhere.** Config validation rejects a host route without `consent: true`. `kinhin runtimes route add <pattern> host --consent` refuses to run without the flag. In the app, **Runtimes… → Add Route** lists "Host — this Mac, no isolation" and won't add the route until you tick the consent checkbox; host routes show a ⚠︎ _unisolated_ marker in the route list.
+- **Install the agent once.** Host runs use the GitHub actions-runner and the Gitea runner (which also serves Forgejo), installed — with SHA-256 verification — under `~/Library/Application Support/Kinhin/host-runner`. When a host route exists, the setup checklist and `kinhin doctor` gain a _Host runner agent_ row with a one-click **Install Host Runner Agent** fix; from the terminal run `kinhin setup repair host-agent`. Without host routes, none of this appears.
+- **Explicit `runs-on` marker.** The host pool always registers with the `kinhin-host` label, so a workflow can also opt in with `runs-on: [kinhin-host]` and only opted-in workflows can ever land on your Mac.
+- **Ephemeral process, warm machine.** Each runner registers with `--ephemeral`, gets its own work directory under kinhin's support directory, and that directory is scrubbed when the runner is torn down. The Mac itself is not reset between jobs, so anything a job installs or leaves outside its work directory persists.
+- **Every forge.** Host routes work for GitHub, Gitea and Forgejo. Gitea-family runners have no `--ephemeral`, so kinhin watches the runner go idle after its job (the same watch it uses for VMs), then stops the daemon and scrubs the work directory. Gitea host runners always register with `:host` labels (your configured labels are forced to the host scheme, plus `kinhin-host:host`), so a job can never be picked up in a container by mistake.
+- `kinhin runtimes` shows the Host pool and its health (agent installed or not) alongside the others; `kinhin doctor --json` includes a `hostRuntime` section (state, routed patterns, and the unisolated warning) only when a host route exists.
