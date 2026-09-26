@@ -69,7 +69,7 @@ extension FleetEngine {
             // (macOS VM scripts vs Linux container scripts) for its id.
             updateRecord(id) { $0.phase = .registering }
             let account = store.all.first { $0.id == id }?.platform ?? ForgeID.github.rawValue
-            guard let forge = forgesLock.withLock({ forgesByPlatform[account] }) else {
+            guard let forge = forgeState.withLock({ $0.byPlatform[account] }) else {
                 throw EngineError.registrationFailed(
                     vm: id, stderr: "no \(account) forge attached (missing token?)")
             }
@@ -151,7 +151,7 @@ extension FleetEngine {
         while Date() < deadline {
             try Task.checkCancellation()
             let all: [ForgeRunner]
-            if let forge = forge ?? forgesLock.withLock({ forgesByPlatform["gitea"] }) {
+            if let forge = forge ?? forgeState.withLock({ $0.byPlatform["gitea"] }) {
                 do {
                     all = try await forge.runners()
                 } catch {
@@ -278,7 +278,7 @@ extension FleetEngine {
 
         // Clean up any lingering runner registrations for this VM on every
         // attached forge — the VM id itself, or its indexed runners (\(id)-rN).
-        let attached = forgesLock.withLock { Array(forgesByPlatform.values) }
+        let attached = forgeState.withLock { Array($0.byPlatform.values) }
         for forge in attached {
             await bestEffortAsync(id, "cleaning up stale runner registrations") {
                 let stale = try await forge.runners().filter { $0.name == id || $0.name.hasPrefix("\(id)-r") }

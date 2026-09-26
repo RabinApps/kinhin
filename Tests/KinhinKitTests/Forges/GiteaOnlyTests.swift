@@ -127,7 +127,7 @@ final class DualForgeTests: XCTestCase {
             config: try bothConfig(), github: github, tart: FakeTart(),
             store: makeTestStore(), ssh: FakeSSH(), host: testHost)
         // Pre-attached: the engine skips building a real Gitea client.
-        engine.forgesLock.withLock { engine.forgesByPlatform["gitea"] = FakeGitea() }
+        engine.forgeState.withLock { $0.byPlatform["gitea"] = FakeGitea() }
         return engine
     }
 
@@ -146,7 +146,7 @@ final class DualForgeTests: XCTestCase {
         let github = FakeGitHub()
         let engine = try engine(github: github)
         await engine.start()
-        let forges = engine.forgesLock.withLock { Set(engine.forgesByPlatform.keys) }
+        let forges = Set(engine.forges.keys)
         XCTAssertEqual(forges, ["github", "gitea"])
         let status = await waitUntilRunning(engine)
         XCTAssertTrue(status.running)
@@ -158,7 +158,7 @@ final class DualForgeTests: XCTestCase {
         github.permissionDenied = true
         let engine = try engine(github: github)
         await engine.start()
-        let forges = engine.forgesLock.withLock { Set(engine.forgesByPlatform.keys) }
+        let forges = Set(engine.forges.keys)
         XCTAssertEqual(forges, ["gitea"], "the failing forge is detached, the healthy one keeps serving")
         let status = await waitUntilRunning(engine)
         XCTAssertTrue(status.running, "the fleet still starts on Gitea")
@@ -201,7 +201,7 @@ final class ForgeRetryTests: XCTestCase {
         let engine = FleetEngine(
             config: cfg, github: github, tart: FakeTart(),
             store: makeTestStore(), ssh: FakeSSH(), host: testHost)
-        engine.forgesLock.withLock { engine.forgesByPlatform["gitea"] = DualForgeTests.FakeGitea() }
+        engine.forgeState.withLock { $0.byPlatform["gitea"] = DualForgeTests.FakeGitea() }
         return engine
     }
 

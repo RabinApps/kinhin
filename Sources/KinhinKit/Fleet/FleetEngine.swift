@@ -9,6 +9,23 @@ struct RoutingState {
     var caps: [RuntimeID: Int]
 }
 
+/// The legacy GitHub account's credentials and the client built from them.
+struct GitHubAuth {
+    var credentials: GitHubCredentials
+    var client: GitHubServing
+}
+
+/// Attached forges by platform or account name ("github", "gitea", an
+/// `accounts:` name), plus the bookkeeping that changes with them.
+struct ForgeState {
+    var byPlatform: [String: Forge] = [:]
+    /// Registration-token caches for explicit accounts; the legacy GitHub
+    /// account uses the engine's `registrationTokens`.
+    var accountRegistrationTokens: [String: RegistrationTokenCache] = [:]
+    /// Retry schedule for forges that failed at startup (FleetForgeRetry.swift).
+    var retry = ForgeRetryState()
+}
+
 /// The engine's serving flags, read by the reconcile loop and forge retry.
 struct RunState {
     var running = false
@@ -25,19 +42,13 @@ public final class FleetEngine {
     let registrationTokens: RegistrationTokenCache
     let statusBox: FleetStatusBox
     let capacity: Capacity.Plan
-    let credentialsLock = NSLock()
-    var credentials: GitHubCredentials
     var githubFactory: GitHubClientFactory
-    /// Guarded by credentialsLock; only mutated from the engine's own serial
-    /// context (start/replaceCredentials), never mid-reconcile.
-    var githubInstance: GitHubServing
-    /// Forge instances by platform string ("github", "gitea"), guarded by
-    /// forgesLock. The v1 wiring carries exactly the GitHub forge.
-    let forgesLock = NSLock()
-    var forgesByPlatform: [String: Forge] = [:]
-    /// Registration-token caches for explicit GitHub accounts (guarded by
-    /// forgesLock); the legacy account uses `registrationTokens`.
-    var accountRegistrationTokens: [String: RegistrationTokenCache] = [:]
+    /// The legacy GitHub account's credentials and client, swapped together
+    /// by replaceCredentials.
+    let githubAuth: Mutex<GitHubAuth>
+    /// Attached forges, per-account registration-token caches and the
+    /// detached-forge retry schedule.
+    let forgeState: Mutex<ForgeState>
     /// Resolves an account's token (forge, account name). Keychain in
     /// production; tests inject their own.
     var tokenLoader: @Sendable (ForgeID, String) throws -> String? = {
@@ -52,14 +63,10 @@ public final class FleetEngine {
     public func useLiveDiskProbe() { hostProbe = { ResourceProbe().snapshot() } }
 
     /// The API client in use. Swapped atomically by replaceCredentials.
-    public var github: GitHubServing { credentialsLock.withLock { githubInstance } }
+    public var github: GitHubServing { githubAuth.withLock { $0.client } }
 
     /// Forge instances serving this fleet, keyed by platform string.
-    public var forges: [String: Forge] { forgesLock.withLock { forgesByPlatform } }
-
-    /// Retry bookkeeping for forges that failed at startup (see
-    /// FleetForgeRetry.swift). Guarded by forgesLock.
-    var forgeRetry = ForgeRetryState()
+    public var forges: [String: Forge] { forgeState.withLock { $0.byPlatform } }
 
     var reconcileTask: Task<Void, Never>?
     /// One lifecycle task per VM id (removed by the task itself on finish).
@@ -107,17 +114,10 @@ public final class FleetEngine {
         host: HostResources, containerShell: ShellRunning? = nil
     ) {
         let credentials = GitHubCredentials(token: "", scope: config.repo)
-        self.credentials = credentials
         self.githubFactory = GitHubClientFactory { _ in github }
-        self.githubInstance = github
-        self.forgesByPlatform =
-            config.githubEnabled
-            ? [
-                "github": GitHubForge(
-                    credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels,
-                    client: github)
-            ]
-            : [:]
+        self.githubAuth = Mutex(GitHubAuth(credentials: credentials, client: github))
+        self.forgeState = Mutex(
+            ForgeState(byPlatform: Self.initialForges(config: config, credentials: credentials, client: github)))
         let tartInstance = TartRuntime(
             tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh,
             toolchainsConfig: { [config] in config.toolchains })
@@ -246,6 +246,19 @@ public final class FleetEngine {
         self.routingState = Mutex(RoutingState(model: routing, caps: caps))
     }
 
+    /// The forges attached at construction. Gitea-only configs never build a
+    /// GitHub forge (no token, no scope); the other forges attach in start().
+    private static func initialForges(
+        config: KinhinConfig, credentials: GitHubCredentials, client: GitHubServing
+    ) -> [String: Forge] {
+        guard config.githubEnabled else { return [:] }
+        return [
+            "github": GitHubForge(
+                credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels,
+                client: client)
+        ]
+    }
+
     /// Convenience initializer matching the production wiring: a client
     /// factory keyed off the credentials (live by default; injectable in
     /// tests to observe credential swaps).
@@ -262,17 +275,12 @@ public final class FleetEngine {
             ssh: ssh,
             host: host
         )
-        self.credentials = credentials
         self.githubFactory = githubFactory
-        // Gitea-only configs never build a GitHub forge (no token, no scope).
-        self.forgesByPlatform =
-            config.githubEnabled
-            ? [
-                "github": GitHubForge(
-                    credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels,
-                    client: github)
-            ]
-            : [:]
+        let client = github
+        githubAuth.withLock { $0.credentials = credentials }
+        forgeState.withLock {
+            $0.byPlatform = Self.initialForges(config: config, credentials: credentials, client: client)
+        }
         // NOTE: `runtime` was initialized in the designated init; convenience
         // inits cannot reassign let properties.
     }
@@ -304,15 +312,15 @@ public final class FleetEngine {
             let verification = await OrgPermissionProbe.verify(github: github, scope: config.repo)
             if !verification.ok {
                 githubProblem = verification.message
-                forgesLock.withLock { forgeRetry.markGitHubDetached(now: Date()) }
-                _ = forgesLock.withLock { forgesByPlatform.removeValue(forKey: "github") }
+                forgeState.withLock { $0.retry.markGitHubDetached(now: Date()) }
+                _ = forgeState.withLock { $0.byPlatform.removeValue(forKey: "github") }
                 Log.error("engine", "GitHub unavailable: \(verification.message)")
             }
         }
         await attachGiteaForgeIfNeeded()
         await attachForgejoForgeIfNeeded()
         await attachAccountsIfNeeded()
-        let attachedCount = forgesLock.withLock { forgesByPlatform.count }
+        let attachedCount = forgeState.withLock { $0.byPlatform.count }
         guard attachedCount > 0 else {
             let giteaProblem = await statusBox.get().lastError
             let message =
@@ -331,7 +339,7 @@ public final class FleetEngine {
             await statusBox.modify { $0.lastError = "GitHub: \(githubProblem)" }
         }
 
-        let served = forgesLock.withLock { forgesByPlatform.keys.sorted().joined(separator: " + ") }
+        let served = forgeState.withLock { $0.byPlatform.keys.sorted().joined(separator: " + ") }
         Log.info("engine", "starting fleet engine for \(served) (capacity cap: \(capacity.maxConcurrent))")
         await recoverIfNeeded()
         startCachePruneSweepIfNeeded()
@@ -394,14 +402,14 @@ public final class FleetEngine {
         }
         let fresh = GitHubCredentials(token: pat, scope: config.repo)
         let client = githubFactory.make(fresh)
-        credentialsLock.withLock {
-            credentials = fresh
-            githubInstance = client
+        githubAuth.withLock { auth in
+            auth.credentials = fresh
+            auth.client = client
         }
-        forgesLock.withLock {
-            forgesByPlatform["github"] = GitHubForge(
+        forgeState.withLock { state in
+            state.byPlatform["github"] = GitHubForge(
                 credentials: .github(token: fresh.token, scope: fresh.scope), labels: config.labels, client: client)
-            forgeRetry.githubDetached = false
+            state.retry.githubDetached = false
         }
         registrationTokens.invalidate()
         Log.info("engine", "GitHub credentials replaced (scope: \(config.repo))")
@@ -430,7 +438,7 @@ public final class FleetEngine {
     /// silently dead forge).
     func attachGiteaForgeIfNeeded() async {
         guard let giteaConfig = config.gitea else { return }
-        guard forgesLock.withLock({ forgesByPlatform["gitea"] == nil }) else { return }
+        guard forgeState.withLock({ $0.byPlatform["gitea"] == nil }) else { return }
         guard
             let token = await storedToken(
                 missing: "gitea configured but no access token stored — run: kinhin auth set --gitea",
@@ -443,7 +451,7 @@ public final class FleetEngine {
                 labels: giteaConfig.labels ?? ["macos:host"],
                 demandFloor: config.minRunners
             )
-            forgesLock.withLock { forgesByPlatform["gitea"] = forge }
+            forgeState.withLock { $0.byPlatform["gitea"] = forge }
             Log.info("engine", "gitea forge attached (\(giteaConfig.scope) @ \(giteaConfig.instance))")
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
@@ -466,7 +474,7 @@ public final class FleetEngine {
                 labels: giteaConfig.labels ?? ["macos:host"],
                 demandFloor: config.minRunners
             )
-            forgesLock.withLock { forgesByPlatform["gitea"] = forge }
+            forgeState.withLock { $0.byPlatform["gitea"] = forge }
             Log.info("engine", "gitea credentials replaced (\(giteaConfig.scope) @ \(giteaConfig.instance))")
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
@@ -480,7 +488,7 @@ public final class FleetEngine {
     /// fleet running with the reason in lastError.
     func attachForgejoForgeIfNeeded() async {
         guard let forgejoConfig = config.forgejo else { return }
-        guard forgesLock.withLock({ forgesByPlatform["forgejo"] == nil }) else { return }
+        guard forgeState.withLock({ $0.byPlatform["forgejo"] == nil }) else { return }
         guard
             let token = await storedToken(
                 missing: "forgejo configured but no access token stored — run: kinhin auth set --forgejo",
@@ -494,7 +502,7 @@ public final class FleetEngine {
                 labels: forgejoConfig.labels ?? ["macos:host"],
                 demandFloor: config.minRunners
             )
-            forgesLock.withLock { forgesByPlatform["forgejo"] = forge }
+            forgeState.withLock { $0.byPlatform["forgejo"] = forge }
             Log.info("engine", "forgejo forge attached (\(forgejoConfig.scope) @ \(forgejoConfig.instance))")
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
@@ -518,7 +526,7 @@ public final class FleetEngine {
                 labels: forgejoConfig.labels ?? ["macos:host"],
                 demandFloor: config.minRunners
             )
-            forgesLock.withLock { forgesByPlatform["forgejo"] = forge }
+            forgeState.withLock { $0.byPlatform["forgejo"] = forge }
             Log.info("engine", "forgejo credentials replaced (\(forgejoConfig.scope) @ \(forgejoConfig.instance))")
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
@@ -629,10 +637,10 @@ public final class FleetEngine {
         routingState.withLock { $0 = RoutingState(model: model, caps: caps) }
         // Fleet label edits must reach the forge's demand query too —
         // queuedJobs(matching:) filters by the forge's label set.
-        forgesLock.withLock {
-            for (key, forge) in forgesByPlatform {
+        forgeState.withLock { state in
+            for (key, forge) in state.byPlatform {
                 if let githubForge = forge as? GitHubForge {
-                    forgesByPlatform[key] = GitHubForge(
+                    state.byPlatform[key] = GitHubForge(
                         credentials: githubForge.credentials,
                         labels: newConfig.labels,
                         client: githubForge.client,

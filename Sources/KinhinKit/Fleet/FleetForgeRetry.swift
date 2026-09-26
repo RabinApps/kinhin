@@ -35,12 +35,12 @@ extension FleetEngine {
     /// every configured forge is attached. `ignoreBackoff` is for tests.
     func retryDetachedForgesIfDue(now: Date = Date(), ignoreBackoff: Bool = false) async {
         guard running else { return }
-        let (githubDetached, giteaDetached, forgejoDetached, due) = forgesLock.withLock {
+        let (githubDetached, giteaDetached, forgejoDetached, due) = forgeState.withLock { state in
             (
-                forgeRetry.githubDetached,
-                config.gitea != nil && forgesByPlatform["gitea"] == nil,
-                config.forgejo != nil && forgesByPlatform["forgejo"] == nil,
-                now >= forgeRetry.nextAttempt
+                state.retry.githubDetached,
+                config.gitea != nil && state.byPlatform["gitea"] == nil,
+                config.forgejo != nil && state.byPlatform["forgejo"] == nil,
+                now >= state.retry.nextAttempt
             )
         }
         let accountsDetached = !detachedAccounts().isEmpty
@@ -51,13 +51,13 @@ extension FleetEngine {
         if githubDetached { await retryGitHub() }
         if giteaDetached {
             await attachGiteaForgeIfNeeded()
-            if forgesLock.withLock({ forgesByPlatform["gitea"] != nil }) {
+            if forgeState.withLock({ $0.byPlatform["gitea"] != nil }) {
                 await statusBox.modify { if $0.lastError?.hasPrefix("gitea") == true { $0.lastError = nil } }
             }
         }
         if forgejoDetached {
             await attachForgejoForgeIfNeeded()
-            if forgesLock.withLock({ forgesByPlatform["forgejo"] != nil }) {
+            if forgeState.withLock({ $0.byPlatform["forgejo"] != nil }) {
                 await statusBox.modify { if $0.lastError?.hasPrefix("forgejo") == true { $0.lastError = nil } }
             }
         }
@@ -65,16 +65,16 @@ extension FleetEngine {
         if accountsDetached { await attachAccountsIfNeeded() }
 
         let accountsStillMissing = !detachedAccounts().isEmpty
-        let stillMissing = forgesLock.withLock {
-            forgeRetry.githubDetached || (config.gitea != nil && forgesByPlatform["gitea"] == nil)
-                || (config.forgejo != nil && forgesByPlatform["forgejo"] == nil)
+        let stillMissing = forgeState.withLock { state in
+            state.retry.githubDetached || (config.gitea != nil && state.byPlatform["gitea"] == nil)
+                || (config.forgejo != nil && state.byPlatform["forgejo"] == nil)
         }
         let anyMissing = stillMissing || accountsStillMissing
-        forgesLock.withLock {
+        forgeState.withLock { state in
             if anyMissing {
-                forgeRetry.backOff(now: now)
+                state.retry.backOff(now: now)
             } else {
-                forgeRetry.scheduleNext(after: ForgeRetryState.initialDelay, now: now)
+                state.retry.scheduleNext(after: ForgeRetryState.initialDelay, now: now)
             }
         }
     }
@@ -86,13 +86,13 @@ extension FleetEngine {
             await statusBox.modify { $0.lastError = "GitHub: \(verification.message)" }
             return
         }
-        let creds = credentialsLock.withLock { credentials }
+        let creds = githubAuth.withLock { $0.credentials }
         let client = github
-        forgesLock.withLock {
-            forgesByPlatform["github"] = GitHubForge(
+        forgeState.withLock { state in
+            state.byPlatform["github"] = GitHubForge(
                 credentials: .github(token: creds.token, scope: creds.scope),
                 labels: config.labels, client: client)
-            forgeRetry.githubDetached = false
+            state.retry.githubDetached = false
         }
         registrationTokens.invalidate()
         await statusBox.modify { if $0.lastError?.hasPrefix("GitHub:") == true { $0.lastError = nil } }

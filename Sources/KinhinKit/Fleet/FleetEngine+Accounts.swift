@@ -3,23 +3,23 @@ import Foundation
 // FleetEngine — the additional `accounts:` forges. The legacy `repo:` and
 // `gitea:` sections keep their dedicated paths (accounts "github"/"gitea");
 // every explicit account is attached here, keyed by its name in
-// `forgesByPlatform`, so `VMRecord.platform` and the demand maps carry the
+// `ForgeState.byPlatform`, so `VMRecord.platform` and the demand maps carry the
 // account name for all of them.
 extension FleetEngine {
     /// Explicit accounts without an attached forge (never attached yet, or
     /// dropped after a failed verification) — the retry loop's work list.
     func detachedAccounts() -> [AccountConfig] {
-        forgesLock.withLock { config.accounts.filter { forgesByPlatform[$0.name] == nil } }
+        forgeState.withLock { state in config.accounts.filter { state.byPlatform[$0.name] == nil } }
     }
 
     /// The registration-token cache for an account. The legacy GitHub
     /// account keeps the engine's original cache.
     func registrationCache(for account: String) -> RegistrationTokenCache {
         if account == ForgeID.github.rawValue { return registrationTokens }
-        return forgesLock.withLock {
-            if let cache = accountRegistrationTokens[account] { return cache }
+        return forgeState.withLock { state in
+            if let cache = state.accountRegistrationTokens[account] { return cache }
             let cache = RegistrationTokenCache(ttl: TimeInterval(config.tokenTTL))
-            accountRegistrationTokens[account] = cache
+            state.accountRegistrationTokens[account] = cache
             return cache
         }
     }
@@ -28,7 +28,7 @@ extension FleetEngine {
     /// tokens' authority).
     func invalidateRegistrationTokens() {
         registrationTokens.invalidate()
-        let caches = forgesLock.withLock { Array(accountRegistrationTokens.values) }
+        let caches = forgeState.withLock { Array($0.accountRegistrationTokens.values) }
         for cache in caches { cache.invalidate() }
     }
 
@@ -86,7 +86,7 @@ extension FleetEngine {
                     account: account.name
                 )
             }
-            forgesLock.withLock { forgesByPlatform[account.name] = forge }
+            forgeState.withLock { $0.byPlatform[account.name] = forge }
             registrationCache(for: account.name).invalidate()
             Log.info("engine", "account '\(account.name)' attached (\(account.forge.rawValue): \(account.scope))")
             await statusBox.modify {
@@ -121,8 +121,8 @@ extension FleetEngine {
     /// True when any attached GitHub forge is org-scoped (an org fleet
     /// reports a per-repo breakdown; single-repo scopes suppress it).
     var githubOrgScoped: Bool {
-        forgesLock.withLock {
-            forgesByPlatform.values.contains { forge in
+        forgeState.withLock { state in
+            state.byPlatform.values.contains { forge in
                 guard case .github(_, let scope) = forge.credentials else { return false }
                 return !scope.contains("/")
             }

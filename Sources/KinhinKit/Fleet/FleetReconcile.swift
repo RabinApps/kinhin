@@ -100,7 +100,7 @@ extension FleetEngine {
         var queueDepth = 0
         var demandByForge: [String: Int] = [:]
         var demandByPool: [RuntimeID: Int] = [:]
-        let attached = forgesLock.withLock { Array(forgesByPlatform.values) }
+        let attached = forgeState.withLock { Array($0.byPlatform.values) }
         if !state.paused {
             var perForgeJobs: [String: (attribution: Bool, jobs: [ForgeJob])] = [:]
             for forge in attached {
