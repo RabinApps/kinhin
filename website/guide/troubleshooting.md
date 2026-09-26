@@ -17,10 +17,9 @@
 - **VM boots but the runner never registers** — the base image may predate the injected agent.
   Re-run `kinhin image prepare`. Full logs: `kinhin logs -n 200` or
   `~/Library/Application Support/Kinhin/logs/kinhin.log`.
-- **First launch blocked** — only happens with a browser-downloaded DMG (curl-fetched or
-  script-installed copies are never quarantined). Right-click → Open, or
-  `xattr -cr /Applications/kinhin.app`.
 - **Token rejected** — re-run `kinhin auth set`; the PAT needs `repo` scope and access to the
   repo.
+- **First launch blocked** — only applies to old releases or locally built copies (official
+  releases are signed and notarized). Right-click → Open, or `xattr -cr /Applications/kinhin.app`.
 - **Upgrading from the old name** — see [Migrating from Orchard](/guide/migrating); the
   migration runs automatically on first launch.

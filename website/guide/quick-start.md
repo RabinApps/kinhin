@@ -31,9 +31,9 @@ bash scripts/install.sh /path/to/kinhin-0.1.0-arm64.dmg
 ```
 
 The script sha256-verifies the DMG against the release `checksums.txt`, copies **kinhin.app**
-to /Applications, and symlinks the `kinhin` CLI into your bin dir. Downloads made with `curl`
-carry no quarantine attribute, so the app launches with **no Gatekeeper prompts and no
-notarization**.
+to /Applications, and symlinks the `kinhin` CLI into your bin dir. Release artifacts are
+Developer ID signed and notarized, so the app launches with **no Gatekeeper prompts** — the
+Open-Anyway dance only applies to old releases or locally built copies.
 
 ## First fleet (CLI)
 
@@ -76,7 +76,7 @@ Install with the one-liner above, then launch **kinhin** from Applications. The 
 walks through the same steps — installing tart, creating the config, storing the token, and
 preparing the image — then starts the fleet. The menu bar shows the number of live runner VMs.
 
-::: warning Unsigned app note
-The app is not notarized. On first launch, right-click → **Open**, or run
-`xattr -cr /Applications/kinhin.app`.
+::: tip Signed & notarized
+Official releases are Developer ID signed and notarized — no right-click → **Open** needed.
+Locally built copies are ad-hoc signed: clear Gatekeeper with `xattr -cr /Applications/kinhin.app`.
 :::

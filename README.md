@@ -120,10 +120,11 @@ bash scripts/install.sh /path/to/kinhin-0.1.0-arm64.dmg
 ```
 
 The script sha256-verifies the DMG against the release `checksums.txt`, copies **kinhin.app** to
-/Applications, and symlinks the `kinhin` CLI into /usr/local/bin. Downloads made with `curl` carry
-no quarantine attribute, so the app launches with **no Gatekeeper prompts and no notarization** —
-the Open-Anyway dance only applies to browser-downloaded DMGs, and the script clears that case too.
-Remove everything with `bash scripts/install.sh --uninstall` (config and your Keychain PAT are kept).
+/Applications, and symlinks the `kinhin` CLI into /usr/local/bin. Release artifacts are
+Developer ID signed and notarized, so the app launches with **no Gatekeeper prompts** — the
+Open-Anyway dance only applies to old releases or locally built copies (clear it with
+`xattr -cr /Applications/kinhin.app`). Remove everything with `bash scripts/install.sh --uninstall`
+(config and your Keychain PAT are kept).
 
 After installing, the menu bar app checks GitHub Releases at most once a day and shows an
 **Update available — kinhin x.y.z…** item when a newer `v*` release exists; clicking it downloads
@@ -161,9 +162,10 @@ The same section offers **Launch kinhin at login** (a standard macOS login item 
 under System Settings → General → Login Items). While the main window is open kinhin runs as a
 regular app with a Dock icon; in menu-bar-only mode it stays an accessory app exactly as before.
 
-> **Unsigned app note:** the app is not notarized. On first launch, right-click → **Open**, or run
+> **Notarized releases.** Official releases are Developer ID signed and notarized — no
+> right-click → **Open** needed. Locally built copies are ad-hoc signed: clear Gatekeeper with
 > `xattr -cr /Applications/kinhin.app`. (Homebrew's cask verifies the sha256, so `brew install
---cask kinhin` is the smoothest path.)
+> --cask kinhin` is the smoothest path.)
 
 ## Configuration
 
@@ -470,16 +472,14 @@ brew install kinhin           # CLI
   brew install cirruslabs/cli/tart
   ```
   Re-run `kinhin doctor` afterwards; it will offer to move back to the OpenAI tap once a fixed bottle ships.
-  the app or restart the daemon so it picks up your PATH.
 - **Jobs queue but no VMs start** — check that the job's `runs-on:` contains _every_ label in your
   config; the scaler only counts jobs it could actually run.
 - **VM boots but the runner never registers** — the base image may predate the injected agent.
   Re-run `kinhin image prepare`. Full logs: `kinhin logs -n 200` or
   `~/Library/Application Support/kinhin/logs/kinhin.log`.
-- **First launch blocked** — only happens with a browser-downloaded DMG (curl-fetched or
-  script-installed copies are never quarantined). Right-click → Open, or
-  `xattr -cr /Applications/kinhin.app`.
 - **Token rejected** — re-run `kinhin auth set`; the PAT needs `repo` scope and access to the repo.
+- **First launch blocked** — only applies to old releases or locally built copies (official
+  releases are signed and notarized). Right-click → Open, or `xattr -cr /Applications/kinhin.app`.
 
 ## Architecture
 
