@@ -51,7 +51,14 @@ public struct TartHealthProbe {
             return .missing
         }
 
-        let launch = try? await shell.run([binary, "--version"], cwd: nil, timeout: timeout)
+        let launch: ShellResult?
+        do {
+            launch = try await shell.run([binary, "--version"], cwd: nil, timeout: timeout)
+        } catch {
+            // Classified below as an ambiguous launch failure.
+            Log.warn("tart", "could not run '\(binary) --version': \(error.localizedDescription)")
+            launch = nil
+        }
         if let launch, Self.launchLooksHealthy(launch) {
             return .healthy
         }
@@ -105,7 +112,11 @@ public struct TartHealthProbe {
             "--style", "compact",
             "--predicate", predicate,
         ]
-        guard let result = try? await shell.run(argv, cwd: nil, timeout: timeout) else {
+        let result: ShellResult
+        do {
+            result = try await shell.run(argv, cwd: nil, timeout: timeout)
+        } catch {
+            Log.warn("tart", "could not read the unified log for AMFI evidence: \(error.localizedDescription)")
             return false
         }
         let text = (result.stdout + "\n" + result.stderr).lowercased()

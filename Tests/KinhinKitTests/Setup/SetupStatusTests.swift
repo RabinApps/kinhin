@@ -164,6 +164,30 @@ final class SetupStatusTests: XCTestCase {
         XCTAssertTrue(image?.detail.contains("could not launch tart") ?? false)
     }
 
+    func testImageRowSurfacesATartListFailure() async throws {
+        // tart launches fine but `tart list` fails: the row must say why
+        // instead of reporting a launch problem or showing nothing.
+        let script = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fake-tart-\(UUID().uuidString)")
+        try "#!/bin/sh\necho 'disk image locked' >&2\nexit 1\n".write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        defer { try? FileManager.default.removeItem(at: script) }  // temp fixture; leftover is harmless
+
+        var cfg = config()
+        cfg.tartPath = script.path
+        let computer = SetupStatusComputer(
+            host: host(),
+            tartHealth: .healthy,
+            tartList: nil,
+            config: .loaded(cfg),
+            tokenStored: true
+        )
+        let image = await computer.compute().checks.first { $0.id == "image" }
+        XCTAssertEqual(image?.ok, false)
+        XCTAssertTrue(image?.detail.contains("could not list tart images") ?? false, image?.detail ?? "")
+        XCTAssertTrue(image?.detail.contains("disk image locked") ?? false, image?.detail ?? "")
+    }
+
     func testNotArm64FailsArchCheck() async {
         let computer = SetupStatusComputer(
             host: host(arm64: false),

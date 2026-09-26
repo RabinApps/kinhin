@@ -263,18 +263,23 @@ public struct SetupStatusComputer: Sendable {
             imageDetail = health == .missing ? "run after tart is installed" : "could not launch tart"
         } else if let cfg = parsed {
             let images: [TartVM]?
+            var listFailure: String?
             if let tartList {
                 images = tartList
-            } else if let controller = try? TartController(configuredPath: cfg.tartPath) {
-                images = try? await controller.list()
             } else {
-                images = nil
+                do {
+                    images = try await TartController(configuredPath: cfg.tartPath).list()
+                } catch {
+                    listFailure = error.localizedDescription
+                    Log.warn("setup", "could not list tart images: \(error.localizedDescription)")
+                    images = nil
+                }
             }
             if let images {
                 imageOK = images.contains { $0.name == cfg.image || $0.source == cfg.image }
                 imageDetail = imageOK ? "image '\(cfg.image)' found" : "image '\(cfg.image)' not local yet"
             } else {
-                imageDetail = "could not launch tart"
+                imageDetail = listFailure.map { "could not list tart images: \($0)" } ?? "could not launch tart"
             }
         }
         checks.append(
