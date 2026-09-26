@@ -62,6 +62,9 @@ public final class FleetEngine {
     /// Non-nil when the fleet can run Docker slots (Linux containers in the
     /// provider's shared VM; selected per record by the routing model).
     let dockerRuntime: DockerRuntime?
+    /// Non-nil when the config routes any repo/workflow to host execution
+    /// (consent-gated; see `ConfigLoader`'s host validation).
+    let hostRuntime: HostRuntime?
     /// Routing model: label pools + per-repo/per-workflow routes. Built from
     /// the `runtimes:` config (nil → single default pool, legacy behavior).
     /// Reloaded live by applyReloaded(config:) — guarded by routingLock, so
@@ -119,6 +122,10 @@ public final class FleetEngine {
                 toolchainsConfig: { [config] in config.toolchains }
             )
         }
+        var hostInstance: HostRuntime?
+        if config.hostRoutesConfigured {
+            hostInstance = HostRuntime(shell: containerShell ?? Shell())
+        }
         // The fleet's primary runtime (single-pool fleets and the legacy
         // fleet-cap shape): containers, else Docker slots, else tart — the
         // established precedence with Docker as the new Linux fallback.
@@ -132,12 +139,16 @@ public final class FleetEngine {
         self.containerRuntime = appleRuntime
         self.dockerRuntime = dockerInstance
         self.tartRuntime = tartInstance
+        self.hostRuntime = hostInstance
         var runtimeMap: [RuntimeID: any Runtime] = [.tart: tartInstance]
         if let appleRuntime {
             runtimeMap[.appleContainer] = appleRuntime
         }
         if let dockerInstance {
             runtimeMap[.docker] = dockerInstance
+        }
+        if let hostInstance {
+            runtimeMap[.host] = hostInstance
         }
         self.runtimesByRuntime = runtimeMap
         self.config = config
@@ -170,7 +181,8 @@ public final class FleetEngine {
             containerLabels: config.container?.labels,
             containerConfigured: config.container != nil,
             dockerConfigured: config.docker != nil,
-            dockerPlatform: config.docker?.platform ?? .arm64
+            dockerPlatform: config.docker?.platform ?? .arm64,
+            hostConfigured: config.hostRoutesConfigured
         )
 
         if config.runtimes != nil, config.container != nil || config.docker != nil {
@@ -187,6 +199,11 @@ public final class FleetEngine {
                         return (config.container?.cpus ?? 4, config.container?.memoryGB ?? 8)
                     case .docker:
                         return (config.docker?.cpus ?? 2, config.docker?.memoryGB ?? 4)
+                    case .host:
+                        // Host slots cost the Mac nothing extra beyond the
+                        // user's own processes (1/1 keeps the math non-zero
+                        // without shrinking other pools).
+                        return (1, 1)
                     default:
                         return (config.vm.cpuCount, config.vm.memoryGB)
                     }
@@ -541,7 +558,8 @@ public final class FleetEngine {
             containerLabels: newConfig.container?.labels,
             containerConfigured: newConfig.container != nil,
             dockerConfigured: newConfig.docker != nil,
-            dockerPlatform: newConfig.docker?.platform ?? .arm64
+            dockerPlatform: newConfig.docker?.platform ?? .arm64,
+            hostConfigured: newConfig.hostRoutesConfigured
         )
         var caps: [RuntimeID: Int] = [:]
         if newConfig.runtimes != nil, newConfig.container != nil || newConfig.docker != nil {
@@ -557,6 +575,8 @@ public final class FleetEngine {
                         return (newConfig.container?.cpus ?? 4, newConfig.container?.memoryGB ?? 8)
                     case .docker:
                         return (newConfig.docker?.cpus ?? 2, newConfig.docker?.memoryGB ?? 4)
+                    case .host:
+                        return (1, 1)
                     default:
                         return (newConfig.vm.cpuCount, newConfig.vm.memoryGB)
                     }

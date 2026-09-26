@@ -93,13 +93,15 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
 
         // Pools: same construction the engine uses (RuntimeConfigModel), so
         // the pane never disagrees with what the fleet actually registers.
+        let hostConfigured = parsed.hostRoutesConfigured
         let model = RuntimeConfigModel(
             config: rc,
             fleetLabels: fleetLabels,
             containerLabels: parsed.container?.labels,
             containerConfigured: vm.containerConfigured,
             dockerConfigured: vm.dockerConfigured,
-            dockerPlatform: parsed.docker?.platform ?? .arm64
+            dockerPlatform: parsed.docker?.platform ?? .arm64,
+            hostConfigured: hostConfigured
         )
 
         // Capacity: partition math identical to the engine's init.
@@ -116,6 +118,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                         return (parsed.container?.cpus ?? 4, parsed.container?.memoryGB ?? 8)
                     case .docker:
                         return (parsed.docker?.cpus ?? 2, parsed.docker?.memoryGB ?? 4)
+                    case .host:
+                        return (1, 1)
                     default:
                         return (parsed.vm.cpuCount, parsed.vm.memoryGB)
                     }
@@ -286,6 +290,9 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                     memoryGB: parsed.docker?.memoryGB ?? 4
                 )
                 group.addTask { (.docker, await runtime.health()) }
+            }
+            if poolIDs.contains(.host) {
+                group.addTask { (.host, await HostRuntime().health()) }
             }
             var results: [RuntimeID: RuntimeHealth] = [:]
             for await (id, health) in group {

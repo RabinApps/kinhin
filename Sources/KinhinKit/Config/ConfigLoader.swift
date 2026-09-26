@@ -330,16 +330,34 @@ public struct ConfigLoader {
                             "runtimes.routes pattern '\(pattern)' must be RabinApps/name (or RabinApps/name@Workflow)")
                     }
                 }
-                routes.append(KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime))
+                // Host-mode consent gate: running repo code directly on the
+                // Mac (unisolated) requires an explicit acknowledgment. Never
+                // a default, never implied.
+                if runtime == RuntimeID.host.rawValue {
+                    guard route.consent == true else {
+                        throw ConfigError.invalid(
+                            "runtimes.routes entry '\(pattern)' targets runtime 'host' — jobs run directly on your Mac, unisolated. Review the risk, then add \"consent: true\" to the route")
+                    }
+                } else if route.consent != nil {
+                    throw ConfigError.invalid(
+                        "runtimes.routes entry '\(pattern)': consent applies to host routes only")
+                }
+                routes.append(
+                    KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime, consent: route.consent))
             }
             var seenPatterns: Set<String> = []
             for route in routes where !seenPatterns.insert(route.pattern).inserted {
                 throw ConfigError.invalid("duplicate runtimes.routes pattern '\(route.pattern)'")
             }
             let referenced = Set(budget.keys).union(routes.map(\.runtime)).union([runtimes.default ?? "tart"])
-            let validRuntimes = Set(["tart", "appleContainer", "docker"])
+            let validRuntimes = Set(["tart", "appleContainer", "docker", "host"])
             for name in referenced where !validRuntimes.contains(name) {
-                throw ConfigError.invalid("runtimes: unknown runtime '\(name)' (known: tart, appleContainer, docker)")
+                throw ConfigError.invalid(
+                    "runtimes: unknown runtime '\(name)' (known: tart, appleContainer, docker, host)")
+            }
+            if runtimes.default == RuntimeID.host.rawValue {
+                throw ConfigError.invalid(
+                    "runtimes.default cannot be 'host' — host execution is opt-in per route (with consent: true)")
             }
             if referenced.contains("appleContainer"), cfg.container == nil {
                 throw ConfigError.invalid(

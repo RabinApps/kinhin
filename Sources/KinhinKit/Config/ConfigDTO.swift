@@ -103,6 +103,7 @@ public struct PartialConfig: Decodable {
     struct PartialRoute: Decodable {
         var pattern: String?
         var runtime: String?
+        var consent: Bool?
     }
 
     struct PartialReserve: Decodable {

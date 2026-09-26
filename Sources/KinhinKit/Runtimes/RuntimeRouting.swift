@@ -45,11 +45,13 @@ struct RuntimePool: Sendable, Equatable {
 
     /// The exclusive `runs-on:` marker a pool registers with, enabling
     /// per-workflow opt-in without a config route. nil for runtimes that
-    /// serve the fleet's default labels (tart).
+    /// serve the fleet's default labels (tart). Host mode always marks:
+    /// only explicitly opted-in workflows may run unisolated on the Mac.
     static func exclusiveMarker(for runtime: RuntimeID) -> String? {
         switch runtime {
         case .appleContainer: return "kinhin-container"
         case .docker: return "kinhin-docker"
+        case .host: return "kinhin-host"
         default: return nil
         }
     }
@@ -159,7 +161,8 @@ struct RuntimeConfigModel: Sendable {
 
     public init(
         config: KinhinConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil,
-        containerConfigured: Bool = false, dockerConfigured: Bool = false, dockerPlatform: LinuxPlatform = .arm64
+        containerConfigured: Bool = false, dockerConfigured: Bool = false, dockerPlatform: LinuxPlatform = .arm64,
+        hostConfigured: Bool = false
     ) {
         if let config {
             // Explicit routing: tart is always available (macOS workloads),
@@ -181,6 +184,9 @@ struct RuntimeConfigModel: Sendable {
                     runtime: .docker,
                     labels: RuntimePool.labelsFor(.docker, fleetLabels: fleetLabels, dockerPlatform: dockerPlatform)
                 )
+            }
+            if hostConfigured {
+                pools[.host] = RuntimePool(runtime: .host, labels: RuntimePool.labelsFor(.host, fleetLabels: fleetLabels))
             }
             self.pools = pools
         } else {

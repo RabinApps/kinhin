@@ -69,7 +69,7 @@ enum RuntimesCommand {
         let op = args.first
         guard op == "add" || op == "remove" else {
             throw RouteError.usage(
-                "usage: kinhin runtimes route add <owner/repo[@Workflow]> <tart|appleContainer|docker>\n       kinhin runtimes route remove <owner/repo[@Workflow]>"
+                "usage: kinhin runtimes route add <owner/repo[@Workflow]> <tart|appleContainer|docker|host> [--consent]\n       kinhin runtimes route remove <owner/repo[@Workflow]>"
             )
         }
 
@@ -102,14 +102,24 @@ enum RuntimesCommand {
             let runtimeName = args.count > 2 ? args[2] : ""
             guard !runtimeName.isEmpty, let runtime = RuntimeID(rawValue: runtimeName) else {
                 throw RouteError.usage(
-                    "unknown or missing runtime '\(runtimeName)' — expected 'tart', 'appleContainer', or 'docker'")
+                    "unknown or missing runtime '\(runtimeName)' — expected 'tart', 'appleContainer', 'docker', or 'host'")
+            }
+            let consent = args.contains("--consent")
+            if runtime == .host {
+                guard consent else {
+                    throw RouteError.usage(
+                        "host routes run repo code directly on your Mac, unisolated. Review the risk, then re-run with --consent")
+                }
+            } else if consent {
+                throw RouteError.usage("--consent applies to host routes only")
             }
             guard !rc.routes.contains(where: { $0.pattern == pattern }) else {
                 throw RouteError.usage(
                     "a route for '\(pattern)' already exists — remove it first: kinhin runtimes route remove \(pattern)"
                 )
             }
-            rc.routes.append(KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime.rawValue))
+            rc.routes.append(
+                KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime.rawValue, consent: consent ? true : nil))
             if !hadRouting {
                 print("note: created the runtimes: section (default: \(rc.defaultRuntime))")
             }

@@ -80,6 +80,12 @@ public struct KinhinConfig: Sendable, Equatable {
     /// each with its own Keychain token. See `allAccounts` for the full set.
     public var accounts: [AccountConfig] = []
 
+    /// True when any route targets host execution (the HostRuntime joins the
+    /// fleet only then — its agent check and pool never appear otherwise).
+    public var hostRoutesConfigured: Bool {
+        runtimes?.routes.contains { $0.runtime == RuntimeID.host.rawValue } ?? false
+    }
+
     /// Declarative toolchain installs baked by `image prepare`. Every entry
     /// installs exactly its own pieces — nothing is added implicitly. The
     /// catalog (see `ToolchainCatalog`) is advisory: unknown `specs` pass
@@ -232,14 +238,20 @@ public struct KinhinConfig: Sendable, Equatable {
             /// "RabinApps/name" or "RabinApps/name@Workflow Name".
             public var pattern: String
             public var runtime: String
+            /// Host-mode consent: routes with `runtime: host` MUST carry
+            /// `consent: true` (validated), acknowledging that jobs from this
+            /// repo/workflow run directly on the Mac, unisolated. Meaningless
+            /// (and rejected) for other runtimes.
+            public var consent: Bool?
 
-            public init(pattern: String, runtime: String) {
+            public init(pattern: String, runtime: String, consent: Bool? = nil) {
                 self.pattern = pattern
                 self.runtime = runtime
+                self.consent = consent
             }
 
             enum CodingKeys: String, CodingKey {
-                case pattern, runtime
+                case pattern, runtime, consent
             }
         }
 
