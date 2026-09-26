@@ -39,6 +39,9 @@ struct KinhinCLI {
             case .setupStatus:
                 try await SetupStatusCommand.run(args)
 
+            case .setupRepair:
+                try await SetupRepairCommand.run(args)
+
             case .runtimes:
                 await RuntimesCommand.run(args)
 

@@ -15,6 +15,7 @@ final class CLICommandTests: XCTestCase {
         XCTAssertEqual(CLICommand.parse(["doctor"]), .doctor)
         XCTAssertEqual(CLICommand.parse(["setup-status"]), .setupStatus)
         XCTAssertEqual(CLICommand.parse(["setup-status", "--json"]), .setupStatus)
+        XCTAssertEqual(CLICommand.parse(["setup", "repair", "host-agent"]), .setupRepair)
         XCTAssertEqual(CLICommand.parse(["image"]), .imagePrepare)
         XCTAssertEqual(CLICommand.parse(["image", "prepare"]), .imagePrepare)
         XCTAssertEqual(CLICommand.parse(["image", "prepare", "--container"]), .imagePrepare)
@@ -63,7 +64,7 @@ final class CLICommandTests: XCTestCase {
 
     func testWorkingCommandsAutoCreate() {
         let working: [CLICommand] = [
-            .auth, .doctor, .setupStatus, .imagePrepare, .start, .stop,
+            .auth, .doctor, .setupStatus, .setupRepair, .imagePrepare, .start, .stop,
             .pause, .resume, .status, .watch, .logs, .daemon,
         ]
         for command in working {

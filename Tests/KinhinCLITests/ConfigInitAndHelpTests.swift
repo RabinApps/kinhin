@@ -54,7 +54,7 @@ final class ConfigInitAndHelpTests: XCTestCase {
     func testHelpTextMentionsEveryCommandFamily() {
         let help = helpText()
         for needle in [
-            "config init", "auth", "doctor", "setup-status", "runtimes route add",
+            "config init", "auth", "doctor", "setup-status", "setup repair host-agent", "runtimes route add",
             "runtimes route remove", "image prepare",
             "start", "stop", "pause", "resume", "status", "watch", "logs",
             "daemon", "version", "help",

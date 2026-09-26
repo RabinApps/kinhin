@@ -8,6 +8,7 @@ enum CLICommand: Equatable {
     case auth
     case doctor
     case setupStatus
+    case setupRepair
     case runtimes
     case imagePrepare
     case toolchains
@@ -37,6 +38,8 @@ enum CLICommand: Equatable {
             return .doctor
         case "setup-status":
             return .setupStatus
+        case "setup":
+            return .setupRepair
         case "runtimes":
             return .runtimes
         case "image", "image prepare":

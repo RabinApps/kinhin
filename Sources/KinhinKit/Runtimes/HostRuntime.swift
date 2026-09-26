@@ -22,7 +22,12 @@ final class HostRuntime: Runtime {
     /// injectable so tests run hermetically.
     init(shell: ShellRunning = Shell(), agentDir: URL? = nil) {
         self.shell = shell
-        self.agentDir = agentDir ?? Paths.appSupport.appendingPathComponent("host-runner", isDirectory: true)
+        self.agentDir = agentDir ?? Self.defaultAgentDir
+    }
+
+    /// ~/Library/Application Support/Kinhin/host-runner
+    static var defaultAgentDir: URL {
+        Paths.appSupport.appendingPathComponent("host-runner", isDirectory: true)
     }
 
     // MARK: Runtime protocol
