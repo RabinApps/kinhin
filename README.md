@@ -518,7 +518,7 @@ Inside the targets, code is organized by domain:
 | `kinhin/Commands/`             | One file per command group (auth, doctor, image, run, runtimes, setup) + the CLICommand routing table |
 | `kinhin-app/AppMain.swift`     | @main entry: AppKit bootstrap, synchronous run loop                                                          |
 | `kinhin-app/AppDelegate/`      | Lifecycle + engine wiring + refresh; extensions for main menu, status item, fleet actions, engine reconfig   |
-| `kinhin-app/UI/`               | `MainTabsWindowController` (per-tab extension files), `AlertKit`, the setup repair runner, and the AppKit modals (Routing sheets, install dialogs) |
+| `kinhin-app/UI/`               | `MainTabsWindowController` (per-tab extension files), `AlertKit`, and the setup repair runner |
 | `kinhin-app/UI/SwiftUI/`       | SwiftUI forms: models (`@Observable`) + views for Connect, This Mac, Routing, Capacity, Toolchains, Containers, the wizard, Diagnostics, Logs |
 
 Tests: `swift test` (750+ tests across three targets: the engine suite (KinhinKitTests — store, RPC, SSH, image pipeline, tart-health, CLT probe, org permissions, queue attribution (queued and running,

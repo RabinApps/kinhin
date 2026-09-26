@@ -1,9 +1,11 @@
 import KinhinKit
 import SwiftUI
 
-/// The "This Mac" form: a macOS (tart) card and a Linux runtimes card.
+/// The "This Mac" form: a macOS (tart) card and a Linux runtimes card. The
+/// install dialogs are sheets owned by `MacToolsModel` (presented from its
+/// `installOffer` / `missingBrewOffer`).
 struct MacToolsView: View {
-    let model: MacToolsModel
+    @Bindable var model: MacToolsModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -11,6 +13,22 @@ struct MacToolsView: View {
             linuxCard
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .sheet(item: $model.installOffer) { offer in
+            InstallConfirmationSheet(
+                offer: offer,
+                onConfirm: { model.confirmInstall($0) },
+                onCopy: { model.copyInstallCommand($0) },
+                onCancel: { model.cancelInstall() }
+            )
+        }
+        .sheet(item: $model.missingBrewOffer) { offer in
+            MissingBrewSheet(
+                offer: offer,
+                onGetBrew: { model.openBrewSite() },
+                onDownload: { model.downloadManually() },
+                onCancel: { model.cancelMissingBrew() }
+            )
+        }
     }
 
     private var macCard: some View {

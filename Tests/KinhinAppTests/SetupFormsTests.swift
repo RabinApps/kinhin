@@ -274,53 +274,64 @@ final class SetupFormsTests: XCTestCase {
     func testCancellingTheInstallConfirmationRunsNothing() {
         let shell = FakeShell()
         let model = installModel(shell: shell)
-        var asked: [InstallableTool] = []
-        model.confirmInstall = { tool, _ in
-            asked.append(tool); return nil
-        }
-        XCTAssertNil(model.install(.docker))
-        XCTAssertEqual(asked, [.docker], "the user is always asked first")
-        XCTAssertTrue(shell.calls.isEmpty)
+        model.install(.docker)
+        XCTAssertEqual(model.installOffer?.tool, .docker, "the user is always asked first")
+        model.cancelInstall()
+        XCTAssertNil(model.installOffer, "cancel closes the sheet")
+        XCTAssertTrue(shell.calls.isEmpty, "cancel runs nothing")
     }
 
     func testConfirmedInstallRunsTheChosenOptionsCommands() async {
         let shell = FakeShell()
         let model = installModel(shell: shell)
-        var offered: [String] = []
-        model.confirmInstall = { _, options in
-            offered = options.map(\.id)
-            return options.first { $0.id == "docker-colima" }  // the user picks Colima
-        }
-        await model.install(.docker)?.value
+        model.install(.docker)
         XCTAssertEqual(
-            offered, ["docker-desktop", "docker-orbstack", "docker-colima"], "all Docker options are offered")
+            model.installOffer?.options.map(\.id), ["docker-desktop", "docker-orbstack", "docker-colima"],
+            "all Docker options are offered")
+        // The user picks Colima (captured before confirming: the sheet closes).
+        let choice = model.installOffer?.options.first { $0.id == "docker-colima" }
+        model.confirmInstall(choice!)
+        XCTAssertNil(model.installOffer, "the sheet closes and the install starts")
+        for _ in 0..<100 where shell.calls.isEmpty {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
         XCTAssertEqual(shell.calls.first, ["/opt/homebrew/bin/brew", "install", "colima", "docker"])
         // (The follow-up `colima start` is resolved from PATH after the real
         // install, so it isn't reachable with a fake shell.)
     }
 
+    func testCopyCommandCopiesAndRunsNothing() {
+        let shell = FakeShell()
+        let model = installModel(shell: shell)
+        model.install(.docker)
+        let choice = model.installOffer?.options.first { $0.id == "docker-colima" }
+        model.copyInstallCommand(choice!)
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), choice?.commandLine)
+        XCTAssertNil(model.installOffer, "the sheet closes; the copied command is the takeaway")
+        XCTAssertTrue(shell.calls.isEmpty, "copying never runs the install")
+    }
+
     func testMissingHomebrewExplainsInsteadOfAskingOrRunning() {
         let shell = FakeShell()
         let model = installModel(shell: shell, brew: nil)
-        var explained: InstallableTool?
-        var confirmed = false
-        model.explainMissingBrew = { tool, _ in explained = tool }
-        model.confirmInstall = { _, _ in
-            confirmed = true; return nil
-        }
-        XCTAssertNil(model.install(.appleContainer))
-        XCTAssertEqual(explained, .appleContainer)
-        XCTAssertFalse(confirmed)
+        model.install(.appleContainer)
+        XCTAssertEqual(model.missingBrewOffer?.tool, .appleContainer)
+        XCTAssertNil(model.installOffer, "no confirmation sheet without Homebrew")
         XCTAssertTrue(shell.calls.isEmpty)
+        model.cancelMissingBrew()
+        XCTAssertNil(model.missingBrewOffer)
     }
 
     func testFailedInstallShowsTheErrorAndATerminalFallback() async {
         let shell = FakeShell()
         shell.failAll = "no space left"
         let model = installModel(shell: shell)
-        model.confirmInstall = { _, options in options.first }
-        let task = model.install(.appleContainer)
-        await task?.value
+        model.install(.appleContainer)
+        model.confirmInstall(model.installOffer!.options[0])
+        // The install runs on a background task; wait for it to fail.
+        for _ in 0..<100 where !model.busyLine.text.hasPrefix("Failed") {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
         try? await Task.sleep(nanoseconds: 100_000_000)
         let text = model.busyLine.text
         XCTAssertTrue(text.contains("Failed"), text)
@@ -335,14 +346,10 @@ final class SetupFormsTests: XCTestCase {
             osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
         let model = installModel(shell: shell, host: intel)
         var explained: String?
-        var confirmed = false
         model.explainUnsupported = { _, error in explained = error.localizedDescription }
-        model.confirmInstall = { _, _ in
-            confirmed = true; return nil
-        }
-        XCTAssertNil(model.install(.appleContainer))
+        model.install(.appleContainer)
         XCTAssertTrue(explained?.contains("Apple silicon") ?? false)
-        XCTAssertFalse(confirmed)
+        XCTAssertNil(model.installOffer, "nothing is offered that cannot run")
         XCTAssertTrue(shell.calls.isEmpty)
         if Paths.findExecutable(named: "container") == nil {
             XCTAssertFalse(model.containerInstallVisible, "no install button on a Mac that can't run it")

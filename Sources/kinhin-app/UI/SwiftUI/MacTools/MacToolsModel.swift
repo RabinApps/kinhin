@@ -53,6 +53,13 @@ final class MacToolsModel {
     private(set) var busy = false
     private(set) var busyLine = Line(text: "")
 
+    /// The open install-confirmation sheet's inputs: what will run and the
+    /// methods to choose from. `MacToolsView` presents the sheet while
+    /// non-nil (see MacToolsModel+InstallSheets for the sheet's actions).
+    var installOffer: InstallOffer?
+    /// The open missing-Homebrew sheet's inputs, or nil.
+    var missingBrewOffer: MissingBrewOffer?
+
     private(set) var containerOn = false
     private(set) var dockerOn = false
     private(set) var containerLine = Line(text: "")
@@ -72,16 +79,6 @@ final class MacToolsModel {
 
     // MARK: Injectable seams
 
-    /// Asks the user to confirm an install and pick a method. Returns the
-    /// chosen option, or nil when cancelled. Injectable so tests never open a
-    /// modal alert or run Homebrew.
-    @ObservationIgnored var confirmInstall: (InstallableTool, [InstallOption]) -> InstallOption? = { tool, options in
-        InstallDialogs.presentInstallConfirmation(tool: tool, options: options)
-    }
-    /// Shown instead of the confirmation when Homebrew is missing.
-    @ObservationIgnored var explainMissingBrew: (InstallableTool, [InstallOption]) -> Void = { tool, options in
-        InstallDialogs.presentMissingBrew(tool: tool, options: options)
-    }
     @ObservationIgnored var installShell: ShellRunning = Shell()
     /// Whether a tool is installed afterwards (real PATH lookup by default).
     @ObservationIgnored var installedCheck: @Sendable (InstallableTool) -> Bool = { $0.isInstalled }
@@ -205,8 +202,10 @@ final class MacToolsModel {
 
     // MARK: Actions
 
+    /// Runs a long action with the busy spinner/line managed around it
+    /// (internal: the install-sheet extension starts installs through it).
     @discardableResult
-    private func run(_ title: String, _ body: @escaping @Sendable () async throws -> Void) -> Task<Void, Never> {
+    func run(_ title: String, _ body: @escaping @Sendable () async throws -> Void) -> Task<Void, Never> {
         busy = true
         busyLine = Line(text: title)
         return Task { [weak self] in
@@ -255,38 +254,23 @@ final class MacToolsModel {
         }
     }
 
-    /// Confirm → install → re-check. Nothing runs without an explicit yes, and
-    /// a missing Homebrew gets an explanation instead of a failing command.
-    @discardableResult
-    func install(_ tool: InstallableTool) -> Task<Void, Never>? {
+    /// Install… pressed: confirm in a sheet before anything runs — or, when
+    /// no option can run (no Homebrew), explain in a sheet instead. The
+    /// sheet's actions start the install (MacToolsModel+InstallSheets).
+    func install(_ tool: InstallableTool) {
         let host = hostFacts()
         do {
             try HostRequirements.ensureSupported(tool, on: host)
         } catch {
             explainUnsupported(tool, error)
-            return nil
+            return
         }
         let options = HostRequirements.offeredOptions(for: tool, on: host)
         guard brewPath() != nil || options.contains(where: { !$0.needsBrew }) else {
-            explainMissingBrew(tool, options)
-            return nil
+            missingBrewOffer = MissingBrewOffer(tool: tool, options: options)
+            return
         }
-        guard let choice = confirmInstall(tool, options) else { return nil }
-        let shell = installShell
-        let brew = brewPath()
-        let installed = installedCheck
-        let name = tool.title
-        let task = run("Installing \(name)… this can take several minutes.") {
-            try await RuntimeInstaller.install(
-                choice, tool: tool, shell: shell, brew: brew, host: host, isInstalled: installed)
-        }
-        // On failure, tell the user how to do it by hand.
-        Task { [weak self] in
-            await task.value
-            guard let self, self.busyLine.text.hasPrefix("Failed") else { return }
-            self.busyLine.text += "\nYou can also run this in Terminal: \(choice.commandLine)"
-        }
-        return task
+        installOffer = InstallOffer(tool: tool, options: options)
     }
 
     func prepareImage() {
@@ -327,6 +311,13 @@ final class MacToolsModel {
             recomputeReadiness()
             busyLine = Line(text: "Not saved — \(error.localizedDescription)", style: .error)
         }
+    }
+
+    /// Appends the by-hand command to a failed install's busy line (internal:
+    /// the install-sheet extension calls it from the follow-up task).
+    func noteManualCommandFallback(_ command: String) {
+        guard busyLine.text.hasPrefix("Failed") else { return }
+        busyLine.text += "\nYou can also run this in Terminal: \(command)"
     }
 
     // MARK: Test hooks
