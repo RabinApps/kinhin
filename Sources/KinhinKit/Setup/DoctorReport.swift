@@ -60,6 +60,20 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let note: String?
     }
 
+    /// Host runtime state — present only when a `runtimes.routes` entry
+    /// targets `host` (same presence rule as the checklist's host row).
+    public struct HostSection: Codable, Equatable, Sendable {
+        /// "ready" | "missing" | "broken".
+        public let state: String
+        public let ok: Bool
+        /// Install command or breakage reason, null when ready.
+        public let fix: String?
+        /// The repo/workflow patterns routed to host execution.
+        public let routes: [String]
+        /// Always present: host jobs run unisolated on this Mac.
+        public let warning: String
+    }
+
     public struct CapacitySection: Codable, Equatable, Sendable {
         /// Upper bound on simultaneous VMs on this host (user max applied).
         public let maxConcurrent: Int
@@ -128,6 +142,8 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     /// Docker runtime — present only when config.yaml declares a `docker:`
     /// section (same presence rule as the checklist's docker rows).
     public let docker: DockerSection?
+    /// Host runtime — present only when a route targets `host`.
+    public let hostRuntime: HostSection?
     /// Shared toolchain cache state.
     public let toolchainCache: ToolchainCacheSection
     /// Stored-token state for every forge (static, no network probes).
@@ -141,14 +157,15 @@ public struct DoctorReport: Codable, Equatable, Sendable {
 
     public init(
         host: HostResources, clt: CLTSection, tart: TartSection, container: ContainerSection?,
-        docker: DockerSection?, toolchainCache: ToolchainCacheSection, auth: AuthStatusReport,
-        checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?
+        docker: DockerSection?, hostRuntime: HostSection? = nil, toolchainCache: ToolchainCacheSection,
+        auth: AuthStatusReport, checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?
     ) {
         self.host = host
         self.clt = clt
         self.tart = tart
         self.container = container
         self.docker = docker
+        self.hostRuntime = hostRuntime
         self.toolchainCache = toolchainCache
         self.auth = auth
         self.checks = checks

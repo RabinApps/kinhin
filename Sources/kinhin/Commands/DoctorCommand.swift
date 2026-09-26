@@ -94,6 +94,14 @@ enum DoctorCommand {
                 break
             }
         }
+        // Host runtime — shown only when a route targets `host`.
+        if let cfg = try? ConfigLoader.load(), cfg.hostRoutesConfigured {
+            if HostAgentInstaller().isInstalled {
+                print("  host:       runner agent installed ✓ (routes run UNISOLATED on this Mac)")
+            } else {
+                print("  host:       agent NOT INSTALLED ✗ — install with: kinhin setup repair host-agent")
+            }
+        }
         let doctorConfig = try? ConfigLoader.load()
         if doctorConfig?.githubEnabled ?? true {
             print("  token:      \(tokenStatus(fix: "kinhin auth set") { try KeychainTokenStore.load() })")

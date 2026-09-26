@@ -44,10 +44,19 @@ extension SetupWindowController {
             prepareContainerImage()
         case "prepare_docker_image":
             prepareDockerImage()
+        case "install_host_agent":
+            installHostAgent()
         case "create_toolchain_cache":
             createToolchainCache()
         default:
             Log.error("setup", "no handler for action '\(action)'")
+        }
+    }
+
+    /// Downloads the GitHub runner agent that host-mode routes run on this Mac.
+    private func installHostAgent() {
+        runLongTask(title: "Installing the host runner agent…") {
+            try await HostAgentInstaller().install()
         }
     }
 

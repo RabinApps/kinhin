@@ -19,6 +19,7 @@ public struct DoctorReportBuilder: Sendable {
     let containerImages: [String]?
     let dockerHealth: RuntimeHealth?
     let dockerImages: [String]?
+    let hostHealth: RuntimeHealth?
 
     public init(
         host: HostResources? = nil,
@@ -33,7 +34,8 @@ public struct DoctorReportBuilder: Sendable {
         containerHealth: RuntimeHealth? = nil,
         containerImages: [String]? = nil,
         dockerHealth: RuntimeHealth? = nil,
-        dockerImages: [String]? = nil
+        dockerImages: [String]? = nil,
+        hostHealth: RuntimeHealth? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -46,6 +48,7 @@ public struct DoctorReportBuilder: Sendable {
         self.containerImages = containerImages
         self.dockerHealth = dockerHealth
         self.dockerImages = dockerImages
+        self.hostHealth = hostHealth
     }
 
     public func build() async -> DoctorReport {
@@ -103,7 +106,8 @@ public struct DoctorReportBuilder: Sendable {
             containerHealth: containerHealth,
             containerImages: containerImages,
             dockerHealth: dockerHealth,
-            dockerImages: dockerImages
+            dockerImages: dockerImages,
+            hostHealth: hostHealth
         ).compute()
 
         let authReport = AuthStatusReporter.report(config: parsed, load: authLoad, loadAccount: accountLoad)
@@ -199,6 +203,34 @@ public struct DoctorReportBuilder: Sendable {
             )
         }
 
+        // Host section — present only when a route targets `host`; the
+        // unisolated warning is always attached.
+        var hostSection: DoctorReport.HostSection?
+        if let parsed, parsed.hostRoutesConfigured {
+            let resolvedHealth: RuntimeHealth
+            if let hostHealth {
+                resolvedHealth = hostHealth
+            } else {
+                resolvedHealth = await HostRuntime().health()
+            }
+            let state: String
+            let ok: Bool
+            var fix: String?
+            switch resolvedHealth {
+            case .ready:
+                state = "ready"; ok = true; fix = nil
+            case .missing:
+                state = "missing"; ok = false; fix = "kinhin setup repair host-agent"
+            case .broken(let why):
+                state = "broken"; ok = false; fix = why
+            }
+            hostSection = DoctorReport.HostSection(
+                state: state, ok: ok, fix: fix,
+                routes: (parsed.runtimes?.routes ?? []).filter { $0.runtime == RuntimeID.host.rawValue }.map(\.pattern),
+                warning: "host routes run repo code directly on this Mac with your privileges, unisolated"
+            )
+        }
+
         // Shared toolchain cache — directory state only (no live mounts
         // probed; runners mount on demand). The per-ecosystem breakdown
         // covers the subdirectories the config's toolchains selection uses,
@@ -237,6 +269,7 @@ public struct DoctorReportBuilder: Sendable {
             tart: Self.tartSection(from: resolvedTart),
             container: containerSection,
             docker: dockerSection,
+            hostRuntime: hostSection,
             toolchainCache: cacheSection,
             auth: authReport,
             checks: status.checks,

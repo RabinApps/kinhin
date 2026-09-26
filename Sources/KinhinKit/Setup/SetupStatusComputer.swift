@@ -32,6 +32,8 @@ public struct SetupStatusComputer: Sendable {
     /// Architecture of the configured Docker image (fixture). nil probes the
     /// real image when `dockerImages` is not injected.
     let dockerImageArchitecture: String?
+    /// Host-runtime agent health (fixture). nil probes the real agent dir.
+    let hostHealth: RuntimeHealth?
     /// Shared toolchain cache state (fixture). nil probes the real host: the
     /// cache root's existence/writability, plus the config's `share_cache`.
     /// No live mount is probed — runners bind on demand.
@@ -53,6 +55,7 @@ public struct SetupStatusComputer: Sendable {
         dockerHealth: RuntimeHealth? = nil,
         dockerImages: [String]? = nil,
         dockerImageArchitecture: String? = nil,
+        hostHealth: RuntimeHealth? = nil,
         toolchainCacheState: (usable: Bool, shareCacheOn: Bool)? = nil
     ) {
         self.host = host
@@ -70,6 +73,7 @@ public struct SetupStatusComputer: Sendable {
         self.dockerHealth = dockerHealth
         self.dockerImages = dockerImages
         self.dockerImageArchitecture = dockerImageArchitecture
+        self.hostHealth = hostHealth
         self.toolchainCacheState = toolchainCacheState
     }
 
@@ -432,6 +436,41 @@ public struct SetupStatusComputer: Sendable {
                     detail: detail,
                     action: (imageFound && !archMismatch) ? nil : "prepare_docker_image"
                 ))
+        }
+
+        // 8b. Host runtime — the row appears only when a route targets
+        // `host`. The agent must be installed, and the detail keeps the
+        // "unisolated" disclosure in front of the user.
+        if case .parsed(let cfg) = evaluation, cfg.hostRoutesConfigured {
+            let resolvedHealth: RuntimeHealth
+            if let hostHealth {
+                resolvedHealth = hostHealth
+            } else {
+                resolvedHealth = await HostRuntime().health()
+            }
+            switch resolvedHealth {
+            case .ready:
+                checks.append(
+                    SetupCheckResult(
+                        id: "host-agent",
+                        title: "Host runner agent",
+                        ok: true,
+                        detail: "installed — host routes run repo code directly on this Mac, unisolated",
+                        action: nil
+                    ))
+            case .missing:
+                checks.append(
+                    SetupCheckResult(
+                        id: "host-agent",
+                        title: "Host runner agent",
+                        ok: false,
+                        detail: "the GitHub runner agent isn't installed (host routes run directly on this Mac)",
+                        action: "install_host_agent"
+                    ))
+            case .broken(let why):
+                checks.append(
+                    SetupCheckResult(id: "host-agent", title: "Host runner agent", ok: false, detail: why, action: nil))
+            }
         }
 
         // 9. Shared toolchain cache — advisory row for the host cache that
