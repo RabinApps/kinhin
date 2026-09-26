@@ -38,7 +38,9 @@ final class ConnectModel {
     }
     /// Whether a token is stored for a forge (tests stub this out so they
     /// never touch the real Keychain).
-    @ObservationIgnored var hasStoredToken: @Sendable (ForgeID) -> Bool = { KeychainTokenStore.load(forge: $0) != nil }
+    @ObservationIgnored var hasStoredToken: @Sendable (ForgeID) throws -> Bool = {
+        try KeychainTokenStore.load(forge: $0) != nil
+    }
     /// Fired after any successful token or config change.
     @ObservationIgnored var onChanged: (() -> Void)? {
         didSet { accounts.onChanged = onChanged }
@@ -48,8 +50,15 @@ final class ConnectModel {
     /// no repo/org chosen yet). Injectable so tests never hit the network.
     @ObservationIgnored var checkPermission: (_ scope: String, _ token: String?) async -> OrgPermissionProbe.Report? = {
         scope, token in
-        let resolved: String? =
-            if let token { token } else { await Task.detached { KeychainTokenStore.load(forge: .github) }.value }
+        let resolved: String?
+        do {
+            resolved =
+                if let token { token } else {
+                    try await Task.detached { try KeychainTokenStore.load(forge: .github) }.value
+                }
+        } catch {
+            return OrgPermissionProbe.Report(ok: false, message: error.localizedDescription)
+        }
         guard let resolved, !scope.isEmpty else { return nil }
         return await OrgPermissionProbe.verify(
             github: GitHubClient(credentials: GitHubCredentials(token: resolved, scope: scope)), scope: scope)
@@ -113,20 +122,31 @@ final class ConnectModel {
         accounts.reload()
         let snapshot = ConfigStore.snapshotOrLog(at: configURL)
         Task { [weak self] in
-            let probe = self?.hasStoredToken ?? { _ in false }
-            let tokens = await Task.detached { (probe(.github), probe(.gitea)) }.value
-            self?.render(snapshot: snapshot, hasGitHubToken: tokens.0, hasGiteaToken: tokens.1)
+            let probe: @Sendable (ForgeID) throws -> Bool = self?.hasStoredToken ?? { @Sendable _ in false }
+            let tokens = await Task.detached { (Result { try probe(.github) }, Result { try probe(.gitea) }) }.value
+            self?.render(snapshot: snapshot, github: tokens.0, gitea: tokens.1)
         }
     }
 
-    private func render(snapshot: GeneralConfigEditor.Snapshot?, hasGitHubToken: Bool, hasGiteaToken: Bool) {
+    /// `github` / `gitea` are the Keychain probes. A failed probe shows the
+    /// Keychain error on that card instead of "Not connected yet", and leaves
+    /// the token treated as absent for the buttons.
+    private func render(
+        snapshot: GeneralConfigEditor.Snapshot?, github: Result<Bool, Error>, gitea giteaProbe: Result<Bool, Error>
+    ) {
+        let hasGitHubToken = (try? github.get()) ?? false
+        let hasGiteaToken = (try? giteaProbe.get()) ?? false
         let repo = snapshot?.repo ?? ""
         let configuredRepo = (repo == ConfigLoader.templateRepo) ? "" : repo
         lastWrittenRepo = configuredRepo
         githubRepo = configuredRepo
-        githubStatus = Line(
-            text: hasGitHubToken ? Self.storedTokenText : "Not connected yet.",
-            style: hasGitHubToken ? .secondary : .warn)
+        if case .failure(let error) = github {
+            githubStatus = Line(text: "Keychain error — \(error.localizedDescription)", style: .error)
+        } else {
+            githubStatus = Line(
+                text: hasGitHubToken ? Self.storedTokenText : "Not connected yet.",
+                style: hasGitHubToken ? .secondary : .warn)
+        }
         githubButtonTitle = hasGitHubToken ? "Replace" : "Connect"
         githubTokenStored = hasGitHubToken
         githubConnected = hasGitHubToken && !configuredRepo.isEmpty
@@ -225,10 +245,17 @@ final class ConnectModel {
     /// nil → use the stored one. Returns false (with a message) on failure.
     @discardableResult
     private func listRepos(forge: ForgeID, token: String?) async -> Bool {
-        let resolved: String? =
-            if let token { token } else {
-                await Task.detached { KeychainTokenStore.load(forge: forge) }.value
-            }
+        let resolved: String?
+        do {
+            resolved =
+                if let token { token } else {
+                    try await Task.detached { try KeychainTokenStore.load(forge: forge) }.value
+                }
+        } catch {
+            let line = Line(text: "Keychain error — \(error.localizedDescription)", style: .error)
+            if forge == .github { githubStatus = line } else { giteaStatus = line }
+            return false
+        }
         guard let resolved else { return false }
         do {
             let refs: [RepoRef]

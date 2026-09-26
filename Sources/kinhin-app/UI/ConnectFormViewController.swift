@@ -39,7 +39,7 @@ final class ConnectFormViewController: NSViewController {
     }
     /// Whether a token is stored for a forge (tests stub this out so they
     /// never touch the real Keychain).
-    var hasStoredToken: @Sendable (ForgeID) -> Bool {
+    var hasStoredToken: @Sendable (ForgeID) throws -> Bool {
         get { model.hasStoredToken }
         set { model.hasStoredToken = newValue }
     }

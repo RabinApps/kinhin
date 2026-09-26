@@ -17,6 +17,10 @@ public struct SetupStatusComputer: Sendable {
     /// Named-account token state by account name (fixture). nil probes the
     /// Keychain for each `accounts:` entry.
     let accountTokensStored: [String: Bool]?
+    /// Keychain read failures by token key ("github", "gitea", "account:NAME"),
+    /// reported by the caller that already probed. A failure renders as an
+    /// error row instead of "token missing".
+    let tokenReadFailures: [String: String]
     let containerHealth: RuntimeHealth?
     let containerImages: [String]?
     /// Whether the container Linux kernel is installed (fixture). nil probes
@@ -42,6 +46,7 @@ public struct SetupStatusComputer: Sendable {
         tokenStored: Bool? = nil,
         giteaTokenStored: Bool? = nil,
         accountTokensStored: [String: Bool]? = nil,
+        tokenReadFailures: [String: String] = [:],
         containerHealth: RuntimeHealth? = nil,
         containerImages: [String]? = nil,
         containerKernelInstalled: Bool? = nil,
@@ -58,6 +63,7 @@ public struct SetupStatusComputer: Sendable {
         self.tokenStored = tokenStored
         self.giteaTokenStored = giteaTokenStored
         self.accountTokensStored = accountTokensStored
+        self.tokenReadFailures = tokenReadFailures
         self.containerHealth = containerHealth
         self.containerImages = containerImages
         self.containerKernelInstalled = containerKernelInstalled
@@ -65,6 +71,33 @@ public struct SetupStatusComputer: Sendable {
         self.dockerImages = dockerImages
         self.dockerImageArchitecture = dockerImageArchitecture
         self.toolchainCacheState = toolchainCacheState
+    }
+
+    // MARK: - Token rows
+
+    /// Precedence: a failure the caller already hit, then the fixture value,
+    /// then a live Keychain read.
+    private func tokenState(key: String, override: Bool?, read: () throws -> String?) -> TokenState {
+        if let failure = tokenReadFailures[key] { return .unreadable(failure) }
+        if let override { return override ? .stored : .missing }
+        return TokenState(reading: read)
+    }
+
+    private func tokenRow(
+        id: String, title: String, state: TokenState, missing: String, replaceAction: String, enterAction: String
+    ) -> SetupCheckResult {
+        switch state {
+        case .stored:
+            return SetupCheckResult(
+                id: id, title: title, ok: true, detail: "stored in Keychain", action: replaceAction)
+        case .missing:
+            return SetupCheckResult(id: id, title: title, ok: false, detail: missing, action: enterAction)
+        case .unreadable(let reason):
+            // No fix button: re-entering a token the Keychain won't read back cannot help.
+            return SetupCheckResult(
+                id: id, title: title, ok: false,
+                detail: "Keychain error — \(reason). Unlock the login keychain and try again.", action: nil)
+        }
     }
 
     /// Loads the parsed config, or nil when missing/invalid.
@@ -98,7 +131,6 @@ public struct SetupStatusComputer: Sendable {
         } else {
             realCLT = await CLTProbe().check()
         }
-        let realToken = tokenStored ?? (KeychainTokenStore.load() != nil)
         let health: TartHealth
         if let tartHealth {
             health = tartHealth
@@ -180,45 +212,36 @@ public struct SetupStatusComputer: Sendable {
         let githubInUse = parsed.map { $0.githubEnabled } ?? true
         if githubInUse {
             checks.append(
-                SetupCheckResult(
-                    id: "token",
-                    title: "GitHub token stored",
-                    ok: realToken,
-                    detail: realToken ? "stored in Keychain" : "a PAT with repo scope is required",
-                    action: realToken ? "replace_token" : "enter_token"
-                ))
+                tokenRow(
+                    id: "token", title: "GitHub token stored",
+                    state: tokenState(key: "github", override: tokenStored) { try KeychainTokenStore.load() },
+                    missing: "a PAT with repo scope is required",
+                    replaceAction: "replace_token", enterAction: "enter_token"))
         }
         if case .parsed(let cfg) = evaluation, cfg.gitea != nil {
-            let giteaToken = giteaTokenStored ?? (KeychainTokenStore.load(forge: .gitea) != nil)
             checks.append(
-                SetupCheckResult(
-                    id: "gitea-token",
-                    title: "Gitea token stored",
-                    ok: giteaToken,
-                    detail: giteaToken
-                        ? "stored in Keychain"
-                        : "a Gitea access token with runner-management rights is required (kinhin auth set --gitea)",
-                    action: giteaToken ? "replace_gitea_token" : "enter_gitea_token"
-                ))
+                tokenRow(
+                    id: "gitea-token", title: "Gitea token stored",
+                    state: tokenState(key: "gitea", override: giteaTokenStored) {
+                        try KeychainTokenStore.load(forge: .gitea)
+                    },
+                    missing: "a Gitea access token with runner-management rights is required (kinhin auth set --gitea)",
+                    replaceAction: "replace_gitea_token", enterAction: "enter_gitea_token"))
         }
 
         // One row per additional named account.
         if case .parsed(let cfg) = evaluation {
             for account in cfg.accounts {
-                let stored =
-                    accountTokensStored?[account.name]
-                    ?? (KeychainTokenStore.load(forge: account.forge, name: account.name) != nil)
                 let provider = account.forge == .github ? "GitHub" : "Gitea"
                 checks.append(
-                    SetupCheckResult(
-                        id: "account-token-\(account.name)",
-                        title: "\(provider) token stored (\(account.name))",
-                        ok: stored,
-                        detail: stored
-                            ? "stored in Keychain"
-                            : "a token for \(account.scope) is required (kinhin auth set --account \(account.name))",
-                        action: stored ? "replace_account_token" : "enter_account_token"
-                    ))
+                    tokenRow(
+                        id: "account-token-\(account.name)", title: "\(provider) token stored (\(account.name))",
+                        state: tokenState(key: "account:\(account.name)", override: accountTokensStored?[account.name])
+                        {
+                            try KeychainTokenStore.load(forge: account.forge, name: account.name)
+                        },
+                        missing: "a token for \(account.scope) is required (kinhin auth set --account \(account.name))",
+                        replaceAction: "replace_account_token", enterAction: "enter_account_token"))
             }
         }
 

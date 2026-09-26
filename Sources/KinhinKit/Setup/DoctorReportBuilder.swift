@@ -12,9 +12,9 @@ public struct DoctorReportBuilder: Sendable {
     let tartList: [TartVM]?
     let config: ConfigScenario
     /// Stands in for the Keychain (`.live` passes `KeychainTokenStore.load`).
-    let authLoad: @Sendable (ForgeID) -> String?
+    let authLoad: @Sendable (ForgeID) throws -> String?
     /// Same, for the named `accounts:` entries.
-    let accountLoad: @Sendable (ForgeID, String) -> String?
+    let accountLoad: @Sendable (ForgeID, String) throws -> String?
     let containerHealth: RuntimeHealth?
     let containerImages: [String]?
     let dockerHealth: RuntimeHealth?
@@ -26,9 +26,9 @@ public struct DoctorReportBuilder: Sendable {
         tartHealth: TartHealth? = nil,
         tartList: [TartVM]? = nil,
         config: ConfigScenario = .live,
-        authLoad: @escaping @Sendable (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) },
-        accountLoad: @escaping @Sendable (ForgeID, String) -> String? = {
-            KeychainTokenStore.load(forge: $0, name: $1)
+        authLoad: @escaping @Sendable (ForgeID) throws -> String? = { try KeychainTokenStore.load(forge: $0) },
+        accountLoad: @escaping @Sendable (ForgeID, String) throws -> String? = {
+            try KeychainTokenStore.load(forge: $0, name: $1)
         },
         containerHealth: RuntimeHealth? = nil,
         containerImages: [String]? = nil,
@@ -71,17 +71,35 @@ public struct DoctorReportBuilder: Sendable {
         }
 
         // The checklist sees the same token source as the auth report — one
-        // source of truth (live → real Keychain, tests → fixture).
+        // source of truth (live → real Keychain, tests → fixture). A read that
+        // fails is recorded so the checklist shows the error, not "missing".
+        var tokenFailures: [String: String] = [:]
+        func stored(_ key: String, _ read: () throws -> String?) -> Bool {
+            do {
+                return try read() != nil
+            } catch {
+                tokenFailures[key] = error.localizedDescription
+                return false
+            }
+        }
+        let githubStored = stored("github") { try authLoad(.github) }
+        let giteaStored = stored("gitea") { try authLoad(.gitea) }
+        var accountStored: [String: Bool] = [:]
+        for account in parsed?.accounts ?? [] {
+            accountStored[account.name] = stored("account:\(account.name)") {
+                try accountLoad(account.forge, account.name)
+            }
+        }
         let status = await SetupStatusComputer(
             host: resolvedHost,
             clt: resolvedCLT,
             tartHealth: resolvedTart,
             tartList: tartList,
             config: config,
-            tokenStored: authLoad(.github) != nil,
-            giteaTokenStored: authLoad(.gitea) != nil,
-            accountTokensStored: Dictionary(
-                uniqueKeysWithValues: (parsed?.accounts ?? []).map { ($0.name, accountLoad($0.forge, $0.name) != nil) }),
+            tokenStored: githubStored,
+            giteaTokenStored: giteaStored,
+            accountTokensStored: accountStored,
+            tokenReadFailures: tokenFailures,
             containerHealth: containerHealth,
             containerImages: containerImages,
             dockerHealth: dockerHealth,
@@ -193,7 +211,8 @@ public struct DoctorReportBuilder: Sendable {
         var capacitySection: DoctorReport.CapacitySection?
         if let cfg = parsed {
             let runtimeID =
-                cfg.container != nil ? RuntimeID.appleContainer.rawValue
+                cfg.container != nil
+                ? RuntimeID.appleContainer.rawValue
                 : cfg.docker != nil ? RuntimeID.docker.rawValue : RuntimeID.tart.rawValue
             let plan = Capacity.plan(
                 host: resolvedHost,

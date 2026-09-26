@@ -27,8 +27,8 @@ final class AccountsModel {
         try KeychainTokenStore.save(token, forge: account.forge, name: account.name)
     }
     /// Whether a token is stored for (forge, account name).
-    @ObservationIgnored var hasStoredToken: @Sendable (ForgeID, String) -> Bool = {
-        KeychainTokenStore.load(forge: $0, name: $1) != nil
+    @ObservationIgnored var hasStoredToken: @Sendable (ForgeID, String) throws -> Bool = {
+        try KeychainTokenStore.load(forge: $0, name: $1) != nil
     }
     @ObservationIgnored var deleteToken: (AccountConfig) -> Void = {
         KeychainTokenStore.delete(forge: $0.forge, name: $0.name)
@@ -71,18 +71,30 @@ final class AccountsModel {
         }
         let probe = hasStoredToken
         Task { [weak self] in
-            let stored = await Task.detached { accounts.map { probe($0.forge, $0.name) } }.value
+            let stored = await Task.detached {
+                accounts.map { account in Result { try probe(account.forge, account.name) } }
+            }
+            .value
             self?.render(accounts: accounts, stored: stored)
         }
     }
 
-    private func render(accounts: [AccountConfig], stored: [Bool]) {
-        rows = zip(accounts, stored).map { account, hasToken in
-            Row(
-                account: account, tokenStored: hasToken,
-                status: StatusLine(
-                    text: hasToken ? Self.storedText : "No token yet — paste one to connect.",
-                    style: hasToken ? .secondary : .warn))
+    /// A failed Keychain probe shows its error on that account's row instead of
+    /// "No token yet", so a locked keychain doesn't read as an unset account.
+    private func render(accounts: [AccountConfig], stored: [Result<Bool, Error>]) {
+        rows = zip(accounts, stored).map { account, probe in
+            switch probe {
+            case .success(let hasToken):
+                return Row(
+                    account: account, tokenStored: hasToken,
+                    status: StatusLine(
+                        text: hasToken ? Self.storedText : "No token yet — paste one to connect.",
+                        style: hasToken ? .secondary : .warn))
+            case .failure(let error):
+                return Row(
+                    account: account, tokenStored: false,
+                    status: StatusLine(text: "Keychain error — \(error.localizedDescription)", style: .error))
+            }
         }
         tokenTexts = tokenTexts.filter { name, _ in accounts.contains { $0.name == name } }
     }

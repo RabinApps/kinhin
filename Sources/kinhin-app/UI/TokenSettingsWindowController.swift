@@ -186,19 +186,30 @@ final class TokenSettingsWindowController: NSWindowController {
         results.removeAll()
         rowsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         let cfg = try? ConfigLoader.load()
+        var keychainFailure: Error?
         for forge in ForgeID.allCases {
+            // A failed read shows the row as empty, so say why once below
+            // instead of letting it pass for "no token saved".
+            let token: String?
+            do {
+                token = try KeychainTokenStore.load(forge: forge)
+            } catch {
+                keychainFailure = keychainFailure ?? error
+                token = nil
+            }
             let row: TokenSettingsRow
             switch forge {
             case .github:
-                row = TokenSettingsRow.makeGitHub(token: KeychainTokenStore.load(forge: forge), repo: cfg?.repo)
+                row = TokenSettingsRow.makeGitHub(token: token, repo: cfg?.repo)
             case .gitea:
-                row = TokenSettingsRow.make(
-                    forge: forge, token: KeychainTokenStore.load(forge: forge), repo: cfg?.repo, gitea: cfg?.gitea)
+                row = TokenSettingsRow.make(forge: forge, token: token, repo: cfg?.repo, gitea: cfg?.gitea)
             case .forgejo:
-                row = TokenSettingsRow.make(
-                    forge: forge, token: KeychainTokenStore.load(forge: forge), repo: nil, gitea: cfg?.forgejo)
+                row = TokenSettingsRow.make(forge: forge, token: token, repo: nil, gitea: cfg?.forgejo)
             }
             rowsStack.addArrangedSubview(makeCard(for: row))
+        }
+        if let keychainFailure {
+            AlertKit.present(error: keychainFailure, title: "Couldn't read your saved tokens")
         }
     }
 
@@ -338,7 +349,7 @@ final class TokenSettingsWindowController: NSWindowController {
                 config: config,
                 // A non-empty field overrides the Keychain for this check.
                 keychainToken: { f in
-                    (f == forge && !typed.isEmpty) ? typed : KeychainTokenStore.load(forge: f)
+                    try (f == forge && !typed.isEmpty) ? typed : KeychainTokenStore.load(forge: f)
                 }
             )
             sender.isEnabled = true

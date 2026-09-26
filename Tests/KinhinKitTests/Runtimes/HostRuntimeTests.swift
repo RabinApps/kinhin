@@ -109,7 +109,8 @@ final class HostRuntimeTests: XCTestCase {
     func testProvisionCreatesWorkDirAndTeardownScrubsIt() async throws {
         let (runtime, _, _) = makeRuntime()
         let id = "kinhin-test123"
-        try await runtime.provision(id: id, route: RepoRoute(repo: "acme", image: "img", ephemeral: true, bootTimeout: 5))
+        try await runtime.provision(
+            id: id, route: RepoRoute(repo: "acme", image: "img", ephemeral: true, bootTimeout: 5))
         let workDir = Paths.appSupport.appendingPathComponent("host-instances/\(id)", isDirectory: true)
         var isDir: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: workDir.path, isDirectory: &isDir)
@@ -169,7 +170,8 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertTrue(script.contains("host-instances/kinhin-host1"), "work dir is per-instance")
         XCTAssertTrue(script.contains("cd ~/actions-runner") == false, "the VM cd is overridden")
         // Executed through bash on the host, cwd = agent dir.
-        try await runtime.provision(id: "kinhin-host1", route: RepoRoute(repo: "acme", image: "img", ephemeral: true, bootTimeout: 5))
+        try await runtime.provision(
+            id: "kinhin-host1", route: RepoRoute(repo: "acme", image: "img", ephemeral: true, bootTimeout: 5))
     }
 
     // MARK: Pool labels

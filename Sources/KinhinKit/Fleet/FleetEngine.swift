@@ -24,7 +24,9 @@ public final class FleetEngine {
     var accountRegistrationTokens: [String: RegistrationTokenCache] = [:]
     /// Resolves an account's token (forge, account name). Keychain in
     /// production; tests inject their own.
-    var tokenLoader: @Sendable (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
+    var tokenLoader: @Sendable (ForgeID, String) throws -> String? = {
+        try KeychainTokenStore.load(forge: $0, name: $1)
+    }
     /// Host snapshot for the pre-spawn disk guard. Defaults to the static
     /// construction-time host value (hermetic — tests inject their own);
     /// production wiring swaps in a live statfs probe via `useLiveDiskProbe`.
@@ -163,7 +165,8 @@ public final class FleetEngine {
         // Linux container slots, 0 for host). The same estimate feeds the
         // pre-spawn disk guard and `kinhin doctor`.
         let primaryRuntimeID =
-            config.container != nil ? RuntimeID.appleContainer
+            config.container != nil
+            ? RuntimeID.appleContainer
             : config.docker != nil ? RuntimeID.docker : RuntimeID.tart
         let diskPerVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: primaryRuntimeID.rawValue)
         self.capacity = Capacity.plan(
@@ -384,6 +387,23 @@ public final class FleetEngine {
         Log.info("engine", "GitHub credentials replaced (scope: \(config.repo))")
     }
 
+    /// Reads a token from the Keychain. When there is none, the reason goes to
+    /// the log and `lastError`: `missing` for a token that was never stored, the
+    /// Keychain's own error when it could not be read (a locked keychain must
+    /// not read as "run kinhin auth set").
+    func storedToken(missing: String, load: () throws -> String?) async -> String? {
+        let message: String
+        do {
+            if let token = try load() { return token }
+            message = missing
+        } catch {
+            message = error.localizedDescription
+        }
+        Log.error("engine", message)
+        await statusBox.modify { $0.lastError = message }
+        return nil
+    }
+
     /// Build the Gitea forge when the config declares one. The registration
     /// token mint doubles as the permission probe — a failure here keeps the
     /// fleet running GitHub-only with the reason in lastError (never a
@@ -391,12 +411,11 @@ public final class FleetEngine {
     func attachGiteaForgeIfNeeded() async {
         guard let giteaConfig = config.gitea else { return }
         guard forgesLock.withLock({ forgesByPlatform["gitea"] == nil }) else { return }
-        guard let token = KeychainTokenStore.load(forge: .gitea) else {
-            let message = "gitea configured but no access token stored — run: kinhin auth set --gitea"
-            Log.error("engine", message)
-            await statusBox.modify { $0.lastError = message }
-            return
-        }
+        guard
+            let token = await storedToken(
+                missing: "gitea configured but no access token stored — run: kinhin auth set --gitea",
+                load: { try KeychainTokenStore.load(forge: .gitea) })
+        else { return }
         do {
             let credentials = GiteaCredentials(token: token, scope: giteaConfig.scope, instance: giteaConfig.instance)
             let forge = try await GiteaForge.make(
@@ -442,14 +461,14 @@ public final class FleetEngine {
     func attachForgejoForgeIfNeeded() async {
         guard let forgejoConfig = config.forgejo else { return }
         guard forgesLock.withLock({ forgesByPlatform["forgejo"] == nil }) else { return }
-        guard let token = KeychainTokenStore.load(forge: .forgejo) else {
-            let message = "forgejo configured but no access token stored — run: kinhin auth set --forgejo"
-            Log.error("engine", message)
-            await statusBox.modify { $0.lastError = message }
-            return
-        }
+        guard
+            let token = await storedToken(
+                missing: "forgejo configured but no access token stored — run: kinhin auth set --forgejo",
+                load: { try KeychainTokenStore.load(forge: .forgejo) })
+        else { return }
         do {
-            let credentials = GiteaCredentials(token: token, scope: forgejoConfig.scope, instance: forgejoConfig.instance)
+            let credentials = GiteaCredentials(
+                token: token, scope: forgejoConfig.scope, instance: forgejoConfig.instance)
             let forge = try await ForgejoForge.make(
                 credentials: credentials,
                 labels: forgejoConfig.labels ?? ["macos:host"],
@@ -472,7 +491,8 @@ public final class FleetEngine {
             return
         }
         do {
-            let credentials = GiteaCredentials(token: token, scope: forgejoConfig.scope, instance: forgejoConfig.instance)
+            let credentials = GiteaCredentials(
+                token: token, scope: forgejoConfig.scope, instance: forgejoConfig.instance)
             let forge = try await ForgejoForge.make(
                 credentials: credentials,
                 labels: forgejoConfig.labels ?? ["macos:host"],

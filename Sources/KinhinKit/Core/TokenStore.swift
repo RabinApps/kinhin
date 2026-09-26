@@ -32,12 +32,19 @@ public enum KeychainTokenStore {
     /// so tokens stored before the rename migrate transparently.
     static let legacyService = "com.orchard.runner"
 
-    enum TokenError: LocalizedError {
+    public enum TokenError: LocalizedError {
         case unhandled(OSStatus)
+        /// The item exists (or may exist) but the Keychain refused to hand it
+        /// over: a denied prompt, a locked keychain, an item another build owns.
+        /// Distinct from "no token stored" so callers never send the user back
+        /// to setup for a token they already saved.
+        case unreadable(account: String, reason: String)
 
         public var errorDescription: String? {
             switch self {
             case .unhandled(let status): return "Keychain error (OSStatus \(status))"
+            case .unreadable(let account, let reason):
+                return "couldn't read the \(account) token from the Keychain: \(reason)"
             }
         }
     }
@@ -71,19 +78,21 @@ public enum KeychainTokenStore {
         try save(token, forge: .github)
     }
 
-    public static func load(forge: ForgeID = .github) -> String? {
-        load(forge: forge, name: legacyAccountName(for: forge))
+    /// The stored token, or nil when none is stored. Throws
+    /// `TokenError.unreadable` when the Keychain fails for any other reason.
+    public static func load(forge: ForgeID = .github) throws -> String? {
+        try load(forge: forge, name: legacyAccountName(for: forge))
     }
 
-    public static func load(forge: ForgeID, name: String) -> String? {
+    public static func load(forge: ForgeID, name: String) throws -> String? {
         let account = account(for: forge, name: name)
-        if let token = load(from: service, account: account) {
+        if let token = try load(from: service, account: account) {
             return token
         }
         // One-time legacy migration: re-save under the current service, then
         // drop the pre-rename item so it never lingers in the Keychain.
         guard serviceOverride == nil,
-            let legacy = load(from: legacyService, account: account)
+            let legacy = try load(from: legacyService, account: account)
         else { return nil }
         do {
             try save(legacy, forge: forge, name: name)
@@ -95,7 +104,7 @@ public enum KeychainTokenStore {
         return legacy
     }
 
-    private static func load(from service: String, account: String) -> String? {
+    private static func load(from service: String, account: String) throws -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -105,16 +114,11 @@ public enum KeychainTokenStore {
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return nil }
         guard status == errSecSuccess, let data = item as? Data else {
-            // "Not found" is normal (no token yet). Anything else — a denied
-            // prompt, a locked keychain, an item another build owns — used
-            // to look identical to "no token" and silently sent the user
-            // back to setup, so say what happened.
-            if status != errSecItemNotFound {
-                let reason = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
-                Log.warn("keychain", "couldn't read \(account) token from the Keychain: \(reason) (OSStatus \(status))")
-            }
-            return nil
+            let reason = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
+            Log.warn("keychain", "couldn't read \(account) token from the Keychain: \(reason) (OSStatus \(status))")
+            throw TokenError.unreadable(account: account, reason: "\(reason) (OSStatus \(status))")
         }
         return String(decoding: data, as: UTF8.self)
     }

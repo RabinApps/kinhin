@@ -33,7 +33,14 @@ public enum Daemon {
             Log.error("daemon", "config problem: \(error.localizedDescription)")
             throw error
         }
-        guard let pat = ConfigLoader.engineToken(for: cfg) else {
+        let enginePAT: String?
+        do {
+            enginePAT = try ConfigLoader.engineToken(for: cfg)
+        } catch {
+            Log.error("daemon", error.localizedDescription)
+            throw error
+        }
+        guard let pat = enginePAT else {
             let message =
                 cfg.githubEnabled
                 ? "no GitHub token in Keychain — run `kinhin auth` first"
@@ -75,7 +82,7 @@ public enum Daemon {
     /// Called again on every config-reload rebuild, so a rebuilt engine
     /// keeps serving through the same RPC server.
     static func buildEngine(_ cfg: KinhinConfig) throws -> FleetEngine {
-        guard let pat = ConfigLoader.engineToken(for: cfg) else {
+        guard let pat = try ConfigLoader.engineToken(for: cfg) else {
             throw DaemonError.missingToken
         }
         let tart = try cfg.makeTartControlling()

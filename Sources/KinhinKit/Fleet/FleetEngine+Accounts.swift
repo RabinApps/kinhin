@@ -37,13 +37,12 @@ extension FleetEngine {
     /// surfaced in `lastError` without affecting the others.
     func attachAccountsIfNeeded() async {
         for account in detachedAccounts() {
-            guard let token = tokenLoader(account.forge, account.name) else {
-                let message =
-                    "account '\(account.name)' has no token stored — run: kinhin auth set --account \(account.name)"
-                Log.error("engine", message)
-                await statusBox.modify { $0.lastError = message }
-                continue
-            }
+            guard
+                let token = await storedToken(
+                    missing:
+                        "account '\(account.name)' has no token stored — run: kinhin auth set --account \(account.name)",
+                    load: { try tokenLoader(account.forge, account.name) })
+            else { continue }
             await attach(account: account, token: token, verify: true)
         }
     }

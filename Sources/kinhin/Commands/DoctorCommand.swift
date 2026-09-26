@@ -96,18 +96,18 @@ enum DoctorCommand {
         }
         let doctorConfig = try? ConfigLoader.load()
         if doctorConfig?.githubEnabled ?? true {
-            print("  token:      \(KeychainTokenStore.load() != nil ? "stored ✓" : "missing — run: kinhin auth set")")
+            print("  token:      \(tokenStatus(fix: "kinhin auth set") { try KeychainTokenStore.load() })")
         }
         if doctorConfig?.gitea != nil {
             print(
-                "  gitea tok:  \(KeychainTokenStore.load(forge: .gitea) != nil ? "stored ✓" : "missing — run: kinhin auth set --gitea")"
+                "  gitea tok:  \(tokenStatus(fix: "kinhin auth set --gitea") { try KeychainTokenStore.load(forge: .gitea) })"
             )
         }
         for account in doctorConfig?.accounts ?? [] {
-            let stored = KeychainTokenStore.load(forge: account.forge, name: account.name) != nil
-            print(
-                "  \(("tok " + account.name + ":").padding(toLength: 11, withPad: " ", startingAt: 0))"
-                    + (stored ? "stored ✓" : "missing — run: kinhin auth set --account \(account.name)"))
+            let status = tokenStatus(fix: "kinhin auth set --account \(account.name)") {
+                try KeychainTokenStore.load(forge: account.forge, name: account.name)
+            }
+            print("  \(("tok " + account.name + ":").padding(toLength: 11, withPad: " ", startingAt: 0))" + status)
         }
         let configExists = FileManager.default.fileExists(atPath: Paths.config.path)
         print("  config:     \(configExists ? Paths.config.path : "missing — run: kinhin config init")")
@@ -160,14 +160,28 @@ enum DoctorCommand {
                         .split(separator: "\n").map { "  \($0)" }.joined(separator: "\n"))
                 // Active verification: mint (and discard) a registration token —
                 // the exact call the fleet's lifecycle depends on.
-                if let token = KeychainTokenStore.load() {
-                    let client = GitHubClient(credentials: GitHubCredentials(token: token, scope: cfg.repo))
-                    let report = await OrgPermissionProbe.verify(github: client, scope: cfg.repo)
-                    print("  org perms:  \(report.message)")
-                } else {
-                    print("  org perms:  cannot verify — no token stored (run: kinhin auth set)")
+                do {
+                    if let token = try KeychainTokenStore.load() {
+                        let client = GitHubClient(credentials: GitHubCredentials(token: token, scope: cfg.repo))
+                        let report = await OrgPermissionProbe.verify(github: client, scope: cfg.repo)
+                        print("  org perms:  \(report.message)")
+                    } else {
+                        print("  org perms:  cannot verify — no token stored (run: kinhin auth set)")
+                    }
+                } catch {
+                    print("  org perms:  cannot verify — \(error.localizedDescription)")
                 }
             }
+        }
+    }
+
+    /// One doctor line for a stored token: present, missing (with the fix), or
+    /// a Keychain failure, which is reported as such rather than as "missing".
+    private static func tokenStatus(fix: String, _ read: () throws -> String?) -> String {
+        do {
+            return try read() != nil ? "stored ✓" : "missing — run: \(fix)"
+        } catch {
+            return "keychain error — \(error.localizedDescription)"
         }
     }
 }

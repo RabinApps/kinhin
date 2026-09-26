@@ -21,16 +21,17 @@ public struct ConfigLoader {
     /// with its own token, an empty placeholder lets the fleet run on Gitea
     /// alone (GitHub then reports its problem instead of blocking startup).
     /// Gitea-only configs also get the placeholder. Nil when no configured
-    /// forge has a usable token.
+    /// forge has a usable token. Throws when the Keychain itself fails, so a
+    /// locked or denied Keychain is reported as such instead of "no token".
     public static func engineToken(
-        for cfg: KinhinConfig, load: (ForgeID) -> String? = { KeychainTokenStore.load(forge: $0) },
-        loadAccount: (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
-    ) -> String? {
-        let extraReady = cfg.accounts.contains { loadAccount($0.forge, $0.name) != nil }
-        let giteaReady = extraReady || (cfg.gitea != nil && load(.gitea) != nil)
-        let forgejoReady = cfg.forgejo != nil && load(.forgejo) != nil
+        for cfg: KinhinConfig, load: (ForgeID) throws -> String? = { try KeychainTokenStore.load(forge: $0) },
+        loadAccount: (ForgeID, String) throws -> String? = { try KeychainTokenStore.load(forge: $0, name: $1) }
+    ) throws -> String? {
+        let extraReady = try cfg.accounts.contains { try loadAccount($0.forge, $0.name) != nil }
+        let giteaReady = try extraReady || (cfg.gitea != nil && load(.gitea) != nil)
+        let forgejoReady = try cfg.forgejo != nil && load(.forgejo) != nil
         if cfg.githubEnabled {
-            if let token = load(.github) { return token }
+            if let token = try load(.github) { return token }
             return giteaReady || forgejoReady ? "" : nil
         }
         return giteaReady || forgejoReady ? "" : nil
@@ -336,7 +337,8 @@ public struct ConfigLoader {
                 if runtime == RuntimeID.host.rawValue {
                     guard route.consent == true else {
                         throw ConfigError.invalid(
-                            "runtimes.routes entry '\(pattern)' targets runtime 'host' — jobs run directly on your Mac, unisolated. Review the risk, then add \"consent: true\" to the route")
+                            "runtimes.routes entry '\(pattern)' targets runtime 'host' — jobs run directly on your Mac, unisolated. Review the risk, then add \"consent: true\" to the route"
+                        )
                     }
                 } else if route.consent != nil {
                     throw ConfigError.invalid(

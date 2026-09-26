@@ -185,7 +185,13 @@ func loadConfigOrExit() -> KinhinConfig {
 /// The token the engine is built with: the GitHub PAT, or an empty
 /// placeholder for a Gitea-only config (whose own token is required instead).
 func tokenOrExit(for cfg: KinhinConfig) -> String {
-    guard let token = ConfigLoader.engineToken(for: cfg) else {
+    let stored: String?
+    do {
+        stored = try ConfigLoader.engineToken(for: cfg)
+    } catch {
+        fail(error.localizedDescription, exit: .auth)
+    }
+    guard let token = stored else {
         fail(
             cfg.githubEnabled
                 ? "no GitHub token stored. Run: kinhin auth set"

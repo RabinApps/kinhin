@@ -126,7 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // fleet against "your-org/your-repo".
             ConfigLoader.hasAnyForge(cfg),
             // GitHub PAT, or (Gitea-only config) the Gitea token.
-            let pat = ConfigLoader.engineToken(for: cfg),
+            let pat = engineTokenLoggingFailure(for: cfg),
             // tart, or a Linux runtime (Docker / Apple container) to run on.
             cfg.canRunOnThisHost()
         {
@@ -154,6 +154,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.info("app", "setup incomplete — the guided setup opens")
             mainController?.setupIncompleteFlag = true
             if reopenSetupOnFailure { openMainWindow() }
+        }
+    }
+
+    /// The engine token for launch. A Keychain failure is logged and yields nil,
+    /// which routes to the guided setup; its checklist then shows the
+    /// "Keychain error" row instead of asking for a token that is already saved.
+    private func engineTokenLoggingFailure(for cfg: KinhinConfig) -> String? {
+        do {
+            return try ConfigLoader.engineToken(for: cfg)
+        } catch {
+            Log.error("app", "could not read the forge token at launch: \(error.localizedDescription)")
+            return nil
         }
     }
 

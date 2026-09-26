@@ -30,9 +30,9 @@ final class TokenReplacementTests: XCTestCase {
         XCTAssertNotEqual(KeychainTokenStore.service, Paths.keychainService, "must not touch the real token")
         KeychainTokenStore.delete()
         try KeychainTokenStore.save("ghp_first")
-        XCTAssertEqual(KeychainTokenStore.load(), "ghp_first")
+        XCTAssertEqual(try KeychainTokenStore.load(), "ghp_first")
         try KeychainTokenStore.save("ghp_second")
-        XCTAssertEqual(KeychainTokenStore.load(), "ghp_second", "auth set must replace, not duplicate or fail")
+        XCTAssertEqual(try KeychainTokenStore.load(), "ghp_second", "auth set must replace, not duplicate or fail")
     }
 
     // MARK: Engine credential swap

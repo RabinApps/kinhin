@@ -186,7 +186,8 @@ struct RuntimeConfigModel: Sendable {
                 )
             }
             if hostConfigured {
-                pools[.host] = RuntimePool(runtime: .host, labels: RuntimePool.labelsFor(.host, fleetLabels: fleetLabels))
+                pools[.host] = RuntimePool(
+                    runtime: .host, labels: RuntimePool.labelsFor(.host, fleetLabels: fleetLabels))
             }
             self.pools = pools
         } else {

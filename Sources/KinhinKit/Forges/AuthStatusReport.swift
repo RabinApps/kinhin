@@ -98,15 +98,17 @@ public struct AuthStatusReport: Codable, Equatable, Sendable {
 /// Keychain so tests stay hermetic; `.live` passes `KeychainTokenStore.load`.
 public enum AuthStatusReporter {
     public static func report(
-        config: KinhinConfig?, load: (ForgeID) -> String?,
-        loadAccount: (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
+        config: KinhinConfig?, load: (ForgeID) throws -> String?,
+        loadAccount: (ForgeID, String) throws -> String? = { try KeychainTokenStore.load(forge: $0, name: $1) }
     ) -> AuthStatusReport {
-        let githubToken = load(.github)
+        let githubRead = read { try load(.github) }
+        let githubToken = githubRead.token
         let repo = config?.repo
         // The starter placeholder repo means "no GitHub" (Gitea-only configs).
         let githubConfigured = !(repo ?? "").isEmpty && repo != ConfigLoader.templateRepo
 
-        let giteaToken = load(.gitea)
+        let giteaRead = read { try load(.gitea) }
+        let giteaToken = giteaRead.token
         let gitea = config?.gitea
 
         var forges: [AuthStatusReport.Forge] = []
@@ -118,7 +120,7 @@ public enum AuthStatusReporter {
                 configured: githubConfigured,
                 scope: githubConfigured ? repo : nil,
                 instance: nil,
-                detail: githubDetail(token: githubToken, scope: repo)
+                detail: githubRead.failureDetail ?? githubDetail(token: githubToken, scope: repo)
             ))
         forges.append(
             AuthStatusReport.Forge(
@@ -128,9 +130,11 @@ public enum AuthStatusReporter {
                 configured: gitea != nil,
                 scope: gitea?.scope,
                 instance: gitea?.instance,
-                detail: giteaDetail(token: giteaToken, config: gitea, section: "gitea", fix: "--gitea")
+                detail: giteaRead.failureDetail
+                    ?? giteaDetail(token: giteaToken, config: gitea, section: "gitea", fix: "--gitea")
             ))
-        let forgejoToken = load(.forgejo)
+        let forgejoRead = read { try load(.forgejo) }
+        let forgejoToken = forgejoRead.token
         let forgejo = config?.forgejo
         forges.append(
             AuthStatusReport.Forge(
@@ -140,7 +144,8 @@ public enum AuthStatusReporter {
                 configured: forgejo != nil,
                 scope: forgejo?.scope,
                 instance: forgejo?.instance,
-                detail: giteaDetail(token: forgejoToken, config: forgejo, section: "forgejo", fix: "--forgejo")
+                detail: forgejoRead.failureDetail
+                    ?? giteaDetail(token: forgejoToken, config: forgejo, section: "forgejo", fix: "--forgejo")
             ))
 
         // Every configured forge needs its token, and at least one forge must
@@ -149,10 +154,12 @@ public enum AuthStatusReporter {
         let giteaOK = gitea != nil && giteaToken != nil
         let forgejoOK = forgejo != nil && forgejoToken != nil
         let accounts = (config?.accounts ?? []).map { account -> AuthStatusReport.Account in
-            let token = loadAccount(account.forge, account.name)
+            let accountRead = read { try loadAccount(account.forge, account.name) }
+            let token = accountRead.token
             let masked = token.map { "\(String($0.prefix(4)))…" }
             let detail =
-                masked.map { "stored in Keychain (\($0)) · scope: \(account.scope)" }
+                accountRead.failureDetail
+                ?? masked.map { "stored in Keychain (\($0)) · scope: \(account.scope)" }
                 ?? "no token stored — run: kinhin auth set --account \(account.name)"
             return AuthStatusReport.Account(
                 name: account.name, forge: account.forge.rawValue, stored: token != nil,
@@ -168,6 +175,24 @@ public enum AuthStatusReporter {
             && (forgejo == nil || forgejoToken != nil)
             && accountsOK
         return AuthStatusReport(forges: forges, allGood: allGood, accounts: accounts)
+    }
+
+    /// One Keychain read. A failure is kept apart from "no token stored" so the
+    /// row can say what actually went wrong instead of asking the user to
+    /// re-enter a token that is already saved.
+    private struct Read {
+        let token: String?
+        let failure: String?
+
+        var failureDetail: String? { failure.map { "Keychain error — \($0)" } }
+    }
+
+    private static func read(_ body: () throws -> String?) -> Read {
+        do {
+            return Read(token: try body(), failure: nil)
+        } catch {
+            return Read(token: nil, failure: error.localizedDescription)
+        }
     }
 
     private static func githubDetail(token: String?, scope: String?) -> String {

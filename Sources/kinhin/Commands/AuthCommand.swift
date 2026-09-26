@@ -11,7 +11,7 @@ import KinhinKit
 struct AuthEnvironment {
     var save: (String, ForgeID) throws -> Void
     /// Returns the stored token for the forge, or nil when none is stored.
-    var load: (ForgeID) -> String?
+    var load: (ForgeID) throws -> String?
     var delete: (ForgeID) -> Void
     /// Interactive read for `auth set` without --token (raw stdin line).
     var readToken: () -> String?
@@ -27,7 +27,7 @@ struct AuthEnvironment {
     var exit: (Int) throws -> Never
     /// Named-account token access (`--account NAME`, `auth add/remove`).
     var saveAccount: (String, ForgeID, String) throws -> Void = { try KeychainTokenStore.save($0, forge: $1, name: $2) }
-    var loadAccount: (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
+    var loadAccount: (ForgeID, String) throws -> String? = { try KeychainTokenStore.load(forge: $0, name: $1) }
     var deleteAccount: (ForgeID, String) -> Void = { KeychainTokenStore.delete(forge: $0, name: $1) }
     /// Best-effort live-swap notification for a named account: (account, token).
     var notifyDaemonAccount: (String, String) -> Void = { account, token in
@@ -58,7 +58,7 @@ struct AuthEnvironment {
 
     static let live = AuthEnvironment(
         save: { try KeychainTokenStore.save($0, forge: $1) },
-        load: { KeychainTokenStore.load(forge: $0) },
+        load: { try KeychainTokenStore.load(forge: $0) },
         delete: { KeychainTokenStore.delete(forge: $0) },
         readToken: { String(data: FileHandle.standardInput.availableData, encoding: .utf8) },
         checkGitHub: { credentials in _ = try await GitHubClient(credentials: credentials).listRunners() },
@@ -154,12 +154,18 @@ enum AuthCommand {
             return
         }
         for account in accounts {
-            let token =
-                account.name == account.forge.rawValue
-                ? environment.load(account.forge) : environment.loadAccount(account.forge, account.name)
+            let state: String
+            do {
+                let token =
+                    try account.name == account.forge.rawValue
+                    ? environment.load(account.forge) : environment.loadAccount(account.forge, account.name)
+                state = token == nil ? "no token" : "token stored"
+            } catch {
+                // Report it on this row (and keep listing the rest) rather than claim "no token".
+                state = "keychain error: \(error.localizedDescription)"
+            }
             let where_ = account.instance.map { "\(account.scope) @ \($0)" } ?? account.scope
-            print(
-                "\(account.name)\t\(account.forge.rawValue)\t\(where_)\t\(token == nil ? "no token" : "token stored")")
+            print("\(account.name)\t\(account.forge.rawValue)\t\(where_)\t\(state)")
         }
     }
 
@@ -223,8 +229,8 @@ enum AuthCommand {
         let forgeName =
             namedAccount.map { "\(forgeLabel($0.forge)) for account '\($0.name)'" }
             ?? forgeLabel(forge)
-        let load: (ForgeID) -> String? = { f in
-            namedAccount.map { environment.loadAccount($0.forge, $0.name) } ?? environment.load(f)
+        let load: (ForgeID) throws -> String? = { f in
+            try namedAccount.map { try environment.loadAccount($0.forge, $0.name) } ?? environment.load(f)
         }
         switch sub {
         case "set":
@@ -264,7 +270,7 @@ enum AuthCommand {
                 }
                 return
             }
-            guard let token = load(forge) else {
+            guard let token = try load(forge) else {
                 print(giteaMode ? "no Gitea token stored" : "no token stored")
                 try environment.exit(1)
             }

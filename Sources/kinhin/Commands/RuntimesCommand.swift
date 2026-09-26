@@ -102,13 +102,15 @@ enum RuntimesCommand {
             let runtimeName = args.count > 2 ? args[2] : ""
             guard !runtimeName.isEmpty, let runtime = RuntimeID(rawValue: runtimeName) else {
                 throw RouteError.usage(
-                    "unknown or missing runtime '\(runtimeName)' — expected 'tart', 'appleContainer', 'docker', or 'host'")
+                    "unknown or missing runtime '\(runtimeName)' — expected 'tart', 'appleContainer', 'docker', or 'host'"
+                )
             }
             let consent = args.contains("--consent")
             if runtime == .host {
                 guard consent else {
                     throw RouteError.usage(
-                        "host routes run repo code directly on your Mac, unisolated. Review the risk, then re-run with --consent")
+                        "host routes run repo code directly on your Mac, unisolated. Review the risk, then re-run with --consent"
+                    )
                 }
             } else if consent {
                 throw RouteError.usage("--consent applies to host routes only")
@@ -119,7 +121,8 @@ enum RuntimesCommand {
                 )
             }
             rc.routes.append(
-                KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime.rawValue, consent: consent ? true : nil))
+                KinhinConfig.RuntimeConfig.Route(
+                    pattern: pattern, runtime: runtime.rawValue, consent: consent ? true : nil))
             if !hadRouting {
                 print("note: created the runtimes: section (default: \(rc.defaultRuntime))")
             }

@@ -35,7 +35,8 @@ final class AuthStatusReportTests: XCTestCase {
 
     func testOneForgeEntryPerForgeInStableOrder() {
         let report = report(config: Self.config(gitea: true))
-        XCTAssertEqual(report.forges.map(\.id), ["github", "gitea", "forgejo"], "github first — ForgeID order is the API order")
+        XCTAssertEqual(
+            report.forges.map(\.id), ["github", "gitea", "forgejo"], "github first — ForgeID order is the API order")
     }
 
     func testJSONRoundTripPreservesTheContract() throws {

@@ -54,11 +54,17 @@ public enum TokenHealthCheck {
     public static func check(
         forge: ForgeID,
         config: KinhinConfig?,
-        keychainToken: @escaping (ForgeID) -> String?,
+        keychainToken: @escaping (ForgeID) throws -> String?,
         github: GitHubServing? = nil,
         gitea: GiteaClient? = nil
     ) async -> Report {
-        guard let token = keychainToken(forge) else {
+        let stored: String?
+        do {
+            stored = try keychainToken(forge)
+        } catch {
+            return Report(ok: false, message: "Token check failed: \(error.localizedDescription)")
+        }
+        guard let token = stored else {
             return Report(ok: false, message: "No token stored yet — save one first.")
         }
         switch forge {

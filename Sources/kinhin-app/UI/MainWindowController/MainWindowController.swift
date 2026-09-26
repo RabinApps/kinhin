@@ -119,7 +119,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
 
     /// Whether a token is stored for a forge. The real Keychain by default;
     /// tests inject a stub so building the Accounts page never touches it.
-    var tokenProbe: @Sendable (ForgeID) -> Bool = { KeychainTokenStore.load(forge: $0) != nil }
+    var tokenProbe: @Sendable (ForgeID) throws -> Bool = { try KeychainTokenStore.load(forge: $0) != nil }
 
     /// Set by the app delegate before the window opens. Adds/removes the
     /// Setup tab.

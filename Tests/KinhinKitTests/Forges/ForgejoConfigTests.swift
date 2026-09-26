@@ -47,7 +47,8 @@ final class ForgejoConfigTests: XCTestCase {
         // Instance URL validation is shared with Gitea.
         XCTAssertThrowsError(
             try ConfigLoader.parse(
-                "repo: \"acme/widgets\"\nlabels: [x]\nforgejo:\n  instance: \"https://code.example.com/api\"\n  scope: \"acme\"\n")
+                "repo: \"acme/widgets\"\nlabels: [x]\nforgejo:\n  instance: \"https://code.example.com/api\"\n  scope: \"acme\"\n"
+            )
         ) { error in
             guard case .invalid(let message) = error as? ConfigError else { return XCTFail("\(error)") }
             XCTAssertTrue(message.contains("forgejo.instance must be a base URL"), message)
@@ -78,9 +79,9 @@ final class ForgejoConfigTests: XCTestCase {
               instance: "https://code.example.com"
               scope: "acme/api"
             """)
-        XCTAssertNil(ConfigLoader.engineToken(for: cfg, load: { _ in nil }))
+        XCTAssertNil(try ConfigLoader.engineToken(for: cfg, load: { _ in nil }))
         XCTAssertNotNil(
-            ConfigLoader.engineToken(for: cfg, load: { $0 == .forgejo ? "fj" : nil }),
+            try ConfigLoader.engineToken(for: cfg, load: { $0 == .forgejo ? "fj" : nil }),
             "a Forgejo token alone makes the config usable (Forgejo-only fleet)")
     }
 
@@ -102,7 +103,9 @@ final class ForgejoConfigTests: XCTestCase {
             if request.url?.query?.contains("status=waiting") == true {
                 return (
                     200,
-                    Data("{\"total_count\":1,\"entries\":[{\"id\":1,\"name\":\"build\",\"repo_full_name\":\"acme/api\"}]}".utf8),
+                    Data(
+                        "{\"total_count\":1,\"entries\":[{\"id\":1,\"name\":\"build\",\"repo_full_name\":\"acme/api\"}]}"
+                            .utf8),
                     [:]
                 )
             }

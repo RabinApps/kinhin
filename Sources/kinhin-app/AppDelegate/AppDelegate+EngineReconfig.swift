@@ -61,7 +61,17 @@ extension AppDelegate {
     /// keep running; the replacement adopts them via the standard recovery
     /// path, then resumes serving at the previous running/paused state.
     private func rebuildInProcessEngine(from old: FleetEngine, config cfg: KinhinConfig) async {
-        guard let pat = ConfigLoader.engineToken(for: cfg) else {
+        let enginePAT: String?
+        do {
+            enginePAT = try ConfigLoader.engineToken(for: cfg)
+        } catch {
+            Log.error(
+                "app",
+                "config change needs an engine restart but the Keychain failed (\(error.localizedDescription)) — the fleet keeps running on the old config"
+            )
+            return
+        }
+        guard let pat = enginePAT else {
             Log.warn(
                 "app",
                 "config change needs an engine restart but the required forge token is missing — the fleet keeps running on the old config"

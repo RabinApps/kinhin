@@ -26,21 +26,21 @@ final class GiteaOnlyTests: XCTestCase {
     func testTemplateWithoutGiteaIsNotUsable() throws {
         let cfg = try ConfigLoader.parse("repo: \"\(ConfigLoader.templateRepo)\"\nlabels: [a]\n")
         XCTAssertFalse(ConfigLoader.hasAnyForge(cfg))
-        XCTAssertNil(ConfigLoader.engineToken(for: cfg, load: { _ in "tok" }))
+        XCTAssertNil(try ConfigLoader.engineToken(for: cfg, load: { _ in "tok" }))
     }
 
     func testEngineTokenRequiresTheRightForgeToken() throws {
         let gitea = try giteaOnlyConfig()
         XCTAssertEqual(
-            ConfigLoader.engineToken(for: gitea, load: { $0 == .gitea ? "gt" : nil }), "",
+            try ConfigLoader.engineToken(for: gitea, load: { $0 == .gitea ? "gt" : nil }), "",
             "Gitea-only needs only the Gitea token; the GitHub slot is an empty placeholder")
         XCTAssertNil(
-            ConfigLoader.engineToken(for: gitea, load: { $0 == .github ? "gh" : nil }),
+            try ConfigLoader.engineToken(for: gitea, load: { $0 == .github ? "gh" : nil }),
             "a GitHub token does not satisfy a Gitea-only config")
 
         let github = try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [a]\n")
-        XCTAssertEqual(ConfigLoader.engineToken(for: github, load: { $0 == .github ? "gh" : nil }), "gh")
-        XCTAssertNil(ConfigLoader.engineToken(for: github, load: { _ in nil }))
+        XCTAssertEqual(try ConfigLoader.engineToken(for: github, load: { $0 == .github ? "gh" : nil }), "gh")
+        XCTAssertNil(try ConfigLoader.engineToken(for: github, load: { _ in nil }))
     }
 
     func testEngineStartSkipsGitHubVerificationWhenGiteaOnly() async throws {
@@ -181,9 +181,9 @@ final class DualForgeTests: XCTestCase {
 
     func testEngineTokenAllowsGiteaWhenTheGitHubTokenIsMissing() throws {
         let cfg = try bothConfig()
-        XCTAssertEqual(ConfigLoader.engineToken(for: cfg, load: { $0 == .gitea ? "gt" : nil }), "")
-        XCTAssertEqual(ConfigLoader.engineToken(for: cfg, load: { $0 == .github ? "gh" : nil }), "gh")
-        XCTAssertNil(ConfigLoader.engineToken(for: cfg, load: { _ in nil }))
+        XCTAssertEqual(try ConfigLoader.engineToken(for: cfg, load: { $0 == .gitea ? "gt" : nil }), "")
+        XCTAssertEqual(try ConfigLoader.engineToken(for: cfg, load: { $0 == .github ? "gh" : nil }), "gh")
+        XCTAssertNil(try ConfigLoader.engineToken(for: cfg, load: { _ in nil }))
     }
 }
 

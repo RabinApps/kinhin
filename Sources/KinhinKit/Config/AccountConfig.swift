@@ -78,10 +78,10 @@ public enum AccountTokens {
     public static func anyStored(
         for forge: ForgeID,
         config: KinhinConfig? = loadedConfig(),
-        load: (ForgeID, String) -> String? = { KeychainTokenStore.load(forge: $0, name: $1) }
-    ) -> Bool {
-        if load(forge, forge.rawValue) != nil { return true }
-        return (config?.accounts ?? []).contains { $0.forge == forge && load($0.forge, $0.name) != nil }
+        load: (ForgeID, String) throws -> String? = { try KeychainTokenStore.load(forge: $0, name: $1) }
+    ) throws -> Bool {
+        if try load(forge, forge.rawValue) != nil { return true }
+        return try (config?.accounts ?? []).contains { try $0.forge == forge && load($0.forge, $0.name) != nil }
     }
 
     /// The on-disk config when there is a valid one; a broken file is logged
