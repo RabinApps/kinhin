@@ -16,30 +16,42 @@ extension RuntimesWindowController {
         var ids: [RuntimeID] = [.tart]
         if config?.container != nil { ids.append(.appleContainer) }
         if config?.docker != nil { ids.append(.docker) }
+        // Host needs no config section (only the runner agent, which the
+        // setup checklist installs); the route itself carries the consent.
+        ids.append(.host)
         return ids
     }
 
+    static let hostConsentTitle = "Host only: run this repo's code directly on my Mac, unisolated"
+
     /// The Add Route form with explicit frames (an NSAlert accessory view
     /// doesn't run Auto Layout, so stack views collapse there).
-    static func makeRouteForm(runtimes: [RuntimeID]) -> (view: NSView, pattern: NSTextField, popup: NSPopUpButton) {
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 64))
-        let pattern = NSTextField(frame: NSRect(x: 0, y: 40, width: 340, height: 24))
+    static func makeRouteForm(runtimes: [RuntimeID]) -> (
+        view: NSView, pattern: NSTextField, popup: NSPopUpButton, consent: NSButton
+    ) {
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 340, height: 96))
+        let pattern = NSTextField(frame: NSRect(x: 0, y: 72, width: 340, height: 24))
         pattern.placeholderString = "acme/api  or  acme/api@Workflow Name"
         pattern.setAccessibilityLabel("Repo or workflow pattern")
-        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 6, width: 340, height: 26), pullsDown: false)
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 40, width: 340, height: 26), pullsDown: false)
         for id in runtimes {
             switch id {
             case .tart: popup.addItem(withTitle: "tart — macOS VMs")
             case .appleContainer: popup.addItem(withTitle: "Apple container — Linux")
             case .docker: popup.addItem(withTitle: "Docker — Linux")
-            case .host: popup.addItem(withTitle: "host")
+            case .host: popup.addItem(withTitle: "Host — this Mac, no isolation")
             }
             popup.lastItem?.representedObject = id.rawValue
         }
         popup.setAccessibilityLabel("Runtime to use")
+        let consent = NSButton(checkboxWithTitle: Self.hostConsentTitle, target: nil, action: nil)
+        consent.frame = NSRect(x: 0, y: 4, width: 340, height: 28)
+        consent.font = .systemFont(ofSize: 11)
+        consent.setAccessibilityLabel("Host route consent")
         view.addSubview(pattern)
         view.addSubview(popup)
-        return (view, pattern, popup)
+        view.addSubview(consent)
+        return (view, pattern, popup, consent)
     }
 
     @objc func addRouteClicked() {
@@ -52,14 +64,7 @@ extension RuntimesWindowController {
             return
         }
         let runtimes = Self.routableRuntimes(in: parsed)
-        guard runtimes.count > 1 else {
-            presentNotice(
-                "Nothing to route to yet",
-                "Routes send a repo or workflow to a runtime, and only tart is set up. Turn on Docker or Apple container in Advanced → Accounts first."
-            )
-            return
-        }
-        guard let (patternValue, runtimeID) = promptForRoute(runtimes) else { return }
+        guard let (patternValue, runtimeID, consent) = promptForRoute(runtimes) else { return }
         let runtimeValue = runtimeID.rawValue
 
         var rc = currentRuntimeConfig ?? KinhinConfig.RuntimeConfig()
@@ -70,7 +75,9 @@ extension RuntimesWindowController {
                     userInfo: [NSLocalizedDescriptionKey: "A route for '\(patternValue)' already exists."]))
             return
         }
-        rc.routes.append(KinhinConfig.RuntimeConfig.Route(pattern: patternValue, runtime: runtimeValue))
+        rc.routes.append(
+            KinhinConfig.RuntimeConfig.Route(
+                pattern: patternValue, runtime: runtimeValue, consent: runtimeID == .host && consent ? true : nil))
 
         do {
             try RuntimesConfigEditor.apply(rc, to: configURL)

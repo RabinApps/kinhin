@@ -22,8 +22,8 @@ final class RuntimesWindowController: NSWindowController {
     /// Test hooks.
     var reloadCount = 0
 
-    /// Overridable so tests never open a modal: returns (pattern, runtime) or nil.
-    var promptForRoute: ([RuntimeID]) -> (String, RuntimeID)? = { runtimes in
+    /// Overridable so tests never open a modal: returns (pattern, runtime, consent) or nil.
+    var promptForRoute: ([RuntimeID]) -> (pattern: String, runtime: RuntimeID, consent: Bool)? = { runtimes in
         let alert = NSAlert()
         alert.messageText = "Add Route"
         alert.informativeText =
@@ -42,7 +42,13 @@ final class RuntimesWindowController: NSWindowController {
             }
             guard let raw = form.popup.selectedItem?.representedObject as? String, let id = RuntimeID(rawValue: raw)
             else { return nil }
-            return (pattern, id)
+            let consented = form.consent.state == .on
+            if id == .host && !consented {
+                alert.informativeText =
+                    "Host routes run this repo's code directly on your Mac with your privileges. Tick the box to confirm, or pick another runtime."
+                continue
+            }
+            return (pattern, id, id == .host && consented)
         }
     }
 

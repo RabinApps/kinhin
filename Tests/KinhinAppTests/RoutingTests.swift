@@ -51,21 +51,38 @@ final class RoutingTests: XCTestCase {
         XCTAssertEqual(notice?.0, "Routes are still loading", "never a silent no-op")
     }
 
-    func testAddRouteExplainsWhenOnlyTartIsSetUp() async {
+    func testHostIsOfferedEvenWhenOnlyTartIsSetUp() async {
         write("repo: \"acme/widgets\"\nlabels: [a]\n")
         let controller = makeController()
         controller.reload()
         await waitUntilLoaded(controller)
-        var notice: (String, String)?
-        controller.presentNotice = { notice = ($0, $1) }
-        var asked = false
-        controller.promptForRoute = { _ in
-            asked = true; return nil
+        var offered: [RuntimeID] = []
+        controller.promptForRoute = {
+            offered = $0; return nil
         }
         controller.addRouteClicked()
-        XCTAssertEqual(notice?.0, "Nothing to route to yet")
-        XCTAssertTrue(notice?.1.contains("Docker or Apple container") ?? false)
-        XCTAssertFalse(asked, "no dialog when there is only one runtime")
+        XCTAssertEqual(offered, [.tart, .host])
+    }
+
+    func testAddingAHostRouteRecordsConsent() async throws {
+        write("repo: \"acme/widgets\"\nlabels: [a]\n")
+        let controller = makeController()
+        controller.reload()
+        await waitUntilLoaded(controller)
+        controller.promptForRoute = { _ in ("acme/scripts", .host, true) }
+        controller.addRouteClicked()
+        let yaml = try String(contentsOf: configURL, encoding: .utf8)
+        XCTAssertTrue(yaml.contains("acme/scripts"), yaml)
+        XCTAssertTrue(yaml.contains("consent: true"), yaml)
+        let parsed = try ConfigLoader.parse(yaml)
+        XCTAssertTrue(parsed.hostRoutesConfigured, "the written route must pass config validation")
+    }
+
+    func testRouteFormHostConsentCheckboxIsPresent() {
+        let form = RuntimesWindowController.makeRouteForm(runtimes: [.tart, .host])
+        XCTAssertEqual(form.consent.state, .off, "consent is never pre-ticked")
+        XCTAssertTrue(form.view.bounds.contains(form.consent.frame))
+        XCTAssertEqual(form.popup.item(at: 1)?.representedObject as? String, "host")
     }
 
     func testAddRouteWritesTheRoute() async throws {
@@ -83,10 +100,10 @@ final class RoutingTests: XCTestCase {
         controller.onEdited = { edited += 1 }
         var offered: [RuntimeID] = []
         controller.promptForRoute = {
-            offered = $0; return ("acme/api", .docker)
+            offered = $0; return ("acme/api", .docker, false)
         }
         controller.addRouteClicked()
-        XCTAssertEqual(offered, [.tart, .docker], "only configured runtimes are offered")
+        XCTAssertEqual(offered, [.tart, .docker, .host], "only configured runtimes (plus host) are offered")
         let yaml = try String(contentsOf: configURL, encoding: .utf8)
         XCTAssertTrue(yaml.contains("acme/api"), yaml)
         XCTAssertEqual(edited, 1)
@@ -115,8 +132,8 @@ final class RoutingTests: XCTestCase {
 
     func testRoutableRuntimes() throws {
         let plain = try ConfigLoader.parse("repo: \"a/b\"\nlabels: [x]\n")
-        XCTAssertEqual(RuntimesWindowController.routableRuntimes(in: plain), [.tart])
+        XCTAssertEqual(RuntimesWindowController.routableRuntimes(in: plain), [.tart, .host])
         let both = try ConfigLoader.parse("repo: \"a/b\"\nlabels: [x]\ncontainer:\n  image: i\ndocker:\n  image: i\n")
-        XCTAssertEqual(RuntimesWindowController.routableRuntimes(in: both), [.tart, .appleContainer, .docker])
+        XCTAssertEqual(RuntimesWindowController.routableRuntimes(in: both), [.tart, .appleContainer, .docker, .host])
     }
 }

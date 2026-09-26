@@ -149,10 +149,11 @@ extension RuntimesWindowController {
             rowsStack.addArrangedSubview(empty)
         } else {
             for route in vm.routes {
-                let title =
+                var title =
                     route.isWorkflow
                     ? "\(route.pattern)  →  \(route.runtime.rawValue)  (workflow)"
                     : "\(route.pattern)  →  \(route.runtime.rawValue)"
+                if route.runtime == .host { title += "  ⚠︎ unisolated" }
                 let card = makeCard(
                     title: title, detail: nil, removeAction: #selector(removeRouteClicked(_:)),
                     cardIdentifier: route.pattern)
