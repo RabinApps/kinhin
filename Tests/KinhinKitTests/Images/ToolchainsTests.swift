@@ -290,8 +290,23 @@ final class ToolchainsTests: XCTestCase {
             cacheEnvs: [ToolchainCacheEnv(variable: "CARGO_HOME", subdirectory: "cargo")],
             mountPath: "/mnt/cache"
         )
-        XCTAssertTrue(exports.contains("if [ -d /mnt/cache ]"), "each export checks the mount")
+        XCTAssertTrue(exports.contains("if [ -d \"/mnt/cache\" ]"), "each export checks the mount")
         XCTAssertTrue(exports.contains("export CARGO_HOME=\"/mnt/cache/cargo\""))
+    }
+
+    /// The macOS guest mount ("/Volumes/My Shared Files/…") has spaces: an
+    /// unquoted `[ -d … ]` errors out and silently skips every export.
+    func testCacheEnvExportsHandleMountPathsWithSpaces() async throws {
+        let mount = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kinhin cache \(UUID().uuidString)").path
+        try FileManager.default.createDirectory(atPath: mount, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: mount) }  // temp dir; leftovers are harmless
+        let exports = RunnerBootstrap.cacheEnvExports(
+            cacheEnvs: [ToolchainCacheEnv(variable: "CARGO_HOME", subdirectory: "cargo")], mountPath: mount)
+        let result = try await Shell().run(["/bin/bash", "-c", exports + "\nprintf '%s' \"$CARGO_HOME\""])
+        XCTAssertTrue(result.succeeded, result.stderr)
+        XCTAssertEqual(result.stdout, mount + "/cargo")
+        XCTAssertTrue(result.stderr.isEmpty, result.stderr)
     }
 
     // MARK: Cache mounts
@@ -603,7 +618,7 @@ final class ToolchainsTests: XCTestCase {
         XCTAssertTrue(script.contains("export NUGET_PACKAGES=\"/var/kinhin-cache/nuget\""))
         XCTAssertTrue(script.contains("dotnet --list-sdks"), "verify commands still gate the bake")
         // Guarded exports: a missing mount must not fail the script.
-        XCTAssertTrue(script.contains("if [ -d /var/kinhin-cache ]; then"))
+        XCTAssertTrue(script.contains("if [ -d \"/var/kinhin-cache\" ]; then"))
     }
 
     func testLinuxManagedScriptSkipsCacheExportsWithoutMount() throws {

@@ -12,7 +12,7 @@ extension RunnerBootstrap {
         guard !cacheEnvs.isEmpty else { return "" }
         let lines = cacheEnvs.map { env -> String in
             """
-            if [ -d \(mountPath) ]; then
+            if [ -d "\(mountPath)" ]; then
               export \(env.variable)="\(mountPath)/\(env.subdirectory)"
               mkdir -p "\(mountPath)/\(env.subdirectory)" 2>/dev/null || true
             fi
