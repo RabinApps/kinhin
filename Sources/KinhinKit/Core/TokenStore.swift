@@ -150,7 +150,7 @@ final class RegistrationTokenCache: Sendable {
         let expiresAt: Date
     }
 
-    private let entry = Mutex<Box<Entry?>>(Box(nil))
+    private let entry = Mutex<Entry?>(nil)
     private let ttl: TimeInterval
     private let refreshMargin: TimeInterval
 
@@ -162,18 +162,18 @@ final class RegistrationTokenCache: Sendable {
     /// Returns the cached token while fresh; otherwise invokes `fetch`.
     public func token(fetch: () async throws -> String) async throws -> String {
         let now = Date()
-        if let current = entry.withLock({ $0.value }),
+        if let current = entry.withLock({ $0 }),
             now < current.expiresAt.addingTimeInterval(-refreshMargin)
         {
             return current.token
         }
         let fresh = try await fetch()
         let expiry = now.addingTimeInterval(ttl)
-        entry.withLock { $0.value = Entry(token: fresh, expiresAt: expiry) }
+        entry.withLock { $0 = Entry(token: fresh, expiresAt: expiry) }
         return fresh
     }
 
     public func invalidate() {
-        entry.withLock { $0.value = nil }
+        entry.withLock { $0 = nil }
     }
 }

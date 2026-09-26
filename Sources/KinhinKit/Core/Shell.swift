@@ -94,15 +94,25 @@ public struct Shell: ShellRunning {
             throw ShellError.launchFailed("\(first): \(error.localizedDescription)")
         }
 
-        // Timeout watchdog.
-        let timedOut = Box(false)
-        let watchdog = DispatchWorkItem {
-            if process.isRunning {
-                timedOut.value = true
+        // Timeout watchdog: a detached task sleeps out the timeout, then
+        // terminates a still-running process. A late firing after `run`
+        // returned holds a dead Process; the flag read is guarded either way.
+        let didTimeOut = Mutex(false)
+        let watchdog = Task.detached {
+            do {
+                try await Task.sleep(for: .seconds(timeout))
+            } catch {
+                return  // cancelled: the process already exited
+            }
+            let shouldTerminate = didTimeOut.withLock { flag -> Bool in
+                guard !flag else { return false }
+                flag = true
+                return true
+            }
+            if shouldTerminate, process.isRunning {
                 process.terminate()
             }
         }
-        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
         defer { watchdog.cancel() }
 
         process.waitUntilExit()
@@ -114,7 +124,8 @@ public struct Shell: ShellRunning {
         errData.append(errPipe.fileHandleForReading.readDataToEndOfFile())
 
         let code = process.terminationStatus
-        let actual = timedOut.value ? Int32(124) : code  // 124 = timeout convention
+        let timedOut = didTimeOut.withLock { $0 }
+        let actual = timedOut ? Int32(124) : code  // 124 = timeout convention
         return ShellResult(
             exitCode: actual,
             stdout: outData.text,
