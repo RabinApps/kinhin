@@ -25,14 +25,14 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     )
     let tabContentContainer = NSView()
 
-    // Embedded child controllers (created once with their tabs).
+    // State behind the tab sections (created once with their tabs).
     var wizardController: OnboardingWizardViewController?
     var connectModel: ConnectModel?
     var macToolsModel: MacToolsModel?
-    var configController: ConfigTabViewController?
-    var containersController: ContainersViewController?
-    var toolchainsController: ToolchainsViewController?
-    @ObservationIgnored var runtimesModel: RuntimesModel?
+    var capacityModel: CapacityModel?
+    var containersModel: ContainersModel?
+    var toolchainsModel: ToolchainsModel?
+    var runtimesModel: RuntimesModel?
     var logsController: LogsViewController?
     var diagnosticsController: DiagnosticsViewController?
     /// Config writes from Setup/Advanced must reach the engine/daemon; the
@@ -235,9 +235,9 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
             case .accounts:
                 connectModel?.reload()
                 macToolsModel?.reload()
-            case .capacity: configController?.reload()
+            case .capacity: capacityModel?.reload()
             case .routing: runtimesModel?.reload()
-            case .containers: containersController?.reload()
+            case .containers: containersModel?.reload()
             case .toolchains: break
             case .app: break
             }

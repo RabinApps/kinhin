@@ -219,11 +219,11 @@ final class MainWindowTests: XCTestCase {
         XCTAssertEqual(wizard.step, .connect)
     }
 
-    func testAdvancedCapacityHostsTheLoadedForm() throws {
+    func testAdvancedCapacityHostsTheLoadedForm() {
         window.showAdvanced(.capacity)
         XCTAssertEqual(window.selectedAdvancedSection, .capacity)
-        let controller = try XCTUnwrap(window.configController, "Capacity embeds the form controller")
-        XCTAssertTrue(controller.view is NSHostingView<CapacityView>)
+        XCTAssertNotNil(window.capacityModel, "Capacity embeds the form model")
+        XCTAssertTrue(window.advancedContainer.subviews.first is NSHostingView<CapacityView>)
         XCTAssertFalse(allText().contains("Forges"), "accounts live in the Accounts section")
     }
 

@@ -58,7 +58,7 @@ extension MainTabsWindowController {
         // it would discard unapplied edits).
         switch section {
         case .routing: runtimesModel?.reload()
-        case .containers: containersController?.reload()
+        case .containers: containersModel?.reload()
         case .toolchains: break
         case .accounts:
             connectModel?.reload()
@@ -79,44 +79,45 @@ extension MainTabsWindowController {
         selectAdvancedSection(section)
     }
 
+    // Each section builds its Observable model and hands back a fill-sized
+    // NSHostingView (the cards scroll inside it); `pin` installs it in the
+    // section container.
+
     func buildCapacitySection() -> NSView {
-        let controller = ConfigTabViewController()
-        controller.onEdited = { [weak self] in self?.runtimesEdited?() }
-        configController = controller
-        return controller.view
+        let model = CapacityModel()
+        model.onEdited = { [weak self] in self?.runtimesEdited?() }
+        capacityModel = model
+        let host = NSHostingView(rootView: CapacityView(model: model))
+        host.sizingOptions = []
+        return host
     }
 
     func buildToolchainsSection() -> NSView {
-        let controller = ToolchainsViewController()
-        controller.onEdited = { [weak self] in self?.runtimesEdited?() }
-        toolchainsController = controller
-        return controller.view
+        let model = ToolchainsModel()
+        model.configURL = Paths.config
+        model.onEdited = { [weak self] in self?.runtimesEdited?() }
+        toolchainsModel = model
+        let host = NSHostingView(rootView: ToolchainsView(model: model))
+        host.sizingOptions = []
+        return host
     }
 
     func buildContainersSection() -> NSView {
-        let controller = ContainersViewController()
-        containersController = controller
-        return controller.view
+        let model = ContainersModel()
+        containersModel = model
+        let host = NSHostingView(rootView: ContainersView(model: model))
+        host.sizingOptions = []
+        return host
     }
 
     func buildRoutingSection() -> NSView {
-        let tab = NSView()
         let model = RuntimesModel()
         model.configURL = Paths.config
         model.onEdited = { [weak self] in self?.runtimesEdited?() }
         runtimesModel = model
         let host = NSHostingView(rootView: RuntimesView(model: model))
-        // Fills whatever it is pinned into; the cards scroll.
         host.sizingOptions = []
-        host.translatesAutoresizingMaskIntoConstraints = false
-        tab.addSubview(host)
-        NSLayoutConstraint.activate([
-            host.topAnchor.constraint(equalTo: tab.topAnchor),
-            host.bottomAnchor.constraint(equalTo: tab.bottomAnchor),
-            host.leadingAnchor.constraint(equalTo: tab.leadingAnchor),
-            host.trailingAnchor.constraint(equalTo: tab.trailingAnchor),
-        ])
         model.reload()
-        return tab
+        return host
     }
 }
