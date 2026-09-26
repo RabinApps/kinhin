@@ -12,7 +12,8 @@ extension MainTabsWindowController {
         if diagnosticsWindow == nil {
             makeDiagnosticsSheet()
         }
-        window.beginSheet(diagnosticsWindow!) { _ in }
+        guard let sheet = diagnosticsWindow else { return }
+        window.beginSheet(sheet) { _ in }
         Task { [diagnosticsModel] in await diagnosticsModel?.load() }
     }
 
@@ -96,7 +97,8 @@ extension MainTabsWindowController {
             logsSheet = sheet
             startLogsTimer()
         }
-        window.beginSheet(logsSheet!) { _ in }
+        guard let sheet = logsSheet else { return }
+        window.beginSheet(sheet) { _ in }
         logsModel?.refresh()
     }
 

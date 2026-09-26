@@ -169,9 +169,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             )
         }
 
-        vm.pools = model.pools.keys.sorted { $0.rawValue < $1.rawValue }.map { id in
-            let pool = model.pools[id]!
-            return PoolRow(
+        vm.pools = model.pools.sorted { $0.key.rawValue < $1.key.rawValue }.map { id, pool in
+            PoolRow(
                 runtime: id,
                 labels: pool.labels,
                 cap: caps[id],

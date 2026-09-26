@@ -216,7 +216,10 @@ public struct GitHubClient: GitHubServing {
         else {
             throw GitHubError.http(0, "invalid scope spec \(credentials.scope) — use 'owner/name' or an org name")
         }
-        var req = URLRequest(url: URL(string: "https://api.github.com\(path)")!)
+        guard let url = URL(string: "https://api.github.com\(path)") else {
+            throw GitHubError.http(0, "invalid request path \(path)")
+        }
+        var req = URLRequest(url: url)
         req.httpMethod = method
         req.httpBody = body
         req.setValue("Bearer \(credentials.token)", forHTTPHeaderField: "Authorization")

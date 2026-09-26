@@ -18,6 +18,16 @@ public struct RunnerVersionResolver {
 
     static let fallback = Versions(github: "2.325.0", gitea: "3.5.0")
 
+    /// Release-feed endpoints. Both are string literals, so parsing them
+    /// failing is a programming error rather than a runtime condition.
+    static let githubFeed = feedURL("https://api.github.com/repos/actions/runner/releases/latest")
+    static let giteaFeed = feedURL("https://gitea.com/api/v1/repos/gitea/runner/releases/latest")
+
+    private static func feedURL(_ string: String) -> URL {
+        guard let url = URL(string: string) else { preconditionFailure("invalid release feed URL literal: \(string)") }
+        return url
+    }
+
     let session: URLSession
 
     public init(session: URLSession? = nil) {
@@ -26,7 +36,7 @@ public struct RunnerVersionResolver {
         } else {
             let config = URLSessionConfiguration.default
             config.timeoutIntervalForRequest = 15
-            self.session = session ?? URLSession(configuration: config)
+            self.session = URLSession(configuration: config)
         }
     }
 
@@ -42,7 +52,7 @@ public struct RunnerVersionResolver {
     func latestGitHub() async -> String? {
         guard
             let data = await fetchLogged(
-                url: URL(string: "https://api.github.com/repos/actions/runner/releases/latest")!
+                url: Self.githubFeed
             )
         else { return nil }
         struct Payload: Decodable { let tag_name: String }
@@ -56,7 +66,7 @@ public struct RunnerVersionResolver {
     func latestGitea() async -> String? {
         guard
             let data = await fetchLogged(
-                url: URL(string: "https://gitea.com/api/v1/repos/gitea/runner/releases/latest")!
+                url: Self.giteaFeed
             )
         else { return nil }
         struct Payload: Decodable { let tag_name: String }
