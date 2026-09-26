@@ -60,8 +60,8 @@ extension MainTabsWindowController {
         case .containers: containersController?.reload()
         case .toolchains: break
         case .accounts:
-            connectController?.reload()
-            macToolsController?.reload()
+            connectModel?.reload()
+            macToolsModel?.reload()
         case .capacity, .app: break
         }
     }

@@ -1,5 +1,6 @@
 import AppKit
 import KinhinKit
+import SwiftUI
 
 // The Setup tab: guided wizard until first-run setup completes, then editable forms.
 @MainActor
@@ -58,33 +59,24 @@ extension MainTabsWindowController {
     /// Advanced → Accounts: the same Connect and This Mac forms the wizard
     /// uses, for changing them after setup.
     func buildAccountsSection() -> NSView {
-        let tab = NSView()
-        let connect = ConnectFormViewController()
+        let connect = ConnectModel()
         connect.saveToken = { [weak self] forge, token in
             try await self?.tokenSaved?(forge, token)
         }
-        connect.model.accounts.saveToken = { [weak self] account, token in
+        connect.accounts.saveToken = { [weak self] account, token in
             try await self?.accountTokenSaved?(account, token)
         }
         connect.hasStoredToken = tokenProbe
         connect.onChanged = { [weak self] in self?.runtimesEdited?() }
-        let mac = MacToolsFormViewController()
+        let mac = MacToolsModel()
         mac.onChanged = { [weak self] in self?.runtimesEdited?() }
-        connectController = connect
-        macToolsController = mac
+        connectModel = connect
+        macToolsModel = mac
+        connect.reload()
+        mac.reload()
 
-        let (scroll, column) = FormKit.scrollingColumn(spacing: 14)
-        column.addArrangedSubview(FormKit.sectionHeader("Connect"))
-        column.addArrangedSubview(connect.view)
-        column.addArrangedSubview(FormKit.sectionHeader("This Mac"))
-        column.addArrangedSubview(mac.view)
-        tab.addSubview(scroll)
-        NSLayoutConstraint.activate([
-            scroll.topAnchor.constraint(equalTo: tab.topAnchor),
-            scroll.bottomAnchor.constraint(equalTo: tab.bottomAnchor),
-            scroll.leadingAnchor.constraint(equalTo: tab.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: tab.trailingAnchor),
-        ])
-        return tab
+        let host = NSHostingView(rootView: AccountsSectionView(connect: connect, mac: mac))
+        host.sizingOptions = []
+        return host
     }
 }

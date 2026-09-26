@@ -179,7 +179,7 @@ struct ToolchainsView: View {
                 HStack(alignment: .top, spacing: 8) {
                     Text("Base image").font(.system(size: 12, weight: .semibold))
                     Spacer(minLength: 0)
-                    BaseImagePickerField(value: model.baseImage(for: item.runtime)) {
+                    BaseImagePicker(value: model.baseImage(for: item.runtime)) {
                         model.saveBaseImage($0, for: item.runtime)
                     }
                     .fixedSize()

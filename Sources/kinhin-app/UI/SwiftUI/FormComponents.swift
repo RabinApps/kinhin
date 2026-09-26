@@ -55,6 +55,19 @@ struct HintText: View {
     }
 }
 
+/// A small uppercase label that titles a group of cards.
+struct SectionHeader: View {
+    let text: String
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.tertiary)
+    }
+}
+
 /// The rounded, bordered container every form section sits in.
 struct FormCard<Content: View>: View {
     let title: String

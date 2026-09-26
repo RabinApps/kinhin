@@ -175,15 +175,11 @@ final class MainWindowTests: XCTestCase {
         XCTAssertEqual(window.selectedTab, .advanced)
         XCTAssertEqual(window.selectedAdvancedSection, .accounts)
         XCTAssertNil(window.wizardController)
-        XCTAssertNotNil(window.connectController)
-        XCTAssertNotNil(window.macToolsController)
-        // Both forms are SwiftUI-hosted, so their copy isn't in the AppKit text.
-        let connectForm = window.connectController?.view
-        XCTAssertTrue(connectForm is NSHostingView<ConnectView>, "the Accounts page hosts the SwiftUI Connect form")
-        XCTAssertNotNil(connectForm?.window, "and it is installed in the window")
-        let macForm = window.macToolsController?.view
-        XCTAssertTrue(macForm is NSHostingView<MacToolsView>, "the Accounts page hosts the SwiftUI Mac form")
-        XCTAssertNotNil(macForm?.window, "and it is installed in the window")
+        XCTAssertNotNil(window.connectModel)
+        XCTAssertNotNil(window.macToolsModel)
+        let page = window.advancedContainer.subviews.first
+        XCTAssertTrue(page is NSHostingView<AccountsSectionView>, "the Accounts page hosts the SwiftUI forms")
+        XCTAssertNotNil(page?.window, "and it is installed in the window")
     }
 
     func testWizardWalksFourSteps() {
@@ -236,14 +232,16 @@ final class MainWindowTests: XCTestCase {
         XCTAssertNotNil(window.runtimesController, "Routing embeds the runtimes pane")
         window.showAdvanced(.app)
         XCTAssertEqual(window.selectedAdvancedSection, .app)
-        XCTAssertTrue(allText().contains("Launch"))
+        XCTAssertTrue(
+            window.advancedContainer.subviews.first is NSHostingView<AppSectionView>, "App hosts the SwiftUI section")
     }
 
     // MARK: Fleet tab rendering
 
     func testRenderShowsNeedsSetupBeforeFirstStatus() {
         window.render(status: nil)
-        XCTAssertTrue(allText().contains("Needs setup — open the Setup tab"), "got: \(allText())")
+        XCTAssertEqual(window.fleetModel.statusLine, "Needs setup — open the Setup tab")
+        XCTAssertTrue(window.tabViews[.fleet] is NSHostingView<FleetView>)
     }
 
     func testRenderShowsSharedStatusLineVMRowsAndCurrentJobs() {
@@ -269,32 +267,31 @@ final class MainWindowTests: XCTestCase {
         window.render(status: status)
 
         // The exact same line the menu renders — one renderer, two surfaces.
-        XCTAssertTrue(allText().contains(AppDelegate.statusLineText(for: status)), "got: \(allText())")
-        XCTAssertTrue(allText().contains("kinhin-vm-test"), "got: \(allText())")
-        XCTAssertTrue(allText().contains("busy"))
-        XCTAssertTrue(allText().contains("2 repos"))
-        XCTAssertEqual(deleteButtons().count, 2, "one Delete button per VM row")
+        let model = window.fleetModel
+        XCTAssertEqual(model.statusLine, AppDelegate.statusLineText(for: status))
+        XCTAssertEqual(model.records.map(\.id), ["kinhin-vm-test", "kinhin-vm-idle"], "one row per VM")
+        XCTAssertTrue(model.title(for: busy).contains("kinhin-vm-test — busy"))
+        XCTAssertTrue(model.detail(for: busy).contains("2 repos"))
         // Current-jobs section: only the record carrying a job, with repo.
-        XCTAssertTrue(
-            allText().contains("build — alpha/one, beta/two"), "current jobs list the workflow + repo: \(allText())")
-        XCTAssertTrue(allText().contains("No jobs running.") == false)
+        XCTAssertEqual(model.working.map(\.id), ["kinhin-vm-test"])
+        XCTAssertTrue(model.jobLine(for: busy).contains("build — alpha/one, beta/two"))
     }
 
     func testRenderIdleFleetShowsNoVMsAndNoJobs() {
         window.render(status: FleetStatus())
-        XCTAssertTrue(allText().contains("No VMs — the fleet is idle."))
-        XCTAssertTrue(allText().contains("No jobs running."))
+        XCTAssertTrue(window.fleetModel.records.isEmpty)
+        XCTAssertTrue(window.fleetModel.working.isEmpty)
     }
 
     func testRenderTogglesPauseButtonTitle() {
         window.render(status: FleetStatus())
-        XCTAssertEqual(pauseButton?.title, "Pause")
+        XCTAssertEqual(window.fleetModel.pauseTitle, "Pause")
 
         var status = FleetStatus()
         status.running = true
         status.paused = true
         window.render(status: status)
-        XCTAssertEqual(pauseButton?.title, "Resume")
+        XCTAssertEqual(window.fleetModel.pauseTitle, "Resume")
     }
 
     func testRenderMarksErrorRows() {
@@ -302,139 +299,124 @@ final class MainWindowTests: XCTestCase {
         failed.createdAt = Date()
         failed.error = "boot timed out"
         window.render(status: FleetStatus(records: [failed]))
-        XCTAssertTrue(allText().contains("⚠︎ boot timed out"))
+        XCTAssertTrue(window.fleetModel.detail(for: failed).contains("⚠︎ boot timed out"))
     }
 
     // MARK: Settings tab
 
-    func testSettingsPopupSyncsFromStoredModeWithoutNotifying() {
-        // The Settings tab (and its popup) must exist first.
+    func testLaunchModeSyncsFromStoredModeWithoutNotifying() {
+        // The App section must exist first.
         window.showAdvanced(.app)
-        // Init applied the stored (default) mode; the delegate must not have
+        // Init read the stored (default) mode; the delegate must not have
         // been called back — no re-persist loop at construction time.
-        XCTAssertEqual(selectedPopupIndex(), 0)
-        XCTAssertTrue(allText().contains("menu bar"), "default subtitle describes the combined mode")
+        XCTAssertEqual(window.appModel.launchMode, .mainWindowAndMenuBar)
+        XCTAssertTrue(window.appModel.launchMode.subtitle.contains("menu bar"))
         XCTAssertTrue(delegate.changedModes.isEmpty)
+        XCTAssertTrue(window.advancedContainer.subviews.first is NSHostingView<AppSectionView>)
     }
 
     func testChoosingAModeUpdatesTheCardAndNotifiesTheDelegate() {
-        // The App section (and its popup) must exist first.
         window.showAdvanced(.app)
-        window.applyLaunchMode(.menuBarOnly)
+        window.appModel.setLaunchMode(.menuBarOnly)
         XCTAssertEqual(delegate.changedModes, [.menuBarOnly])
-        XCTAssertEqual(selectedPopupIndex(), index(of: .menuBarOnly))
+        XCTAssertEqual(window.appModel.launchMode, .menuBarOnly)
 
-        window.applyLaunchMode(.mainWindowOnly)
+        window.appModel.setLaunchMode(.mainWindowOnly)
         XCTAssertEqual(delegate.changedModes, [.menuBarOnly, .mainWindowOnly])
-        XCTAssertEqual(selectedPopupIndex(), index(of: .mainWindowOnly))
-        XCTAssertTrue(allText().contains("no menu bar item"), "subtitle tracks the picked mode")
+        XCTAssertEqual(window.appModel.launchMode, .mainWindowOnly)
+        XCTAssertTrue(
+            window.appModel.launchMode.subtitle.contains("no menu bar item"), "subtitle tracks the picked mode")
     }
 
     func testChosenModePersistsToTheInjectedDefaults() {
-        window.applyLaunchMode(.mainWindowOnly)
+        window.appModel.setLaunchMode(.mainWindowOnly)
         XCTAssertEqual(
             AppPreferences.launchMode(in: suite), .mainWindowOnly,
             "the choice must survive a relaunch via the injected suite")
-        window.applyLaunchMode(.menuBarOnly)
+        window.appModel.setLaunchMode(.menuBarOnly)
         XCTAssertEqual(AppPreferences.launchMode(in: suite), .menuBarOnly)
     }
 
     func testLoginCheckboxPersistsAndNotifies() {
         window.showAdvanced(.app)
-        loginCheck().state = .on
-        fire(loginCheck())
+        window.appModel.setLaunchAtLogin(true)
         XCTAssertEqual(delegate.loginToggles, [true])
         XCTAssertTrue(AppPreferences.launchAtLogin(in: suite))
 
-        loginCheck().state = .off
-        fire(loginCheck())
+        window.appModel.setLaunchAtLogin(false)
         XCTAssertEqual(delegate.loginToggles, [true, false])
         XCTAssertFalse(AppPreferences.launchAtLogin(in: suite))
     }
 
     func testAutoStartCheckboxPersists() {
         window.showAdvanced(.app)
-        let check = try? XCTUnwrap(
-            window.window?.contentView?.flattenedButtons().first {
-                $0.title.contains("Start the fleet when kinhin opens")
-            })
-        guard let check else { return XCTFail("App section must carry the auto-start checkbox") }
-        XCTAssertEqual(check.state, .off)
-        check.state = .on
-        fire(check)
+        XCTAssertFalse(window.appModel.autoStartFleet)
+        window.appModel.setAutoStartFleet(true)
         XCTAssertTrue(AppPreferences.autoStartFleet(in: suite))
-        check.state = .off
-        fire(check)
+        window.appModel.setAutoStartFleet(false)
         XCTAssertFalse(AppPreferences.autoStartFleet(in: suite))
     }
 
     // MARK: delegate plumbing
 
     func testFleetControlButtonsReachTheDelegate() {
-        fire(button(titled: "Start"))
-        fire(button(titled: "Stop"))
+        window.fleetModel.onStart()
+        window.fleetModel.onStop()
         XCTAssertEqual(delegate.startCalls, 1)
         XCTAssertEqual(delegate.stopCalls, 1)
     }
 
     func testPauseButtonDispatchesBasedOnRenderedState() {
         window.render(status: FleetStatus())  // not paused
-        fire(pauseButton)
+        window.fleetModel.togglePause()
         XCTAssertEqual(delegate.pauseCalls, 1)
         XCTAssertEqual(delegate.resumeCalls, 0)
 
         var status = FleetStatus()
         status.paused = true
         window.render(status: status)
-        fire(pauseButton)
+        window.fleetModel.togglePause()
         XCTAssertEqual(delegate.pauseCalls, 1)
         XCTAssertEqual(delegate.resumeCalls, 1)
     }
 
-    func testSecondaryButtonsReachTheDelegate() {
-        XCTAssertNotNil(button(titled: "Logs…"), "logs open from the Fleet tab")
-        XCTAssertNotNil(button(titled: "Diagnostics…"))
-    }
-
     func testUpdateCheckLivesInSettingsNotTheFleetTab() {
         window.showAdvanced(.app)
-        fire(button(titled: "Check for Updates…"))
+        window.appModel.onCheckForUpdates()
         XCTAssertEqual(delegate.updateCalls, 1)
     }
 
     func testUpdateCardRendersEachState() {
         window.showAdvanced(.app)
+        let model = window.appModel
         window.renderUpdate(state: .checking)
-        XCTAssertEqual(button(titled: "Check for Updates…")?.isEnabled, false)
-        XCTAssertTrue(allText().contains("checking…"))
+        XCTAssertFalse(model.updateButtonEnabled)
+        XCTAssertTrue(model.updateText.contains("checking…"))
 
         window.renderUpdate(state: .available(version: "9.9.9"))
-        XCTAssertNotNil(button(titled: "Download…"))
-        XCTAssertTrue(allText().contains("Update available — kinhin 9.9.9"))
+        XCTAssertEqual(model.updateButtonTitle, "Download…")
+        XCTAssertTrue(model.updateText.contains("Update available — kinhin 9.9.9"))
 
         window.renderUpdate(state: .upToDate(lastChecked: nil))
-        XCTAssertTrue(allText().contains("is up to date"))
+        XCTAssertTrue(model.updateText.contains("is up to date"))
+        XCTAssertTrue(model.updateButtonEnabled)
 
         window.renderUpdate(state: .failed("offline"))
-        XCTAssertTrue(allText().contains("Update check failed: offline"))
+        XCTAssertTrue(model.updateText.contains("Update check failed: offline"))
     }
 
     func testFleetButtonsShowOnlyApplicableActions() {
         window.render(status: FleetStatus())  // stopped
-        XCTAssertEqual(window.startButton?.isHidden, false)
-        XCTAssertEqual(window.stopButton?.isHidden, true)
-        XCTAssertEqual(pauseButton?.isHidden, true)
+        XCTAssertFalse(window.fleetModel.running, "stopped shows Start only")
 
         var status = FleetStatus()
         status.running = true
         window.render(status: status)
-        XCTAssertEqual(window.startButton?.isHidden, true)
-        XCTAssertEqual(window.stopButton?.isHidden, false)
-        XCTAssertEqual(pauseButton?.isHidden, false)
+        XCTAssertTrue(window.fleetModel.running, "running shows Stop and Pause")
     }
 
     func testLogsSheetRendersSearchableViewer() throws {
-        fire(button(titled: "Logs…"))
+        window.fleetModel.onShowLogs()
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         let vc = try XCTUnwrap(window.logsController, "the Logs… button creates the viewer")
         defer { if let sheet = window.window?.attachedSheet { window.window?.endSheet(sheet) } }
@@ -451,11 +433,7 @@ final class MainWindowTests: XCTestCase {
         var record = VMRecord(id: "kinhin-vm-del", phase: .ready)
         record.createdAt = Date()
         window.render(status: FleetStatus(records: [record]))
-
-        guard let button = deleteButtons().first else {
-            return XCTFail("expected a Delete button on the VM row")
-        }
-        fire(button)
+        window.fleetModel.onDeleteVM("kinhin-vm-del")
         XCTAssertEqual(delegate.deletedVMIDs, ["kinhin-vm-del"])
     }
 
@@ -574,17 +552,6 @@ final class MainWindowTests: XCTestCase {
         return control
     }
 
-    private func loginCheck() -> NSButton {
-        guard
-            let button = window.window?.contentView?.flattenedButtons().first(where: {
-                $0.title.contains("Launch kinhin at login")
-            })
-        else {
-            fatalError("App section must carry the login checkbox")
-        }
-        return button
-    }
-
     private func index(of tab: MainTab) -> Int {
         window.visibleTabs.firstIndex(of: tab) ?? -1
     }
@@ -594,34 +561,8 @@ final class MainWindowTests: XCTestCase {
         window.wizardController?.onFinished?()
     }
 
-    private func index(of mode: LaunchMode) -> Int {
-        LaunchMode.allCases.firstIndex(of: mode) ?? -1
-    }
-
     private func allText() -> String {
         window.window?.contentView?.flattenedText().joined(separator: "\n") ?? ""
-    }
-
-    private var pauseButton: NSButton? {
-        window.window?.contentView?.flattenedButtons().first { $0.title == "Pause" || $0.title == "Resume" }
-    }
-
-    private func button(titled title: String) -> NSButton? {
-        window.window?.contentView?.flattenedButtons().first { $0.title == title }
-    }
-
-    private func deleteButtons() -> [NSButton] {
-        window.window?.contentView?.flattenedButtons().filter { $0.title == "Delete" } ?? []
-    }
-
-    private func popups() -> [NSPopUpButton] {
-        window.window?.contentView?.flattenedViews().compactMap { $0 as? NSPopUpButton } ?? []
-    }
-
-    private func selectedPopupIndex() -> Int {
-        let all = popups()
-        XCTAssertEqual(all.count, 1, "exactly one launch-mode popup (App section)")
-        return all.first?.indexOfSelectedItem ?? -1
     }
 
     /// Fires a control's action the way a click would (target/action ignores

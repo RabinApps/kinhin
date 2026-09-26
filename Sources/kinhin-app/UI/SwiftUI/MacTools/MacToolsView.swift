@@ -98,7 +98,7 @@ struct MacToolsView: View {
         HStack(alignment: .top, spacing: 8) {
             Text("Base image").font(.system(size: 12))
             Spacer(minLength: 0)
-            BaseImagePickerField(value: value) { model.saveBaseImage($0, for: runtime) }
+            BaseImagePicker(value: value) { model.saveBaseImage($0, for: runtime) }
                 .fixedSize()
         }
     }
@@ -133,25 +133,5 @@ struct MacToolsView: View {
             .controlSize(.small)
             .disabled(model.busy)
             .accessibilityIdentifier(id)
-    }
-}
-
-/// Bridges the AppKit `BaseImagePicker` (still shared with the Toolchains
-/// page and its tests) into SwiftUI.
-struct BaseImagePickerField: NSViewRepresentable {
-    let value: String?
-    let onChange: (String?) -> Void
-
-    func makeNSView(context: Context) -> BaseImagePicker {
-        let picker = BaseImagePicker(value: value)
-        picker.onChange = { onChange($0) }
-        return picker
-    }
-
-    func updateNSView(_ picker: BaseImagePicker, context: Context) {
-        picker.onChange = { onChange($0) }
-        // Only re-sync when the saved value moved (or a rejected edit needs
-        // reverting); resetting on every pass would clear a half-typed entry.
-        if picker.value != value { picker.setValue(value) }
     }
 }

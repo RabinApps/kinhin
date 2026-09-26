@@ -35,62 +35,28 @@ final class BaseImagePickerTests: XCTestCase {
         try ConfigLoader.load(from: configURL).baseImageForTesting(runtime)
     }
 
-    // MARK: the control
+    // MARK: the choices
 
-    func testDefaultShowsUbuntuAndHidesTheCustomField() {
-        let picker = BaseImagePicker(value: nil)
-        XCTAssertEqual(picker.popup.titleOfSelectedItem, "Ubuntu 24.04 (default)")
-        XCTAssertTrue(picker.field.isHidden)
-        XCTAssertNil(picker.value)
+    func testDefaultIsUbuntuAndCuratedValuesMapToTheirEntries() {
+        XCTAssertEqual(BaseImageChoice.title(at: BaseImageChoice.index(of: nil)), "Ubuntu 24.04 (default)")
+        XCTAssertEqual(BaseImageChoice.title(at: BaseImageChoice.index(of: "debian:12")), "Debian 12")
+        XCTAssertEqual(BaseImageChoice.index(of: "ghcr.io/acme/base:1"), BaseImageChoice.otherIndex)
+        XCTAssertEqual(BaseImageChoice.title(at: BaseImageChoice.otherIndex), "Other…")
     }
 
-    func testCuratedAndCustomValuesSelectTheRightControl() {
-        let debian = BaseImagePicker(value: "debian:12")
-        XCTAssertEqual(debian.popup.titleOfSelectedItem, "Debian 12")
-        XCTAssertTrue(debian.field.isHidden)
-
-        let custom = BaseImagePicker(value: "ghcr.io/acme/base:1")
-        XCTAssertEqual(custom.popup.titleOfSelectedItem, "Other…")
-        XCTAssertFalse(custom.field.isHidden)
-        XCTAssertEqual(custom.field.stringValue, "ghcr.io/acme/base:1")
+    func testTheDefaultIsStoredAsNoKey() {
+        XCTAssertNil(BaseImageChoice.stored(LinuxBaseImage.defaultReference))
+        XCTAssertEqual(BaseImageChoice.stored("debian:12"), "debian:12")
     }
 
-    func testPickingACuratedImageReportsItAndTheDefaultReportsNil() {
-        let picker = BaseImagePicker(value: nil)
-        var reported: [String?] = []
-        picker.onChange = { reported.append($0) }
-        picker.popup.selectItem(withTitle: "Debian 12")
-        _ = picker.popup.target?.perform(picker.popup.action, with: picker.popup)
-        XCTAssertEqual(reported, ["debian:12"])
-
-        picker.popup.selectItem(withTitle: "Ubuntu 24.04 (default)")
-        _ = picker.popup.target?.perform(picker.popup.action, with: picker.popup)
-        XCTAssertEqual(reported, ["debian:12", nil], "the default is stored as no key")
-    }
-
-    func testCustomEntryIsValidatedBeforeItIsReported() {
-        let picker = BaseImagePicker(value: nil)
-        var reported: [String?] = []
-        picker.onChange = { reported.append($0) }
-
-        picker.commitCustom("--privileged")
-        picker.commitCustom("two words")
-        picker.commitCustom("")
-        XCTAssertTrue(reported.isEmpty, "unusable references are never reported")
-        XCTAssertFalse(picker.problemLabel.isHidden)
-
-        picker.commitCustom("  debian:bookworm-slim ")
-        XCTAssertEqual(reported, ["debian:bookworm-slim"])
-        XCTAssertTrue(picker.problemLabel.isHidden)
-    }
-
-    func testSetValueDoesNotReportAChange() {
-        let picker = BaseImagePicker(value: nil)
-        var reported = 0
-        picker.onChange = { _ in reported += 1 }
-        picker.setValue("debian:12")
-        XCTAssertEqual(reported, 0)
-        XCTAssertEqual(picker.value, "debian:12")
+    func testCustomEntryIsValidatedBeforeItIsUsed() {
+        for bad in ["--privileged", "two words", ""] {
+            guard case .failure(let issue) = BaseImageChoice.validate(bad) else {
+                return XCTFail("\"\(bad)\" should be rejected")
+            }
+            XCTAssertTrue(issue.text.hasPrefix("Base image"), issue.text)
+        }
+        XCTAssertEqual(try BaseImageChoice.validate("  debian:bookworm-slim ").get(), "debian:bookworm-slim")
     }
 
     // MARK: Toolchains page

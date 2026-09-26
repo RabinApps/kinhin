@@ -26,8 +26,8 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
 
     // Embedded child controllers (created once with their tabs).
     var wizardController: OnboardingWizardViewController?
-    var connectController: ConnectFormViewController?
-    var macToolsController: MacToolsFormViewController?
+    var connectModel: ConnectModel?
+    var macToolsModel: MacToolsModel?
     var configController: ConfigTabViewController?
     var containersController: ContainersViewController?
     var toolchainsController: ToolchainsViewController?
@@ -44,14 +44,18 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     /// Same, for the named accounts of the Connect form's "More accounts".
     var accountTokenSaved: ((AccountConfig, String) async throws -> Void)?
 
-    // Fleet tab controls
-    let statusLineLabel = NSTextField(wrappingLabelWithString: "Loading…")
-    var isPaused = false
-    var pauseButton: NSButton?
-    var startButton: NSButton?
-    var stopButton: NSButton?
-    var vmStack: NSStackView?
-    var jobsStack: NSStackView?
+    /// State behind the Fleet tab, wired to the delegate and the sheets.
+    lazy var fleetModel: FleetModel = {
+        let model = FleetModel()
+        model.onStart = { [weak self] in self?.delegate?.startFleet() }
+        model.onStop = { [weak self] in self?.delegate?.stopFleet() }
+        model.onPause = { [weak self] in self?.delegate?.pauseFleet() }
+        model.onResume = { [weak self] in self?.delegate?.resumeFleet() }
+        model.onDeleteVM = { [weak self] in self?.delegate?.deleteVM(id: $0) }
+        model.onShowLogs = { [weak self] in self?.showLogsClicked() }
+        model.onShowDiagnostics = { [weak self] in self?.diagnosticsClicked() }
+        return model
+    }()
 
     // Advanced tab
     let advancedSegments = NSSegmentedControl(
@@ -64,19 +68,16 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     var advancedViews: [AdvancedSection: NSView] = [:]
     var selectedAdvancedSection: AdvancedSection = .accounts
 
-    // App section controls
-    let settingsSubtitle = NSTextField(wrappingLabelWithString: "")
-    let updateStatusLabel = NSTextField(wrappingLabelWithString: "")
-    let updateButton = NSButton(title: "Check for Updates…", target: nil, action: nil)
-    let modePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    let loginCheck = NSButton(checkboxWithTitle: "Launch kinhin at login", target: nil, action: nil)
-    let autoStartCheck = NSButton(
-        checkboxWithTitle: "Start the fleet when kinhin opens", target: nil, action: nil)
-    let loginHint = NSTextField(
-        wrappingLabelWithString:
-            "Applies to the installed kinhin.app — no effect while running unbundled from `swift run`.")
-    /// Where the App section persists prefs. The real app uses .standard;
-    /// tests inject a scratch suite.
+    /// State behind the App section. Prefs live in `.standard` for the real
+    /// app; tests inject a scratch suite through `init(defaults:)`.
+    lazy var appModel: AppSectionModel = {
+        let model = AppSectionModel(prefs: prefs)
+        model.onLaunchModeChanged = { [weak self] in self?.delegate?.launchModeChanged($0) }
+        model.onLaunchAtLoginChanged = { [weak self] in self?.delegate?.launchAtLoginChanged($0) }
+        model.onCheckForUpdates = { [weak self] in self?.delegate?.checkForUpdatesNow() }
+        model.onOpenLogs = { [weak self] in self?.delegate?.openLogsFolder() }
+        return model
+    }()
     var prefs: UserDefaults = .standard
 
     /// Latest fleet status, so a reopened window renders live data instantly.
@@ -110,10 +111,6 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         // hierarchy before constraints pin them to the container).
         rebuildTabBar()
         selectTab(.fleet, notify: false)
-        applyLaunchMode(AppPreferences.launchMode(in: prefs), notify: false)
-        loginCheck.state = AppPreferences.launchAtLogin(in: prefs) ? .on : .off
-        loginHint.isHidden = LaunchAtLoginService.isBundled
-        autoStartCheck.state = AppPreferences.autoStartFleet(in: prefs) ? .on : .off
         render(status: nil)
     }
 
@@ -235,8 +232,8 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         case .advanced:
             switch selectedAdvancedSection {
             case .accounts:
-                connectController?.reload()
-                macToolsController?.reload()
+                connectModel?.reload()
+                macToolsModel?.reload()
             case .capacity: configController?.reload()
             case .routing: runtimesController?.reload()
             case .containers: containersController?.reload()
