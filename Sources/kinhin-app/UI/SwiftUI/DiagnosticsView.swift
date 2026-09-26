@@ -19,11 +19,13 @@ final class DiagnosticsModel {
     var status = "Probing this Mac…"
 
     /// Runs the doctor probe set (the same builder `kinhin doctor --json`
-    /// uses) and renders the result.
+    /// uses) and renders the result. Injectable so tests can render a
+    /// fixture report instead of subprocess-probing the host.
+    @ObservationIgnored var loadReport: () async -> DoctorReport = { await DoctorReportBuilder().build() }
+
     func load() async {
         status = "Probing this Mac…"
-        let report = await DoctorReportBuilder().build()
-        render(report)
+        render(await loadReport())
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         status = "Checked \(stamp)"
     }

@@ -33,8 +33,12 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     var containersModel: ContainersModel?
     var toolchainsModel: ToolchainsModel?
     var runtimesModel: RuntimesModel?
-    var logsController: LogsViewController?
-    var diagnosticsController: DiagnosticsViewController?
+    /// The Logs and Diagnostics sheets' models and plumbing (see +Sheets).
+    var logsModel: LogsModel?
+    var diagnosticsModel: DiagnosticsModel?
+    var logsSheet: NSWindow?
+    var diagnosticsWindow: NSWindow?
+    var logsRefreshTimer: Timer?
     /// Config writes from Setup/Advanced must reach the engine/daemon; the
     /// app injects the same handler the standalone pane used.
     var runtimesEdited: (() -> Void)?
@@ -127,12 +131,6 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
             rebuildTabBar()
         }
     }
-
-    /// The logs sheet currently shown, if any.
-    var logsSheet: NSWindow?
-
-    /// The diagnostics sheet's window (owned so the sheet can re-open).
-    var diagnosticsWindow: NSWindow?
 
     // MARK: UI construction
 
@@ -227,7 +225,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     func refreshVisibleTab() {
         switch selectedTab {
         case .fleet:
-            Task { [diagnosticsController] in await diagnosticsController?.refreshIfVisible() }
+            Task { [weak self] in await self?.refreshDiagnosticsIfVisible() }
         case .setup:
             break
         case .advanced:

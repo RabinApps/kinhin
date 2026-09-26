@@ -418,15 +418,15 @@ final class MainWindowTests: XCTestCase {
     func testLogsSheetRendersSearchableViewer() throws {
         window.fleetModel.onShowLogs()
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        let vc = try XCTUnwrap(window.logsController, "the Logs… button creates the viewer")
+        let model = try XCTUnwrap(window.logsModel, "the Logs… button creates the viewer")
         defer { if let sheet = window.window?.attachedSheet { window.window?.endSheet(sheet) } }
         // The viewer is SwiftUI-hosted; its state lives in the model.
-        XCTAssertTrue(vc.view is NSHostingView<LogsView>, "the viewer hosts the SwiftUI logs view")
-        XCTAssertEqual(vc.model.query, "", "the search starts empty")
-        XCTAssertEqual(vc.model.minLevel, .debug, "level filter present, defaulting to All")
+        XCTAssertEqual(model.query, "", "the search starts empty")
+        XCTAssertEqual(model.minLevel, .debug, "level filter present, defaulting to All")
         XCTAssertEqual(LogsModel.levels.first?.title, "All")
-        XCTAssertTrue(vc.model.statusText.contains("lines"), "a line count is shown")
-        XCTAssertGreaterThan(vc.view.frame.width, 0, "the viewer is laid out inside the sheet")
+        XCTAssertTrue(model.statusText.contains("lines"), "a line count is shown")
+        let sheet = try XCTUnwrap(window.logsSheet, "the logs sheet exists")
+        XCTAssertGreaterThan(sheet.contentView?.frame.width ?? 0, 0, "the viewer is laid out inside the sheet")
     }
 
     func testDeleteButtonCarriesTheVMID() {
@@ -443,18 +443,17 @@ final class MainWindowTests: XCTestCase {
     /// does (beginSheet on the main window) but with a fixture report —
     /// never the live doctor probe, which would subprocess-spam the host.
     @discardableResult
-    private func presentDiagnosticsSheet(withFixture fixture: Data) throws -> DiagnosticsViewController {
-        let controller = DiagnosticsViewController()
-        let sheet = NSWindow(contentViewController: controller)
-        sheet.styleMask = [.titled]
-        sheet.title = "Diagnostics"
+    private func presentDiagnosticsSheet(withFixture fixture: Data) throws -> DiagnosticsModel {
+        window.makeDiagnosticsSheet()
+        let model = try XCTUnwrap(window.diagnosticsModel, "the sheet builds its model")
+        let sheet = try XCTUnwrap(window.diagnosticsWindow)
         window.window!.beginSheet(sheet) { _ in }
         // Attachment completes on the run loop — spin until sheetParent is
         // set so Close (endSheet) is driven the way a real click sees it.
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        controller.render(try JSONDecoder().decode(DoctorReport.self, from: fixture))
+        model.render(try JSONDecoder().decode(DoctorReport.self, from: fixture))
         sheet.layoutIfNeeded()
-        return controller
+        return model
     }
 
     /// DoctorReport's stable JSON contract doubles as the test fixture
@@ -477,56 +476,58 @@ final class MainWindowTests: XCTestCase {
     }
 
     func testDiagnosticsSheetRendersTheReportAtNonZeroWidth() throws {
-        let controller = try presentDiagnosticsSheet(withFixture: doctorFixture())
-        defer { controller.view.removeFromSuperview() }
-
-        let sheet = try XCTUnwrap(controller.view.window, "the sheet is attached")
+        let model = try presentDiagnosticsSheet(withFixture: doctorFixture())
+        let sheet = try XCTUnwrap(window.diagnosticsWindow)
+        defer { if let parent = sheet.sheetParent { parent.endSheet(sheet) } }
         XCTAssertNotNil(sheet.sheetParent, "presented as a sheet on the main window")
 
         // Regression: the report used to collapse to 0x0 and render nothing.
         // It must lay out at the sheet's size and carry every check row.
-        XCTAssertGreaterThan(
-            controller.view.frame.width, 300, "report must span the sheet, got \(controller.view.frame)")
-        XCTAssertTrue(controller.view is NSHostingView<DiagnosticsView>)
+        let host = try XCTUnwrap(sheet.contentView as? NSHostingView<DiagnosticsView>, "the sheet hosts the report")
+        XCTAssertGreaterThan(host.frame.width, 300, "report must span the sheet, got \(host.frame)")
 
-        let titles = controller.model.rows.map(\.title)
+        let titles = model.rows.map(\.title)
         XCTAssertEqual(
             titles,
             [
                 "Host", "Command Line Tools", "Tart (macOS VMs)", "Apple container (Linux)", "Capacity",
                 "Toolchain cache",
             ])
-        XCTAssertTrue(controller.model.rows.allSatisfy(\.ok), "the fixture report is all green")
+        XCTAssertTrue(model.rows.allSatisfy(\.ok), "the fixture report is all green")
     }
 
     func testDiagnosticsCloseEndsTheSheet() throws {
-        let controller = try presentDiagnosticsSheet(withFixture: doctorFixture())
-        let sheet = try XCTUnwrap(controller.view.window)
+        let model = try presentDiagnosticsSheet(withFixture: doctorFixture())
+        let sheet = try XCTUnwrap(window.diagnosticsWindow)
 
         // Regression: dismiss(_:) is a no-op for beginSheet presentation —
         // only the parent's endSheet(_) ends a sheet, so Close did nothing.
-        controller.closeSheet()
+        window.closeDiagnosticsSheet()
         // endSheet detaches after the sheet's exit animation completes on
         // the run loop — spin it so the detach is observed. Detachment is
-        // measured on the sheet window itself: the controller's view stays
-        // installed inside the hidden sheet window (so it can re-open),
-        // meaning view.window is never nil.
+        // measured on the sheet window itself: the content stays installed
+        // inside the hidden sheet window (so the sheet can re-open),
+        // meaning contentView is never nil.
         RunLoop.main.run(until: Date().addingTimeInterval(0.3))
         XCTAssertNil(sheet.sheetParent, "Close must detach the sheet from its parent")
         XCTAssertFalse(sheet.isVisible, "Close must hide the sheet")
+        _ = model
     }
 
-    func testDiagnosticsRefreshOnlyWhenVisible() {
-        // No window → the poll-loop refresh is a no-op (never probes).
-        let idle = DiagnosticsViewController()
-        XCTAssertFalse(idle.isViewLoaded)
-
-        let controller = DiagnosticsViewController()
-        let sheet = NSWindow(contentViewController: controller)
-        sheet.styleMask = [.titled]
-        window.window!.beginSheet(sheet) { _ in }
-        XCTAssertTrue(controller.isViewLoaded)
-        XCTAssertNotNil(controller.view.window)
+    func testDiagnosticsRefreshOnlyWhenTheSheetExists() async throws {
+        // No sheet → the poll-loop refresh is a no-op (never probes).
+        XCTAssertNil(window.diagnosticsWindow)
+        window.makeDiagnosticsSheet()
+        let model = try XCTUnwrap(window.diagnosticsModel)
+        let report = try JSONDecoder().decode(DoctorReport.self, from: doctorFixture())
+        var probes = 0
+        model.loadReport = {
+            probes += 1
+            return report
+        }
+        await window.refreshDiagnosticsIfVisible()
+        XCTAssertEqual(probes, 1, "the visible sheet's model is refreshed")
+        XCTAssertEqual(model.rows.first?.title, "Host", "the probe result is rendered")
     }
 
     // MARK: helpers
