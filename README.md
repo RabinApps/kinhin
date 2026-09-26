@@ -145,13 +145,13 @@ Releases still works.)
 
 Everything kinhin does happens in a single main window. A segmented control switches between:
 
-| Tab          | Contents                                                                                                   |
-| ------------ | ---------------------------------------------------------------------------------------------------------- |
-| **Fleet**    | Live status, Start/Stop/Pause, the VM list, and buttons for Logs, Diagnostics and update checks.           |
+| Tab          | Contents                                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fleet**    | Live status, Start/Stop/Pause, the VM list, and buttons for Logs, Diagnostics and update checks.                                            |
 | **Setup**    | Connect GitHub (and optionally Gitea), pick the repo or org, get this Mac ready, then choose your toolchains. First run is a 4-step wizard. |
-| **Advanced** | **Capacity** (VM counts and sizes, with Apply), **Routing** (runtimes, budget, labels), **App** (launch options, config file). |
+| **Advanced** | **Capacity** (VM counts and sizes, with Apply), **Routing** (runtimes, budget, labels), **App** (launch options, config file).              |
 
-Under **Advanced → App**, *Show at launch* controls how kinhin presents itself (stored in UserDefaults, effective
+Under **Advanced → App**, _Show at launch_ controls how kinhin presents itself (stored in UserDefaults, effective
 immediately):
 
 | Show at launch                       | Behavior                                                                               |
@@ -167,25 +167,25 @@ regular app with a Dock icon; in menu-bar-only mode it stays an accessory app ex
 > **Notarized releases.** Official releases are Developer ID signed and notarized — no
 > right-click → **Open** needed. Locally built copies are ad-hoc signed: clear Gatekeeper with
 > `xattr -cr /Applications/kinhin.app`. (Homebrew's cask verifies the sha256, so `brew install
-> --cask kinhin` is the smoothest path.)
+--cask kinhin` is the smoothest path.)
 
 ## Configuration
 
 `~/Library/Application Support/kinhin/config.yaml` — full template via `kinhin config init`.
 Key fields:
 
-| Field                                      | Meaning                                                                                                                                                                              |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `repo`                                     | GitHub scope to serve: `RabinApps/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization** (PAT needs org runner-admin permission) |
-| `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                     |
-| `min_runners` / `max_runners`              | Scaling bounds (in VMs)                                                                                                                                                              |
-| `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                           |
-| `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                                   |
-| `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                         |
-| `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                            |
-| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](#baking-toolchains-into-the-base-image))                                               |
-| `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                              |
-| `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                 |
+| Field                                      | Meaning                                                                                                                                                                          |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repo`                                     | GitHub scope to serve: `owner/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization** (PAT needs org runner-admin permission) |
+| `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                 |
+| `min_runners` / `max_runners`              | Scaling bounds (in VMs)                                                                                                                                                          |
+| `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                       |
+| `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                               |
+| `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                     |
+| `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                        |
+| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](#baking-toolchains-into-the-base-image))                                           |
+| `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                          |
+| `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                            |
 
 The effective concurrency cap is
 `min(max_runners, (cores − reserve.cpu) / vm.cpu, (RAM − reserve.memory_gb) / vm.memory_gb, free_disk / disk_per_vm)` —
@@ -289,7 +289,7 @@ toolchains:
   - **Cloud & DevOps**: terraform, opentofu, kubectl, helm, kustomize, k9s, pulumi,
     packer, vault, gh, and awscli, gcloud, flyctl, supabase (Homebrew on macOS, mise on
     Linux; a `@version` pin applies to the Linux install only).
-  Curated stacks:
+    Curated stacks:
 
   - **`flutter[@version]`** — Flutter SDK; `@version` pins it (a release tag such as
     `3.24.0`, or a channel), default `stable`. On macOS: `fvm` (brew tap
@@ -306,6 +306,7 @@ toolchains:
     yourself if you build JS.
   - **`vercel[@cli-version]`** — `vercel` CLI (requires node); **`cloudflare[@version]`**
     — `wrangler` (requires node).
+
 - **Verification is the audit trail.** Each tool/stack carries a verify command
   (`go version`, `dotnet --list-sdks`, `flutter --version`…); the prepare aborts
   with the old image intact if any check fails, and the version prints land in
@@ -437,12 +438,12 @@ live via `reload_config` — no restart; a running fleet simply re-buckets deman
 The menu bar app exposes App Intents (in the release `.app`; `scripts/build-app.sh` generates the metadata), so
 you can ask about the fleet without opening a window:
 
-| Say / run | What it does |
-| --- | --- |
-| "How's my kinhin fleet" / "kinhin status" | Running or paused, active VMs, queued jobs, last error |
-| "Pause kinhin" | Stops new runner VMs from starting; running jobs finish |
-| "Resume kinhin" | Lets a paused fleet start VMs again |
-| "Run kinhin diagnostics" | One-line result of the `kinhin doctor` checks |
+| Say / run                                 | What it does                                            |
+| ----------------------------------------- | ------------------------------------------------------- |
+| "How's my kinhin fleet" / "kinhin status" | Running or paused, active VMs, queued jobs, last error  |
+| "Pause kinhin"                            | Stops new runner VMs from starting; running jobs finish |
+| "Resume kinhin"                           | Lets a paused fleet start VMs again                     |
+| "Run kinhin diagnostics"                  | One-line result of the `kinhin doctor` checks           |
 
 They also appear as actions in Shortcuts, so you can automate them (for example, pause the fleet when a call
 starts). Pause and resume are idempotent and work with both the in-process engine and the background daemon.
@@ -503,23 +504,23 @@ Single Swift package:
 
 Inside the targets, code is organized by domain:
 
-| Location                       | Contents                                                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `KinhinKit/Core/`              | Shell, logging, paths, keychain, RPC, mutex/box primitives                                                   |
-| `KinhinKit/Config/`            | YAML config, validation, template, capacity math, runtime routing                                            |
-| `KinhinKit/Forges/`            | GitHub + Gitea forges, org-permission probe                                                                  |
-| `KinhinKit/Runtimes/`          | Runtime protocol, Tart, Apple-container, Docker and Host runtimes, routing pools                             |
-| `KinhinKit/Fleet/`             | FleetEngine (split: shell / reconcile / lifecycle), status model, records                                    |
-| `KinhinKit/Images/`            | VM and container image preparation                                                                           |
-| `KinhinKit/Setup/`             | Setup checklist, doctor probes (tart health, CLT)                                                            |
-| `KinhinKit/ViewModels/`        | UI-agnostic view models (setup checklist rows, Runtimes pane)                                                |
-| `KinhinKit/Update/`            | GitHub-release update check                                                                                  |
-| `kinhin/KinhinCLI.swift`       | @main entry: arg parsing + dispatch only                                                                     |
-| `kinhin/Commands/`             | One file per command group (auth, doctor, image, run, runtimes, setup) + the CLICommand routing table |
-| `kinhin-app/AppMain.swift`     | @main entry: AppKit bootstrap, synchronous run loop                                                          |
-| `kinhin-app/AppDelegate/`      | Lifecycle + engine wiring + refresh; extensions for main menu, status item, fleet actions, engine reconfig   |
-| `kinhin-app/UI/`               | `MainTabsWindowController` (per-tab extension files), `AlertKit`, and the setup repair runner |
-| `kinhin-app/UI/SwiftUI/`       | SwiftUI forms: models (`@Observable`) + views for Connect, This Mac, Routing, Capacity, Toolchains, Containers, the wizard, Diagnostics, Logs |
+| Location                   | Contents                                                                                                                                      |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KinhinKit/Core/`          | Shell, logging, paths, keychain, RPC, mutex/box primitives                                                                                    |
+| `KinhinKit/Config/`        | YAML config, validation, template, capacity math, runtime routing                                                                             |
+| `KinhinKit/Forges/`        | GitHub + Gitea forges, org-permission probe                                                                                                   |
+| `KinhinKit/Runtimes/`      | Runtime protocol, Tart, Apple-container, Docker and Host runtimes, routing pools                                                              |
+| `KinhinKit/Fleet/`         | FleetEngine (split: shell / reconcile / lifecycle), status model, records                                                                     |
+| `KinhinKit/Images/`        | VM and container image preparation                                                                                                            |
+| `KinhinKit/Setup/`         | Setup checklist, doctor probes (tart health, CLT)                                                                                             |
+| `KinhinKit/ViewModels/`    | UI-agnostic view models (setup checklist rows, Runtimes pane)                                                                                 |
+| `KinhinKit/Update/`        | GitHub-release update check                                                                                                                   |
+| `kinhin/KinhinCLI.swift`   | @main entry: arg parsing + dispatch only                                                                                                      |
+| `kinhin/Commands/`         | One file per command group (auth, doctor, image, run, runtimes, setup) + the CLICommand routing table                                         |
+| `kinhin-app/AppMain.swift` | @main entry: AppKit bootstrap, synchronous run loop                                                                                           |
+| `kinhin-app/AppDelegate/`  | Lifecycle + engine wiring + refresh; extensions for main menu, status item, fleet actions, engine reconfig                                    |
+| `kinhin-app/UI/`           | `MainTabsWindowController` (per-tab extension files), `AlertKit`, and the setup repair runner                                                 |
+| `kinhin-app/UI/SwiftUI/`   | SwiftUI forms: models (`@Observable`) + views for Connect, This Mac, Routing, Capacity, Toolchains, Containers, the wizard, Diagnostics, Logs |
 
 Tests: `swift test` (750+ tests across three targets: the engine suite (KinhinKitTests — store, RPC, SSH, image pipeline, tart-health, CLT probe, org permissions, queue attribution (queued and running,
 per repo), token replacement (Keychain upsert, live engine swap, daemon RPC), multi-forge (Gitea client, per-VM platform assignment, bootstrap, token-gated image provisioning), runtime
@@ -703,8 +704,8 @@ runtimes:
       consent: true # required for host routes (and rejected on other runtimes)
 ```
 
-- **Consent is enforced everywhere.** Config validation rejects a host route without `consent: true`. `kinhin runtimes route add <pattern> host --consent` refuses to run without the flag. In the app, **Runtimes… → Add Route** lists "Host — this Mac, no isolation" and won't add the route until you tick the consent checkbox; host routes show a ⚠︎ *unisolated* marker in the route list.
-- **Install the agent once.** Host runs use the GitHub actions-runner and the Gitea runner (which also serves Forgejo), installed — with SHA-256 verification — under `~/Library/Application Support/Kinhin/host-runner`. When a host route exists, the setup checklist and `kinhin doctor` gain a *Host runner agent* row with a one-click **Install Host Runner Agent** fix; from the terminal run `kinhin setup repair host-agent`. Without host routes, none of this appears.
+- **Consent is enforced everywhere.** Config validation rejects a host route without `consent: true`. `kinhin runtimes route add <pattern> host --consent` refuses to run without the flag. In the app, **Runtimes… → Add Route** lists "Host — this Mac, no isolation" and won't add the route until you tick the consent checkbox; host routes show a ⚠︎ _unisolated_ marker in the route list.
+- **Install the agent once.** Host runs use the GitHub actions-runner and the Gitea runner (which also serves Forgejo), installed — with SHA-256 verification — under `~/Library/Application Support/Kinhin/host-runner`. When a host route exists, the setup checklist and `kinhin doctor` gain a _Host runner agent_ row with a one-click **Install Host Runner Agent** fix; from the terminal run `kinhin setup repair host-agent`. Without host routes, none of this appears.
 - **Explicit `runs-on` marker.** The host pool always registers with the `kinhin-host` label, so a workflow can also opt in with `runs-on: [kinhin-host]` and only opted-in workflows can ever land on your Mac.
 - **Ephemeral process, warm machine.** Each runner registers with `--ephemeral`, gets its own work directory under kinhin's support directory, and that directory is scrubbed when the runner is torn down. The Mac itself is not reset between jobs, so anything a job installs or leaves outside its work directory persists.
 - **Every forge.** Host routes work for GitHub, Gitea and Forgejo. Gitea-family runners have no `--ephemeral`, so kinhin watches the runner go idle after its job (the same watch it uses for VMs), then stops the daemon and scrubs the work directory. Gitea host runners always register with `:host` labels (your configured labels are forced to the host scheme, plus `kinhin-host:host`), so a job can never be picked up in a container by mistake.

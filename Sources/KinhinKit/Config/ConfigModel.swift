@@ -235,7 +235,7 @@ public struct KinhinConfig: Sendable, Equatable {
         public var routes: [Route]
 
         public struct Route: Sendable, Equatable {
-            /// "RabinApps/name" or "RabinApps/name@Workflow Name".
+            /// "owner/name" or "owner/name@Workflow Name".
             public var pattern: String
             public var runtime: String
             /// Host-mode consent: routes with `runtime: host` MUST carry
@@ -272,7 +272,7 @@ public struct KinhinConfig: Sendable, Equatable {
     public struct GiteaForgeConfig: Sendable, Equatable {
         /// Instance base URL, e.g. "https://gitea.example.com".
         public var instance: String
-        /// Scope: "RabinApps/name" or org name (mirrors the GitHub scope model).
+        /// Scope: "owner/name" or org name (mirrors the GitHub scope model).
         public var scope: String
         /// Labels jobs must request on Gitea (host-mode, e.g. ["macos:host"]).
         public var labels: [String]?

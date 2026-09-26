@@ -87,7 +87,7 @@ func isVersion(_ a: String, olderThan b: String) -> Bool {
 /// thrown errors so the caller decides whether to stay silent; the comparison
 /// itself is pure and unit-tested.
 public struct UpdateChecker: Sendable {
-    public let repo: String  // "RabinApps/name"
+    public let repo: String  // "owner/name"
     let currentVersion: String
     let session: URLSession
 

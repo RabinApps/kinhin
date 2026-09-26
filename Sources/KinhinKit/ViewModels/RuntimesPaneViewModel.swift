@@ -20,7 +20,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
     public struct RouteRow: Sendable, Equatable {
         public let pattern: String
         public let runtime: RuntimeID
-        /// True for `RabinApps/name@Workflow` patterns.
+        /// True for `owner/name@Workflow` patterns.
         public let isWorkflow: Bool
     }
 

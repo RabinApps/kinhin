@@ -4,11 +4,11 @@ Kinhin is built on a **Forge abstraction**: the engine speaks one unified protoc
 registration token, list/delete runners, report queued demand, track running jobs — and each
 CI platform implements it behind that interface. Today three forges ship:
 
-| Forge          | Status       | Runner agent                             | Scope shape                                  |
-| -------------- | ------------ | ---------------------------------------- | -------------------------------------------- |
-| GitHub Actions | ✅ supported | actions-runner (GitHub's official agent) | `RabinApps/name` repo or org                 |
-| Gitea Actions  | ✅ supported | gitea-runner (formerly act_runner)       | `RabinApps/name` repo or org on any instance |
-| Forgejo        | ✅ supported | gitea-runner (wire-compatible)           | `RabinApps/name` repo or org on any instance |
+| Forge          | Status       | Runner agent                             | Scope shape                              |
+| -------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
+| GitHub Actions | ✅ supported | actions-runner (GitHub's official agent) | `owner/name` repo or org                 |
+| Gitea Actions  | ✅ supported | gitea-runner (formerly act_runner)       | `owner/name` repo or org on any instance |
+| Forgejo        | ✅ supported | gitea-runner (wire-compatible)           | `owner/name` repo or org on any instance |
 
 One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned
 at spawn to whichever forge has the most pending work, registers there, and is deleted when its
@@ -22,7 +22,7 @@ in `config.yaml`:
 ```yaml
 gitea:
   instance: "https://gitea.example.com"
-  scope: "RabinApps/name" # or an org name
+  scope: "owner/name" # or an org name
   labels: ["macos:host"] # jobs opt in via runs-on: macos:host
 ```
 

@@ -72,7 +72,7 @@ enum GiteaError: LocalizedError, Equatable {
 
 // MARK: - Credentials
 
-/// One Gitea instance + scope ("RabinApps/name" repo or bare org name).
+/// One Gitea instance + scope ("owner/name" repo or bare org name).
 public struct GiteaCredentials: Sendable {
     public let token: String
     public let scope: String

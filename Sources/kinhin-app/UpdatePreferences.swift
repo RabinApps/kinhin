@@ -10,7 +10,7 @@ enum UpdatePreferences {
     }()
 
     /// The repo-selection rule, injectable for tests: an env var containing
-    /// "RabinApps/name" wins; anything else (missing, empty, malformed) falls
+    /// "owner/name" wins; anything else (missing, empty, malformed) falls
     /// back to the default repo. The pre-rename KINHIN/Orchard env var is
     /// still honored so forks configured before the rename keep updating.
     static func repo(fromEnvironment env: [String: String]) -> String {

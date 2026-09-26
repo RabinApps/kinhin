@@ -97,13 +97,13 @@ public struct ConfigLoader {
                 "\(section).instance must be a base URL like https://gitea.example.com (no path, no /api suffix)")
         }
         guard let scope = partial.scope, !scope.isEmpty else {
-            throw ConfigError.invalid("\(section).scope is required ('RabinApps/name' or an org name)")
+            throw ConfigError.invalid("\(section).scope is required ('owner/name' or an org name)")
         }
         let scopeSegments = scope.split(separator: "/")
         guard (1...2).contains(scopeSegments.count),
             scopeSegments.allSatisfy({ !$0.isEmpty })
         else {
-            throw ConfigError.invalid("\(section).scope must be 'RabinApps/name' or an org name, got '\(scope)'")
+            throw ConfigError.invalid("\(section).scope must be 'owner/name' or an org name, got '\(scope)'")
         }
         if let labels = partial.labels, labels.isEmpty {
             throw ConfigError.invalid("\(section).labels must be non-empty when present")
@@ -137,7 +137,7 @@ public struct ConfigLoader {
                 throw ConfigError.invalid("account '\(name)': forge must be github, gitea or forgejo")
             }
             guard let scope = entry.scope, AccountConfig.isValidScope(scope) else {
-                throw ConfigError.invalid("account '\(name)': scope must be 'RabinApps/name' or an org name")
+                throw ConfigError.invalid("account '\(name)': scope must be 'owner/name' or an org name")
             }
             switch forge {
             case .github:
@@ -176,10 +176,10 @@ public struct ConfigLoader {
         if repo.isEmpty, accounts.isEmpty {
             throw ConfigError.missing("repo")
         }
-        // Scope: "RabinApps/name" (one repository) or a single segment (an org —
+        // Scope: "owner/name" (one repository) or a single segment (an org —
         // org-level runners serve every repo in the organization).
         if !repo.isEmpty, !AccountConfig.isValidScope(repo) {
-            throw ConfigError.invalid("scope must be 'RabinApps/name' or an org name, got '\(repo)'")
+            throw ConfigError.invalid("scope must be 'owner/name' or an org name, got '\(repo)'")
         }
         guard let labels = partial.labels, !labels.isEmpty else {
             throw ConfigError.missing("labels")
@@ -323,12 +323,12 @@ public struct ConfigLoader {
                     let repoPart = String(pattern.split(separator: "@").first ?? "")
                     guard repoPart.split(separator: "/").count == 2, !repoPart.hasSuffix("@") else {
                         throw ConfigError.invalid(
-                            "runtimes.routes pattern '\(pattern)' must be RabinApps/name@Workflow or RabinApps/name")
+                            "runtimes.routes pattern '\(pattern)' must be owner/name@Workflow or owner/name")
                     }
                 } else {
                     guard segments.count == 2, segments.allSatisfy({ !$0.isEmpty }) else {
                         throw ConfigError.invalid(
-                            "runtimes.routes pattern '\(pattern)' must be RabinApps/name (or RabinApps/name@Workflow)")
+                            "runtimes.routes pattern '\(pattern)' must be owner/name (or owner/name@Workflow)")
                     }
                 }
                 // Host-mode consent gate: running repo code directly on the

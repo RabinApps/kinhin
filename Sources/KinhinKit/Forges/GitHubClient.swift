@@ -2,7 +2,7 @@ import Foundation
 
 public struct GitHubCredentials: Sendable {
     public let token: String
-    /// GitHub scope the fleet serves: "RabinApps/name" (one repository) or a
+    /// GitHub scope the fleet serves: "owner/name" (one repository) or a
     /// single "org" segment (an entire organization — runners register at
     /// the org level and serve every repo's queued jobs).
     public let scope: String
@@ -15,7 +15,7 @@ public struct GitHubCredentials: Sendable {
     /// True when the scope is an organization, not a single repository.
     var isOrgScope: Bool { !scope.contains("/") }
 
-    /// The owner segment of the scope ("RabinApps" in "RabinApps/name").
+    /// The owner segment of the scope ("RabinApps" in "owner/name").
     public var owner: String { String(scope.split(separator: "/").first ?? "") }
 
     /// URL passed to the runner's `config.sh --url`. Org-level runners
@@ -214,7 +214,7 @@ public struct GitHubClient: GitHubServing {
                 || ((segments.count == 1 || segments.count == 2)
                     && segments.allSatisfy({ !$0.isEmpty }))
         else {
-            throw GitHubError.http(0, "invalid scope spec \(credentials.scope) — use 'RabinApps/name' or an org name")
+            throw GitHubError.http(0, "invalid scope spec \(credentials.scope) — use 'owner/name' or an org name")
         }
         var req = URLRequest(url: URL(string: "https://api.github.com\(path)")!)
         req.httpMethod = method

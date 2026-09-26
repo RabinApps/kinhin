@@ -346,7 +346,7 @@ final class RuntimeRoutingTests: XCTestCase {
                       runtime: tart
                 """)
         ) { error in
-            XCTAssertTrue("\(error)".contains("RabinApps/name"))
+            XCTAssertTrue("\(error)".contains("owner/name"))
         }
     }
 

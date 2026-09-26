@@ -11,7 +11,7 @@ extension ConfigLoader {
 
         # GitHub scope to serve (required). Jobs whose `runs-on:` matches
         # (subset of) `labels` below will be run here.
-        #   "RabinApps/name"  → a single repository
+        #   "owner/name"  → a single repository
         #   "your-org"    → an entire organization (org-level runners serve
         #                   every repo's queued jobs; the PAT needs org
         #                   runner-management permissions)
@@ -93,7 +93,7 @@ extension ConfigLoader {
         # --gitea) with runner-management rights on the scope below.
         # gitea:
         #   instance: "https://gitea.example.com"
-        #   scope: "RabinApps/name"        # or an org name
+        #   scope: "owner/name"        # or an org name
         #   labels: ["macos:host"]     # jobs opt in via runs-on: macos:host
 
         # Optional: serve more accounts. `repo:` and `gitea:` above are the
