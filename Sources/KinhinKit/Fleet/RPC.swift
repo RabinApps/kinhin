@@ -151,10 +151,24 @@ enum RPCServer {
         dispatchMain()
     }
 
-    static func handleConnection(fd: Int32, handler: @escaping @Sendable (RPCRequest) async -> RPCResponse) {
-        defer { close(fd) }
-        let file = FileHandle(fileDescriptor: fd, closeOnDealloc: false)
-        guard let lineData = readLine(from: file) else { return }
+    /// How long a request may run before the client is answered with a
+    /// timeout error (the client's own default deadline is shorter).
+    static let handlerTimeout: Duration = .seconds(120)
+
+    /// Reads one request and answers it asynchronously. The descriptor is
+    /// closed exactly once, by whichever of the handler or the timeout
+    /// answers first — a late handler never writes to a descriptor number
+    /// the kernel may already have reused for another client.
+    static func handleConnection(
+        fd: Int32,
+        timeout: Duration = handlerTimeout,
+        handler: @escaping @Sendable (RPCRequest) async -> RPCResponse
+    ) {
+        let reply = ConnectionReply(fd: fd)
+        guard let lineData = readLine(from: reply.file) else {
+            reply.close()
+            return
+        }
 
         let decoder = JSONDecoder()
         let request: RPCRequest
@@ -162,21 +176,35 @@ enum RPCServer {
             request = try decoder.decode(RPCRequest.self, from: lineData)
         } catch {
             Log.warn("rpc", "undecodable request: \(error)")
-            write(responseLine(RPCResponse(id: -1, ok: false, error: "undecodable request")), to: file)
+            reply.send(RPCResponse(id: -1, ok: false, error: "undecodable request"))
             return
         }
 
-        let semaphore = DispatchSemaphore(value: 0)
+        let method = request.method.rawValue
+        let timer = Task {
+            do {
+                try await Task.sleep(for: timeout)
+            } catch {
+                return  // cancelled: the handler answered first
+            }
+            let timedOut = RPCResponse(id: request.id, ok: false, error: "daemon timed out handling \(method)")
+            if reply.send(timedOut) {
+                Log.warn("rpc", "\(method) did not finish within \(timeout); answered with a timeout")
+            }
+        }
+        // The handler is not cancelled on timeout: daemon operations (stop,
+        // token swaps) must run to completion; only the late reply is dropped.
         Task {
             let response = await handler(request)
-            write(responseLine(response), to: file)
-            semaphore.signal()
+            timer.cancel()
+            if !reply.send(response) {
+                Log.warn("rpc", "dropping late \(method) response (client already got a timeout)")
+            }
         }
-        _ = semaphore.wait(timeout: .now() + 120)
     }
 
     /// The peer may have hung up; a failed write is logged, not fatal.
-    private static func write(_ data: Data, to file: FileHandle) {
+    static func write(_ data: Data, to file: FileHandle) {
         do {
             try file.write(contentsOf: data)
         } catch {
@@ -206,6 +234,45 @@ enum RPCServer {
             buffer.append(chunk)
             if buffer.last == 0x0A { return buffer }
             if buffer.count > 1_000_000 { return nil }  // sanity cap
+        }
+    }
+}
+
+// MARK: - Connection reply
+
+/// One accepted connection's single answer. The first `send` or `close`
+/// wins; it writes (if sending) and closes the descriptor. Later calls are
+/// no-ops, so the descriptor is never touched after it is closed.
+final class ConnectionReply: Sendable {
+    let file: FileHandle
+    private let fd: Int32
+    private let finished = Mutex(false)
+
+    init(fd: Int32) {
+        self.fd = fd
+        self.file = FileHandle(fileDescriptor: fd, closeOnDealloc: false)
+    }
+
+    /// Writes `response` and closes. Returns false when the connection was
+    /// already answered or closed.
+    @discardableResult
+    func send(_ response: RPCResponse) -> Bool {
+        finish { RPCServer.write(RPCServer.responseLine(response), to: file) }
+    }
+
+    /// Closes without answering (the peer sent nothing).
+    func close() {
+        finish {}
+    }
+
+    @discardableResult
+    private func finish(_ body: () -> Void) -> Bool {
+        finished.withLock { done in
+            guard !done else { return false }
+            done = true
+            body()
+            Darwin.close(fd)
+            return true
         }
     }
 }

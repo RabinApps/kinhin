@@ -253,6 +253,59 @@ final class RPCWireTests: XCTestCase {
         XCTAssertEqual(response?.id, 3)
     }
 
+    func testSlowHandlerGetsOneTimeoutReplyAndNothingAfterClose() async throws {
+        // A handler that outlives the timeout: the client gets exactly one
+        // timeout reply, then EOF. The late handler result must not be
+        // written — the descriptor is closed and may belong to someone else.
+        var fds: [Int32] = [0, 0]
+        XCTAssertEqual(socketpair(AF_UNIX, SOCK_STREAM, 0, &fds), 0)
+        let client = fds[0]
+        defer { close(client) }
+        let writer = FileHandle(fileDescriptor: client, closeOnDealloc: false)
+        try writer.write(contentsOf: line(#"{"id":7,"method":"stop"}"#))
+
+        let handlerFinished = expectation(description: "slow handler ran to completion")
+        RPCServer.handleConnection(fd: fds[1], timeout: .milliseconds(50)) { request in
+            try? await Task.sleep(for: .milliseconds(400))  // outlive the timeout; cancellation is not expected
+            handlerFinished.fulfill()
+            return RPCResponse(id: request.id, ok: true)
+        }
+
+        let reader = FileHandle(fileDescriptor: client, closeOnDealloc: false)
+        var bytes = Data()
+        while true {
+            let chunk = reader.availableData  // blocks until data or EOF
+            if chunk.isEmpty { break }
+            bytes.append(chunk)
+        }
+        let response = decode(bytes)
+        XCTAssertEqual(response?.id, 7)
+        XCTAssertEqual(response?.ok, false)
+        XCTAssertEqual(response?.error, "daemon timed out handling stop")
+
+        await fulfillment(of: [handlerFinished], timeout: 5)
+        XCTAssertEqual(bytes.filter { $0 == 0x0A }.count, 1, "exactly one reply frame before close")
+    }
+
+    func testFastHandlerAnswersAndCancelsTheTimeout() {
+        let response = decode(
+            serveOne(requestLine: line(#"{"id":8,"method":"ping"}"#)) { request in
+                RPCResponse(id: request.id, ok: true)
+            })
+        XCTAssertEqual(response?.id, 8)
+        XCTAssertEqual(response?.ok, true)
+    }
+
+    func testConnectionReplyAnswersOnlyOnce() {
+        var fds: [Int32] = [0, 0]
+        XCTAssertEqual(socketpair(AF_UNIX, SOCK_STREAM, 0, &fds), 0)
+        defer { close(fds[0]) }
+        let reply = ConnectionReply(fd: fds[1])
+        XCTAssertTrue(reply.send(RPCResponse(id: 1, ok: true)))
+        XCTAssertFalse(reply.send(RPCResponse(id: 2, ok: true)), "a second answer must be refused")
+        reply.close()  // no-op after the first answer; must not double-close
+    }
+
     // MARK: - Daemon dispatch: methods not covered by sibling suites
 
     private func makeEngine(github: FakeGitHub = FakeGitHub()) -> FleetEngine {
