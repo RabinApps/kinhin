@@ -41,11 +41,54 @@ extension FleetEngine {
             return Array(tasks.values)
         }
         for task in tasks { task.cancel() }
+        await drain(tasks, timeout: lifecycleDrainTimeout)
         invalidateRegistrationTokens()
         // Mirror the flag into the status snapshot (stop() does the same):
         // status().running must go false immediately, not at the next
         // reconcile pass (which is now cancelled).
         await statusBox.modify { $0.running = false }
+    }
+
+    /// Wait for cancelled lifecycle tasks to exit, up to `timeout`. Shell
+    /// commands ignore cancellation (they end on their own timeout), so a
+    /// task blocked in one may outlive the bound; it then exits at its next
+    /// cancellation check without touching the store, and the wait must not
+    /// stall the reload RPC for the length of a registration script.
+    func drain(_ tasks: [Task<Void, Never>], timeout: Duration) async {
+        guard !tasks.isEmpty else { return }
+        // A task group would wait for every child at scope exit (and awaiting
+        // an unstructured task's value ignores cancellation), so race two
+        // unstructured waiters and resume on whichever finishes first.
+        let finished = Mutex(0)
+        let waiters = Mutex<[Task<Void, Never>]>([])
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let pending = Mutex<CheckedContinuation<Void, Never>?>(continuation)
+            let resumeOnce = {
+                pending.withLock { slot in
+                    defer { slot = nil }; return slot
+                }?.resume()
+            }
+            let all = Task {
+                for task in tasks {
+                    await task.value
+                    finished.withLock { $0 += 1 }
+                }
+                resumeOnce()
+            }
+            let timer = Task {
+                // Cancelled below once the wait is over; the error only means "stop waiting".
+                try? await Task.sleep(for: timeout)
+                resumeOnce()
+            }
+            waiters.withLock { $0 = [all, timer] }
+        }
+        // The timer is the only waiter worth cancelling; the other ends with its tasks.
+        waiters.withLock { $0.last }?.cancel()
+        let stragglers = tasks.count - finished.withLock { $0 }
+        if stragglers > 0 {
+            Log.warn(
+                "engine", "\(stragglers) lifecycle task(s) still in a shell command after detach; they exit on return")
+        }
     }
 
     /// Swap in routing state from a freshly loaded config: the routing model

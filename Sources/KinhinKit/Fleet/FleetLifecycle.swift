@@ -55,6 +55,9 @@ extension FleetEngine {
                 id: id,
                 timeout: TimeInterval(config.vmBootTimeout)
             )
+            // After every awaited runtime/forge call: a detached engine's
+            // straggler must exit here, never write to the store.
+            try Task.checkCancellation()
             updateRecord(id) { $0.ip = ip }
             if let ip {
                 Log.info(id, "booted at \(ip)")
@@ -96,17 +99,18 @@ extension FleetEngine {
                 runnerTokens = try await forge.registrationTokens(
                     runnerNames: Self.runnerNames(for: id, count: runnerCount), labels: labels ?? [])
             }
+            try Task.checkCancellation()
             let script = try await recordRuntime.registrationScript(
                 forge: forge, token: token, runnerTokens: runnerTokens, name: id,
                 runnerCount: runnerCount, route: RepoRoute.from(config: config),
                 labels: labels
             )
             result = try await recordRuntime.execRegistration(id, ip: ip, script, timeout: 600)
+            try Task.checkCancellation()
             guard result.succeeded else {
                 throw EngineError.registrationFailed(vm: id, stderr: result.stderr)
             }
             Log.info(id, "runner registered")
-            try Task.checkCancellation()
 
             // Phase: ready (or straight to busy if it picked up a job immediately)
             updateRecord(id) { $0.phase = .ready }
@@ -125,6 +129,11 @@ extension FleetEngine {
             // (deleteVMRecord, scale-down, engine stop). Deleting here too
             // double-frees the VM and can resurrect the record mid-teardown.
             Log.info(id, "lifecycle cancelled")
+        } catch  where Task.isCancelled {
+            // Cancelled mid-call surfaces as the callee's own error (e.g.
+            // URLError.cancelled from the runner list). Marking the record
+            // failed would make a replacement engine delete a busy VM.
+            Log.info(id, "lifecycle cancelled (\(error.localizedDescription))")
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             Log.error(id, "lifecycle failed: \(message)")
@@ -159,6 +168,7 @@ extension FleetEngine {
                 try await Task.sleep(for: .seconds(1))
                 continue
             }
+            try Task.checkCancellation()
             let mine = all.filter { expected.contains($0.name) }
             for runner in mine where runner.online { seen.insert(runner.name) }
             let allSeen = expected.allSatisfy { seen.contains($0) }
@@ -224,6 +234,8 @@ extension FleetEngine {
         while Date() < deadline {
             try Task.checkCancellation()
             let mine = current(try await listRunners())
+            // A detached engine's watcher must not delete or re-phase the VM.
+            try Task.checkCancellation()
             for runner in mine where runner.online {
                 seen.insert(runner.name)
             }

@@ -221,18 +221,26 @@ public enum Daemon {
                         // A stopped fleet stays stopped across a rebuild — a
                         // config edit must never start spawning VMs.
                         if wasRunning {
-                            await replacement.start()
+                            // Verify the replacement's forges while the old
+                            // engine still owns the fleet; nothing is adopted yet.
+                            replacement.markRunning()
+                            guard await replacement.prepareStart() else {
+                                // Startup verification failed (bad PAT, transient
+                                // network): keep the old engine serving instead
+                                // of trading a running fleet for a dead one.
+                                let error = await replacement.status().lastError ?? "startup verification failed"
+                                Log.error("daemon", "rebuild did not start: \(error) — keeping the previous engine")
+                                return RPCResponse(id: request.id, ok: false, error: "restart failed: \(error)")
+                            }
+                        }
+                        // Detach (and drain) the old engine BEFORE the
+                        // replacement recovers, so no instance is driven by
+                        // two engines at once.
+                        await engine.detachKeepingInstances()
+                        if wasRunning {
+                            await replacement.launch()
                             if wasPaused { await replacement.setPaused(true) }
                         }
-                        let status = await replacement.status()
-                        if wasRunning, !status.running, let error = status.lastError {
-                            // Startup verification failed (bad PAT, transient
-                            // network): keep the old engine serving instead
-                            // of trading a running fleet for a dead one.
-                            Log.error("daemon", "rebuild did not start: \(error) — keeping the previous engine")
-                            return RPCResponse(id: request.id, ok: false, error: "restart failed: \(error)")
-                        }
-                        await engine.detachKeepingInstances()
                         engineRef.set(replacement)
                         Log.info(
                             "daemon",

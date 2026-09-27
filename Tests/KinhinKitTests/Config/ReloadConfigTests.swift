@@ -216,15 +216,20 @@ final class ReloadConfigTests: XCTestCase {
 
     /// Engines for these tests are built from the parsed YAML itself (not
     /// makeTestConfig) so the restart diff compares like with like.
-    private func makeEngine(_ config: KinhinConfig, store: FleetStore = makeTestStore()) -> FleetEngine {
-        FleetEngine(
+    private func makeEngine(
+        _ config: KinhinConfig, store: FleetStore = makeTestStore(), tart: TartControlling = FakeTart(),
+        github: FakeGitHub = FakeGitHub()
+    ) -> FleetEngine {
+        let engine = FleetEngine(
             config: config,
-            github: FakeGitHub(),
-            tart: FakeTart(),
+            github: github,
+            tart: tart,
             store: store,
             ssh: FakeSSH(),
             host: host
         )
+        engine.lifecycleDrainTimeout = .seconds(5)
+        return engine
     }
 
     /// A routing-only edit answers ok and keeps the same engine object.
@@ -357,10 +362,108 @@ final class ReloadConfigTests: XCTestCase {
         XCTAssertFalse(status.running, "a config edit must never start a stopped fleet")
     }
 
+    /// The old engine's lifecycle tasks are cancelled and drained before the
+    /// replacement recovers the same instances — never two engines driving
+    /// one VM.
+    func testDaemonRebuildDrainsOldLifecyclesBeforeReplacementAdopts() async throws {
+        let dir = try scratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.yaml")
+        try yaml().write(to: url, atomically: true, encoding: .utf8)
+        let store = makeTestStore()
+        let tart = FakeTart()
+        tart.vms["kinhin-live"] = TartVM(name: "kinhin-live", source: "tahoe-base", status: "running")
+        store.upsert(VMRecord(id: "kinhin-live", phase: .ready))
+        let engine = makeEngine(try ConfigLoader.parse(yaml()), store: store, tart: tart)
+        let ref = Daemon.EngineRef(engine)
+        await engine.start()
+        XCTAssertEqual(engine.lifecycleTasks.withLock { Array($0.keys) }, ["kinhin-live"])
+
+        try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
+        let replacement = makeEngine(try ConfigLoader.parse(yaml(vmCPU: 6)), store: store, tart: tart)
+        let response = await Daemon.handle(
+            .init(id: 25, method: .reloadConfig),
+            engineRef: ref,
+            configURL: url,
+            engineFactory: { _ in replacement }
+        )
+        XCTAssertTrue(response.ok, "\(response.error ?? "")")
+        XCTAssertTrue(engine.lifecycleTasks.withLock { $0.isEmpty }, "old engine's lifecycles drained")
+        XCTAssertEqual(replacement.lifecycleTasks.withLock { Array($0.keys) }, ["kinhin-live"], "replacement adopted")
+        XCTAssertEqual(store.all.map(\.id), ["kinhin-live"], "the instance survived the handover")
+        await replacement.detachKeepingInstances()
+    }
+
+    /// A replacement that fails forge verification never touches the fleet:
+    /// the old engine keeps running and keeps its lifecycles.
+    func testDaemonRebuildVerificationFailureLeavesOldEngineDriving() async throws {
+        let dir = try scratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.yaml")
+        try yaml().write(to: url, atomically: true, encoding: .utf8)
+        let store = makeTestStore()
+        let tart = FakeTart()
+        tart.vms["kinhin-live"] = TartVM(name: "kinhin-live", source: "tahoe-base", status: "running")
+        store.upsert(VMRecord(id: "kinhin-live", phase: .ready))
+        let engine = makeEngine(try ConfigLoader.parse(yaml()), store: store, tart: tart)
+        let ref = Daemon.EngineRef(engine)
+        await engine.start()
+
+        try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
+        let deniedGitHub = FakeGitHub()
+        deniedGitHub.permissionDenied = true
+        let replacement = makeEngine(
+            try ConfigLoader.parse(yaml(vmCPU: 6)), store: store, tart: tart, github: deniedGitHub)
+        let response = await Daemon.handle(
+            .init(id: 26, method: .reloadConfig),
+            engineRef: ref,
+            configURL: url,
+            engineFactory: { _ in replacement }
+        )
+        XCTAssertFalse(response.ok)
+        XCTAssertTrue(ref.engine === engine)
+        let oldStatus = await engine.status()
+        XCTAssertTrue(oldStatus.running)
+        XCTAssertEqual(engine.lifecycleTasks.withLock { Array($0.keys) }, ["kinhin-live"])
+        XCTAssertTrue(replacement.lifecycleTasks.withLock { $0.isEmpty }, "the replacement adopted nothing")
+        XCTAssertFalse(replacement.running)
+        await engine.detachKeepingInstances()
+    }
+
     // MARK: - Engine detach semantics
 
-    /// Detach cancels scaling but keeps records and instances: the fleet's
-    /// store survives for the replacement engine's recovery to adopt.
+    /// Drain gives up after its bound: a task stuck in a call that ignores
+    /// cancellation (a shell command) must not stall the reload RPC.
+    func testDrainIsBoundedForTasksIgnoringCancellation() async {
+        let engine = makeEngine(makeTestConfig())
+        let gate = Mutex<CheckedContinuation<Void, Never>?>(nil)
+        let stuck = Task {
+            await withCheckedContinuation { continuation in gate.withLock { $0 = continuation } }
+        }
+        stuck.cancel()
+        let clock = ContinuousClock()
+        let elapsed = await clock.measure {
+            await engine.drain([stuck], timeout: .milliseconds(100))
+        }
+        XCTAssertLessThan(elapsed, .seconds(2))
+        // Release the stuck task once the gate is set, so it does not leak.
+        while gate.withLock({ $0 == nil }) { await Task.yield() }
+        gate.withLock {
+            $0?.resume(); $0 = nil
+        }
+        await stuck.value
+    }
+
+    func testDrainReturnsAsSoonAsTasksFinish() async {
+        let engine = makeEngine(makeTestConfig())
+        let quick = Task<Void, Never> {}
+        let clock = ContinuousClock()
+        let elapsed = await clock.measure {
+            await engine.drain([quick], timeout: .seconds(30))
+        }
+        XCTAssertLessThan(elapsed, .seconds(2))
+    }
+
     /// Detach cancels scaling but keeps records and instances: the fleet's
     /// store survives for the replacement engine's recovery to adopt (stop()
     /// by contrast deletes every active record).
@@ -372,6 +475,45 @@ final class ReloadConfigTests: XCTestCase {
         let status = await engine.status()
         XCTAssertFalse(status.running)
         XCTAssertEqual(status.records.map(\.id), ["kinhin-adopt"], "records survive for adoption")
+    }
+
+    /// A lifecycle blocked in a runtime call (a shell command ignores
+    /// cancellation and ends only on its own timeout) must not write to the
+    /// store after detach: the straggler exits at its next cancellation
+    /// check — here, when `awaitReady` returns after the drain gave up —
+    /// instead of stamping its result and re-phasing the record.
+    func testDetachedLifecycleBlockedInRuntimeCallWritesNothing() async throws {
+        let store = makeTestStore()
+        let tart = BlockingTart()
+        tart.vms["kinhin-live"] = TartVM(name: "kinhin-live", source: "tahoe-base", status: "running")
+        store.upsert(VMRecord(id: "kinhin-live", phase: .ready))
+        let engine = makeEngine(makeTestConfig(), store: store, tart: tart)
+        engine.lifecycleDrainTimeout = .milliseconds(200)
+        await engine.start()
+        let deadline = Date().addingTimeInterval(5)
+        while !tart.isBlockedInIP && Date() < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(tart.isBlockedInIP, "fixture: the lifecycle must be blocked in awaitReady")
+
+        await engine.detachKeepingInstances()
+        let before = store.all.first { $0.id == "kinhin-live" }
+        XCTAssertEqual(before?.phase, .booting, "fixture: blocked mid-boot")
+        let updatedAtBefore = before?.updatedAt
+
+        // The blocked call returns normally — cancellation was already
+        // delivered, so the straggler must exit, not write its result.
+        tart.releaseIP("192.168.64.9")
+        let exitDeadline = Date().addingTimeInterval(2)
+        while engine.lifecycleTasks.withLock({ !$0.isEmpty }) && Date() < exitDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        let after = store.all.first { $0.id == "kinhin-live" }
+        XCTAssertEqual(after?.phase, .booting, "a detached straggler must not re-phase the record")
+        XCTAssertNil(after?.ip, "a detached straggler must not stamp its result into the store")
+        XCTAssertEqual(after?.updatedAt, updatedAtBefore, "no updateRecord write may land after detach")
+        XCTAssertFalse(engine.lifecycleTasks.withLock { $0["kinhin-live"] != nil }, "the straggler exited")
     }
 
     // MARK: - Helpers
@@ -408,4 +550,68 @@ final class ReloadConfigTests: XCTestCase {
         XCTAssertEqual(decoded.method.rawValue, "reload_config")
         XCTAssertNil(decoded.payload)
     }
+}
+
+/// A tart double whose `ip(of:)` parks until told otherwise — models a
+/// shell command that ignores cancellation and ends only on its own
+/// timeout. Everything else mirrors `FakeTart` semantics.
+private final class BlockingTart: TartControlling, @unchecked Sendable {
+    private let lock = NSLock()
+    private var parkedContinuations: [CheckedContinuation<String, Error>] = []
+    var vms: [String: TartVM] = [:]
+
+    var isBlockedInIP: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return !parkedContinuations.isEmpty
+    }
+
+    func releaseIP(_ ip: String) {
+        lock.lock()
+        let parked = parkedContinuations
+        parkedContinuations.removeAll()
+        lock.unlock()
+        for continuation in parked { continuation.resume(returning: ip) }
+    }
+
+    func list() async throws -> [TartVM] {
+        lock.lock(); defer { lock.unlock() }
+        return Array(vms.values)
+    }
+
+    func clone(source: String, to name: String) async throws {
+        lock.lock(); defer { lock.unlock() }
+        vms[name] = TartVM(name: name, source: source, status: "running")
+    }
+
+    func run(name: String, mounts: [String]) async throws {
+        lock.lock(); defer { lock.unlock() }
+        if let vm = vms[name] {
+            vms[name] = TartVM(
+                name: vm.name, source: vm.source, status: "running", cpu: vm.cpu, memoryMB: vm.memoryMB,
+                diskGB: vm.diskGB)
+        }
+    }
+
+    func ip(of name: String, timeout: TimeInterval) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            lock.lock()
+            parkedContinuations.append(continuation)
+            lock.unlock()
+        }
+    }
+
+    func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
+        -> ShellResult
+    {
+        ShellResult(exitCode: 0, stdout: "", stderr: "")
+    }
+
+    func stop(name: String) async throws {}
+
+    func delete(name: String) async throws {
+        lock.lock(); defer { lock.unlock() }
+        vms.removeValue(forKey: name)
+    }
+
+    func pull(image: String) async throws {}
 }

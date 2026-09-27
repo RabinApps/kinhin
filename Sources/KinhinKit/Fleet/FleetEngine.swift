@@ -71,6 +71,9 @@ public final class FleetEngine {
     var reconcileTask: Task<Void, Never>?
     /// One lifecycle task per VM id (removed by the task itself on finish).
     let lifecycleTasks = Mutex<[String: Task<Void, Never>]>([:])
+    /// How long `detachKeepingInstances()` waits for cancelled lifecycle
+    /// tasks before handing the fleet over anyway. Tests shorten it.
+    var lifecycleDrainTimeout: Duration = .seconds(15)
 
     /// Whether the fleet is serving and whether it is paused.
     let runState = Mutex(RunState())
@@ -294,7 +297,22 @@ public final class FleetEngine {
             return was
         }
         guard !alreadyRunning else { return }
+        guard await prepareStart() else { return }
+        await launch()
+    }
 
+    /// Set the run flag without starting anything — the daemon's rebuild
+    /// calls this before `prepareStart()`, mirroring what `start()` does.
+    func markRunning() {
+        runState.withLock { $0.running = true }
+    }
+
+    /// First half of `start()`: verify and attach every configured forge.
+    /// Returns false (engine left stopped, reason in lastError) when no forge
+    /// is usable. Spawns nothing and touches no instance, so the daemon's
+    /// config rebuild can run it while the previous engine still owns the
+    /// fleet. Callers must have set `running = true` first.
+    func prepareStart() async -> Bool {
         if let platform = config.docker?.platform, platform.isEmulated {
             Log.warn("engine", LinuxPlatform.emulationNotice)
         }
@@ -332,13 +350,21 @@ public final class FleetEngine {
                 $0.running = false
                 $0.lastError = message
             }
-            return
+            runState.withLock { $0.running = false }
+            return false
         }
         if let githubProblem {
             // Running on the remaining forge(s): keep the reason visible.
             await statusBox.modify { $0.lastError = "GitHub: \(githubProblem)" }
         }
+        return true
+    }
 
+    /// Second half of `start()`: adopt surviving instances and begin
+    /// reconciling. Run only after `prepareStart()` succeeded — and, on a
+    /// config rebuild, only after the previous engine detached, so no
+    /// instance is ever driven by two engines at once.
+    func launch() async {
         let served = forgeState.withLock { $0.byPlatform.keys.sorted().joined(separator: " + ") }
         Log.info("engine", "starting fleet engine for \(served) (capacity cap: \(capacity.maxConcurrent))")
         await recoverIfNeeded()

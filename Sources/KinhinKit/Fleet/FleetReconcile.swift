@@ -12,26 +12,37 @@ extension FleetEngine {
         Log.info("engine", "reconciling existing instances after (re)start")
         // Enumerate every configured runtime through the protocol — the map
         // (not per-runtime branches) is the source of truth.
-        var existingNames: [String] = []
-        for runtimeInstance in runtimesByRuntime.values {
-            existingNames.append(contentsOf: await runtimeInstance.existingInstanceIDs())
+        // Remember which runtime reported each instance: an adopted or
+        // legacy record must be driven through the runtime that owns it,
+        // not the engine's primary one (mixed fleets).
+        var ownerByName: [String: RuntimeID] = [:]
+        var ours: [String] = []
+        for (runtimeID, runtimeInstance) in runtimesByRuntime.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            for name in await runtimeInstance.existingInstanceIDs() {
+                // "Ours" = instances this build spawns ("kinhin-") plus ones the
+                // pre-rename build spawned ("orchard-") so in-flight VMs are still
+                // recovered, attributed, and cleaned up across the rename.
+                guard name.hasPrefix("kinhin-") || name.hasPrefix("orchard-") else { continue }
+                if ownerByName[name] == nil {
+                    ownerByName[name] = runtimeID
+                    ours.append(name)
+                }
+            }
         }
-        // "Ours" = instances this build spawns ("kinhin-") plus ones the
-        // pre-rename build spawned ("orchard-") so in-flight VMs are still
-        // recovered, attributed, and cleaned up across the rename.
-        let ours = existingNames.filter { $0.hasPrefix("kinhin-") || $0.hasPrefix("orchard-") }
         let records = store.all
 
         // Records whose instance vanished (deleted out-of-band) get dropped.
         var kept: [VMRecord] = []
         for record in records where record.phase.isActive {
-            if ours.contains(where: { $0 == record.id }) {
+            if let owner = ownerByName[record.id] {
                 var r = record
                 // Rebooting engine: restart lifecycle from "booting" if the
                 // instance still exists.
                 if r.phase == .cloning {
                     r.phase = .booting
                 }
+                // Records from builds that did not store a runtime.
+                if r.runtime == nil { r.runtime = owner.rawValue }
                 kept.append(r)
             } else {
                 Log.warn("engine", "record for \(record.id) has no matching instance; dropping")
@@ -40,9 +51,10 @@ extension FleetEngine {
 
         // Instances of ours with no record: adopt them, then decide below.
         for name in ours where !kept.contains(where: { $0.id == name }) {
-            Log.info("engine", "adopting existing instance \(name)")
+            guard let owner = ownerByName[name] else { continue }
+            Log.info("engine", "adopting existing instance \(name) (\(owner.rawValue))")
             var adopted = VMRecord(id: name, phase: .booting, createdAt: Date())
-            adopted.runtime = runtime.id.rawValue
+            adopted.runtime = owner.rawValue
             kept.append(adopted)
         }
 
