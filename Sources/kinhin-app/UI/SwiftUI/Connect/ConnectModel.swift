@@ -140,22 +140,44 @@ final class ConnectModel {
         onChanged?()
     }
 
-    /// Confirms a pending deselect: removes the forge's config entry and
-    /// token (the card's `deselect`), then closes its card.
-    func confirmDeselect() {
-        guard let forge = pendingDeselect else { return }
+    /// Confirms the removal shown by the alert: deletes the forge's config
+    /// entry and Keychain token, then closes its card. `forge` is captured
+    /// when the alert is presented, because the dismissal binding can clear
+    /// `pendingDeselect` before the button action runs. A failed removal
+    /// keeps the card open with the error on its status line so it can be
+    /// retried — nothing is half-removed.
+    func confirmDeselect(_ forge: ForgeID?) {
+        guard let forge, selected.contains(forge) else { return }
         pendingDeselect = nil
         if let card = cards[forge] {
-            try? card.deselect()  // failed writes surface on the card's status
+            do {
+                try card.deselect()
+            } catch {
+                return  // the card's status line shows the error
+            }
         }
         cards[forge] = nil
         selected.remove(forge)
         onChanged?()
     }
 
+    /// Confirms the currently staged deselect (tests and programmatic use).
+    func confirmDeselect() {
+        confirmDeselect(pendingDeselect)
+    }
+
     /// Cancels a pending deselect (the user backed out).
     func cancelDeselect() {
         pendingDeselect = nil
+    }
+
+    /// The deselect entry point the view uses (forge chips and each card's
+    /// Remove button). A forge with saved config or token stages
+    /// `pendingDeselect` so the view can confirm; one with nothing saved is
+    /// hidden right away.
+    func requestDeselect(_ forge: ForgeID) {
+        guard isSelected(forge) else { return }
+        setSelected(false, for: forge)
     }
 
     // MARK: Loading

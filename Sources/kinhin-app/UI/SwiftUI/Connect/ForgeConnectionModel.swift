@@ -377,17 +377,24 @@ final class ForgeConnectionModel {
             || (forge == .gitea || forge == .forgejo ? lastWrittenGitea != nil : !lastWrittenScope.isEmpty)
     }
 
-    /// Removes the forge's config entry and Keychain token.
+    /// Removes the forge's config entry and Keychain token. A failed config
+    /// write shows on the card's status line and rethrows, so the caller can
+    /// keep the card open for a retry instead of half-removing the forge.
     func deselect() throws {
-        switch forge {
-        case .github:
-            // Reset to the template so the file stays valid and "no repo"
-            // reads back as unconfigured.
-            try GeneralConfigEditor.apply(.repo(ConfigLoader.templateRepo), to: configURL)
-        case .gitea, .forgejo:
-            try GeneralConfigEditor.apply(.gitea(nil), to: configURL)
-        case .gitlab:
-            try AccountsConfigEditor.remove(name: Self.gitlabAccountName, at: configURL)
+        do {
+            switch forge {
+            case .github:
+                // Reset to the template so the file stays valid and "no repo"
+                // reads back as unconfigured.
+                try GeneralConfigEditor.apply(.repo(ConfigLoader.templateRepo), to: configURL)
+            case .gitea, .forgejo:
+                try GeneralConfigEditor.apply(.gitea(nil), to: configURL)
+            case .gitlab:
+                try AccountsConfigEditor.remove(name: Self.gitlabAccountName, at: configURL)
+            }
+        } catch {
+            status = Line(text: "Couldn't remove — \(error.localizedDescription)", style: .error)
+            throw error
         }
         deleteToken()
         tokenStored = false

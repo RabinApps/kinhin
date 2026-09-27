@@ -83,12 +83,17 @@ final class ConnectModelTests: XCTestCase {
     func testDeselectingAConfiguredForgeAsksForConfirmation() async throws {
         try GeneralConfigEditor.apply(.gitea(.init(instance: "https://git.example.com", scope: "team/repo")), to: url)
         let model = makeModel()
-        await settle(model) { model.isSelected(.gitea) }
-        model.setSelected(false, for: .gitea)
+        var deleted: [ForgeID] = []
+        model.deleteToken = { deleted.append($0) }
+        // The commit lands in a later render pass than the selection, so
+        // settle on committed state or the confirm would find nothing saved.
+        await settle(model) { model.isSelected(.gitea) && model.card(for: .gitea)?.hasCommittedState == true }
+        model.requestDeselect(.gitea)
         XCTAssertEqual(model.pendingDeselect, .gitea, "saved config: confirm before removing")
         XCTAssertTrue(model.isSelected(.gitea), "the card stays until confirmed")
 
         model.confirmDeselect()
+        XCTAssertEqual(deleted, [.gitea], "confirming also removes the Keychain token")
         XCTAssertNil(model.pendingDeselect)
         XCTAssertFalse(model.isSelected(.gitea))
         XCTAssertNil(model.card(for: .gitea))
@@ -100,7 +105,7 @@ final class ConnectModelTests: XCTestCase {
         model.setSelected(true, for: .gitlab)
         // Let the card's async render settle so token state is known.
         try await Task.sleep(nanoseconds: 100_000_000)
-        model.setSelected(false, for: .gitlab)
+        model.requestDeselect(.gitlab)
         XCTAssertNil(model.pendingDeselect, "nothing was saved, so no confirmation")
         XCTAssertNil(model.card(for: .gitlab))
     }
@@ -108,8 +113,9 @@ final class ConnectModelTests: XCTestCase {
     func testCancellingTheDeselectKeepsTheCard() async throws {
         try GeneralConfigEditor.apply(.gitea(.init(instance: "https://git.example.com", scope: "team/repo")), to: url)
         let model = makeModel()
-        await settle(model) { model.isSelected(.gitea) }
-        model.setSelected(false, for: .gitea)
+        await settle(model) { model.isSelected(.gitea) && model.card(for: .gitea)?.hasCommittedState == true }
+        model.requestDeselect(.gitea)
+        XCTAssertEqual(model.pendingDeselect, .gitea)
         model.cancelDeselect()
         XCTAssertNil(model.pendingDeselect)
         XCTAssertTrue(model.isSelected(.gitea))
@@ -122,12 +128,59 @@ final class ConnectModelTests: XCTestCase {
         var deleted: [ForgeID] = []
         let model = makeModel()
         model.deleteToken = { deleted.append($0) }
-        await settle(model) { model.isSelected(.gitlab) }
-        model.setSelected(false, for: .gitlab)
+        await settle(model) { model.isSelected(.gitlab) && model.card(for: .gitlab)?.hasCommittedState == true }
+        model.requestDeselect(.gitlab)
         model.confirmDeselect()
-        let names = try AccountsConfigEditor.accounts(at: url).map(\.name)
-        XCTAssertFalse(names.contains("gitlab"))
+        let forges = try AccountsConfigEditor.accounts(at: url).map(\.forge)
+        XCTAssertFalse(forges.contains(.gitlab))
         XCTAssertEqual(deleted, [.gitlab])
+    }
+
+    /// Regression: the alert's dismissal binding can clear `pendingDeselect`
+    /// before the confirm button's action runs, so the view captures the
+    /// staged forge when the alert is presented and passes it back in.
+    func testConfirmingAfterTheAlertClearedTheStagedForgeStillRemovesIt() async throws {
+        try AccountsConfigEditor.add(
+            AccountConfig(name: "gitlab", forge: .gitlab, scope: "acme/api"), to: url)
+        var deleted: [ForgeID] = []
+        let model = makeModel()
+        model.deleteToken = { deleted.append($0) }
+        await settle(model) { model.isSelected(.gitlab) && model.card(for: .gitlab)?.hasCommittedState == true }
+        model.requestDeselect(.gitlab)
+        XCTAssertEqual(model.pendingDeselect, .gitlab)
+
+        // Simulate the alert order: dismissal first, then the confirm action.
+        model.cancelDeselect()
+        model.confirmDeselect(.gitlab)
+        let forges = try AccountsConfigEditor.accounts(at: url).map(\.forge)
+        XCTAssertFalse(forges.contains(.gitlab))
+        XCTAssertEqual(deleted, [.gitlab])
+        XCTAssertFalse(model.isSelected(.gitlab))
+    }
+
+    /// A failed removal (config write error) must not hide the card or
+    /// orphan the Keychain token: the error shows on the card's status line
+    /// and the forge stays so the user can retry.
+    func testFailedDeselectKeepsTheCardAndShowsTheError() async throws {
+        try GeneralConfigEditor.apply(.gitea(.init(instance: "https://git.example.com", scope: "team/repo")), to: url)
+        let model = makeModel()
+        var deleted: [ForgeID] = []
+        model.deleteToken = { deleted.append($0) }
+        await settle(model) { model.isSelected(.gitea) && model.card(for: .gitea)?.hasCommittedState == true }
+
+        // Make the config write fail for this one deselect.
+        model.configURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kinhin-missing-\(UUID().uuidString).yaml")
+        model.requestDeselect(.gitea)
+        model.confirmDeselect()
+
+        XCTAssertNil(model.pendingDeselect)
+        XCTAssertTrue(model.isSelected(.gitea), "the card stays so the removal can be retried")
+        XCTAssertNotNil(model.card(for: .gitea))
+        XCTAssertEqual(deleted, [], "the token must not be deleted when the config write failed")
+        XCTAssertTrue(
+            model.card(for: .gitea)?.status.text.contains("Couldn't remove") == true,
+            "the error is visible on the card: \(model.card(for: .gitea)?.status.text ?? "")")
     }
 
     // MARK: isConnected

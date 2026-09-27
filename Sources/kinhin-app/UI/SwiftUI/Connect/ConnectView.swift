@@ -7,14 +7,13 @@ import SwiftUI
 /// token-requirements hint.
 struct ConnectView: View {
     @Bindable var model: ConnectModel
-    @State private var confirmingDeselect: ForgeID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             selector
             ForEach(ConnectModel.allForges, id: \.self) { forge in
                 if let card = model.card(for: forge) {
-                    ForgeCard(model: card, onDeselect: { confirmingDeselect = forge })
+                    ForgeCard(model: card, onDeselect: { model.requestDeselect(forge) })
                         .transition(.opacity)
                 }
             }
@@ -26,9 +25,14 @@ struct ConnectView: View {
             "Stop serving \(model.pendingDeselect?.displayName ?? "")?",
             isPresented: Binding(
                 get: { model.pendingDeselect != nil },
-                set: { _ in model.cancelDeselect() })
+                set: { presenting in
+                    if !presenting { model.cancelDeselect() }
+                })
         ) {
-            Button("Remove account and token", role: .destructive) { model.confirmDeselect() }
+            // Captured when the alert is presented: the dismissal binding can
+            // clear `pendingDeselect` before the button action runs.
+            let staged = model.pendingDeselect
+            Button("Remove account and token", role: .destructive) { model.confirmDeselect(staged) }
             Button("Cancel", role: .cancel) { model.cancelDeselect() }
         } message: {
             Text("This removes its account and token.")
