@@ -90,6 +90,64 @@ final class AccountsModelTests: XCTestCase {
         XCTAssertEqual(model.addStatus.style, .ok)
     }
 
+    func testForgejoAccountAlsoNeedsAServerAddress() {
+        let model = makeModel()
+        add(model, name: "fj", forge: .forgejo, scope: "me")
+        XCTAssertEqual(model.addStatus.style, .error)
+        model.newInstance = "https://forge.lan"
+        model.addAccount()
+        XCTAssertEqual(model.addStatus.style, .ok)
+        let account = try! AccountsConfigEditor.accounts(at: url).first { $0.name == "fj" }
+        XCTAssertEqual(account?.forge, .forgejo)
+        XCTAssertEqual(account?.instance, "https://forge.lan")
+    }
+
+    func testGitLabAccountAddsInTheGitLabComDefaultWithoutAServer() async {
+        let model = makeModel()
+        add(model, name: "gitlab", forge: .gitlab, scope: "acme/platform/api")
+        await settle(model) { !model.rows.isEmpty }
+        XCTAssertEqual(model.addStatus.style, .ok)
+        let account = try! AccountsConfigEditor.accounts(at: url).first { $0.name == "gitlab" }
+        XCTAssertEqual(account?.forge, .gitlab)
+        XCTAssertNil(account?.instance, "blank → gitlab.com")
+    }
+
+    func testGitLabInstanceIsKeptWhenTyped() async {
+        let model = makeModel()
+        model.newInstance = "https://git.example.com/gitlab"
+        add(model, name: "gl", forge: .gitlab, scope: "acme/api")
+        await settle(model) { !model.rows.isEmpty }
+        XCTAssertEqual(
+            try! AccountsConfigEditor.accounts(at: url).first { $0.name == "gl" }?.instance,
+            "https://git.example.com/gitlab")
+    }
+
+    func testForgeRequirementsCoverEveryForge() {
+        let model = makeModel()
+        let github = model.requirements(for: .github, scope: "acme/widgets", instance: nil)
+        XCTAssertTrue(github.title.contains("GitHub"))
+        let gitea = model.requirements(for: .gitea, scope: "me", instance: "https://git.lan")
+        XCTAssertTrue(gitea.options.first?.url.contains("git.lan") == true)
+        let gitlab = model.requirements(for: .gitlab, scope: "acme/api", instance: nil)
+        XCTAssertTrue(
+            gitlab.options.contains { $0.permissions.contains { $0.contains("create_runner") } },
+            "the GitLab hint names the runner scopes")
+        XCTAssertEqual(
+            model.requirements(for: .forgejo, scope: "me", instance: nil).title,
+            model.requirements(for: .gitea, scope: "me", instance: nil).title,
+            "Forgejo shares the Gitea hint")
+    }
+
+    func testScopeAndInstancePlaceholdersPerForge() {
+        let model = makeModel()
+        XCTAssertEqual(model.scopePlaceholder(for: .gitlab), "group/subgroup or group/project")
+        XCTAssertEqual(model.scopePlaceholder(for: .github), "owner/name, or an org")
+        XCTAssertNil(model.instancePlaceholder(for: .github))
+        XCTAssertEqual(model.instancePlaceholder(for: .gitlab), "https://gitlab.com (optional)")
+        XCTAssertFalse(model.instanceRequired(for: .gitlab))
+        XCTAssertTrue(model.instanceRequired(for: .forgejo))
+    }
+
     func testReloadShowsTokenState() async throws {
         try AccountsConfigEditor.add(AccountConfig(name: "work", forge: .github, scope: "bigco"), to: url)
         try AccountsConfigEditor.add(AccountConfig(name: "side", forge: .github, scope: "me/x"), to: url)

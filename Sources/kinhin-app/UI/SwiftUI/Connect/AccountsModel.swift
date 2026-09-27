@@ -3,9 +3,10 @@ import KinhinKit
 import Observation
 
 /// State and actions behind the "More accounts" section of the Connect form:
-/// any number of extra GitHub or Gitea accounts, each with its own scope and
-/// Keychain token. (The two top-level cards keep the original `repo:` and
-/// `gitea:` accounts.) Config writes go through `AccountsConfigEditor`.
+/// any number of extra accounts, of every forge, each with its own scope,
+/// optional instance, and Keychain token. (The two top-level cards keep the
+/// original `repo:` and `gitea:` accounts.) Config writes go through
+/// `AccountsConfigEditor`.
 @MainActor
 @Observable
 final class AccountsModel {
@@ -47,6 +48,8 @@ final class AccountsModel {
     /// Pasted-token text per account name.
     var tokenTexts: [String: String] = [:]
 
+    /// The forges the add form offers, in fixed display order.
+    let forgeOptions: [ForgeID] = [.github, .gitlab, .gitea, .forgejo]
     var newForge: ForgeID = .github
     var newName = ""
     var newScope = ""
@@ -54,6 +57,42 @@ final class AccountsModel {
     private(set) var addStatus = StatusLine(text: "")
 
     private static let storedText = "Token stored in your Keychain ✓ — paste a new one only to replace it."
+
+    // MARK: Forge-specific add-form text
+
+    /// The scope field's prompt: GitLab scopes nest.
+    func scopePlaceholder(for forge: ForgeID) -> String {
+        forge == .gitlab ? "group/subgroup or group/project" : "owner/name, or an org"
+    }
+
+    /// The instance field's prompt, or nil when the forge has no field
+    /// (GitHub tokens work without one; GitLab defaults to gitlab.com).
+    func instancePlaceholder(for forge: ForgeID) -> String? {
+        switch forge {
+        case .github: return nil
+        case .gitea, .forgejo: return "https://gitea.example.com"
+        case .gitlab: return "https://gitlab.com (optional)"
+        }
+    }
+
+    /// Self-hosted forges need a server address before the account makes sense.
+    func instanceRequired(for forge: ForgeID) -> Bool {
+        forge == .gitea || forge == .forgejo
+    }
+
+    /// What the new account's token will need, shown as the form's hint.
+    func requirements(for forge: ForgeID, scope: String, instance: String?) -> TokenRequirements {
+        let scope = scope.trimmingCharacters(in: .whitespaces)
+        let filled = (instance ?? "").trimmingCharacters(in: .whitespaces)
+        switch forge {
+        case .github:
+            return TokenRequirements.github(scope: scope)
+        case .gitea, .forgejo:
+            return TokenRequirements.gitea(scope: scope, instance: filled.isEmpty ? nil : filled)
+        case .gitlab:
+            return TokenRequirements.gitlab(scope: scope, instance: filled.isEmpty ? nil : filled)
+        }
+    }
 
     // MARK: Loading
 
@@ -106,8 +145,16 @@ final class AccountsModel {
         let name = newName.trimmingCharacters(in: .whitespaces).lowercased()
         let scope = newScope.trimmingCharacters(in: .whitespaces)
         let instance = newInstance.trimmingCharacters(in: .whitespaces)
+        if instanceRequired(for: newForge), instance.isEmpty {
+            addStatus = StatusLine(text: "Not added — enter the \(newForge.displayName) server address.", style: .error)
+            return
+        }
+        // Only forges with a server address store one; GitHub ignores it, and
+        // a blank GitLab instance means gitlab.com.
+        let usesInstance = newForge != .github
         let account = AccountConfig(
-            name: name, forge: newForge, scope: scope, instance: newForge == .gitea ? instance : nil)
+            name: name, forge: newForge, scope: scope,
+            instance: usesInstance && !instance.isEmpty ? instance : nil)
         do {
             try AccountsConfigEditor.add(account, to: configURL)
         } catch {
@@ -187,7 +234,7 @@ final class AccountsModel {
             let report = await OrgPermissionProbe.verify(github: client, scope: account.scope)
             return StatusLine(text: report.message, style: report.ok ? .ok : .error)
         case .gitea, .forgejo:
-            guard let instance = account.instance else {
+            guard let instance = account.instance, !instance.isEmpty else {
                 return StatusLine(text: "This account has no server address in config.yaml.", style: .error)
             }
             let report = await TokenHealthCheck.gitea(

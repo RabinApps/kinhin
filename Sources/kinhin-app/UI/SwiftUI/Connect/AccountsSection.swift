@@ -1,15 +1,16 @@
 import KinhinKit
 import SwiftUI
 
-/// "More accounts": extra GitHub or Gitea accounts beyond the two cards
-/// above, each with its own token.
+/// "More accounts": extra accounts of every forge beyond the two cards
+/// above, each with its own token, scope and (where applicable) server.
 struct AccountsSection: View {
     @Bindable var model: AccountsModel
 
     var body: some View {
         FormCard(
             title: "More accounts",
-            subtitle: "Serve additional GitHub or Gitea accounts (another org, a second server) with their own tokens."
+            subtitle:
+                "Serve additional accounts (another org, a second server, a GitLab group) with their own tokens."
         ) {
             ForEach(model.rows) { row in
                 accountRow(row)
@@ -54,8 +55,9 @@ struct AccountsSection: View {
             Text("Add an account").font(.system(size: 12, weight: .semibold))
             HStack(spacing: 8) {
                 Picker("", selection: $model.newForge) {
-                    Text("GitHub").tag(ForgeID.github)
-                    Text("Gitea").tag(ForgeID.gitea)
+                    ForEach(model.forgeOptions, id: \.self) { forge in
+                        Text(forge.displayName).tag(forge)
+                    }
                 }
                 .labelsHidden()
                 .frame(width: 90)
@@ -65,19 +67,24 @@ struct AccountsSection: View {
                     .frame(width: 130)
                     .accessibilityIdentifier("account-new-name")
                     .accessibilityLabel("New account name")
-                TextField("", text: $model.newScope, prompt: Text(verbatim: "owner/name, or an org"))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 170)
-                    .accessibilityIdentifier("account-new-scope")
-                    .accessibilityLabel("New account repository or organization")
+                TextField(
+                    "", text: $model.newScope, prompt: Text(verbatim: model.scopePlaceholder(for: model.newForge))
+                )
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 170)
+                .accessibilityIdentifier("account-new-scope")
+                .accessibilityLabel("New account repository or organization")
             }
-            if model.newForge == .gitea {
-                TextField("", text: $model.newInstance, prompt: Text(verbatim: "https://gitea.example.com"))
+            if let instancePlaceholder = model.instancePlaceholder(for: model.newForge) {
+                TextField("", text: $model.newInstance, prompt: Text(verbatim: instancePlaceholder))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 300)
                     .accessibilityIdentifier("account-new-instance")
-                    .accessibilityLabel("New account Gitea server address")
+                    .accessibilityLabel("New account server address")
             }
+            TokenRequirementsView(
+                requirements: model.requirements(
+                    for: model.newForge, scope: model.newScope, instance: model.newInstance))
             HStack(spacing: 8) {
                 Button("Add account") { model.addAccount() }
                     .accessibilityIdentifier("account-add")
@@ -89,7 +96,7 @@ struct AccountsSection: View {
     }
 
     private func describe(_ account: AccountConfig) -> String {
-        let forge = account.forge == .github ? "GitHub" : "Gitea"
+        let forge = account.forge.displayName
         return account.instance.map { "\(forge) · \(account.scope) @ \($0)" } ?? "\(forge) · \(account.scope)"
     }
 }
