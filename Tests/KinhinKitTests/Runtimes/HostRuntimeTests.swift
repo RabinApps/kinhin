@@ -160,11 +160,11 @@ final class HostRuntimeTests: XCTestCase {
     func testGiteaRegistrationScriptRunsTheDaemonOnTheHost() async throws {
         let (runtime, _, agentDir) = makeRuntime()
         let script = try await runtime.registrationScript(
-            forge: giteaForge(), token: "ignored", name: "kinhin-g1", runnerCount: 1, route: route, labels: nil)
+            forge: giteaForge(), token: "reg", name: "kinhin-g1", runnerCount: 1, route: route, labels: nil)
         XCTAssertTrue(script.contains(agentDir.appendingPathComponent("gitea-runner").path))
         XCTAssertTrue(script.contains("register --no-interactive"))
         XCTAssertTrue(script.contains("--instance 'https://gitea.example.com'"))
-        XCTAssertTrue(script.contains("--token 'reg'"), "the forge's long-lived registration token is used")
+        XCTAssertTrue(script.contains("--token 'reg'"), "the engine-supplied registration token is used")
         XCTAssertTrue(script.contains("--name 'kinhin-g1'"))
         XCTAssertTrue(script.contains("--labels 'macos:host,kinhin-host:host'"), script)
         XCTAssertTrue(script.contains("host-instances/kinhin-g1/gitea-1"), "state lives in the scrubbed instance dir")

@@ -103,6 +103,8 @@ final class DualForgeTests: XCTestCase {
             .gitea(token: "t", scope: "team/repo", instance: "https://git.example.com")
         }
         var labels: [String] { ["macos:host"] }
+        var registration: ForgeRegistration { .sharedLongLived }
+        var exitSemantics: ForgeExitSemantics { .idleGrace }
         func registrationURL() -> String { "https://git.example.com" }
         func mintRegistrationToken() async throws -> String { "rt" }
         func runners() async throws -> [ForgeRunner] { [] }

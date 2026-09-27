@@ -122,10 +122,10 @@ final class MultiAccountEngineTests: XCTestCase {
         let workBefore = engine.forges["work"] as? GitHubForge
         await engine.replaceToken(account: "side", token: "s2")
         let side = engine.forges["side"] as? GitHubForge
-        XCTAssertEqual(side.map { ForgeFactory.token(of: $0.credentials) }, "s2")
+        XCTAssertEqual(side.map { $0.credentials.token }, "s2")
         XCTAssertEqual(
-            (engine.forges["work"] as? GitHubForge).map { ForgeFactory.token(of: $0.credentials) },
-            workBefore.map { ForgeFactory.token(of: $0.credentials) })
+            (engine.forges["work"] as? GitHubForge).map { $0.credentials.token },
+            workBefore.map { $0.credentials.token })
         await engine.stop()
     }
 

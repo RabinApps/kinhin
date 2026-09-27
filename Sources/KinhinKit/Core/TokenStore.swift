@@ -5,9 +5,9 @@ import Security
 /// so neither the config file nor logs ever contain the secret.
 public enum KeychainTokenStore {
     public static let account = "github-pat"
-    /// Account name for a forge's token ("github-pat", "gitea-pat").
+    /// Account name for a forge's token ("github-pat", "gitea-pat", …).
     public static func account(for forge: ForgeID) -> String {
-        forge == .github ? "github-pat" : "gitea-pat"
+        "\(forge.rawValue)-pat"
     }
 
     /// Name of the account that legacy single-account configs map to: the
@@ -89,6 +89,9 @@ public enum KeychainTokenStore {
         if let token = try load(from: service, account: account) {
             return token
         }
+        if forge == .forgejo, let token = try migrateForgejoItem(name: name) {
+            return token
+        }
         // One-time legacy migration: re-save under the current service, then
         // drop the pre-rename item so it never lingers in the Keychain.
         guard serviceOverride == nil,
@@ -102,6 +105,25 @@ public enum KeychainTokenStore {
             Log.warn("keychain", "legacy token migration failed: \(error.localizedDescription)")
         }
         return legacy
+    }
+
+    /// Forgejo tokens used to be stored under Gitea's Keychain items
+    /// ("gitea-pat", "gitea-pat:NAME"). Copy one into Forgejo's own item on
+    /// first load. A named account's old item belonged to it alone and is
+    /// removed; the legacy "gitea-pat" item may also be the `gitea:` token,
+    /// so it stays.
+    private static func migrateForgejoItem(name: String) throws -> String? {
+        let isLegacy = name == legacyAccountName(for: .forgejo)
+        let oldAccount = isLegacy ? account(for: .gitea) : "\(account(for: .gitea)):\(name)"
+        guard let token = try load(from: service, account: oldAccount) else { return nil }
+        do {
+            try save(token, forge: .forgejo, name: name)
+            if !isLegacy { delete(from: service, account: oldAccount) }
+        } catch {
+            // Keep reading the old item so the token is not lost; retry next load.
+            Log.warn("keychain", "forgejo token migration failed: \(error.localizedDescription)")
+        }
+        return token
     }
 
     private static func load(from service: String, account: String) throws -> String? {

@@ -175,13 +175,10 @@ public struct DockerRuntime: Runtime {
                 )
         case .gitea, .forgejo:
             // Forgejo shares Gitea's runner binary and registration flow.
-            guard let giteaFamilyForge = forge as? GiteaForge else {
-                throw RuntimeWatchError.registrationFailed(vm: name, stderr: "gitea-family forge misconfigured")
-            }
             return cachePrefix
                 + RunnerBootstrap.linuxGiteaRegistrationScript(
-                    instance: giteaFamilyForge.registrationURL(),
-                    token: giteaFamilyForge.registrationToken,
+                    instance: forge.registrationURL(),
+                    token: token,
                     labels: forge.labels,
                     name: name,
                     runnerCount: runnerCount

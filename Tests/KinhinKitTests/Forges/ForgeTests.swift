@@ -404,4 +404,22 @@ final class ForgeTests: XCTestCase {
         XCTAssertEqual(versions.github, "2.337.0")
         XCTAssertEqual(versions.gitea, "3.5.0")
     }
+
+    // MARK: Shared behavior
+
+    func testScopeAttributionFollowsTheScopeShape() {
+        let org = GitHubForge(credentials: GitHubCredentials(token: "t", scope: "acme"), labels: [])
+        let repo = GitHubForge(credentials: GitHubCredentials(token: "t", scope: "acme/widgets"), labels: [])
+        XCTAssertTrue(org.attributesByRepo)
+        XCTAssertFalse(repo.attributesByRepo)
+        XCTAssertEqual(repo.scope, "acme/widgets")
+        XCTAssertEqual(org.registration, .sharedShortLived)
+        XCTAssertEqual(org.exitSemantics, .deregisters)
+    }
+
+    func testRunnerNamesPerInstance() {
+        XCTAssertEqual(FleetEngine.runnerNames(for: "kinhin-1", count: 1), ["kinhin-1"])
+        XCTAssertEqual(FleetEngine.runnerNames(for: "kinhin-1", count: 0), ["kinhin-1"])
+        XCTAssertEqual(FleetEngine.runnerNames(for: "kinhin-1", count: 2), ["kinhin-1-r1", "kinhin-1-r2"])
+    }
 }

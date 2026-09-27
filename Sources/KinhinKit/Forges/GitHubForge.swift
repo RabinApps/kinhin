@@ -10,6 +10,8 @@ struct GitHubForge: Forge {
     public let account: String
     public let credentials: ForgeCredentials
     public let labels: [String]
+    public let registration: ForgeRegistration = .sharedShortLived
+    public let exitSemantics: ForgeExitSemantics = .deregisters
     let client: GitHubServing
 
     public init(credentials: ForgeCredentials, labels: [String], client: GitHubServing, account: String = "github") {

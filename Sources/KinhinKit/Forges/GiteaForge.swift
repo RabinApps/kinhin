@@ -15,6 +15,8 @@ struct GiteaForge: Forge {
     public let account: String
     public let credentials: ForgeCredentials
     public let labels: [String]
+    public let registration: ForgeRegistration = .sharedLongLived
+    public let exitSemantics: ForgeExitSemantics = .idleGrace
     let client: GiteaClient
     /// Demand floor: when the task-count endpoint reports 0 but the instance
     /// has busy runners, wait on the floor instead of scaling to zero.

@@ -108,13 +108,7 @@ extension FleetEngine {
                     let jobs = try await forge.queuedJobs()
                     // Org-scope forges contribute repo attribution; repo-scope
                     // forges suppress it (breakdown would carry no info).
-                    let scope =
-                        switch forge.credentials {
-                        case .github(_, let s): s
-                        case .gitea(_, let s, _): s
-                        case .forgejo(_, let s, _): s
-                        }
-                    perForgeJobs[forge.account] = (!scope.contains("/"), jobs)
+                    perForgeJobs[forge.account] = (forge.attributesByRepo, jobs)
                     demandByForge[forge.account] = jobs.count
                     queueDepth += jobs.count
                     // Stage 2: bucket the same jobs into label pools so the

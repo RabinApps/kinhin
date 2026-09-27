@@ -81,11 +81,8 @@ final class HostRuntime: Runtime {
             break
         case .gitea, .forgejo:
             // Forgejo shares Gitea's runner binary and registration flow.
-            guard let giteaFamilyForge = forge as? GiteaForge else {
-                throw EngineError.registrationFailed(vm: name, stderr: "gitea-family forge misconfigured")
-            }
             return giteaRegistrationScript(
-                instance: giteaFamilyForge.registrationURL(), token: giteaFamilyForge.registrationToken,
+                instance: forge.registrationURL(), token: token,
                 labels: forge.labels, name: name, runnerCount: runnerCount)
         }
         let workDir = workDirectory(for: name)

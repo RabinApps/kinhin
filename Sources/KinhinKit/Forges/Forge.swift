@@ -24,6 +24,40 @@ public enum ForgeCredentials: Sendable {
         case .forgejo: return .forgejo
         }
     }
+
+    public var token: String {
+        switch self {
+        case .github(let token, _), .gitea(let token, _, _), .forgejo(let token, _, _): return token
+        }
+    }
+
+    /// "owner/name" (one repository) or an org name.
+    public var scope: String {
+        switch self {
+        case .github(_, let scope), .gitea(_, let scope, _), .forgejo(_, let scope, _): return scope
+        }
+    }
+}
+
+// MARK: - Forge behavior
+
+/// How a forge hands out runner registration credentials.
+public enum ForgeRegistration: Sendable {
+    /// One short-lived token shared by every runner (GitHub, ~1 h); the
+    /// engine caches it per account.
+    case sharedShortLived
+    /// One long-lived token captured when the forge was built (Gitea family).
+    case sharedLongLived
+}
+
+/// What tells the engine that an ephemeral instance's jobs are done.
+public enum ForgeExitSemantics: Sendable {
+    /// Runners deregister themselves after their job (GitHub `--ephemeral`):
+    /// the instance goes once every runner has come and gone.
+    case deregisters
+    /// Runner daemons stay registered (Gitea family): "busy, then idle for a
+    /// grace period" is the job-done signal.
+    case idleGrace
 }
 
 // MARK: - Protocol
@@ -42,6 +76,10 @@ public protocol Forge: Sendable {
     var account: String { get }
     /// Labels the fleet matches jobs against on this forge.
     var labels: [String] { get }
+    /// How runner registration credentials are obtained.
+    var registration: ForgeRegistration { get }
+    /// How the engine detects that an ephemeral instance is finished.
+    var exitSemantics: ForgeExitSemantics { get }
 
     /// The URL the in-VM bootstrap uses to register (GitHub: configure URL;
     /// Gitea: instance URL).
@@ -59,6 +97,13 @@ public protocol Forge: Sendable {
 
 extension Forge {
     public var account: String { id.rawValue }
+
+    /// The scope this forge serves ("owner/name" or an org).
+    public var scope: String { credentials.scope }
+
+    /// Org-scoped forges report a per-repo queue breakdown; a single-repo
+    /// scope suppresses it (the breakdown would carry no information).
+    public var attributesByRepo: Bool { !scope.contains("/") }
 }
 
 /// Forge-agnostic runner snapshot.
@@ -66,11 +111,16 @@ public struct ForgeRunner: Sendable, Equatable {
     public let id: Int
     public let name: String
     public let busy: Bool
+    /// False while the runner exists on the forge but its agent has never
+    /// connected (forges that create runners before the agent starts). The
+    /// ephemeral watch only counts a runner as registered once it is online.
+    public let online: Bool
 
-    public init(id: Int, name: String, busy: Bool) {
+    public init(id: Int, name: String, busy: Bool, online: Bool = true) {
         self.id = id
         self.name = name
         self.busy = busy
+        self.online = online
     }
 }
 

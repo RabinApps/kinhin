@@ -126,4 +126,23 @@ final class ForgejoConfigTests: XCTestCase {
             route: RepoRoute(repo: "acme", image: "img", ephemeral: true, bootTimeout: 300), labels: nil)
         XCTAssertTrue(script.contains("--instance 'https://code.example.com'"))
     }
+
+    // MARK: Registration on every runtime
+
+    /// Forgejo used to fail registration: the engine and the runtimes cast
+    /// the forge to `GiteaForge`, which a `ForgejoForge` is not.
+    func testForgejoRegistersWithTheGiteaFamilyFlow() async throws {
+        let forge = makeStubbedForgejoForge()
+        XCTAssertEqual(forge.registration, .sharedLongLived)
+        XCTAssertEqual(forge.exitSemantics, .idleGrace)
+        let token = try await forge.mintRegistrationToken()
+        XCTAssertEqual(token, "reg")
+
+        let route = RepoRoute(repo: "acme", image: "img", ephemeral: true, bootTimeout: 300)
+        let docker = DockerRuntime(shell: FakeShell(), image: "img", cpus: 2, memoryGB: 4)
+        let script = try await docker.registrationScript(
+            forge: forge, token: token, name: "kinhin-1", runnerCount: 1, route: route, labels: nil)
+        XCTAssertTrue(script.contains("https://code.example.com"))
+        XCTAssertTrue(script.contains("reg"))
+    }
 }

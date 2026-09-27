@@ -12,6 +12,8 @@ struct ForgejoForge: Forge {
     public let account: String
     public let credentials: ForgeCredentials
     public let labels: [String]
+    public let registration: ForgeRegistration = .sharedLongLived
+    public let exitSemantics: ForgeExitSemantics = .idleGrace
     let client: GiteaClient
     let demandFloor: Int
     let registrationToken: String

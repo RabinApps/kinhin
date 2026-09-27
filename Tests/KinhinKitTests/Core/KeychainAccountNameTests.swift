@@ -18,4 +18,12 @@ final class KeychainAccountNameTests: XCTestCase {
             KeychainTokenStore.account(for: .github, name: "work"),
             KeychainTokenStore.account(for: .gitea, name: "work"))
     }
+
+    func testForgejoDoesNotShareGiteasItem() {
+        XCTAssertEqual(KeychainTokenStore.account(for: .forgejo, name: "forgejo"), "forgejo-pat")
+        XCTAssertEqual(KeychainTokenStore.account(for: .forgejo, name: "home"), "forgejo-pat:home")
+        XCTAssertNotEqual(
+            KeychainTokenStore.account(for: .forgejo, name: "forgejo"),
+            KeychainTokenStore.account(for: .gitea, name: "gitea"))
+    }
 }
