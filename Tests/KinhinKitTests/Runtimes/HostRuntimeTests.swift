@@ -155,6 +155,19 @@ final class HostRuntimeTests: XCTestCase {
         return GiteaForge(credentials: credentials, labels: labels, client: client, registrationToken: "reg")
     }
 
+    private func gitlabForge() -> GitLabForge {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        let client = GitLabClient(
+            credentials: GitLabCredentials(token: "glpat", scope: "acme/api", instance: "https://git.example.com"),
+            session: URLSession(configuration: config))
+        return GitLabForge(
+            credentials: .gitlab(token: "glpat", scope: "acme/api", instance: "https://git.example.com"),
+            labels: ["macos"],
+            client: client,
+            scope: .project(id: 7, path: "acme/api"))
+    }
+
     private let route = RepoRoute(repo: "acme", image: "img", ephemeral: true, bootTimeout: 5)
 
     func testGiteaRegistrationScriptRunsTheDaemonOnTheHost() async throws {
@@ -188,6 +201,38 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertTrue(script.contains("--name 'kinhin-g2-r1'"))
         XCTAssertTrue(script.contains("--name 'kinhin-g2-r2'"), "matches the names awaitGiteaExit expects")
         XCTAssertTrue(script.contains("gitea-2"))
+    }
+
+    /// GitLab on the host keeps each runner's builds, cache, log and pid
+    /// inside the instance's scrubbed work dir (like the Gitea daemons).
+    func testGitLabRegistrationScriptStaysInTheScrubbedInstanceDir() async throws {
+        let (runtime, _, agentDir) = makeRuntime()
+        let script = try await runtime.registrationScript(
+            forge: gitlabForge(), token: "", runnerTokens: ["kinhin-gl1": "glrt-1"],
+            name: "kinhin-gl1", runnerCount: 1, route: route, labels: nil)
+        XCTAssertTrue(script.contains(agentDir.appendingPathComponent("gitlab-runner").path), script)
+        XCTAssertTrue(script.contains("run-single --description \"$2\" --executor shell"))
+        XCTAssertTrue(script.contains("--max-builds 1"))
+        // baseDir is an already-quoted shell word, so the joined runner dir
+        // carries a quote seam (`…/kinhin-gl1'/'kinhin-gl1`).
+        XCTAssertTrue(
+            script.contains("host-instances/kinhin-gl1'/'kinhin-gl1"), "state lives in the scrubbed instance dir")
+        XCTAssertTrue(script.contains("printf '%s' 'glrt-1' > token"))
+        XCTAssertTrue(script.contains("runner.pid"), "teardown needs the pid to stop unfinished runners")
+    }
+
+    func testTeardownStopsGitLabRunnersBeforeScrubbing() async throws {
+        let (runtime, shell, _) = makeRuntime()
+        let id = "kinhin-gld\(UUID().uuidString.prefix(6))"
+        try await runtime.provision(id: id, route: route)
+        let instanceDir = runtime.workDirectory(for: id).appendingPathComponent("\(id)-r1", isDirectory: true)
+        try FileManager.default.createDirectory(at: instanceDir, withIntermediateDirectories: true)
+        FileManager.default.createFile(
+            atPath: instanceDir.appendingPathComponent("runner.pid").path, contents: Data("99999".utf8))
+        await runtime.teardown(id: id)
+        let stop = try XCTUnwrap(shell.calls.first { $0.last?.contains("runner.pid") == true }, "\(shell.calls)")
+        XCTAssertTrue(stop.last?.contains("run-single") ?? false, "only kills a pid that is still a run-single process")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: runtime.workDirectory(for: id).path))
     }
 
     func testHostLabelsForceTheHostSchemeAndAddTheMarker() {

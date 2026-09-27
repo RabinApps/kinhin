@@ -140,6 +140,42 @@ final class AppleContainerRuntimeTests: XCTestCase {
         XCTAssertTrue(giteaScript.contains("linux gitea runner(s) started"))
     }
 
+    /// GitLab's per-runner tokens reach the container script (unlike the
+    /// shared-token forges, whose `token` argument is ignored here).
+    func testGitLabRegistrationScriptRunsRunSingleWithTheCacheMount() async throws {
+        let runtime = AppleContainerRuntime(
+            shell: FakeShell(), image: "img", cpus: 2, memoryGB: 4,
+            binPath: "/usr/local/bin/container",
+            toolchainsConfig: { KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true) })
+        let route = RepoRoute(
+            repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30, cacheMount: true)
+        let script = try await runtime.registrationScript(
+            forge: gitlabForge(), token: "", runnerTokens: ["kinhin-1-r1": "glrt-1", "kinhin-1-r2": "glrt-2"],
+            name: "kinhin-1", runnerCount: 2, route: route, labels: nil)
+        XCTAssertTrue(script.contains("/opt/gitlab-runner/gitlab-runner"), script)
+        XCTAssertTrue(script.contains("run-single --description \"$2\" --executor shell"))
+        XCTAssertTrue(script.contains("--max-builds 1"))
+        XCTAssertTrue(script.contains("-X DELETE \"$1/api/v4/runners\""), "the runner deregisters itself")
+        XCTAssertTrue(script.contains("printf '%s' 'glrt-1' > token"), "each runner gets its own token file")
+        XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""), script)
+        XCTAssertTrue(
+            script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "run-single")!.lowerBound,
+            "exports come first")
+    }
+
+    private func gitlabForge() -> GitLabForge {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        let client = GitLabClient(
+            credentials: GitLabCredentials(token: "glpat", scope: "acme/api", instance: "https://git.example.com"),
+            session: URLSession(configuration: config))
+        return GitLabForge(
+            credentials: .gitlab(token: "glpat", scope: "acme/api", instance: "https://git.example.com"),
+            labels: ["linux"],
+            client: client,
+            scope: .project(id: 7, path: "acme/api"))
+    }
+
     // MARK: - Boot wait
 
     func testAwaitRunningPollsUntilContainerAppears() async throws {
