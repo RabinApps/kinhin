@@ -38,7 +38,7 @@ final class WizardModel {
             switch self {
             case .connect:
                 return
-                    "kinhin runs your CI jobs on this Mac. Connect GitHub, a self-hosted Gitea, or both: paste a token, then choose the repository (or organization) to serve."
+                    "kinhin runs your CI jobs on this Mac. Select the forges to serve — GitHub, GitLab, Gitea or Forgejo — then paste a token and choose the repository, project or group to serve for each."
             case .mac:
                 return
                     "Choose what runs your jobs: Linux (Docker or Apple container), macOS virtual machines (tart), or both. You only need one."
@@ -90,7 +90,8 @@ final class WizardModel {
     var missingItems: [String] {
         var missing: [String] = []
         if !connect.isConnected {
-            missing.append("Connect GitHub or Gitea and choose a repository or org (step 1).")
+            missing.append(
+                "Connect GitHub, GitLab, Gitea or Forgejo and choose a repository, project or group (step 1).")
         }
         if !mac.isReady {
             missing.append(
@@ -161,10 +162,12 @@ final class WizardModel {
         let serving =
             repo.isEmpty
             ? (snap?.gitea == nil ? (extra.isEmpty ? "— not chosen yet" : "see accounts") : "Gitea only") : repo
-        var lines = [
-            "Serving:  \(serving)",
-            "Gitea:  \(snap?.gitea.map { "\($0.scope) @ \($0.instance)" } ?? "not used")",
-        ]
+        var lines: [String] = ["Serving:  \(serving)"]
+        if let gitea = snap?.gitea {
+            lines.append("Gitea:  \(gitea.scope) @ \(gitea.instance)")
+        } else {
+            lines.append("Gitea:  not used")
+        }
         if !extra.isEmpty {
             lines.append("Accounts:  \(extra.map { "\($0.name) (\($0.scope))" }.joined(separator: ", "))")
         }

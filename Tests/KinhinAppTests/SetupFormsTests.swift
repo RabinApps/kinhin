@@ -28,21 +28,32 @@ final class SetupFormsTests: XCTestCase {
         try GeneralConfigEditor.snapshot(from: String(contentsOf: configURL, encoding: .utf8))
     }
 
-    private func connectModel() -> ConnectModel {
+    /// - Parameter reload: pass `false` in tests that select a forge by hand
+    ///   and then suspend: the async render would otherwise run mid-test and
+    ///   clobber the card's state (e.g. the probe's verdict).
+    private func connectModel(stored: Set<ForgeID> = [], reload: Bool = true) -> ConnectModel {
         let model = ConnectModel()
         model.configURL = configURL
-        model.hasStoredToken = { _ in false }
+        model.hasStoredToken = { stored.contains($0) }
+        model.loadToken = { _ in nil }
         model.checkPermission = { _, _ in nil }
-        model.reload()
+        if reload { model.reload() }
         return model
+    }
+
+    /// Selects the forge and returns its card (created by selecting).
+    private func card(_ model: ConnectModel, _ forge: ForgeID) throws -> ForgeConnectionModel {
+        model.setSelected(true, for: forge)
+        return try XCTUnwrap(model.card(for: forge))
     }
 
     func testChoosingARepoWritesItToConfig() throws {
         let model = connectModel()
+        let github = try card(model, .github)
         var changed = 0
         model.onChanged = { changed += 1 }
-        model.markTokensStoredForTesting(github: true, gitea: false)
-        model.enterGitHubRepoForTesting("acme/api")
+        github.markTokenStoredForTesting(true)
+        github.enterScopeForTesting("acme/api")
         XCTAssertEqual(try snapshot().repo, "acme/api")
         XCTAssertEqual(changed, 1)
         XCTAssertTrue(model.isConnected)
@@ -51,22 +62,24 @@ final class SetupFormsTests: XCTestCase {
     /// Choosing a repo/org triggers the runner-permission check for exactly
     /// that scope, and its verdict replaces the generic "Now serving" line.
     func testChoosingARepoChecksRunnerPermissionForThatScope() async throws {
-        let model = connectModel()
-        // Let the form's initial async reload settle; it resets token state.
+        let model = connectModel(reload: false)
+        let github = try card(model, .github)
+        // Let the initial async render settle so it cannot overwrite the
+        // probe's verdict below.
         try await Task.sleep(nanoseconds: 100_000_000)
         var checked: [(scope: String, token: String?)] = []
-        model.checkPermission = { scope, token in
+        github.checkPermission = { scope, token in
             checked.append((scope, token))
             return OrgPermissionProbe.Report(
                 ok: false, message: "PAT lacks runner-management permission for '\(scope)'.")
         }
-        model.markTokensStoredForTesting(github: true, gitea: false)
-        model.enterGitHubRepoForTesting("acme")
-        try await Task.sleep(nanoseconds: 100_000_000)
+        github.markTokenStoredForTesting(true)
+        github.enterScopeForTesting("acme")
+        try await Task.sleep(nanoseconds: 200_000_000)
         XCTAssertEqual(checked.map(\.scope), ["acme"])
         XCTAssertNil(checked.first?.token, "uses the stored token, never an empty one")
-        XCTAssertEqual(model.githubStatus.style, .error)
-        XCTAssertTrue(model.githubStatus.text.contains("lacks runner-management permission"))
+        XCTAssertEqual(github.status.style, .error)
+        XCTAssertTrue(github.status.text.contains("lacks runner-management permission"))
     }
 
     /// Regression: after a token was saved the form still called the forge
@@ -77,65 +90,73 @@ final class SetupFormsTests: XCTestCase {
         labels: [self-hosted]
         """.write(to: configURL, atomically: true, encoding: .utf8)
         let model = connectModel()
+        let github = try card(model, .github)
         // Let the initial async reload (which reads the configured repo) settle.
         try await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertFalse(model.isConnected)
-        XCTAssertFalse(model.repoFieldsEnabledForTesting.github)
+        XCTAssertFalse(github.scopeEnabled)
 
-        model.didStoreToken(.github)
-        XCTAssertTrue(model.repoFieldsEnabledForTesting.github, "the repo picker unlocks once a token is stored")
+        github.didStoreToken()
+        XCTAssertTrue(github.scopeEnabled, "the repo picker unlocks once a token is stored")
         XCTAssertTrue(model.isConnected, "token + configured repo counts as connected")
     }
 
     func testStoringATokenWritesARepoChosenBeforeConnecting() throws {
         let model = connectModel()
-        model.githubRepo = "acme/web"
-        model.didStoreToken(.github)
+        let github = try card(model, .github)
+        github.scope = "acme/web"
+        github.didStoreToken()
         XCTAssertEqual(try snapshot().repo, "acme/web")
         XCTAssertTrue(model.isConnected)
     }
 
     func testStoringAGiteaTokenWritesTheServerAndScope() throws {
         let model = connectModel()
-        model.giteaInstance = "https://git.example.com"
-        model.giteaScope = "team/repo"
-        model.didStoreToken(.gitea)
+        let gitea = try card(model, .gitea)
+        gitea.instance = "https://git.example.com"
+        gitea.scope = "team/repo"
+        gitea.didStoreToken()
         XCTAssertEqual(try snapshot().gitea?.scope, "team/repo")
         XCTAssertTrue(model.isConnected)
     }
 
     func testRepoCannotBeChosenBeforeTheForgeIsConnected() throws {
         let model = connectModel()
-        model.enterGitHubRepoForTesting("acme/api")
+        let github = try card(model, .github)
+        github.enterScopeForTesting("acme/api")
         XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "no token, so no repo is written")
-        model.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
+        let gitea = try card(model, .gitea)
+        gitea.enterForTesting(instance: "https://git.example.com", scope: "team/repo")
         XCTAssertNil(try snapshot().gitea, "no Gitea token, so no gitea section is written")
         XCTAssertFalse(model.isConnected)
-        XCTAssertFalse(model.repoFieldsEnabledForTesting.github, "the repo field is locked until connected")
-        XCTAssertFalse(model.repoFieldsEnabledForTesting.gitea)
+        XCTAssertFalse(github.scopeEnabled, "the repo field is locked until connected")
+        XCTAssertFalse(gitea.scopeEnabled)
     }
 
     func testInvalidRepoIsRejectedAndNotWritten() throws {
         let model = connectModel()
-        model.markTokensStoredForTesting(github: true, gitea: false)
-        model.enterGitHubRepoForTesting("a/b/c")
+        let github = try card(model, .github)
+        github.markTokenStoredForTesting(true)
+        github.enterScopeForTesting("a/b/c")
         XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "engine validation gates every write")
-        XCTAssertTrue(model.githubStatus.text.contains("Not saved"))
+        XCTAssertTrue(github.status.text.contains("Not saved"))
     }
 
     func testGiteaInstanceAndScopeAreWrittenTogether() throws {
         let model = connectModel()
-        model.markTokensStoredForTesting(github: false, gitea: true)
-        model.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
-        let gitea = try XCTUnwrap(snapshot().gitea)
-        XCTAssertEqual(gitea.instance, "https://git.example.com")
-        XCTAssertEqual(gitea.scope, "team/repo")
+        let gitea = try card(model, .gitea)
+        gitea.markTokenStoredForTesting(true)
+        gitea.enterForTesting(instance: "https://git.example.com", scope: "team/repo")
+        let giteaSection = try XCTUnwrap(snapshot().gitea)
+        XCTAssertEqual(giteaSection.instance, "https://git.example.com")
+        XCTAssertEqual(giteaSection.scope, "team/repo")
     }
 
     func testGiteaNeedsBothServerAndScopeBeforeWriting() throws {
         let model = connectModel()
-        model.markTokensStoredForTesting(github: false, gitea: true)
-        model.enterGiteaForTesting(instance: "https://git.example.com", scope: "")
+        let gitea = try card(model, .gitea)
+        gitea.markTokenStoredForTesting(true)
+        gitea.enterForTesting(instance: "https://git.example.com", scope: "")
         XCTAssertNil(try snapshot().gitea, "a half-filled gitea: section would make the config invalid")
     }
 
@@ -143,8 +164,9 @@ final class SetupFormsTests: XCTestCase {
         let model = connectModel()
         XCTAssertFalse(model.isConnected)
 
-        model.markTokensStoredForTesting(github: false, gitea: true)
-        model.enterGiteaForTesting(instance: "https://git.example.com", scope: "team/repo")
+        let gitea = try card(model, .gitea)
+        gitea.markTokenStoredForTesting(true)
+        gitea.enterForTesting(instance: "https://git.example.com", scope: "team/repo")
         XCTAssertTrue(model.isConnected, "a Gitea-only setup can finish onboarding")
         XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "no GitHub repo is required")
     }
