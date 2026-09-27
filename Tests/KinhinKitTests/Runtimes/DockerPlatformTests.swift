@@ -110,7 +110,7 @@ final class DockerPlatformTests: XCTestCase {
     func testAmd64BakePinsThePlatformAndInstallsX64Agents() async throws {
         let shell = FakeShell()
         var options = DockerImagePreparer.Options(
-            image: "ubuntu:24.04", target: "ci", hasGitHubToken: true, hasGiteaToken: true)
+            image: "ubuntu:24.04", target: "ci", hasGitHubToken: true, hasGiteaToken: true, hasGitLabToken: false)
         options.platform = .amd64
         _ = try await DockerImagePreparer(shell: shell).prepare(
             options, versions: .init(github: "2.1.0", gitea: "0.2.0"))
@@ -125,7 +125,8 @@ final class DockerPlatformTests: XCTestCase {
     func testArm64BakeArgvIsUnchanged() async throws {
         let shell = FakeShell()
         _ = try await DockerImagePreparer(shell: shell).prepare(
-            .init(image: "ubuntu:24.04", target: "ci", hasGitHubToken: true, hasGiteaToken: false),
+            .init(
+                image: "ubuntu:24.04", target: "ci", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false),
             versions: .init(github: "2.1.0", gitea: "0.2.0"))
         let run = try XCTUnwrap(shell.calls.first { $0.contains("run") })
         XCTAssertFalse(run.contains("--platform"), "native bakes add no flag: \(run)")

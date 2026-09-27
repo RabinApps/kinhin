@@ -71,6 +71,8 @@ final class RunnerDownloadVerificationTests: XCTestCase {
             ("macOS Gitea", RunnerBootstrap.giteaRunnerInstallScript(version: "4.0.0")),
             ("Linux GitHub", RunnerBootstrap.linuxGitHubAgentInstallScript(runnerVersion: "2.337.0", arch: "x64")),
             ("Linux Gitea", RunnerBootstrap.linuxGiteaRunnerInstallScript(version: "4.0.0", arch: "amd64")),
+            ("macOS GitLab", RunnerBootstrap.gitlabRunnerInstallScript(version: "19.4.1")),
+            ("Linux GitLab", RunnerBootstrap.linuxGitLabRunnerInstallScript(version: "19.4.1", arch: "amd64")),
         ]
         for (label, script) in scripts {
             XCTAssertTrue(script.contains("sha256sum"), "\(label) must verify a SHA-256")
@@ -86,6 +88,30 @@ final class RunnerDownloadVerificationTests: XCTestCase {
         XCTAssertTrue(github.contains("BEGIN SHA linux-x64 -->"))
         let gitea = RunnerBootstrap.giteaRunnerDownloadScript(version: "4.0.0", platform: "linux-amd64", file: "r.xz")
         XCTAssertTrue(gitea.contains("gitea-runner-4.0.0-linux-amd64.xz.sha256"))
+        let gitlab = RunnerBootstrap.gitlabRunnerDownloadScript(version: "19.4.1", platform: "darwin-arm64", file: "g")
+        XCTAssertTrue(gitlab.contains("/v19.4.1/binaries/gitlab-runner-darwin-arm64'"))
+        XCTAssertTrue(gitlab.contains("/v19.4.1/release.sha256"))
+        XCTAssertTrue(gitlab.contains("-v a='binaries/gitlab-runner-darwin-arm64'"))
+    }
+
+    /// The digest pipeline picks the right line out of GitLab's checksum file
+    /// (tab-separated, optionally "*"- or "./"-prefixed names).
+    func testGitLabDigestPipelineSelectsTheAssetLine() throws {
+        let command = RunnerBootstrap.gitlabRunnerDigestCommand(version: "1.0.0", platform: "darwin-arm64")
+        let awk = try XCTUnwrap(command.range(of: "awk ")).lowerBound
+        let pipeline = String(command[awk...])
+        let sums =
+            "aaa\tbinaries/gitlab-runner-darwin-amd64\nbbb\t*binaries/gitlab-runner-darwin-arm64\n"
+            + "ccc\tbinaries/gitlab-runner-darwin-arm64.exe\n"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "printf '\(sums)' | \(pipeline)"]
+        let out = Pipe()
+        process.standardOutput = out
+        try process.run()
+        process.waitUntilExit()
+        let digest = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        XCTAssertEqual(digest.trimmingCharacters(in: .whitespacesAndNewlines), "bbb")
     }
 
     private func shellSyntaxStatus(_ script: String) -> Int32 {

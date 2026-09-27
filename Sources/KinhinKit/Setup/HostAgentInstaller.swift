@@ -3,7 +3,8 @@ import Foundation
 /// Installs the runner agents that `HostRuntime` runs directly on the Mac
 /// (the fix behind `kinhin setup repair host-agent` and the checklist's
 /// "Host runner agent" row): GitHub's actions-runner and the Gitea runner
-/// (which also serves Forgejo), so a host route works on every forge.
+/// (which also serves Forgejo), plus the GitLab runner when a GitLab account
+/// is configured, so a host route works on every forge in use.
 /// Downloads are SHA-256 verified against the vendors' published digests, the
 /// same way `image prepare` verifies them. Agents already present are skipped.
 public struct HostAgentInstaller: Sendable {
@@ -11,15 +12,24 @@ public struct HostAgentInstaller: Sendable {
     let agentDir: URL
     let arm64: Bool
     let latestVersions: @Sendable () async -> RunnerVersionResolver.Versions
+    /// Whether the GitLab agent is part of the install (and of `isInstalled`).
+    public let includeGitLab: Bool
 
     public init(
         shell: ShellRunning = Shell(), agentDir: URL? = nil, arm64: Bool = ResourceProbe().snapshot().arm64,
-        latestVersions: (@Sendable () async -> RunnerVersionResolver.Versions)? = nil
+        latestVersions: (@Sendable () async -> RunnerVersionResolver.Versions)? = nil,
+        includeGitLab: Bool? = nil
     ) {
         self.shell = shell
         self.agentDir = agentDir ?? HostRuntime.defaultAgentDir
         self.arm64 = arm64
         self.latestVersions = latestVersions ?? { await RunnerVersionResolver().resolve() }
+        self.includeGitLab = includeGitLab ?? Self.gitlabConfigured()
+    }
+
+    /// True when the on-disk config has a GitLab account.
+    static func gitlabConfigured() -> Bool {
+        AccountTokens.loadedConfig()?.accounts.contains { $0.forge == .gitlab } ?? false
     }
 
     var githubAgentInstalled: Bool {
@@ -30,8 +40,14 @@ public struct HostAgentInstaller: Sendable {
         FileManager.default.isExecutableFile(atPath: agentDir.appendingPathComponent("gitea-runner").path)
     }
 
-    /// True when both agents are present.
-    public var isInstalled: Bool { githubAgentInstalled && giteaAgentInstalled }
+    var gitlabAgentInstalled: Bool {
+        FileManager.default.isExecutableFile(atPath: agentDir.appendingPathComponent("gitlab-runner").path)
+    }
+
+    /// True when every agent in use is present.
+    public var isInstalled: Bool {
+        githubAgentInstalled && giteaAgentInstalled && (!includeGitLab || gitlabAgentInstalled)
+    }
 
     /// The install script for whichever agents are missing.
     func installScript(_ versions: RunnerVersionResolver.Versions) -> String {
@@ -51,6 +67,13 @@ public struct HostAgentInstaller: Sendable {
                 xz -d runner.xz
                 chmod +x runner
                 mv runner gitea-runner
+                """)
+        }
+        if includeGitLab, !gitlabAgentInstalled {
+            parts.append(
+                """
+                \(RunnerBootstrap.gitlabRunnerDownloadScript(version: versions.gitlab, platform: arm64 ? "darwin-arm64" : "darwin-amd64", file: "gitlab-runner"))
+                chmod +x gitlab-runner
                 """)
         }
         return parts.joined(separator: "\n")
@@ -73,9 +96,14 @@ public struct HostAgentInstaller: Sendable {
             throw ImageError.hostAgentInstallFailed(
                 "the download finished but gitea-runner is missing in \(agentDir.path)")
         }
+        if includeGitLab, !gitlabAgentInstalled {
+            throw ImageError.hostAgentInstallFailed(
+                "the download finished but gitlab-runner is missing in \(agentDir.path)")
+        }
         Log.info(
             "host",
-            "installed actions-runner \(versions.github) and gitea-runner \(versions.gitea) into \(agentDir.path)")
+            "installed actions-runner \(versions.github), gitea-runner \(versions.gitea)"
+                + (includeGitLab ? " and gitlab-runner \(versions.gitlab)" : "") + " into \(agentDir.path)")
         return versions
     }
 }

@@ -16,8 +16,9 @@ final class HostAgentInstallerTests: XCTestCase {
         try? FileManager.default.removeItem(at: dir)  // scratch dir; a leftover is harmless
     }
 
-    private func installer(_ shell: FakeShell, arm64: Bool = true) -> HostAgentInstaller {
-        HostAgentInstaller(shell: shell, agentDir: dir, arm64: arm64, latestVersions: { self.versions })
+    private func installer(_ shell: FakeShell, arm64: Bool = true, gitlab: Bool = false) -> HostAgentInstaller {
+        HostAgentInstaller(
+            shell: shell, agentDir: dir, arm64: arm64, latestVersions: { self.versions }, includeGitLab: gitlab)
     }
 
     private func plant(github: Bool = false, gitea: Bool = false) throws {
@@ -39,6 +40,19 @@ final class HostAgentInstallerTests: XCTestCase {
         let intel = installer(FakeShell(), arm64: false).installScript(versions)
         XCTAssertTrue(intel.contains("actions-runner-osx-x64-2.999.0.tar.gz"))
         XCTAssertTrue(intel.contains("gitea-runner-9.9.9-darwin-amd64.xz"))
+    }
+
+    func testGitLabAgentOnlyWhenAGitLabAccountIsConfigured() throws {
+        XCTAssertFalse(installer(FakeShell()).installScript(versions).contains("gitlab-runner"))
+        let script = installer(FakeShell(), gitlab: true).installScript(versions)
+        XCTAssertTrue(script.contains("/v\(versions.gitlab)/binaries/gitlab-runner-darwin-arm64"), script)
+
+        try plant(github: true, gitea: true)
+        XCTAssertTrue(installer(FakeShell()).isInstalled, "no GitLab account: the GitLab agent is not required")
+        XCTAssertFalse(installer(FakeShell(), gitlab: true).isInstalled)
+        let path = dir.appendingPathComponent("gitlab-runner").path
+        FileManager.default.createFile(atPath: path, contents: Data(), attributes: [.posixPermissions: 0o755])
+        XCTAssertTrue(installer(FakeShell(), gitlab: true).isInstalled)
     }
 
     func testScriptSkipsAgentsAlreadyInstalled() throws {

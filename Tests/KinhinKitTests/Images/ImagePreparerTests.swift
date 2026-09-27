@@ -8,7 +8,7 @@ final class ImagePreparerTests: XCTestCase {
         let tart = FakeTart()
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
-        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false)
+        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
         options.source = "ghcr.io/cirruslabs/macos-tahoe-base:latest"
         options.target = "tahoe-base"
 
@@ -29,7 +29,7 @@ final class ImagePreparerTests: XCTestCase {
         let tart = FakeTart()
         tart.vms["tahoe-base"] = TartVM(name: "tahoe-base", source: "old-source", status: "stopped")
         let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
-        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false)
+        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
         options.target = "tahoe-base"
 
         try await preparer.run(options)
@@ -46,7 +46,7 @@ final class ImagePreparerTests: XCTestCase {
         let ssh = FakeSSH()
         ssh.failWith = "sudo: a password is required"
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
-        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false)
+        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
         options.target = "tahoe-base"
 
         do {
@@ -67,7 +67,8 @@ final class ImagePreparerTests: XCTestCase {
 
 final class LinuxImageBakerTests: XCTestCase {
     private func options() -> LinuxImageOptions {
-        LinuxImageOptions(image: "missing-base", target: "out", hasGitHubToken: true, hasGiteaToken: false)
+        LinuxImageOptions(
+            image: "missing-base", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
     }
 
     func testFailsImmediatelyWithTheCLIsReasonWhenTheScratchContainerWontStart() async {
@@ -116,7 +117,7 @@ final class ContainerKernelRecoveryTests: XCTestCase {
         // install and every later call succeed.
         shell.responses = [kernelError]
         let options = LinuxImageOptions(
-            image: "ubuntu:24.04", target: "out", hasGitHubToken: true, hasGiteaToken: false)
+            image: "ubuntu:24.04", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
         let target = try await ContainerImagePreparer(shell: shell).prepare(
             options, versions: .init(github: "1", gitea: "1"))
         XCTAssertEqual(target, "out")
@@ -130,7 +131,8 @@ final class ContainerKernelRecoveryTests: XCTestCase {
     func testOtherStartFailuresAreNotRetried() async {
         let shell = FakeShell()
         shell.responses = [ShellResult(exitCode: 1, stdout: "", stderr: "Error: 401 Unauthorized")]
-        let options = LinuxImageOptions(image: "nope", target: "out", hasGitHubToken: true, hasGiteaToken: false)
+        let options = LinuxImageOptions(
+            image: "nope", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
         do {
             _ = try await ContainerImagePreparer(shell: shell).prepare(
                 options, versions: .init(github: "1", gitea: "1"))
@@ -171,7 +173,9 @@ final class FailureExcerptTests: XCTestCase {
 
 final class ContainerCommitTests: XCTestCase {
     private func options() -> LinuxImageOptions {
-        LinuxImageOptions(image: "ubuntu:24.04", target: "out-image", hasGitHubToken: true, hasGiteaToken: false)
+        LinuxImageOptions(
+            image: "ubuntu:24.04", target: "out-image", hasGitHubToken: true, hasGiteaToken: false,
+            hasGitLabToken: false)
     }
 
     func testCommitExportsTheScratchFilesystemThenBuildsFromScratch() async throws {

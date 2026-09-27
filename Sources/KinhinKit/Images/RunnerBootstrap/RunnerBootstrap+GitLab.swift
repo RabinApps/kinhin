@@ -3,6 +3,42 @@ import Foundation
 // MARK: - GitLab runner
 
 extension RunnerBootstrap {
+    /// Installs the GitLab runner binary into the macOS base image.
+    static func gitlabRunnerInstallScript(version: String) -> String {
+        """
+        set -euo pipefail
+
+        # GitLab runner (shell executor; one job per run-single).
+        if [ ! -x "$HOME/gitlab-runner/gitlab-runner" ]; then
+          mkdir -p "$HOME/gitlab-runner"
+          cd "$HOME/gitlab-runner"
+          \(gitlabRunnerDownloadScript(version: version, platform: "darwin-arm64", file: "gitlab-runner").replacingOccurrences(of: "\n", with: "\n  "))
+          chmod +x gitlab-runner
+          ./gitlab-runner --version
+          echo "gitlab runner v\(version) installed"
+        else
+          echo "gitlab runner already installed"
+        fi
+        """
+    }
+
+    /// Installs the GitLab runner binary into a Linux image (`arch` is
+    /// "arm64", or "amd64" for emulated bakes).
+    static func linuxGitLabRunnerInstallScript(version: String, arch: String = "arm64") -> String {
+        """
+        set -euo pipefail
+        \(linuxPrerequisitesScript(tools: [("curl", "curl")]))
+        if [ ! -x /opt/gitlab-runner/gitlab-runner ]; then
+          mkdir -p /opt/gitlab-runner
+          cd /opt/gitlab-runner
+          \(gitlabRunnerDownloadScript(version: version, platform: "linux-\(arch)", file: "gitlab-runner").replacingOccurrences(of: "\n", with: "\n  "))
+          chmod +x gitlab-runner
+          ./gitlab-runner --version
+        fi
+        echo "linux gitlab-runner v\(version) installed"
+        """
+    }
+
     /// Starts one single-job GitLab runner per name. Each runner was already
     /// created through the API; its authentication token is written to a
     /// private file (never on a command line) and handed to `gitlab-runner
@@ -29,7 +65,7 @@ extension RunnerBootstrap {
                   export CI_SERVER_URL="$1"
                   CI_SERVER_TOKEN="$(cat token)"
                   export CI_SERVER_TOKEN
-                  "$0" run-single --name "$2" --executor shell \\
+                  "$0" run-single --description "$2" --executor shell \\
                     --builds-dir "$PWD/builds" --cache-dir "$PWD/cache" --max-builds 1
                   curl -fsS --retry 5 -X DELETE "$1/api/v4/runners" -F "token=<token" >/dev/null
                 ' \(binary) \(shellQuote(url)) \(shellQuote(runner.name)) > runner.log 2>&1 < /dev/null &

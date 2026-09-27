@@ -101,7 +101,8 @@ final class BaseImageConfigTests: XCTestCase {
     func testNonAptBaseFailsBeforeAnyAgentDownload() async {
         let shell = FakeShell()
         shell.failOn = "command -v apt-get"
-        let options = LinuxImageOptions(image: "alpine:3.20", target: "out", hasGitHubToken: true, hasGiteaToken: false)
+        let options = LinuxImageOptions(
+            image: "alpine:3.20", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
         do {
             _ = try await ContainerImagePreparer(shell: shell).prepare(
                 options, versions: .init(github: "1", gitea: "1"))

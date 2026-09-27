@@ -63,4 +63,21 @@ extension RunnerBootstrap {
         return verifiedDownloadScript(
             url: url, file: file, expectedDigestCommand: giteaRunnerDigestCommand(assetURL: url))
     }
+
+    /// GitLab publishes one `release.sha256` per release, one
+    /// "<hex>\tbinaries/gitlab-runner-<platform>" line per binary.
+    static func gitlabRunnerDigestCommand(version: String, platform: String) -> String {
+        let sums = "https://gitlab-runner-downloads.s3.amazonaws.com/v\(version)/release.sha256"
+        let asset = "binaries/gitlab-runner-\(platform)"
+        return
+            "curl -fsSL \(shellQuote(sums)) | awk -v a=\(shellQuote(asset)) '{ sub(/^[*.\\/]+/, \"\", $2) } $2 == a { print $1 }' | head -1"
+    }
+
+    /// `platform` is e.g. "darwin-arm64", "linux-amd64".
+    static func gitlabRunnerDownloadScript(version: String, platform: String, file: String) -> String {
+        let url = "https://gitlab-runner-downloads.s3.amazonaws.com/v\(version)/binaries/gitlab-runner-\(platform)"
+        return verifiedDownloadScript(
+            url: url, file: file,
+            expectedDigestCommand: gitlabRunnerDigestCommand(version: version, platform: platform))
+    }
 }

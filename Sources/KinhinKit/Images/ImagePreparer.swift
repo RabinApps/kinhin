@@ -29,6 +29,8 @@ public struct ImagePreparer {
         /// Token presence overrides for tests (nil = probe the Keychain).
         public var hasGitHubToken: Bool?
         public var hasGiteaToken: Bool?
+        /// nil → any GitLab account has a stored token.
+        public var hasGitLabToken: Bool?
         /// Host path to a user script baked into the image after the runner
         /// agents are installed (toolchains etc.). nil = no user script.
         public var provisionScriptPath: String?
@@ -46,7 +48,8 @@ public struct ImagePreparer {
             source: String = ImagePreparer.defaultSource, target: String = ImagePreparer.defaultTarget,
             runnerVersion: String = ImagePreparer.defaultRunnerVersion,
             giteaRunnerVersion: String = ImagePreparer.defaultGiteaRunnerVersion, user: String = "admin",
-            hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil, provisionScriptPath: String? = nil,
+            hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil, hasGitLabToken: Bool? = nil,
+            provisionScriptPath: String? = nil,
             provisionTimeout: TimeInterval = 1800, toolchains: KinhinConfig.ToolchainsConfig? = nil,
             toolchainTimeout: TimeInterval = 1800
         ) {
@@ -57,6 +60,7 @@ public struct ImagePreparer {
             self.user = user
             self.hasGitHubToken = hasGitHubToken
             self.hasGiteaToken = hasGiteaToken
+            self.hasGitLabToken = hasGitLabToken
             self.provisionScriptPath = provisionScriptPath
             self.provisionTimeout = provisionTimeout
             self.toolchains = toolchains
@@ -88,9 +92,10 @@ public struct ImagePreparer {
         let hasGiteaToken =
             try options.hasGiteaToken
             ?? (AccountTokens.anyStored(for: .gitea) || AccountTokens.anyStored(for: .forgejo))
-        guard hasGitHubToken || hasGiteaToken else {
+        let hasGitLabToken = try options.hasGitLabToken ?? AccountTokens.anyStored(for: .gitlab)
+        guard hasGitHubToken || hasGiteaToken || hasGitLabToken else {
             throw ImageError.noCredentials(
-                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea)")
+                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab)")
         }
 
         // Validate the user provision script up front: a broken path must
@@ -112,6 +117,12 @@ public struct ImagePreparer {
             scripts.append(RunnerBootstrap.giteaRunnerInstallScript(version: versions.gitea))
         } else {
             Log.info("image", "no Gitea token stored — skipping gitea-runner install")
+        }
+        if hasGitLabToken {
+            Log.info("image", "GitLab token found — baking gitlab-runner \(versions.gitlab)")
+            scripts.append(RunnerBootstrap.gitlabRunnerInstallScript(version: versions.gitlab))
+        } else {
+            Log.info("image", "no GitLab token stored — skipping gitlab-runner install")
         }
         scripts.append(
             try RunnerBootstrap.toolchainHelperInstallScript(platform: .macOS, mountPath: ToolchainCacheMount.guestPath)

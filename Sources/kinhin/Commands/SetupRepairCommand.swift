@@ -71,8 +71,10 @@ enum SetupRepairCommand {
             print("host runner agent already installed")
             return
         }
-        print("installing the GitHub and Gitea runner agents for host runs…")
+        print("installing the runner agents for host runs…")
         let versions = try await installer.install()
-        print("installed actions-runner \(versions.github) and gitea-runner \(versions.gitea)")
+        print(
+            "installed actions-runner \(versions.github), gitea-runner \(versions.gitea)"
+                + (installer.includeGitLab ? " and gitlab-runner \(versions.gitlab)" : ""))
     }
 }

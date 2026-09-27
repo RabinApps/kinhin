@@ -20,7 +20,7 @@ final class GitLabRegistrationScriptTests: XCTestCase {
         let script = RunnerBootstrap.gitlabRegistrationScript(
             instance: "https://git.example.com/", runners: [("kinhin-1", "glrt-secret")],
             binary: "/opt/gitlab-runner/gitlab-runner", baseDir: "/opt/gitlab-runner")
-        XCTAssertTrue(script.contains("run-single --name \"$2\" --executor shell"))
+        XCTAssertTrue(script.contains("run-single --description \"$2\" --executor shell"))
         XCTAssertTrue(script.contains("--max-builds 1"))
         XCTAssertTrue(script.contains("-X DELETE \"$1/api/v4/runners\""), "the runner deregisters itself")
         XCTAssertTrue(script.contains("'https://git.example.com' 'kinhin-1'"), "trailing slash trimmed")

@@ -384,7 +384,9 @@ final class DockerRuntimeTests: XCTestCase {
         let shell = FakeShell()
         let preparer = DockerImagePreparer(shell: shell)
         try await preparer.prepare(
-            .init(image: "ubuntu:24.04", target: "kinhin-ci", hasGitHubToken: true, hasGiteaToken: false))
+            .init(
+                image: "ubuntu:24.04", target: "kinhin-ci", hasGitHubToken: true, hasGiteaToken: false,
+                hasGitLabToken: false))
         let runArgv = try XCTUnwrap(shell.calls.first { $0.contains("run") })
         XCTAssertTrue(runArgv.contains("--volume"), "prepare bind-mounts the host cache unconditionally: \(runArgv)")
         XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
@@ -397,7 +399,7 @@ final class DockerRuntimeTests: XCTestCase {
             .init(
                 image: "ubuntu:24.04", target: "kinhin-ci",
                 toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
-                hasGitHubToken: true, hasGiteaToken: false
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false
             ))
         // Order: run → ready-probe exec → agent exec → managed exec → commit.
         let runIdx = try XCTUnwrap(shell.calls.firstIndex { $0.contains("run") })
@@ -430,7 +432,7 @@ final class DockerRuntimeTests: XCTestCase {
                 .init(
                     image: "ubuntu:24.04", target: "kinhin-ci",
                     toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
-                    hasGitHubToken: true, hasGiteaToken: false
+                    hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false
                 ))
             XCTFail("expected the bake to fail")
         } catch let error as ImageError {

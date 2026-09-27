@@ -15,6 +15,8 @@ public struct LinuxImageOptions {
     /// Token presence overrides for tests (nil = probe the Keychain).
     public var hasGitHubToken: Bool?
     public var hasGiteaToken: Bool?
+    /// nil → any GitLab account has a stored token.
+    public var hasGitLabToken: Bool?
     /// Architecture of the image being baked. Anything but arm64 (native on
     /// Apple Silicon) is Docker-only and runs under emulation.
     public var platform: LinuxPlatform
@@ -22,6 +24,7 @@ public struct LinuxImageOptions {
     public init(
         image: String, target: String, user: String = "admin", toolchains: KinhinConfig.ToolchainsConfig? = nil,
         toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil,
+        hasGitLabToken: Bool? = nil,
         platform: LinuxPlatform = .arm64
     ) {
         self.platform = platform
@@ -32,6 +35,7 @@ public struct LinuxImageOptions {
         self.toolchainTimeout = toolchainTimeout
         self.hasGitHubToken = hasGitHubToken
         self.hasGiteaToken = hasGiteaToken
+        self.hasGitLabToken = hasGitLabToken
     }
 }
 
@@ -82,9 +86,10 @@ struct LinuxImageBaker {
         let hasGiteaToken =
             try options.hasGiteaToken
             ?? (AccountTokens.anyStored(for: .gitea) || AccountTokens.anyStored(for: .forgejo))
-        guard hasGitHubToken || hasGiteaToken else {
+        let hasGitLabToken = try options.hasGitLabToken ?? AccountTokens.anyStored(for: .gitlab)
+        guard hasGitHubToken || hasGiteaToken || hasGitLabToken else {
             throw ImageError.noCredentials(
-                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea)")
+                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab)")
         }
 
         var lines: [String] = []
@@ -103,6 +108,14 @@ struct LinuxImageBaker {
                     version: versions.gitea, arch: options.platform.giteaRunnerArch))
         } else {
             Log.info(tag, "no Gitea token stored — skipping gitea-runner install")
+        }
+        if hasGitLabToken {
+            Log.info(tag, "GitLab token found — baking gitlab-runner \(versions.gitlab)")
+            lines.append(
+                RunnerBootstrap.linuxGitLabRunnerInstallScript(
+                    version: versions.gitlab, arch: options.platform.gitlabRunnerArch))
+        } else {
+            Log.info(tag, "no GitLab token stored — skipping gitlab-runner install")
         }
         lines.append(
             try RunnerBootstrap.toolchainHelperInstallScript(

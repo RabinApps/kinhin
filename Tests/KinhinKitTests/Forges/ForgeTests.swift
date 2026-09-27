@@ -293,7 +293,8 @@ final class ForgeTests: XCTestCase {
     func testImagePrepareFailsWithoutAnyPlatformToken() async {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: FakeSSH())
         do {
-            _ = try await preparer.run(ImagePreparer.Options(hasGitHubToken: false, hasGiteaToken: false))
+            _ = try await preparer.run(
+                ImagePreparer.Options(hasGitHubToken: false, hasGiteaToken: false, hasGitLabToken: false))
             XCTFail("prepare must refuse when no platform token exists")
         } catch let error as ImageError {
             guard case .noCredentials = error else { return XCTFail("wrong error: \(error)") }
@@ -306,7 +307,8 @@ final class ForgeTests: XCTestCase {
         let tart = FakeTart()
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
-        _ = try await preparer.run(ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false))
+        _ = try await preparer.run(
+            ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false))
 
         let script = ssh.scripts.joined(separator: "\n")
         XCTAssertTrue(script.contains("actions-runner-osx-arm64"), "GitHub agent baked when PAT exists")
@@ -316,7 +318,8 @@ final class ForgeTests: XCTestCase {
     func testImagePrepareBakesGiteaWhenTokenPresent() async throws {
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
-        _ = try await preparer.run(ImagePreparer.Options(hasGitHubToken: false, hasGiteaToken: true))
+        _ = try await preparer.run(
+            ImagePreparer.Options(hasGitHubToken: false, hasGiteaToken: true, hasGitLabToken: false))
 
         let script = ssh.scripts.joined(separator: "\n")
         XCTAssertFalse(script.contains("actions-runner-osx-arm64"), "GitHub agent skipped when no PAT")
@@ -395,6 +398,9 @@ final class ForgeTests: XCTestCase {
             if host == "api.github.com" {
                 return (200, Data("{\"tag_name\":\"v2.337.0\"}".utf8), [:])
             }
+            if host == "gitlab.com" {
+                return (200, Data("{\"tag_name\":\"v19.5.0\"}".utf8), [:])
+            }
             return (200, Data("{\"tag_name\":\"v3.5.0\"}".utf8), [:])
         }
         defer { StubProtocol.handler = nil }
@@ -403,6 +409,7 @@ final class ForgeTests: XCTestCase {
         let versions = await resolver.resolve()
         XCTAssertEqual(versions.github, "2.337.0")
         XCTAssertEqual(versions.gitea, "3.5.0")
+        XCTAssertEqual(versions.gitlab, "19.5.0")
     }
 
     // MARK: Shared behavior
