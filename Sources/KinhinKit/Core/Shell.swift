@@ -46,6 +46,9 @@ enum ShellError: LocalizedError {
 }
 
 /// Runs subprocesses. Injectable so tests can script fake tool output.
+/// Implementations must honour task cancellation: terminate the still-running
+/// child and throw `CancellationError`, so a caller cancelled mid-command does
+/// not sit out the command's own timeout.
 public protocol ShellRunning: Sendable {
     func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult
 }
@@ -57,6 +60,12 @@ public extension ShellRunning {
 }
 
 /// Real shell runner using Foundation's Process.
+///
+/// Honours task cancellation: cancelling the surrounding task terminates a
+/// still-running child (SIGTERM) and the call throws `CancellationError` once
+/// the child is reaped — nothing is left running and the pipes are still
+/// drained. A command that finished before cancellation landed returns its
+/// normal result. The per-call timeout watchdog (exit 124) is unchanged.
 public struct Shell: ShellRunning {
     public init() {}
 
@@ -115,13 +124,33 @@ public struct Shell: ShellRunning {
         }
         defer { watchdog.cancel() }
 
-        process.waitUntilExit()
+        // Cancellation: Foundation's Process ignores cooperative cancellation,
+        // so without this a cancelled caller would wait out the child's own
+        // timeout (up to the 600s registration script). Terminating the child
+        // unblocks the wait immediately; we still reap it and drain the pipes
+        // before throwing, so nothing leaks. The wait itself is never aborted —
+        // only the child's death ends it.
+        let wasCancelled = Mutex(false)
+        await withTaskCancellationHandler {
+            process.waitUntilExit()
+        } onCancel: {
+            wasCancelled.withLock { $0 = true }
+            guard process.isRunning else { return }
+            process.terminate()
+        }
 
         outPipe.fileHandleForReading.readabilityHandler = nil
         errPipe.fileHandleForReading.readabilityHandler = nil
         // Drain any final buffered bytes.
         outData.append(outPipe.fileHandleForReading.readDataToEndOfFile())
         errData.append(errPipe.fileHandleForReading.readDataToEndOfFile())
+
+        // A command that finished before cancellation landed keeps its normal
+        // result; one cut short by it surfaces as CancellationError, which the
+        // engine's lifecycle treats as "exit without touching the store".
+        if wasCancelled.withLock({ $0 }) {
+            throw CancellationError()
+        }
 
         let code = process.terminationStatus
         let timedOut = didTimeOut.withLock { $0 }
