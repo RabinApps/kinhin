@@ -237,6 +237,8 @@ final class ConnectModel {
             giteaButtonTitle = "Replace"
             giteaConnected = lastWrittenGitea != nil
             commitGitea()
+        case .gitlab:
+            break  // GitLab is connected through the accounts section.
         }
         onChanged?()
     }
@@ -269,6 +271,8 @@ final class ConnectModel {
                 refs = try await GiteaClient(
                     credentials: GiteaCredentials(token: resolved, scope: "", instance: instance)
                 ).listRepositories()
+            case .gitlab:
+                return false  // GitLab is connected through the accounts section.
             }
             let names = refs.prefix(300).map(\.fullName)
             if forge == .github { githubRepos = names } else { giteaRepos = names }

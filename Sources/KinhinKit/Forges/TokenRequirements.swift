@@ -106,6 +106,27 @@ public struct TokenRequirements: Equatable, Sendable {
         )
     }
 
+    /// GitLab. The scope's kind (project or group) can't be told from its
+    /// path, so both roles are listed. `instance` defaults to gitlab.com.
+    public static func gitlab(scope: String, instance: String? = nil) -> TokenRequirements {
+        let scope = scope.trimmingCharacters(in: .whitespaces)
+        var base = (instance ?? GitLabCredentials.defaultInstance).trimmingCharacters(in: .whitespaces)
+        while base.hasSuffix("/") { base.removeLast() }
+        let scopes = "Scopes: create_runner, manage_runner, read_api (or api)"
+        return TokenRequirements(
+            title: "GitLab token permissions" + (scope.isEmpty ? "" : " for '\(scope)'"),
+            options: [
+                Option(
+                    kind: "Personal access token", url: "\(base)/-/user_settings/personal_access_tokens",
+                    permissions: [scopes]),
+                Option(
+                    kind: "Project or group access token",
+                    url: "\(base)/\(scope.isEmpty ? "<group-or-project>" : scope)/-/settings/access_tokens",
+                    permissions: [scopes, "Role: Maintainer (project) or Owner (group)"]),
+            ],
+            note: "Creating runners needs Maintainer on a project or Owner on a group, and GitLab 16.0 or later.")
+    }
+
     /// Multi-line text for the CLI and log lines.
     public var plainText: String {
         var lines = ["\(title):"]

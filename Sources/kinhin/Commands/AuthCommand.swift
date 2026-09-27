@@ -18,6 +18,11 @@ struct AuthEnvironment {
     /// `auth status` probe — throws when the forge rejects the token.
     var checkGitHub: (GitHubCredentials) async throws -> Void
     var checkGitea: (GiteaCredentials) async throws -> Void
+    var checkGitLab: (GitLabCredentials) async throws -> Void = { credentials in
+        let report = await TokenHealthCheck.gitlab(
+            token: credentials.token, scope: credentials.scope, instance: credentials.instance)
+        guard report.ok else { throw CLIError(report.message) }
+    }
     var loadConfig: () -> KinhinConfig
     /// Best-effort live-swap notification to a running daemon.
     var notifyDaemon: (String, ForgeID) -> Void
@@ -65,10 +70,12 @@ struct AuthEnvironment {
         checkGitea: { credentials in _ = try await GiteaClient(credentials: credentials).fetchRegistrationToken() },
         loadConfig: { loadConfigOrExit() },
         notifyDaemon: { token, forge in
-            if forge == .gitea {
-                notifyDaemonGiteaTokenReplaced(token)
-            } else {
-                notifyDaemonTokenReplaced(token)
+            switch forge {
+            case .github: notifyDaemonTokenReplaced(token)
+            case .gitea: notifyDaemonGiteaTokenReplaced(token)
+            case .forgejo: notifyDaemonForgejoTokenReplaced(token)
+            // GitLab has no legacy section: its tokens always go through accounts.
+            case .gitlab: notifyDaemonAccountTokenReplaced(account: ForgeID.gitlab.rawValue, token: token)
             }
         },
         fail: { Self.fail($0) },
@@ -102,31 +109,44 @@ enum AuthCommand {
             return TokenRequirements.gitea(scope: config?.forgejo?.scope ?? "", instance: config?.forgejo?.instance)
         case .github:
             return TokenRequirements.github(scope: config?.repo ?? "")
+        case .gitlab:
+            let account = config?.accounts.first { $0.forge == .gitlab }
+            return TokenRequirements.gitlab(scope: account?.scope ?? "", instance: account?.instance)
         }
     }
 
-    /// Resolves `--account NAME` to its forge: "github"/"gitea" are the legacy
-    /// accounts, anything else must be an `accounts:` entry in the config.
+    /// Resolves `--account NAME` to its forge: "github"/"gitea"/"forgejo" are
+    /// the legacy accounts, anything else must be an `accounts:` entry in the
+    /// config.
     static func resolveAccount(_ name: String, config: KinhinConfig?) -> AccountConfig? {
         config?.allAccounts.first { $0.name == name }
-            ?? ForgeID(rawValue: name).map { AccountConfig(name: name, forge: $0, scope: "") }
+            ?? ForgeID(rawValue: name).flatMap { forge in
+                AccountConfig.reservedNames.contains(name) ? AccountConfig(name: name, forge: forge, scope: "") : nil
+            }
     }
 
-    /// `auth add NAME --github|--gitea --scope S [--instance URL] [--token T]`.
+    /// The forge chosen by `--github`/`--gitea`/`--forgejo`/`--gitlab`; nil
+    /// when none or several are given.
+    static func forgeFlag(in args: [String]) -> ForgeID? {
+        let chosen = ForgeID.allCases.filter { args.contains("--\($0.rawValue)") }
+        return chosen.count == 1 ? chosen.first : nil
+    }
+
+    /// `auth add NAME --github|--gitea|--forgejo|--gitlab --scope S [--instance URL] [--token T]`.
     private static func add(_ args: [String], environment: AuthEnvironment) throws {
         guard let name = args.dropFirst(2).first, !name.hasPrefix("--") else {
             try environment.fail(
-                "usage: kinhin auth add NAME --github|--gitea|--forgejo --scope SCOPE [--instance URL] [--token T]")
+                "usage: kinhin auth add NAME --github|--gitea|--forgejo|--gitlab --scope SCOPE [--instance URL] [--token T]"
+            )
         }
-        let forge: ForgeID
-        switch (args.contains("--github"), args.contains("--gitea"), args.contains("--forgejo")) {
-        case (true, false, false): forge = .github
-        case (false, true, false): forge = .gitea
-        case (false, false, true): forge = .forgejo
-        default: try environment.fail("choose exactly one of --github, --gitea or --forgejo")
+        guard let forge = forgeFlag(in: args) else {
+            try environment.fail("choose exactly one of --github, --gitea, --forgejo or --gitlab")
         }
         guard let scope = flag("--scope", in: args) else {
-            try environment.fail("--scope is required (an org name, or owner/name for one repository)")
+            try environment.fail(
+                forge == .gitlab
+                    ? "--scope is required (a GitLab project or group path, e.g. group/project)"
+                    : "--scope is required (an org name, or owner/name for one repository)")
         }
         let account = AccountConfig(name: name, forge: forge, scope: scope, instance: flag("--instance", in: args))
         do {
@@ -206,24 +226,37 @@ enum AuthCommand {
         var giteaMode = args.contains("--gitea") || args.contains("--forgejo")
         var forge: ForgeID = args.contains("--forgejo") ? .forgejo : (giteaMode ? .gitea : .github)
         var namedAccount: AccountConfig?
-        if let accountName = flag("--account", in: args) {
+        // GitLab has no top-level section: --gitlab means the (first) GitLab account.
+        var accountFlag = flag("--account", in: args)
+        if accountFlag == nil, args.contains("--gitlab") {
+            let config: KinhinConfig? =
+                if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
+            guard let gitlab = config?.accounts.first(where: { $0.forge == .gitlab }) else {
+                try environment.fail(
+                    "no GitLab account in config — add one first: kinhin auth add NAME --gitlab --scope group/project")
+            }
+            accountFlag = gitlab.name
+        }
+        if let accountName = accountFlag {
             let config: KinhinConfig? =
                 if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
             guard let resolved = resolveAccount(accountName, config: config) else {
                 try environment.fail(
-                    "no account '\(accountName)' in config — add it first: kinhin auth add \(accountName) --github|--gitea --scope SCOPE"
+                    "no account '\(accountName)' in config — add it first: kinhin auth add \(accountName) --github|--gitea|--forgejo|--gitlab --scope SCOPE"
                 )
             }
             forge = resolved.forge
             giteaMode = forge != .github
-            // The legacy names keep their original Keychain items and RPCs.
-            if resolved.name != resolved.forge.rawValue { namedAccount = resolved }
+            // The legacy names keep their original Keychain items and RPCs;
+            // GitLab has none, so every GitLab account is a named one.
+            if resolved.name != resolved.forge.rawValue || resolved.forge == .gitlab { namedAccount = resolved }
         }
         let forgeLabel = { (forge: ForgeID) -> String in
             switch forge {
             case .github: return "GitHub PAT"
             case .gitea: return "Gitea access token"
             case .forgejo: return "Forgejo access token"
+            case .gitlab: return "GitLab access token"
             }
         }
         let forgeName =
@@ -271,18 +304,23 @@ enum AuthCommand {
                 return
             }
             guard let token = try load(forge) else {
-                print(giteaMode ? "no Gitea token stored" : "no token stored")
+                print(namedAccount != nil || giteaMode ? "no \(forgeName) stored" : "no token stored")
                 try environment.exit(1)
             }
             let cfg = environment.loadConfig()
             if let namedAccount {
                 print("token stored (starts with \(token.prefix(4))…), checking \(namedAccount.scope)…")
                 do {
-                    if let instance = namedAccount.instance {
-                        try await environment.checkGitea(
-                            GiteaCredentials(token: token, scope: namedAccount.scope, instance: instance))
-                    } else {
+                    switch namedAccount.forge {
+                    case .github:
                         try await environment.checkGitHub(GitHubCredentials(token: token, scope: namedAccount.scope))
+                    case .gitea, .forgejo:
+                        try await environment.checkGitea(
+                            GiteaCredentials(
+                                token: token, scope: namedAccount.scope, instance: namedAccount.instance ?? ""))
+                    case .gitlab:
+                        try await environment.checkGitLab(
+                            GitLabCredentials(token: token, scope: namedAccount.scope, instance: namedAccount.instance))
                     }
                     print("token works against \(namedAccount.scope)")
                 } catch {

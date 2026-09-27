@@ -134,10 +134,13 @@ public struct ConfigLoader {
                 throw ConfigError.invalid("duplicate account name '\(name)'")
             }
             guard let rawForge = entry.forge, let forge = ForgeID(rawValue: rawForge) else {
-                throw ConfigError.invalid("account '\(name)': forge must be github, gitea or forgejo")
+                throw ConfigError.invalid("account '\(name)': forge must be github, gitea, forgejo or gitlab")
             }
-            guard let scope = entry.scope, AccountConfig.isValidScope(scope) else {
-                throw ConfigError.invalid("account '\(name)': scope must be 'owner/name' or an org name")
+            guard let scope = entry.scope, AccountConfig.isValidScope(scope, forge: forge) else {
+                throw ConfigError.invalid(
+                    forge == .gitlab
+                        ? "account '\(name)': scope must be a GitLab project or group path (e.g. 'group/project')"
+                        : "account '\(name)': scope must be 'owner/name' or an org name")
             }
             switch forge {
             case .github:
@@ -161,6 +164,21 @@ public struct ConfigLoader {
                 }
                 result.append(
                     AccountConfig(name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels))
+            case .gitlab:
+                if let instance = entry.instance {
+                    do {
+                        _ = try GitLabCredentials.validate(instance: instance)
+                    } catch {
+                        throw ConfigError.invalid(
+                            "account '\(name)': instance must be a URL like https://gitlab.example.com (no /api)")
+                    }
+                }
+                if let labels = entry.labels, labels.isEmpty {
+                    throw ConfigError.invalid("account '\(name)': labels must be non-empty when present")
+                }
+                result.append(
+                    AccountConfig(
+                        name: name, forge: forge, scope: scope, instance: entry.instance, labels: entry.labels))
             }
         }
         return result

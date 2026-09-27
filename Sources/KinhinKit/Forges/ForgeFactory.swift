@@ -25,6 +25,9 @@ struct ForgeFactory: Sendable {
             case .forgejo(let token, let scope, let instance):
                 let forgejo = GiteaCredentials(token: token, scope: scope, instance: instance)
                 return try await ForgejoForge.make(credentials: forgejo, labels: labels, demandFloor: floor)
+            case .gitlab(let token, let scope, let instance):
+                let gitlab = GitLabCredentials(token: token, scope: scope, instance: instance)
+                return try await GitLabForge.make(credentials: gitlab, labels: labels)
             }
         }
     }

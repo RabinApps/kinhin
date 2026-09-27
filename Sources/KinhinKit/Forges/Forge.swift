@@ -9,6 +9,19 @@ public enum ForgeID: String, Codable, Sendable, CaseIterable {
     /// Gitea's upstream (wire-compatible: the same client, endpoints, and
     /// runner binary serve it — see `ForgejoForge`).
     case forgejo
+    /// gitlab.com or a self-managed GitLab (≥ 16). Configured through
+    /// `accounts:` entries only (no top-level section).
+    case gitlab
+
+    /// The product name for UI and messages ("GitHub", "GitLab", …).
+    public var displayName: String {
+        switch self {
+        case .github: return "GitHub"
+        case .gitea: return "Gitea"
+        case .forgejo: return "Forgejo"
+        case .gitlab: return "GitLab"
+        }
+    }
 }
 
 /// Unified credential set across forges.
@@ -16,25 +29,29 @@ public enum ForgeCredentials: Sendable {
     case github(token: String, scope: String)
     case gitea(token: String, scope: String, instance: String)
     case forgejo(token: String, scope: String, instance: String)
+    case gitlab(token: String, scope: String, instance: String)
 
     public var forge: ForgeID {
         switch self {
         case .github: return .github
         case .gitea: return .gitea
         case .forgejo: return .forgejo
+        case .gitlab: return .gitlab
         }
     }
 
     public var token: String {
         switch self {
-        case .github(let token, _), .gitea(let token, _, _), .forgejo(let token, _, _): return token
+        case .github(let token, _), .gitea(let token, _, _), .forgejo(let token, _, _), .gitlab(let token, _, _):
+            return token
         }
     }
 
-    /// "owner/name" (one repository) or an org name.
+    /// "owner/name" (one repository) or an org name; any depth on GitLab.
     public var scope: String {
         switch self {
-        case .github(_, let scope), .gitea(_, let scope, _), .forgejo(_, let scope, _): return scope
+        case .github(_, let scope), .gitea(_, let scope, _), .forgejo(_, let scope, _), .gitlab(_, let scope, _):
+            return scope
         }
     }
 }
@@ -48,6 +65,9 @@ public enum ForgeRegistration: Sendable {
     case sharedShortLived
     /// One long-lived token captured when the forge was built (Gitea family).
     case sharedLongLived
+    /// A runner is created on the forge per runner name, each with its own
+    /// authentication token (GitLab): see `Forge.registrationTokens`.
+    case perRunner
 }
 
 /// What tells the engine that an ephemeral instance's jobs are done.
@@ -80,12 +100,18 @@ public protocol Forge: Sendable {
     var registration: ForgeRegistration { get }
     /// How the engine detects that an ephemeral instance is finished.
     var exitSemantics: ForgeExitSemantics { get }
+    /// Whether queued jobs carry a useful per-repo breakdown (org/group
+    /// scopes; a single-repo scope's breakdown would carry no information).
+    var attributesByRepo: Bool { get }
 
     /// The URL the in-VM bootstrap uses to register (GitHub: configure URL;
     /// Gitea: instance URL).
     func registrationURL() -> String
-    /// Mint a short-lived runner registration token.
+    /// The shared registration token (`sharedShortLived`/`sharedLongLived`).
     func mintRegistrationToken() async throws -> String
+    /// Per-runner credentials (`perRunner`): creates each named runner with
+    /// the given labels and returns name → token.
+    func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String]
     /// This scope's runners (name/id/status/busy), unified shape.
     func runners() async throws -> [ForgeRunner]
     func deleteRunner(id: Int) async throws
@@ -101,9 +127,14 @@ extension Forge {
     /// The scope this forge serves ("owner/name" or an org).
     public var scope: String { credentials.scope }
 
-    /// Org-scoped forges report a per-repo queue breakdown; a single-repo
-    /// scope suppresses it (the breakdown would carry no information).
+    /// Org scopes have no slash; "owner/name" is one repository.
     public var attributesByRepo: Bool { !scope.contains("/") }
+
+    /// Shared-token forges: every runner uses the one token.
+    public func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String] {
+        let token = try await mintRegistrationToken()
+        return Dictionary(uniqueKeysWithValues: runnerNames.map { ($0, token) })
+    }
 }
 
 /// Forge-agnostic runner snapshot.

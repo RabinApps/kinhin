@@ -55,6 +55,11 @@ extension AppDelegate {
             } else {
                 Log.info("app", "replaced Forgejo token (no engine running yet)")
             }
+        case .gitlab:
+            // GitLab has no legacy section: its token belongs to the account named "gitlab".
+            try await notifyAccountTokenReplaced(
+                account: AccountConfig(name: ForgeID.gitlab.rawValue, forge: .gitlab, scope: ""), token: token)
+            return
         }
         await refresh()
     }

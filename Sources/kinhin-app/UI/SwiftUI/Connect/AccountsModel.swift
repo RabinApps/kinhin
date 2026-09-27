@@ -193,6 +193,9 @@ final class AccountsModel {
             let report = await TokenHealthCheck.gitea(
                 token: token, config: KinhinConfig.GiteaForgeConfig(instance: instance, scope: account.scope))
             return StatusLine(text: report.message, style: report.ok ? .ok : .error)
+        case .gitlab:
+            let report = await TokenHealthCheck.gitlab(token: token, scope: account.scope, instance: account.instance)
+            return StatusLine(text: report.message, style: report.ok ? .ok : .error)
         }
     }
 

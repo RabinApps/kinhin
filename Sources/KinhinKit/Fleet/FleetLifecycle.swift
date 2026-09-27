@@ -78,7 +78,9 @@ extension FleetEngine {
             // Registration: the runtime produces the script flavor for the
             // forge and executes it through its own transport (SSH for VMs,
             // exec for containers) — the engine is transport-agnostic.
+            let labels = poolLabels(for: probe)
             let token: String
+            var runnerTokens: [String: String] = [:]
             switch forge.registration {
             case .sharedShortLived:
                 // Registration tokens expire hourly; each account has its own cache.
@@ -88,11 +90,16 @@ extension FleetEngine {
             case .sharedLongLived:
                 // Long-lived (Gitea family): captured at forge construction.
                 token = try await forge.mintRegistrationToken()
+            case .perRunner:
+                // Each runner is created on the forge now, with its own token.
+                token = ""
+                runnerTokens = try await forge.registrationTokens(
+                    runnerNames: Self.runnerNames(for: id, count: runnerCount), labels: labels ?? [])
             }
             let script = try await recordRuntime.registrationScript(
-                forge: forge, token: token, name: id,
+                forge: forge, token: token, runnerTokens: runnerTokens, name: id,
                 runnerCount: runnerCount, route: RepoRoute.from(config: config),
-                labels: poolLabels(for: probe)
+                labels: labels
             )
             result = try await recordRuntime.execRegistration(id, ip: ip, script, timeout: 600)
             guard result.succeeded else {

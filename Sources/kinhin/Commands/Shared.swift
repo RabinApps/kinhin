@@ -37,6 +37,17 @@ func notifyDaemonGiteaTokenReplaced(_ token: String) {
     }
 }
 
+/// Same best-effort notification for the Forgejo token.
+func notifyDaemonForgejoTokenReplaced(_ token: String) {
+    guard RPCClient.isDaemonAlive() else { return }
+    do {
+        try RPCClient().replaceForgejoToken(token)
+        print("running daemon notified — new Forgejo token is live")
+    } catch {
+        warn("could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token")
+    }
+}
+
 /// Same best-effort notification for a named account's token.
 func notifyDaemonAccountTokenReplaced(account: String, token: String) {
     guard RPCClient.isDaemonAlive() else { return }

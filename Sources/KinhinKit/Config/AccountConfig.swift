@@ -11,9 +11,11 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     public var forge: ForgeID
     /// "owner/name" (one repository) or an org name.
     public var scope: String
-    /// Gitea instance base URL. Required for Gitea, unused for GitHub.
+    /// Instance base URL. Required for Gitea/Forgejo, optional for GitLab
+    /// (gitlab.com when absent), unused for GitHub.
     public var instance: String?
-    /// Gitea job labels (nil → the host-mode default). Unused for GitHub.
+    /// Job labels: Gitea-family `runs-on` labels (nil → the host-mode
+    /// default) or GitLab tags (nil → the top-level `labels:`). Unused for GitHub.
     public var labels: [String]?
 
     public init(name: String, forge: ForgeID, scope: String, instance: String? = nil, labels: [String]? = nil) {
@@ -28,8 +30,11 @@ public struct AccountConfig: Sendable, Equatable, Codable {
         case name, forge, scope, instance, labels
     }
 
-    /// Names reserved for the legacy `repo:` / `gitea:` sections.
-    public static let reservedNames: Set<String> = Set(ForgeID.allCases.map(\.rawValue))
+    /// Names reserved for the legacy top-level sections (`repo:`, `gitea:`,
+    /// `forgejo:`). GitLab has none, so "gitlab" is an ordinary account name.
+    public static let reservedNames: Set<String> = [
+        ForgeID.github.rawValue, ForgeID.gitea.rawValue, ForgeID.forgejo.rawValue,
+    ]
 
     /// Account names are used in Keychain items and CLI flags: keep them tame.
     public static func isValidName(_ name: String) -> Bool {
@@ -37,6 +42,12 @@ public struct AccountConfig: Sendable, Equatable, Codable {
         let lower = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789")
         return lower.contains(first)
             && name.unicodeScalars.allSatisfy { lower.contains($0) || $0 == "-" || $0 == "_" }
+    }
+
+    /// A scope the forge accepts: GitLab paths nest (`group/sub/project`);
+    /// the others take `owner/name` or a bare org name.
+    static func isValidScope(_ scope: String, forge: ForgeID) -> Bool {
+        forge == .gitlab ? GitLabCredentials.isValidScope(scope) : isValidScope(scope)
     }
 
     /// `owner/name` or a bare org name.

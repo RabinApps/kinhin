@@ -145,7 +145,7 @@ public struct DockerRuntime: Runtime {
     /// uses — Linux agent paths). Executed inside the container by the
     /// engine via `execRegistration`.
     public func registrationScript(
-        forge: Forge, token: String, name: String,
+        forge: Forge, token: String, runnerTokens: [String: String], name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String {
         // Opt-in shared cache: point the selected ecosystems' caches at the
@@ -182,6 +182,15 @@ public struct DockerRuntime: Runtime {
                     labels: forge.labels,
                     name: name,
                     runnerCount: runnerCount
+                )
+        case .gitlab:
+            return cachePrefix
+                + RunnerBootstrap.gitlabRegistrationScript(
+                    instance: forge.registrationURL(),
+                    runners: try RunnerBootstrap.gitlabRunners(
+                        name: name, runnerCount: runnerCount, tokens: runnerTokens),
+                    binary: "/opt/gitlab-runner/gitlab-runner",
+                    baseDir: "/opt/gitlab-runner"
                 )
         }
     }

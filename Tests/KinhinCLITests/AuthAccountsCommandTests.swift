@@ -15,6 +15,7 @@ final class AuthAccountsCommandTests: XCTestCase {
         var notified: [(account: String, token: String)] = []
         var checkedGitHub: [GitHubCredentials] = []
         var checkedGitea: [GiteaCredentials] = []
+        var checkedGitLab: [GitLabCredentials] = []
     }
 
     private var configURL: URL!
@@ -47,6 +48,7 @@ final class AuthAccountsCommandTests: XCTestCase {
             fail: { throw AuthFailure(message: $0) },
             exit: { throw AuthExit(code: $0) }
         )
+        env.checkGitLab = { recorder.checkedGitLab.append($0) }
         env.saveAccount = { token, forge, name in recorder.savedAccounts.append((token, forge, name)) }
         env.loadAccount = { _, name in stored[name] }
         env.deleteAccount = { recorder.deletedAccounts.append(($0, $1)) }
@@ -169,5 +171,40 @@ final class AuthAccountsCommandTests: XCTestCase {
         XCTAssertEqual(report.accounts.map(\.name), ["work"])
         XCTAssertEqual(report.accounts.first?.stored, true)
         XCTAssertEqual(report.accounts.first?.prefix, "ghp_")
+    }
+
+    // MARK: GitLab
+
+    func testGitLabAccountRoundTrip() async throws {
+        let recorder = Recorder()
+        try await AuthCommand.run(
+            ["auth", "add", "gitlab", "--gitlab", "--scope", "acme/platform/api"], environment: environment(recorder))
+        let account = try XCTUnwrap(try ConfigLoader.load(from: configURL).accounts.first)
+        XCTAssertEqual(account.forge, .gitlab)
+        XCTAssertEqual(account.scope, "acme/platform/api")
+        XCTAssertNil(account.instance, "gitlab.com by default")
+
+        // --gitlab targets the GitLab account through its own Keychain item and RPC.
+        try await AuthCommand.run(
+            ["auth", "set", "--gitlab", "--token", "glpat-x"], environment: environment(recorder))
+        XCTAssertEqual(recorder.savedAccounts.last?.forge, .gitlab)
+        XCTAssertEqual(recorder.savedAccounts.last?.name, "gitlab")
+        XCTAssertEqual(recorder.notified.last?.account, "gitlab")
+
+        try await AuthCommand.run(
+            ["auth", "status", "--gitlab"], environment: environment(recorder, stored: ["gitlab": "glpat-x"]))
+        XCTAssertEqual(recorder.checkedGitLab.first?.scope, "acme/platform/api")
+        XCTAssertEqual(recorder.checkedGitLab.first?.instance, GitLabCredentials.defaultInstance)
+        XCTAssertTrue(recorder.checkedGitHub.isEmpty, "a GitLab account is never checked against GitHub")
+    }
+
+    func testGitLabFlagWithoutAnAccountPointsAtAdd() async throws {
+        do {
+            try await AuthCommand.run(
+                ["auth", "set", "--gitlab", "--token", "x"], environment: environment(Recorder()))
+            XCTFail("expected failure")
+        } catch let error as AuthFailure {
+            XCTAssertTrue(error.message.contains("auth add NAME --gitlab"), error.message)
+        }
     }
 }

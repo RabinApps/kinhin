@@ -69,11 +69,12 @@ final class HostRuntime: Runtime {
     }
 
     /// The registration script for the forge (GitHub here; Gitea-family in
-    /// `HostRuntime+Gitea`), run from the agent directory with the
+    /// `HostRuntime+Gitea`, GitLab in `HostRuntime+GitLab`), run from the
+    /// agent directory with the
     /// work directory redirected into the instance's scrubbed dir. Labels:
     /// the pool's labels (already merged with `kinhin-host` at pool build).
     func registrationScript(
-        forge: Forge, token: String, name: String,
+        forge: Forge, token: String, runnerTokens: [String: String], name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String {
         switch forge.credentials {
@@ -84,6 +85,9 @@ final class HostRuntime: Runtime {
             return giteaRegistrationScript(
                 instance: forge.registrationURL(), token: token,
                 labels: forge.labels, name: name, runnerCount: runnerCount)
+        case .gitlab:
+            return try gitlabRegistrationScript(
+                forge: forge, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount)
         }
         let workDir = workDirectory(for: name)
         let base = RunnerBootstrap.registrationScript(
@@ -116,6 +120,7 @@ final class HostRuntime: Runtime {
     func teardown(id: String) async {
         let workDir = workDirectory(for: id)
         await stopGiteaDaemons(id: id)
+        await stopGitLabRunners(id: id)
         await bestEffortAsync(id, "removing host work directory") {
             if FileManager.default.fileExists(atPath: workDir.path) {
                 try FileManager.default.removeItem(at: workDir)

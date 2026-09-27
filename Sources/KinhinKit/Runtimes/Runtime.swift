@@ -99,11 +99,13 @@ public protocol Runtime: Sendable {
     func existingInstanceIDs() async -> [String]
 
     /// The bootstrap script that turns the provisioned instance into N
-    /// registered runners (GitHub/Gitea scripts today). The engine executes
-    /// it inside the instance. `labels` overrides the forge's default label
-    /// set for the GitHub branch — the pool's labels in mixed fleets.
+    /// registered runners. The engine executes it inside the instance.
+    /// `token` is the shared registration token; `runnerTokens` holds the
+    /// per-runner credentials of `perRunner` forges (GitLab), keyed by runner
+    /// name. `labels` overrides the forge's default label set for the GitHub
+    /// branch — the pool's labels in mixed fleets.
     func registrationScript(
-        forge: Forge, token: String, name: String,
+        forge: Forge, token: String, runnerTokens: [String: String], name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String
 
@@ -114,6 +116,18 @@ public protocol Runtime: Sendable {
 
     /// Stop and remove the instance. Must be idempotent.
     func teardown(id: String) async
+}
+
+extension Runtime {
+    /// Shared-token registration (every forge but GitLab).
+    func registrationScript(
+        forge: Forge, token: String, name: String,
+        runnerCount: Int, route: RepoRoute, labels: [String]?
+    ) async throws -> String {
+        try await registrationScript(
+            forge: forge, token: token, runnerTokens: [:], name: name, runnerCount: runnerCount, route: route,
+            labels: labels)
+    }
 }
 
 // MARK: - Tart implementation
@@ -199,7 +213,7 @@ struct TartRuntime: Runtime {
     }
 
     func registrationScript(
-        forge: Forge, token: String, name: String,
+        forge: Forge, token: String, runnerTokens: [String: String], name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String {
         // Opt-in shared cache: point the selected ecosystems' caches at the
@@ -236,6 +250,15 @@ struct TartRuntime: Runtime {
                     labels: forge.labels,
                     name: name,
                     runnerCount: runnerCount
+                )
+        case .gitlab:
+            return cachePrefix
+                + RunnerBootstrap.gitlabRegistrationScript(
+                    instance: forge.registrationURL(),
+                    runners: try RunnerBootstrap.gitlabRunners(
+                        name: name, runnerCount: runnerCount, tokens: runnerTokens),
+                    binary: "\"$HOME/gitlab-runner/gitlab-runner\"",
+                    baseDir: "\"$HOME/gitlab-runner\""
                 )
         }
     }

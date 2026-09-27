@@ -85,6 +85,12 @@ extension FleetEngine {
                     demandFloor: config.minRunners,
                     account: account.name
                 )
+            case .gitlab:
+                forge = try await GitLabForge.make(
+                    credentials: GitLabCredentials(token: token, scope: account.scope, instance: account.instance),
+                    labels: account.labels ?? config.labels,
+                    account: account.name
+                )
             }
             forgeState.withLock { $0.byPlatform[account.name] = forge }
             registrationCache(for: account.name).invalidate()
@@ -109,6 +115,8 @@ extension FleetEngine {
             await replaceCredentials(pat: token)
         case ForgeID.gitea.rawValue:
             await replaceGiteaToken(token)
+        case ForgeID.forgejo.rawValue:
+            await replaceForgejoToken(token)
         default:
             guard let account = config.accounts.first(where: { $0.name == name }) else {
                 Log.warn("engine", "token replaced for unknown account '\(name)' — ignoring")

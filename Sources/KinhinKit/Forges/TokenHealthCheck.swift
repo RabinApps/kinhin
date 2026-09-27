@@ -47,6 +47,34 @@ public enum TokenHealthCheck {
         }
     }
 
+    /// Check a GitLab account: the instance is new enough for the runner
+    /// creation API, the token has the scopes kinhin uses, and the scope
+    /// resolves to a project or group it can see.
+    public static func gitlab(
+        token: String, scope: String, instance: String?,
+        client gitlab: GitLabClient? = nil
+    ) async -> Report {
+        let client =
+            gitlab ?? GitLabClient(credentials: GitLabCredentials(token: token, scope: scope, instance: instance))
+        do {
+            let version = try await client.version()
+            if let major = Int(version.prefix { $0.isNumber }), major < 16 {
+                throw GitLabError.unsupportedVersion(version)
+            }
+            let scopes = Set(try await client.tokenScopes())
+            if !scopes.contains("api") {
+                let missing = ["create_runner", "manage_runner", "read_api"].filter { !scopes.contains($0) }
+                if !missing.isEmpty { throw GitLabError.insufficientScopes(missing) }
+            }
+            let resolved = try await client.resolveScope()
+            let kind = resolved.isGroup ? "group" : "project"
+            return Report(ok: true, message: "Token works against \(kind) \(scope) @ \(client.credentials.instance)")
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            return Report(ok: false, message: "Token check failed: \(message)")
+        }
+    }
+
     /// Forge-dispatching convenience for the settings form: resolves the
     /// stored token (via `keychainToken`) and the config scope, and returns
     /// an actionable "not checkable" report when a prerequisite is missing
@@ -83,6 +111,12 @@ public enum TokenHealthCheck {
                 return Report(ok: false, message: "No forgejo: section in config.yaml — add one to check the token.")
             }
             return await Self.gitea(token: token, config: forgejoConfig, client: gitea)
+        case .gitlab:
+            // GitLab lives in accounts:; the form checks the one named "gitlab".
+            guard let account = config?.accounts.first(where: { $0.forge == .gitlab }) else {
+                return Report(ok: false, message: "No GitLab account in config.yaml — add one to check the token.")
+            }
+            return await Self.gitlab(token: token, scope: account.scope, instance: account.instance)
         }
     }
 }

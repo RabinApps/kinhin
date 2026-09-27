@@ -243,7 +243,7 @@ public struct SetupStatusComputer: Sendable {
         // One row per additional named account.
         if case .parsed(let cfg) = evaluation {
             for account in cfg.accounts {
-                let provider = account.forge == .github ? "GitHub" : "Gitea"
+                let provider = account.forge.displayName
                 checks.append(
                     tokenRow(
                         id: "account-token-\(account.name)", title: "\(provider) token stored (\(account.name))",
