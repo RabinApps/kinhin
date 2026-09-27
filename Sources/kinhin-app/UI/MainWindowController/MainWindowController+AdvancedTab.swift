@@ -85,10 +85,16 @@ extension MainTabsWindowController {
 
     func buildCapacitySection() -> NSView {
         let model = CapacityModel()
+        model.configURL = Paths.config
         model.onEdited = { [weak self] in self?.runtimesEdited?() }
         capacityModel = model
         let host = NSHostingView(rootView: CapacityView(model: model))
         host.sizingOptions = []
+        // Load once here: selectAdvancedSection deliberately skips reloads
+        // for this section (a stale reload would discard unapplied edits),
+        // so the fresh model must fetch its own snapshot or the form renders
+        // blank forever.
+        model.reload()
         return host
     }
 

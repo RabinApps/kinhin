@@ -23,6 +23,9 @@ final class CapacityModel {
     @ObservationIgnored var configURL: URL = Paths.config
     /// Fired once after an Apply wrote at least one change.
     @ObservationIgnored var onEdited: (() -> Void)?
+    /// How many times the config was loaded (tests: the hosting section must
+    /// have loaded at least once, or the form renders blank forever).
+    @ObservationIgnored private(set) var loads = 0
 
     /// What the controls show, including unapplied edits. Nil until loaded.
     private(set) var draft: Snapshot?
@@ -48,6 +51,7 @@ final class CapacityModel {
     // MARK: Loading
 
     func reload() {
+        loads += 1
         result = StatusLine(text: "")
         do {
             guard let loaded = try ConfigStore.snapshot(at: configURL) else {

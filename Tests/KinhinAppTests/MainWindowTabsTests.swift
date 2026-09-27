@@ -170,6 +170,17 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertFalse(allText().contains("Forges"), "accounts live in the Accounts section")
     }
 
+    func testSelectingTheCapacitySectionLoadsIt() {
+        // Regression: the form rendered blank because nothing ever loaded the
+        // config into it — selectAdvancedSection deliberately skips reloads
+        // for Capacity (to protect unapplied edits), so the fresh model must
+        // fetch its own snapshot when its section is built.
+        let fresh = MainTabsWindowController(defaults: UserDefaults(suiteName: "kinhin-capacity-\(UUID().uuidString)")!)
+        fresh.showAdvanced(.capacity)
+        XCTAssertGreaterThanOrEqual(
+            fresh.capacityModel?.loads ?? 0, 1, "the section must load its config on first open")
+    }
+
     func testAdvancedSectionsEmbedTheirControllers() {
         window.showAdvanced(.routing)
         XCTAssertNotNil(window.runtimesModel, "Routing embeds the runtimes pane")
