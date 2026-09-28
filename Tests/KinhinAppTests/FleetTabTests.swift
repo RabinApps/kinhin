@@ -83,6 +83,51 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertEqual(delegate.stopCalls, 1)
     }
 
+    // MARK: - In-flight start/stop (progress + disabled controls)
+
+    func testStartClickMarksPendingUntilTheActionEnds() {
+        window.fleetModel.startClicked()
+        XCTAssertEqual(window.fleetModel.pendingAction, .start)
+        XCTAssertTrue(window.fleetModel.isBusy)
+        XCTAssertEqual(delegate.startCalls, 1, "the click still dispatches")
+
+        // The action owner clears it when the command and refresh are done.
+        window.fleetModel.endPendingAction()
+        XCTAssertNil(window.fleetModel.pendingAction)
+        XCTAssertFalse(window.fleetModel.isBusy)
+    }
+
+    func testStopClickMarksPendingAndIgnoresDoubleClicks() {
+        window.render(
+            status: {
+                var s = FleetStatus(); s.running = true; return s
+            }())
+        window.fleetModel.stopClicked()
+        XCTAssertEqual(window.fleetModel.pendingAction, .stop)
+        XCTAssertEqual(delegate.stopCalls, 1)
+
+        // A second click while busy must not dispatch again (state backstop
+        // behind the disabled buttons).
+        window.fleetModel.stopClicked()
+        window.fleetModel.startClicked()
+        XCTAssertEqual(delegate.stopCalls, 1)
+        XCTAssertEqual(delegate.startCalls, 0)
+
+        window.fleetModel.endPendingAction()
+        XCTAssertNil(window.fleetModel.pendingAction)
+    }
+
+    func testPauseToggleIsIgnoredWhileBusy() {
+        window.render(status: FleetStatus())  // not paused, not busy
+        window.fleetModel.startClicked()
+        window.fleetModel.togglePause()
+        XCTAssertEqual(delegate.pauseCalls, 0, "no pause/resume during a start/stop")
+        XCTAssertEqual(delegate.resumeCalls, 0)
+        window.fleetModel.endPendingAction()
+        window.fleetModel.togglePause()
+        XCTAssertEqual(delegate.pauseCalls, 1)
+    }
+
     func testPauseButtonDispatchesBasedOnRenderedState() {
         window.render(status: FleetStatus())  // not paused
         window.fleetModel.togglePause()

@@ -17,14 +17,40 @@ struct FleetView: View {
             }
 
             // Only the actions that apply: Start when stopped; Stop and
-            // Pause/Resume when running.
+            // Pause/Resume when running. While a start/stop is in flight its
+            // button shows progress and every fleet control disables.
             HStack(spacing: 8) {
                 if model.running {
-                    Button("Stop") { model.onStop() }.accessibilityLabel("Stop the fleet")
+                    if model.pendingAction == .stop {
+                        Button {
+                            model.onStop()
+                        } label: {
+                            HStack(spacing: 4) {
+                                ProgressView().controlSize(.small)
+                                Text("Stop")
+                            }
+                        }
+                        .accessibilityLabel("Stopping the fleet")
+                    } else {
+                        Button("Stop") { model.stopClicked() }
+                            .accessibilityLabel("Stop the fleet")
+                    }
                     Button(model.pauseTitle) { model.togglePause() }
                         .accessibilityLabel("Pause or resume the fleet")
+                        .disabled(model.isBusy)
+                } else if model.pendingAction == .start {
+                    Button {
+                        model.onStart()
+                    } label: {
+                        HStack(spacing: 4) {
+                            ProgressView().controlSize(.small)
+                            Text("Start")
+                        }
+                    }
+                    .accessibilityLabel("Starting the fleet")
                 } else {
-                    Button("Start") { model.onStart() }.accessibilityLabel("Start the fleet")
+                    Button("Start") { model.startClicked() }
+                        .accessibilityLabel("Start the fleet")
                 }
             }
 

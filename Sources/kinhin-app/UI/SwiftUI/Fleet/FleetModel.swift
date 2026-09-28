@@ -19,6 +19,17 @@ final class FleetModel {
     /// Nil until the first poll (or when setup isn't finished).
     var status: FleetStatus?
 
+    /// A start/stop command is in flight: its button shows a progress
+    /// indicator and the fleet controls disable until the command and its
+    /// status refresh complete (`endPendingAction`).
+    enum PendingAction {
+        case start
+        case stop
+    }
+
+    private(set) var pendingAction: PendingAction?
+    var isBusy: Bool { pendingAction != nil }
+
     var statusLine: String { AppDelegate.statusLineText(for: status) }
     var running: Bool { status?.running ?? false }
     var paused: Bool { status?.paused ?? false }
@@ -27,7 +38,29 @@ final class FleetModel {
     /// The VMs currently running a workflow.
     var working: [VMRecord] { records.filter { $0.job != nil } }
 
+    /// Button entry points: mark the in-flight action, then dispatch. A
+    /// second click while busy is a no-op (the buttons disable too — this is
+    /// the state-level backstop).
+    func startClicked() {
+        guard !isBusy else { return }
+        pendingAction = .start
+        onStart()
+    }
+
+    func stopClicked() {
+        guard !isBusy else { return }
+        pendingAction = .stop
+        onStop()
+    }
+
+    /// Called by the action owner (the app delegate) when the command and its
+    /// status refresh are done — success, failure, or not-set-up alike.
+    func endPendingAction() {
+        pendingAction = nil
+    }
+
     func togglePause() {
+        guard !isBusy else { return }
         if paused { onResume() } else { onPause() }
     }
 

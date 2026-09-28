@@ -20,6 +20,7 @@ extension AppDelegate {
 
     @objc func startFleet() {
         Task {
+            defer { mainController?.fleetModel.endPendingAction() }
             if let engine {
                 await engine.start()
             } else if client != nil {
@@ -33,6 +34,7 @@ extension AppDelegate {
 
     @objc func stopFleet() {
         Task {
+            defer { mainController?.fleetModel.endPendingAction() }
             if let engine {
                 await engine.stop()
             } else if client != nil {
