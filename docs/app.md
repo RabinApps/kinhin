@@ -13,11 +13,11 @@ single main window (and the ○ in your menu bar shows the number of live runner
 
 Everything kinhin does happens in a single main window. A segmented control switches between:
 
-| Tab          | Contents                                                                                                                                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fleet**    | Live status, Start/Stop/Pause, the VM list, and buttons for Logs, Diagnostics and update checks.                                            |
-| **Setup**    | Connect GitHub (and optionally Gitea), pick the repo or org, get this Mac ready, then choose your toolchains. First run is a 4-step wizard. |
-| **Advanced** | **Capacity** (VM counts and sizes, with Apply), **Routing** (runtimes, budget, labels), **App** (launch options, config file).              |
+| Tab          | Contents                                                                                                                                                                                                                                                                                |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Fleet**    | Live status, Start/Stop/Pause, the VM list, and buttons for Logs and Diagnostics.                                                                                                                                                                                                       |
+| **Setup**    | Connect GitHub (and optionally Gitea), pick the repo or org, get this Mac ready, then choose your toolchains. First run is a 4-step wizard.                                                                                                                                             |
+| **Advanced** | **Accounts** (forges and this Mac), **Capacity** (VM counts and sizes, with Apply), **Routing** (runtimes, budget, labels), **Containers** (containers and volumes), **Toolchains** (bake tools into images), **App** (launch options, updates, config file).                           |
 
 ## Launch mode and login item
 
@@ -44,18 +44,18 @@ regular app with a Dock icon; in menu-bar-only mode it stays an accessory app ex
 The menu bar app exposes App Intents (in the release `.app`; `scripts/build-app.sh` generates the metadata), so
 you can ask about the fleet without opening a window:
 
-| Say / run                                 | What it does                                            |
-| ----------------------------------------- | ------------------------------------------------------- |
-| "How's my kinhin fleet" / "kinhin status" | Running or paused, active VMs, queued jobs, last error  |
-| "Start kinhin"                            | Starts a stopped fleet so queued jobs can begin         |
-| "Stop kinhin"                             | Stops the fleet; running jobs finish before VMs go down |
-| "Pause kinhin"                            | Stops new runner VMs from starting; running jobs finish |
-| "Resume kinhin"                           | Lets a paused fleet start VMs again                     |
+| Say / run                                 | What it does                                                     |
+| ----------------------------------------- | -------------------------------------------------------          |
+| "How's my kinhin fleet" / "kinhin status" | Running or paused, active VMs, queued jobs, last error           |
+| "Start kinhin"                            | Starts a stopped fleet so queued jobs can begin                  |
+| "Stop kinhin"                             | Stops the fleet; active VMs are deleted right away               |
+| "Pause kinhin"                            | Stops new runner VMs from starting; running jobs finish          |
+| "Resume kinhin"                           | Lets a paused fleet start VMs again                              |
 | "Delete kinhin VM"                        | Removes one runner VM — pauses the fleet first unless turned off |
-| "Diagnose kinhin VM"                      | Phase, assigned job, and last error for one runner VM   |
-| "Enable kinhin auto-resume"               | A paused fleet releases itself once the queue is empty  |
-| "Disable kinhin auto-resume"              | A pause holds until the fleet is resumed by hand        |
-| "Run kinhin diagnostics"                  | One-line result of the `kinhin doctor` checks           |
+| "Diagnose kinhin VM"                      | Phase, assigned job, and last error for one runner VM            |
+| "Enable kinhin auto-resume"               | A paused fleet releases itself once the queue is empty           |
+| "Disable kinhin auto-resume"              | A pause holds until the fleet is resumed by hand                 |
+| "Run kinhin diagnostics"                  | One-line result of the `kinhin doctor` checks                    |
 
 They also appear as actions in Shortcuts, so you can automate them (for example, pause the fleet when a call
 starts). Start, stop, pause and resume are idempotent and work with both the in-process engine and the background daemon.

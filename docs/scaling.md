@@ -67,5 +67,6 @@ as the job finishes; kinhin then deletes the VM. If the engine crashes or restar
 Registration tokens are short-lived (1 h); kinhin caches and refreshes them automatically. Your
 PAT lives in the login Keychain.
 
-Config edits made from the **Runtimes…** pane (routes, budget split, labels) reach a running fleet
-live via `reload_config` — no restart; a running fleet simply re-buckets demand on its next poll.
+Config edits made from the app's **Advanced → Routing** tab (routes, budget split, labels) reach a
+running fleet live via `reload_config` — no restart; a running fleet simply re-buckets demand on
+its next poll.
