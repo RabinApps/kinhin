@@ -105,6 +105,36 @@ class MainWindowTestCase: XCTestCase {
         window.window?.contentView?.flattenedText().joined(separator: "\n") ?? ""
     }
 
+    /// Realizes the window's layout and reports whether every hosting view's
+    /// primary SwiftUI child has real geometry. SwiftUI renders lazily and an
+    /// empty form collapses to a zero-width column, so a section whose model
+    /// never loaded still passes an "is the right view installed" check —
+    /// this is the geometry-level signal that catches it.
+    func contentHasVisibleArea(in controller: MainTabsWindowController, line: UInt = #line) -> Bool {
+        guard let content = controller.window?.contentView else {
+            XCTFail("the window has no content view", line: line)
+            return false
+        }
+        content.layoutSubtreeIfNeeded()
+        // NSHostingView is generic, so `is NSHostingView<…>` can't typecheck;
+        // match the runtime type name instead.
+        let hosted = content.flattenedViews().filter { host in
+            String(describing: type(of: host)).hasPrefix("NSHostingView<")
+        }
+        guard !hosted.isEmpty else {
+            XCTFail("no hosting view found in the content view", line: line)
+            return false
+        }
+        // The hosting view's FIRST child is its SwiftUI content container
+        // (zero-sized when the form is empty); the others are focus rings and
+        // other AppKit chrome that keep their size regardless.
+        return hosted.allSatisfy { host in
+            guard let contentChild = host.subviews.first else { return false }
+            let frame = contentChild.convert(contentChild.bounds, to: nil)
+            return !frame.isEmpty && frame.width > 1 && frame.height > 1
+        }
+    }
+
     /// Fires a control's action the way a click would (target/action ignores
     /// method visibility, so private @objc actions stay reachable in tests).
     /// Named `fire` to stay clear of NSObject.perform(_:).

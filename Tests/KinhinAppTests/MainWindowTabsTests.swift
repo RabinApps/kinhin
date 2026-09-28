@@ -189,4 +189,26 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertTrue(
             window.advancedContainer.subviews.first is NSHostingView<AppSectionView>, "App hosts the SwiftUI section")
     }
+
+    /// Every Advanced section must show something on first open. The failure
+    /// mode this guards against already bit Capacity: a section hosted on an
+    /// @Observable model still installs the right SwiftUI view even when its
+    /// model never loaded — the tree exists, but renders nothing — so "is the
+    /// right view installed" proves nothing. The window is not on screen
+    /// here, so there is no pixel-accurate rendering; the next best signal is
+    /// that the hosted SwiftUI content, after a layout pass, has a non-empty
+    /// visible rectangle (an empty form has none).
+    func testEveryAdvancedSectionRendersVisibleContentOnFirstOpen() {
+        // A fresh window per section, because sections build their models
+        // lazily on first selection — the real-user path.
+        for section in AdvancedSection.allCases {
+            let fresh = MainTabsWindowController(
+                defaults: UserDefaults(suiteName: "kinhin-sections-\(UUID().uuidString)")!)
+            fresh.showAdvanced(section)
+            XCTAssertTrue(
+                contentHasVisibleArea(in: fresh),
+                "\(section.label) rendered no visible content on first open — "
+                    + "did its section forget to load?")
+        }
+    }
 }
