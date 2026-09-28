@@ -20,36 +20,45 @@ extension AppDelegate {
 
     @objc func startFleet() {
         Task {
-            defer {
-                pendingFleetAction = nil
-                mainController?.fleetModel.endPendingAction()
+            // Nothing configured yet: Setup is the answer, not an alert.
+            guard engine != nil || client != nil else { openSetupTab(); return }
+            do {
+                try await performFleetAction(.start)
+            } catch {
+                AlertKit.present(error: error, title: "Couldn't start the fleet")
             }
-            pendingFleetAction = .start
-            if let engine {
-                await engine.start()
-            } else if client != nil {
-                sendDaemonCommand(.start, failureTitle: "Couldn't start the fleet")
-            } else {
-                openSetupTab()
-            }
-            await refresh()
         }
     }
 
     @objc func stopFleet() {
         Task {
-            defer {
-                pendingFleetAction = nil
-                mainController?.fleetModel.endPendingAction()
+            do {
+                try await performFleetAction(.stop)
+            } catch {
+                AlertKit.present(error: error, title: "Couldn't stop the fleet")
             }
-            pendingFleetAction = .stop
-            if let engine {
-                await engine.stop()
-            } else if client != nil {
-                sendDaemonCommand(.stop, failureTitle: "Couldn't stop the fleet")
-            }
-            await refresh()
         }
+    }
+
+    /// Runs a start/stop with the pending-state bookkeeping shared by every
+    /// entry point (menu item, Fleet tab button, App Intent). Throws when no
+    /// backend is available — the @objc wrappers surface that per their own
+    /// UX, and intents propagate it into the Shortcuts dialog.
+    func performFleetAction(_ action: PendingFleetAction) async throws {
+        defer {
+            pendingFleetAction = nil
+            mainController?.fleetModel.endPendingAction()
+        }
+        pendingFleetAction = action == .start ? .start : .stop
+        if let engine {
+            if action == .start { await engine.start() } else { await engine.stop() }
+        } else if client != nil {
+            let method: RPCMethod = action == .start ? .start : .stop
+            sendDaemonCommand(method, failureTitle: "Couldn't \(action == .start ? "start" : "stop") the fleet")
+        } else {
+            throw FleetAccessError.notSetUp
+        }
+        await refresh()
     }
 
     @objc func pauseFleet() {

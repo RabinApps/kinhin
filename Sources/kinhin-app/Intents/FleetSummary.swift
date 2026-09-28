@@ -23,6 +23,30 @@ enum FleetSummary {
         return paused ? "Paused. Running jobs finish, but no new VMs will start." : "Resumed."
     }
 
+    /// Outcome of a start/stop request.
+    enum StartStopOutcome {
+        /// The fleet was already in the wanted state — nothing ran.
+        case alreadyThere
+        /// The command ran and the status poll confirms the wanted state.
+        case done
+        /// The command ran but the follow-up poll disagrees (or failed):
+        /// the engine may still be mid-transition (forge verification on
+        /// start, draining VMs on stop).
+        case uncertain
+    }
+
+    static func startStopResult(start: Bool, outcome: StartStopOutcome) -> String {
+        let action = start ? "start" : "stop"
+        switch outcome {
+        case .alreadyThere:
+            return start ? "The fleet is already running." : "The fleet is already stopped."
+        case .done:
+            return start ? "Started. Queued jobs can begin." : "Stopped. No new VMs will start."
+        case .uncertain:
+            return "The \(action) is in progress — check the fleet status in a moment."
+        }
+    }
+
     static func doctor(_ report: DoctorReport) -> String {
         doctor(ready: report.ready, checks: report.checks)
     }

@@ -6,6 +6,8 @@ import KinhinKit
 @MainActor
 protocol FleetIntentBridge {
     func status() async throws -> FleetStatus
+    func startFleet() async throws
+    func stopFleet() async throws
     func setPaused(_ paused: Bool) async throws
     func doctor() async -> DoctorReport
 }
@@ -20,6 +22,13 @@ struct AppFleetIntentBridge: FleetIntentBridge {
     }
 
     func status() async throws -> FleetStatus { try await delegate.fleetStatus() }
+
+    /// Routed through the delegate's pending-state bookkeeping, so a command
+    /// begun from Shortcuts disables the menu items and flips the status item
+    /// exactly like one begun in the app.
+    func startFleet() async throws { try await delegate.performFleetAction(.start) }
+
+    func stopFleet() async throws { try await delegate.performFleetAction(.stop) }
 
     func setPaused(_ paused: Bool) async throws { try await delegate.setFleetPaused(paused) }
 
