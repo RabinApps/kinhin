@@ -14,6 +14,9 @@ final class FakeFleetIntentBridge: FleetIntentBridge {
     private(set) var startCalls = 0
     private(set) var stopCalls = 0
     private(set) var deleteCalls: [String] = []
+    /// Current auto-resume policy the fake reports; mutations are recorded.
+    var autoResume = false
+    private(set) var autoResumeCalls: [Bool] = []
     /// When set, start/stop flips `running` like the real backend would.
     var appliesStartStop = false
     /// When set, delete removes the record like the real backend would.
@@ -49,6 +52,17 @@ final class FakeFleetIntentBridge: FleetIntentBridge {
         if let error { throw error }
         deleteCalls.append(id)
         if appliesDelete { current.records.removeAll { $0.id == id } }
+    }
+
+    func autoResumeEnabled() async throws -> Bool {
+        if let error { throw error }
+        return autoResume
+    }
+
+    func setAutoResume(_ on: Bool) async throws {
+        if let error { throw error }
+        autoResumeCalls.append(on)
+        autoResume = on
     }
 
     func doctor() async -> DoctorReport { fatalError("not used") }

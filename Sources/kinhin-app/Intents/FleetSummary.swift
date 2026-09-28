@@ -102,6 +102,25 @@ enum FleetSummary {
         "No VM named \(id) is in the fleet."
     }
 
+    /// Outcome of an auto-resume policy toggle.
+    enum AutoResumeOutcome {
+        /// The policy was already in the wanted state — nothing was written.
+        case alreadyThere
+        /// The config was written and the change pushed to the engine.
+        case done
+    }
+
+    static func autoResumeResult(on: Bool, outcome: AutoResumeOutcome) -> String {
+        switch outcome {
+        case .alreadyThere:
+            return on ? "Auto-resume is already on." : "Auto-resume is already off."
+        case .done:
+            return on
+                ? "Auto-resume is on. A paused fleet releases itself once the queue is empty."
+                : "Auto-resume is off. A pause holds until you resume the fleet."
+        }
+    }
+
     static func doctor(_ report: DoctorReport) -> String {
         doctor(ready: report.ready, checks: report.checks)
     }

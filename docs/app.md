@@ -53,6 +53,8 @@ you can ask about the fleet without opening a window:
 | "Resume kinhin"                           | Lets a paused fleet start VMs again                     |
 | "Delete kinhin VM"                        | Removes one runner VM — pauses the fleet first unless turned off |
 | "Diagnose kinhin VM"                      | Phase, assigned job, and last error for one runner VM   |
+| "Enable kinhin auto-resume"               | A paused fleet releases itself once the queue empties   |
+| "Disable kinhin auto-resume"              | A pause holds until the fleet is resumed by hand        |
 | "Run kinhin diagnostics"                  | One-line result of the `kinhin doctor` checks           |
 
 They also appear as actions in Shortcuts, so you can automate them (for example, pause the fleet when a call

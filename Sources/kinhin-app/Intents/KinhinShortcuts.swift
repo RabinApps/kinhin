@@ -34,5 +34,13 @@ struct KinhinShortcuts: AppShortcutsProvider {
             intent: DiagnoseVMIntent(),
             phrases: ["Diagnose \(.applicationName) VM"],
             shortTitle: "Diagnose VM", systemImageName: "stethoscope")
+        AppShortcut(
+            intent: EnableAutoResumeIntent(),
+            phrases: ["Enable \(.applicationName) auto-resume"],
+            shortTitle: "Enable Auto-Resume", systemImageName: "clock.arrow.circlepath")
+        AppShortcut(
+            intent: DisableAutoResumeIntent(),
+            phrases: ["Disable \(.applicationName) auto-resume"],
+            shortTitle: "Disable Auto-Resume", systemImageName: "pause.circle")
     }
 }

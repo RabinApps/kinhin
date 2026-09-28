@@ -246,4 +246,47 @@ final class FleetIntentTests: XCTestCase {
             XCTAssertTrue(error is FleetAccessError)
         }
     }
+
+    // MARK: Auto-resume intents
+
+    func testEnableAutoResumeRunsOnceAndIsIdempotent() async throws {
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
+        FleetIntentEnvironment.bridge = bridge
+        _ = try await SetAutoResumeAction.run(on: true)
+        _ = try await SetAutoResumeAction.run(on: true)
+        XCTAssertEqual(bridge.autoResumeCalls, [true], "a second enable on an enabled policy is a no-op")
+    }
+
+    func testDisableAutoResumeOnlyActsWhenEnabled() async throws {
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
+        FleetIntentEnvironment.bridge = bridge
+        _ = try await SetAutoResumeAction.run(on: false)
+        _ = try await SetAutoResumeAction.run(on: false)
+        XCTAssertTrue(bridge.autoResumeCalls.isEmpty, "disabling a disabled policy is a no-op")
+    }
+
+    func testAutoResumeToggleFlipsBothWays() async throws {
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
+        bridge.autoResume = true
+        FleetIntentEnvironment.bridge = bridge
+        let offText = try await SetAutoResumeAction.run(on: false)
+        XCTAssertEqual(bridge.autoResumeCalls, [false])
+        XCTAssertTrue(offText.hasPrefix("Auto-resume is off."), "got: \(offText)")
+        let onText = try await SetAutoResumeAction.run(on: true)
+        XCTAssertEqual(bridge.autoResumeCalls, [false, true])
+        XCTAssertTrue(onText.hasPrefix("Auto-resume is on."), "got: \(onText)")
+    }
+
+    func testAutoResumeErrorsPropagate() async {
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
+        bridge.error = FleetAccessError.notSetUp
+        FleetIntentEnvironment.bridge = bridge
+        do {
+            _ = try await SetAutoResumeAction.run(on: true)
+            XCTFail("expected throw")
+        } catch {
+            XCTAssertTrue(error is FleetAccessError)
+            XCTAssertTrue(bridge.autoResumeCalls.isEmpty)
+        }
+    }
 }

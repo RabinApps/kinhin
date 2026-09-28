@@ -26,6 +26,16 @@ extension AppDelegate {
         }
     }
 
+    /// Toggles `auto_resume:` in config.yaml and pushes the change to whoever
+    /// owns the engine — the App Intent's entry point, matching what the
+    /// Capacity tab's Apply does for the same field. Throws when the config
+    /// file is missing or the edited result fails validation (nothing is
+    /// written in that case).
+    func setAutoResumePolicy(_ on: Bool) async throws {
+        try GeneralConfigEditor.apply(.autoResume(on), to: Paths.config)
+        pushConfigToEngine()
+    }
+
     private func applyConfigToEngine() async {
         if let engine {
             let cfg: KinhinConfig

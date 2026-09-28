@@ -10,6 +10,8 @@ protocol FleetIntentBridge {
     func stopFleet() async throws
     func setPaused(_ paused: Bool) async throws
     func deleteVM(id: String) async throws
+    func autoResumeEnabled() async throws -> Bool
+    func setAutoResume(_ on: Bool) async throws
     func doctor() async -> DoctorReport
 }
 
@@ -34,6 +36,17 @@ struct AppFleetIntentBridge: FleetIntentBridge {
     func setPaused(_ paused: Bool) async throws { try await delegate.setFleetPaused(paused) }
 
     func deleteVM(id: String) async throws { try await delegate.performVMDelete(id: id) }
+
+    func autoResumeEnabled() async throws -> Bool {
+        guard let snapshot = try ConfigStore.snapshot(at: Paths.config) else {
+            throw ConfigError.notFound(Paths.config.path)
+        }
+        return snapshot.autoResume
+    }
+
+    /// Routed through the delegate so the same editor + engine push as the
+    /// Capacity tab's Apply runs (including the not-set-up check).
+    func setAutoResume(_ on: Bool) async throws { try await delegate.setAutoResumePolicy(on) }
 
     func doctor() async -> DoctorReport { await DoctorReportBuilder().build() }
 }

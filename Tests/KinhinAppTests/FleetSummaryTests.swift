@@ -68,6 +68,13 @@ final class FleetSummaryTests: XCTestCase {
         XCTAssertEqual(FleetSummary.diagnose(id: "vm-2", record: waiting), "VM vm-2 is ready and waiting for a job.")
     }
 
+    func testAutoResumeResultCoversStates() {
+        XCTAssertEqual(FleetSummary.autoResumeResult(on: true, outcome: .alreadyThere), "Auto-resume is already on.")
+        XCTAssertEqual(FleetSummary.autoResumeResult(on: false, outcome: .alreadyThere), "Auto-resume is already off.")
+        XCTAssertTrue(FleetSummary.autoResumeResult(on: true, outcome: .done).hasPrefix("Auto-resume is on."))
+        XCTAssertTrue(FleetSummary.autoResumeResult(on: false, outcome: .done).hasPrefix("Auto-resume is off."))
+    }
+
     func testDoctorSummary() {
         XCTAssertEqual(FleetSummary.doctor(ready: true, checks: []), "Everything looks good.")
         let bad = SetupCheckResult(id: "tart", title: "Tart", ok: false, detail: "not found", action: nil)
