@@ -119,7 +119,10 @@ extension FleetEngine {
         var demandByForge: [String: Int] = [:]
         var demandByPool: [RuntimeID: Int] = [:]
         let attached = forgeState.withLock { Array($0.byPlatform.values) }
-        if !state.paused {
+        if !state.paused || config.autoResume {
+            // Auto-resume still watches the queue while paused: unpausing must
+            // happen the moment demand drains, and the pause keeps holding
+            // (no spawn/attribution below) until it does.
             var perForgeJobs: [String: (attribution: Bool, jobs: [ForgeJob])] = [:]
             for forge in attached {
                 do {
@@ -140,38 +143,32 @@ extension FleetEngine {
                     await statusBox.modify { $0.lastError = message }
                 }
             }
-            let byRepo = ForgeDemand.mergeQueueByRepo(perForgeJobs)
-            await statusBox.modify {
-                $0.queueDepth = queueDepth
-                $0.queueByRepo = byRepo
-            }
-
-            // Stamp each VM with the repos of the jobs its runners are
-            // currently executing (attribution where the forge exposes it).
-            // Runner names are VM ids, so one pass stamps each VM whichever
-            // account it serves. Every attached forge contributes: GitHub
-            // carries repo attribution per job; Gitea (and Forgejo) attribute
-            // busy runners per VM. A failed forge is skipped, but if none
-            // answered the stamps are left as they were.
-            var runningAll: [RunningJob] = []
-            var answered = false
-            for forge in attached {
-                do {
-                    let running = try await forge.runningJobs()
-                    answered = true
-                    runningAll.append(
-                        contentsOf: running.map {
-                            RunningJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
-                        })
-                } catch {
-                    // Attribution is best-effort telemetry: never fail reconcile
-                    // over it (the queued-fetch handler above already logged).
-                    Log.warn("engine", "could not fetch \(forge.name) running jobs: \(error)")
+            if state.paused {
+                // Paused with auto-resume: hold while demand remains, release
+                // once the queue is empty. A forge outage (all fetches failed,
+                // depth stays 0) must NOT read as "nothing to do" and unpause
+                // over the user's head.
+                if queueDepth == 0, !demandByForge.isEmpty {
+                    Log.info("engine", "auto-resume: queue is empty while paused")
+                    runState.withLock { $0.paused = false }
+                    await statusBox.modify { $0.paused = false }
                 }
+                // The status snapshot keeps queueDepth 0 while paused (as the
+                // old behavior did); demand re-polls fully on the resumed pass.
+                queueDepth = 0
+                demandByPool = [:]
+                demandByForge = [:]
+            } else {
+                let byRepo = ForgeDemand.mergeQueueByRepo(perForgeJobs)
+                await statusBox.modify {
+                    $0.queueDepth = queueDepth
+                    $0.queueByRepo = byRepo
+                }
+                await attributeRunningJobs(attached)
             }
-            if answered { await applyRunningAttribution(runningAll) }
         } else {
-            // Paused: clear attribution so stale repos don't linger.
+            // Paused without auto-resume: clear attribution so stale repos
+            // don't linger.
             await statusBox.modify { $0.runningByRepo = nil }
             await clearRunningAttribution()
         }
@@ -279,5 +276,33 @@ extension FleetEngine {
                 surplus -= 1
             }
         }
+    }
+
+    // MARK: Running-job attribution
+
+    /// Stamp each VM with the repos of the jobs its runners are currently
+    /// executing (attribution where the forge exposes it). Runner names are
+    /// VM ids, so one pass stamps each VM whichever account it serves. Every
+    /// attached forge contributes: GitHub carries repo attribution per job;
+    /// Gitea (and Forgejo) attribute busy runners per VM. A failed forge is
+    /// skipped, but if none answered the stamps are left as they were.
+    func attributeRunningJobs(_ attached: [Forge]) async {
+        var runningAll: [RunningJob] = []
+        var answered = false
+        for forge in attached {
+            do {
+                let running = try await forge.runningJobs()
+                answered = true
+                runningAll.append(
+                    contentsOf: running.map {
+                        RunningJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
+                    })
+            } catch {
+                // Attribution is best-effort telemetry: never fail reconcile
+                // over it (the queued-fetch handler above already logged).
+                Log.warn("engine", "could not fetch \(forge.name) running jobs: \(error)")
+            }
+        }
+        if answered { await applyRunningAttribution(runningAll) }
     }
 }

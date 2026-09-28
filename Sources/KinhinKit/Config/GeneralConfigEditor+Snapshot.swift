@@ -12,6 +12,7 @@ extension GeneralConfigEditor {
         public var maxRunners: Int
         public var runnersPerVM: Int
         public var pollInterval: Int
+        public var autoResume: Bool
         public var vmCPU: Int
         public var vmMemoryGB: Int
         public var vmEphemeral: Bool
@@ -110,6 +111,7 @@ extension GeneralConfigEditor {
             maxRunners: partial.maxRunners ?? d.maxRunners,
             runnersPerVM: partial.runnersPerVM ?? d.runnersPerVM,
             pollInterval: partial.pollInterval ?? d.pollInterval,
+            autoResume: partial.autoResume ?? d.autoResume,
             vmCPU: vm?.cpu ?? d.vm.cpuCount,
             vmMemoryGB: vm?.memoryGB ?? d.vm.memoryGB,
             vmEphemeral: vm?.ephemeral ?? d.vm.ephemeral,

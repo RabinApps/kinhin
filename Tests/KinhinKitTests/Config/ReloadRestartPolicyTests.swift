@@ -33,6 +33,8 @@ final class ReloadRestartPolicyTests: XCTestCase {
         XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.runnersPerVM = 3 }), "density must restart")
         XCTAssertTrue(
             FleetEngine.restartRequired(from: base, to: with { $0.pollInterval = 60 }), "poll cadence must restart")
+        XCTAssertTrue(
+            FleetEngine.restartRequired(from: base, to: with { $0.autoResume = true }), "auto-resume must restart")
         XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.vm.cpuCount = 6 }), "VM shape must restart")
         XCTAssertTrue(
             FleetEngine.restartRequired(from: base, to: with { $0.image = "other-base" }), "image must restart")

@@ -114,6 +114,7 @@ public struct ConfigLoader {
         cfg.maxRunners = maxRunners
         cfg.runnersPerVM = runnersPerVM
         cfg.pollInterval = poll
+        cfg.autoResume = partial.autoResume ?? false
         if let ttl = partial.tokenTTL { cfg.tokenTTL = ttl }
         if let vm = partial.vm {
             if let cpu = vm.cpu, cpu < 1 { throw ConfigError.invalid("vm.cpu must be >= 1") }

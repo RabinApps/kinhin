@@ -38,6 +38,10 @@ public struct KinhinConfig: Sendable, Equatable {
     public var runnersPerVM: Int
     /// Poll interval for GitHub in seconds.
     public var pollInterval: Int
+    /// Autoscale unpauses a paused fleet once its queue is empty. Lets a
+    /// deliberate pause (e.g. a pause-first VM delete from Shortcuts)
+    /// hold down while work remains, then release the fleet on its own.
+    public var autoResume: Bool
     /// Registration-token cache TTL in seconds (GitHub tokens expire after 1 hour).
     var tokenTTL: Int
     /// Per-VM resource settings.
@@ -317,6 +321,7 @@ public struct KinhinConfig: Sendable, Equatable {
         case maxRunners = "max_runners"
         case runnersPerVM = "runners_per_vm"
         case pollInterval = "poll_interval"
+        case autoResume = "auto_resume"
         case tokenTTL = "token_ttl"
         case vm
         case diskGB = "disk_gb"
@@ -339,6 +344,7 @@ public struct KinhinConfig: Sendable, Equatable {
         maxRunners: 2,
         runnersPerVM: 1,
         pollInterval: 20,
+        autoResume: false,
         tokenTTL: 50 * 60,
         vm: .default,
         image: "tahoe-base",

@@ -89,6 +89,11 @@ final class CapacityModel {
         stage("ephemeral", .vmEphemeral(on))
     }
 
+    func setAutoResume(_ on: Bool) {
+        draft?.autoResume = on
+        stage("auto-resume", .autoResume(on))
+    }
+
     func setImage(_ text: String) {
         draft?.image = text
         let value = text.trimmingCharacters(in: .whitespaces)

@@ -49,6 +49,7 @@ final class GeneralConfigEditorTests: XCTestCase {
         XCTAssertEqual(snap.minRunners, 0)
         XCTAssertEqual(snap.maxRunners, 2)
         XCTAssertEqual(snap.pollInterval, 20)
+        XCTAssertEqual(snap.autoResume, false)
         XCTAssertEqual(snap.vmCPU, 4)
         XCTAssertEqual(snap.vmMemoryGB, 8)
         XCTAssertEqual(snap.vmEphemeral, true)
@@ -116,6 +117,14 @@ final class GeneralConfigEditorTests: XCTestCase {
         _ = try GeneralConfigEditor.apply(.vmEphemeral(false), to: file)
         let snap = try GeneralConfigEditor.snapshot(from: try String(contentsOf: file, encoding: .utf8))
         XCTAssertEqual(snap.vmEphemeral, false)
+    }
+
+    func testAutoResumeEdit() throws {
+        try write(Self.sample)
+        _ = try GeneralConfigEditor.apply(.autoResume(true), to: file)
+        let updated = try String(contentsOf: file, encoding: .utf8)
+        XCTAssertTrue(updated.contains("auto_resume: true"))
+        XCTAssertEqual(try GeneralConfigEditor.snapshot(from: updated).autoResume, true)
     }
 
     func testLabelsRewriteKeepsFlowStyle() throws {

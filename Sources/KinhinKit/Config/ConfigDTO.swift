@@ -11,6 +11,7 @@ public struct PartialConfig: Decodable {
     var maxRunners: Int?
     var runnersPerVM: Int?
     var pollInterval: Int?
+    var autoResume: Bool?
     var tokenTTL: Int?
     var vm: PartialVM?
     var image: String?
@@ -172,6 +173,7 @@ public struct PartialConfig: Decodable {
         case maxRunners = "max_runners"
         case runnersPerVM = "runners_per_vm"
         case pollInterval = "poll_interval"
+        case autoResume = "auto_resume"
         case tokenTTL = "token_ttl"
         case vm
         case image

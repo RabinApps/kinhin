@@ -26,6 +26,12 @@ struct CapacityView: View {
                             row(
                                 "Look for new jobs every (seconds)", "poll", \.pollInterval, 5...300, Field.pollInterval
                             )
+                            Toggle(
+                                "Resume on its own once the queue is empty",
+                                isOn: Binding(
+                                    get: { model.draft?.autoResume ?? false }, set: { model.setAutoResume($0) })
+                            )
+                            .accessibilityIdentifier("auto-resume-toggle")
                         }
                         FormCard(title: "Each VM") {
                             row("CPU cores", "vm-cpu", \.vmCPU, 1...16, Field.vmCPU)

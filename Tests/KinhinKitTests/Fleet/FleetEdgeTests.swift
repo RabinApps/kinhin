@@ -95,6 +95,56 @@ final class FleetEdgeTests: XCTestCase {
         }
     }
 
+    // MARK: Auto-resume while paused
+
+    func testAutoResumeReleasesOnlyWhenTheQueueDrains() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        github.queueDepth = 2
+        var cfg = makeTestConfig()
+        cfg.autoResume = true
+        let engine = makeEngine(config: cfg, tart: tart, github: github, ssh: FakeSSH())
+
+        await engine.setPaused(true)
+        try await engine.reconcileOnce()
+        var status = await engine.status()
+        XCTAssertTrue(status.paused, "demand remains: the pause holds")
+        XCTAssertTrue(tart.cloneCalls.isEmpty, "paused means no spawns, even with auto-resume")
+
+        // The queue drains → the very next pass unpauses.
+        github.queueDepth = 0
+        try await engine.reconcileOnce()
+        status = await engine.status()
+        XCTAssertFalse(status.paused, "empty queue releases the fleet")
+    }
+
+    func testAutoResumeNeverReleasesOnAForgeOutage() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        github.failQueue = true
+        var cfg = makeTestConfig()
+        cfg.autoResume = true
+        let engine = makeEngine(config: cfg, tart: tart, github: github, ssh: FakeSSH())
+
+        await engine.setPaused(true)
+        try await engine.reconcileOnce()
+        let status = await engine.status()
+        XCTAssertTrue(status.paused, "a failed queue fetch must not read as an empty queue")
+        XCTAssertTrue(tart.cloneCalls.isEmpty)
+    }
+
+    func testPauseWithoutAutoResumeStillSkipsQueuePolling() async throws {
+        let github = FakeGitHub()
+        github.queueDepth = 3
+        let engine = makeEngine(tart: FakeTart(), github: github, ssh: FakeSSH())
+
+        await engine.setPaused(true)
+        try await engine.reconcileOnce()
+        let status = await engine.status()
+        XCTAssertTrue(status.paused)
+        XCTAssertTrue(github.queuedJobsCallCount == 0, "no auto-resume: the forge is not polled")
+    }
+
     func testFailedVMIsCleanedUpOnNextPass() async throws {
         let tart = FakeTart()
         let github = FakeGitHub()

@@ -32,6 +32,11 @@ extension ConfigLoader {
         # How often to ask GitHub about queued jobs (seconds, >= 5).
         poll_interval: 20
 
+        # Unpause automatically once the queue is empty, so a deliberate
+        # pause (e.g. a pause-first VM delete from Shortcuts) releases the
+        # fleet on its own when there is nothing left to hold down.
+        auto_resume: false
+
         # Per-VM resources. Keep total within your Mac's capacity — see
         # `kinhin doctor` for the computed budget.
         vm:

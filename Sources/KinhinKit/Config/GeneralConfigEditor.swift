@@ -42,6 +42,7 @@ public enum GeneralConfigEditor {
         case maxRunners(Int)
         case runnersPerVM(Int)
         case pollInterval(Int)
+        case autoResume(Bool)
         case vmCPU(Int)
         case vmMemoryGB(Int)
         case vmEphemeral(Bool)
@@ -73,6 +74,7 @@ public enum GeneralConfigEditor {
         case .maxRunners: return .top("max_runners")
         case .runnersPerVM: return .top("runners_per_vm")
         case .pollInterval: return .top("poll_interval")
+        case .autoResume: return .top("auto_resume")
         case .vmCPU: return .under("vm", "cpu")
         case .vmMemoryGB: return .under("vm", "memory_gb")
         case .vmEphemeral: return .under("vm", "ephemeral")
@@ -110,6 +112,7 @@ public enum GeneralConfigEditor {
             if case .reserveMemoryGB(let n) = field { return intText(n) }
             return "0"
         case .vmEphemeral(let b): return boolText(b)
+        case .autoResume(let b): return boolText(b)
         case .image(let s): return quoted(s)
         case .gitea, .container, .docker: return ""  // handled separately
         }

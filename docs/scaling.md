@@ -33,6 +33,14 @@ Every `poll_interval` seconds the engine:
    and a runner process on the Mac itself for host routes.
 6. Deletes idle instances when `desired` drops (scale to zero by default).
 
+## Pausing and auto-resume
+
+A paused fleet skips spawning (and, by default, skips queue polling entirely). With
+`auto_resume: true` the engine keeps watching the queue while paused and unpauses itself once
+it is empty — a deliberate pause (for example the Shortcuts "Delete VM" action pauses first so
+autoscaling can't recreate what was deleted) then releases the fleet on its own. If every forge
+fetch fails while paused, the engine holds: silence must not read as "nothing to do".
+
 ## Job density
 
 `runners_per_vm` is the density knob: with the default `1`, each job gets its own VM (most

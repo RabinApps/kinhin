@@ -83,6 +83,7 @@ final class FakeGitHub: GitHubServing, @unchecked Sendable {
     var runnersByID: [Int: GHRunner] = [:]
     var nextRunnerID = 1
     var queueDepth = 0
+    private(set) var queuedJobsCallCount = 0
     var registrationTokenCalls = 0
     var deletedRunnerIDs: [Int] = []
     var failQueue = false
@@ -132,6 +133,7 @@ final class FakeGitHub: GitHubServing, @unchecked Sendable {
 
     func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] {
         lock.lock()
+        queuedJobsCallCount += 1
         let depth = queueDepth
         let failing = failQueue
         lock.unlock()
