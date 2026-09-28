@@ -63,6 +63,20 @@ final class StatusRenderingTests: XCTestCase {
         XCTAssertTrue(delegate.statusLine(for: status).hasPrefix("Paused"))
     }
 
+    func testPausedLineNotesAutoResumeOnlyWhenThePolicyIsOn() {
+        var status = FleetStatus()
+        status.running = true
+        status.paused = true
+        XCTAssertFalse(
+            delegate.statusLine(for: status).contains("auto-resume"),
+            "policy off (and nil, from an older daemon): no note")
+
+        status.autoResume = true
+        let line = delegate.statusLine(for: status)
+        XCTAssertTrue(line.hasPrefix("Paused"), "got: \(line)")
+        XCTAssertTrue(line.contains("auto-resume: releases when the queue is empty"), "got: \(line)")
+    }
+
     func testLineOmitsJobSlotsWhenZero() {
         let line = delegate.statusLine(for: FleetStatus())
         XCTAssertFalse(line.contains("job slots"))

@@ -151,6 +151,9 @@ extension FleetEngine {
         // never go stale relative to store mutations.
         status.records = store.all
         status.runtime = runtime.id.rawValue
+        // The UI surfaces this while paused so a deliberate pause doesn't
+        // read as stuck.
+        status.autoResume = config.autoResume
         let runtimeCaps = capsByRuntime
         if !runtimeCaps.isEmpty {
             var caps: [String: String] = [:]

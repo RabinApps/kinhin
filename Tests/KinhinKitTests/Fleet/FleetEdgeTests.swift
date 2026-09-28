@@ -145,6 +145,12 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertTrue(github.queuedJobsCallCount == 0, "no auto-resume: the forge is not polled")
     }
 
+    func testStatusCarriesAutoResumePolicy() async throws {
+        let engine = makeEngine(tart: FakeTart(), github: FakeGitHub(), ssh: FakeSSH())
+        let status = await engine.status()
+        XCTAssertEqual(status.autoResume, false, "the flag rides the status snapshot (off by default)")
+    }
+
     func testFailedVMIsCleanedUpOnNextPass() async throws {
         let tart = FakeTart()
         let github = FakeGitHub()

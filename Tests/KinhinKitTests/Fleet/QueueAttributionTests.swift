@@ -190,6 +190,20 @@ final class QueueAttributionTests: XCTestCase {
         XCTAssertEqual(decoded.queueByRepo, status.queueByRepo)
     }
 
+    func testAutoResumeSurvivesStatusJSONRoundTrip() throws {
+        // A daemon predating the field decodes autoResume as nil (off).
+        let json =
+            "{\"running\":true,\"paused\":true,\"queueDepth\":0,\"desired\":0,\"capacityCap\":0,\"jobCapacity\":0,"
+            + "\"records\":[],\"updatedAt\":0}"
+        let legacy = try JSONDecoder().decode(FleetStatus.self, from: Data(json.utf8))
+        XCTAssertNil(legacy.autoResume)
+
+        var status = FleetStatus()
+        status.autoResume = true
+        let decoded = try JSONDecoder().decode(FleetStatus.self, from: try JSONEncoder().encode(status))
+        XCTAssertEqual(decoded.autoResume, true)
+    }
+
     // MARK: Running-job attribution (engine)
 
     func testRunningJobStampsVMRecordInOrgScope() async throws {

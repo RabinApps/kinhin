@@ -6,6 +6,9 @@ enum FleetSummary {
     static func status(_ status: FleetStatus) -> String {
         guard status.running else { return "The fleet is stopped." }
         var parts = [status.paused ? "The fleet is paused." : "The fleet is running."]
+        if status.paused, status.autoResume == true {
+            parts.append("Auto-resume is on — it will release the fleet when the queue is empty.")
+        }
         parts.append("\(status.activeCount) of \(status.capacityCap) VMs active.")
         parts.append(status.queueDepth == 1 ? "1 job queued." : "\(status.queueDepth) jobs queued.")
         if let error = status.lastError, !error.isEmpty {

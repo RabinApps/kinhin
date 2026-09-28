@@ -117,6 +117,12 @@ extension AppDelegate {
         let state = !status.running ? "Stopped" : (status.paused ? "Paused" : "Running")
         var line = "\(state) — queue \(status.queueDepth) · desired \(status.desired) · cap \(status.capacityCap)"
         if status.jobCapacity > 0 { line += " · \(status.jobCapacity) job slots" }
+        // A deliberate pause (e.g. a pause-first VM delete) must not read as
+        // stuck: when the policy is on, the fleet will release itself. Nil
+        // (older daemon) means off — no note.
+        if status.paused, status.autoResume == true {
+            line += "\n  ⏳ auto-resume: releases when the queue is empty"
+        }
         // Org scope: which repos the queued work comes from.
         if let byRepo = status.queueByRepo, status.queueDepth > 0, !byRepo.isEmpty {
             let top = byRepo.sorted { $0.value > $1.value }.prefix(2)

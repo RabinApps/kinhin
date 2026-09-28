@@ -54,6 +54,12 @@ struct FleetView: View {
                 }
             }
 
+            if let note = model.pausedAutoResumeNote {
+                Text(note)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
             VStack(alignment: .leading, spacing: 6) {
                 SectionHeader("VMs")
                 ScrollView {

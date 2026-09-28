@@ -5,6 +5,9 @@ import Foundation
 public struct FleetStatus: Codable, Sendable, Equatable {
     public var running: Bool
     public var paused: Bool
+    /// The engine's `auto_resume` policy. Nil from a daemon predating the
+    /// field (treated as off) — same compat convention as `runtime`.
+    public var autoResume: Bool?
     public var queueDepth: Int
     public var desired: Int
     public var capacityCap: Int
@@ -26,13 +29,14 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     var capacityByRuntime: [String: String]?
 
     public init(
-        running: Bool = false, paused: Bool = false, queueDepth: Int = 0, desired: Int = 0, capacityCap: Int = 0,
-        jobCapacity: Int = 0, queueByRepo: [String: Int]? = nil, runningByRepo: [String: Int]? = nil,
-        records: [VMRecord] = [], lastError: String? = nil, updatedAt: Date = Date(), runtime: String? = nil,
-        capacityByRuntime: [String: String]? = nil
+        running: Bool = false, paused: Bool = false, autoResume: Bool? = nil, queueDepth: Int = 0, desired: Int = 0,
+        capacityCap: Int = 0, jobCapacity: Int = 0, queueByRepo: [String: Int]? = nil,
+        runningByRepo: [String: Int]? = nil, records: [VMRecord] = [], lastError: String? = nil,
+        updatedAt: Date = Date(), runtime: String? = nil, capacityByRuntime: [String: String]? = nil
     ) {
         self.running = running
         self.paused = paused
+        self.autoResume = autoResume
         self.queueDepth = queueDepth
         self.desired = desired
         self.capacityCap = capacityCap

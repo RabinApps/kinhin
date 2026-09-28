@@ -36,6 +36,13 @@ final class FleetModel {
     var statusLine: String { AppDelegate.statusLineText(for: status) }
     var running: Bool { status?.running ?? false }
     var paused: Bool { status?.paused ?? false }
+    /// Non-nil while the fleet is paused with auto-resume on: shown on the
+    /// Fleet tab so a deliberate pause (e.g. a pause-first delete from
+    /// Shortcuts) doesn't read as stuck.
+    var pausedAutoResumeNote: String? {
+        guard paused, status?.autoResume == true else { return nil }
+        return "Auto-resume is on — the fleet releases itself when the queue is empty."
+    }
     var pauseTitle: String { paused ? "Resume" : "Pause" }
     var records: [VMRecord] { status?.records ?? [] }
     /// The VMs currently running a workflow.

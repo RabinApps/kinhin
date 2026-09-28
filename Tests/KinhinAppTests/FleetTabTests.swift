@@ -66,6 +66,20 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertEqual(window.fleetModel.pauseTitle, "Resume")
     }
 
+    func testPausedAutoResumeNoteShowsOnlyWhenThePolicyIsOn() {
+        var status = FleetStatus()
+        status.running = true
+        status.paused = true
+        window.render(status: status)
+        XCTAssertNil(window.fleetModel.pausedAutoResumeNote, "policy off: no note")
+
+        status.autoResume = true
+        window.render(status: status)
+        XCTAssertEqual(
+            window.fleetModel.pausedAutoResumeNote,
+            "Auto-resume is on — the fleet releases itself when the queue is empty.")
+    }
+
     func testRenderMarksErrorRows() {
         var failed = VMRecord(id: "kinhin-vm-err", phase: .failed)
         failed.createdAt = Date()
