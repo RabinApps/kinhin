@@ -131,8 +131,8 @@ func helpText() -> String {
         auth [set]                  Store (or replace) your GitHub PAT in the Keychain (or: auth set --token)
         auth set --gitea            Store (or replace) your Gitea access token (auth set --gitea --token X)
         auth set --account NAME     Store the token for a named account (--token X to skip the prompt)
-        auth add NAME --github|--gitea --scope S [--instance URL] [--token X]
-                                    Add another GitHub or Gitea account to the config
+        auth add NAME --github|--gitea|--forgejo|--gitlab --scope S [--instance URL] [--token X]
+                                    Add another account (GitHub, Gitea, Forgejo or GitLab) to the config
         auth list                   List every account and whether its token is stored
         auth remove NAME            Remove an account from the config and delete its token
         auth status [--json]        Show whether a token is stored and valid (--json: all forges, machine output, exit 1 until ready)

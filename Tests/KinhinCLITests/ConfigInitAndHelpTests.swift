@@ -63,6 +63,13 @@ final class ConfigInitAndHelpTests: XCTestCase {
         }
     }
 
+    func testHelpTextAdvertisesEveryForgeInAuthAdd() {
+        let help = helpText()
+        for forge in ["--github", "--gitea", "--forgejo", "--gitlab"] {
+            XCTAssertTrue(help.contains(forge), "auth add help must list \(forge)")
+        }
+    }
+
     func testHelpTextMentionsProvisionScriptHook() {
         let help = helpText()
         XCTAssertTrue(help.contains("--provision-script"), "help should advertise the provision-script flag")

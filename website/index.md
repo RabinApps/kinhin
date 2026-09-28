@@ -20,7 +20,7 @@ features:
   - title: Ephemeral by default
     details: Every job gets a freshly cloned VM. The runner deregisters itself afterwards and the VM is deleted — no state leaks between jobs.
   - title: Multi-forge
-    details: GitHub Actions and Gitea Actions served from one shared pool. The Forge abstraction keeps the door open for Forgejo, GitLab, Buildkite and more.
+    details: GitHub Actions, Gitea Actions, Forgejo and GitLab CI/CD served from one shared pool. The Forge abstraction keeps the door open for Buildkite and more.
   - title: Multi-runtime
     details: macOS jobs on Tart VMs, Linux jobs on apple/container microVMs or Docker containers — each job routed by repo, workflow, or runs-on label.
   - title: Resource-aware

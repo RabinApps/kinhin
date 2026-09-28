@@ -20,7 +20,8 @@ bash scripts/install.sh /path/to/kinhin-0.1.0-arm64.dmg
 ```
 
 The script sha256-verifies the DMG against the release `checksums.txt`, copies **kinhin.app** to
-/Applications, and symlinks the `kinhin` CLI into /usr/local/bin. Release artifacts are
+/Applications, and symlinks the `kinhin` CLI into your bin dir — the first writable of
+/opt/homebrew/bin, /usr/local/bin, and ~/.local/bin. Release artifacts are
 Developer ID signed and notarized, so the app launches with **no Gatekeeper prompts** — the
 Open-Anyway dance only applies to old releases or locally built copies (clear it with
 `xattr -cr /Applications/kinhin.app`). Remove everything with `bash scripts/install.sh --uninstall`

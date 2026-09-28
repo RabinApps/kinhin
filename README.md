@@ -66,7 +66,8 @@ curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.
 ```
 
 The script sha256-verifies the release DMG, copies **kinhin.app** to /Applications, and symlinks
-the `kinhin` CLI into /usr/local/bin. Releases are Developer ID signed and notarized. Remove
+the `kinhin` CLI into your bin dir — the first writable of /opt/homebrew/bin, /usr/local/bin, and
+~/.local/bin. Releases are Developer ID signed and notarized. Remove
 everything with `bash scripts/install.sh --uninstall` (config and your Keychain PAT are kept).
 Pinned versions, air-gapped installs, update checks, and Homebrew are covered in
 [docs/install.md](docs/install.md).
@@ -155,7 +156,7 @@ constraint. See [How scaling works](docs/scaling.md) for the formula and the sca
 ```
 kinhin config init          Write the starter config
 kinhin auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
-kinhin auth add|list|remove    Manage additional GitHub/Gitea accounts (auth set --account NAME stores one's token)
+kinhin auth add|list|remove    Manage additional accounts (GitHub, Gitea, Forgejo, GitLab; auth set --account NAME stores one's token)
 kinhin auth status --json    All forges' stored-token state in one machine-readable document (exit 1 until ready)
 kinhin doctor [--json]      Prerequisites + computed capacity (--json: host, runtime health, stored tokens, checklist,
                              and capacity in one machine-readable document; ready=false until every half passes)
