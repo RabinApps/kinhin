@@ -52,6 +52,7 @@ you can ask about the fleet without opening a window:
 | "Pause kinhin"                            | Stops new runner VMs from starting; running jobs finish |
 | "Resume kinhin"                           | Lets a paused fleet start VMs again                     |
 | "Delete kinhin VM"                        | Removes one runner VM — Shortcuts offers the live list  |
+| "Diagnose kinhin VM"                      | Phase, assigned job, and last error for one runner VM   |
 | "Run kinhin diagnostics"                  | One-line result of the `kinhin doctor` checks           |
 
 They also appear as actions in Shortcuts, so you can automate them (for example, pause the fleet when a call

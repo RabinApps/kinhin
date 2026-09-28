@@ -30,5 +30,9 @@ struct KinhinShortcuts: AppShortcutsProvider {
             intent: DeleteVMIntent(),
             phrases: ["Delete \(.applicationName) VM"],
             shortTitle: "Delete VM", systemImageName: "trash")
+        AppShortcut(
+            intent: DiagnoseVMIntent(),
+            phrases: ["Diagnose \(.applicationName) VM"],
+            shortTitle: "Diagnose VM", systemImageName: "stethoscope")
     }
 }

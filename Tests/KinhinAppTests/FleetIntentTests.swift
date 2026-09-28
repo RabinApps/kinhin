@@ -150,4 +150,39 @@ final class FleetIntentTests: XCTestCase {
             XCTAssertTrue(bridge.deleteCalls.isEmpty)
         }
     }
+
+    // MARK: Diagnose VM intent
+
+    private func statusWithStalledVM() -> FleetStatus {
+        var record = VMRecord(id: "vm-1", phase: .failed)
+        record.job = "build"
+        record.error = "tart run timed out"
+        return FleetStatus(running: true, records: [record])
+    }
+
+    func testDiagnoseReportsPhaseJobAndError() async throws {
+        FleetIntentEnvironment.bridge = FakeFleetIntentBridge(statusWithStalledVM())
+        let text = try await DiagnoseVMAction.run(id: "vm-1")
+        XCTAssertTrue(text.hasPrefix("VM vm-1 failed."), "got: \(text)")
+        XCTAssertTrue(text.contains("Its last job was build."), "got: \(text)")
+        XCTAssertTrue(text.contains("Last error: tart run timed out."), "got: \(text)")
+    }
+
+    func testDiagnoseUnknownVMIsReportedNotThrown() async throws {
+        FleetIntentEnvironment.bridge = FakeFleetIntentBridge(statusWithStalledVM())
+        let text = try await DiagnoseVMAction.run(id: "nope")
+        XCTAssertTrue(text.contains("No VM named nope"), "got: \(text)")
+    }
+
+    func testDiagnoseErrorsPropagate() async {
+        let bridge = FakeFleetIntentBridge(statusWithStalledVM())
+        bridge.error = FleetAccessError.notSetUp
+        FleetIntentEnvironment.bridge = bridge
+        do {
+            _ = try await DiagnoseVMAction.run(id: "vm-1")
+            XCTFail("expected throw")
+        } catch {
+            XCTAssertTrue(error is FleetAccessError)
+        }
+    }
 }

@@ -61,12 +61,42 @@ enum FleetSummary {
     static func deleteResult(id: String, outcome: DeleteOutcome) -> String {
         switch outcome {
         case .notFound:
-            return "No VM named \(id) is in the fleet."
+            return noVMNamed(id)
         case .deleted:
             return "Deleted VM \(id)."
         case .uncertain:
             return "Deleting \(id) is in progress — check the fleet status in a moment."
         }
+    }
+
+    /// Spoken diagnosis of one VM: phase, assigned job, last error — what a
+    /// user needs before deciding to delete a stalled VM.
+    static func diagnose(id: String, record: VMRecord?) -> String {
+        guard let record else { return noVMNamed(id) }
+        var parts = ["VM \(id) \(phasePhrase(record.phase))."]
+        if let job = record.job, !job.isEmpty {
+            parts.append(record.phase == .busy ? "It is working on job \(job)." : "Its last job was \(job).")
+        }
+        if let error = record.error, !error.isEmpty {
+            parts.append("Last error: \(error).")
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private static func phasePhrase(_ phase: VMPhase) -> String {
+        switch phase {
+        case .cloning: return "is still cloning"
+        case .booting: return "is booting"
+        case .registering: return "is registering"
+        case .ready: return "is ready and waiting for a job"
+        case .busy: return "is running a job"
+        case .deleting: return "is being deleted"
+        case .failed: return "failed"
+        }
+    }
+
+    private static func noVMNamed(_ id: String) -> String {
+        "No VM named \(id) is in the fleet."
     }
 
     static func doctor(_ report: DoctorReport) -> String {

@@ -49,6 +49,25 @@ final class FleetSummaryTests: XCTestCase {
         XCTAssertTrue(FleetSummary.deleteResult(id: "vm-1", outcome: .uncertain).contains("in progress"))
     }
 
+    func testDiagnoseCoversLifecycleAndDetails() {
+        var record = VMRecord(id: "vm-1", phase: .failed)
+        record.job = "build"
+        record.error = "tart run timed out"
+        XCTAssertEqual(
+            FleetSummary.diagnose(id: "vm-1", record: record),
+            "VM vm-1 failed. Its last job was build. Last error: tart run timed out.")
+        XCTAssertEqual(FleetSummary.diagnose(id: "vm-1", record: nil), "No VM named vm-1 is in the fleet.")
+    }
+
+    func testDiagnoseCoversQuietAndActiveStates() {
+        var busy = VMRecord(id: "vm-1", phase: .busy)
+        busy.job = "deploy"
+        XCTAssertEqual(
+            FleetSummary.diagnose(id: "vm-1", record: busy), "VM vm-1 is running a job. It is working on job deploy.")
+        let waiting = VMRecord(id: "vm-2", phase: .ready)
+        XCTAssertEqual(FleetSummary.diagnose(id: "vm-2", record: waiting), "VM vm-2 is ready and waiting for a job.")
+    }
+
     func testDoctorSummary() {
         XCTAssertEqual(FleetSummary.doctor(ready: true, checks: []), "Everything looks good.")
         let bad = SetupCheckResult(id: "tart", title: "Tart", ok: false, detail: "not found", action: nil)
