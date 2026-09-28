@@ -52,15 +52,15 @@ final class RuntimesModel {
     // MARK: Editing state
 
     /// The routing section currently on disk (baseline for every edit).
-    @ObservationIgnored private(set) var currentRuntimeConfig: KinhinConfig.RuntimeConfig?
+    @ObservationIgnored var currentRuntimeConfig: KinhinConfig.RuntimeConfig?
     @ObservationIgnored private(set) var parsedConfig: KinhinConfig?
-    @ObservationIgnored private var previewCommitTask: Task<Void, Never>?
+    @ObservationIgnored var previewCommitTask: Task<Void, Never>?
 
     /// Live budget-preview state, updated on every slider tick.
-    private(set) var capPreviews: [RuntimeID: Int] = [:]
-    private(set) var percentShares: [String: Double] = [:]
-    private(set) var remainderNote = ""
-    private(set) var starvedRoutes: [String] = []
+    var capPreviews: [RuntimeID: Int] = [:]
+    var percentShares: [String: Double] = [:]
+    var remainderNote = ""
+    var starvedRoutes: [String] = []
 
     // MARK: Label fields
 
@@ -68,7 +68,7 @@ final class RuntimesModel {
     /// types; committed through `commitLabels` on Enter or focus loss.
     var fleetLabelsText = ""
     var containerLabelsText = ""
-    private(set) var labelsStatus = Line(text: "")
+    var labelsStatus = Line(text: "")
     var showsContainerLabels: Bool { viewModel?.containerConfigured == true }
 
     // MARK: Loading
@@ -230,146 +230,6 @@ final class RuntimesModel {
 
     func budgetShare(for runtime: RuntimeID) -> Double {
         currentRuntimeConfig?.budget[runtime.rawValue] ?? 0
-    }
-
-    // MARK: Budget editing
-
-    /// Slider moved: update the live cap previews on every drag tick, and
-    /// debounce the actual config write until the drag settles (~400ms).
-    func budgetSliderChanged(runtime: RuntimeID, fraction: Double) {
-        guard let rc = currentRuntimeConfig else { return }
-        let defaultRuntime = defaultRuntimeID
-        let budget = BudgetEditor.setShare(
-            of: runtime, to: fraction, current: rc.budget, defaultRuntime: defaultRuntime)
-        refreshBudgetPreviews(budget: budget)
-
-        previewCommitTask?.cancel()
-        previewCommitTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(400))
-            guard !Task.isCancelled else { return }
-            // refreshPane: false — the on-screen values already match what
-            // we're writing; a full rebuild mid-gesture would yank the
-            // slider out from under the user's hand.
-            self?.commit(budget: budget, defaultRuntime: rc.defaultRuntime, refreshPane: false)
-        }
-    }
-
-    /// Recompute "N inst" previews, percent labels, and the starved-route
-    /// warning from a candidate budget — the same partition math the engine
-    /// uses.
-    private func refreshBudgetPreviews(budget: [String: Double]) {
-        guard let parsed = parsedConfig, let rc = currentRuntimeConfig else { return }
-        let def = defaultRuntimeID
-        let caps = BudgetEditor.previewCaps(
-            host: hostSnapshot(),
-            reserve: parsed.reserve,
-            vmShape: (parsed.vm.cpuCount, parsed.vm.memoryGB),
-            containerShape: parsed.container.map { ($0.cpus, $0.memoryGB) },
-            weights: budget,
-            defaultRuntime: def,
-            dockerShape: parsed.docker.map { ($0.cpus, $0.memoryGB) }
-        )
-        capPreviews = caps
-        // Percent labels update live (they were rendered for the old split).
-        var shares: [String: Double] = [:]
-        let total = budget.values.reduce(0, +)
-        for (runtime, weight) in budget {
-            let effective = runtime == def.rawValue ? max(0, 1 - (total - weight)) : weight
-            shares[runtime] = effective
-        }
-        percentShares = shares
-        // Starved-route strip: recomputed on every tick so a drag that would
-        // strand a route shows the warning before the user lets go. With no
-        // budget on disk the fleet isn't partitioned ("cap n/a"), so nothing
-        // can be starved yet.
-        let configured = Set(viewModel?.pools.map(\.runtime) ?? [])
-        starvedRoutes = BudgetEditor.starvedRoutes(
-            routes: rc.routes, caps: caps, configuredRuntimes: configured,
-            isPartitioned: !(rc.budget.isEmpty && budget.isEmpty))
-        let pct = Int(((budget[def.rawValue] ?? 0) * 100).rounded())
-        remainderNote = String(format: "%@ keeps the remaining %d%% — %d inst", def.rawValue, pct, caps[def] ?? 0)
-    }
-
-    func percentText(for runtime: RuntimeID) -> String {
-        let share = percentShares[runtime.rawValue] ?? budgetShare(for: runtime)
-        return "\(Int((share * 100).rounded()))%"
-    }
-
-    /// Default switched: rewrite the section with the new default (weights
-    /// stay; the remainder rule re-homes).
-    func defaultRuntimeChanged(to rawValue: String) {
-        guard let rc = currentRuntimeConfig else { return }
-        commit(budget: rc.budget, defaultRuntime: rawValue)
-    }
-
-    func commit(budget: [String: Double], defaultRuntime: String, refreshPane: Bool = true) {
-        guard var rc = currentRuntimeConfig else { return }
-        if let problem = BudgetEditor.validate(budget) {
-            presentError(NSError(domain: "kinhin", code: 2, userInfo: [NSLocalizedDescriptionKey: problem]))
-            reload()  // snap sliders back to the on-disk truth
-            return
-        }
-        rc.budget = budget
-        rc.defaultRuntime = defaultRuntime
-        do {
-            try RuntimesConfigEditor.apply(rc, to: configURL)
-            currentRuntimeConfig = rc  // next drag starts from the new baseline
-            if refreshPane { reload() }
-            onEdited?()
-        } catch {
-            presentError(error)
-            reload()
-        }
-    }
-
-    // MARK: Labels
-
-    private func refreshLabelFields() {
-        let yaml = ConfigStore.textOrLog(at: configURL)
-        do {
-            fleetLabelsText = try LabelsConfigEditor.labels(in: yaml, scope: .fleet).joined(separator: ", ")
-            containerLabelsText = try LabelsConfigEditor.labels(in: yaml, scope: .container).joined(separator: ", ")
-        } catch {
-            // Leave the fields as they were and say why they are not current.
-            Log.warn("runtimes-pane", "could not read labels: \(error.localizedDescription)")
-            labelsStatus = Line(text: "Labels not loaded — \(error.localizedDescription)", style: .error)
-        }
-    }
-
-    /// Restores one label field from disk after a failed commit (the other
-    /// field may hold the user's own edit, so it is left alone).
-    private func snapBackLabelField(_ scope: LabelsConfigEditor.Scope) {
-        let yaml = ConfigStore.textOrLog(at: configURL)
-        do {
-            let labels = try LabelsConfigEditor.labels(in: yaml, scope: scope).joined(separator: ", ")
-            if scope == .fleet {
-                fleetLabelsText = labels
-            } else {
-                containerLabelsText = labels
-            }
-        } catch {
-            Log.warn("runtimes-pane", "could not re-read labels: \(error.localizedDescription)")
-        }
-    }
-
-    /// Commit a label field edit (called on Enter or focus loss).
-    func commitLabels(scope: LabelsConfigEditor.Scope, text: String) {
-        let labels = Self.parseLabelList(text)
-        do {
-            try LabelsConfigEditor.apply(labels, scope: scope, to: configURL)
-            Log.info("runtimes-pane", "\(scope == .fleet ? "fleet" : "container") labels updated")
-            labelsStatus = Line(text: "")
-            onEdited?()
-        } catch {
-            presentError(error)
-            // Snap the field back to the on-disk truth.
-            snapBackLabelField(scope)
-        }
-    }
-
-    /// Parse a comma-separated label list.
-    static func parseLabelList(_ text: String) -> [String] {
-        text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
     // MARK: Sheets (Add Route / Edit YAML)
