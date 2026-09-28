@@ -43,6 +43,12 @@ final class FleetSummaryTests: XCTestCase {
         XCTAssertTrue(FleetSummary.pauseResult(paused: true, before: status(running: false)).contains("isn't running"))
     }
 
+    func testDeleteResultCoversOutcomes() {
+        XCTAssertEqual(FleetSummary.deleteResult(id: "vm-1", outcome: .deleted), "Deleted VM vm-1.")
+        XCTAssertEqual(FleetSummary.deleteResult(id: "vm-1", outcome: .notFound), "No VM named vm-1 is in the fleet.")
+        XCTAssertTrue(FleetSummary.deleteResult(id: "vm-1", outcome: .uncertain).contains("in progress"))
+    }
+
     func testDoctorSummary() {
         XCTAssertEqual(FleetSummary.doctor(ready: true, checks: []), "Everything looks good.")
         let bad = SetupCheckResult(id: "tart", title: "Tart", ok: false, detail: "not found", action: nil)

@@ -47,6 +47,28 @@ enum FleetSummary {
         }
     }
 
+    /// Outcome of a delete request for one VM.
+    enum DeleteOutcome {
+        /// No record with that id — nothing ran.
+        case notFound
+        /// The command ran and the follow-up poll no longer lists the VM.
+        case deleted
+        /// The command ran but the poll still lists the VM (teardown is
+        /// async).
+        case uncertain
+    }
+
+    static func deleteResult(id: String, outcome: DeleteOutcome) -> String {
+        switch outcome {
+        case .notFound:
+            return "No VM named \(id) is in the fleet."
+        case .deleted:
+            return "Deleted VM \(id)."
+        case .uncertain:
+            return "Deleting \(id) is in progress — check the fleet status in a moment."
+        }
+    }
+
     static func doctor(_ report: DoctorReport) -> String {
         doctor(ready: report.ready, checks: report.checks)
     }

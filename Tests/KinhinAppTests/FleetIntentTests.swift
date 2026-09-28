@@ -11,8 +11,11 @@ final class FleetIntentTests: XCTestCase {
         private(set) var setPausedCalls: [Bool] = []
         private(set) var startCalls = 0
         private(set) var stopCalls = 0
+        private(set) var deleteCalls: [String] = []
         /// When set, start/stop flips `running` like the real backend would.
         var appliesStartStop = false
+        /// When set, delete removes the record like the real backend would.
+        var appliesDelete = false
 
         init(_ status: FleetStatus) { current = status }
 
@@ -37,6 +40,12 @@ final class FleetIntentTests: XCTestCase {
             if let error { throw error }
             setPausedCalls.append(paused)
             current.paused = paused
+        }
+
+        func deleteVM(id: String) async throws {
+            if let error { throw error }
+            deleteCalls.append(id)
+            if appliesDelete { current.records.removeAll { $0.id == id } }
         }
 
         func doctor() async -> DoctorReport { fatalError("not used") }
@@ -131,5 +140,60 @@ final class FleetIntentTests: XCTestCase {
         FleetIntentEnvironment.bridge = bridge
         let text = try await StartStopFleetAction.run(start: false)
         XCTAssertTrue(text.hasPrefix("Stopped."), "got: \(text)")
+    }
+
+    // MARK: Delete VM intent
+
+    private func statusWithVM(_ id: String) -> FleetStatus {
+        FleetStatus(running: true, records: [VMRecord(id: id, phase: .busy)])
+    }
+
+    func testDeleteRunsOnceForAnExistingVM() async throws {
+        let bridge = FakeBridge(statusWithVM("vm-1"))
+        bridge.appliesDelete = true
+        FleetIntentEnvironment.bridge = bridge
+        _ = try await DeleteVMAction.run(id: "vm-1")
+        _ = try await DeleteVMAction.run(id: "vm-1")
+        XCTAssertEqual(bridge.deleteCalls, ["vm-1"], "a second delete of a gone VM is a no-op")
+    }
+
+    func testDeleteUnknownVMIsANoOp() async throws {
+        let bridge = FakeBridge(statusWithVM("vm-1"))
+        FleetIntentEnvironment.bridge = bridge
+        let text = try await DeleteVMAction.run(id: "nope")
+        XCTAssertTrue(bridge.deleteCalls.isEmpty)
+        XCTAssertTrue(text.contains("No VM named nope"), "got: \(text)")
+    }
+
+    func testDeleteReportsSuccessWhenThePollConfirms() async throws {
+        let bridge = FakeBridge(statusWithVM("vm-1"))
+        bridge.appliesDelete = true
+        FleetIntentEnvironment.bridge = bridge
+        let text = try await DeleteVMAction.run(id: "vm-1")
+        XCTAssertEqual(bridge.deleteCalls, ["vm-1"])
+        XCTAssertTrue(text.hasPrefix("Deleted VM vm-1."), "got: \(text)")
+    }
+
+    func testDeleteReportsInProgressWhenThePollStillListsTheVM() async throws {
+        // Teardown is async — right after the command the record can still
+        // be listed. The dialog must say so rather than claim a done deal.
+        let bridge = FakeBridge(statusWithVM("vm-1"))
+        FleetIntentEnvironment.bridge = bridge
+        let text = try await DeleteVMAction.run(id: "vm-1")
+        XCTAssertEqual(bridge.deleteCalls, ["vm-1"])
+        XCTAssertTrue(text.contains("in progress"), "got: \(text)")
+    }
+
+    func testDeleteErrorsPropagate() async {
+        let bridge = FakeBridge(statusWithVM("vm-1"))
+        bridge.error = FleetAccessError.notSetUp
+        FleetIntentEnvironment.bridge = bridge
+        do {
+            _ = try await DeleteVMAction.run(id: "vm-1")
+            XCTFail("expected throw")
+        } catch {
+            XCTAssertTrue(error is FleetAccessError)
+            XCTAssertTrue(bridge.deleteCalls.isEmpty)
+        }
     }
 }

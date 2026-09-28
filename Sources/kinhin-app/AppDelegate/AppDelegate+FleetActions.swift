@@ -120,18 +120,29 @@ extension AppDelegate {
                 button: "Delete")
         else { return }
         Task {
-            if let engine {
-                await engine.deleteVM(id: id)
-            } else if client != nil {
-                do {
-                    let payload = try JSONEncoder().encode(Daemon.VMDeleteRequest(id: id))
-                    sendDaemonCommand(.deleteVM, payload: payload, failureTitle: "Couldn't delete \(id)")
-                } catch {
-                    AlertKit.present(error: error, title: "Couldn't delete \(id)")
-                }
+            do {
+                try await performVMDelete(id: id)
+            } catch {
+                AlertKit.present(error: error, title: "Couldn't delete \(id)")
             }
-            await refresh()
         }
+    }
+
+    /// Runs the delete through whichever backend is live, without asking
+    /// first. Entry points confirm in their own UX (menu shows NSAlert; the
+    /// App Intent relies on Shortcuts' explicit pick and its confirm toggle,
+    /// since intents can't present alerts). Throws when no backend is set up
+    /// — the menu path alerts, the intent path lands in the dialog.
+    func performVMDelete(id: String) async throws {
+        if let engine {
+            await engine.deleteVM(id: id)
+        } else if client != nil {
+            let payload = try JSONEncoder().encode(Daemon.VMDeleteRequest(id: id))
+            sendDaemonCommand(.deleteVM, payload: payload, failureTitle: "Couldn't delete \(id)")
+        } else {
+            throw FleetAccessError.notSetUp
+        }
+        await refresh()
     }
 
     /// Runs a confirmation alert; overridable in tests via `confirmOverride`.

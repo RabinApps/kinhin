@@ -9,6 +9,7 @@ protocol FleetIntentBridge {
     func startFleet() async throws
     func stopFleet() async throws
     func setPaused(_ paused: Bool) async throws
+    func deleteVM(id: String) async throws
     func doctor() async -> DoctorReport
 }
 
@@ -31,6 +32,8 @@ struct AppFleetIntentBridge: FleetIntentBridge {
     func stopFleet() async throws { try await delegate.performFleetAction(.stop) }
 
     func setPaused(_ paused: Bool) async throws { try await delegate.setFleetPaused(paused) }
+
+    func deleteVM(id: String) async throws { try await delegate.performVMDelete(id: id) }
 
     func doctor() async -> DoctorReport { await DoctorReportBuilder().build() }
 }

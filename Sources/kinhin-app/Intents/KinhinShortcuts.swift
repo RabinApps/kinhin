@@ -26,5 +26,9 @@ struct KinhinShortcuts: AppShortcutsProvider {
             intent: RunDoctorIntent(),
             phrases: ["Run \(.applicationName) diagnostics", "Run \(.applicationName) doctor"],
             shortTitle: "Run Diagnostics", systemImageName: "stethoscope")
+        AppShortcut(
+            intent: DeleteVMIntent(),
+            phrases: ["Delete \(.applicationName) VM"],
+            shortTitle: "Delete VM", systemImageName: "trash")
     }
 }
