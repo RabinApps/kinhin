@@ -41,8 +41,8 @@ container:
 Requires the container CLI (`brew install container && container system start`). macOS jobs still
 need Tart — containers run Linux workloads only. When `container:` is configured, the setup
 checklist and `kinhin doctor` gain container rows (CLI health, system-service state, image present)
-with one-click fix actions; without it, the rows never appear. Run `kinhin runtimes` (or the menu
-bar's **Runtimes…** pane) to see the pool, its cap, and its live health once configured.
+with one-click fix actions; without it, the rows never appear. Run `kinhin runtimes` (or the app's
+**Advanced → Routing** tab) to see the pool, its cap, and its live health once configured.
 
 ## Docker (Linux containers)
 
@@ -150,9 +150,9 @@ Routing precedence: **workflow route → repo route → `runs-on:` label → def
 
 Routes can also be managed from the terminal with `kinhin runtimes route add|remove` (see [Commands](../README.md#commands)).
 
-### The Runtimes pane
+### The Routing pane
 
-In the menu bar app, **Runtimes…** opens a pane showing the pools with their per-runtime caps and budget shares, plus every route (repo and workflow). Each pool card carries a **live health chip** (● ready / ● missing / ● error) from the runtime's own probe — tart launch check, `container system status`, `docker info` — with the fix hint shown alongside any problem.
+The app's **Advanced → Routing** tab shows the pools with their per-runtime caps and budget shares, plus every route (repo and workflow). Each pool card carries a **live health chip** (● ready / ● missing / ● error) from the runtime's own probe — tart launch check, `container system status`, `docker info` — with the fix hint shown alongside any problem.
 
 - The **Budget** card edits the split directly: a slider per non-default runtime (the default keeps the remainder), a default-runtime picker, a **live cap preview** per row ("3 inst" updates as you drag), and a warning strip when the split on screen would starve a configured route with a cap of zero.
 - The **Labels** card edits the fleet's base label set and `container.labels` (commit on Enter or focus loss; empty label lists are rejected, and the `kinhin-container` routing marker is always merged in at pool build).
@@ -175,7 +175,7 @@ runtimes:
       consent: true # required for host routes (and rejected on other runtimes)
 ```
 
-- **Consent is enforced everywhere.** Config validation rejects a host route without `consent: true`. `kinhin runtimes route add <pattern> host --consent` refuses to run without the flag. In the app, **Runtimes… → Add Route** lists "Host — this Mac, no isolation" and won't add the route until you tick the consent checkbox; host routes show a ⚠︎ _unisolated_ marker in the route list.
+- **Consent is enforced everywhere.** Config validation rejects a host route without `consent: true`. `kinhin runtimes route add <pattern> host --consent` refuses to run without the flag. In the app, **Advanced → Routing → Add Route…** lists "Host — this Mac, no isolation" and won't add the route until you tick the consent checkbox; host routes show a ⚠︎ _unisolated_ marker in the route list.
 - **Install the agent once.** Host runs use the GitHub actions-runner and the Gitea runner (which also serves Forgejo), installed — with SHA-256 verification — under `~/Library/Application Support/Kinhin/host-runner`. When a host route exists, the setup checklist and `kinhin doctor` gain a _Host runner agent_ row with a one-click **Install Host Runner Agent** fix; from the terminal run `kinhin setup repair host-agent`. Without host routes, none of this appears.
 - **Explicit `runs-on` marker.** The host pool always registers with the `kinhin-host` label, so a workflow can also opt in with `runs-on: [kinhin-host]` and only opted-in workflows can ever land on your Mac.
 - **Ephemeral process, warm machine.** Each runner registers with `--ephemeral`, gets its own work directory under kinhin's support directory, and that directory is scrubbed when the runner is torn down. The Mac itself is not reset between jobs, so anything a job installs or leaves outside its work directory persists.

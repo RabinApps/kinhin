@@ -80,7 +80,7 @@ is provided by your Docker provider; kinhin does not configure it.
 
 ## Inspecting the split
 
-`kinhin runtimes` (or the menu bar's **Runtimes…** pane) shows the pools with their per-runtime
+`kinhin runtimes` (or the app's **Advanced → Routing** tab) shows the pools with their per-runtime
 caps and budget shares, plus every route (repo and workflow). Each pool card carries a **live
-health chip** (● ready / ● missing / ● error) from the runtime's own probe, and the pane's
+health chip** (● ready / ● missing / ● error) from the runtime's own probe, and the tab's
 **Budget** card edits the split directly with a live cap preview per row.

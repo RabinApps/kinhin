@@ -26,7 +26,7 @@ the disk would dip below `reserve.disk_gb` plus one instance's footprint.
 
 ## Live reload
 
-Config edits made from the menu bar's **Runtimes…** pane (routes, budget split, labels) reach
+Config edits made from the app's **Advanced → Routing** tab (routes, budget split, labels) reach
 a running fleet live via `reload_config` — no restart; a running fleet simply re-buckets demand
 on its next poll. Routes can also be edited from the terminal:
 

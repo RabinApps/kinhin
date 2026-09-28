@@ -163,7 +163,7 @@ kinhin setup-status [--json] First-run checklist; exit 1 until ready (--json for
 kinhin runtimes [--json]    Pools, capacity, budget split, live health, and routes (--no-health skips probes)
 kinhin runtimes route add <pattern> <tart|appleContainer|docker|host> [--consent]
                              Route a repo (`owner/repo`) or workflow (`owner/repo@Name`) — same validated
-                             editor as the Runtimes pane; a running daemon reloads routing live.
+                             editor as the Advanced → Routing tab; a running daemon reloads routing live.
                              `host` runs jobs unisolated on this Mac and requires --consent
 kinhin runtimes route remove <pattern>
                              Delete that route (e.g. `acme/api` or `acme/web@Nightly`)

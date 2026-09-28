@@ -151,7 +151,7 @@ parameter on the paths that already branch by platform:
 
 ## 7. UI: where-to-run picker
 
-A **Runtimes** pane in the menu bar app (Settings window, mirroring Setup's card machinery):
+A **Routing** pane in the app's main window (the Advanced tab, mirroring Setup's card machinery):
 
 - One card per configured repo (from the forge scope + routes): repo name, current runtime chip,
   and a picker (Tart / Docker / Host).
@@ -170,7 +170,7 @@ A **Runtimes** pane in the menu bar app (Settings window, mirroring Setup's card
 | 1     | `Runtime` protocol + `TartRuntime` wrapping today's calls; engine refactor behind it; **all ~760 tests green**                                                                                                                                                                                                   | 1 session    | low — pure refactor                        |
 | 2     | Routing config (`runtimes:` section), per-runtime capacity matrix, `FleetStatus.capacityByRuntime`                                                                                                                                                                                                               | 1 session    | medium                                     |
 | 3     | `DockerRuntime` (Linux VM infra detection, slot containers, `docker exec` registration, teardown) + tests — **shipped**: daemon-agnostic health via `docker info`, per-slot `--cpus/--memory`, `docker exec` registration, checklist/doctor rows, `image prepare --docker`                                       | 1–2 sessions | medium — Docker Desktop vs colima variance |
-| 4     | `HostRuntime` warm runners + consent flow + status `warm:` entries — **shipped** as ephemeral host runner processes: per-route `consent: true` (no `host:` config block), `kinhin-host` marker, agent installer (`kinhin setup repair host-agent`), checklist/doctor rows, consent checkbox in the Runtimes pane | 1 session    | low code / high care                       |
+| 4     | `HostRuntime` warm runners + consent flow + status `warm:` entries — **shipped** as ephemeral host runner processes: per-route `consent: true` (no `host:` config block), `kinhin-host` marker, agent installer (`kinhin setup repair host-agent`), checklist/doctor rows, consent checkbox in the Routing pane | 1 session    | low code / high care                       |
 | 5     | Runtimes settings pane (picker UI writing config, checklist rows per runtime)                                                                                                                                                                                                                                    | 1 session    | low                                        |
 | 6     | Docs + doctor sections per runtime                                                                                                                                                                                                                                                                               | ½ session    | low                                        |
 
