@@ -148,6 +148,16 @@ final class FleetIntentTests: XCTestCase {
         XCTAssertTrue(text.contains("fleet is paused"), "got: \(text)")
     }
 
+    func testDeleteWithAutoResumeNamesTheAutomaticRelease() async throws {
+        let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
+        bridge.appliesDelete = true
+        bridge.current.autoResume = true
+        FleetIntentEnvironment.bridge = bridge
+        let text = try await DeleteVMAction.run(id: "vm-1", pauseFirst: true)
+        XCTAssertTrue(text.contains("auto-resume will release it"), "got: \(text)")
+        XCTAssertFalse(text.contains("until you resume"), "nobody resumes by hand under this policy")
+    }
+
     func testDeleteSkipsPauseWhenFleetIsStopped() async throws {
         let bridge = FakeFleetIntentBridge(
             FleetStatus(running: false, records: [VMRecord(id: "vm-1", phase: .failed)]))

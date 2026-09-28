@@ -22,7 +22,7 @@ enum FleetSummary {
         guard before.running else {
             return "The fleet isn't running, so there is nothing to \(paused ? "pause" : "resume")."
         }
-        if before.paused == paused { return paused ? "The fleet was already paused." : "The fleet wasn't paused." }
+        if before.paused == paused { return paused ? "The fleet is already paused." : "The fleet isn't paused." }
         return paused ? "Paused. Running jobs finish, but no new VMs will start." : "Resumed."
     }
 
@@ -61,15 +61,20 @@ enum FleetSummary {
         case uncertain
     }
 
-    static func deleteResult(id: String, outcome: DeleteOutcome, pausedFirst: Bool = false) -> String {
+    static func deleteResult(
+        id: String, outcome: DeleteOutcome, pausedFirst: Bool = false, autoResume: Bool? = nil
+    ) -> String {
         switch outcome {
         case .notFound:
             return noVMNamed(id)
         case .deleted:
-            // Autoscale would otherwise recreate the VM within one poll.
-            return pausedFirst
-                ? "Deleted VM \(id). The fleet is paused, so it won't be recreated until you resume."
-                : "Deleted VM \(id)."
+            guard pausedFirst else { return "Deleted VM \(id)." }
+            // Autoscale would otherwise recreate the VM within one poll —
+            // say which way the pause lets go, since the two policies read
+            // very differently in the UI.
+            return autoResume == true
+                ? "Deleted VM \(id). The fleet is paused; auto-resume will release it when the queue is empty."
+                : "Deleted VM \(id). The fleet is paused, so it won't be recreated until you resume."
         case .uncertain:
             return "Deleting \(id) is in progress — check the fleet status in a moment."
         }

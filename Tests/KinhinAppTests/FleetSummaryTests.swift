@@ -35,9 +35,9 @@ final class FleetSummaryTests: XCTestCase {
 
     func testPauseResultCoversNoOpsAndChanges() {
         XCTAssertEqual(
-            FleetSummary.pauseResult(paused: true, before: status(paused: true)), "The fleet was already paused.")
+            FleetSummary.pauseResult(paused: true, before: status(paused: true)), "The fleet is already paused.")
         XCTAssertEqual(
-            FleetSummary.pauseResult(paused: false, before: status(paused: false)), "The fleet wasn't paused.")
+            FleetSummary.pauseResult(paused: false, before: status(paused: false)), "The fleet isn't paused.")
         XCTAssertTrue(FleetSummary.pauseResult(paused: true, before: status()).hasPrefix("Paused."))
         XCTAssertEqual(FleetSummary.pauseResult(paused: false, before: status(paused: true)), "Resumed.")
         XCTAssertTrue(FleetSummary.pauseResult(paused: true, before: status(running: false)).contains("isn't running"))
@@ -47,6 +47,19 @@ final class FleetSummaryTests: XCTestCase {
         XCTAssertEqual(FleetSummary.deleteResult(id: "vm-1", outcome: .deleted), "Deleted VM vm-1.")
         XCTAssertEqual(FleetSummary.deleteResult(id: "vm-1", outcome: .notFound), "No VM named vm-1 is in the fleet.")
         XCTAssertTrue(FleetSummary.deleteResult(id: "vm-1", outcome: .uncertain).contains("in progress"))
+    }
+
+    func testDeleteDialogNamesTheReleasePath() {
+        XCTAssertEqual(
+            FleetSummary.deleteResult(id: "vm-1", outcome: .deleted, pausedFirst: true, autoResume: true),
+            "Deleted VM vm-1. The fleet is paused; auto-resume will release it when the queue is empty.")
+        XCTAssertTrue(
+            FleetSummary.deleteResult(id: "vm-1", outcome: .deleted, pausedFirst: true, autoResume: false)
+                .contains("until you resume"))
+        // Policy unknown (older daemon) reads like off — a hand resume.
+        XCTAssertTrue(
+            FleetSummary.deleteResult(id: "vm-1", outcome: .deleted, pausedFirst: true).contains("until you resume"))
+        XCTAssertEqual(FleetSummary.deleteResult(id: "vm-1", outcome: .deleted), "Deleted VM vm-1.")
     }
 
     func testDiagnoseCoversLifecycleAndDetails() {

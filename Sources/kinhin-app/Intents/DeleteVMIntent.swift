@@ -46,6 +46,9 @@ enum DeleteVMAction {
         // Teardown is async: the record can still be listed right after the
         // command ran, so only a missing record counts as done.
         let stillThere = after.records.contains { $0.id == id }
-        return FleetSummary.deleteResult(id: id, outcome: stillThere ? .uncertain : .deleted, pausedFirst: pausedFirst)
+        // The follow-up status carries the policy, so the dialog names the
+        // right release path (auto-resume vs. resume by hand).
+        return FleetSummary.deleteResult(
+            id: id, outcome: stillThere ? .uncertain : .deleted, pausedFirst: pausedFirst, autoResume: after.autoResume)
     }
 }
