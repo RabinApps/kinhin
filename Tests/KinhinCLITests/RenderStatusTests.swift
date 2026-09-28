@@ -20,6 +20,20 @@ final class RenderStatusTests: XCTestCase {
         XCTAssertTrue(renderStatus(status).contains("engine:    paused"))
     }
 
+    func testPausedWithAutoResumeShowsTheNote() {
+        var status = FleetStatus()
+        status.running = true
+        status.paused = true
+        XCTAssertFalse(
+            renderStatus(status).contains("auto-resume"),
+            "policy off or unknown: no note, same as the menu bar")
+
+        status.autoResume = true
+        let text = renderStatus(status)
+        XCTAssertTrue(text.contains("engine:    paused"), text)
+        XCTAssertTrue(text.contains("auto-resume: on — the fleet releases itself when the queue is empty"), text)
+    }
+
     // MARK: counters
 
     func testCountersAndJobSlotsLine() {
