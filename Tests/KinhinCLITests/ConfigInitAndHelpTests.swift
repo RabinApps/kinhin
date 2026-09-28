@@ -70,6 +70,13 @@ final class ConfigInitAndHelpTests: XCTestCase {
         }
     }
 
+    func testHelpTextSaysTheGitLabAgentInstallIsConditional() {
+        let help = helpText()
+        XCTAssertTrue(
+            help.contains("gitlab-runner is added only when a GitLab account is configured"),
+            "host-agent help must match HostAgentInstaller's conditional gitlab-runner install")
+    }
+
     func testHelpTextMentionsProvisionScriptHook() {
         let help = helpText()
         XCTAssertTrue(help.contains("--provision-script"), "help should advertise the provision-script flag")

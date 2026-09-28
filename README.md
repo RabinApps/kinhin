@@ -169,7 +169,8 @@ kinhin runtimes route add <pattern> <tart|appleContainer|docker|host> [--consent
 kinhin runtimes route remove <pattern>
                              Delete that route (e.g. `acme/api` or `acme/web@Nightly`)
 kinhin setup repair host-agent
-                             Install the GitHub + Gitea runner agents used by host routes (one time)
+                             Install the GitHub + Gitea runner agents for host routes (one time); gitlab-runner
+                             is added too when a GitLab account is configured
 kinhin image prepare        Build the runner base image (once); --provision-script <file>
                              bakes your toolchains in (see docs/toolchains.md); `toolchains:`
                              config entries are baked automatically and downloads
