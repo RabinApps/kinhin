@@ -5,7 +5,18 @@ import XCTest
 
 // MARK: - Config
 
-func testDockerConfigParsingAndValidation() throws {
+final class DockerEngineIntegrationTests: XCTestCase {
+
+    func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTFail("condition not met within \(timeout)s")
+    }
+
+    func testDockerConfigParsingAndValidation() throws {
         let cfg = try ConfigLoader.parse(
             """
             repo: "acme"
@@ -59,8 +70,6 @@ func testDockerConfigParsingAndValidation() throws {
     }
 
     // MARK: - Engine integration
-
-// MARK: - Engine integration
 
     func testEngineWithDockerConfigRunsDockerLifecycle() async throws {
         let shell = DockerFakingShell()

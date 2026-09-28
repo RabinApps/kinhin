@@ -5,6 +5,13 @@ import XCTest
 
 // MARK: - Shared toolchain cache (Linux path, Docker flavor)
 
+final class DockerToolchainCacheTests: XCTestCase {
+    private let bin = "/usr/local/bin/docker"
+
+    private func makeRoute(cacheMount: Bool = false) -> RepoRoute {
+        RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30, cacheMount: cacheMount)
+    }
+
     func testProvisionMountsCacheOnlyWhenShareCacheIsOn() async throws {
         let shell = FakeShell()
         let runtime = DockerRuntime(
