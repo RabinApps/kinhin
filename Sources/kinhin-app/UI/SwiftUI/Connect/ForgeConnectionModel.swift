@@ -124,7 +124,16 @@ final class ForgeConnectionModel {
     /// error on the card instead of "Not connected yet", and leaves the token
     /// treated as absent for the buttons.
     private func render(snapshot: GeneralConfigEditor.Snapshot?, stored: Result<Bool, Error>) {
-        let hasToken = (try? stored.get()) ?? false
+        // A failed probe leaves the token treated as absent for the buttons
+        // (the card itself already shows the probe error), but it is logged
+        // so a broken Keychain is not indistinguishable from "no token".
+        let hasToken: Bool
+        do {
+            hasToken = try stored.get()
+        } catch {
+            Log.warn("app", "\(forge.rawValue) token probe failed: \(error.localizedDescription)")
+            hasToken = false
+        }
         switch forge {
         case .github:
             let repo = snapshot?.repo ?? ""

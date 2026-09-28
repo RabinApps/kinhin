@@ -319,7 +319,13 @@ extension FleetEngine {
         }
         // Give tasks a moment to clean their VMs up. Cancellation here only
         // shortens the grace period; the sweep below still runs.
-        try? await Task.sleep(for: .seconds(2))
+        do {
+            try await Task.sleep(for: .seconds(2))
+        } catch is CancellationError {
+            // Stop waiting early, but still sweep below.
+        } catch {
+            Log.warn("engine", "stop-grace sleep failed: \(error.localizedDescription)")
+        }
         let remaining = store.all.filter { $0.phase.isActive }
         for record in remaining {
             await deleteVMRecord(id: record.id, reason: "engine stopped")

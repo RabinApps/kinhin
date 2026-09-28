@@ -205,7 +205,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                 let runtime = TartRuntime(tart: controller, bootTimeout: { parsed.vmBootTimeout })
                 group.addTask { (.tart, await runtime.health()) }
             } else {
-                // Construction fails only when the binary is missing, which is the answer.
+                // Construction fails only when the binary is missing, which
+                // is the availability answer itself (not a swallowed error).
                 group.addTask {
                     (
                         .tart,
@@ -257,8 +258,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                     let runtime = TartRuntime(tart: controller, bootTimeout: { parsed.vmBootTimeout })
                     group.addTask { (.tart, await runtime.health()) }
                 } else {
-                    // Controller construction fails when the binary is
-                    // missing — that IS the health answer, not a probe error.
+                    // Construction fails only when the binary is missing,
+                    // which IS the health answer, not a probe error.
                     group.addTask {
                         (
                             .tart,

@@ -408,7 +408,14 @@ public final class FleetEngine {
         guard ToolchainCachePolicy(from: config.toolchains).autoPrune else { return }
         cachePruneTask = Task { [weak self] () -> Void in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(86_400))
+                do {
+                    try await Task.sleep(for: .seconds(86_400))
+                } catch is CancellationError {
+                    return  // engine stopped: the sweep task ends
+                } catch {
+                    Log.warn("engine", "cache sweep sleep failed: \(error.localizedDescription)")
+                    return
+                }
                 guard let self else { return }
                 let policy = ToolchainCachePolicy(from: self.config.toolchains)
                 guard policy.autoPrune else { continue }

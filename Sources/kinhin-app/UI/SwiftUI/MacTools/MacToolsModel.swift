@@ -136,8 +136,16 @@ final class MacToolsModel {
         imageButtonVisible = false
         Task { [weak self] in
             let present = await Task.detached { () -> Bool in
+                // A missing tart binary or a failed listing reads as "image
+                // not prepared" — the same state the prepare button offers
+                // to fix; failures are logged rather than hidden.
                 guard let tart = try? TartController() else { return false }
-                return ((try? await tart.list()) ?? []).contains { $0.name == image }
+                do {
+                    return try await tart.list().contains { $0.name == image }
+                } catch {
+                    Log.warn("app", "tart list failed while checking '\(image)': \(error.localizedDescription)")
+                    return false
+                }
             }.value
             guard let self else { return }
             self.imageLine = Line(

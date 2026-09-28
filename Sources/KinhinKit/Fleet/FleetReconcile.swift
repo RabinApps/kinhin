@@ -77,12 +77,18 @@ extension FleetEngine {
             let interval = config.pollInterval
             do {
                 try await reconcileOnce()
+            } catch is CancellationError {
+                return  // engine stopping: the loop exits instead of logging a cancel as an error
             } catch {
                 let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
                 Log.error("engine", "reconcile failed: \(message)")
                 await statusBox.modify { $0.lastError = message }
             }
-            try? await Task.sleep(for: .seconds(interval))
+            do {
+                try await Task.sleep(for: .seconds(interval))  // poll delay; cancellation ends the loop
+            } catch {
+                return
+            }
         }
     }
 
@@ -242,8 +248,9 @@ extension FleetEngine {
             store.upsert(record)
             spawnLifecycle(for: record)
             toSpawn -= 1
-            // Stagger spawns slightly so disk I/O doesn't stampede.
-            try? await Task.sleep(for: .milliseconds(1500))
+            // Stagger spawns slightly so disk I/O doesn't stampede. Cancellation
+            // stops further staggering (already-spawned VMs keep winding down).
+            try await Task.sleep(for: .milliseconds(1500))
         }
         if let diskPressureMessage {
             Log.warn("engine", diskPressureMessage)

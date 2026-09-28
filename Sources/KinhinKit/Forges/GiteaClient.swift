@@ -186,6 +186,8 @@ public struct GiteaClient: Sendable {
                 // routes through GiteaRepo.self-decoding via AnyDecodable
                 // bridge: decode the array first, fall back on type error.
                 init(from decoder: Decoder) throws {
+                    // A keyed container probe (not a decode) picks the body
+                    // shape: mapping → wrapped {ok,data}, array → bare list.
                     if let keyed = try? decoder.container(keyedBy: CodingKeys.self) {
                         ok = try keyed.decodeIfPresent(Bool.self, forKey: .ok)
                         data = try keyed.decodeIfPresent([GiteaRepo].self, forKey: .data)
@@ -205,6 +207,9 @@ public struct GiteaClient: Sendable {
             }
             let batch: [GiteaRepo]
             do {
+                // Shape probe: the wrapped decode throws on the bare-array
+                // body, which the decode below handles. A real parse failure
+                // in either shape still throws from here.
                 if let wrapped = try? JSONDecoder().decode(Wrapper.self, from: data).data {
                     batch = wrapped
                 } else {
@@ -311,9 +316,8 @@ public struct GiteaClient: Sendable {
     }
 
     private func sendOnce(path: String, method: String) async throws -> (Data, HTTPURLResponse) {
-        guard let base = try? GiteaCredentials.validate(instance: credentials.instance) else {
-            throw GiteaError.invalidInstance(credentials.instance)
-        }
+        // validate() already throws the typed GiteaError.invalidInstance.
+        let base = try GiteaCredentials.validate(instance: credentials.instance)
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             throw GiteaError.invalidInstance(credentials.instance)
         }
@@ -387,6 +391,8 @@ private struct TaskQueueWrapper: Decodable {
             // Some versions put a string here, others the {full_name} object
             // below — a type mismatch degrades to nil instead of failing the
             // whole entry.
+            // Older/newer Gitea versions disagree on which of the two shapes the
+            // `repository` field takes; either being absent is expected, not an error.
             repository = try? c.decodeIfPresent(String.self, forKey: .repository)
             repositoryObject = try? c.decodeIfPresent(RepoObject.self, forKey: .repository)
         }

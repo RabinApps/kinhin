@@ -51,57 +51,83 @@ public struct RunnerVersionResolver {
         }
     }
 
-    /// Fetch every latest stable version. Never throws: any failure yields
-    /// the pinned fallback so image preparation always proceeds.
+    /// Fetch every latest stable version. Network failures yield the pinned
+    /// fallback so image preparation always proceeds, and each feed failure is
+    /// logged. A feed that answers with an unusable payload is also logged (and
+    /// falls back); it is surfaced by the throwing ``latestGitHub()``-family
+    /// members for callers that need the distinction.
     public func resolve() async -> Versions {
-        async let githubTask = latestGitHub()
-        async let giteaTask = latestGitea()
-        async let gitlabTask = latestGitLab()
-        return await Versions(
-            github: githubTask ?? Self.fallback.github, gitea: giteaTask ?? Self.fallback.gitea,
-            gitlab: gitlabTask ?? Self.fallback.gitlab)
+        async let githubTask = resolveLoggingFailures(latestGitHub, fallback: Self.fallback.github, feed: "GitHub")
+        async let giteaTask = resolveLoggingFailures(latestGitea, fallback: Self.fallback.gitea, feed: "Gitea")
+        async let gitlabTask = resolveLoggingFailures(latestGitLab, fallback: Self.fallback.gitlab, feed: "GitLab")
+        return await Versions(github: githubTask, gitea: giteaTask, gitlab: gitlabTask)
+    }
+
+    /// One feed lookup with its fallback: a thrown error is logged, never
+    /// propagated — pinned versions keep image preparation offline-safe.
+    private func resolveLoggingFailures(
+        _ lookup: () async throws -> String, fallback: String, feed: String
+    ) async -> String {
+        do {
+            return try await lookup()
+        } catch {
+            Log.warn(
+                "image", "\(feed) runner version lookup failed, using pinned \(fallback): \(error.localizedDescription)"
+            )
+            return fallback
+        }
     }
 
     /// Latest stable actions-runner tag, e.g. "v2.325.0" → "2.325.0".
-    func latestGitHub() async -> String? {
-        guard
-            let data = await fetchLogged(
-                url: Self.githubFeed
-            )
-        else { return nil }
+    /// Throws only when the feed answered with an unusable payload; network
+    /// failures surface as the pinned fallback via ``resolve()``.
+    func latestGitHub() async throws -> String {
+        guard let data = await fetchLogged(url: Self.githubFeed) else {
+            return Self.fallback.github
+        }
+        return try Self.stableTag(from: data, feed: "GitHub", fallback: Self.fallback.github)
+    }
+
+    /// Latest stable Gitea runner tag, e.g. "v3.5.0" → "3.5.0". Same
+    /// failure behavior as ``latestGitHub()``.
+    func latestGitea() async throws -> String {
+        guard let data = await fetchLogged(url: Self.giteaFeed) else {
+            return Self.fallback.gitea
+        }
+        return try Self.stableTag(from: data, feed: "Gitea", fallback: Self.fallback.gitea)
+    }
+
+    /// Latest stable GitLab runner tag, e.g. "v19.4.1" → "19.4.1". Same
+    /// failure behavior as ``latestGitHub()``.
+    func latestGitLab() async throws -> String {
+        guard let data = await fetchLogged(url: Self.gitlabFeed) else {
+            return Self.fallback.gitlab
+        }
+        return try Self.stableTag(from: data, feed: "GitLab", fallback: Self.fallback.gitlab, excludesDashes: true)
+    }
+
+    /// Decodes a release-feed payload to its stable tag (`v` prefix, dotted
+    /// numbers; GitLab additionally excludes pre-release dashes). Throws
+    /// `ImageError.malformedVersionFeed` — never returns nil — when the
+    /// payload is undecodable or the tag is malformed, so "unusable answer"
+    /// is distinguishable from "no data".
+    static func stableTag(from data: Data, feed: String, fallback: String, excludesDashes: Bool = false)
+        throws -> String
+    {
         struct Payload: Decodable { let tag_name: String }
-        guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else { return nil }
+        guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
+            throw ImageError.malformedVersionFeed(feed: feed, reason: "payload is not JSON with a tag_name string")
+        }
         let tag = payload.tag_name
-        guard tag.hasPrefix("v"), tag.dropFirst().contains(".") else { return nil }
+        guard tag.hasPrefix("v"), tag.dropFirst().contains("."), !(excludesDashes && tag.contains("-")) else {
+            throw ImageError.malformedVersionFeed(feed: feed, reason: "tag '\(tag)' is not a stable v-prefixed version")
+        }
         return String(tag.dropFirst())
     }
 
-    /// Latest stable Gitea runner tag, e.g. "v3.5.0" → "3.5.0".
-    func latestGitea() async -> String? {
-        guard
-            let data = await fetchLogged(
-                url: Self.giteaFeed
-            )
-        else { return nil }
-        struct Payload: Decodable { let tag_name: String }
-        guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else { return nil }
-        let tag = payload.tag_name
-        guard tag.hasPrefix("v"), tag.dropFirst().contains(".") else { return nil }
-        return String(tag.dropFirst())
-    }
-
-    /// Latest stable GitLab runner tag, e.g. "v19.4.1" → "19.4.1".
-    func latestGitLab() async -> String? {
-        guard let data = await fetchLogged(url: Self.gitlabFeed) else { return nil }
-        struct Payload: Decodable { let tag_name: String }
-        guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else { return nil }
-        let tag = payload.tag_name
-        guard tag.hasPrefix("v"), tag.dropFirst().contains("."), !tag.contains("-") else { return nil }
-        return String(tag.dropFirst())
-    }
-
-    /// Version lookup is best-effort (callers fall back to pinned versions),
-    /// but an offline or rate-limited feed is worth a log line.
+    /// Network failure of a best-effort lookup: logged and reported as nil so
+    /// callers degrade to the pinned versions ("no data"), while a *malformed*
+    /// answer from the feed throws from the `latest*` members instead.
     private func fetchLogged(url: URL) async -> Data? {
         do {
             return try await fetch(url: url)

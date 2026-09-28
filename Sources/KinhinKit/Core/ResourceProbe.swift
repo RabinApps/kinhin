@@ -102,6 +102,8 @@ public struct ResourceProbe: Sendable {
 
     static func freeDiskGB() -> Int {
         let url = URL(fileURLWithPath: NSHomeDirectory())
+        // A stat failure reads as "no headroom", which steers scaling the
+        // safe way (it caps new VMs) instead of overcommitting the disk.
         guard let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
             let bytes = values.volumeAvailableCapacityForImportantUsage
         else {

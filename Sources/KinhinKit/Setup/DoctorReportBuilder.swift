@@ -345,7 +345,8 @@ public struct DoctorReportBuilder: Sendable {
                 total += bytes
             }
         } else {
-            // No selection: report every populated top-level directory.
+            // No selection: report every populated top-level directory. An
+            // unreadable cache root simply reports as empty ("no cache yet").
             let children =
                 (try? fm.contentsOfDirectory(
                     at: root, includingPropertiesForKeys: [.isDirectoryKey, .totalFileAllocatedSizeKey])) ?? []
@@ -372,6 +373,8 @@ public struct DoctorReportBuilder: Sendable {
         else { return 0 }
         var total: Int64 = 0
         for case let fileURL as URL in enumerator {
+            // A file that cannot be stat'ed mid-walk is skipped; the size
+            // report is advisory, not a correctness boundary.
             guard let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
                 values.isRegularFile == true
             else { continue }

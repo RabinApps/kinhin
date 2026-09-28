@@ -86,6 +86,7 @@ public struct CLTProbe: Sendable {
         func run(_ command: String) async -> ShellResult? {
             // The probe commands are fixed strings; run through the shell so
             // plain argv tools work with the same ShellRunning abstraction.
+            // A cancelled probe simply reads as "tool absent".
             try? await shell.run(["/bin/bash", "-c", command], cwd: nil, timeout: 15)
         }
 

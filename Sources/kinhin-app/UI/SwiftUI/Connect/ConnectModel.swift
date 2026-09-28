@@ -199,7 +199,14 @@ final class ConnectModel {
     private func render(snapshot: GeneralConfigEditor.Snapshot?, tokens: [Result<Bool, Error>]) {
         func stored(_ forge: ForgeID) -> Bool {
             guard let index = ForgeID.allCases.firstIndex(of: forge), index < tokens.count else { return false }
-            return (try? tokens[index].get()) ?? false
+            // A failed Keychain probe shows as "token missing" — the form is
+            // still fully usable; a redaction-safe warning keeps it visible.
+            do {
+                return try tokens[index].get()
+            } catch {
+                Log.warn("app", "\(forge.rawValue) token probe failed: \(error.localizedDescription)")
+                return false
+            }
         }
 
         var configured: Set<ForgeID> = []

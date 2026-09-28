@@ -50,11 +50,15 @@ public enum Log {
 
     /// In-memory ring buffer of recent entries (also mirrored to disk).
     private static let ring = Runaround<Entry>(capacity: 5000)
-    private static let lock = NSLock()
-    private static var logFile: RotatingLogFile?
-    /// Set once a write to the log file has failed, so a full disk or revoked
-    /// permission is reported to stderr a single time instead of every line.
-    private static var reportedFileFailure = false
+    /// The log-file target plus its failure state, guarded by one mutex.
+    private static let fileTarget = Mutex(FileTarget())
+
+    private struct FileTarget {
+        var file: RotatingLogFile?
+        /// Set once a write to the log file has failed, so a full disk or revoked
+        /// permission is reported to stderr a single time instead of every line.
+        var reportedFailure = false
+    }
 
     public static func snapshot(limit: Int = 200) -> [Entry] {
         ring.snapshot(limit: limit)
@@ -81,22 +85,24 @@ public enum Log {
     /// the directory or open the file is reported on stderr and file logging
     /// stays off; it never crashes the caller.
     public static func setLogFile(directory: URL) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard logFile == nil else { return }
-        do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            logFile = try RotatingLogFile(url: directory.appendingPathComponent("kinhin.log"))
-            reportedFileFailure = false
-        } catch {
-            reportFileFailure("could not open log file in \(directory.path): \(error.localizedDescription)")
+        fileTarget.withLock { target in
+            guard target.file == nil else { return }
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                target.file = try RotatingLogFile(url: directory.appendingPathComponent("kinhin.log"))
+                target.reportedFailure = false
+            } catch {
+                reportFileFailure(
+                    "could not open log file in \(directory.path): \(error.localizedDescription)", to: &target)
+            }
         }
     }
 
-    /// Caller must hold `lock`.
-    private static func reportFileFailure(_ message: String) {
-        guard !reportedFileFailure else { return }
-        reportedFileFailure = true
+    /// Mutates `target` (the caller holds the mutex): reports a file-logging
+    /// failure on stderr once instead of on every line.
+    private static func reportFileFailure(_ message: String, to target: inout FileTarget) {
+        guard !target.reportedFailure else { return }
+        target.reportedFailure = true
         FileHandle.standardError.write(Data("kinhin: \(message); continuing without file logging\n".utf8))
     }
 
@@ -111,13 +117,12 @@ public enum Log {
         let entryToStore = entry
         ring.append(entryToStore)
 
-        lock.lock()
-        defer { lock.unlock() }
-        if let logFile {
+        fileTarget.withLock { target in
+            guard let logFile = target.file else { return }
             do {
                 try logFile.append(Data(entryToStore.formatted.appending("\n").utf8))
             } catch {
-                reportFileFailure("log file write failed: \(error.localizedDescription)")
+                reportFileFailure("log file write failed: \(error.localizedDescription)", to: &target)
             }
         }
     }
@@ -125,26 +130,27 @@ public enum Log {
 
 /// A tiny thread-safe ring buffer.
 final class Runaround<T> {
-    private var items: [T] = []
-    private let capacity: Int
-    private let lock = NSLock()
+    private struct State {
+        var items: [T] = []
+        let capacity: Int
+    }
+
+    private let state: Mutex<State>
 
     init(capacity: Int) {
-        self.capacity = capacity
+        self.state = Mutex(State(capacity: capacity))
     }
 
     func append(_ item: T) {
-        lock.lock()
-        defer { lock.unlock() }
-        items.append(item)
-        if items.count > capacity {
-            items.removeFirst(items.count - capacity)
+        state.withLock { s in
+            s.items.append(item)
+            if s.items.count > s.capacity {
+                s.items.removeFirst(s.items.count - s.capacity)
+            }
         }
     }
 
     func snapshot(limit: Int) -> [T] {
-        lock.lock()
-        defer { lock.unlock() }
-        return Array(items.suffix(limit))
+        state.withLock { Array($0.items.suffix(limit)) }
     }
 }

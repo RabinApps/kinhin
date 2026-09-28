@@ -125,9 +125,15 @@ final class RuntimesModel {
         viewModel = fast
         parsedConfig = parsed
         repo = parsed.repo
-        currentRuntimeConfig =
-            (try? RuntimesConfigEditor.parsed(from: yaml))
-            ?? KinhinConfig.RuntimeConfig(defaultRuntime: fast.defaultRuntime.rawValue)
+        do {
+            currentRuntimeConfig = try RuntimesConfigEditor.parsed(from: yaml)
+        } catch {
+            // The config parses but the runtime section does not: surface it
+            // instead of silently editing against default-shaped values.
+            loadFailed = true
+            emptyMessage = "runtimes section has a problem — \(error.localizedDescription)"
+            return
+        }
         refreshLabelFields()
         refreshBudgetPreviews(budget: currentRuntimeConfig?.budget ?? [:])
 

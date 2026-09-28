@@ -76,9 +76,17 @@ extension FleetEngine {
                 resumeOnce()
             }
             let timer = Task {
-                // Cancelled below once the wait is over; the error only means "stop waiting".
-                try? await Task.sleep(for: timeout)
-                resumeOnce()
+                do {
+                    try await Task.sleep(for: timeout)
+                    resumeOnce()
+                } catch is CancellationError {
+                    // The timer is cancelled once the wait is over; the slot
+                    // has already been resumed, so there is nothing to do.
+                    return
+                } catch {
+                    // A sleep failure must not stall the reload RPC.
+                    resumeOnce()
+                }
             }
             waiters.withLock { $0 = [all, timer] }
         }

@@ -173,6 +173,7 @@ public struct ToolchainCachePruner {
     /// window: leaves touched within the last hour are skipped entirely —
     /// they may be mid-download right now.
     private func collectLeaves(at root: URL, into leaves: inout [(url: URL, size: Int64, modified: Date)], now: Date) {
+        // An unreadable cache root simply means "nothing to prune" this sweep.
         guard
             let enumerator = fileManager.enumerator(
                 at: root, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],

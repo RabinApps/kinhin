@@ -86,7 +86,8 @@ enum RPCServer {
     /// Serve requests forever on the given socket path.
     public static func serve(socketURL: URL, handler: @escaping @Sendable (RPCRequest) async -> RPCResponse) throws {
         // A stale socket from a previous run may or may not exist; bind()
-        // below reports any real problem.
+        // below reports any real problem if removal fails and the path is
+        // still occupied.
         try? FileManager.default.removeItem(at: socketURL)
         try FileManager.default.createDirectory(
             at: socketURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -308,6 +309,8 @@ public struct RPCClient: Sendable {
         self.socketURL = socketURL
     }
 
+    /// An unreachable or misbehaving daemon simply reads as "not alive";
+    /// callers only branch on the boolean.
     public static func isDaemonAlive(socketURL: URL = RPCPaths.socket) -> Bool {
         guard FileManager.default.fileExists(atPath: socketURL.path) else { return false }
         return (try? RPCClient(socketURL: socketURL).ping()) != nil

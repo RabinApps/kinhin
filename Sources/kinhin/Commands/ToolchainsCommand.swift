@@ -18,7 +18,9 @@ enum ToolchainsCommand {
         print("Managed toolchains")
         print("")
 
-        // Current selections
+        // Current selections. A broken config degrades to "no selections"
+        // rather than failing a purely informational command; `kinhin config`
+        // commands surface the real parse error.
         let cfg = try? ConfigLoader.load()
         let toolchains = cfg?.toolchains
         print("Selections (config.yaml `toolchains:` section)")
@@ -121,6 +123,8 @@ enum ToolchainsCommand {
     /// `kinhin toolchains prune [--dry-run]`.
     static func prune(_ args: [String]) async {
         let dryRun = hasFlag("--dry-run", in: args)
+        // A broken config degrades to the default prune policy; the prune
+        // report itself is still fully accurate.
         let cfg = try? ConfigLoader.load()
         let policy = ToolchainCachePolicy(from: cfg?.toolchains)
         // Manual prune always executes regardless of auto_prune (explicit
@@ -140,6 +144,8 @@ enum ToolchainsCommand {
     }
 
     static func jsonSummary() -> String {
+        // A broken config degrades to defaults in the JSON document (the
+        // doctor's JSON embeds the same config error separately).
         let cfg = try? ConfigLoader.load()
         let policy = ToolchainCachePolicy(from: cfg?.toolchains)
         let bytes = ToolchainCachePruner().totalBytes()

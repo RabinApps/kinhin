@@ -13,6 +13,8 @@ extension AppDelegate {
     /// When tart is installed but Gatekeeper kills it on launch, the wizard
     /// alone isn't enough — run the repair directly (no UI dependency).
     func runTartRepairIfNeeded() {
+        // Launch-time probe: a broken config just means "use the default tart
+        // path"; the wizard surfaces real config problems elsewhere.
         let cfg = try? ConfigLoader.load()
         guard TartController.isInstalled(configuredPath: cfg?.tartPath) else { return }
         Task {

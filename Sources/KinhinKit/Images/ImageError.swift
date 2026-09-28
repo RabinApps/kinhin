@@ -11,6 +11,10 @@ public enum ImageError: LocalizedError {
     case hostAgentInstallFailed(String)
     case noCredentials(String)
     case provisionScriptUnreadable(path: String, reason: String)
+    /// A runner release feed answered but its payload was unusable (undecodable
+    /// JSON, malformed tag). Network failures do not get here — the fetch itself
+    /// degrades to the pinned version.
+    case malformedVersionFeed(feed: String, reason: String)
 
     public var errorDescription: String? {
         switch self {
@@ -19,6 +23,8 @@ public enum ImageError: LocalizedError {
         case .hostAgentInstallFailed(let why): return "host runner agent install failed: \(why)"
         case .noCredentials(let why): return "no platform credentials: \(why)"
         case .provisionScriptUnreadable(let path, let why): return "user provision script '\(path)': \(why)"
+        case .malformedVersionFeed(let feed, let why):
+            return "runner release feed '\(feed)' returned an unusable payload: \(why)"
         }
     }
 }

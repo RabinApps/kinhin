@@ -68,6 +68,8 @@ public final class FleetStore: Sendable {
     public init(directory: URL = Paths.stateDirectory) {
         self.url = directory.appendingPathComponent("fleet.json")
         let loaded: [VMRecord] = {
+            // A missing or corrupt fleet.json reads as "no fleet" — restart
+            // reconciliation then rebuilds state from the live forges.
             guard let data = try? Data(contentsOf: directory.appendingPathComponent("fleet.json")) else { return [] }
             return (try? JSONDecoder().decode([VMRecord].self, from: data)) ?? []
         }()
@@ -99,10 +101,15 @@ public final class FleetStore: Sendable {
         persist()
     }
 
+    /// Best-effort crash journal: the authoritative record lives on the
+    /// forges, so a failed write only degrades restart reconciliation.
     func persist() {
         let records = all
-        let data = (try? JSONEncoder().encode(records)) ?? Data("[]".utf8)
-        try? data.write(to: url, options: .atomic)
+        let data = (try? JSONEncoder().encode(records)) ?? Data("[]".utf8)  // encode of VMRecord cannot fail
+        // Failure is logged so a full disk does not go unnoticed.
+        bestEffort("engine", "persisting \(records.count) VM record(s)") {
+            try data.write(to: url, options: .atomic)
+        }
     }
 }
 

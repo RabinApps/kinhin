@@ -72,6 +72,7 @@ public struct AppleContainerRuntime: Runtime {
     /// can be running without one (the install is an opt-in prompt), and then
     /// every `container run` fails with "default kernel not configured".
     public static func hasInstalledKernel(in directory: URL = kernelDirectory) -> Bool {
+        // An absent (or unreadable) kernels dir means none are installed.
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         return entries.contains { !$0.hasPrefix(".") }
     }

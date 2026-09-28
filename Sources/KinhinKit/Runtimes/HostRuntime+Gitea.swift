@@ -64,7 +64,8 @@ extension HostRuntime {
     /// while it still looks like a gitea-runner daemon (pids get reused).
     func stopGiteaDaemons(id: String) async {
         let workDir = workDirectory(for: id)
-        // An absent dir means nothing was registered, so there is nothing to stop.
+        // An absent (or unreadable) dir means nothing was registered here,
+        // so there is nothing to stop.
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: workDir.path)) ?? []
         guard entries.contains(where: { $0.hasPrefix("gitea-") }) else { return }
         let script = """

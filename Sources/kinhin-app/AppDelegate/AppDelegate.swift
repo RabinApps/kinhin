@@ -138,6 +138,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             setupIncomplete = false
             Log.info("app", "attaching to running daemon")
         } else if FileManager.default.fileExists(atPath: Paths.config.path),
+            // A broken config stays a broken config for the wizard to surface;
+            // loading it here is only a fast-path gate for "skip onboarding".
             let cfg = try? ConfigLoader.load(),
             // A template config (placeholder repo, no gitea:) is not a
             // working config — keep onboarding up instead of booting a
@@ -208,10 +210,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if let client {
             // Polled every few seconds: an unreachable daemon simply reads as
             // "not running" in the status item, so a failure here is expected.
+            // A undecodable payload reads the same way (status stays nil).
             if let response = try? client.send(method: .status),
-                response.ok, let payload = response.payload
+                response.ok, let payload = response.payload,
+                let decoded = try? JSONDecoder().decode(FleetStatus.self, from: payload)
             {
-                status = try? JSONDecoder().decode(FleetStatus.self, from: payload)
+                status = decoded
             }
         }
         apply(status: status)

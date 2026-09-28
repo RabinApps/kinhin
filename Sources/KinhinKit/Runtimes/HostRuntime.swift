@@ -63,6 +63,8 @@ final class HostRuntime: Runtime {
     func existingInstanceIDs() async -> [String] {
         let fm = FileManager.default
         let base = Paths.appSupport.appendingPathComponent("host-instances", isDirectory: true)
+        // No dir yet (or an unreadable one) means no host instances exist;
+        // the fork in the directory is the source of truth.
         guard let entries = try? fm.contentsOfDirectory(atPath: base.path) else { return [] }
         // Instance dirs are named exactly like the records ("kinhin-…").
         return entries.filter { $0.hasPrefix("kinhin-") }
