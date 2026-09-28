@@ -125,6 +125,17 @@ extension AppDelegate {
         if status.paused, status.autoResume == true {
             line += "\n  ⏳ auto-resume: \(status.autoResumeCadence ?? "releases when the queue is empty")"
         }
+        // Freshness of those queue numbers: only a forge *answering* a demand
+        // fetch refreshes them, so a paused snapshot (or one from a stalled
+        // poll) can be old. Same rule as the CLI's "queue age:" line, via the
+        // shared FleetStatus helpers. Omitted when never polled or when an
+        // older daemon predates the field.
+        if let age = status.queueAgeSeconds {
+            line += "\n  ⏱ queue age: \(age)s old"
+            if status.queueAgeIsStale == true {
+                line += " (stale — a forge poll failed or the engine is stopped)"
+            }
+        }
         // Org scope: which repos the queued work comes from.
         if let byRepo = status.queueByRepo, status.queueDepth > 0, !byRepo.isEmpty {
             let top = byRepo.sorted { $0.value > $1.value }.prefix(2)

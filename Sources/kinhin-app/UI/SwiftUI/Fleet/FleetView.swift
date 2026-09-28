@@ -13,7 +13,10 @@ struct FleetView: View {
                 Text(model.statusLine)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                    .lineLimit(3)
+                    // Ceiling on the shared line: counters, plus the
+                    // auto-resume note, queue age, and both per-repo
+                    // breakdowns on a paused fleet draining its last jobs.
+                    .lineLimit(5)
             }
 
             // Only the actions that apply: Start when stopped; Stop and

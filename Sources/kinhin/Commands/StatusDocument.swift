@@ -26,8 +26,6 @@ struct StatusDocument: Codable, Equatable, Sendable {
         self.paused = fleet?.paused
         self.autoResume = fleet?.autoResume
         self.pollInterval = fleet?.pollInterval
-        if let polledAt = fleet?.queuePolledAt {
-            self.queueAgeSeconds = max(0, Int(Date().timeIntervalSince(polledAt)))
-        }
+        self.queueAgeSeconds = fleet?.queueAgeSeconds
     }
 }

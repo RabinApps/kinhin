@@ -258,10 +258,9 @@ func renderStatus(_ status: FleetStatus) -> String {
     // every reconcile pass touches updatedAt, but only a forge answering a
     // demand fetch moves this. Untracked (never polled, or an older daemon
     // predating the field) prints nothing rather than guessing an age.
-    if let polledAt = status.queuePolledAt {
-        let age = Int(Date().timeIntervalSince(polledAt))
-        let flag = age > status.pollInterval ?? 0 ? " (stale — a forge poll failed or the engine is stopped)" : ""
-        lines.append("queue age:  \(max(0, age))s old\(flag)")
+    if let age = status.queueAgeSeconds {
+        let flag = status.queueAgeIsStale == true ? " (stale — a forge poll failed or the engine is stopped)" : ""
+        lines.append("queue age:  \(age)s old\(flag)")
     }
     lines.append(
         "repo:      (see config)   queue: \(status.queueDepth)   desired: \(status.desired)   capacity cap: \(status.capacityCap)"

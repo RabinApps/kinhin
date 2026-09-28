@@ -32,4 +32,44 @@ final class FleetStatusTests: XCTestCase {
         running.pollInterval = 20
         XCTAssertNil(running.autoResumeCadence)
     }
+
+    // MARK: queue age
+
+    func testQueueAgeCountsSinceTheLastAnsweredPoll() {
+        var status = FleetStatus()
+        status.queuePolledAt = Date().addingTimeInterval(-7)
+        XCTAssertEqual(
+            status.queueAgeSeconds.map { $0 >= 7 }, true, "at least 7s old, got: \(status.queueAgeSeconds ?? -1)")
+    }
+
+    func testQueueAgeIsNilWhenNeverPolled() {
+        XCTAssertNil(FleetStatus().queueAgeSeconds, "no observation to date an age from")
+    }
+
+    func testQueueAgeClampsClockSkewToZero() {
+        var status = FleetStatus()
+        status.queuePolledAt = Date().addingTimeInterval(30)
+        XCTAssertEqual(status.queueAgeSeconds, 0, "a slightly-future stamp must not read negative")
+    }
+
+    func testQueueAgeIsStalePastThePollCadence() {
+        var status = FleetStatus()
+        status.pollInterval = 300
+        status.queuePolledAt = Date().addingTimeInterval(-1)
+        XCTAssertEqual(status.queueAgeIsStale, false, "inside the cadence: fresh")
+
+        status.queuePolledAt = Date().addingTimeInterval(-301)
+        XCTAssertEqual(status.queueAgeIsStale, true, "older than the cadence: a poll likely failed")
+    }
+
+    func testQueueAgeStalenessNeedsAnAge() {
+        XCTAssertNil(FleetStatus().queueAgeIsStale, "never polled: neither fresh nor stale")
+    }
+
+    func testQueueAgeWithoutAKnownCadenceIsStaleOnceAged() {
+        var status = FleetStatus()
+        status.pollInterval = nil  // older daemon: the CLI's `?? 0` rule
+        status.queuePolledAt = Date().addingTimeInterval(-1)
+        XCTAssertEqual(status.queueAgeIsStale, true, "any nonzero age is stale without a cadence")
+    }
 }

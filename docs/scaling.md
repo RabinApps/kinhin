@@ -46,8 +46,9 @@ Every surface that can show a paused fleet shares one cadence clause while the p
 the menu bar and Fleet tab status line, `kinhin status`, and Siri all render (with your
 configured `poll_interval`) that the engine "re-checks the queue every 20s and resumes once
 it's empty". Because only a forge *answering* a demand fetch refreshes the queue numbers,
-`kinhin status` also prints `queue age: Ns old` — stale during an outage, so a paused snapshot
-never masquerades as fresh. `kinhin status --json` exposes the same facts as fields:
+every status surface stamps them with an age: `kinhin status` prints `queue age: Ns old` and the
+menu bar and Fleet tab status line adds a `⏱ queue age: Ns old` line — stale during an outage, so a
+paused snapshot never masquerades as fresh. `kinhin status --json` exposes the same facts as fields:
 `paused`, `autoResume`, `pollInterval`, `queueAgeSeconds`.
 
 ## Job density

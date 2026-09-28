@@ -71,6 +71,23 @@ public struct FleetStatus: Codable, Sendable, Equatable {
         guard paused, autoResume == true, let poll = pollInterval else { return nil }
         return "re-checks the queue every \(poll)s and resumes once it's empty"
     }
+
+    /// Seconds since a forge last answered a queue poll: the freshness of
+    /// the queue numbers (`queueDepth`). Nil when never polled — there is
+    /// no observation to date an age from. Clock skew clamps to 0.
+    public var queueAgeSeconds: Int? {
+        queuePolledAt.map { max(0, Int(Date().timeIntervalSince($0))) }
+    }
+
+    /// Whether that observation is older than the engine's cadence — a
+    /// forge poll failed or the engine stopped, so the queue numbers may
+    /// be outdated. Without a known cadence (`pollInterval == nil`, an
+    /// older daemon) any nonzero age counts as stale, matching the CLI's
+    /// `?? 0` rule. Nil when never polled: neither fresh nor stale.
+    public var queueAgeIsStale: Bool? {
+        guard let age = queueAgeSeconds else { return nil }
+        return age > (pollInterval ?? 0)
+    }
 }
 
 /// actor wrapper so concurrent status reads are safe.

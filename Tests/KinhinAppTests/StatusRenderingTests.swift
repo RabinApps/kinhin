@@ -88,6 +88,27 @@ final class StatusRenderingTests: XCTestCase {
             line.contains("auto-resume: re-checks the queue every 20s and resumes once it's empty"), "got: \(line)")
     }
 
+    func testLineShowsQueueAgeWithStalenessFlag() {
+        var status = FleetStatus()
+        status.running = true
+        status.pollInterval = 300
+        status.queuePolledAt = Date().addingTimeInterval(-1)
+        let fresh = delegate.statusLine(for: status)
+        XCTAssertTrue(fresh.contains("\n  ⏱ queue age: "), "got: \(fresh)")
+        XCTAssertTrue(fresh.contains("s old"), fresh)
+        XCTAssertFalse(fresh.contains("stale"), "inside the cadence: no flag — \(fresh)")
+
+        status.queuePolledAt = Date().addingTimeInterval(-9_999)
+        let stale = delegate.statusLine(for: status)
+        XCTAssertTrue(stale.contains("s old (stale — a forge poll failed or the engine is stopped)"), "got: \(stale)")
+    }
+
+    func testLineOmitsQueueAgeWhenNeverPolled() {
+        XCTAssertFalse(
+            delegate.statusLine(for: FleetStatus()).contains("queue age"),
+            "untracked freshness renders nothing rather than guessing an age")
+    }
+
     func testLineOmitsJobSlotsWhenZero() {
         let line = delegate.statusLine(for: FleetStatus())
         XCTAssertFalse(line.contains("job slots"))

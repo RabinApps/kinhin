@@ -92,6 +92,26 @@ final class FleetTabTests: MainWindowTestCase {
             "Auto-resume is on — the engine re-checks the queue every 15s and resumes once it's empty.")
     }
 
+    func testPausedSnapshotShowsQueueAgeOnTheTab() {
+        var status = FleetStatus()
+        status.running = true
+        status.paused = true
+        status.autoResume = true
+        status.pollInterval = 20
+        status.queueDepth = 3
+        status.queuePolledAt = Date().addingTimeInterval(-2)
+        window.render(status: status)
+        let line = window.fleetModel.statusLine
+        XCTAssertTrue(line.contains("\n  ⏱ queue age: "), "the tab carries the same freshness line: \(line)")
+        XCTAssertFalse(line.contains("stale"), "fresh within the cadence: \(line)")
+
+        status.queuePolledAt = Date().addingTimeInterval(-9_999)
+        window.render(status: status)
+        XCTAssertTrue(
+            window.fleetModel.statusLine.contains("s old (stale — a forge poll failed or the engine is stopped)"),
+            "an outage must not read as fresh: \(window.fleetModel.statusLine)")
+    }
+
     func testRenderMarksErrorRows() {
         var failed = VMRecord(id: "kinhin-vm-err", phase: .failed)
         failed.createdAt = Date()
