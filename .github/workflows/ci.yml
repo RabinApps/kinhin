@@ -22,3 +22,11 @@ jobs:
 
       - name: Run tests
         run: swift test
+
+  docs-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docs lint (stale strings)
+        run: bash scripts/docs-lint.sh
