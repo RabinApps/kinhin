@@ -45,6 +45,28 @@ final class RenderStatusTests: XCTestCase {
             text.contains("auto-resume: on — re-checks the queue every 20s and resumes once it's empty"), text)
     }
 
+    // MARK: queue age
+
+    func testQueueAgeShowsFreshnessAndStaleness() {
+        var status = FleetStatus()
+        status.running = true
+        status.pollInterval = 300
+        status.queuePolledAt = Date().addingTimeInterval(-1)
+        let fresh = renderStatus(status)
+        XCTAssertTrue(fresh.contains("queue age:"), fresh)
+        XCTAssertTrue(fresh.contains("s old"), fresh)
+        XCTAssertFalse(fresh.contains("stale"), fresh)
+
+        status.queuePolledAt = Date().addingTimeInterval(-9_999)
+        let stale = renderStatus(status)
+        XCTAssertTrue(stale.contains("queue age:"), stale)
+        XCTAssertTrue(stale.contains("stale"), "age far past the poll cadence is flagged: \(stale)")
+    }
+
+    func testQueueAgeOmittedWhenNeverPolled() {
+        XCTAssertFalse(renderStatus(FleetStatus()).contains("queue age:"), "untracked freshness prints nothing")
+    }
+
     // MARK: counters
 
     func testCountersAndJobSlotsLine() {

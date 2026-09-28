@@ -1,3 +1,4 @@
+import Foundation
 import KinhinKit
 
 /// Machine-readable `kinhin status --json` contract: whether a daemon is
@@ -14,6 +15,9 @@ struct StatusDocument: Codable, Equatable, Sendable {
     var paused: Bool?
     var autoResume: Bool?
     var pollInterval: Int?
+    /// Seconds since a forge last answered a queue poll — the freshness of
+    /// `fleet.queueDepth`. Absent when never polled or unknown.
+    var queueAgeSeconds: Int?
 
     init(daemonRunning: Bool, fleet: FleetStatus?) {
         self.daemonRunning = daemonRunning
@@ -22,5 +26,8 @@ struct StatusDocument: Codable, Equatable, Sendable {
         self.paused = fleet?.paused
         self.autoResume = fleet?.autoResume
         self.pollInterval = fleet?.pollInterval
+        if let polledAt = fleet?.queuePolledAt {
+            self.queueAgeSeconds = max(0, Int(Date().timeIntervalSince(polledAt)))
+        }
     }
 }

@@ -111,6 +111,10 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertTrue(status.paused, "demand remains: the pause holds")
         XCTAssertTrue(tart.cloneCalls.isEmpty, "paused means no spawns, even with auto-resume")
 
+        // The queue was just observed while paused: its freshness is stamped.
+        status = await engine.status()
+        XCTAssertNotNil(status.queuePolledAt, "a forge answered the demand fetch → the queue has an age")
+
         // The queue drains → the very next pass unpauses.
         github.queueDepth = 0
         try await engine.reconcileOnce()
@@ -131,6 +135,7 @@ final class FleetEdgeTests: XCTestCase {
         let status = await engine.status()
         XCTAssertTrue(status.paused, "a failed queue fetch must not read as an empty queue")
         XCTAssertTrue(tart.cloneCalls.isEmpty)
+        XCTAssertNil(status.queuePolledAt, "no forge answered → the queue has no fresh observation to date")
     }
 
     func testPauseWithoutAutoResumeStillSkipsQueuePolling() async throws {

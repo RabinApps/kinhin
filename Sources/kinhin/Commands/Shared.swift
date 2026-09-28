@@ -254,6 +254,15 @@ func renderStatus(_ status: FleetStatus) -> String {
         let release = status.autoResumeCadence ?? "the fleet releases itself when the queue is empty"
         lines.append("auto-resume: on — \(release)")
     }
+    // Freshness of the queue numbers, for scripts and paused snapshots:
+    // every reconcile pass touches updatedAt, but only a forge answering a
+    // demand fetch moves this. Untracked (never polled, or an older daemon
+    // predating the field) prints nothing rather than guessing an age.
+    if let polledAt = status.queuePolledAt {
+        let age = Int(Date().timeIntervalSince(polledAt))
+        let flag = age > status.pollInterval ?? 0 ? " (stale — a forge poll failed or the engine is stopped)" : ""
+        lines.append("queue age:  \(max(0, age))s old\(flag)")
+    }
     lines.append(
         "repo:      (see config)   queue: \(status.queueDepth)   desired: \(status.desired)   capacity cap: \(status.capacityCap)"
     )

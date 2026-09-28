@@ -124,9 +124,11 @@ extension FleetEngine {
             // happen the moment demand drains, and the pause keeps holding
             // (no spawn/attribution below) until it does.
             var perForgeJobs: [String: (attribution: Bool, jobs: [ForgeJob])] = [:]
+            var answeredQueue = false
             for forge in attached {
                 do {
                     let jobs = try await forge.queuedJobs()
+                    answeredQueue = true
                     // Org-scope forges contribute repo attribution; repo-scope
                     // forges suppress it (breakdown would carry no info).
                     perForgeJobs[forge.account] = (forge.attributesByRepo, jobs)
@@ -163,8 +165,16 @@ extension FleetEngine {
                 await statusBox.modify {
                     $0.queueDepth = queueDepth
                     $0.queueByRepo = byRepo
+                    if answeredQueue { $0.queuePolledAt = Date() }
                 }
                 await attributeRunningJobs(attached)
+            }
+            // The paused branch masks queueDepth in the snapshot (legacy
+            // behavior), but the observation above was real: stamp its
+            // freshness there too. An outage leaves the old timestamp —
+            // the age then truthfully shows the data going stale.
+            if state.paused, answeredQueue {
+                await statusBox.modify { $0.queuePolledAt = Date() }
             }
         } else {
             // Paused without auto-resume: clear attribution so stale repos

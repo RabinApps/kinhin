@@ -37,6 +37,19 @@ final class StatusDocumentTests: XCTestCase {
         XCTAssertEqual(offJSON["autoResume"] as? Bool, false, "off is explicit false, not absent")
     }
 
+    func testFlattensQueueAgeSeconds() throws {
+        var observed = FleetStatus()
+        observed.running = true
+        observed.queuePolledAt = Date().addingTimeInterval(-7)
+        let document = StatusDocument(daemonRunning: true, fleet: observed)
+        XCTAssertEqual(
+            document.queueAgeSeconds.map { $0 >= 7 }, true, "at least 7s old, got: \(document.queueAgeSeconds ?? -1)")
+
+        // Never polled → absent, so scripts distinguish "unknown" from 0.
+        let untracked = StatusDocument(daemonRunning: true, fleet: FleetStatus())
+        XCTAssertNil(untracked.queueAgeSeconds)
+    }
+
     func testNotRunningDocumentOmitsFleetFields() throws {
         let data = try JSONEncoder().encode(StatusDocument(daemonRunning: false, fleet: nil))
         let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]

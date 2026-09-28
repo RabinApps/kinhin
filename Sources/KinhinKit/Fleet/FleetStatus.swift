@@ -11,6 +11,11 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     /// The engine's poll cadence, so pause/auto-resume hints can say when
     /// the queue is re-checked. Nil from a daemon predating the field.
     public var pollInterval: Int?
+    /// When the queue was last observed (a forge answered a demand fetch):
+    /// the freshness of the queue numbers, distinct from `updatedAt` which
+    /// every reconcile pass touches. Nil when never polled or from a daemon
+    /// predating the field.
+    public var queuePolledAt: Date?
     public var queueDepth: Int
     public var desired: Int
     public var capacityCap: Int
@@ -33,15 +38,16 @@ public struct FleetStatus: Codable, Sendable, Equatable {
 
     public init(
         running: Bool = false, paused: Bool = false, autoResume: Bool? = nil, pollInterval: Int? = nil,
-        queueDepth: Int = 0, desired: Int = 0, capacityCap: Int = 0, jobCapacity: Int = 0,
-        queueByRepo: [String: Int]? = nil, runningByRepo: [String: Int]? = nil, records: [VMRecord] = [],
-        lastError: String? = nil, updatedAt: Date = Date(), runtime: String? = nil,
+        queuePolledAt: Date? = nil, queueDepth: Int = 0, desired: Int = 0, capacityCap: Int = 0,
+        jobCapacity: Int = 0, queueByRepo: [String: Int]? = nil, runningByRepo: [String: Int]? = nil,
+        records: [VMRecord] = [], lastError: String? = nil, updatedAt: Date = Date(), runtime: String? = nil,
         capacityByRuntime: [String: String]? = nil
     ) {
         self.running = running
         self.paused = paused
         self.autoResume = autoResume
         self.pollInterval = pollInterval
+        self.queuePolledAt = queuePolledAt
         self.queueDepth = queueDepth
         self.desired = desired
         self.capacityCap = capacityCap
