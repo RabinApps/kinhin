@@ -165,7 +165,7 @@ jobs:
 ## The shared download cache
 
 `image prepare` always mounts a host-side cache —
-`~/Library/Application Support/kinhin/toolchain-cache/` — into the scratch VM, so
+`~/Library/Application Support/Kinhin/toolchain-cache/` — into the scratch VM, so
 repeated prepares skip re-downloading mise tools, brew bottles, npm packages, and
 Flutter SDKs. Every ecosystem gets its own env redirect at install time:
 

@@ -81,7 +81,7 @@ brew install openai/tools/tart
 
 # 2. Create a starter config
 kinhin config init
-#    edit ~/Library/Application Support/kinhin/config.yaml
+#    edit ~/Library/Application Support/Kinhin/config.yaml
 #    -> set repo: "your-org/your-repo" and the labels jobs will request
 
 # 3. Store a GitHub PAT (repo scope) — it goes in your Keychain, not a file
@@ -130,7 +130,7 @@ preparing the image — then starts the fleet. The main window has **Fleet**, **
 
 ## Configuration
 
-`~/Library/Application Support/kinhin/config.yaml` — full template via `kinhin config init`.
+`~/Library/Application Support/Kinhin/config.yaml` — full template via `kinhin config init`.
 Key fields:
 
 | Field                                      | Meaning                                                                                                                                                                          |
@@ -218,7 +218,7 @@ kinhin logs [-n N]          Recent log lines
   config; the scaler only counts jobs it could actually run.
 - **VM boots but the runner never registers** — the base image may predate the injected agent.
   Re-run `kinhin image prepare`. Full logs: `kinhin logs -n 200` or
-  `~/Library/Application Support/kinhin/logs/kinhin.log`.
+  `~/Library/Application Support/Kinhin/logs/kinhin.log`.
 - **Token rejected** — re-run `kinhin auth set`; the PAT needs `repo` scope and access to the repo.
 - **First launch blocked** — only applies to old releases or locally built copies (official
   releases are signed and notarized). Right-click → Open, or `xattr -cr /Applications/kinhin.app`.
