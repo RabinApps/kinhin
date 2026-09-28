@@ -14,6 +14,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// on open so it never shows stale "Loading…" content.
     var lastStatus: FleetStatus?
 
+    /// A fleet start/stop command is in flight (menu item, Fleet tab, or App
+    /// Intent). The status item shows "Starting…"/"Stopping…", and the
+    /// Start/Stop menu items disable until the command and its status
+    /// refresh complete.
+    enum PendingFleetAction {
+        case start
+        case stop
+    }
+
+    var pendingFleetAction: PendingFleetAction? {
+        didSet {
+            guard pendingFleetAction != oldValue else { return }
+            apply(status: lastStatus)
+            mainController?.fleetModel.setPending(
+                pendingFleetAction.map { $0 == .start ? FleetModel.PendingAction.start : .stop })
+        }
+    }
+
     /// Set while first-run onboarding is up (or no usable config exists) —
     /// the Setup tab then covers the window at launch.
     var setupIncomplete = false

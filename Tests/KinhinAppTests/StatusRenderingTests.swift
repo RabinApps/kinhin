@@ -126,6 +126,51 @@ final class StatusRenderingTests: XCTestCase {
         XCTAssertNil(delegate.lastStatus)
     }
 
+    // MARK: pending start/stop (in-flight command)
+
+    func testPendingActionOverridesTitleAndStatusLine() {
+        var status = FleetStatus()
+        status.running = true
+        delegate.lastStatus = status
+
+        delegate.pendingFleetAction = .start
+        XCTAssertEqual(delegate.statusItemTitle(pending: .start, status: status), "⟳")
+        XCTAssertEqual(delegate.statusLineText(pending: .start, status: status), "Starting…")
+
+        delegate.pendingFleetAction = .stop
+        XCTAssertEqual(delegate.statusLineText(pending: .stop, status: status), "Stopping…")
+
+        // Cleared: the normal rendering resumes.
+        delegate.pendingFleetAction = nil
+        XCTAssertEqual(delegate.statusItemTitle(pending: nil, status: status), "○")
+        XCTAssertEqual(delegate.statusLineText(pending: nil, status: status), delegate.statusLine(for: status))
+
+        delegate.apply(status: status)
+        XCTAssertEqual(
+            menu.items.first { $0.identifier?.rawValue == "statusLine" }?.title,
+            delegate.statusLine(for: status), "apply without pending renders the state line")
+    }
+
+    func testFleetMenuItemsDisableWhilePending() {
+        var status = FleetStatus()
+        status.running = true
+        delegate.lastStatus = status
+        delegate.pendingFleetAction = .stop
+
+        // A running fleet would normally enable Stop and Pause — pending
+        // disables every fleet control until the command completes.
+        for id in ["startFleet", "stopFleet", "pauseFleet", "resumeFleet"] {
+            let item = menu.items.first { $0.identifier?.rawValue == id }
+            XCTAssertFalse(delegate.validateMenuItem(item!), "\(id) must disable while pending")
+        }
+
+        delegate.pendingFleetAction = nil
+        let stop = menu.items.first { $0.identifier?.rawValue == "stopFleet" }
+        XCTAssertTrue(delegate.validateMenuItem(stop!), "Stop re-enables once the command completes")
+        let start = menu.items.first { $0.identifier?.rawValue == "startFleet" }
+        XCTAssertFalse(delegate.validateMenuItem(start!), "a running fleet still disables Start")
+    }
+
     // MARK: VM section rebuild
 
     func testVMSectionListsEachRecordWithDetails() {

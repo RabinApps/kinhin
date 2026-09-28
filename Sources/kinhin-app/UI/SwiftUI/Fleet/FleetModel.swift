@@ -28,6 +28,9 @@ final class FleetModel {
     }
 
     private(set) var pendingAction: PendingAction?
+    /// The app delegate mirrors its own pending state here (menu items and
+    /// App Intents can begin a fleet action too, with no button click).
+    func setPending(_ action: PendingAction?) { pendingAction = action }
     var isBusy: Bool { pendingAction != nil }
 
     var statusLine: String { AppDelegate.statusLineText(for: status) }

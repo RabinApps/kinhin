@@ -148,17 +148,28 @@ extension AppDelegate {
         }
     }
 
+    /// The status-bar button title: a spinner glyph while a start/stop is in
+    /// flight (the poll's last word is stale until the command completes),
+    /// otherwise the state circle / active-VM count.
+    func statusItemTitle(pending: PendingFleetAction?, status: FleetStatus?) -> String {
+        if pending != nil { return "⟳" }
+        guard let status else { return "○" }
+        return statusTitle(for: status)
+    }
+
+    /// The menu's first line: "Starting…"/"Stopping…" while a command runs,
+    /// otherwise the shared state line.
+    func statusLineText(pending: PendingFleetAction?, status: FleetStatus?) -> String {
+        if let pending { return pending == .start ? "Starting…" : "Stopping…" }
+        guard let status else { return AppDelegate.statusLineText(for: nil) }
+        return statusLine(for: status)
+    }
+
     func apply(status: FleetStatus?) {
         lastStatus = status
         applyFleetControlVisibility(to: menu, status: status)
-        // Title reflects state at a glance.
-        if let status {
-            statusItem?.button?.title = statusTitle(for: status)
-            statusLineItem?.title = statusLine(for: status)
-        } else {
-            statusItem?.button?.title = "○"
-            statusLineItem?.title = AppDelegate.statusLineText(for: nil)
-        }
+        statusItem?.button?.title = statusItemTitle(pending: pendingFleetAction, status: status)
+        statusLineItem?.title = statusLineText(pending: pendingFleetAction, status: status)
 
         rebuildVMSection(status: status)
         mainController?.render(status: status)

@@ -62,8 +62,16 @@ extension AppDelegate {
     // MARK: Menu state
 
     /// Start/Stop/Pause/Resume only enable when they would do something.
+    /// While a start/stop is in flight the fleet controls all disable — the
+    /// command already runs; a second one would double-drive it.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         guard let id = item.identifier?.rawValue else { return true }
+        if pendingFleetAction != nil {
+            switch id {
+            case "startFleet", "stopFleet", "pauseFleet", "resumeFleet": return false
+            default: break
+            }
+        }
         let running = lastStatus?.running ?? false
         let paused = lastStatus?.paused ?? false
         switch id {
