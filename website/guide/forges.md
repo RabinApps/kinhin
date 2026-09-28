@@ -1,14 +1,15 @@
-# Forge support (GitHub, Gitea, Forgejo, & the future)
+# Forge support (GitHub, Gitea, Forgejo, GitLab, & the future)
 
 Kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a
 registration token, list/delete runners, report queued demand, track running jobs — and each
-CI platform implements it behind that interface. Today three forges ship:
+CI platform implements it behind that interface. Today four forges ship:
 
 | Forge          | Status       | Runner agent                             | Scope shape                              |
 | -------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
 | GitHub Actions | ✅ supported | actions-runner (GitHub's official agent) | `owner/name` repo or org                 |
 | Gitea Actions  | ✅ supported | gitea-runner (formerly act_runner)       | `owner/name` repo or org on any instance |
 | Forgejo        | ✅ supported | gitea-runner (wire-compatible)           | `owner/name` repo or org on any instance |
+| GitLab CI/CD   | ✅ supported | gitlab-runner (GitLab's official agent)  | project or group path (`group/sub/proj`) |
 
 One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned
 at spawn to whichever forge has the most pending work, registers there, and is deleted when its
@@ -55,11 +56,45 @@ forgejo:
 - All Gitea semantics apply unchanged: long-lived registration tokens, idle-grace ephemeral
   watches, and task-queue demand polling.
 
+## Adding GitLab
+
+GitLab has no top-level section; every GitLab account lives in `accounts:` (gitlab.com and
+self-managed GitLab 16.0 or later):
+
+```yaml
+accounts:
+  - name: gitlab # any account name; "gitlab" is not reserved
+    forge: gitlab
+    scope: "group/project" # or a group path; subgroups nest (group/sub/project)
+    instance: "https://gitlab.example.com" # optional, gitlab.com when absent (no /api)
+    labels: ["macos"] # runner tags; defaults to the top-level labels:
+```
+
+- Add it from the CLI with
+  `kinhin auth add gitlab --gitlab --scope group/project [--instance URL] [--token T]`; after
+  that, `kinhin auth set --gitlab` stores or replaces the token of the first GitLab account, and
+  `--account NAME` targets any other one. The app's Connect and Add-an-account forms offer GitLab
+  too.
+- Token: a personal, project or group access token with the `create_runner`, `manage_runner` and
+  `read_api` (or `api`) scopes; creating runners needs Maintainer on a project or Owner on a
+  group. `kinhin auth set --gitlab` (without `--token`) prints the exact token-settings links for
+  the configured instance before it asks for the token.
+- GitLab has no shared registration token: kinhin creates each runner through the API
+  (`POST /user/runners`), it runs one job (`gitlab-runner run-single --max-builds 1`) and deletes
+  itself afterwards; on the host runtime, a runner stopped mid-job by scale-down or engine stop is
+  terminated along with its instance.
+- Jobs select runners by tags: a pending job counts as kinhin demand when its tags include every
+  one of the account's labels, and group scopes attribute demand per project.
+- Image provisioning is token-gated here too: `kinhin image prepare` bakes gitlab-runner only when
+  a GitLab account has a stored token, and `kinhin setup repair host-agent` also installs
+  gitlab-runner once a GitLab account is configured. Its version comes from GitLab's release
+  feed, with a pinned fallback.
+
 ## Multiple accounts
 
-`repo:` and `gitea:` are the built-in accounts, named `github` and `gitea`. To serve more — a
-second GitHub org, another Gitea instance — add an `accounts:` list; every entry has its own
-scope and its own token:
+`repo:`, `gitea:`, and `forgejo:` are the built-in accounts, named `github`, `gitea`, and
+`forgejo`. To serve more — a second GitHub org, another Gitea or Forgejo instance, a GitLab
+project or group — add an `accounts:` list; every entry has its own scope and its own token:
 
 ```yaml
 accounts:
@@ -85,8 +120,9 @@ accounts:
 
 ## More forges are planned
 
-The Forge protocol was designed so new platforms slot in without touching the engine: Forgejo
-(Gitea's upstream, wire-compatible), GitLab, Sourcehut, Buildkite, and others are all
-candidates. Adding one means implementing the Forge protocol (client + bootstrap script +
-lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for
-free. See `Sources/KinhinKit/Forge.swift` for the contract.
+The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo
+landed as a thin re-brand of the Gitea forge, and GitLab as a per-runner adapter
+(`GitLabForge`). Sourcehut, Buildkite, and others are candidates. Adding one means implementing
+the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool,
+checklist, status surfaces, and tests all come for free. See
+`Sources/KinhinKit/Forges/Forge.swift` for the contract.
