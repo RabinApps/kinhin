@@ -5,52 +5,6 @@ import XCTest
 
 @MainActor
 final class FleetIntentTests: XCTestCase {
-    private final class FakeBridge: FleetIntentBridge {
-        var current: FleetStatus
-        var error: Error?
-        private(set) var setPausedCalls: [Bool] = []
-        private(set) var startCalls = 0
-        private(set) var stopCalls = 0
-        private(set) var deleteCalls: [String] = []
-        /// When set, start/stop flips `running` like the real backend would.
-        var appliesStartStop = false
-        /// When set, delete removes the record like the real backend would.
-        var appliesDelete = false
-
-        init(_ status: FleetStatus) { current = status }
-
-        func status() async throws -> FleetStatus {
-            if let error { throw error }
-            return current
-        }
-
-        func startFleet() async throws {
-            if let error { throw error }
-            startCalls += 1
-            if appliesStartStop { current.running = true }
-        }
-
-        func stopFleet() async throws {
-            if let error { throw error }
-            stopCalls += 1
-            if appliesStartStop { current.running = false }
-        }
-
-        func setPaused(_ paused: Bool) async throws {
-            if let error { throw error }
-            setPausedCalls.append(paused)
-            current.paused = paused
-        }
-
-        func deleteVM(id: String) async throws {
-            if let error { throw error }
-            deleteCalls.append(id)
-            if appliesDelete { current.records.removeAll { $0.id == id } }
-        }
-
-        func doctor() async -> DoctorReport { fatalError("not used") }
-    }
-
     private let productionBridge: FleetIntentBridge = AppFleetIntentBridge()
 
     override func tearDown() {
@@ -61,7 +15,7 @@ final class FleetIntentTests: XCTestCase {
     }
 
     func testPauseIsIdempotent() async throws {
-        let bridge = FakeBridge(FleetStatus(running: true))
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
         FleetIntentEnvironment.bridge = bridge
         _ = try await PauseFleetIntent().perform()
         _ = try await PauseFleetIntent().perform()
@@ -69,7 +23,7 @@ final class FleetIntentTests: XCTestCase {
     }
 
     func testResumeOnlyActsWhenPaused() async throws {
-        let bridge = FakeBridge(FleetStatus(running: true, paused: true))
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: true, paused: true))
         FleetIntentEnvironment.bridge = bridge
         _ = try await ResumeFleetIntent().perform()
         _ = try await ResumeFleetIntent().perform()
@@ -77,14 +31,14 @@ final class FleetIntentTests: XCTestCase {
     }
 
     func testStoppedFleetIsNotToggled() async throws {
-        let bridge = FakeBridge(FleetStatus(running: false))
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: false))
         FleetIntentEnvironment.bridge = bridge
         _ = try await PauseFleetIntent().perform()
         XCTAssertTrue(bridge.setPausedCalls.isEmpty)
     }
 
     func testErrorsPropagate() async {
-        let bridge = FakeBridge(FleetStatus(running: true))
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
         bridge.error = FleetAccessError.notSetUp
         FleetIntentEnvironment.bridge = bridge
         do {
@@ -98,7 +52,7 @@ final class FleetIntentTests: XCTestCase {
     // MARK: Start/Stop intents
 
     func testStartRunsOnlyWhenStopped() async throws {
-        let bridge = FakeBridge(FleetStatus(running: false))
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: false))
         bridge.appliesStartStop = true
         FleetIntentEnvironment.bridge = bridge
         _ = try await StartFleetIntent().perform()
@@ -107,7 +61,7 @@ final class FleetIntentTests: XCTestCase {
     }
 
     func testStopRunsOnlyWhenRunning() async throws {
-        let bridge = FakeBridge(FleetStatus(running: true))
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
         bridge.appliesStartStop = true
         FleetIntentEnvironment.bridge = bridge
         _ = try await StopFleetIntent().perform()
@@ -119,7 +73,7 @@ final class FleetIntentTests: XCTestCase {
         // Start was issued but the follow-up status still reads stopped —
         // forge verification is still running. The dialog must say so rather
         // than claim a state that isn't true yet.
-        let bridge = FakeBridge(FleetStatus(running: false))
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: false))
         FleetIntentEnvironment.bridge = bridge
         let text = try await StartStopFleetAction.run(start: true)
         XCTAssertEqual(bridge.startCalls, 1)
@@ -127,7 +81,7 @@ final class FleetIntentTests: XCTestCase {
     }
 
     func testStartReportsSuccessWhenThePollConfirms() async throws {
-        let bridge = FakeBridge(FleetStatus(running: false))
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: false))
         bridge.appliesStartStop = true
         FleetIntentEnvironment.bridge = bridge
         let text = try await StartStopFleetAction.run(start: true)
@@ -135,7 +89,7 @@ final class FleetIntentTests: XCTestCase {
     }
 
     func testStopReportsSuccessWhenThePollConfirms() async throws {
-        let bridge = FakeBridge(FleetStatus(running: true))
+        let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
         bridge.appliesStartStop = true
         FleetIntentEnvironment.bridge = bridge
         let text = try await StartStopFleetAction.run(start: false)
@@ -149,7 +103,7 @@ final class FleetIntentTests: XCTestCase {
     }
 
     func testDeleteRunsOnceForAnExistingVM() async throws {
-        let bridge = FakeBridge(statusWithVM("vm-1"))
+        let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
         bridge.appliesDelete = true
         FleetIntentEnvironment.bridge = bridge
         _ = try await DeleteVMAction.run(id: "vm-1")
@@ -158,7 +112,7 @@ final class FleetIntentTests: XCTestCase {
     }
 
     func testDeleteUnknownVMIsANoOp() async throws {
-        let bridge = FakeBridge(statusWithVM("vm-1"))
+        let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
         FleetIntentEnvironment.bridge = bridge
         let text = try await DeleteVMAction.run(id: "nope")
         XCTAssertTrue(bridge.deleteCalls.isEmpty)
@@ -166,7 +120,7 @@ final class FleetIntentTests: XCTestCase {
     }
 
     func testDeleteReportsSuccessWhenThePollConfirms() async throws {
-        let bridge = FakeBridge(statusWithVM("vm-1"))
+        let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
         bridge.appliesDelete = true
         FleetIntentEnvironment.bridge = bridge
         let text = try await DeleteVMAction.run(id: "vm-1")
@@ -177,7 +131,7 @@ final class FleetIntentTests: XCTestCase {
     func testDeleteReportsInProgressWhenThePollStillListsTheVM() async throws {
         // Teardown is async — right after the command the record can still
         // be listed. The dialog must say so rather than claim a done deal.
-        let bridge = FakeBridge(statusWithVM("vm-1"))
+        let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
         FleetIntentEnvironment.bridge = bridge
         let text = try await DeleteVMAction.run(id: "vm-1")
         XCTAssertEqual(bridge.deleteCalls, ["vm-1"])
@@ -185,7 +139,7 @@ final class FleetIntentTests: XCTestCase {
     }
 
     func testDeleteErrorsPropagate() async {
-        let bridge = FakeBridge(statusWithVM("vm-1"))
+        let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
         bridge.error = FleetAccessError.notSetUp
         FleetIntentEnvironment.bridge = bridge
         do {

@@ -3,20 +3,21 @@ import AppIntents
 struct DeleteVMIntent: AppIntent {
     static let title: LocalizedStringResource = "Delete VM"
     static let description = IntentDescription(
-        "Deletes one runner VM by id — for a stalled VM that should be removed without opening the window.")
+        "Deletes one runner VM — for a stalled VM that should be removed without opening the window.")
 
-    /// The VM id as shown on the Fleet tab (the tart VM name).
-    @Parameter(title: "VM") var vm: String
+    /// Picked from the fleet's current VMs (id + phase); typed ids work too.
+    @Parameter(title: "VM") var vm: VMEntity?
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let text = try await DeleteVMAction.run(id: vm)
+        guard let vm else { return .result(dialog: IntentDialog(stringLiteral: "No VM was chosen.")) }
+        let text = try await DeleteVMAction.run(id: vm.id)
         return .result(dialog: IntentDialog(stringLiteral: text))
     }
 }
 
 /// Deletes without a confirmation dialog: AppIntents can't present NSAlert,
-/// and picking the VM id in Shortcuts is itself the explicit instruction
+/// and picking the VM in Shortcuts is itself the explicit instruction
 /// (Shortcuts offers its own Confirm Before Running toggle).
 @MainActor
 enum DeleteVMAction {
