@@ -47,12 +47,14 @@ you can ask about the fleet without opening a window:
 | Say / run                                 | What it does                                            |
 | ----------------------------------------- | ------------------------------------------------------- |
 | "How's my kinhin fleet" / "kinhin status" | Running or paused, active VMs, queued jobs, last error  |
+| "Start kinhin"                            | Starts a stopped fleet so queued jobs can begin         |
+| "Stop kinhin"                             | Stops the fleet; running jobs finish before VMs go down |
 | "Pause kinhin"                            | Stops new runner VMs from starting; running jobs finish |
 | "Resume kinhin"                           | Lets a paused fleet start VMs again                     |
 | "Run kinhin diagnostics"                  | One-line result of the `kinhin doctor` checks           |
 
 They also appear as actions in Shortcuts, so you can automate them (for example, pause the fleet when a call
-starts). Pause and resume are idempotent and work with both the in-process engine and the background daemon.
+starts). Start, stop, pause and resume are idempotent and work with both the in-process engine and the background daemon.
 
 ## Headless + menu bar together
 
