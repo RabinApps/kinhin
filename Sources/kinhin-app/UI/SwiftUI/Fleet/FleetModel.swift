@@ -38,9 +38,13 @@ final class FleetModel {
     var paused: Bool { status?.paused ?? false }
     /// Non-nil while the fleet is paused with auto-resume on: shown on the
     /// Fleet tab so a deliberate pause (e.g. a pause-first delete from
-    /// Shortcuts) doesn't read as stuck.
+    /// Shortcuts) doesn't read as stuck. Names the poll cadence when the
+    /// status carries it; older daemons get the timeless wording.
     var pausedAutoResumeNote: String? {
-        guard paused, status?.autoResume == true else { return nil }
+        guard paused, let autoResume = status?.autoResume, autoResume else { return nil }
+        if let cadence = status?.autoResumeCadence {
+            return "Auto-resume is on — the engine \(cadence)."
+        }
         return "Auto-resume is on — the fleet releases itself when the queue is empty."
     }
     var pauseTitle: String { paused ? "Resume" : "Pause" }

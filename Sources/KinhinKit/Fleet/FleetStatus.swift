@@ -8,6 +8,9 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     /// The engine's `auto_resume` policy. Nil from a daemon predating the
     /// field (treated as off) — same compat convention as `runtime`.
     public var autoResume: Bool?
+    /// The engine's poll cadence, so pause/auto-resume hints can say when
+    /// the queue is re-checked. Nil from a daemon predating the field.
+    public var pollInterval: Int?
     public var queueDepth: Int
     public var desired: Int
     public var capacityCap: Int
@@ -29,14 +32,16 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     var capacityByRuntime: [String: String]?
 
     public init(
-        running: Bool = false, paused: Bool = false, autoResume: Bool? = nil, queueDepth: Int = 0, desired: Int = 0,
-        capacityCap: Int = 0, jobCapacity: Int = 0, queueByRepo: [String: Int]? = nil,
-        runningByRepo: [String: Int]? = nil, records: [VMRecord] = [], lastError: String? = nil,
-        updatedAt: Date = Date(), runtime: String? = nil, capacityByRuntime: [String: String]? = nil
+        running: Bool = false, paused: Bool = false, autoResume: Bool? = nil, pollInterval: Int? = nil,
+        queueDepth: Int = 0, desired: Int = 0, capacityCap: Int = 0, jobCapacity: Int = 0,
+        queueByRepo: [String: Int]? = nil, runningByRepo: [String: Int]? = nil, records: [VMRecord] = [],
+        lastError: String? = nil, updatedAt: Date = Date(), runtime: String? = nil,
+        capacityByRuntime: [String: String]? = nil
     ) {
         self.running = running
         self.paused = paused
         self.autoResume = autoResume
+        self.pollInterval = pollInterval
         self.queueDepth = queueDepth
         self.desired = desired
         self.capacityCap = capacityCap
@@ -50,6 +55,16 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     }
 
     public var activeCount: Int { records.filter { $0.phase.isActive }.count }
+
+    /// The countdown-style clause for a paused fleet with auto-resume on:
+    /// when the queue is re-checked and what an empty check does. Nil
+    /// whenever the hint does not apply — not paused, policy off, or an
+    /// older daemon that does not report the cadence (surfaces fall back to
+    /// their pre-cadence wording then).
+    public var autoResumeCadence: String? {
+        guard paused, autoResume == true, let poll = pollInterval else { return nil }
+        return "re-checks the queue every \(poll)s and resumes once it's empty"
+    }
 }
 
 /// actor wrapper so concurrent status reads are safe.

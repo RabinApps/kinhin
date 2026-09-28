@@ -34,6 +34,17 @@ final class RenderStatusTests: XCTestCase {
         XCTAssertTrue(text.contains("auto-resume: on — the fleet releases itself when the queue is empty"), text)
     }
 
+    func testPausedWithAutoResumeCountsDownToTheNextQueueCheck() {
+        var status = FleetStatus()
+        status.running = true
+        status.paused = true
+        status.autoResume = true
+        status.pollInterval = 20
+        let text = renderStatus(status)
+        XCTAssertTrue(
+            text.contains("auto-resume: on — re-checks the queue every 20s and resumes once it's empty"), text)
+    }
+
     // MARK: counters
 
     func testCountersAndJobSlotsLine() {

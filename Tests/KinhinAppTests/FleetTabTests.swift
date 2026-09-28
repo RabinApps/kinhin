@@ -80,6 +80,18 @@ final class FleetTabTests: MainWindowTestCase {
             "Auto-resume is on — the fleet releases itself when the queue is empty.")
     }
 
+    func testPausedAutoResumeNoteCountsDownToTheNextQueueCheck() {
+        var status = FleetStatus()
+        status.running = true
+        status.paused = true
+        status.autoResume = true
+        status.pollInterval = 15
+        window.render(status: status)
+        XCTAssertEqual(
+            window.fleetModel.pausedAutoResumeNote,
+            "Auto-resume is on — the engine re-checks the queue every 15s and resumes once it's empty.")
+    }
+
     func testRenderMarksErrorRows() {
         var failed = VMRecord(id: "kinhin-vm-err", phase: .failed)
         failed.createdAt = Date()

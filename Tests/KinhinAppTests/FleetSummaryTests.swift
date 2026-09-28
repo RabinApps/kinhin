@@ -29,6 +29,19 @@ final class FleetSummaryTests: XCTestCase {
         XCTAssertTrue(text.hasSuffix("Last error: boom"))
     }
 
+    func testPausedWithAutoResumeSpeaksTheCountdown() {
+        var paused = status(paused: true)
+        paused.autoResume = true
+        XCTAssertTrue(
+            FleetSummary.status(paused).contains(
+                "Auto-resume is on — it will release the fleet when the queue is empty."))
+
+        paused.pollInterval = 20
+        XCTAssertTrue(
+            FleetSummary.status(paused).contains(
+                "Auto-resume is on — it re-checks the queue every 20s and resumes once it's empty."))
+    }
+
     func testZeroCapacity() {
         XCTAssertTrue(FleetSummary.status(status(cap: 0)).contains("0 of 0 VMs active."))
     }

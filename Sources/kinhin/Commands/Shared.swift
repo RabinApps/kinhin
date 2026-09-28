@@ -248,8 +248,11 @@ func renderStatus(_ status: FleetStatus) -> String {
     lines.append("engine:    \(status.running ? (status.paused ? "paused" : "running") : "stopped")")
     // Same note the menu bar and Fleet tab show: a deliberate pause (e.g. a
     // pause-first VM delete) must not read as stuck in a terminal either.
+    // With the cadence known, say when the queue is re-checked; older
+    // daemons (no pollInterval on the status) get the timeless wording.
     if status.paused, status.autoResume == true {
-        lines.append("auto-resume: on — the fleet releases itself when the queue is empty")
+        let release = status.autoResumeCadence ?? "the fleet releases itself when the queue is empty"
+        lines.append("auto-resume: on — \(release)")
     }
     lines.append(
         "repo:      (see config)   queue: \(status.queueDepth)   desired: \(status.desired)   capacity cap: \(status.capacityCap)"

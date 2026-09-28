@@ -152,8 +152,9 @@ extension FleetEngine {
         status.records = store.all
         status.runtime = runtime.id.rawValue
         // The UI surfaces this while paused so a deliberate pause doesn't
-        // read as stuck.
+        // read as stuck — including when the queue gets re-checked.
         status.autoResume = config.autoResume
+        status.pollInterval = config.pollInterval
         let runtimeCaps = capsByRuntime
         if !runtimeCaps.isEmpty {
             var caps: [String: String] = [:]

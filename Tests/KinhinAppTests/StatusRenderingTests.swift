@@ -77,6 +77,17 @@ final class StatusRenderingTests: XCTestCase {
         XCTAssertTrue(line.contains("auto-resume: releases when the queue is empty"), "got: \(line)")
     }
 
+    func testPausedLineCountsDownToTheNextQueueCheck() {
+        var status = FleetStatus()
+        status.running = true
+        status.paused = true
+        status.autoResume = true
+        status.pollInterval = 20
+        let line = delegate.statusLine(for: status)
+        XCTAssertTrue(
+            line.contains("auto-resume: re-checks the queue every 20s and resumes once it's empty"), "got: \(line)")
+    }
+
     func testLineOmitsJobSlotsWhenZero() {
         let line = delegate.statusLine(for: FleetStatus())
         XCTAssertFalse(line.contains("job slots"))

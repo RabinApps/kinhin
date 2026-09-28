@@ -149,6 +149,7 @@ final class FleetEdgeTests: XCTestCase {
         let engine = makeEngine(tart: FakeTart(), github: FakeGitHub(), ssh: FakeSSH())
         let status = await engine.status()
         XCTAssertEqual(status.autoResume, false, "the flag rides the status snapshot (off by default)")
+        XCTAssertEqual(status.pollInterval, 5, "the cadence rides along for the countdown hint (test config: 5s)")
     }
 
     func testFailedVMIsCleanedUpOnNextPass() async throws {
