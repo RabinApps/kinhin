@@ -58,12 +58,15 @@ enum FleetSummary {
         case uncertain
     }
 
-    static func deleteResult(id: String, outcome: DeleteOutcome) -> String {
+    static func deleteResult(id: String, outcome: DeleteOutcome, pausedFirst: Bool = false) -> String {
         switch outcome {
         case .notFound:
             return noVMNamed(id)
         case .deleted:
-            return "Deleted VM \(id)."
+            // Autoscale would otherwise recreate the VM within one poll.
+            return pausedFirst
+                ? "Deleted VM \(id). The fleet is paused, so it won't be recreated until you resume."
+                : "Deleted VM \(id)."
         case .uncertain:
             return "Deleting \(id) is in progress — check the fleet status in a moment."
         }

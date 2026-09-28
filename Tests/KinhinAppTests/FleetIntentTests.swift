@@ -138,6 +138,67 @@ final class FleetIntentTests: XCTestCase {
         XCTAssertTrue(text.contains("in progress"), "got: \(text)")
     }
 
+    func testDeletePausesRunningFleetFirst() async throws {
+        let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
+        bridge.appliesDelete = true
+        FleetIntentEnvironment.bridge = bridge
+        let text = try await DeleteVMAction.run(id: "vm-1", pauseFirst: true)
+        XCTAssertEqual(bridge.setPausedCalls, [true])
+        XCTAssertEqual(bridge.deleteCalls, ["vm-1"])
+        XCTAssertTrue(text.contains("fleet is paused"), "got: \(text)")
+    }
+
+    func testDeleteSkipsPauseWhenFleetIsStopped() async throws {
+        let bridge = FakeFleetIntentBridge(
+            FleetStatus(running: false, records: [VMRecord(id: "vm-1", phase: .failed)]))
+        bridge.appliesDelete = true
+        FleetIntentEnvironment.bridge = bridge
+        let text = try await DeleteVMAction.run(id: "vm-1", pauseFirst: true)
+        XCTAssertTrue(bridge.setPausedCalls.isEmpty, "a stopped fleet has no autoscaler to hold back")
+        XCTAssertEqual(bridge.deleteCalls, ["vm-1"])
+        XCTAssertFalse(text.contains("fleet is paused"))
+    }
+
+    func testDeleteSkipsPauseWhenAlreadyPaused() async throws {
+        let bridge = FakeFleetIntentBridge(
+            FleetStatus(running: true, paused: true, records: [VMRecord(id: "vm-1", phase: .failed)]))
+        FleetIntentEnvironment.bridge = bridge
+        _ = try await DeleteVMAction.run(id: "vm-1", pauseFirst: true)
+        XCTAssertTrue(bridge.setPausedCalls.isEmpty)
+        XCTAssertEqual(bridge.deleteCalls, ["vm-1"])
+    }
+
+    func testDeleteWithoutPauseOptionNeverPauses() async throws {
+        let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
+        bridge.appliesDelete = true
+        FleetIntentEnvironment.bridge = bridge
+        _ = try await DeleteVMAction.run(id: "vm-1")
+        XCTAssertTrue(bridge.setPausedCalls.isEmpty)
+    }
+
+    func testFailedPauseAbortsTheDelete() async {
+        let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
+        bridge.pauseError = FleetAccessError.notSetUp
+        FleetIntentEnvironment.bridge = bridge
+        do {
+            _ = try await DeleteVMAction.run(id: "vm-1", pauseFirst: true)
+            XCTFail("expected throw")
+        } catch {
+            XCTAssertTrue(
+                bridge.deleteCalls.isEmpty,
+                "a delete without the requested pause would be undone by autoscale")
+        }
+    }
+
+    func testDeleteUnknownVMDoesNotPause() async throws {
+        let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
+        FleetIntentEnvironment.bridge = bridge
+        let text = try await DeleteVMAction.run(id: "nope", pauseFirst: true)
+        XCTAssertTrue(bridge.setPausedCalls.isEmpty, "an unknown id must not pause as a side effect")
+        XCTAssertTrue(bridge.deleteCalls.isEmpty)
+        XCTAssertTrue(text.contains("No VM named nope"), "got: \(text)")
+    }
+
     func testDeleteErrorsPropagate() async {
         let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
         bridge.error = FleetAccessError.notSetUp

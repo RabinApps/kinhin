@@ -7,6 +7,9 @@
 final class FakeFleetIntentBridge: FleetIntentBridge {
     var current: FleetStatus
     var error: Error?
+    /// Fails only `setPaused`, modeling a backend that rejects the pause
+    /// while status and other commands still work.
+    var pauseError: Error?
     private(set) var setPausedCalls: [Bool] = []
     private(set) var startCalls = 0
     private(set) var stopCalls = 0
@@ -37,6 +40,7 @@ final class FakeFleetIntentBridge: FleetIntentBridge {
 
     func setPaused(_ paused: Bool) async throws {
         if let error { throw error }
+        if let pauseError { throw pauseError }
         setPausedCalls.append(paused)
         current.paused = paused
     }
