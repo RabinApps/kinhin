@@ -36,10 +36,19 @@ Every `poll_interval` seconds the engine:
 ## Pausing and auto-resume
 
 A paused fleet skips spawning (and, by default, skips queue polling entirely). With
-`auto_resume: true` the engine keeps watching the queue while paused and unpauses itself once
-it is empty — a deliberate pause (for example the Shortcuts "Delete VM" action pauses first so
-autoscaling can't recreate what was deleted) then releases the fleet on its own. If every forge
-fetch fails while paused, the engine holds: silence must not read as "nothing to do".
+`auto_resume: true` the engine keeps watching the queue while paused — on the normal
+`poll_interval` cadence, read-only — and unpauses itself in the pass that finds it empty: a
+deliberate pause (for example the Shortcuts "Delete VM" action pauses first so autoscaling
+can't recreate what was deleted) then releases the fleet on its own. If every forge fetch fails
+while paused, the engine holds: silence must not read as "nothing to do".
+
+Every surface that can show a paused fleet shares one cadence clause while the policy holds —
+the menu bar and Fleet tab status line, `kinhin status`, and Siri all render (with your
+configured `poll_interval`) that the engine "re-checks the queue every 20s and resumes once
+it's empty". Because only a forge *answering* a demand fetch refreshes the queue numbers,
+`kinhin status` also prints `queue age: Ns old` — stale during an outage, so a paused snapshot
+never masquerades as fresh. `kinhin status --json` exposes the same facts as fields:
+`paused`, `autoResume`, `pollInterval`, `queueAgeSeconds`.
 
 ## Job density
 

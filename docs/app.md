@@ -53,7 +53,7 @@ you can ask about the fleet without opening a window:
 | "Resume kinhin"                           | Lets a paused fleet start VMs again                     |
 | "Delete kinhin VM"                        | Removes one runner VM — pauses the fleet first unless turned off |
 | "Diagnose kinhin VM"                      | Phase, assigned job, and last error for one runner VM   |
-| "Enable kinhin auto-resume"               | A paused fleet releases itself once the queue empties   |
+| "Enable kinhin auto-resume"               | A paused fleet releases itself once the queue is empty  |
 | "Disable kinhin auto-resume"              | A pause holds until the fleet is resumed by hand        |
 | "Run kinhin diagnostics"                  | One-line result of the `kinhin doctor` checks           |
 
@@ -73,8 +73,10 @@ clear it without opening the window — every step is a kinhin action in Shortcu
    not instantly recreated. A job that was waiting for it simply waits for the next VM.
 3. **Let it release.** With auto-resume on (Advanced → Capacity, or the **Enable Auto-Resume**
    action — it reports and no-ops when already on), the status line — menu bar, Fleet tab,
-   `kinhin status` — shows "auto-resume: releases when the queue is empty" while the fleet
-   holds. The engine unpauses itself the moment the queue is empty and scales back up.
+   `kinhin status` — shows "auto-resume: re-checks the queue every 20s and resumes once it's
+   empty" while the fleet holds (the seconds match your `poll_interval`; without a cadence from
+   an older daemon, the short "releases when the queue is empty" appears instead). The engine
+   unpauses itself the moment a check finds the queue empty and scales back up.
 
 Chain the steps into one shortcut (Diagnose VM → Delete VM → Enable Auto-Resume) and name it,
 say, "clear stalled runner". Leave Shortcuts' *Confirm Before Running* on for the delete step if
