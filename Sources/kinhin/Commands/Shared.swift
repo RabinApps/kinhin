@@ -171,7 +171,7 @@ func helpText() -> String {
         daemon                      Run the headless daemon in this terminal
         daemon install              Install and start a LaunchAgent daemon
         daemon uninstall            Stop and remove the LaunchAgent
-        status                      Show fleet status (attach to daemon if running)
+        status [--json]             Show fleet status (attach to daemon if running; --json: machine-readable document with daemon/paused/autoResume fields)
         pause | resume              Hold the fleet / let it scale again
         stop                        Stop the fleet (works on daemon or in-process)
         logs [-n N]                 Show recent log lines

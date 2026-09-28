@@ -34,7 +34,7 @@ kinhin start                Run the fleet in the foreground
 kinhin daemon               Run the daemon in the foreground
 kinhin daemon install       Install + start the LaunchAgent
 kinhin daemon uninstall     Remove the LaunchAgent
-kinhin status|watch         Fleet status
+kinhin status --json        Fleet status as a machine-readable document (daemon/paused/autoResume fields; watch streams prose)
 kinhin pause|resume         Hold the fleet / resume scaling
 kinhin stop                 Stop the fleet
 kinhin logs [-n N]          Recent log lines

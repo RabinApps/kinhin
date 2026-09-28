@@ -50,18 +50,29 @@ enum RunCommands {
     }
 
     static func status(_ args: [String]) async throws {
+        func emitJSON(_ document: StatusDocument) throws {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            print(String(decoding: try encoder.encode(document), as: UTF8.self))
+        }
         if RPCClient.isDaemonAlive() {
             let response = try RPCClient().send(method: .status)
             guard response.ok, let payload = response.payload else {
                 fail(response.error ?? "daemon returned no payload", exit: .runtime)
             }
             let status = try JSONDecoder().decode(FleetStatus.self, from: payload)
-            print(renderStatus(status))
+            // Machine output only: prose before the JSON line would make the
+            // document unparseable (same convention as doctor/setup-status).
             if args.contains("--json") {
-                let data = try JSONEncoder().encode(status)
-                print(String(decoding: data, as: UTF8.self))
+                try emitJSON(StatusDocument(daemonRunning: true, fleet: status))
+            } else {
+                print(renderStatus(status))
             }
         } else {
+            if args.contains("--json") {
+                try emitJSON(StatusDocument(daemonRunning: false, fleet: nil))
+                return
+            }
             print("daemon: not running")
             if FileManager.default.fileExists(atPath: Paths.config.path),
                 let cfg = try? ConfigLoader.load()
