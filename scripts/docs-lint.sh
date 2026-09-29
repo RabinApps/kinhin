@@ -8,9 +8,11 @@
 #    what replaced it — so the next rename only needs one new table row.
 #    Scans every git-tracked .md file (README, docs/, website/), which by
 #    construction excludes generated output like website/.vitepress/dist.
-# 2. Orchard allowlist: Sources/ and docs/ must not grow new mentions of
-#    the pre-rename name, in any file type. See the allowlist section
-#    below for the files that carry the legacy strings on purpose.
+# 2. Orchard allowlist: Sources/, Tests/, and docs/ must not grow new
+#    mentions of the pre-rename name, in any file type. See the allowlist
+#    section below for the files that carry the legacy strings on purpose
+#    (the migration machinery, the upgrader greeting, and the tests that
+#    pin that behavior).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -55,12 +57,13 @@ for entry in "${patterns[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# Orchard allowlist. Sources/ and docs/ must not grow new mentions of the
-# pre-rename name, in any file type. The files below carry the legacy
+# Orchard allowlist. Sources/, Tests/, and docs/ must not grow new mentions
+# of the pre-rename name, in any file type. The files below carry the legacy
 # strings on purpose — the migration has to know where the old data lives
 # (support directory, Keychain service, LaunchAgent label, VM-name prefix,
-# update-repo env var) and the config template greets upgraders. Anything
-# else is drift: add a path here only for a deliberate compat surface.
+# update-repo env var), the config template greets upgraders, and the four
+# test files pin that behavior. Anything else is drift: add a path here
+# only for a deliberate compat surface or a test of one.
 # ---------------------------------------------------------------------------
 orchardAllowlist=(
     "Sources/KinhinKit/Config/ConfigTemplate.swift"
@@ -69,15 +72,19 @@ orchardAllowlist=(
     "Sources/KinhinKit/Fleet/Daemon.swift"
     "Sources/KinhinKit/Fleet/FleetReconcile.swift"
     "Sources/kinhin-app/UpdatePreferences.swift"
+    "Tests/KinhinKitTests/Core/ErrorHandlingTests.swift"
+    "Tests/KinhinKitTests/Fleet/StoreAndLogTests.swift"
+    "Tests/KinhinAppTests/UpdateMenuTests.swift"
+    "Tests/KinhinCLITests/ConfigInitAndHelpTests.swift"
     "docs/compat-sunset.md"
 )
 
 orchardFiles=()
 while IFS= read -r f; do
     orchardFiles+=("$f")
-done < <(git ls-files Sources docs)
+done < <(git ls-files Sources Tests docs)
 if [[ ${#orchardFiles[@]} -eq 0 ]]; then
-    echo "docs lint: no Sources/ or docs/ files found for the orchard sweep" >&2
+    echo "docs lint: no Sources/, Tests/ or docs/ files found for the orchard sweep" >&2
     exit 1
 fi
 
