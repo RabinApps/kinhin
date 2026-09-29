@@ -21,6 +21,7 @@ patterns=(
     "Runtimes\.\.\.|same stale pane name with a plain-ASCII ellipsis"
     "Runtimes pane|the routing UI is the Advanced → Routing tab, not a \"Runtimes pane\""
     "KinhinKit/Forge\.swift|the forge contract moved to Sources/KinhinKit/Forges/Forge.swift"
+    "orchard-container|the Linux-pool opt-in marker is "kinhin-container" (RuntimeRouting.swift)"
 )
 
 # macOS ships bash 3.2: no mapfile. A plain loop also survives spaces

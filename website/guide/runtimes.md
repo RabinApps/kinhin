@@ -31,8 +31,8 @@ runtimes:
 ```
 
 Routing precedence: **workflow route → repo route → `runs-on:` label → default**. Container
-runners always register with an `orchard-container` label (plus optional `container.labels`),
-so any job can opt into the Linux pool with `runs-on: [orchard-container]` without touching
+runners always register with a `kinhin-container` label (plus optional `container.labels`),
+so any job can opt into the Linux pool with `runs-on: [kinhin-container]` without touching
 config.
 
 ## apple/container for Linux jobs
