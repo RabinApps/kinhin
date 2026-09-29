@@ -60,7 +60,7 @@ final class OrgPermissionTests: XCTestCase {
 
     func testOrgScopeQueueVisibilityGateBlocksRunsUnreadableTokens() async {
         let github = FakeGitHub()
-        github.runningJobsError = GitHubError.notFound("/orgs/acme/actions/runs")
+        github.runningJobsError = .notFound("/orgs/acme/actions/runs")
         let report = await OrgPermissionProbe.verify(github: github, scope: "acme")
         XCTAssertFalse(report.ok, "a token that cannot read the queue must not pass the start gate")
         XCTAssertTrue(report.message.contains("cannot see queued/running jobs"), report.message)
@@ -79,7 +79,7 @@ final class OrgPermissionTests: XCTestCase {
 
     func testOrgScopeQueueVisibilityOtherFailuresFailTheCheck() async {
         let github = FakeGitHub()
-        github.runningJobsError = GitHubError.http(500, "boom")
+        github.runningJobsError = .http(500, "boom")
         let report = await OrgPermissionProbe.verify(github: github, scope: "acme")
         XCTAssertFalse(report.ok)
         XCTAssertTrue(report.message.contains("queue visibility could not be verified"), report.message)
@@ -87,7 +87,7 @@ final class OrgPermissionTests: XCTestCase {
 
     func testRepoScopeQueueVisibilityGateRunsTheSameCheck() async {
         let github = FakeGitHub()
-        github.runningJobsError = GitHubError.notFound("/repos/acme/widgets/actions/runs")
+        github.runningJobsError = .notFound("/repos/acme/widgets/actions/runs")
         let report = await OrgPermissionProbe.verify(github: github, scope: "acme/widgets")
         XCTAssertFalse(report.ok)
         XCTAssertTrue(report.message.contains("cannot see queued/running jobs"), report.message)

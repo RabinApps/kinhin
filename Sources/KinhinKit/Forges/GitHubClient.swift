@@ -34,7 +34,7 @@ public struct GitHubCredentials: Sendable {
     }
 }
 
-public enum GitHubError: LocalizedError, Equatable {
+public enum GitHubError: LocalizedError, Equatable, Sendable {
     case unauthorized
     case forbidden(String)
     case notFound(String)
