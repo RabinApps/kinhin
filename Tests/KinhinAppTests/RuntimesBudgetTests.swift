@@ -32,15 +32,15 @@ final class RuntimesBudgetTests: XCTestCase {
 
     private var configURL: URL!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         configURL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "kinhin-budget-\(UUID().uuidString).yaml")
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         try? FileManager.default.removeItem(at: configURL)
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func makeModel() -> RuntimesModel {

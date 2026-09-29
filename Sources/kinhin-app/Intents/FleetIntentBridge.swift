@@ -4,7 +4,7 @@ import KinhinKit
 /// What the App Intents need from the running app. The production default
 /// forwards to `AppDelegate`; tests substitute a fake.
 @MainActor
-protocol FleetIntentBridge {
+protocol FleetIntentBridge: Sendable {
     func status() async throws -> FleetStatus
     func startFleet() async throws
     func stopFleet() async throws

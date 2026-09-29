@@ -62,7 +62,7 @@ let package = Package(
             path: "Tests/KinhinAppTests"
         ),
     ],
-    // Sources stay in Swift 5 mode for now; the strict-concurrency migration
-    // to Swift 6 mode is a separate, dedicated project.
-    swiftLanguageModes: [.v5]
+    // Strict concurrency on: every mutable field is Mutex-guarded or an
+    // immutable Sendable collaborator, so the compiler verifies isolation.
+    swiftLanguageModes: [.v6]
 )

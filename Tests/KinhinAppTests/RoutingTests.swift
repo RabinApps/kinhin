@@ -10,15 +10,15 @@ import XCTest
 final class RoutingTests: XCTestCase {
     private var configURL: URL!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         configURL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "kinhin-routing-\(UUID().uuidString).yaml")
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         try? FileManager.default.removeItem(at: configURL)
-        super.tearDown()
+        try await super.tearDown()
     }
 
     private func write(_ yaml: String) { try? yaml.write(to: configURL, atomically: true, encoding: .utf8) }

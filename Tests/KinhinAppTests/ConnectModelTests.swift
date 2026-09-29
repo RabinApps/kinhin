@@ -10,16 +10,16 @@ import XCTest
 final class ConnectModelTests: XCTestCase {
     private var url: URL!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         url = FileManager.default.temporaryDirectory
             .appendingPathComponent("kinhin-connect-\\(UUID().uuidString).yaml")
         try? "repo: \"your-org/your-repo\"\nlabels: [a]\n".write(to: url, atomically: true, encoding: .utf8)
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         try? FileManager.default.removeItem(at: url)
-        super.tearDown()
+        try await super.tearDown()
     }
 
     /// - Parameter reload: pass `false` in tests that select a forge by hand

@@ -11,7 +11,7 @@ import Foundation
 /// project's releases. Falls back to the last-known-good pinned
 /// versions when the feed is unreachable (offline hosts, rate limits), and
 /// degrades to pre-release tags only when nothing stable exists.
-public struct RunnerVersionResolver {
+public struct RunnerVersionResolver: Sendable {
     public struct Versions: Sendable, Equatable {
         public let github: String
         public let gitea: String

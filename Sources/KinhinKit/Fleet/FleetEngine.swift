@@ -35,7 +35,10 @@ struct RunState: Sendable {
 
 // MARK: - Engine
 
-public final class FleetEngine {
+/// Every mutable field is either a `Mutex` box (checked `Sendable`) or an
+/// immutable collaborator, so the conformance is verified by the compiler
+/// rather than asserted.
+public final class FleetEngine: Sendable {
     let config: KinhinConfig
     let tart: TartControlling
     let store: FleetStore
@@ -43,7 +46,12 @@ public final class FleetEngine {
     let registrationTokens: RegistrationTokenCache
     let statusBox: FleetStatusBox
     let capacity: Capacity.Plan
-    var githubFactory: GitHubClientFactory
+    private let _githubFactory = Mutex<GitHubClientFactory>(.live)
+
+    var githubFactory: GitHubClientFactory {
+        get { _githubFactory.withLock { $0 } }
+        set { _githubFactory.withLock { $0 = newValue } }
+    }
     /// The legacy GitHub account's credentials and client, swapped together
     /// by replaceCredentials.
     let githubAuth: Mutex<GitHubAuth>
@@ -52,13 +60,23 @@ public final class FleetEngine {
     let forgeState: Mutex<ForgeState>
     /// Resolves an account's token (forge, account name). Keychain in
     /// production; tests inject their own.
-    var tokenLoader: @Sendable (ForgeID, String) throws -> String? = {
+    private let _tokenLoader = Mutex<@Sendable (ForgeID, String) throws -> String?> {
         try KeychainTokenStore.load(forge: $0, name: $1)
+    }
+
+    var tokenLoader: @Sendable (ForgeID, String) throws -> String? {
+        get { _tokenLoader.withLock { $0 } }
+        set { _tokenLoader.withLock { $0 = newValue } }
     }
     /// Host snapshot for the pre-spawn disk guard. Defaults to the static
     /// construction-time host value (hermetic — tests inject their own);
     /// production wiring swaps in a live statfs probe via `useLiveDiskProbe`.
-    var hostProbe: @Sendable () -> HostResources = { ResourceProbe().snapshot() }
+    private let _hostProbe = Mutex<@Sendable () -> HostResources> { ResourceProbe().snapshot() }
+
+    var hostProbe: @Sendable () -> HostResources {
+        get { _hostProbe.withLock { $0 } }
+        set { _hostProbe.withLock { $0 = newValue } }
+    }
     /// Opts the disk guard into live probing (production wiring only; tests
     /// keep the hermetic construction snapshot or set their own probe).
     public func useLiveDiskProbe() { hostProbe = { ResourceProbe().snapshot() } }
@@ -69,12 +87,22 @@ public final class FleetEngine {
     /// Forge instances serving this fleet, keyed by platform string.
     public var forges: [String: Forge] { forgeState.withLock { $0.byPlatform } }
 
-    var reconcileTask: Task<Void, Never>?
+    private let _reconcileTask = Mutex<Task<Void, Never>?>(nil)
+
+    var reconcileTask: Task<Void, Never>? {
+        get { _reconcileTask.withLock { $0 } }
+        set { _reconcileTask.withLock { $0 = newValue } }
+    }
     /// One lifecycle task per VM id (removed by the task itself on finish).
     let lifecycleTasks = Mutex<[String: Task<Void, Never>]>([:])
     /// How long `detachKeepingInstances()` waits for cancelled lifecycle
     /// tasks before handing the fleet over anyway. Tests shorten it.
-    var lifecycleDrainTimeout: Duration = .seconds(15)
+    private let _lifecycleDrainTimeout = Mutex<Duration>(.seconds(15))
+
+    var lifecycleDrainTimeout: Duration {
+        get { _lifecycleDrainTimeout.withLock { $0 } }
+        set { _lifecycleDrainTimeout.withLock { $0 = newValue } }
+    }
 
     /// Whether the fleet is serving and whether it is paused.
     let runState = Mutex(RunState())
@@ -111,14 +139,18 @@ public final class FleetEngine {
     /// engine. (Future hosted runtimes join here when configured.)
     let runtimesByRuntime: [RuntimeID: any Runtime]
     /// Daily host-cache sweep task (started/stopped with the engine).
-    var cachePruneTask: Task<Void, Never>?
+    private let _cachePruneTask = Mutex<Task<Void, Never>?>(nil)
+
+    var cachePruneTask: Task<Void, Never>? {
+        get { _cachePruneTask.withLock { $0 } }
+        set { _cachePruneTask.withLock { $0 = newValue } }
+    }
 
     public init(
         config: KinhinConfig, github: GitHubServing, tart: TartControlling, store: FleetStore, ssh: SSHExecuting,
         host: HostResources, containerShell: ShellRunning? = nil
     ) {
         let credentials = GitHubCredentials(token: "", scope: config.repo)
-        self.githubFactory = GitHubClientFactory { _ in github }
         self.githubAuth = Mutex(GitHubAuth(credentials: credentials, client: github))
         self.forgeState = Mutex(
             ForgeState(byPlatform: Self.initialForges(config: config, credentials: credentials, client: github)))
@@ -176,7 +208,6 @@ public final class FleetEngine {
         }
         self.runtimesByRuntime = runtimeMap
         self.config = config
-        self.hostProbe = { [host] in host }
         self.tart = tart
         self.store = store
         self.ssh = ssh
@@ -248,6 +279,10 @@ public final class FleetEngine {
             caps = [:]
         }
         self.routingState = Mutex(RoutingState(model: routing, caps: caps))
+        // Phase 2 wiring (the boxes are computed properties, so these must
+        // come after every stored property is initialized).
+        self.githubFactory = GitHubClientFactory { _ in github }
+        self.hostProbe = { [host] in host }
     }
 
     /// The forges attached at construction. Gitea-only configs never build a

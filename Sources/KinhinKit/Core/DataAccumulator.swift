@@ -2,7 +2,7 @@ import Foundation
 import Synchronization
 
 /// Thread-safe byte accumulator used while draining process pipes.
-final class DataAccumulator {
+final class DataAccumulator: Sendable {
     private let data = Mutex(Data())
 
     func append(_ chunk: Data) {

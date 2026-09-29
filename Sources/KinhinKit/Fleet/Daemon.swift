@@ -103,24 +103,21 @@ public enum Daemon {
     /// running engine cannot adopt live (anything beyond routing) requires
     /// a rebuild — the server's handler keeps answering through this box
     /// while the swap happens.
-    final class EngineRef: @unchecked Sendable {
-        /// FleetEngine is a mutable class guarded by raw `Task` state (not
-        /// `Sendable`), so it cannot live in a stdlib `Mutex` (whose payload
-        /// must be `Sendable`); a plain NSLock keeps the swap atomic without
-        /// pretending the engine is value-like.
-        private let lock = NSLock()
-        private var wrapped: FleetEngine?
+    /// FleetEngine is checked-`Sendable` now, so the current-engine box is
+    /// just a stdlib `Mutex` — no unchecked escape hatch needed.
+    final class EngineRef: Sendable {
+        private let wrapped: Mutex<FleetEngine?>
 
         public init(_ initial: FleetEngine? = nil) {
-            wrapped = initial
+            wrapped = Mutex(initial)
         }
 
         public var engine: FleetEngine? {
-            lock.withLock { wrapped }
+            wrapped.withLock { $0 }
         }
 
         func set(_ engine: FleetEngine?) {
-            lock.withLock { wrapped = engine }
+            wrapped.withLock { $0 = engine }
         }
     }
 

@@ -4,6 +4,7 @@ import SwiftUI
 /// The "This Mac" form: a macOS (tart) card and a Linux runtimes card. The
 /// install dialogs are sheets owned by `MacToolsModel` (presented from its
 /// `installOffer` / `missingBrewOffer`).
+@MainActor
 struct MacToolsView: View {
     @Bindable var model: MacToolsModel
 
@@ -97,15 +98,23 @@ struct MacToolsView: View {
     }
 
     private func runtimeRow(
-        _ title: String, on: Bool, toggleID: String, setOn: @escaping (Bool) -> Void,
+        _ title: String, on: Bool, toggleID: String, setOn: @escaping @MainActor (Bool) -> Void,
         line: StatusLine, installVisible: Bool, installTitle: String, installID: String,
         install: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 8) {
-            Toggle(title, isOn: Binding(get: { on }, set: setOn))
-                .toggleStyle(.checkbox)
-                .font(.system(size: 12))
-                .accessibilityIdentifier(toggleID)
+            // Binding's setter is @Sendable; the toggle only ever fires on the
+            // main actor, so hop back synchronously (same pattern as AppMain).
+            Toggle(
+                title,
+                isOn: Binding(
+                    get: { on },
+                    set: { newValue in MainActor.assumeIsolated { setOn(newValue) } }
+                )
+            )
+            .toggleStyle(.checkbox)
+            .font(.system(size: 12))
+            .accessibilityIdentifier(toggleID)
             StatusText(text: line.text, style: line.style)
             Spacer(minLength: 0)
             if installVisible { smallButton(installTitle, id: installID, action: install) }

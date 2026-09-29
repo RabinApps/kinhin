@@ -118,6 +118,9 @@ final class RPCWireTests: XCTestCase {
             XCTFail("socketpair must succeed")
             return nil
         }
+        // The detached thread only needs the server end; copying it out of
+        // the mutable array keeps the later capture var-free.
+        let server = fds[1]
         let client = fds[0]
         defer { close(client) }
 
@@ -125,7 +128,7 @@ final class RPCWireTests: XCTestCase {
         // the test thread can write concurrently — a large request line
         // would otherwise block forever on the kernel's socket buffer.
         Thread.detachNewThread {
-            RPCServer.handleConnection(fd: fds[1], handler: handler)
+            RPCServer.handleConnection(fd: server, handler: handler)
         }
 
         if !requestLine.isEmpty {

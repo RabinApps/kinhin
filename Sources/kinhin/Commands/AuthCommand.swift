@@ -8,34 +8,38 @@ import KinhinKit
 /// The `fail`/`exit` hooks are throwing `Never`-returning functions: live
 /// behavior terminates the process, tests throw a catchable error and assert
 /// on the code/message instead.
-struct AuthEnvironment {
-    var save: (String, ForgeID) throws -> Void
+struct AuthEnvironment: Sendable {
+    var save: @Sendable (String, ForgeID) throws -> Void
     /// Returns the stored token for the forge, or nil when none is stored.
-    var load: (ForgeID) throws -> String?
-    var delete: (ForgeID) -> Void
+    var load: @Sendable (ForgeID) throws -> String?
+    var delete: @Sendable (ForgeID) -> Void
     /// Interactive read for `auth set` without --token (raw stdin line).
-    var readToken: () -> String?
+    var readToken: @Sendable () -> String?
     /// `auth status` probe — throws when the forge rejects the token.
-    var checkGitHub: (GitHubCredentials) async throws -> Void
-    var checkGitea: (GiteaCredentials) async throws -> Void
-    var checkGitLab: (GitLabCredentials) async throws -> Void = { credentials in
+    var checkGitHub: @Sendable (GitHubCredentials) async throws -> Void
+    var checkGitea: @Sendable (GiteaCredentials) async throws -> Void
+    var checkGitLab: @Sendable (GitLabCredentials) async throws -> Void = { credentials in
         let report = await TokenHealthCheck.gitlab(
             token: credentials.token, scope: credentials.scope, instance: credentials.instance)
         guard report.ok else { throw CLIError(report.message) }
     }
-    var loadConfig: () -> KinhinConfig
+    var loadConfig: @Sendable () -> KinhinConfig
     /// Best-effort live-swap notification to a running daemon.
-    var notifyDaemon: (String, ForgeID) -> Void
+    var notifyDaemon: @Sendable (String, ForgeID) -> Void
     /// stderr `kinhin: <message>` + exit 1.
-    var fail: (String) throws -> Never
+    var fail: @Sendable (String) throws -> Never
     /// Bare exit (stdout already carries the user-facing line).
-    var exit: (Int) throws -> Never
+    var exit: @Sendable (Int) throws -> Never
     /// Named-account token access (`--account NAME`, `auth add/remove`).
-    var saveAccount: (String, ForgeID, String) throws -> Void = { try KeychainTokenStore.save($0, forge: $1, name: $2) }
-    var loadAccount: (ForgeID, String) throws -> String? = { try KeychainTokenStore.load(forge: $0, name: $1) }
-    var deleteAccount: (ForgeID, String) -> Void = { KeychainTokenStore.delete(forge: $0, name: $1) }
+    var saveAccount: @Sendable (String, ForgeID, String) throws -> Void = {
+        try KeychainTokenStore.save($0, forge: $1, name: $2)
+    }
+    var loadAccount: @Sendable (ForgeID, String) throws -> String? = {
+        try KeychainTokenStore.load(forge: $0, name: $1)
+    }
+    var deleteAccount: @Sendable (ForgeID, String) -> Void = { KeychainTokenStore.delete(forge: $0, name: $1) }
     /// Best-effort live-swap notification for a named account: (account, token).
-    var notifyDaemonAccount: (String, String) -> Void = { account, token in
+    var notifyDaemonAccount: @Sendable (String, String) -> Void = { account, token in
         notifyDaemonAccountTokenReplaced(account: account, token: token)
     }
     /// The config file `auth add/remove` edit.

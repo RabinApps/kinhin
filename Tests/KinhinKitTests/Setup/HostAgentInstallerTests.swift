@@ -17,8 +17,9 @@ final class HostAgentInstallerTests: XCTestCase {
     }
 
     private func installer(_ shell: FakeShell, arm64: Bool = true, gitlab: Bool = false) -> HostAgentInstaller {
-        HostAgentInstaller(
-            shell: shell, agentDir: dir, arm64: arm64, latestVersions: { self.versions }, includeGitLab: gitlab)
+        let versions = self.versions
+        return HostAgentInstaller(
+            shell: shell, agentDir: dir, arm64: arm64, latestVersions: { versions }, includeGitLab: gitlab)
     }
 
     private func plant(github: Bool = false, gitea: Bool = false) throws {

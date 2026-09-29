@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -143,7 +144,7 @@ final class AuthStatusReportTests: XCTestCase {
     private func makeEnvironment(
         stored: [ForgeID: String] = [:],
         config: KinhinConfig?,
-        onExit: @escaping (Int) throws -> Never = { _ in throw ReportExit(code: -1) }
+        onExit: @escaping @Sendable (Int) throws -> Never = { _ in throw ReportExit(code: -1) }
     ) -> AuthEnvironment {
         AuthEnvironment(
             save: { _, _ in },
@@ -197,22 +198,23 @@ final class AuthStatusReportTests: XCTestCase {
         // The check hooks would record if touched; --json must stay static.
         var cfg = KinhinConfig.default
         cfg.repo = "acme/widgets"
-        var probed = false
+        let frozen = cfg
+        let probed = Mutex(false)
         let env = AuthEnvironment(
             save: { _, _ in },
             load: { [.github: "ghp_x"][$0] },
             delete: { _ in },
             readToken: { nil },
-            checkGitHub: { _ in probed = true },
-            checkGitea: { _ in probed = true },
-            loadConfig: { cfg },
+            checkGitHub: { _ in probed.withLock { $0 = true } },
+            checkGitea: { _ in probed.withLock { $0 = true } },
+            loadConfig: { frozen },
             notifyDaemon: { _, _ in },
             fail: { _ in throw ReportExit(code: 1) },
             exit: { _ in throw ReportExit(code: 1) },
-            jsonConfig: .some(cfg)
+            jsonConfig: .some(frozen)
         )
 
         try await AuthCommand.run(["auth", "status", "--json"], environment: env)
-        XCTAssertFalse(probed, "the JSON snapshot is static — no network probes")
+        XCTAssertFalse(probed.withLock { $0 }, "the JSON snapshot is static — no network probes")
     }
 }

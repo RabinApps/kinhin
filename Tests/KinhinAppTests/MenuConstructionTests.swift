@@ -8,8 +8,8 @@ import XCTest
 final class MenuConstructionTests: XCTestCase {
     private var delegate: AppDelegate!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         delegate = AppDelegate()
     }
 

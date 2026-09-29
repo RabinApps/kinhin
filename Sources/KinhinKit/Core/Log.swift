@@ -29,7 +29,7 @@ public enum Log {
         }()
     }
 
-    public enum Level: String, Comparable, CaseIterable, Codable {
+    public enum Level: String, Comparable, CaseIterable, Codable, Sendable {
         case debug, info, warn, error
 
         var weight: Int {
@@ -46,8 +46,16 @@ public enum Log {
         }
     }
 
-    public static var minLevel: Level = .info
-    static var echoToStderr = true
+    private static let _minLevel = Mutex(Level.info)
+    public static var minLevel: Level {
+        get { _minLevel.withLock { $0 } }
+        set { _minLevel.withLock { level in level = newValue } }
+    }
+    private static let _echoToStderr = Mutex(true)
+    static var echoToStderr: Bool {
+        get { _echoToStderr.withLock { $0 } }
+        set { _echoToStderr.withLock { flag in flag = newValue } }
+    }
 
     /// In-memory ring buffer of recent entries (also mirrored to disk).
     private static let ring = Runaround<Entry>(capacity: 5000)
@@ -130,7 +138,7 @@ public enum Log {
 }
 
 /// A tiny thread-safe ring buffer.
-final class Runaround<T: Sendable> {
+final class Runaround<T: Sendable>: Sendable {
     private struct State: Sendable {
         var items: [T] = []
         let capacity: Int

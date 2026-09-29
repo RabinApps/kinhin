@@ -9,8 +9,8 @@ final class UpdateMenuTests: XCTestCase {
     private var delegate: AppDelegate!
     private var menu: NSMenu!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         delegate = AppDelegate()
         menu = delegate.buildMenu()
         delegate.menu = menu  // refreshUpdateItems mutates the stored menu

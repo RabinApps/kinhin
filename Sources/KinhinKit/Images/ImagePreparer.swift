@@ -71,6 +71,7 @@ public struct ImagePreparer {
     /// Full prepare pipeline. Slow (minutes); progress is logged.
     public func run(_ options: Options) async throws {
         let tmp = "kinhin-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
+        let tart = self.tart
         defer {
             Task {
                 await bestEffortAsync(tmp, "stopping scratch VM") { try await tart.stop(name: tmp) }

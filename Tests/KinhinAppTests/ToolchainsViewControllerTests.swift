@@ -13,14 +13,16 @@ import XCTest
     private var scratch: URL!
     private var configURL: URL!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
+        try await super.setUp()
         scratch = FileManager.default.temporaryDirectory
             .appendingPathComponent("kinhin-tc-ui-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
         configURL = scratch.appendingPathComponent("config.yaml")
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
+        try await super.tearDown()
         try? FileManager.default.removeItem(at: scratch)
     }
 

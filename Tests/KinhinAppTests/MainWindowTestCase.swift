@@ -47,8 +47,8 @@ class MainWindowTestCase: XCTestCase {
     var suiteName: String!
     var scratchConfig: URL!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         suiteName = "kinhin-tests.mainwindow-\(UUID().uuidString)"
         suite = UserDefaults(suiteName: suiteName)
         delegate = RecordingTabsDelegate()
@@ -59,14 +59,14 @@ class MainWindowTestCase: XCTestCase {
         window.delegate = delegate
     }
 
-    override func tearDown() {
+    override func tearDown() async throws {
         try? FileManager.default.removeItem(at: scratchConfig)
         suite.removePersistentDomain(forName: suiteName)
         window = nil
         delegate = nil
         suite = nil
         suiteName = nil
-        super.tearDown()
+        try await super.tearDown()
     }
 
     // MARK: - Helpers

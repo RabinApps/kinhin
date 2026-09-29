@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -15,7 +16,7 @@ final class AuthCommandTests: XCTestCase {
     private struct SaveError: Error {}
     private struct CheckError: Error {}
 
-    private final class Recorder {
+    private struct Snapshot: Sendable {
         var events: [String] = []
         var saved: [(token: String, forge: ForgeID)] = []
         var deleted: [ForgeID] = []
@@ -24,40 +25,77 @@ final class AuthCommandTests: XCTestCase {
         var checkedGitea: [GiteaCredentials] = []
     }
 
+    /// Recording double; all state is Mutex-guarded so its closures are
+    /// `@Sendable` (AuthEnvironment requires Sendable closure fields).
+    private final class Recorder: Sendable {
+        private let state = Mutex(Snapshot())
+        var events: [String] { state.withLock { $0.events } }
+        var saved: [(token: String, forge: ForgeID)] { state.withLock { $0.saved } }
+        var deleted: [ForgeID] { state.withLock { $0.deleted } }
+        var notified: [(token: String, forge: ForgeID)] { state.withLock { $0.notified } }
+        var checkedGitHub: [GitHubCredentials] { state.withLock { $0.checkedGitHub } }
+        var checkedGitea: [GiteaCredentials] { state.withLock { $0.checkedGitea } }
+
+        func append(_ keyPath: WritableKeyPath<Snapshot, [String]>, _ value: String) {
+            state.withLock { $0[keyPath: keyPath] = $0[keyPath: keyPath] + [value] }
+        }
+        func recordSave(_ token: String, _ forge: ForgeID) {
+            state.withLock {
+                $0.saved.append((token, forge)); $0.events.append("save:\(forge.rawValue)")
+            }
+        }
+        func recordDelete(_ forge: ForgeID) {
+            state.withLock {
+                $0.deleted.append(forge); $0.events.append("delete:\(forge.rawValue)")
+            }
+        }
+        func recordNotify(_ token: String, _ forge: ForgeID) {
+            state.withLock {
+                $0.notified.append((token, forge)); $0.events.append("notify:\(forge.rawValue)")
+            }
+        }
+        func recordCheck(_ forge: ForgeID, _ credentials: GitHubCredentials) {
+            state.withLock {
+                $0.checkedGitHub.append(credentials); $0.events.append("check:github")
+            }
+        }
+        func recordCheck(_ forge: ForgeID, _ credentials: GiteaCredentials) {
+            state.withLock {
+                $0.checkedGitea.append(credentials); $0.events.append("check:gitea")
+            }
+        }
+    }
+
     private func makeEnvironment(
         stored: [ForgeID: String] = [:],
         config: KinhinConfig,
-        readToken: (() -> String?)? = nil,
+        readToken: (@Sendable () -> String?)? = nil,
         checkError: Error? = nil,
         saveError: Error? = nil,
         _ recorder: Recorder
     ) -> AuthEnvironment {
-        AuthEnvironment(
+        let frozen = config
+        return AuthEnvironment(
             save: { token, forge in
                 if let saveError { throw saveError }
-                recorder.saved.append((token, forge))
-                recorder.events.append("save:\(forge.rawValue)")
+                recorder.recordSave(token, forge)
             },
             load: { stored[$0] },
             delete: { forge in
-                recorder.deleted.append(forge)
-                recorder.events.append("delete:\(forge.rawValue)")
+                recorder.recordDelete(forge)
             },
             readToken: readToken ?? { nil },
             checkGitHub: { credentials in
-                recorder.checkedGitHub.append(credentials)
-                recorder.events.append("check:github")
+                recorder.recordCheck(.github, credentials)
                 if let checkError { throw checkError }
             },
             checkGitea: { credentials in
-                recorder.checkedGitea.append(credentials)
-                recorder.events.append("check:gitea")
+                recorder.recordCheck(.gitea, credentials)
                 if let checkError { throw checkError }
             },
-            loadConfig: { config },
+            loadConfig: { frozen },
             notifyDaemon: { token, forge in
-                recorder.notified.append((token, forge))
-                recorder.events.append("notify:\(forge.rawValue)")
+                recorder.recordNotify(token, forge)
             },
             fail: { throw AuthFailure(message: $0) },
             exit: { throw AuthExit(code: $0) }

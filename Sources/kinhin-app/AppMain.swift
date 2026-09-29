@@ -14,7 +14,9 @@ import KinhinKit
 // async, so nothing parks the main task before app.run() takes the thread.
 
 /// Crash visibility: if the app dies from an uncaught exception, the user
-/// must see why — never a silent bounce-and-vanish.
+/// must see why — never a silent bounce-and-vanish. Runs on the main actor
+/// (AppKit UI); callers hop there explicitly.
+@MainActor
 func kinhinPresentCrashAlert(reason: String) {
     let alert = NSAlert()
     alert.alertStyle = .critical
@@ -29,7 +31,9 @@ func kinhinPresentCrashAlert(reason: String) {
 struct kinhinApp {
     static func main() {
         NSSetUncaughtExceptionHandler { exception in
-            kinhinPresentCrashAlert(reason: exception.reason ?? exception.name.rawValue)
+            MainActor.assumeIsolated {
+                kinhinPresentCrashAlert(reason: exception.reason ?? exception.name.rawValue)
+            }
         }
 
         MainActor.assumeIsolated {

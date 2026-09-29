@@ -7,11 +7,11 @@ import XCTest
 final class FleetIntentTests: XCTestCase {
     private let productionBridge: FleetIntentBridge = AppFleetIntentBridge()
 
-    override func tearDown() {
+    override func tearDown() async throws {
         // The bridge is a static: restoring the previous test's fake would
         // chain stale fakes across tests — always restore production.
         FleetIntentEnvironment.bridge = productionBridge
-        super.tearDown()
+        try await super.tearDown()
     }
 
     func testPauseIsIdempotent() async throws {

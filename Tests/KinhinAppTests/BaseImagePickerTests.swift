@@ -9,7 +9,8 @@ final class BaseImagePickerTests: XCTestCase {
     private var configURL: URL!
     private var alerts = 0
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
+        try await super.setUp()
         configURL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "kinhin-bip-\(UUID().uuidString).yaml")
         try """

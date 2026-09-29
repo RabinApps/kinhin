@@ -10,8 +10,8 @@ final class StatusRenderingTests: XCTestCase {
     private var menu: NSMenu!
     private var originalItems: [NSMenuItem] = []
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         delegate = AppDelegate()
         menu = delegate.buildMenu()
         delegate.menu = menu  // rebuildVMSection mutates the stored menu

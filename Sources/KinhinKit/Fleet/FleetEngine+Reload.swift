@@ -64,7 +64,7 @@ extension FleetEngine {
         let waiters = Mutex<[Task<Void, Never>]>([])
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             let pending = Mutex<CheckedContinuation<Void, Never>?>(continuation)
-            let resumeOnce = {
+            let resumeOnce: @Sendable () -> Void = {
                 pending.withLock { slot in
                     defer { slot = nil }; return slot
                 }?.resume()

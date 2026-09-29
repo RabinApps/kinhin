@@ -8,8 +8,8 @@ import XCTest
 final class RuntimesTabTests: XCTestCase {
     private var model: RuntimesModel!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         model = RuntimesModel()
     }
 

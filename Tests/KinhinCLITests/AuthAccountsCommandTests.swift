@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -9,13 +10,44 @@ final class AuthAccountsCommandTests: XCTestCase {
     private struct AuthFailure: Error { let message: String }
     private struct AuthExit: Error { let code: Int }
 
-    private final class Recorder {
+    private struct Snapshot: Sendable {
         var savedAccounts: [(token: String, forge: ForgeID, name: String)] = []
         var deletedAccounts: [(ForgeID, String)] = []
         var notified: [(account: String, token: String)] = []
         var checkedGitHub: [GitHubCredentials] = []
         var checkedGitea: [GiteaCredentials] = []
         var checkedGitLab: [GitLabCredentials] = []
+    }
+
+    /// Recording double; all state is Mutex-guarded so its closures are
+    /// `@Sendable` (AuthEnvironment requires Sendable closure fields).
+    private final class Recorder: Sendable {
+        private let state = Mutex(Snapshot())
+        var savedAccounts: [(token: String, forge: ForgeID, name: String)] { state.withLock { $0.savedAccounts } }
+        var deletedAccounts: [(ForgeID, String)] { state.withLock { $0.deletedAccounts } }
+        var notified: [(account: String, token: String)] { state.withLock { $0.notified } }
+        var checkedGitHub: [GitHubCredentials] { state.withLock { $0.checkedGitHub } }
+        var checkedGitea: [GiteaCredentials] { state.withLock { $0.checkedGitea } }
+        var checkedGitLab: [GitLabCredentials] { state.withLock { $0.checkedGitLab } }
+
+        func recordCheckGitHub(_ credentials: GitHubCredentials) {
+            state.withLock { $0.checkedGitHub.append(credentials) }
+        }
+        func recordCheckGitea(_ credentials: GiteaCredentials) {
+            state.withLock { $0.checkedGitea.append(credentials) }
+        }
+        func recordCheckGitLab(_ credentials: GitLabCredentials) {
+            state.withLock { $0.checkedGitLab.append(credentials) }
+        }
+        func recordSaveAccount(_ token: String, _ forge: ForgeID, _ name: String) {
+            state.withLock { $0.savedAccounts.append((token, forge, name)) }
+        }
+        func recordDeleteAccount(_ forge: ForgeID, _ name: String) {
+            state.withLock { $0.deletedAccounts.append((forge, name)) }
+        }
+        func recordNotify(_ account: String, _ token: String) {
+            state.withLock { $0.notified.append((account, token)) }
+        }
     }
 
     private var configURL: URL!
@@ -36,25 +68,27 @@ final class AuthAccountsCommandTests: XCTestCase {
         _ recorder: Recorder, stored: [String: String] = [:], readToken: String? = nil
     ) -> AuthEnvironment {
         let config = (try? ConfigLoader.load(from: configURL)) ?? KinhinConfig.default
+        let frozen = config
+        let capturedURL: URL = configURL
         var env = AuthEnvironment(
             save: { _, _ in XCTFail("legacy save must not be used for a named account") },
             load: { _ in nil },
             delete: { _ in XCTFail("legacy delete must not be used for a named account") },
             readToken: { readToken },
-            checkGitHub: { recorder.checkedGitHub.append($0) },
-            checkGitea: { recorder.checkedGitea.append($0) },
-            loadConfig: { config },
+            checkGitHub: { recorder.recordCheckGitHub($0) },
+            checkGitea: { recorder.recordCheckGitea($0) },
+            loadConfig: { frozen },
             notifyDaemon: { _, _ in XCTFail("legacy notify must not be used for a named account") },
             fail: { throw AuthFailure(message: $0) },
             exit: { throw AuthExit(code: $0) }
         )
-        env.checkGitLab = { recorder.checkedGitLab.append($0) }
-        env.saveAccount = { token, forge, name in recorder.savedAccounts.append((token, forge, name)) }
+        env.checkGitLab = { recorder.recordCheckGitLab($0) }
+        env.saveAccount = { token, forge, name in recorder.recordSaveAccount(token, forge, name) }
         env.loadAccount = { _, name in stored[name] }
-        env.deleteAccount = { recorder.deletedAccounts.append(($0, $1)) }
-        env.notifyDaemonAccount = { recorder.notified.append(($0, $1)) }
-        env.configURL = configURL
-        env.jsonConfig = .some(config)
+        env.deleteAccount = { recorder.recordDeleteAccount($0, $1) }
+        env.notifyDaemonAccount = { recorder.recordNotify($0, $1) }
+        env.configURL = capturedURL
+        env.jsonConfig = .some(frozen)
         return env
     }
 
