@@ -106,7 +106,7 @@ final class DockerSetupStatusTests: XCTestCase {
     // MARK: - Doctor section
 
     func testDoctorDockerSectionPresentWhenConfigured() async throws {
-        let report = try await DoctorReportBuilder(
+        let report = await DoctorReportBuilder(
             host: host(),
             clt: .ok(version: "27.0"),
             tartHealth: .healthy,
@@ -126,7 +126,7 @@ final class DockerSetupStatusTests: XCTestCase {
     }
 
     func testDoctorDockerSectionReadyWithMissingImageGetsPrepareCommand() async throws {
-        let report = try await DoctorReportBuilder(
+        let report = await DoctorReportBuilder(
             host: host(),
             clt: .ok(version: "27.0"),
             tartHealth: .healthy,
@@ -143,7 +143,7 @@ final class DockerSetupStatusTests: XCTestCase {
     }
 
     func testDoctorDockerSectionAbsentWithoutConfig() async throws {
-        let report = try await DoctorReportBuilder(
+        let report = await DoctorReportBuilder(
             host: host(),
             clt: .ok(version: "27.0"),
             tartHealth: .healthy,

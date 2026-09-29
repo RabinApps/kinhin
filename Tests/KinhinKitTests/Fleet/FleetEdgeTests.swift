@@ -38,7 +38,7 @@ final class FleetEdgeTests: XCTestCase {
         let status = await engine.status()
         XCTAssertEqual(status.desired, 2, "desired is computed from the queue")
         XCTAssertTrue(tart.cloneCalls.isEmpty, "no VM may spawn under disk pressure")
-        let lastError = await status.lastError ?? ""
+        let lastError = status.lastError ?? ""
         XCTAssertTrue(lastError.contains("disk pressure"), "\(lastError)")
 
         // Freeing disk lets the next pass spawn again (desired = 2 → both clone).
@@ -77,7 +77,7 @@ final class FleetEdgeTests: XCTestCase {
 
         await engine.setPaused(true)
         try await engine.reconcileOnce()
-        var status = await engine.status()
+        let status = await engine.status()
         XCTAssertTrue(status.paused)
         XCTAssertEqual(status.queueDepth, 0, "paused engine must not poll GitHub")
         XCTAssertEqual(status.desired, 0)

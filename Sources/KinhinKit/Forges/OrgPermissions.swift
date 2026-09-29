@@ -52,7 +52,7 @@ public enum OrgPermissionProbe {
                     message: "PAT lacks runner-management permission for '\(scope)'.\(remediation(for: scope))")
             case .unauthorized:
                 return Report(ok: false, message: "PAT was rejected (401) — expired or revoked. Fix: kinhin auth set")
-            case .notFound(let what):
+            case .notFound:
                 // Reached only when the registration-token mint itself 404s
                 // (queue-read 404s are handled above): the PAT can't manage
                 // runners for this scope, or can't reach it at all.

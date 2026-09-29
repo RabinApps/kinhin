@@ -182,7 +182,9 @@ final class UpdateCheckTests: XCTestCase {
         stubDownload(
             payload: payload,
             checksums: "\(sha256Hex(payload))  kinhin-0.2.0-arm64.dmg\n0000  install.sh\n")
-        var progressReports: [Double] = []
+        // The download closure runs off the main actor; the reports are a
+        // smoke check only (progress may not fire for tiny payloads).
+        nonisolated(unsafe) var progressReports: [Double] = []
         let url = try await makeChecker().downloadDMG(makeInfo()) { progressReports.append($0) }
         defer { try? FileManager.default.removeItem(at: url) }
 

@@ -41,7 +41,7 @@ public enum Daemon {
             Log.error("daemon", error.localizedDescription)
             throw error
         }
-        guard let pat = enginePAT else {
+        guard enginePAT != nil else {
             let message =
                 cfg.githubEnabled
                 ? "no GitHub token in Keychain — run `kinhin auth` first"
@@ -254,7 +254,7 @@ public enum Daemon {
                         )
                         return RPCResponse(id: request.id, ok: true)
                     }
-                    await engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
+                    engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
                     return RPCResponse(id: request.id, ok: true)
                 } catch {
                     return RPCResponse(id: request.id, ok: false, error: "reload failed: \(error.localizedDescription)")

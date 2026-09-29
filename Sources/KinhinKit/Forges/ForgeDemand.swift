@@ -20,7 +20,7 @@ enum ForgeDemand {
     {
         var merged: [String: Int] = [:]
         var any = false
-        for (forge, entry) in perForge where entry.attribution {
+        for (_, entry) in perForge where entry.attribution {
             any = true
             for job in entry.jobs {
                 if let repo = job.repository {

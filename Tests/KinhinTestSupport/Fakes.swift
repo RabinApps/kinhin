@@ -245,17 +245,14 @@ final class FakeSSH: SSHExecuting, @unchecked Sendable {
     var failOnCall: Int?
 
     func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
-        let (callIndex, failing) = state.withLock { state -> (Int, String?) in
+        let failing = state.withLock { state -> String? in
             let callIndex = state.scripts.count
             state.scripts.append(script)
             state.timeouts.append(timeout)
-            let failing: String?
             if let idx = failOnCall, idx == callIndex {
-                failing = failWith ?? "injected failure"
-            } else {
-                failing = failWith
+                return failWith ?? "injected failure"
             }
-            return (callIndex, failing)
+            return failWith
         }
         onExec?(vm)
         if let failing {

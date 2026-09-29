@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -5,45 +6,59 @@ import XCTest
 
 /// A tiny stateful Docker: enough to watch create/delete round-trip.
 private final class FakeDocker: ShellRunning, @unchecked Sendable {
-    private let lock = NSLock()
-    var containers: [(id: String, image: String, state: String)] = [
-        ("web", "nginx", "running"), ("kinhin-1", "runner", "exited"),
-    ]
-    var volumes = ["data"]
-    var calls: [[String]] = []
-    var failNext: String?
+    private struct State: Sendable {
+        var containers: [(id: String, image: String, state: String)] = [
+            ("web", "nginx", "running"), ("kinhin-1", "runner", "exited"),
+        ]
+        var volumes = ["data"]
+        var calls: [[String]] = []
+        var failNext: String?
+
+        mutating func handle(_ argv: [String]) -> ShellResult {
+            calls.append(argv)
+            let args = Array(argv.dropFirst())
+            if let failure = failNext, args.first != "ps", args.first != "volume" || args[1] != "ls" {
+                failNext = nil
+                return ShellResult(exitCode: 1, stdout: "", stderr: failure)
+            }
+            switch args {
+            case _ where args.first == "ps":
+                let rows = containers.map {
+                    "{\"ID\":\"\($0.id)\",\"Image\":\"\($0.image)\",\"Names\":\"\($0.id)\",\"State\":\"\($0.state)\",\"Status\":\"\($0.state)\"}"
+                }
+                return ShellResult(exitCode: 0, stdout: rows.joined(separator: "\n"), stderr: "")
+            case ["volume", "ls", "--format", "{{json .}}"]:
+                return ShellResult(
+                    exitCode: 0,
+                    stdout: volumes.map { "{\"Name\":\"\($0)\",\"Driver\":\"local\"}" }.joined(separator: "\n"),
+                    stderr: "")
+            case _ where args.first == "start":
+                if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "running" }
+            case _ where args.first == "stop":
+                if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "exited" }
+            case _ where args.first == "restart":
+                if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "running" }
+            case _ where args.first == "rm":
+                containers.removeAll { $0.id == args.last }
+            case _ where args.starts(with: ["volume", "rm"]):
+                volumes.removeAll { $0 == args[2] }
+            default: break
+            }
+            return ShellResult(exitCode: 0, stdout: "", stderr: "")
+        }
+    }
+
+    private let state = Mutex(State())
+
+    var calls: [[String]] { state.withLock { $0.calls } }
+
+    var failNext: String? {
+        get { state.withLock { $0.failNext } }
+        set { state.withLock { $0.failNext = newValue } }
+    }
 
     func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
-        lock.lock(); defer { lock.unlock() }
-        calls.append(argv)
-        let args = Array(argv.dropFirst())
-        if let failure = failNext, args.first != "ps", args.first != "volume" || args[1] != "ls" {
-            failNext = nil
-            return ShellResult(exitCode: 1, stdout: "", stderr: failure)
-        }
-        switch args {
-        case _ where args.first == "ps":
-            let rows = containers.map {
-                "{\"ID\":\"\($0.id)\",\"Image\":\"\($0.image)\",\"Names\":\"\($0.id)\",\"State\":\"\($0.state)\",\"Status\":\"\($0.state)\"}"
-            }
-            return ShellResult(exitCode: 0, stdout: rows.joined(separator: "\n"), stderr: "")
-        case ["volume", "ls", "--format", "{{json .}}"]:
-            return ShellResult(
-                exitCode: 0,
-                stdout: volumes.map { "{\"Name\":\"\($0)\",\"Driver\":\"local\"}" }.joined(separator: "\n"), stderr: "")
-        case _ where args.first == "start":
-            if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "running" }
-        case _ where args.first == "stop":
-            if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "exited" }
-        case _ where args.first == "restart":
-            if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "running" }
-        case _ where args.first == "rm":
-            containers.removeAll { $0.id == args.last }
-        case _ where args.starts(with: ["volume", "rm"]):
-            volumes.removeAll { $0 == args[2] }
-        default: break
-        }
-        return ShellResult(exitCode: 0, stdout: "", stderr: "")
+        state.withLock { $0.handle(argv) }
     }
 }
 

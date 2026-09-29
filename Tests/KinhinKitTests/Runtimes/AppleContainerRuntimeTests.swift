@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -353,39 +354,44 @@ final class AppleContainerRuntimeTests: XCTestCase {
 /// like the real CLI. Other argvs return success. Matches the binary on any
 /// install prefix so the test stays independent of the host PATH.
 final class ContainerFakingShell: ShellRunning, @unchecked Sendable {
-    private let lock = NSLock()
-    private(set) var argvs: [[String]] = []
-    private var containers: Set<String> = []
+    private struct State: Sendable {
+        var argvs: [[String]] = []
+        var containers: Set<String> = []
 
-    func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
-        lock.lock()
-        defer { lock.unlock() }
-        argvs.append(argv)
-        guard
-            argv.first == nil || argv.first == "/usr/local/bin/container" || argv.first?.hasSuffix("container") == true
-        else {
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
-        }
-        switch argv.dropFirst().first {
-        case "list":
-            return ShellResult(exitCode: 0, stdout: containers.joined(separator: "\n"), stderr: "")
-        case "run":
-            if let nameIdx = argv.firstIndex(of: "--name"), argv.count > nameIdx + 1 {
-                containers.insert(argv[nameIdx + 1])
+        mutating func handle(_ argv: [String]) -> ShellResult {
+            argvs.append(argv)
+            guard
+                argv.first == nil || argv.first == "/usr/local/bin/container"
+                    || argv.first?.hasSuffix("container") == true
+            else {
+                return ShellResult(exitCode: 0, stdout: "", stderr: "")
             }
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
-        case "start":
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
-        case "delete":
-            if let last = argv.last { containers.remove(last) }
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
-        default:
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            switch argv.dropFirst().first {
+            case "list":
+                return ShellResult(exitCode: 0, stdout: containers.joined(separator: "\n"), stderr: "")
+            case "run":
+                if let nameIdx = argv.firstIndex(of: "--name"), argv.count > nameIdx + 1 {
+                    containers.insert(argv[nameIdx + 1])
+                }
+                return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            case "start":
+                return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            case "delete":
+                if let last = argv.last { containers.remove(last) }
+                return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            default:
+                return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            }
         }
     }
 
+    private let state = Mutex(State())
+
+    func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+        state.withLock { $0.handle(argv) }
+    }
+
     func argvSnapshot() -> [[String]] {
-        lock.lock(); defer { lock.unlock() }
-        return argvs
+        state.withLock { $0.argvs }
     }
 }

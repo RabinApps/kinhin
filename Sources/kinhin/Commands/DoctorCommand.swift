@@ -90,8 +90,6 @@ enum DoctorCommand {
                 print("  container:  NOT FOUND ✗ — install with: brew install container && container system start")
             case .broken(let why):
                 print("  container:  \(why)")
-            default:
-                break
             }
         }
         // Host runtime — shown only when a route targets `host`.

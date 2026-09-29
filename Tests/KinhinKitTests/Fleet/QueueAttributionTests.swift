@@ -231,7 +231,7 @@ final class QueueAttributionTests: XCTestCase {
 
     func testMultiRunnerVMDerivesVMIDFromIndexedRunnerName() async throws {
         let github = FakeGitHub()
-        let engine = makeEngine(scope: "acme", github: github)
+        _ = makeEngine(scope: "acme", github: github)
         var cfg = makeTestConfig(repo: "acme")
         cfg.runnersPerVM = 3
         let denseEngine = FleetEngine(

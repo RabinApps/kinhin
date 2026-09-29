@@ -399,7 +399,7 @@ final class BlockingTart: TartControlling, @unchecked Sendable {
     func stop(name: String) async throws {}
 
     func delete(name: String) async throws {
-        state.withLock { $0.vms.removeValue(forKey: name) }
+        _ = state.withLock { $0.vms.removeValue(forKey: name) }
     }
 
     func pull(image: String) async throws {}

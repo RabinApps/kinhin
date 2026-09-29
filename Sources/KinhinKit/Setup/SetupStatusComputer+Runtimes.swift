@@ -43,8 +43,6 @@ extension SetupStatusComputer {
                     detail: why,
                     action: "start_container_system"
                 ))
-        default:
-            break
         }
 
         // Only surfaced when missing: the container system can be running

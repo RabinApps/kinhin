@@ -135,7 +135,7 @@ final class RuntimesRouteCommandTests: XCTestCase {
         } catch is RuntimesCommand.RouteError {}
 
         XCTAssertEqual(try onDiskText(), original)
-        try XCTAssertNil(try routedSection())
+        XCTAssertNil(try routedSection())
     }
 
     func testAddDockerRouteRequiresDockerConfig() async throws {

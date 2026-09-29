@@ -99,9 +99,9 @@ public enum GeneralConfigEditor {
         case .repo(let s): return quoted(s)
         case .labels(let list):
             return "[" + list.map { quoted($0.trimmingCharacters(in: .whitespaces)) }.joined(separator: ", ") + "]"
-        case .minRunners(let v), .maxRunners(let v), .runnersPerVM(let v),
-            .pollInterval(let v), .vmCPU(let v), .vmMemoryGB(let v),
-            .reserveCPU(let v), .reserveMemoryGB(let v):
+        case .minRunners, .maxRunners, .runnersPerVM,
+            .pollInterval, .vmCPU, .vmMemoryGB,
+            .reserveCPU, .reserveMemoryGB:
             if case .minRunners(let n) = field { return intText(n) }
             if case .maxRunners(let n) = field { return intText(n) }
             if case .runnersPerVM(let n) = field { return intText(n) }
@@ -161,7 +161,7 @@ public enum GeneralConfigEditor {
         let baseIndent = path.section != nil ? 2 : 0
         let keyPrefix = String(repeating: " ", count: baseIndent) + "\(path.key):"
 
-        var searchStart = sectionIdx.map { $0 + 1 } ?? 0
+        let searchStart = sectionIdx.map { $0 + 1 } ?? 0
         var keyIdx: Int? = nil
         for index in searchStart..<lines.count {
             let line = lines[index]

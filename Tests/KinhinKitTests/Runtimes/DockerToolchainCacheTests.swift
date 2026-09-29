@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -164,38 +165,42 @@ final class DockerToolchainCacheTests: XCTestCase {
 /// names — so provision/awaitReady/recovery behave like the real CLI. Other
 /// argvs return success.
 final class DockerFakingShell: ShellRunning, @unchecked Sendable {
-    private let lock = NSLock()
-    private(set) var argvs: [[String]] = []
-    private var containers: Set<String> = []
+    private struct State: Sendable {
+        var argvs: [[String]] = []
+        var containers: Set<String> = []
 
-    func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
-        lock.lock()
-        defer { lock.unlock() }
-        argvs.append(argv)
-        guard argv.first?.hasSuffix("/docker") == true || argv.first == "docker" else {
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
-        }
-        switch argv.dropFirst().first {
-        case "ps":
-            return ShellResult(exitCode: 0, stdout: containers.sorted().joined(separator: "\n"), stderr: "")
-        case "run":
-            if let nameIndex = argv.firstIndex(of: "--name"), argv.indices.contains(nameIndex + 1) {
-                containers.insert(argv[nameIndex + 1])
+        mutating func handle(_ argv: [String]) -> ShellResult {
+            argvs.append(argv)
+            guard argv.first?.hasSuffix("/docker") == true || argv.first == "docker" else {
+                return ShellResult(exitCode: 0, stdout: "", stderr: "")
             }
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
-        case "start":
-            if let name = argv.last { containers.insert(name) }
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
-        case "rm":
-            if let name = argv.last { containers.remove(name) }
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
-        default:
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            switch argv.dropFirst().first {
+            case "ps":
+                return ShellResult(exitCode: 0, stdout: containers.sorted().joined(separator: "\n"), stderr: "")
+            case "run":
+                if let nameIndex = argv.firstIndex(of: "--name"), argv.indices.contains(nameIndex + 1) {
+                    containers.insert(argv[nameIndex + 1])
+                }
+                return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            case "start":
+                if let name = argv.last { containers.insert(name) }
+                return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            case "rm":
+                if let name = argv.last { containers.remove(name) }
+                return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            default:
+                return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            }
         }
     }
 
+    private let state = Mutex(State())
+
+    func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+        state.withLock { $0.handle(argv) }
+    }
+
     func argvSnapshot() -> [[String]] {
-        lock.lock(); defer { lock.unlock() }
-        return argvs
+        state.withLock { $0.argvs }
     }
 }

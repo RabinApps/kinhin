@@ -277,7 +277,10 @@ final class SetupFormsTests: XCTestCase {
     // MARK: Install flow
 
     private func installModel(
-        shell: FakeShell, brew: String? = "/opt/homebrew/bin/brew", host: HostFacts = supportedHost
+        shell: FakeShell, brew: String? = "/opt/homebrew/bin/brew",
+        host: HostFacts = HostFacts(
+            arm64: true, memoryGB: 16,
+            osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
     ) -> MacToolsModel {
         let model = MacToolsModel()
         model.configURL = configURL
@@ -288,10 +291,6 @@ final class SetupFormsTests: XCTestCase {
         model.reload()
         return model
     }
-
-    private static let supportedHost = HostFacts(
-        arm64: true, memoryGB: 16, osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)
-    )
 
     func testCancellingTheInstallConfirmationRunsNothing() {
         let shell = FakeShell()

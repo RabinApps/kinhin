@@ -127,7 +127,7 @@ final class ConnectModel {
                 return
             }
             selected.insert(forge)
-            makeCard(forge)
+            _ = makeCard(forge)
         } else {
             selected.remove(forge)
             if let card = cards[forge], card.hasCommittedState {
@@ -233,7 +233,7 @@ final class ConnectModel {
             if let card = cards[forge] {
                 card.reload()
             } else {
-                makeCard(forge)
+                _ = makeCard(forge)
             }
         }
     }
