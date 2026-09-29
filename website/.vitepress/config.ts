@@ -13,7 +13,6 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/quick-start' },
       { text: 'CLI', link: '/cli/commands' },
-      { text: 'Migrating', link: '/guide/migrating' },
     ],
     sidebar: [
       {
@@ -24,7 +23,6 @@ export default defineConfig({
           { text: 'Toolchains & shared cache', link: '/guide/toolchains' },
           { text: 'Runtimes & routing', link: '/guide/runtimes' },
           { text: 'Forge support', link: '/guide/forges' },
-          { text: 'Migrating from Orchard', link: '/guide/migrating' },
           { text: 'Troubleshooting', link: '/guide/troubleshooting' },
         ],
       },

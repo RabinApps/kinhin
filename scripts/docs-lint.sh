@@ -26,12 +26,16 @@ patterns=(
     "Runtimes pane|the routing UI is the Advanced → Routing tab, not a \"Runtimes pane\""
     "KinhinKit/Forge\.swift|the forge contract moved to Sources/KinhinKit/Forges/Forge.swift"
     "orchard-container|the Linux-pool opt-in marker is "kinhin-container" (RuntimeRouting.swift)"
+    "guide/migrating|the migrating-from-Orchard page was removed — upgrading is automatic, so the site has no migration guide"
+    "Migrating from Orchard|the migrating-from-Orchard page was removed — upgrading is automatic, so the site has no migration guide"
 )
 
 # macOS ships bash 3.2: no mapfile. A plain loop also survives spaces
 # in filenames, unlike word-splitting.
 files=()
 while IFS= read -r file; do
+    # Skip paths deleted in the worktree (git still tracks them).
+    [[ -f $file ]] || continue
     files+=("$file")
 done < <(git ls-files '*.md')
 if [[ ${#files[@]} -eq 0 ]]; then

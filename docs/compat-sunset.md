@@ -16,14 +16,13 @@ reintroduction. This document is itself allowlisted: it must be able to name the
 - **Warn before removing.** Every surface gains a `Log.warn` (or `Log.info`, where the message
   reports an action succeeding) that names the release which will drop it. The phrase is stable
   and pinned by a test, so a release grep can audit it.
-- **One removal, one commit.** Each removal deletes the code path, its tests, the matching
-  bullet in [the migrating guide](../website/guide/migrating.md), and the allowlist entry —
-  together, with `swift test` and `bash scripts/docs-lint.sh` green.
+- **One removal, one commit.** Each removal deletes the code path, its tests, and the
+  allowlist entry — together, with `swift test` and `bash scripts/docs-lint.sh` green.
 - **Release-count gates, not dates.** A surface is removed only after its warning has shipped
   in one full release. The versions below are proposals to shift with the actual cadence
   (current: 0.1.0).
 - **Forward-only.** Nothing is re-added. A user who arrives after removal follows the manual
-  steps that remain in the migrating guide.
+  steps documented in the release notes for the removal that affected them.
 
 ## Schedule
 
@@ -36,7 +35,9 @@ reintroduction. This document is itself allowlisted: it must be able to name the
 | `TokenStore.swift`                     | `com.orchard.runner` item | 0.2.0 | 0.4.0   | Re-creatable with one `kinhin auth set`; the legacy item is left in place, so removal is annoyance, not loss |
 | `ConfigTemplate.swift`                 | upgrader greeting comment | 0.2.0 | 0.5.0   | Targets the same audience as the directory move              |
 | `Paths.swift`                          | `Application Support/Orchard/` move | 0.2.0 | 0.5.0 | The only surface whose removal can orphan hand-edited config; goes last |
-| `website/guide/migrating.md`           | the guide itself          | —     | 0.5.0   | Shrinks to a changelog note once every mechanism above is gone |
+
+The public Orchard-migration guide was retired early: upgrading is automatic and needs no
+instructions page. The code mechanisms above still sunset on this schedule.
 
 ## Deprecation log lines
 
@@ -64,10 +65,10 @@ For each wave (0.3.0, 0.4.0, 0.5.0), the commit that removes a surface:
 1. Deletes the code path and its tests (`StoreAndLogTests`, `UpdateMenuTests`,
    `ErrorHandlingTests`, `HostRuntimeTests`' legacy fixtures — whichever apply).
 2. Deletes the deprecation log line and its pin.
-3. Updates `website/guide/migrating.md` (and the CLI help text if it mentions the surface).
+3. Updates the release notes if the surface was user-visible in docs (and the CLI help text if
+   it mentions the surface).
 4. Removes the file from `orchardAllowlist` in `scripts/docs-lint.sh` — the lint then fails on
    any future reintroduction.
 5. Appends a line to the release notes: "Orchard compat: <surface> removed as warned in 0.2.0."
 
-After the 0.5.0 wave the allowlist holds only this document, and the migrating guide is a
-changelog note.
+After the 0.5.0 wave the allowlist holds only this document.

@@ -12,9 +12,6 @@ hero:
     - theme: alt
       text: CLI reference
       link: /cli/commands
-    - theme: alt
-      text: Migrating from Orchard
-      link: /guide/migrating
 
 features:
   - title: Ephemeral by default

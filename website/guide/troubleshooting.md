@@ -21,5 +21,3 @@
   repo.
 - **First launch blocked** — only applies to old releases or locally built copies (official
   releases are signed and notarized). Right-click → Open, or `xattr -cr /Applications/kinhin.app`.
-- **Upgrading from the old name** — see [Migrating from Orchard](/guide/migrating); the
-  migration runs automatically on first launch.
