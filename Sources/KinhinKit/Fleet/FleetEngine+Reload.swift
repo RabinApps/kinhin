@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 // FleetEngine — live config reload: what a running engine can adopt in
 // place (routing, caps, labels) and the hand-off when it must be rebuilt.

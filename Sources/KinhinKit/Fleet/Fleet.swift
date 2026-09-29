@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Lifecycle phases of a single runner VM.
 public enum VMPhase: String, Codable, Sendable, CaseIterable {

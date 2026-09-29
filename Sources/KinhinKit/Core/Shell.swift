@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// A completed subprocess run.
 public struct ShellResult: Sendable {

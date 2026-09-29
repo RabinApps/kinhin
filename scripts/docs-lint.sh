@@ -89,6 +89,8 @@ if [[ ${#orchardFiles[@]} -eq 0 ]]; then
 fi
 
 for f in "${orchardFiles[@]}"; do
+    # Skip paths deleted in the worktree (git still tracks them).
+    [[ -f $f ]] || continue
     allowed=false
     for exempt in "${orchardAllowlist[@]}"; do
         if [[ $f == "$exempt" ]]; then allowed=true; break; fi

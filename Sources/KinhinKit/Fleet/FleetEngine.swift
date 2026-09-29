@@ -1,23 +1,24 @@
 import Foundation
+import Synchronization
 import Yams
 
 // MARK: - Routing state
 
 /// The live routing model and its per-runtime caps, swapped together on reload.
-struct RoutingState {
+struct RoutingState: Sendable {
     var model: RuntimeConfigModel
     var caps: [RuntimeID: Int]
 }
 
 /// The legacy GitHub account's credentials and the client built from them.
-struct GitHubAuth {
+struct GitHubAuth: Sendable {
     var credentials: GitHubCredentials
     var client: GitHubServing
 }
 
 /// Attached forges by platform or account name ("github", "gitea", an
 /// `accounts:` name), plus the bookkeeping that changes with them.
-struct ForgeState {
+struct ForgeState: Sendable {
     var byPlatform: [String: Forge] = [:]
     /// Registration-token caches for explicit accounts; the legacy GitHub
     /// account uses the engine's `registrationTokens`.
@@ -27,7 +28,7 @@ struct ForgeState {
 }
 
 /// The engine's serving flags, read by the reconcile loop and forge retry.
-struct RunState {
+struct RunState: Sendable {
     var running = false
     var paused = false
 }

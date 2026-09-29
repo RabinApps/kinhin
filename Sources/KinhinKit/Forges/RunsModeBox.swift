@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Reference box for `GitHubClient`'s sticky runs-read mode. GitHub grants
 /// fine-grained tokens runs access only through the repository Actions

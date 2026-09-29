@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Runs the fleet engine headless behind the unix-socket RPC server.
 public enum Daemon {
@@ -103,18 +104,23 @@ public enum Daemon {
     /// a rebuild — the server's handler keeps answering through this box
     /// while the swap happens.
     final class EngineRef: @unchecked Sendable {
-        private let wrapped: Mutex<FleetEngine?>
+        /// FleetEngine is a mutable class guarded by raw `Task` state (not
+        /// `Sendable`), so it cannot live in a stdlib `Mutex` (whose payload
+        /// must be `Sendable`); a plain NSLock keeps the swap atomic without
+        /// pretending the engine is value-like.
+        private let lock = NSLock()
+        private var wrapped: FleetEngine?
 
         public init(_ initial: FleetEngine? = nil) {
-            wrapped = Mutex(initial)
+            wrapped = initial
         }
 
         public var engine: FleetEngine? {
-            wrapped.withLock { $0 }
+            lock.withLock { wrapped }
         }
 
         func set(_ engine: FleetEngine?) {
-            wrapped.withLock { $0 = engine }
+            lock.withLock { wrapped = engine }
         }
     }
 

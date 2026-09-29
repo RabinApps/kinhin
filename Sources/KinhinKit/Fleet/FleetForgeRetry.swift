@@ -2,7 +2,7 @@ import Foundation
 
 /// Backoff bookkeeping for forges that were detached at startup (a bad
 /// token, a transient network error, an unreachable Gitea server).
-struct ForgeRetryState {
+struct ForgeRetryState: Sendable {
     static let initialDelay: TimeInterval = 30
     static let maxDelay: TimeInterval = 300
 

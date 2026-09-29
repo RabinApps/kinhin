@@ -65,5 +65,5 @@ Design documents live alongside this file, e.g. [runtime-abstraction-design.md](
 
 ## CI
 
-`.github/workflows/ci.yml` lints, builds, and tests on `macos-14`; `release.yml` publishes the DMG,
+`.github/workflows/ci.yml` lints, builds, and tests on a self-hosted macOS runner; `release.yml` publishes the DMG,
 CLI zip, installer, and checksums to GitHub Releases on `v*` tags.

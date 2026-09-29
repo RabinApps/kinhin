@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import Synchronization
 
 /// Stores forge tokens (GitHub PAT, Gitea access token) in the login Keychain
 /// so neither the config file nor logs ever contain the secret.

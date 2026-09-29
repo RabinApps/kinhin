@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import os
 
 /// Central logging for kinhin. Writes structured lines to stderr and to a
@@ -129,8 +130,8 @@ public enum Log {
 }
 
 /// A tiny thread-safe ring buffer.
-final class Runaround<T> {
-    private struct State {
+final class Runaround<T: Sendable> {
+    private struct State: Sendable {
         var items: [T] = []
         let capacity: Int
     }

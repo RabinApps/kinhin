@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -22,7 +23,14 @@ public struct GitLabClient: Sendable {
     let projectListTTL: TimeInterval = 300
     /// Projects without activity for this long are not polled for jobs.
     let activityWindow: TimeInterval = 24 * 3600
-    private let projectCache = Mutex<(fetched: Date, projects: [GitLabProjectRef])?>(nil)
+    /// stdlib `Mutex` is non-Copyable, so a struct cannot store one directly;
+    /// the cache lives in a shared class box instead.
+    private let projectCache = ProjectListCache()
+
+    /// Reference cell for the group project list plus its fetch time.
+    private final class ProjectListCache: Sendable {
+        let mutex = Mutex<(fetched: Date, projects: [GitLabProjectRef])?>(nil)
+    }
 
     public init(credentials: GitLabCredentials, session: URLSession? = nil) {
         self.credentials = credentials
@@ -176,7 +184,8 @@ public struct GitLabClient: Sendable {
         case .project(let id, let path):
             return [GitLabProjectRef(id: id, path: path)]
         case .group(let id, _):
-            if let cached = projectCache.withLock({ $0 }), Date().timeIntervalSince(cached.fetched) < projectListTTL {
+            let cached = projectCache.mutex.withLock { $0 }
+            if let cached, Date().timeIntervalSince(cached.fetched) < projectListTTL {
                 return cached.projects
             }
             let since = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-activityWindow))
@@ -189,7 +198,7 @@ public struct GitLabClient: Sendable {
                     URLQueryItem(name: "order_by", value: "last_activity_at"),
                     URLQueryItem(name: "last_activity_after", value: since),
                 ], what: "group projects")
-            projectCache.withLock { $0 = (Date(), projects) }
+            projectCache.mutex.withLock { $0 = (Date(), projects) }
             return projects
         }
     }

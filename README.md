@@ -46,7 +46,7 @@ Your Mac stays usable: host CPU, memory, and disk headroom are always reserved.
 
 ## Requirements
 
-- Apple Silicon Mac (arm64), macOS 14+
+- Apple Silicon Mac (arm64), macOS 15+
 - [Tart](https://tart.run):
   ```bash
   brew tap openai/tools

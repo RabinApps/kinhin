@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 // MARK: - GitLab adapter
 
@@ -120,7 +121,7 @@ struct GitLabForge: Forge {
 /// Short-lived shared runner list plus the last known busy set, so per-VM
 /// watches polling every second cost one API call per few seconds.
 final class GitLabRunnerSnapshot: Sendable {
-    private struct State {
+    private struct State: Sendable {
         var fetched: Date?
         var runners: [GitLabRunner] = []
         var busy: Set<String> = []
