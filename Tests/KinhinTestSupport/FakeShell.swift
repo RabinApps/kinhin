@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 @testable import KinhinKit
 
@@ -6,11 +7,19 @@ import Foundation
 /// argv, then answers from (in priority order): `throwOnRun`, `failAll`,
 /// `failOn`, the next queued `responses` entry, `defaultResult`.
 final class FakeShell: ShellRunning, @unchecked Sendable {
-    private let lock = NSLock()
-    private var recorded: [[String]] = []
+    private struct State: Sendable {
+        var recorded: [[String]] = []
+        var responses: [ShellResult] = []
+    }
+
+    private let state = Mutex(State())
 
     /// Queued results, consumed one per call before falling back to `defaultResult`.
-    var responses: [ShellResult] = []
+    var responses: [ShellResult] {
+        get { state.withLock { $0.responses } }
+        set { state.withLock { $0.responses = newValue } }
+    }
+
     var defaultResult = ShellResult(exitCode: 0, stdout: "", stderr: "")
     /// Every call fails (exit 1) with this stderr.
     var failAll: String?
@@ -21,16 +30,14 @@ final class FakeShell: ShellRunning, @unchecked Sendable {
 
     /// Every argv passed to `run`, in order.
     var calls: [[String]] {
-        lock.lock()
-        defer { lock.unlock() }
-        return recorded
+        state.withLock { $0.recorded }
     }
 
     func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
-        lock.lock()
-        recorded.append(argv)
-        let queued = responses.isEmpty ? nil : responses.removeFirst()
-        lock.unlock()
+        let queued = state.withLock { state -> ShellResult? in
+            state.recorded.append(argv)
+            return state.responses.isEmpty ? nil : state.responses.removeFirst()
+        }
         if throwOnRun { throw ShellError.launchFailed("injected") }
         if let failAll { return ShellResult(exitCode: 1, stdout: "", stderr: failAll) }
         if let failOn, argv.contains(failOn) { return ShellResult(exitCode: 1, stdout: "", stderr: "boom") }

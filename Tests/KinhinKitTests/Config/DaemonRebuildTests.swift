@@ -341,47 +341,52 @@ final class DaemonRebuildTests: XCTestCase {
 /// shell command that ignores cancellation and ends only on its own
 /// timeout. Everything else mirrors `FakeTart` semantics.
 final class BlockingTart: TartControlling, @unchecked Sendable {
-    private let lock = NSLock()
-    private var parkedContinuations: [CheckedContinuation<String, Error>] = []
-    var vms: [String: TartVM] = [:]
+    private struct State: Sendable {
+        var parkedContinuations: [CheckedContinuation<String, Error>] = []
+        var vms: [String: TartVM] = [:]
+    }
+
+    private let state = Mutex(State())
 
     var isBlockedInIP: Bool {
-        lock.lock(); defer { lock.unlock() }
-        return !parkedContinuations.isEmpty
+        !state.withLock { $0.parkedContinuations.isEmpty }
+    }
+
+    var vms: [String: TartVM] {
+        get { state.withLock { $0.vms } }
+        set { state.withLock { $0.vms = newValue } }
     }
 
     func releaseIP(_ ip: String) {
-        lock.lock()
-        let parked = parkedContinuations
-        parkedContinuations.removeAll()
-        lock.unlock()
+        let parked = state.withLock { state -> [CheckedContinuation<String, Error>] in
+            let parked = state.parkedContinuations
+            state.parkedContinuations.removeAll()
+            return parked
+        }
         for continuation in parked { continuation.resume(returning: ip) }
     }
 
     func list() async throws -> [TartVM] {
-        lock.lock(); defer { lock.unlock() }
-        return Array(vms.values)
+        Array(state.withLock { $0.vms.values })
     }
 
     func clone(source: String, to name: String) async throws {
-        lock.lock(); defer { lock.unlock() }
-        vms[name] = TartVM(name: name, source: source, status: "running")
+        state.withLock { $0.vms[name] = TartVM(name: name, source: source, status: "running") }
     }
 
     func run(name: String, mounts: [String]) async throws {
-        lock.lock(); defer { lock.unlock() }
-        if let vm = vms[name] {
-            vms[name] = TartVM(
-                name: vm.name, source: vm.source, status: "running", cpu: vm.cpu, memoryMB: vm.memoryMB,
-                diskGB: vm.diskGB)
+        state.withLock { state in
+            if let vm = state.vms[name] {
+                state.vms[name] = TartVM(
+                    name: vm.name, source: vm.source, status: "running", cpu: vm.cpu, memoryMB: vm.memoryMB,
+                    diskGB: vm.diskGB)
+            }
         }
     }
 
     func ip(of name: String, timeout: TimeInterval) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
-            lock.lock()
-            parkedContinuations.append(continuation)
-            lock.unlock()
+            state.withLock { $0.parkedContinuations.append(continuation) }
         }
     }
 
@@ -394,8 +399,7 @@ final class BlockingTart: TartControlling, @unchecked Sendable {
     func stop(name: String) async throws {}
 
     func delete(name: String) async throws {
-        lock.lock(); defer { lock.unlock() }
-        vms.removeValue(forKey: name)
+        state.withLock { $0.vms.removeValue(forKey: name) }
     }
 
     func pull(image: String) async throws {}
