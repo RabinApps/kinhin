@@ -69,6 +69,7 @@ orchardAllowlist=(
     "Sources/KinhinKit/Fleet/Daemon.swift"
     "Sources/KinhinKit/Fleet/FleetReconcile.swift"
     "Sources/kinhin-app/UpdatePreferences.swift"
+    "docs/compat-sunset.md"
 )
 
 orchardFiles=()

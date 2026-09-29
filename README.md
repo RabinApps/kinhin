@@ -204,6 +204,7 @@ kinhin logs [-n N]          Recent log lines
 | [Runtimes & routing](docs/runtimes.md)                           | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing   |
 | [Architecture](docs/architecture.md)                             | Package targets, source layout, tests, CI                                   |
 | [Runtime abstraction design](docs/runtime-abstraction-design.md) | Design document for the Runtime layer                                       |
+| [Orchard compat sunset](docs/compat-sunset.md)                   | Retirement plan for the pre-rename compat layer                             |
 
 ## Troubleshooting
 
