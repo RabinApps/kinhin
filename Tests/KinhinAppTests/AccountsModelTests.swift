@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -10,12 +11,11 @@ import XCTest
 final class AccountsModelTests: XCTestCase {
     private var url: URL!
     /// Read from the model's detached Keychain probe, so it is lock-guarded.
-    private final class StoredNames: @unchecked Sendable {
-        private let lock = NSLock()
-        private var names: Set<String> = []
-        func contains(_ name: String) -> Bool { lock.withLock { names.contains(name) } }
-        func insert(_ name: String) { lock.withLock { _ = names.insert(name) } }
-        func set(_ new: Set<String>) { lock.withLock { names = new } }
+    private final class StoredNames: Sendable {
+        private let names = Mutex<Set<String>>([])
+        func contains(_ name: String) -> Bool { names.withLock { $0.contains(name) } }
+        func insert(_ name: String) { _ = names.withLock { $0.insert(name) } }
+        func set(_ new: Set<String>) { names.withLock { $0 = new } }
     }
 
     private let stored = StoredNames()

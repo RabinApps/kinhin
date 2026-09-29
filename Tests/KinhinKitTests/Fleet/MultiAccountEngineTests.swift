@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -20,14 +21,13 @@ final class MultiAccountEngineTests: XCTestCase {
     }
 
     /// One `FakeGitHub` per token, so each account's traffic is observable.
-    private final class Clients: @unchecked Sendable {
-        private let lock = NSLock()
-        private var byToken: [String: FakeGitHub] = [:]
+    private final class Clients: Sendable {
+        private let byToken = Mutex<[String: FakeGitHub]>([:])
         func client(for token: String) -> FakeGitHub {
-            lock.withLock {
-                if let existing = byToken[token] { return existing }
+            byToken.withLock { map in
+                if let existing = map[token] { return existing }
                 let fresh = FakeGitHub()
-                byToken[token] = fresh
+                map[token] = fresh
                 return fresh
             }
         }

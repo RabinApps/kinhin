@@ -253,7 +253,7 @@ public struct UpdateChecker: Sendable {
 }
 
 /// Bridges URLSession download progress to a closure.
-final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate, Sendable {
     let progress: (@Sendable (Double) -> Void)?
 
     init(progress: (@Sendable (Double) -> Void)?) {

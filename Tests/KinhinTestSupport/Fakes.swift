@@ -4,7 +4,7 @@ import Synchronization
 @testable import KinhinKit
 
 /// Scriptable fake for the tart binary.
-final class FakeTart: TartControlling, @unchecked Sendable {
+final class FakeTart: TartControlling, Sendable {
     private struct State: Sendable {
         var vms: [String: TartVM] = [:]
         var cloneCalls: [(source: String, name: String)] = []

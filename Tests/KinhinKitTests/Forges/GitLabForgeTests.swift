@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -140,39 +141,42 @@ final class GitLabForgeTests: XCTestCase {
 
 /// A minimal GitLab: runners created through `POST /user/runners`, listed
 /// and deleted, plus scripted pending and running jobs for one project.
-final class FakeGitLabServer: @unchecked Sendable {
-    private struct Runner {
+final class FakeGitLabServer: Sendable {
+    private struct Runner: Sendable {
         let id: Int
         let name: String
         var status: String
     }
 
-    private let lock = NSLock()
-    private var runners: [Runner] = []
-    private var nextID = 1
-    private var _createdTags: [[String]] = []
-    private var _pending: [(Int, String, [String])] = []
-    private var _running: [(Int, String, [String], String)] = []
+    private struct State: Sendable {
+        var runners: [Runner] = []
+        var nextID = 1
+        var createdTags: [[String]] = []
+        var pending: [(Int, String, [String])] = []
+        var running: [(Int, String, [String], String)] = []
+    }
 
-    var createdTags: [[String]] { locked { _createdTags } }
-    var runnerNames: [String] { locked { runners.map(\.name) } }
+    private let state = Mutex(State())
+
+    var createdTags: [[String]] { state.withLock { $0.createdTags } }
+    var runnerNames: [String] { state.withLock { $0.runners.map(\.name) } }
     var pending: [(Int, String, [String])] {
-        get { locked { _pending } }
-        set { locked { _pending = newValue } }
+        get { state.withLock { $0.pending } }
+        set { state.withLock { $0.pending = newValue } }
     }
     var running: [(Int, String, [String], String)] {
-        get { locked { _running } }
-        set { locked { _running = newValue } }
+        get { state.withLock { $0.running } }
+        set { state.withLock { $0.running = newValue } }
     }
 
     func setStatus(_ name: String, _ status: String) {
-        locked {
-            if let index = runners.firstIndex(where: { $0.name == name }) { runners[index].status = status }
+        state.withLock { state in
+            if let index = state.runners.firstIndex(where: { $0.name == name }) { state.runners[index].status = status }
         }
     }
 
     func deleteRunner(named name: String) {
-        locked { runners.removeAll { $0.name == name } }
+        state.withLock { $0.runners.removeAll { $0.name == name } }
     }
 
     func handle(_ request: URLRequest) -> (Int, Data, [String: String]) {
@@ -182,17 +186,17 @@ final class FakeGitLabServer: @unchecked Sendable {
         case ("POST", "/api/v4/user/runners"):
             let json = (try? JSONSerialization.jsonObject(with: bodyData(request))) as? [String: Any] ?? [:]
             let name = json["description"] as? String ?? ""
-            let id: Int = locked {
-                let id = nextID
-                nextID += 1
-                runners.append(Runner(id: id, name: name, status: "never_contacted"))
-                _createdTags.append(json["tag_list"] as? [String] ?? [])
+            let id: Int = state.withLock { state in
+                let id = state.nextID
+                state.nextID += 1
+                state.runners.append(Runner(id: id, name: name, status: "never_contacted"))
+                state.createdTags.append(json["tag_list"] as? [String] ?? [])
                 return id
             }
             return json201(#"{"id":\#(id),"token":"glrt-\#(name)"}"#)
         case ("GET", "/api/v4/projects/7/runners"):
-            let body = locked {
-                runners.map { #"{"id":\#($0.id),"description":"\#($0.name)","status":"\#($0.status)"}"# }
+            let body = state.withLock {
+                $0.runners.map { #"{"id":\#($0.id),"description":"\#($0.name)","status":"\#($0.status)"}"# }
             }
             return (200, Data("[\(body.joined(separator: ","))]".utf8), [:])
         case ("GET", "/api/v4/projects/7/jobs"):
@@ -207,7 +211,7 @@ final class FakeGitLabServer: @unchecked Sendable {
             return (200, Data("[\(rows.joined(separator: ","))]".utf8), [:])
         case ("DELETE", _) where path.hasPrefix("/api/v4/runners/"):
             let id = Int(path.split(separator: "/").last ?? "") ?? -1
-            locked { runners.removeAll { $0.id == id } }
+            state.withLock { $0.runners.removeAll { $0.id == id } }
             return (204, Data(), [:])
         default:
             return (404, Data(), [:])
@@ -235,9 +239,4 @@ final class FakeGitLabServer: @unchecked Sendable {
         return data
     }
 
-    private func locked<T>(_ body: () -> T) -> T {
-        lock.lock()
-        defer { lock.unlock() }
-        return body()
-    }
 }

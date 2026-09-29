@@ -353,7 +353,7 @@ final class AppleContainerRuntimeTests: XCTestCase {
 /// current names — so provision/awaitRunning/provision-after-recovery behave
 /// like the real CLI. Other argvs return success. Matches the binary on any
 /// install prefix so the test stays independent of the host PATH.
-final class ContainerFakingShell: ShellRunning, @unchecked Sendable {
+final class ContainerFakingShell: ShellRunning, Sendable {
     private struct State: Sendable {
         var argvs: [[String]] = []
         var containers: Set<String> = []

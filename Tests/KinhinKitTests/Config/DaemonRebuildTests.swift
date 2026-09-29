@@ -340,7 +340,7 @@ final class DaemonRebuildTests: XCTestCase {
 /// A tart double whose `ip(of:)` parks until told otherwise — models a
 /// shell command that ignores cancellation and ends only on its own
 /// timeout. Everything else mirrors `FakeTart` semantics.
-final class BlockingTart: TartControlling, @unchecked Sendable {
+final class BlockingTart: TartControlling, Sendable {
     private struct State: Sendable {
         var parkedContinuations: [CheckedContinuation<String, Error>] = []
         var vms: [String: TartVM] = [:]

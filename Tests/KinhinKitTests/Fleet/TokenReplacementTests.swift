@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -38,20 +39,26 @@ final class TokenReplacementTests: XCTestCase {
     // MARK: Engine credential swap
 
     /// Factory observing every credential handed to it.
-    private final class RecordingFactory: @unchecked Sendable {
-        private let lock = NSLock()
-        private(set) var seenTokens: [String] = []
+    private final class RecordingFactory: Sendable {
+        private struct State: Sendable {
+            var seenTokens: [String] = []
+        }
+
+        private let state = Mutex(State())
+
+        var seenTokens: [String] { state.withLock { $0.seenTokens } }
+
         var asFactory: GitHubClientFactory {
             GitHubClientFactory { [self] credentials in make(credentials) }
         }
         func make(_ credentials: GitHubCredentials) -> GitHubServing {
-            lock.lock(); seenTokens.append(credentials.token); lock.unlock()
+            state.withLock { $0.seenTokens.append(credentials.token) }
             return SwapProbeClient(token: credentials.token)
         }
     }
 
     /// Minimal client that remembers the token it was built with.
-    private final class SwapProbeClient: GitHubServing, @unchecked Sendable {
+    private final class SwapProbeClient: GitHubServing, Sendable {
         let token: String
         init(token: String) { self.token = token }
         var configureURL: String { "https://github.com/acme/widgets" }

@@ -5,7 +5,7 @@ import XCTest
 @testable import kinhin_app
 
 /// A tiny stateful Docker: enough to watch create/delete round-trip.
-private final class FakeDocker: ShellRunning, @unchecked Sendable {
+private final class FakeDocker: ShellRunning, Sendable {
     private struct State: Sendable {
         var containers: [(id: String, image: String, state: String)] = [
             ("web", "nginx", "running"), ("kinhin-1", "runner", "exited"),

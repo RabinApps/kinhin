@@ -164,7 +164,7 @@ final class DockerToolchainCacheTests: XCTestCase {
 /// creates container X, `rm --force X` removes it, and ps returns the current
 /// names — so provision/awaitReady/recovery behave like the real CLI. Other
 /// argvs return success.
-final class DockerFakingShell: ShellRunning, @unchecked Sendable {
+final class DockerFakingShell: ShellRunning, Sendable {
     private struct State: Sendable {
         var argvs: [[String]] = []
         var containers: Set<String> = []

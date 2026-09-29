@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -7,14 +8,32 @@ final class TartHealthTests: XCTestCase {
 
     /// Scriptable ShellRunning: answers `tart --version` and `log show` probes
     /// from configurable results, recording what it was asked to run.
-    final class ScriptedShell: ShellRunning, @unchecked Sendable {
-        var versionResult: ShellResult?
-        var versionThrows = false
-        var logResult: ShellResult?
-        private(set) var runArgv: [[String]] = []
+    final class ScriptedShell: ShellRunning, Sendable {
+        private struct State: Sendable {
+            var versionResult: ShellResult?
+            var versionThrows = false
+            var logResult: ShellResult?
+            var runArgv: [[String]] = []
+        }
+
+        private let state = Mutex(State())
+
+        var versionResult: ShellResult? {
+            get { state.withLock { $0.versionResult } }
+            set { state.withLock { $0.versionResult = newValue } }
+        }
+        var versionThrows: Bool {
+            get { state.withLock { $0.versionThrows } }
+            set { state.withLock { $0.versionThrows = newValue } }
+        }
+        var logResult: ShellResult? {
+            get { state.withLock { $0.logResult } }
+            set { state.withLock { $0.logResult = newValue } }
+        }
+        var runArgv: [[String]] { state.withLock { $0.runArgv } }
 
         func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
-            runArgv.append(argv)
+            state.withLock { $0.runArgv.append(argv) }
             if versionThrows, argv.count >= 2, argv[1] == "--version" {
                 throw ShellError.launchFailed("permission denied")
             }
