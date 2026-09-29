@@ -1,4 +1,4 @@
-// swift-tools-version:5.9
+// swift-tools-version:6.4
 import PackageDescription
 
 let package = Package(
@@ -61,5 +61,8 @@ let package = Package(
             dependencies: ["kinhin-app", "KinhinTestSupport"],
             path: "Tests/KinhinAppTests"
         ),
-    ]
+    ],
+    // Sources stay in Swift 5 mode for now; the strict-concurrency migration
+    // to Swift 6 mode is a separate, dedicated project.
+    swiftLanguageModes: [.v5]
 )

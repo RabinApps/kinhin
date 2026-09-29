@@ -1,6 +1,6 @@
 # Kinhin: contributor conventions
 
-Single Swift package (Swift 5.9 tools, macOS 14+): `KinhinKit` (engine library), `kinhin` (CLI), `kinhin-app` (AppKit menu bar app; forms, wizard, Diagnostics and Logs are SwiftUI hosted in `NSHostingView`, see `Sources/kinhin-app/UI/SwiftUI/`). See `docs/architecture.md` for the target and folder map.
+Single Swift package (Swift 6.4 tools, Swift 5 language mode, macOS 14+): `KinhinKit` (engine library), `kinhin` (CLI), `kinhin-app` (AppKit menu bar app; forms, wizard, Diagnostics and Logs are SwiftUI hosted in `NSHostingView`, see `Sources/kinhin-app/UI/SwiftUI/`). See `docs/architecture.md` for the target and folder map.
 
 ## Build, test, format
 
