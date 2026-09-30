@@ -142,5 +142,7 @@ extension FleetEngine {
         let poolNames = model.pools.keys.map(\.rawValue).sorted().joined(separator: ", ")
         let capNote = caps.isEmpty ? "fleet cap" : "partitioned caps"
         Log.info("engine", "routing reloaded (pools: \(poolNames), \(capNote))")
+        // New routes and labels re-bucket demand now, not after an idle backoff.
+        pollSoon()
     }
 }

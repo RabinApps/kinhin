@@ -23,6 +23,8 @@ struct ForgeState: Sendable {
 struct RunState: Sendable {
     var running = false
     var paused = false
+    /// The reconcile loop should run its next pass now (`pollSoon()`).
+    var pollNow = false
 }
 
 // MARK: - Engine

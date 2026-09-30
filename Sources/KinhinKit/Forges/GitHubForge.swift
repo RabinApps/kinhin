@@ -53,6 +53,8 @@ struct GitHubForge: Forge {
         }
     }
 
+    var rateLimit: ForgeRateLimit? { client.rateLimit }
+
     func runningJobs() async throws -> [ForgeJob] {
         try await client.runningJobs(matching: Set(labels)).map {
             ForgeJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)

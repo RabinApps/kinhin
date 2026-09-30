@@ -83,6 +83,12 @@ public protocol GitHubServing: Sendable {
     func deleteRunner(id: Int) async throws
     func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob]
     func runningJobs(matching labels: Set<String>) async throws -> [RunningJob]
+    /// The API budget the last response reported; nil when unknown.
+    var rateLimit: ForgeRateLimit? { get }
+}
+
+extension GitHubServing {
+    public var rateLimit: ForgeRateLimit? { nil }
 }
 
 public struct GitHubClient: GitHubServing {
@@ -95,6 +101,20 @@ public struct GitHubClient: GitHubServing {
     /// tokens). The client is a struct copied by value, so the flag lives in
     /// a box to survive across polls.
     var runsMode = RunsModeBox()
+
+    /// The scope's runner list, shared briefly: every live instance's exit
+    /// watch lists runners each second, and the fleet must cost one call per
+    /// few seconds, not one per instance per second.
+    let runnerCache = SharedListCache<GHRunner>(ttl: 3)
+    /// Repositories read in per-repository fallback mode. Two runs reads per
+    /// poll would otherwise re-list the scope's repositories each time; new
+    /// repositories are picked up within this TTL.
+    let scopeRepoCache = SharedListCache<String>(ttl: 300)
+    /// ETags of recent reads, so unchanged polls come back as free 304s.
+    let conditionalGets = ConditionalGetCache()
+    let rateLimits = RateLimitBox()
+
+    public var rateLimit: ForgeRateLimit? { rateLimits.current }
 
     /// Fan-out bounds per poll, same safety bound as the jobs loops: at most
     /// this many repositories and workflow runs are read per poll when the
@@ -135,7 +155,14 @@ public struct GitHubClient: GitHubServing {
     }
 
     /// Execute with retry on transient failures, honoring rate-limit headers.
+    /// GETs revalidate against `conditionalGets`: a 304 returns the cached
+    /// body, so callers never see the difference.
     func send(_ req: URLRequest, retries: Int = 3) async throws -> (Data, HTTPURLResponse) {
+        var req = req
+        let conditionalKey = req.httpMethod == "GET" ? req.url?.absoluteString : nil
+        if let conditionalKey, let etag = conditionalGets.etag(for: conditionalKey) {
+            req.setValue(etag, forHTTPHeaderField: "If-None-Match")
+        }
         var attempt = 0
         var lastError: Error = GitHubError.http(0, "no attempt made")
         while attempt <= retries {
@@ -149,9 +176,21 @@ public struct GitHubClient: GitHubServing {
                     lastError = GitHubError.http(0, "non-HTTP response")
                     continue
                 }
+                if let limit = ForgeRateLimit(headers: http) { rateLimits.record(limit) }
                 switch http.statusCode {
                 case 200...299:
+                    if let conditionalKey, let etag = http.value(forHTTPHeaderField: "ETag") {
+                        conditionalGets.store(url: conditionalKey, etag: etag, body: data)
+                    }
                     return (data, http)
+                case 304:
+                    if let conditionalKey, let body = conditionalGets.body(for: conditionalKey) {
+                        return (body, http)
+                    }
+                    // The cached body was evicted mid-flight: read it afresh.
+                    req.setValue(nil, forHTTPHeaderField: "If-None-Match")
+                    lastError = GitHubError.http(304, "not modified, but no cached body")
+                    continue
                 case 401:
                     throw GitHubError.unauthorized
                 case 403:
@@ -267,6 +306,10 @@ public struct GitHubClient: GitHubServing {
     }
 
     public func listRunners() async throws -> [GHRunner] {
+        try await runnerCache.elements(fetch: fetchRunners)
+    }
+
+    func fetchRunners() async throws -> [GHRunner] {
         var all: [GHRunner] = []
         var page = 1
         while true {
@@ -292,6 +335,7 @@ public struct GitHubClient: GitHubServing {
 
     public func deleteRunner(id: Int) async throws {
         let req = try request(method: "DELETE", path: "\(credentials.actionsBase)/runners/\(id)")
+        defer { runnerCache.invalidate() }  // the deleted runner must drop out of the next list
         _ = try await send(req)
     }
 

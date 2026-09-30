@@ -124,6 +124,8 @@ extension FleetEngine {
 
     public func setPaused(_ value: Bool) async {
         runState.withLock { $0.paused = value }
+        // A resume acts on the queue right away, not after an idle backoff.
+        if !value { pollSoon() }
         Log.info("engine", value ? "paused (no new VMs will be started)" : "resumed")
     }
 

@@ -31,6 +31,9 @@ final class FakeGitHub: GitHubServing, Sendable {
         /// When set, `runningJobs` throws this error (simulates a token that
         /// can manage runners but cannot read queued/running jobs).
         var runningJobsError: GitHubError?
+        var runningJobsCallCount = 0
+        /// The API budget the fake reports (nil: unknown, like other forges).
+        var rateLimit: ForgeRateLimit?
     }
 
     private let state = Mutex(State())
@@ -53,6 +56,13 @@ final class FakeGitHub: GitHubServing, Sendable {
     }
 
     var queuedJobsCallCount: Int { state.withLock { $0.queuedJobsCallCount } }
+
+    var runningJobsCallCount: Int { state.withLock { $0.runningJobsCallCount } }
+
+    var rateLimit: ForgeRateLimit? {
+        get { state.withLock { $0.rateLimit } }
+        set { state.withLock { $0.rateLimit = newValue } }
+    }
 
     var registrationTokenCalls: Int { state.withLock { $0.registrationTokenCalls } }
 
@@ -150,6 +160,7 @@ final class FakeGitHub: GitHubServing, Sendable {
 
     func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] {
         return try state.withLock { state in
+            state.runningJobsCallCount += 1
             if let error = state.runningJobsError { throw error }
             return state.running
         }

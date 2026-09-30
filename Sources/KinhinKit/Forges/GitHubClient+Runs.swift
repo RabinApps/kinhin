@@ -96,6 +96,10 @@ extension GitHubClient {
     /// even that 404s (the org repo list needs Members read) — every repo
     /// the token can see, filtered down to the scope's org.
     func listScopeRepositories() async throws -> [String] {
+        try await scopeRepoCache.elements(fetch: fetchScopeRepositories)
+    }
+
+    func fetchScopeRepositories() async throws -> [String] {
         do {
             return try await pagedRepoNames(path: "/orgs/\(credentials.scope)/repos")
         } catch GitHubError.notFound {

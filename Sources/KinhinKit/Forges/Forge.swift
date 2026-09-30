@@ -119,6 +119,8 @@ public protocol Forge: Sendable {
     func queuedJobs() async throws -> [ForgeJob]
     /// Jobs currently executing (runner_name keyed), for running attribution.
     func runningJobs() async throws -> [ForgeJob]
+    /// The API budget the forge last reported (nil: the forge reports none).
+    var rateLimit: ForgeRateLimit? { get }
 }
 
 extension Forge {
@@ -129,6 +131,8 @@ extension Forge {
 
     /// Org scopes have no slash; "owner/name" is one repository.
     public var attributesByRepo: Bool { !scope.contains("/") }
+
+    public var rateLimit: ForgeRateLimit? { nil }
 
     /// Shared-token forges: every runner uses the one token.
     public func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String] {

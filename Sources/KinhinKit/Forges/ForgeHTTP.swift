@@ -4,8 +4,8 @@ import Foundation
 /// session configuration and one rule for which failures are worth a retry.
 enum ForgeHTTP {
     /// The session a client uses: the injected one (tests stub it), else a
-    /// shared session with 30 s per request, 60 s per resource, and no
-    /// waiting for connectivity (an offline Mac fails fast and retries on
+    /// shared session with 30 s per request, 60 s per resource, no HTTP
+    /// cache, and no waiting for connectivity (an offline Mac fails fast and retries on
     /// the next poll).
     static func session(_ injected: URLSession?) -> URLSession {
         injected ?? shared
@@ -16,6 +16,11 @@ enum ForgeHTTP {
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 60
         config.waitsForConnectivity = false
+        // Polls must see the forge's current answer: GitHub marks reads
+        // max-age=60, which the system cache would serve stale. Revalidation
+        // is the clients' own job (GitHub: `ConditionalGetCache`).
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: config)
     }()
 

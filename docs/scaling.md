@@ -33,6 +33,29 @@ Every `poll_interval` seconds the engine:
    and a runner process on the Mac itself for host routes.
 6. Deletes idle instances when `desired` drops (scale to zero by default).
 
+### Poll cadence
+
+`poll_interval` is the cadence whenever there is something to react to. Two things stretch it:
+
+- **Idle.** A running fleet with no queued jobs and no instances for 5 minutes polls every 60s
+  (or every `poll_interval`, if that is longer). The first new job restores the normal cadence.
+  The 5-minute grace keeps multi-stage workflows fast: the fleet is briefly empty between `needs:`
+  stages, and those gaps never slow the next stage. Resuming a paused fleet or reloading routing
+  triggers a poll immediately.
+- **API budget.** kinhin reads GitHub's rate-limit headers on every response. Below 25% of the
+  hourly budget it polls half as often, and below 10% a quarter as often, and it stops reading
+  running jobs (the per-repo "running" breakdown) so demand reads keep working. When the budget
+  is exhausted, it waits for the reset (at most 15 minutes).
+
+A paused fleet never backs off for idleness, because the status surfaces promise to re-check the
+queue every `poll_interval`. The status line notes a slowdown, e.g.
+`queue age: 12s old · checking every 60s (idle)`, and a queue is only reported as stale when it is
+older than the cadence currently in effect.
+
+GitHub reads are conditional (`If-None-Match`), so a poll that finds nothing changed gets a 304,
+which does not count against the rate limit. Every live instance's exit watch reads one shared
+runner list, refreshed at most every few seconds, instead of one list per instance per second.
+
 ## Pausing and auto-resume
 
 A paused fleet skips spawning (and, by default, skips queue polling entirely). With

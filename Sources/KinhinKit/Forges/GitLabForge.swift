@@ -121,42 +121,24 @@ struct GitLabForge: Forge {
 /// Short-lived shared runner list plus the last known busy set, so per-VM
 /// watches polling every second cost one API call per few seconds.
 final class GitLabRunnerSnapshot: Sendable {
-    private struct State: Sendable {
-        var fetched: Date?
-        var runners: [GitLabRunner] = []
-        var busy: Set<String> = []
-    }
-
-    private let ttl: TimeInterval
-    private let state = Mutex(State())
+    private let list: SharedListCache<GitLabRunner>
+    private let busy = Mutex<Set<String>>([])
 
     init(ttl: TimeInterval) {
-        self.ttl = ttl
+        self.list = SharedListCache(ttl: ttl)
     }
 
     func runners(fetch: () async throws -> [GitLabRunner]) async throws -> [GitLabRunner] {
-        let ttl = ttl
-        if let cached = state.withLock({ state -> [GitLabRunner]? in
-            guard let fetched = state.fetched, Date().timeIntervalSince(fetched) < ttl else { return nil }
-            return state.runners
-        }) {
-            return cached
-        }
-        let fresh = try await fetch()
-        state.withLock {
-            $0.fetched = Date()
-            $0.runners = fresh
-        }
-        return fresh
+        try await list.elements(fetch: fetch)
     }
 
-    var busyRunnerNames: Set<String> { state.withLock { $0.busy } }
+    var busyRunnerNames: Set<String> { busy.withLock { $0 } }
 
     func setBusy(_ names: Set<String>) {
-        state.withLock { $0.busy = names }
+        busy.withLock { $0 = names }
     }
 
     func invalidate() {
-        state.withLock { $0.fetched = nil }
+        list.invalidate()
     }
 }

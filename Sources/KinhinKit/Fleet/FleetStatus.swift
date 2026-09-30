@@ -11,6 +11,13 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     /// The engine's poll cadence, so pause/auto-resume hints can say when
     /// the queue is re-checked. Nil from a daemon predating the field.
     public var pollInterval: Int?
+    /// The cadence the engine is actually polling at: `pollInterval`, or
+    /// longer while idle or low on API budget (`pollSlowdown` says which).
+    /// Nil before the first pass or from a daemon predating the field.
+    public var currentPollInterval: Int?
+    /// Why `currentPollInterval` exceeds `pollInterval` ("idle", "API budget
+    /// low"); nil when it does not.
+    public var pollSlowdown: String?
     /// When the queue was last observed (a forge answered a demand fetch):
     /// the freshness of the queue numbers, distinct from `updatedAt` which
     /// every reconcile pass touches. Nil when never polled or from a daemon
@@ -54,10 +61,11 @@ public struct FleetStatus: Codable, Sendable, Equatable {
         self.jobCapacity = jobCapacity
         self.queueByRepo = queueByRepo
         self.runningByRepo = runningByRepo
-        self.queueByRepo = queueByRepo
         self.records = records
         self.lastError = lastError
         self.updatedAt = updatedAt
+        self.runtime = runtime
+        self.capacityByRuntime = capacityByRuntime
     }
 
     public var activeCount: Int { records.filter { $0.phase.isActive }.count }
@@ -81,12 +89,13 @@ public struct FleetStatus: Codable, Sendable, Equatable {
 
     /// Whether that observation is older than the engine's cadence — a
     /// forge poll failed or the engine stopped, so the queue numbers may
-    /// be outdated. Without a known cadence (`pollInterval == nil`, an
-    /// older daemon) any nonzero age counts as stale, matching the CLI's
-    /// `?? 0` rule. Nil when never polled: neither fresh nor stale.
+    /// be outdated. The cadence is the one in effect (an idle backoff is not
+    /// staleness). Without a known cadence (an older daemon) any nonzero age
+    /// counts as stale, matching the CLI's `?? 0` rule. Nil when never
+    /// polled: neither fresh nor stale.
     public var queueAgeIsStale: Bool? {
         guard let age = queueAgeSeconds else { return nil }
-        return age > (pollInterval ?? 0)
+        return age > (currentPollInterval ?? pollInterval ?? 0)
     }
 }
 

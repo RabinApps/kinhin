@@ -89,10 +89,12 @@ extension FleetEngine {
     // MARK: - Reconcile loop
 
     func reconcileLoop() async {
+        var cadence = PollCadence()
+        var slowdown: PollCadence.Slowdown?
         while !Task.isCancelled {
-            let interval = config.pollInterval
+            var idle = false
             do {
-                try await reconcileOnce()
+                idle = try await reconcileOnce().idle
             } catch is CancellationError {
                 return  // engine stopping: the loop exits instead of logging a cancel as an error
             } catch {
@@ -100,16 +102,61 @@ extension FleetEngine {
                 Log.error("engine", "reconcile failed: \(message)")
                 await statusBox.modify { $0.lastError = message }
             }
+            let paused = runState.withLock { $0.paused }
+            let attached = forgeState.withLock { Array($0.byPlatform.values) }
+            let next = cadence.next(
+                base: config.pollInterval, idle: idle, paused: paused,
+                budget: PollCadence.tightest(attached.compactMap(\.rateLimit)))
+            if next.slowdown != slowdown {
+                Log.info(
+                    "engine",
+                    next.slowdown.map { "polling every \(next.seconds)s (\($0.rawValue))" }
+                        ?? "polling every \(next.seconds)s")
+                slowdown = next.slowdown
+            }
+            await statusBox.modify {
+                $0.currentPollInterval = next.seconds
+                $0.pollSlowdown = next.slowdown?.rawValue
+            }
             do {
-                try await Task.sleep(for: .seconds(interval))  // poll delay; cancellation ends the loop
+                try await waitForNextPass(seconds: next.seconds)
             } catch {
-                return
+                return  // cancellation ends the loop
             }
         }
     }
 
+    /// Sleeps until the next pass is due, or until something asked for one
+    /// now (`pollSoon()`: a resume or config reload must not sit out an
+    /// idle backoff).
+    func waitForNextPass(seconds: Int) async throws {
+        let deadline = ContinuousClock.now + .seconds(seconds)
+        while true {
+            let requested = runState.withLock { state in
+                defer { state.pollNow = false }
+                return state.pollNow
+            }
+            let remaining = deadline - ContinuousClock.now
+            if requested || remaining <= .zero { return }
+            try await Task.sleep(for: min(remaining, .seconds(1)))
+        }
+    }
+
+    /// Cuts the current wait short: the loop runs its next pass within a
+    /// second.
+    func pollSoon() {
+        runState.withLock { $0.pollNow = true }
+    }
+
+    /// What a pass saw, for the loop's cadence.
+    struct PassOutcome {
+        /// Running, nothing queued and no instances: nothing to react to.
+        var idle: Bool
+    }
+
     /// One pass of the control loop. Public for tests.
-    func reconcileOnce() async throws {
+    @discardableResult
+    func reconcileOnce() async throws -> PassOutcome {
         let state = runState.withLock { $0 }
 
         // Forges that failed at startup get another chance (backed off).
@@ -126,12 +173,16 @@ extension FleetEngine {
 
         // 3. Decide the desired count and publish it.
         let desired = await publishDesired(queueDepth: demand.queueDepth)
-        guard !state.paused else { return }
+        let active = store.all.filter { $0.phase.isActive }.count
+        // A paused pass masks the queue (see `pollDemand`), so it never
+        // counts as idle.
+        let outcome = PassOutcome(idle: !state.paused && demand.queueDepth == 0 && active == 0)
+        guard !state.paused else { return outcome }
 
         // 4. Spawn up to desired, then 5. scale idle surplus down.
-        let active = store.all.filter { $0.phase.isActive }.count
         try await spawn(upTo: desired, active: active, demand: demand, attached: attached)
         await scaleDown(active: active, desired: desired, demand: demand)
+        return outcome
     }
 
     /// What the forges are asking for this pass.
@@ -298,7 +349,9 @@ extension FleetEngine {
     func attributeRunningJobs(_ attached: [Forge]) async {
         var runningAll: [RunningJob] = []
         var answered = false
-        for forge in attached {
+        // Attribution is cosmetic: a forge low on API budget keeps it for
+        // demand reads, which scaling depends on.
+        for forge in attached where forge.rateLimit?.isLow != true {
             do {
                 let running = try await forge.runningJobs()
                 answered = true

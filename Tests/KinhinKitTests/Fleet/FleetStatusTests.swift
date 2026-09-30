@@ -62,6 +62,18 @@ final class FleetStatusTests: XCTestCase {
         XCTAssertEqual(status.queueAgeIsStale, true, "older than the cadence: a poll likely failed")
     }
 
+    /// An idle backoff is not staleness: the age is judged against the
+    /// cadence in effect.
+    func testQueueAgeIsJudgedAgainstTheCurrentCadence() {
+        var status = FleetStatus()
+        status.pollInterval = 20
+        status.currentPollInterval = 60
+        status.queuePolledAt = Date().addingTimeInterval(-45)
+        XCTAssertEqual(status.queueAgeIsStale, false)
+        status.queuePolledAt = Date().addingTimeInterval(-61)
+        XCTAssertEqual(status.queueAgeIsStale, true)
+    }
+
     func testQueueAgeStalenessNeedsAnAge() {
         XCTAssertNil(FleetStatus().queueAgeIsStale, "never polled: neither fresh nor stale")
     }
@@ -71,5 +83,11 @@ final class FleetStatusTests: XCTestCase {
         status.pollInterval = nil  // older daemon: the CLI's `?? 0` rule
         status.queuePolledAt = Date().addingTimeInterval(-1)
         XCTAssertEqual(status.queueAgeIsStale, true, "any nonzero age is stale without a cadence")
+    }
+
+    func testInitStoresRuntimeFields() {
+        let status = FleetStatus(runtime: "tart", capacityByRuntime: ["tart": "2", "appleContainer": "1"])
+        XCTAssertEqual(status.runtime, "tart")
+        XCTAssertEqual(status.capacityByRuntime, ["tart": "2", "appleContainer": "1"])
     }
 }

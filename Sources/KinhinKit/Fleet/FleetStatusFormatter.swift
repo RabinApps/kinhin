@@ -31,7 +31,11 @@ public enum FleetStatusFormatter {
     public static func queueAge(_ status: FleetStatus) -> String? {
         guard let age = status.queueAgeSeconds else { return nil }
         let stale = status.queueAgeIsStale == true ? " (stale — a forge poll failed or the engine is stopped)" : ""
-        return "\(age)s old\(stale)"
+        var slowed = ""
+        if let reason = status.pollSlowdown, let current = status.currentPollInterval {
+            slowed = " · checking every \(current)s (\(reason))"
+        }
+        return "\(age)s old\(stale)\(slowed)"
     }
 
     // MARK: - Summary (menu bar, Fleet tab)
