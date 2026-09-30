@@ -35,10 +35,12 @@ extension FleetEngine {
         return runtime
     }
 
-    /// The label pool a record belongs to (nil → the forge's fleet labels).
+    /// The labels of the pool a record's runtime serves, so its runners join
+    /// the right `runs-on` pool (nil for records without a runtime → the
+    /// forge's fleet labels).
     func poolLabels(for record: VMRecord) -> [String]? {
-        guard let poolName = record.poolLabels else { return nil }
-        return routing.pools[RuntimeID(rawValue: poolName) ?? .tart]?.labels
+        guard let runtimeID = record.runtime.flatMap(RuntimeID.init(rawValue:)) else { return nil }
+        return routing.pools[runtimeID]?.labels
     }
 
     /// Pick the runtime for a new instance: among pools with unmet demand,

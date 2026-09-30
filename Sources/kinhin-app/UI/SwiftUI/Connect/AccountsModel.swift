@@ -9,7 +9,7 @@ import Observation
 /// `AccountsConfigEditor`.
 @MainActor
 @Observable
-final class AccountsModel {
+final class AccountsModel: ConfigFormModel {
     struct Row: Identifiable, Equatable {
         var account: AccountConfig
         var tokenStored: Bool

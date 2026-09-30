@@ -12,9 +12,7 @@ public enum ConfigEditor {
     /// the text that was written (identical to the input on success).
     @discardableResult
     public static func save(_ yaml: String, to url: URL = Paths.config) throws -> String {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw ConfigEditError.notFound(url.path)
-        }
+        _ = try ConfigFileEdit.read(url)
         do {
             _ = try ConfigLoader.parse(yaml)
         } catch {

@@ -28,7 +28,7 @@ public enum TartError: LocalizedError {
         switch self {
         case .missingBinary(let path):
             return
-                "tart not found at '\(path)'. Install it with: brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart"
+                "tart not found at '\(path)'. Install it with: \(TartHealthProbe.installCommand)"
         case .commandFailed(let what, let stderr):
             return "tart \(what) failed: \(stderr.prefix(400))"
         case .ipNotFound(let vm):

@@ -93,7 +93,7 @@ final class AppleContainerRuntimeTests: XCTestCase {
             shell: shell, image: "img", cpus: 2, memoryGB: 4,
             binPath: "/usr/local/bin/container"
         )
-        _ = try await runtime.execScript("kinhin-abc", "echo hi")
+        _ = try await runtime.cli.exec("kinhin-abc", "echo hi")
         let argv = shell.calls[0]
         XCTAssertEqual(argv.first, "/usr/local/bin/container")
         XCTAssertTrue(argv.contains("exec"))
@@ -182,16 +182,15 @@ final class AppleContainerRuntimeTests: XCTestCase {
     func testAwaitRunningPollsUntilContainerAppears() async throws {
         let shell = FakeShell()
         shell.responses = [
-            ShellResult(exitCode: 1, stdout: "", stderr: ""),  // not yet
-            ShellResult(exitCode: 1, stdout: "", stderr: ""),  // not yet
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),  // not yet
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),  // not yet
             ShellResult(exitCode: 0, stdout: "kinhin-abc\n", stderr: ""),  // up
         ]
         let runtime = AppleContainerRuntime(
             shell: shell, image: "img", cpus: 2, memoryGB: 4,
             binPath: "/usr/local/bin/container"
         )
-        let handle = try await runtime.awaitRunning("kinhin-abc", timeout: 10, pollInterval: 0.05)
-        XCTAssertEqual(handle, "kinhin-abc")
+        try await runtime.cli.awaitRunning("kinhin-abc", timeout: 10, pollInterval: 0.05)
         XCTAssertEqual(shell.calls.count, 3)
     }
 
@@ -202,7 +201,7 @@ final class AppleContainerRuntimeTests: XCTestCase {
             binPath: "/usr/local/bin/container"
         )
         do {
-            _ = try await runtime.awaitRunning("kinhin-abc", timeout: 0.2, pollInterval: 0.05)
+            try await runtime.cli.awaitRunning("kinhin-abc", timeout: 0.2, pollInterval: 0.05)
             XCTFail("expected timeout")
         } catch let error as RuntimeWatchError {
             guard case .registrationTimeout = error else {

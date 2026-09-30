@@ -79,7 +79,7 @@ extension RuntimesModel {
             try RuntimesConfigEditor.apply(rc, to: configURL)
             currentRuntimeConfig = rc  // next drag starts from the new baseline
             if refreshPane { reload() }
-            onEdited?()
+            onChanged?()
         } catch {
             presentError(error)
             reload()
@@ -123,7 +123,7 @@ extension RuntimesModel {
             try LabelsConfigEditor.apply(labels, scope: scope, to: configURL)
             Log.info("runtimes-pane", "\(scope == .fleet ? "fleet" : "container") labels updated")
             labelsStatus = Line(text: "")
-            onEdited?()
+            onChanged?()
         } catch {
             presentError(error)
             // Snap the field back to the on-disk truth.

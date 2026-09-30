@@ -36,6 +36,10 @@ public struct TartRepair: Sendable, Equatable {
 /// Probes the real tart binary so `kinhin doctor` and the setup app can tell
 /// "installed and working" apart from "installed but killed on launch".
 public struct TartHealthProbe {
+    /// The Homebrew command that installs tart (every "install tart" hint).
+    public static let installCommand =
+        "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart"
+
     let shell: ShellRunning
     let configuredPath: String?
 

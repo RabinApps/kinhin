@@ -4,7 +4,7 @@ import Foundation
 // here keyed by its name in `ForgeState.byPlatform`, so `VMRecord.platform`
 // and the demand maps carry the account name for all of them. The primary
 // GitHub account additionally attaches at construction (under its account
-// name) so a not-yet-verified fleet still routes single-pool jobs.
+// name) so a not-yet-verified fleet still polls demand.
 extension FleetEngine {
     /// Accounts without an attached forge (never attached yet, or dropped
     /// after a failed verification) — the retry loop's work list.
@@ -12,11 +12,9 @@ extension FleetEngine {
         forgeState.withLock { state in config.accounts.filter { state.byPlatform[$0.name] == nil } }
     }
 
-    /// The registration-token cache for an account. The primary GitHub
-    /// account (whatever its name) keeps the engine's original cache.
+    /// The registration-token cache for an account (created on first use).
     func registrationCache(for account: String) -> RegistrationTokenCache {
-        if account == config.primaryGitHub?.name { return registrationTokens }
-        return forgeState.withLock { state in
+        forgeState.withLock { state in
             if let cache = state.accountRegistrationTokens[account] { return cache }
             let cache = RegistrationTokenCache(ttl: TimeInterval(config.tokenTTL))
             state.accountRegistrationTokens[account] = cache
@@ -27,7 +25,6 @@ extension FleetEngine {
     /// Drop every cached registration token (they were minted under the old
     /// tokens' authority).
     func invalidateRegistrationTokens() {
-        registrationTokens.invalidate()
         let caches = forgeState.withLock { Array($0.accountRegistrationTokens.values) }
         for cache in caches { cache.invalidate() }
     }
@@ -65,21 +62,12 @@ extension FleetEngine {
                 forge = GitHubForge(
                     credentials: .github(token: token, scope: account.scope), labels: config.labels, client: client,
                     account: account.name)
-            case .gitea:
+            case .gitea, .forgejo:
                 guard let instance = account.instance else {
                     throw AccountAttachError.unverified("no instance URL configured")
                 }
                 forge = try await GiteaForge.make(
-                    credentials: GiteaCredentials(token: token, scope: account.scope, instance: instance),
-                    labels: account.labels ?? ["macos:host"],
-                    demandFloor: config.minRunners,
-                    account: account.name
-                )
-            case .forgejo:
-                guard let instance = account.instance else {
-                    throw AccountAttachError.unverified("no instance URL configured")
-                }
-                forge = try await ForgejoForge.make(
+                    forge: account.forge,
                     credentials: GiteaCredentials(token: token, scope: account.scope, instance: instance),
                     labels: account.labels ?? ["macos:host"],
                     demandFloor: config.minRunners,
@@ -111,12 +99,6 @@ extension FleetEngine {
     /// re-verification (the CLI/app verified before saving). An unknown
     /// account is ignored with a warning.
     public func replaceToken(account name: String, token: String) async {
-        // The primary GitHub account also drives the legacy client and the
-        // engine's registration cache: swap all of them together.
-        if name == config.primaryGitHub?.name {
-            await replaceCredentials(pat: token)
-            return
-        }
         guard let account = config.accounts.first(where: { $0.name == name }) else {
             Log.warn("engine", "token replaced for unknown account '\(name)' — ignoring")
             return

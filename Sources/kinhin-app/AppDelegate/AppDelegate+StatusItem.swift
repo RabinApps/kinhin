@@ -129,7 +129,7 @@ extension AppDelegate {
     /// The status-bar button title: a spinner glyph while a start/stop is in
     /// flight (the poll's last word is stale until the command completes),
     /// otherwise the state circle / active-VM count.
-    func statusItemTitle(pending: PendingFleetAction?, status: FleetStatus?) -> String {
+    func statusItemTitle(pending: FleetAction?, status: FleetStatus?) -> String {
         if pending != nil { return "⟳" }
         guard let status else { return "○" }
         return statusTitle(for: status)
@@ -137,7 +137,7 @@ extension AppDelegate {
 
     /// The menu's first line: "Starting…"/"Stopping…" while a command runs,
     /// otherwise the shared state line.
-    func statusLineText(pending: PendingFleetAction?, status: FleetStatus?) -> String {
+    func statusLineText(pending: FleetAction?, status: FleetStatus?) -> String {
         if let pending { return pending == .start ? "Starting…" : "Stopping…" }
         guard let status else { return FleetStatusFormatter.summary(nil) }
         return statusLine(for: status)

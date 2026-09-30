@@ -35,7 +35,7 @@ extension RuntimesModel {
             Log.info("runtimes-pane", "config edited in UI; validation passed")
             isYAMLEditorOpen = false
             reload()
-            onEdited?()
+            onChanged?()
         } catch {
             sheetProblem = error.localizedDescription
         }

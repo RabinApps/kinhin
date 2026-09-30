@@ -42,7 +42,7 @@ extension ForgeConnectionModel {
                 }
             }
         } catch {
-            status = Line(text: "Not saved — \(error.localizedDescription)", style: .error)
+            status = .notSaved(error)
         }
     }
 

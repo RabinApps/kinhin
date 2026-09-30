@@ -325,7 +325,7 @@ final class LinuxToolchainsTests: XCTestCase {
         )
         // The engine passes its config into the container runtime; verify via
         // the runtime's registration script containing the Linux cache envs.
-        let runtime = try XCTUnwrap(engine.containerRuntime)
+        let runtime = try XCTUnwrap(engine.runtimesByRuntime[.appleContainer] as? AppleContainerRuntime)
         let forge = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
             labels: ["kinhin"],

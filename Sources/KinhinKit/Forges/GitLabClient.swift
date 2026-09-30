@@ -34,15 +34,7 @@ public struct GitLabClient: Sendable {
 
     public init(credentials: GitLabCredentials, session: URLSession? = nil) {
         self.credentials = credentials
-        if let session {
-            self.session = session
-        } else {
-            let config = URLSessionConfiguration.default
-            config.timeoutIntervalForRequest = 30
-            config.timeoutIntervalForResource = 60
-            config.waitsForConnectivity = false
-            self.session = URLSession(configuration: config)
-        }
+        self.session = ForgeHTTP.session(session)
     }
 
     // MARK: Scope
@@ -267,15 +259,8 @@ public struct GitLabClient: Sendable {
     }
 
     static func isTransient(_ error: Error) -> Bool {
-        switch error {
-        case let error as GitLabError:
-            if case .http(let code, _) = error { return code == 0 || code == 429 || code >= 500 }
-            return false
-        case is URLError:
-            return true
-        default:
-            return false
-        }
+        if case .http(let code, _) = error as? GitLabError { return ForgeHTTP.isTransientStatus(code) }
+        return ForgeHTTP.isTransientNetworkError(error)
     }
 
     func url(_ path: String, _ query: [URLQueryItem]) throws -> URL {

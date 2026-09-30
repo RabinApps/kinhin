@@ -139,7 +139,7 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertTrue(exists && isDir.boolValue)
         // Adopt path: the existing-instance enumeration sees it (the shared
         // host-instances dir may also hold dirs from earlier tests).
-        let existing = await runtime.existingInstanceIDs()
+        let existing = try await runtime.existingInstanceIDs()
         XCTAssertTrue(existing.contains(id), "\(existing)")
         // Teardown scrubs (idempotent — a second call is a no-op).
         await runtime.teardown(id: id)
@@ -212,7 +212,7 @@ final class HostRuntimeTests: XCTestCase {
         let script = try await runtime.registrationScript(
             forge: giteaForge(), token: "", name: "kinhin-g2", runnerCount: 2, route: route, labels: nil)
         XCTAssertTrue(script.contains("--name 'kinhin-g2-r1'"))
-        XCTAssertTrue(script.contains("--name 'kinhin-g2-r2'"), "matches the names awaitGiteaExit expects")
+        XCTAssertTrue(script.contains("--name 'kinhin-g2-r2'"), "matches the names awaitRunnerExit expects")
         XCTAssertTrue(script.contains("gitea-2"))
     }
 

@@ -63,9 +63,15 @@ public struct AppleContainerRuntime: Runtime {
     /// Resolved path of the `container` CLI.
     var bin: String { binPath ?? Self.resolvedBinaryPath }
 
-    var memoryLabel: String { "\(memoryBytes / 1_048_576)M" }
-
-    var memoryGBLabel: String { "\(memoryBytes / 1_073_741_824) GB" }
+    /// The shared container-CLI driver in Apple `container`'s dialect.
+    var cli: LinuxContainerCLI {
+        LinuxContainerCLI(
+            shell: shell, bin: bin,
+            dialect: .init(
+                tag: "container", listVerb: "list", removeVerb: "delete",
+                imageListArguments: ["image", "list", "--quiet"], runFlags: [], shapeNote: nil),
+            image: image, cpus: cpus, memoryBytes: memoryBytes, toolchainsConfig: toolchainsConfig)
+    }
 
     // MARK: - Health
 
@@ -87,179 +93,48 @@ public struct AppleContainerRuntime: Runtime {
         return .broken("the container system service is not running — start it with: container system start")
     }
 
-    // MARK: - Provision
+    // MARK: - Lifecycle (the shared container CLI)
 
     public func provision(id: String, route: RepoRoute) async throws {
-        // Idempotent: a container from a previous engine run may still exist.
-        if try await containerIDs(all: true).contains(id) {
-            Log.info(id, "container already exists; starting it (recovery)")
-            _ = try await run([bin, "start", id])
-            return
-        }
-        Log.info(id, "starting Linux container from \(image) (\(cpus) vCPU, \(memoryGBLabel))")
-        var argv = [bin, "run", "--detach"]
-        // Opt-in shared cache: bind-mount the host toolchain cache into the
-        // container (`container run -v host:guest`) so per-job installs
-        // reuse warm downloads. Best-effort: create the host dir first so a
-        // fresh install cannot fail the run.
-        if route.cacheMount {
-            bestEffort("container", "creating the toolchain cache directory") {
-                try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
-            }
-            argv += ["--volume", ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)]
-        }
-        argv += [
-            "--name", id,
-            "--cpus", String(cpus),
-            "--memory", memoryLabel,
-            "--rm",  // agent exit removes the container: belt + suspenders
-            image,
-            "/bin/bash", "-lc", "while true; do sleep 3600; done",
-        ]
-        _ = try await run(argv)
+        try await cli.provision(id: id, route: route)
     }
 
-    // MARK: - Registration
-
-    /// The bootstrap script (same forge scripts the VMs use — Linux agent
-    /// paths). Executed inside the container by the engine via execScript.
+    /// The bootstrap script (same forge scripts the Docker runtime uses —
+    /// Linux agent paths), run inside the container via `container exec`.
     public func registrationScript(
         forge: Forge, token: String, runnerTokens: [String: String], name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String {
-        // Opt-in shared cache: point the selected ecosystems' caches at the
-        // bind-mounted host cache so per-job installs reuse warm downloads.
-        // Exports are guarded no-ops when the mount is absent. Linux
-        // platform: macOS-only entries (brew, fvm, CocoaPods) never appear.
-        let cachePrefix: String
-        if route.cacheMount, let selection = linuxToolchainSelection {
-            cachePrefix =
-                RunnerBootstrap.cacheEnvExports(
-                    cacheEnvs: selection.cacheEnvs,
-                    mountPath: ToolchainCacheMount.linuxGuestPath
-                ) + "\n\n"
-        } else {
-            cachePrefix = ""
-        }
-        switch forge.credentials {
-        case .github:
-            return cachePrefix
-                + RunnerBootstrap.linuxGitHubRegistrationScript(
-                    configureURL: forge.registrationURL(),
-                    token: token,
-                    labels: labels ?? forge.labels,
-                    ephemeral: route.ephemeral,
-                    name: name,
-                    runnerCount: runnerCount
-                )
-        case .gitea, .forgejo:
-            // Forgejo shares Gitea's runner binary and registration flow.
-            return cachePrefix
-                + RunnerBootstrap.linuxGiteaRegistrationScript(
-                    instance: forge.registrationURL(),
-                    token: token,
-                    labels: forge.labels,
-                    name: name,
-                    runnerCount: runnerCount
-                )
-        case .gitlab:
-            return cachePrefix
-                + RunnerBootstrap.gitlabRegistrationScript(
-                    instance: forge.registrationURL(),
-                    runners: try RunnerBootstrap.gitlabRunners(
-                        name: name, runnerCount: runnerCount, tokens: runnerTokens),
-                    binary: "/opt/gitlab-runner/gitlab-runner",
-                    baseDir: "/opt/gitlab-runner"
-                )
-        }
-    }
-
-    /// Runs a script inside a running container (`container exec`), which
-    /// surfaces the script's exit status directly — the container analogue
-    /// of the SSH transport. Also the runtime's `execRegistration` impl.
-    func execScript(_ id: String, _ script: String, timeout: TimeInterval = 600) async throws -> ShellResult {
-        try await run([bin, "exec", id, "/bin/bash", "-lc", script], timeout: timeout)
+        try cli.registrationScript(
+            forge: forge, token: token, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount,
+            route: route, labels: labels)
     }
 
     public func awaitReady(id: String, timeout: TimeInterval) async throws -> String? {
-        _ = try await awaitRunning(id, timeout: timeout)
-        return nil
+        try await cli.awaitRunning(id, timeout: timeout)
+        return nil  // exec transport: no address to dial
     }
 
     public func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws
         -> ShellResult
     {
-        try await execScript(id, script, timeout: timeout)
+        try await cli.exec(id, script, timeout: timeout)
+    }
+
+    public func teardown(id: String) async {
+        await cli.teardown(id: id)
     }
 
     /// Ids of all known containers (running + stopped) — the recovery path
     /// enumerates instances through the runtime, no per-runtime branch.
-    public func existingInstanceIDs() async -> [String] {
-        do {
-            return try await containerIDs(all: true)
-        } catch {
-            Log.warn("container", "could not list containers for recovery: \(error.localizedDescription)")
-            return []
-        }
-    }
-
-    /// The boot-wait analogue of `tart.ip`: polls until the container is
-    /// running so `container exec` can proceed. Returns the container id
-    /// (the engine stores it in the record's ip field; there is no IP).
-
-    // MARK: - Watch
-
-    public func watchExit(id: String, forge: Forge, runnerCount: Int, route: RepoRoute) async throws {
-        // Engine-owned watch (forge-side runner lists): identical semantics
-        // for containers because agents register under the same names.
-        // Nothing to do at the runtime layer — same contract as TartRuntime.
-    }
-
-    /// Poll `container list` until the named container is running (or throw).
-    func awaitRunning(_ id: String, timeout: TimeInterval, pollInterval: TimeInterval = 1) async throws -> String {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            try Task.checkCancellation()
-            if try await containerIDs(all: false).contains(id) {
-                return id
-            }
-            try await Task.sleep(for: .seconds(pollInterval))
-        }
-        throw RuntimeWatchError.registrationTimeout(vm: id)
-    }
-
-    // MARK: - Teardown
-
-    public func teardown(id: String) async {
-        // --rm already removes the container on agent exit; belt + suspenders.
-        await bestEffortAsync(id, "deleting container") { _ = try await run([bin, "delete", "--force", id]) }
-    }
-
-    // MARK: - Internals
-
-    /// All container ids known to the CLI (running + stopped).
-    func containerIDs(all: Bool) async throws -> [String] {
-        let argv: [String] =
-            all
-            ? [bin, "list", "--all", "--quiet"]
-            : [bin, "list", "--quiet"]
-        let result = try await run(argv)
-        guard result.succeeded else { return [] }
-        return result.outputLines
+    public func existingInstanceIDs() async throws -> [String] {
+        try await cli.containerIDs(all: true)
     }
 
     /// Local list of image references (for the checklist's image-present
     /// row and the doctor).
     public func localImageNames() async -> [String] {
-        let result: ShellResult
-        do {
-            result = try await run([bin, "image", "list", "--quiet"])
-        } catch {
-            Log.warn("container", "could not list images: \(error.localizedDescription)")
-            return []
-        }
-        guard result.succeeded else { return [] }
-        return result.outputLines
+        await cli.localImageNames()
     }
 
     func run(_ argv: [String], timeout: TimeInterval = 120) async throws -> ShellResult {

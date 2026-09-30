@@ -65,6 +65,12 @@ struct AuthEnvironment: Sendable {
         try? ConfigLoader.load()
     }
 
+    /// The config account lookups read: the test fixture when set, else the
+    /// live file (nil when missing or unreadable).
+    var lookupConfig: KinhinConfig? {
+        if let fixture = jsonConfig { fixture } else { Self.loadConfigTolerant() }
+    }
+
     static let live = AuthEnvironment(
         save: { try KeychainTokenStore.save($0, forge: $1) },
         load: { try KeychainTokenStore.load(forge: $0) },
@@ -162,8 +168,7 @@ enum AuthCommand {
 
     /// `auth list`: every account, its scope and whether a token is stored.
     private static func list(environment: AuthEnvironment) {
-        let config: KinhinConfig? =
-            if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
+        let config = environment.lookupConfig
         let accounts = config?.allAccounts ?? []
         guard !accounts.isEmpty else {
             print("no accounts configured")
@@ -190,8 +195,7 @@ enum AuthCommand {
         guard let name = args.dropFirst(2).first, !name.hasPrefix("--") else {
             try environment.fail("usage: kinhin auth remove NAME")
         }
-        let config: KinhinConfig? =
-            if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
+        let config = environment.lookupConfig
         guard let account = config?.accounts.first(where: { $0.name == name }) else {
             try environment.fail(
                 "no account '\(name)' in the accounts: list (the top-level repo:/gitea: sections are edited in config.yaml)"
@@ -214,154 +218,163 @@ enum AuthCommand {
         case "add": return try add(args, environment: environment)
         case "list": return list(environment: environment)
         case "remove": return try remove(args, environment: environment)
-        default: break
+        case "set", "status", "clear": break
+        default: try environment.fail("unknown auth subcommand '\(sub)' (use set|status|clear|list|add|remove)")
         }
-        // Platform selection: --gitea/--forgejo target those tokens; default
-        // is GitHub. --account NAME targets a named account (an accounts:
-        // entry).
-        var giteaMode = args.contains("--gitea") || args.contains("--forgejo")
-        var forge: ForgeID = args.contains("--forgejo") ? .forgejo : (giteaMode ? .gitea : .github)
-        var namedAccount: AccountConfig?
-        // GitLab has no top-level section: --gitlab means the (first) GitLab account.
+        let target = try resolveTarget(args, environment: environment)
+        switch sub {
+        case "set": try setToken(args, target: target, environment: environment)
+        case "status": try await status(args, target: target, environment: environment)
+        default: clear(target: target, environment: environment)
+        }
+    }
+
+    // MARK: - set / status / clear
+
+    /// The token `set`, `status` and `clear` act on: a forge's primary token
+    /// (`--gitea`, `--forgejo`, default GitHub) or a named account
+    /// (`--account NAME`; `--gitlab` means the first GitLab account).
+    struct Target {
+        var forge: ForgeID
+        /// Set for a named account with its own Keychain item.
+        var named: AccountConfig?
+
+        var label: String {
+            let kind: String
+            switch forge {
+            case .github: kind = "GitHub PAT"
+            case .gitea: kind = "Gitea access token"
+            case .forgejo: kind = "Forgejo access token"
+            case .gitlab: kind = "GitLab access token"
+            }
+            return named.map { "\(kind) for account '\($0.name)'" } ?? kind
+        }
+
+        func load(_ environment: AuthEnvironment) throws -> String? {
+            try named.map { try environment.loadAccount($0.forge, $0.name) } ?? environment.load(forge)
+        }
+    }
+
+    static func resolveTarget(_ args: [String], environment: AuthEnvironment) throws -> Target {
+        var target = Target(
+            forge: args.contains("--forgejo") ? .forgejo : (args.contains("--gitea") ? .gitea : .github))
         var accountFlag = flag("--account", in: args)
         if accountFlag == nil, args.contains("--gitlab") {
-            let config: KinhinConfig? =
-                if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
-            guard let gitlab = config?.accounts.first(where: { $0.forge == .gitlab }) else {
+            guard let gitlab = environment.lookupConfig?.accounts.first(where: { $0.forge == .gitlab }) else {
                 try environment.fail(
                     "no GitLab account in config — add one first: kinhin auth add NAME --gitlab --scope group/project")
             }
             accountFlag = gitlab.name
         }
         if let accountName = accountFlag {
-            let config: KinhinConfig? =
-                if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
-            guard let resolved = resolveAccount(accountName, config: config) else {
+            guard let resolved = resolveAccount(accountName, config: environment.lookupConfig) else {
                 try environment.fail(
                     "no account '\(accountName)' in config — add it first: kinhin auth add \(accountName) --github|--gitea|--forgejo|--gitlab --scope SCOPE"
                 )
             }
-            forge = resolved.forge
-            giteaMode = forge != .github
-            // The legacy names keep their original Keychain items and RPCs;
-            // GitLab has none, so every GitLab account is a named one.
-            if resolved.name != resolved.forge.rawValue || resolved.forge == .gitlab { namedAccount = resolved }
+            target.forge = resolved.forge
+            // The conventional names keep their original Keychain items and
+            // RPCs; GitLab has none, so every GitLab account is a named one.
+            if resolved.name != resolved.forge.rawValue || resolved.forge == .gitlab { target.named = resolved }
         }
-        let forgeLabel = { (forge: ForgeID) -> String in
-            switch forge {
-            case .github: return "GitHub PAT"
-            case .gitea: return "Gitea access token"
-            case .forgejo: return "Forgejo access token"
-            case .gitlab: return "GitLab access token"
+        return target
+    }
+
+    /// `auth set`: store the token (from --token or stdin) and hand it to a
+    /// running daemon.
+    private static func setToken(_ args: [String], target: Target, environment: AuthEnvironment) throws {
+        let token: String
+        if let explicit = flag("--token", in: args) {
+            token = explicit
+        } else {
+            // Say what the token needs before asking for it, so it is
+            // created with the right permissions the first time.
+            print(Self.requirements(for: target.forge, config: environment.lookupConfig).plainText)
+            print("")
+            print("Paste your \(target.label) (input hidden), then press Enter:")
+            let entered = environment.readToken()?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let entered, !entered.isEmpty else {
+                try environment.fail("no token entered")
             }
+            token = entered
         }
-        let forgeName =
-            namedAccount.map { "\(forgeLabel($0.forge)) for account '\($0.name)'" }
-            ?? forgeLabel(forge)
-        let load: (ForgeID) throws -> String? = { f in
-            try namedAccount.map { try environment.loadAccount($0.forge, $0.name) } ?? environment.load(f)
+        if let named = target.named {
+            try environment.saveAccount(token, named.forge, named.name)
+            environment.notifyDaemonAccount(named.name, token)
+        } else {
+            try environment.save(token, target.forge)
+            environment.notifyDaemon(token, target.forge)
         }
-        switch sub {
-        case "set":
-            let token: String
-            if let explicit = flag("--token", in: args) {
-                token = explicit
-            } else {
-                // Say what the token needs before asking for it, so it is
-                // created with the right permissions the first time.
-                let config: KinhinConfig? =
-                    if let fixture = environment.jsonConfig { fixture } else { AuthEnvironment.loadConfigTolerant() }
-                print(Self.requirements(for: forge, config: config).plainText)
+        print("\(target.label) stored in Keychain")
+    }
+
+    /// `auth status`: check the stored token against its forge (or, with
+    /// --json, the static report with no network probe).
+    private static func status(_ args: [String], target: Target, environment: AuthEnvironment) async throws {
+        // Machine output first: a fast, deterministic, scriptable snapshot —
+        // never a network probe, never an early exit before the JSON lands.
+        if args.contains("--json") {
+            let (report, _) = try Self.emitStatusJSON(environment: environment)
+            if !report.allGood { try environment.exit(1) }
+            return
+        }
+        guard let token = try target.load(environment) else {
+            print(target.named != nil || target.forge != .github ? "no \(target.label) stored" : "no token stored")
+            try environment.exit(1)
+        }
+        let cfg = environment.loadConfig()
+        // What to check against: the named account, the forge's primary
+        // account, or (GitHub) the configured repo scope.
+        let account: AccountConfig
+        if let named = target.named {
+            account = named
+        } else if target.forge == .github {
+            account = AccountConfig(name: "github", forge: .github, scope: cfg.repo)
+        } else {
+            guard let primary = target.forge == .forgejo ? cfg.forgejo : cfg.gitea else {
+                try environment.fail(
+                    "no \(target.forge.rawValue) account in config — add one before checking the \(target.forge == .forgejo ? "Forgejo" : "Gitea") token"
+                )
+            }
+            account = AccountConfig(
+                name: target.forge.rawValue, forge: target.forge, scope: primary.scope, instance: primary.instance)
+        }
+        // A forge's primary Gitea-family token names the forge and its
+        // server; everything else checks against the scope.
+        let selfHostedPrimary = target.named == nil && target.forge != .github
+        let noun = selfHostedPrimary ? "\(target.forge == .forgejo ? "Forgejo" : "Gitea") token" : "token"
+        let checking = selfHostedPrimary ? account.instance ?? "" : account.scope
+        let against = selfHostedPrimary ? "\(account.scope) @ \(checking)" : account.scope
+        print("\(noun) stored (starts with \(token.prefix(4))…), checking \(checking)…")
+        do {
+            switch account.forge {
+            case .github:
+                try await environment.checkGitHub(GitHubCredentials(token: token, scope: account.scope))
+            case .gitea, .forgejo:
+                try await environment.checkGitea(
+                    GiteaCredentials(token: token, scope: account.scope, instance: account.instance ?? ""))
+            case .gitlab:
+                try await environment.checkGitLab(
+                    GitLabCredentials(token: token, scope: account.scope, instance: account.instance))
+            }
+            print("token works against \(against)")
+        } catch {
+            print("token check failed: \(error.localizedDescription)")
+            if target.named == nil {
                 print("")
-                print("Paste your \(forgeName) (input hidden), then press Enter:")
-                let entered = environment.readToken()?.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard let entered, !entered.isEmpty else {
-                    try environment.fail("no token entered")
-                }
-                token = entered
+                print(Self.requirements(for: target.forge, config: cfg).plainText)
             }
-            if let namedAccount {
-                try environment.saveAccount(token, namedAccount.forge, namedAccount.name)
-                environment.notifyDaemonAccount(namedAccount.name, token)
-            } else {
-                try environment.save(token, forge)
-                environment.notifyDaemon(token, forge)
-            }
-            print("\(forgeName) stored in Keychain")
-        case "status":
-            // Machine output first: the whole point is a fast, deterministic,
-            // scriptable snapshot — never a network probe, never an early
-            // exit before the JSON lands.
-            if args.contains("--json") {
-                let (report, _) = try Self.emitStatusJSON(environment: environment)
-                if !report.allGood {
-                    try environment.exit(1)
-                }
-                return
-            }
-            guard let token = try load(forge) else {
-                print(namedAccount != nil || giteaMode ? "no \(forgeName) stored" : "no token stored")
-                try environment.exit(1)
-            }
-            let cfg = environment.loadConfig()
-            if let namedAccount {
-                print("token stored (starts with \(token.prefix(4))…), checking \(namedAccount.scope)…")
-                do {
-                    switch namedAccount.forge {
-                    case .github:
-                        try await environment.checkGitHub(GitHubCredentials(token: token, scope: namedAccount.scope))
-                    case .gitea, .forgejo:
-                        try await environment.checkGitea(
-                            GiteaCredentials(
-                                token: token, scope: namedAccount.scope, instance: namedAccount.instance ?? ""))
-                    case .gitlab:
-                        try await environment.checkGitLab(
-                            GitLabCredentials(token: token, scope: namedAccount.scope, instance: namedAccount.instance))
-                    }
-                    print("token works against \(namedAccount.scope)")
-                } catch {
-                    print("token check failed: \(error.localizedDescription)")
-                    try environment.exit(1)
-                }
-            } else if giteaMode {
-                // --gitea and --forgejo each check their own primary account.
-                let name = forge == .forgejo ? "Forgejo" : "Gitea"
-                guard let account = forge == .forgejo ? cfg.forgejo : cfg.gitea else {
-                    try environment.fail(
-                        "no \(forge.rawValue) account in config — add one before checking the \(name) token")
-                }
-                print("\(name) token stored (starts with \(token.prefix(4))…), checking \(account.instance)…")
-                do {
-                    try await environment.checkGitea(
-                        GiteaCredentials(token: token, scope: account.scope, instance: account.instance))
-                    print("token works against \(account.scope) @ \(account.instance)")
-                } catch {
-                    print("token check failed: \(error.localizedDescription)")
-                    print("")
-                    print(Self.requirements(for: forge, config: cfg).plainText)
-                    try environment.exit(1)
-                }
-            } else {
-                print("token stored (starts with \(token.prefix(4))…), checking…")
-                do {
-                    try await environment.checkGitHub(GitHubCredentials(token: token, scope: cfg.repo))
-                    print("token works against \(cfg.repo)")
-                } catch {
-                    print("token check failed: \(error.localizedDescription)")
-                    print("")
-                    print(Self.requirements(for: .github, config: cfg).plainText)
-                    try environment.exit(1)
-                }
-            }
-        case "clear":
-            if let namedAccount {
-                environment.deleteAccount(namedAccount.forge, namedAccount.name)
-            } else {
-                environment.delete(forge)
-            }
-            print("\(forgeName) removed")
-        default:
-            try environment.fail("unknown auth subcommand '\(sub)' (use set|status|clear|list|add|remove)")
+            try environment.exit(1)
         }
+    }
+
+    /// `auth clear`: delete the stored token.
+    private static func clear(target: Target, environment: AuthEnvironment) {
+        if let named = target.named {
+            environment.deleteAccount(named.forge, named.name)
+        } else {
+            environment.delete(target.forge)
+        }
+        print("\(target.label) removed")
     }
 }

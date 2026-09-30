@@ -86,7 +86,7 @@ extension MainTabsWindowController {
     func buildCapacitySection() -> NSView {
         let model = CapacityModel()
         model.configURL = Paths.config
-        model.onEdited = { [weak self] in self?.runtimesEdited?() }
+        model.onChanged = { [weak self] in self?.runtimesEdited?() }
         capacityModel = model
         let host = NSHostingView(rootView: CapacityView(model: model))
         host.sizingOptions = []
@@ -101,7 +101,7 @@ extension MainTabsWindowController {
     func buildToolchainsSection() -> NSView {
         let model = ToolchainsModel()
         model.configURL = Paths.config
-        model.onEdited = { [weak self] in self?.runtimesEdited?() }
+        model.onChanged = { [weak self] in self?.runtimesEdited?() }
         toolchainsModel = model
         let host = NSHostingView(rootView: ToolchainsView(model: model))
         host.sizingOptions = []
@@ -119,7 +119,7 @@ extension MainTabsWindowController {
     func buildRoutingSection() -> NSView {
         let model = RuntimesModel()
         model.configURL = Paths.config
-        model.onEdited = { [weak self] in self?.runtimesEdited?() }
+        model.onChanged = { [weak self] in self?.runtimesEdited?() }
         runtimesModel = model
         let host = NSHostingView(rootView: RuntimesView(model: model))
         host.sizingOptions = []

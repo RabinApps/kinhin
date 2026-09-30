@@ -71,6 +71,11 @@ final class TokenReplacementTests: XCTestCase {
         func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] { [] }
     }
 
+    /// The client serving an account's attached GitHub forge.
+    private func client(_ engine: FleetEngine, account: String = "github") -> SwapProbeClient? {
+        (engine.forges[account] as? GitHubForge)?.client as? SwapProbeClient
+    }
+
     private func makeEngine(pat: String, github: GitHubServing, factory: GitHubClientFactory) -> FleetEngine {
         FleetEngine(
             config: makeTestConfig(),
@@ -91,8 +96,7 @@ final class TokenReplacementTests: XCTestCase {
 
         XCTAssertEqual(
             recording.seenTokens, ["ghp_old", "ghp_new"], "factory must rebuild a client from the fresh credentials")
-        let swapped = engine.github as? SwapProbeClient
-        XCTAssertEqual(swapped?.token, "ghp_new", "engine.github must serve the new credentials")
+        XCTAssertEqual(client(engine)?.token, "ghp_new", "the primary forge must serve the new credentials")
     }
 
     func testReplaceCredentialsPreservesScope() async {
@@ -105,8 +109,7 @@ final class TokenReplacementTests: XCTestCase {
         await engine.replaceCredentials(pat: "ghp_new")
         // The swapped client still routes through the org scope: minting a
         // registration token succeeds against whatever scope the factory set.
-        let probe = engine.github as! SwapProbeClient
-        XCTAssertEqual(probe.token, "ghp_new")
+        XCTAssertEqual(client(engine)?.token, "ghp_new")
     }
 
     /// A primary GitHub account not named "github" must be swapped under its
@@ -128,9 +131,7 @@ final class TokenReplacementTests: XCTestCase {
             return XCTFail("primary account must stay attached under its name")
         }
         XCTAssertEqual(token, "ghp_new")
-        XCTAssertTrue(
-            engine.registrationCache(for: "work") === engine.registrationTokens,
-            "the primary account keeps the engine's registration cache, which replaceCredentials invalidates")
+        XCTAssertEqual(client(engine, account: "work")?.token, "ghp_new")
     }
 
     /// Rotating the primary GitHub account by name (the app's Connect card,
@@ -143,7 +144,7 @@ final class TokenReplacementTests: XCTestCase {
             ssh: FakeSSH(), host: testHost, githubFactory: GitHubClientFactory { SwapProbeClient(token: $0.token) }
         )
         await CredentialRotation.apply(.account("work"), token: "ghp_new", to: engine)
-        XCTAssertEqual((engine.github as? SwapProbeClient)?.token, "ghp_new")
+        XCTAssertEqual(client(engine, account: "work")?.token, "ghp_new")
         XCTAssertEqual(CredentialRotation.Target.forge(.gitea).accountName, "gitea")
     }
 
@@ -183,7 +184,7 @@ final class TokenReplacementTests: XCTestCase {
         let response = await Daemon.handle(RPCRequest(id: 11, method: .replaceToken, payload: payload), engine: engine)
 
         XCTAssertTrue(response.ok)
-        XCTAssertEqual((engine.github as? SwapProbeClient)?.token, "ghp_via_rpc")
+        XCTAssertEqual(client(engine)?.token, "ghp_via_rpc")
     }
 
     func testDaemonReplaceTokenRejectsBadPayload() async throws {

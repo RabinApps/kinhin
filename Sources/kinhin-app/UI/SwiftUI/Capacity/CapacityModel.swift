@@ -15,14 +15,14 @@ import Observation
 /// routing live in Advanced → Routing.
 @MainActor
 @Observable
-final class CapacityModel {
+final class CapacityModel: ConfigFormModel {
     typealias Snapshot = GeneralConfigEditor.Snapshot
     typealias Field = GeneralConfigEditor.Field
 
     /// The config file this form edits (tests point it at a scratch file).
     @ObservationIgnored var configURL: URL = Paths.config
     /// Fired once after an Apply wrote at least one change.
-    @ObservationIgnored var onEdited: (() -> Void)?
+    @ObservationIgnored var onChanged: (() -> Void)?
     /// How many times the config was loaded (tests: the hosting section must
     /// have loaded at least once, or the form renders blank forever).
     @ObservationIgnored private(set) var loads = 0
@@ -154,6 +154,6 @@ final class CapacityModel {
             result = StatusLine(text: "Applied ✓", style: .ok)
         }
         if let snap = ConfigStore.snapshotOrLog(at: configURL) { baseline = snap }
-        if wroteAny { onEdited?() }
+        if wroteAny { onChanged?() }
     }
 }

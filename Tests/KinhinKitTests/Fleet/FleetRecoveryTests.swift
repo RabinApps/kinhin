@@ -22,9 +22,9 @@ final class FleetRecoveryTests: XCTestCase {
             store: store,
             ssh: FakeSSH(),
             host: host,
-            containerShell: FakeShell()
+            containerShell: FakeShell(),
+            dependencies: .init(lifecycleDrainTimeout: .milliseconds(200))
         )
-        engine.lifecycleDrainTimeout = .milliseconds(200)
         return (engine, tart)
     }
 
@@ -37,6 +37,23 @@ final class FleetRecoveryTests: XCTestCase {
 
         let adopted = store.all.first { $0.id == "kinhin-t1" }
         XCTAssertEqual(adopted?.runtime, RuntimeID.tart.rawValue, "a Tart VM must not be adopted as a container")
+        await engine.detachKeepingInstances()
+    }
+
+    /// A runtime that can't be listed (tart wedged, a daemon down) must not
+    /// read as "every instance vanished": its records are kept, not dropped
+    /// (which would orphan the running VMs).
+    func testRecordsSurviveAFailedListing() async {
+        let store = makeTestStore()
+        var record = VMRecord(id: "kinhin-t2", phase: .busy)
+        record.runtime = RuntimeID.tart.rawValue
+        store.upsert(record)
+        let (engine, tart) = makeMixedEngine(store: store)
+        tart.failList = true
+
+        await engine.recoverIfNeeded()
+
+        XCTAssertNotNil(store.all.first { $0.id == "kinhin-t2" }, "an unlistable runtime's record is kept")
         await engine.detachKeepingInstances()
     }
 

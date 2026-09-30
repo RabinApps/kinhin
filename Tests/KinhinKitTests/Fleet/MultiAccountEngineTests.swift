@@ -41,8 +41,8 @@ final class MultiAccountEngineTests: XCTestCase {
         let engine = FleetEngine(
             config: try config(), pat: "legacy", tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
             host: testHost,
-            githubFactory: GitHubClientFactory { clients.client(for: $0.token) })
-        engine.tokenLoader = { _, name in tokens[name] }
+            githubFactory: GitHubClientFactory { clients.client(for: $0.token) },
+            dependencies: .init(tokenLoader: { _, name in tokens[name] }))
         return engine
     }
 

@@ -136,11 +136,7 @@ public enum ToolchainsConfigEditor {
     /// The `toolchains:` block for a selection (nil when nothing is selected).
     static func sectionText(_ selection: ToolchainsSelection) -> String? {
         guard !selection.isEmpty else { return nil }
-        func quoted(_ value: String) -> String {
-            "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-                + "\""
-        }
-        func list(_ items: [String]) -> String { "[" + items.map(quoted).joined(separator: ", ") + "]" }
+        func list(_ items: [String]) -> String { "[" + items.map(YAMLText.quoted).joined(separator: ", ") + "]" }
         var lines = ["toolchains:"]
         let specs = specStrings(for: selection)
         if !specs.isEmpty { lines.append("  specs: \(list(specs))") }
@@ -166,16 +162,7 @@ public enum ToolchainsConfigEditor {
 
     @discardableResult
     public static func apply(_ selection: ToolchainsSelection, to url: URL = Paths.config) throws -> String {
-        guard FileManager.default.fileExists(atPath: url.path) else { throw ConfigEditError.notFound(url.path) }
-        let original = try String(contentsOf: url, encoding: .utf8)
-        let updated = try replace(selection, in: original)
-        do {
-            _ = try ConfigLoader.parse(updated)
-        } catch {
-            throw ConfigEditError.validation(error.localizedDescription)
-        }
-        try updated.write(toFile: url.path, atomically: true, encoding: .utf8)
-        return updated
+        try ConfigFileEdit.apply(to: url) { try replace(selection, in: $0) }
     }
 
     // MARK: What lands where

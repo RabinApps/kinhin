@@ -97,11 +97,15 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertEqual(tart.deleteCalls, ["vm-1"])
     }
 
-    func testTartExistingInstanceIDsIsEmptyWhenListFails() async {
+    /// A failed listing must not read as "no VMs" (recovery would drop
+    /// every record and orphan the running VMs).
+    func testTartExistingInstanceIDsThrowsWhenListFails() async {
         let tart = FakeTart()
         tart.failList = true
-        let ids = await TartRuntime(tart: tart, bootTimeout: { 300 }).existingInstanceIDs()
-        XCTAssertEqual(ids, [])
+        do {
+            _ = try await TartRuntime(tart: tart, bootTimeout: { 300 }).existingInstanceIDs()
+            XCTFail("a failed tart list must throw")
+        } catch {}
     }
 
     // MARK: Config edit errors

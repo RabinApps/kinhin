@@ -48,7 +48,7 @@ public enum RuntimesConfigEditor {
         if !rc.routes.isEmpty {
             lines.append("  routes:")
             for route in rc.routes {
-                lines.append("    - pattern: \(quote(route.pattern))")
+                lines.append("    - pattern: \(YAMLText.quoted(route.pattern))")
                 lines.append("      runtime: \(route.runtime)")
                 if let consent = route.consent {
                     lines.append("      consent: \(consent)")
@@ -63,23 +63,7 @@ public enum RuntimesConfigEditor {
     /// (the same validation the engine uses) or nothing is written.
     @discardableResult
     public static func apply(_ rc: KinhinConfig.RuntimeConfig, to url: URL = Paths.config) throws -> String {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw ConfigEditError.notFound(url.path)
-        }
-        let original: String
-        do {
-            original = try String(contentsOf: url, encoding: .utf8)
-        } catch {
-            throw ConfigEditError.notFound(url.path)
-        }
-        let updated = try replaceSection(in: original, with: rc)
-        do {
-            _ = try ConfigLoader.parse(updated)
-        } catch {
-            throw ConfigEditError.validation(error.localizedDescription)
-        }
-        try updated.write(toFile: url.path, atomically: true, encoding: .utf8)
-        return updated
+        try ConfigFileEdit.apply(to: url) { try replaceSection(in: $0, with: rc) }
     }
 
     /// Replace (or append) the top-level `runtimes:` mapping by editing the
@@ -93,12 +77,7 @@ public enum RuntimesConfigEditor {
         var lines = yaml.components(separatedBy: "\n")
         let newSection = sectionText(rc)
 
-        // A top-level key: starts at column 0, not a comment, looks like `key:` or `key: value`.
-        func isTopLevel(_ line: String) -> Bool {
-            guard let first = line.first else { return false }
-            guard first != " ", first != "#", first != "-" else { return false }
-            return line.contains(":")
-        }
+        let isTopLevel = YAMLText.isTopLevelKey
 
         if let start = lines.firstIndex(where: { isTopLevel($0) && $0.hasPrefix("runtimes:") }) {
             var end = lines.count
@@ -110,20 +89,10 @@ public enum RuntimesConfigEditor {
         } else {
             // Append after the last content (trailing blank line dropped so
             // we don't accumulate separators on repeated edits).
-            while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
-                lines.removeLast()
-            }
+            YAMLText.trimTrailingBlankLines(&lines)
             lines.append(newSection)
         }
         return lines.joined(separator: "\n")
-    }
-
-    static func quote(_ value: String) -> String {
-        let escaped =
-            value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
     }
 
     static func formatWeight(_ weight: Double) -> String {

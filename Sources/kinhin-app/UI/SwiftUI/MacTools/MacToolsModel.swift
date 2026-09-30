@@ -9,7 +9,7 @@ import Observation
 /// sensible defaults).
 @MainActor
 @Observable
-final class MacToolsModel {
+final class MacToolsModel: ConfigFormModel {
     typealias Line = StatusLine
 
     /// The config file this form edits (tests point it at a scratch file).
@@ -94,7 +94,18 @@ final class MacToolsModel {
     // MARK: State
 
     func reload() {
-        let snapshot = ConfigStore.snapshotOrLog(at: configURL)
+        // A broken config.yaml is said here, not rendered as the defaults
+        // (the toggles below would otherwise read "off" and invite a write).
+        let snapshot: GeneralConfigEditor.Snapshot?
+        let configReadable: Bool
+        do {
+            snapshot = try ConfigStore.snapshot(at: configURL)
+            configReadable = true
+        } catch {
+            snapshot = nil
+            configReadable = false
+            busyLine = .unreadableConfig(error)
+        }
         containerOn = snapshot?.container != nil
         dockerOn = snapshot?.docker != nil
         refreshBaseImages()
@@ -114,7 +125,7 @@ final class MacToolsModel {
 
         let image = snapshot?.image ?? "tahoe-base"
         let tartInstalled = TartController.isInstalled()
-        if autoEnableLinuxRuntime, !tartInstalled, !containerOn, !dockerOn {
+        if autoEnableLinuxRuntime, configReadable, !tartInstalled, !containerOn, !dockerOn {
             if dockerInstalled {
                 setDocker(true)
                 noteAutoEnabled("Docker")
@@ -194,7 +205,7 @@ final class MacToolsModel {
             refreshBaseImages()
             onChanged?()
         } catch {
-            busyLine = Line(text: "Not saved — \(error.localizedDescription)", style: .error)
+            busyLine = .notSaved(error)
             refreshBaseImages()
         }
     }
@@ -205,7 +216,7 @@ final class MacToolsModel {
             refreshBaseImages()
             onChanged?()
         } catch {
-            busyLine = Line(text: "Not saved — \(error.localizedDescription)", style: .error)
+            busyLine = .notSaved(error)
             refreshBaseImages()
         }
     }
@@ -314,7 +325,7 @@ final class MacToolsModel {
         } catch {
             revert(self)
             recomputeReadiness()
-            busyLine = Line(text: "Not saved — \(error.localizedDescription)", style: .error)
+            busyLine = .notSaved(error)
         }
     }
 

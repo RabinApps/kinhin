@@ -91,7 +91,7 @@ final class RoutingTests: XCTestCase {
         model.reload()
         await waitUntilLoaded(model)
         var edited = 0
-        model.onEdited = { edited += 1 }
+        model.onChanged = { edited += 1 }
         model.addRouteClicked()
         XCTAssertEqual(
             model.routeOffer?.runtimes, [.tart, .docker, .host],

@@ -95,8 +95,9 @@ public protocol Runtime: Sendable {
 
     /// Ids of this runtime's existing instances — the recovery/adopt path
     /// enumerates every configured runtime through this (no per-runtime
-    /// branch in the engine).
-    func existingInstanceIDs() async -> [String]
+    /// branch in the engine). Throws when the runtime can't be asked: a
+    /// failed listing must never read as "no instances".
+    func existingInstanceIDs() async throws -> [String]
 
     /// The bootstrap script that turns the provisioned instance into N
     /// registered runners. The engine executes it inside the instance.
@@ -108,11 +109,6 @@ public protocol Runtime: Sendable {
         forge: Forge, token: String, runnerTokens: [String: String], name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String
-
-    /// Watch the instance's runners until the ephemeral exit condition holds
-    /// (all runners gone, or idle grace for runtimes without deregistration).
-    /// Returns normally when the instance is ready to be torn down.
-    func watchExit(id: String, forge: Forge, runnerCount: Int, route: RepoRoute) async throws
 
     /// Stop and remove the instance. Must be idempotent.
     func teardown(id: String) async
@@ -168,7 +164,7 @@ struct TartRuntime: Runtime {
             return .ready
         case .missing:
             return .missing(
-                tool: "tart", fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")
+                tool: "tart", fix: TartHealthProbe.installCommand)
         case .killedOnLaunch:
             return .missing(tool: "tart (notarization rollback)", fix: "roll back to the notarized Cirrus Labs build")
         case .broken(let why):
@@ -203,13 +199,8 @@ struct TartRuntime: Runtime {
         return try await ssh.exec(vm: id, user: "admin", ip: ip, script: script, timeout: timeout)
     }
 
-    func existingInstanceIDs() async -> [String] {
-        do {
-            return try await tart.list().map(\.name)
-        } catch {
-            Log.warn("tart", "could not list VMs for recovery: \(error.localizedDescription)")
-            return []
-        }
+    func existingInstanceIDs() async throws -> [String] {
+        try await tart.list().map(\.name)
     }
 
     func registrationScript(
@@ -220,16 +211,8 @@ struct TartRuntime: Runtime {
         // mounted host share so per-job installs reuse warm downloads. The
         // env prefix is prepended to whichever registration script the forge
         // produces; exports are guarded no-ops when the share is absent.
-        let cachePrefix: String
-        if route.cacheMount, let selection = cachedToolchainSelection {
-            cachePrefix =
-                RunnerBootstrap.cacheEnvExports(
-                    cacheEnvs: selection.cacheEnvs,
-                    mountPath: ToolchainCacheMount.guestPath
-                ) + "\n\n"
-        } else {
-            cachePrefix = ""
-        }
+        let cachePrefix = RunnerBootstrap.cachePrefix(
+            mounted: route.cacheMount, selection: cachedToolchainSelection, mountPath: ToolchainCacheMount.guestPath)
         switch forge.credentials {
         case .github:
             return cachePrefix
@@ -261,17 +244,6 @@ struct TartRuntime: Runtime {
                     baseDir: "\"$HOME/gitlab-runner\""
                 )
         }
-    }
-
-    /// The engine's watches are forge-specific today (GitHub deregistration
-    /// semantics vs Gitea idle-grace); the runtime exposes them as the
-    /// exit-wait, selected by forge id. Stage 1 keeps the engine's existing
-    /// watch methods authoritative — this hook exists for symmetry and for
-    /// non-VM runtimes to override later.
-    func watchExit(id: String, forge: Forge, runnerCount: Int, route: RepoRoute) async throws {
-        // Engine-owned watch (needs the record store + statusBox); nothing to
-        // do at the runtime layer for Tart. Non-VM runtimes implement their
-        // own container/host polling here in stages 3–4.
     }
 
     func teardown(id: String) async {

@@ -1,6 +1,5 @@
 import Foundation
 import Synchronization
-import Yams
 
 // MARK: - Routing state
 
@@ -10,18 +9,11 @@ struct RoutingState: Sendable {
     var caps: [RuntimeID: Int]
 }
 
-/// The legacy GitHub account's credentials and the client built from them.
-struct GitHubAuth: Sendable {
-    var credentials: GitHubCredentials
-    var client: GitHubServing
-}
-
-/// Attached forges by platform or account name ("github", "gitea", an
-/// `accounts:` name), plus the bookkeeping that changes with them.
+/// Attached forges by account name, plus the bookkeeping that changes with
+/// them.
 struct ForgeState: Sendable {
     var byPlatform: [String: Forge] = [:]
-    /// Registration-token caches for explicit accounts; the legacy GitHub
-    /// account uses the engine's `registrationTokens`.
+    /// Registration-token caches, one per account (created on first use).
     var accountRegistrationTokens: [String: RegistrationTokenCache] = [:]
     /// Retry schedule for forges that failed at startup (FleetForgeRetry.swift).
     var retry = ForgeRetryState()
@@ -43,48 +35,28 @@ public final class FleetEngine: Sendable {
     let tart: TartControlling
     let store: FleetStore
     let ssh: SSHExecuting
-    let registrationTokens: RegistrationTokenCache
     let statusBox: FleetStatusBox
     let capacity: Capacity.Plan
-    private let _githubFactory = Mutex<GitHubClientFactory>(.live)
 
-    var githubFactory: GitHubClientFactory {
-        get { _githubFactory.withLock { $0 } }
-        set { _githubFactory.withLock { $0 = newValue } }
-    }
-    /// The legacy GitHub account's credentials and client, swapped together
-    /// by replaceCredentials.
-    let githubAuth: Mutex<GitHubAuth>
+    // MARK: Collaborators (fixed for the engine's lifetime)
+
+    /// Builds the GitHub client for an account's credentials.
+    let githubFactory: GitHubClientFactory
+    /// Resolves an account's token (forge, account name).
+    let tokenLoader: @Sendable (ForgeID, String) throws -> String?
+    /// Host snapshot for the pre-spawn disk guard.
+    let hostProbe: @Sendable () -> HostResources
+    /// How long `detachKeepingInstances()` waits for cancelled lifecycle
+    /// tasks before handing the fleet over anyway.
+    let lifecycleDrainTimeout: Duration
+
+    // MARK: Mutable state
+
     /// Attached forges, per-account registration-token caches and the
     /// detached-forge retry schedule.
     let forgeState: Mutex<ForgeState>
-    /// Resolves an account's token (forge, account name). Keychain in
-    /// production; tests inject their own.
-    private let _tokenLoader = Mutex<@Sendable (ForgeID, String) throws -> String?> {
-        try KeychainTokenStore.load(forge: $0, name: $1)
-    }
 
-    var tokenLoader: @Sendable (ForgeID, String) throws -> String? {
-        get { _tokenLoader.withLock { $0 } }
-        set { _tokenLoader.withLock { $0 = newValue } }
-    }
-    /// Host snapshot for the pre-spawn disk guard. Defaults to the static
-    /// construction-time host value (hermetic — tests inject their own);
-    /// production wiring swaps in a live statfs probe via `useLiveDiskProbe`.
-    private let _hostProbe = Mutex<@Sendable () -> HostResources> { ResourceProbe().snapshot() }
-
-    var hostProbe: @Sendable () -> HostResources {
-        get { _hostProbe.withLock { $0 } }
-        set { _hostProbe.withLock { $0 = newValue } }
-    }
-    /// Opts the disk guard into live probing (production wiring only; tests
-    /// keep the hermetic construction snapshot or set their own probe).
-    public func useLiveDiskProbe() { hostProbe = { ResourceProbe().snapshot() } }
-
-    /// The API client in use. Swapped atomically by replaceCredentials.
-    public var github: GitHubServing { githubAuth.withLock { $0.client } }
-
-    /// Forge instances serving this fleet, keyed by platform string.
+    /// Forge instances serving this fleet, keyed by account name.
     public var forges: [String: Forge] { forgeState.withLock { $0.byPlatform } }
 
     private let _reconcileTask = Mutex<Task<Void, Never>?>(nil)
@@ -95,49 +67,27 @@ public final class FleetEngine: Sendable {
     }
     /// One lifecycle task per VM id (removed by the task itself on finish).
     let lifecycleTasks = Mutex<[String: Task<Void, Never>]>([:])
-    /// How long `detachKeepingInstances()` waits for cancelled lifecycle
-    /// tasks before handing the fleet over anyway. Tests shorten it.
-    private let _lifecycleDrainTimeout = Mutex<Duration>(.seconds(15))
 
-    var lifecycleDrainTimeout: Duration {
-        get { _lifecycleDrainTimeout.withLock { $0 } }
-        set { _lifecycleDrainTimeout.withLock { $0 = newValue } }
-    }
-
-    /// Whether the fleet is serving and whether it is paused.
+    /// Whether the fleet is serving and whether it is paused — the single
+    /// source of truth (`status()` reads it on every call).
     let runState = Mutex(RunState())
     public var paused: Bool { runState.withLock { $0.paused } }
     var running: Bool { runState.withLock { $0.running } }
 
-    /// The execution runtime backing this fleet. With `container:` config
-    /// present this is the Apple-container runtime (Linux microVMs); else
-    /// Tart. The runtime is a fixed property of the engine instance (config
-    /// changes restart the engine via the daemon).
+    /// The primary runtime: single-pool fleets and the fleet-cap shape
+    /// (Apple containers, else Docker slots, else Tart — `Capacity.primaryRuntime`).
     let runtime: any Runtime
-    /// Non-nil when the fleet can run on Apple containers (mixed fleets use
-    /// both runtimes, selected per record by the routing model).
-    let containerRuntime: AppleContainerRuntime?
-    /// Non-nil when the fleet can run Docker slots (Linux containers in the
-    /// provider's shared VM; selected per record by the routing model).
-    let dockerRuntime: DockerRuntime?
-    /// Non-nil when the config routes any repo/workflow to host execution
-    /// (consent-gated; see `ConfigLoader`'s host validation).
-    let hostRuntime: HostRuntime?
-    /// Routing model: label pools + per-repo/per-workflow routes. Built from
-    /// the `runtimes:` config (nil → single default pool, legacy behavior).
-    /// Reloaded live by applyReloaded(config:), so a running fleet picks up
-    /// route changes without a restart. Read through `routing` and
-    /// `capsByRuntime`, which take the lock.
+    /// Every runtime this fleet can execute on, keyed by id. Lifecycle and
+    /// recovery dispatch through this map — no per-runtime branches in the
+    /// engine. Fixed per engine (config changes rebuild it via the daemon).
+    let runtimesByRuntime: [RuntimeID: any Runtime]
+    /// Routing model: label pools + per-repo/per-workflow routes, and the
+    /// per-runtime caps. Reloaded live by applyReloaded(config:), so a
+    /// running fleet picks up route changes without a restart. Read through
+    /// `routing` and `capsByRuntime`, which take the lock.
     let routingState: Mutex<RoutingState>
     var routing: RuntimeConfigModel { routingState.withLock { $0.model } }
     var capsByRuntime: [RuntimeID: Int] { routingState.withLock { $0.caps } }
-    /// The Tart runtime instance (always available; mixed fleets select it
-    /// per record while container-routed records use containerRuntime).
-    let tartRuntime: TartRuntime
-    /// Every runtime this fleet can execute on, keyed by id. Lifecycle and
-    /// recovery dispatch through this map — no per-runtime branches in the
-    /// engine. (Future hosted runtimes join here when configured.)
-    let runtimesByRuntime: [RuntimeID: any Runtime]
     /// Daily host-cache sweep task (started/stopped with the engine).
     private let _cachePruneTask = Mutex<Task<Void, Never>?>(nil)
 
@@ -146,86 +96,54 @@ public final class FleetEngine: Sendable {
         set { _cachePruneTask.withLock { $0 = newValue } }
     }
 
+    /// `github` serves every GitHub account unless `dependencies` names a
+    /// client factory (tests hand in a fake). `primaryToken` is the primary
+    /// GitHub account's token for its construction-time forge.
     public init(
         config: KinhinConfig, github: GitHubServing, tart: TartControlling, store: FleetStore, ssh: SSHExecuting,
-        host: HostResources, containerShell: ShellRunning? = nil
+        host: HostResources, containerShell: ShellRunning? = nil, dependencies: Dependencies = Dependencies(),
+        primaryToken: String = ""
     ) {
-        let credentials = GitHubCredentials(token: "", scope: config.primaryGitHub?.scope ?? "")
-        self.githubAuth = Mutex(GitHubAuth(credentials: credentials, client: github))
+        self.githubFactory = dependencies.githubFactory ?? GitHubClientFactory { _ in github }
+        self.tokenLoader = dependencies.tokenLoader
+        self.hostProbe = dependencies.hostProbe ?? { [host] in host }
+        self.lifecycleDrainTimeout = dependencies.lifecycleDrainTimeout
         // The primary GitHub account attaches immediately under its account
-        // name as an unverified placeholder (empty token): demand polling and
-        // the reconcile loop work before the fleet starts, while start()'s
-        // verified attach (via the account path) is the real gate. Other
-        // accounts attach in start()/retry once their tokens load.
-        let initial: [String: Forge]
+        // name as an unverified placeholder: demand polling and the reconcile
+        // loop work before the fleet starts, while start()'s verified attach
+        // (via the account path) is the real gate. Other accounts attach in
+        // start()/retry once their tokens load.
+        var initial: [String: Forge] = [:]
         if let primary = config.primaryGitHub {
-            initial = [
-                primary.name: GitHubForge(
-                    credentials: .github(token: credentials.token, scope: primary.scope), labels: config.labels,
-                    client: github, account: primary.name)
-            ]
-        } else {
-            initial = [:]
+            initial[primary.name] = GitHubForge(
+                credentials: .github(token: primaryToken, scope: primary.scope), labels: config.labels,
+                client: github, account: primary.name)
         }
         self.forgeState = Mutex(ForgeState(byPlatform: initial))
-        let tartInstance = TartRuntime(
-            tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh,
-            toolchainsConfig: { [config] in config.toolchains })
-        var appleRuntime: AppleContainerRuntime?
-        if let containerConfig = config.container {
-            appleRuntime = AppleContainerRuntime(
-                shell: containerShell ?? Shell(),
-                image: containerConfig.image,
-                cpus: containerConfig.cpus,
-                memoryGB: containerConfig.memoryGB,
-                toolchainsConfig: { [config] in config.toolchains }
-            )
+        let shell = containerShell ?? Shell()
+        let toolchains: @Sendable () -> KinhinConfig.ToolchainsConfig? = { [config] in config.toolchains }
+        let tartRuntime = TartRuntime(
+            tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh, toolchainsConfig: toolchains)
+        var runtimes: [RuntimeID: any Runtime] = [.tart: tartRuntime]
+        if let container = config.container {
+            runtimes[.appleContainer] = AppleContainerRuntime(
+                shell: shell, image: container.image, cpus: container.cpus, memoryGB: container.memoryGB,
+                toolchainsConfig: toolchains)
         }
-        var dockerInstance: DockerRuntime?
-        if let dockerConfig = config.docker {
-            dockerInstance = DockerRuntime(
-                shell: containerShell ?? Shell(),
-                image: dockerConfig.image,
-                cpus: dockerConfig.cpus,
-                memoryGB: dockerConfig.memoryGB,
-                platform: dockerConfig.platform,
-                toolchainsConfig: { [config] in config.toolchains }
-            )
+        if let docker = config.docker {
+            runtimes[.docker] = DockerRuntime(
+                shell: shell, image: docker.image, cpus: docker.cpus, memoryGB: docker.memoryGB,
+                platform: docker.platform, toolchainsConfig: toolchains)
         }
-        var hostInstance: HostRuntime?
         if config.hostRoutesConfigured {
-            hostInstance = HostRuntime(shell: containerShell ?? Shell())
+            runtimes[.host] = HostRuntime(shell: shell)
         }
-        // The fleet's primary runtime (single-pool fleets and the legacy
-        // fleet-cap shape): containers, else Docker slots, else tart — the
-        // established precedence with Docker as the new Linux fallback.
-        if let appleRuntime {
-            self.runtime = appleRuntime
-        } else if let dockerInstance {
-            self.runtime = dockerInstance
-        } else {
-            self.runtime = tartInstance
-        }
-        self.containerRuntime = appleRuntime
-        self.dockerRuntime = dockerInstance
-        self.tartRuntime = tartInstance
-        self.hostRuntime = hostInstance
-        var runtimeMap: [RuntimeID: any Runtime] = [.tart: tartInstance]
-        if let appleRuntime {
-            runtimeMap[.appleContainer] = appleRuntime
-        }
-        if let dockerInstance {
-            runtimeMap[.docker] = dockerInstance
-        }
-        if let hostInstance {
-            runtimeMap[.host] = hostInstance
-        }
-        self.runtimesByRuntime = runtimeMap
+        self.runtimesByRuntime = runtimes
+        self.runtime = runtimes[Capacity.primaryRuntime(of: config)] ?? tartRuntime
         self.config = config
         self.tart = tart
         self.store = store
         self.ssh = ssh
-        self.registrationTokens = RegistrationTokenCache(ttl: TimeInterval(config.tokenTTL))
         self.statusBox = FleetStatusBox()
         // The primary runtime's cap; its disk estimate also feeds the
         // pre-spawn disk guard and `kinhin doctor`.
@@ -244,47 +162,61 @@ public final class FleetEngine: Sendable {
         // single-pool fleets keep the fleet cap (no per-runtime caps).
         let caps = RuntimeCapacity.caps(for: config, host: host)
         self.routingState = Mutex(RoutingState(model: routing, caps: caps))
-        // Phase 2 wiring (the boxes are computed properties, so these must
-        // come after every stored property is initialized).
-        self.githubFactory = GitHubClientFactory { _ in github }
-        self.hostProbe = { [host] in host }
     }
 
-    /// The forges attached at construction. Gitea-only configs never build a
-    /// GitHub forge (no token, no scope); the other forges attach in start().
-    private static func initialForges(
-        config: KinhinConfig, credentials: GitHubCredentials, client: GitHubServing
-    ) -> [String: Forge] {
-        [:]  // forges attach in start()/retry (accounts hold the scopes)
-    }
-
-    /// Convenience initializer matching the production wiring: a client
-    /// factory keyed off the credentials (live by default; injectable in
+    /// Convenience initializer matching the production wiring: GitHub
+    /// clients come from `githubFactory` (live by default; injectable in
     /// tests to observe credential swaps).
     public convenience init(
         config: KinhinConfig, pat: String, tart: TartControlling, store: FleetStore, ssh: SSHExecuting,
-        host: HostResources, githubFactory: GitHubClientFactory = .live
+        host: HostResources, githubFactory: GitHubClientFactory = .live, dependencies: Dependencies = Dependencies()
     ) {
-        let credentials = GitHubCredentials(token: pat, scope: config.repo)
+        var resolved = dependencies
+        resolved.githubFactory = githubFactory
         self.init(
             config: config,
-            github: githubFactory.make(credentials),
-            tart: tart,
-            store: store,
-            ssh: ssh,
-            host: host
-        )
-        self.githubFactory = githubFactory
-        githubAuth.withLock { $0.credentials = credentials }
-        // Re-stamp the primary forge with the real PAT (the designated init
-        // built it with an empty token).
-        if let primary = config.primaryGitHub {
-            let client = github
-            forgeState.withLock { state in
-                state.byPlatform[primary.name] = GitHubForge(
-                    credentials: .github(token: pat, scope: primary.scope), labels: config.labels,
-                    client: client, account: primary.name)
-            }
+            github: githubFactory.make(GitHubCredentials(token: pat, scope: config.repo)),
+            tart: tart, store: store, ssh: ssh, host: host,
+            dependencies: resolved, primaryToken: pat)
+    }
+}
+
+// MARK: - Dependencies
+
+extension FleetEngine {
+    /// The collaborators an engine is built with, fixed for its lifetime.
+    /// The defaults are production's (Keychain tokens); tests inject
+    /// hermetic ones.
+    public struct Dependencies: Sendable {
+        /// Builds each account's GitHub client; nil → the `github` client
+        /// handed to the designated initializer serves every account.
+        public var githubFactory: GitHubClientFactory?
+        /// Resolves an account's token (forge, account name).
+        public var tokenLoader: @Sendable (ForgeID, String) throws -> String?
+        /// Host snapshot for the pre-spawn disk guard; nil → the
+        /// construction-time `host` (hermetic).
+        public var hostProbe: (@Sendable () -> HostResources)?
+        /// How long a detach waits for cancelled lifecycle tasks.
+        public var lifecycleDrainTimeout: Duration
+
+        public init(
+            githubFactory: GitHubClientFactory? = nil,
+            tokenLoader: @escaping @Sendable (ForgeID, String) throws -> String? = {
+                try KeychainTokenStore.load(forge: $0, name: $1)
+            },
+            hostProbe: (@Sendable () -> HostResources)? = nil,
+            lifecycleDrainTimeout: Duration = .seconds(15)
+        ) {
+            self.githubFactory = githubFactory
+            self.tokenLoader = tokenLoader
+            self.hostProbe = hostProbe
+            self.lifecycleDrainTimeout = lifecycleDrainTimeout
+        }
+
+        /// Production: the Keychain and a live disk probe (the GitHub
+        /// client factory comes from the convenience initializer).
+        public static var live: Dependencies {
+            Dependencies(hostProbe: { ResourceProbe().snapshot() })
         }
     }
 }

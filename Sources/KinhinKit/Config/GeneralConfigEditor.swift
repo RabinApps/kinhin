@@ -20,18 +20,7 @@ public enum GeneralConfigEditor {
     /// for the UI; unknown keys are a programming error (unsupported).
     @discardableResult
     public static func apply(_ field: Field, to url: URL = Paths.config) throws -> String {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw ConfigEditError.notFound(url.path)
-        }
-        let original = try String(contentsOf: url, encoding: .utf8)
-        let updated = try replace(field: field, in: original)
-        do {
-            _ = try ConfigLoader.parse(updated)
-        } catch {
-            throw ConfigEditError.validation(error.localizedDescription)
-        }
-        try updated.write(toFile: url.path, atomically: true, encoding: .utf8)
-        return updated
+        try ConfigFileEdit.apply(to: url) { try replace(field: field, in: $0) }
     }
 
     /// The editable fields, keyed for the UI.
@@ -87,13 +76,7 @@ public enum GeneralConfigEditor {
     private static func valueText(for field: Field) -> String {
         func intText(_ v: Int) -> String { String(v) }
         func boolText(_ v: Bool) -> String { v ? "true" : "false" }
-        func quoted(_ s: String) -> String {
-            let escaped =
-                s
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "\"", with: "\\\"")
-            return "\"\(escaped)\""
-        }
+        let quoted = YAMLText.quoted
         switch field {
         case .labels(let list):
             return "[" + list.map { quoted($0.trimmingCharacters(in: .whitespaces)) }.joined(separator: ", ") + "]"
@@ -146,11 +129,8 @@ public enum GeneralConfigEditor {
         let value = valueText(for: field)
         var lines = yaml.components(separatedBy: "\n")
 
-        func isTopKey(_ line: String) -> Bool {
-            guard let first = line.first, first != "#", first != "-" else { return false }
-            return line.hasPrefix(line.trimmingCharacters(in: .whitespaces)) && line.contains(":")
-        }
-        func indent(of line: String) -> Int { line.count - line.drop(while: { $0 == " " }).count }
+        let isTopKey = YAMLText.isTopLevelKey
+        func indent(of line: String) -> Int { YAMLText.indent(of: line) }
 
         // Find (or create) the section line, then the key line inside it.
         var sectionIdx: Int? = nil
@@ -160,7 +140,7 @@ public enum GeneralConfigEditor {
             })
             if sectionIdx == nil {
                 // Append the section header before writing the key.
-                while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
+                YAMLText.trimTrailingBlankLines(&lines)
                 lines.append("\(section):")
                 sectionIdx = lines.count - 1
             }
@@ -201,7 +181,7 @@ public enum GeneralConfigEditor {
         } else if let section = sectionIdx {
             lines.insert(newLine, at: section + 1)
         } else {
-            while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
+            YAMLText.trimTrailingBlankLines(&lines)
             lines.append(newLine)
         }
         return lines.joined(separator: "\n")

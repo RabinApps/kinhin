@@ -18,17 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Intent). The status item shows "Starting…"/"Stopping…", and the
     /// Start/Stop menu items disable until the command and its status
     /// refresh complete.
-    enum PendingFleetAction {
-        case start
-        case stop
-    }
-
-    var pendingFleetAction: PendingFleetAction? {
+    var pendingFleetAction: FleetAction? {
         didSet {
             guard pendingFleetAction != oldValue else { return }
             apply(status: lastStatus)
-            mainController?.fleetModel.setPending(
-                pendingFleetAction.map { $0 == .start ? FleetModel.PendingAction.start : .stop })
+            mainController?.fleetModel.setPending(pendingFleetAction)
         }
     }
 
@@ -42,8 +36,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var confirmOverride: Bool?
 
     // Engine is either owned here (in-process mode) or reached via RPC.
-    var engine: FleetEngine?
-    var client: RPCClient?
+    /// Who runs the fleet: nil until setup is complete.
+    var backend: FleetBackend?
+    /// The in-process engine, when this app runs the fleet itself.
+    var engine: FleetEngine? { backend?.engine }
     /// Config-edit push (debounced): a burst of edits flushes once.
     var pendingConfigEdits = false
     var isConfigPushScheduled = false
@@ -134,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // Attach to daemon when one is running; otherwise run the engine in-process.
         if RPCClient.isDaemonAlive() {
-            client = RPCClient()
+            backend = .daemon(RPCClient())
             setupIncomplete = false
             Log.info("app", "attaching to running daemon")
         } else if FileManager.default.fileExists(atPath: Paths.config.path),
@@ -151,7 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cfg.canRunOnThisHost()
         {
             do {
-                engine = try FleetEngine.production(config: cfg, token: pat)
+                backend = .inProcess(try FleetEngine.production(config: cfg, token: pat))
                 setupIncomplete = false
                 Log.info("app", "no daemon; running engine in-process (not started yet)")
             } catch {
@@ -192,15 +188,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Refresh
 
     func refresh() async {
-        var status: FleetStatus?
-        if let engine {
-            status = await engine.status()
-        } else if let client {
-            // Polled every few seconds, off the main thread: an unreachable
-            // or wedged daemon simply reads as "not running" in the status
-            // item, so a failure here is expected (status stays nil).
-            status = try? await client.perform { try $0.status() }
-        }
+        // Polled every few seconds (daemon calls run off the main thread): an
+        // unreachable or wedged daemon simply reads as "not running" in the
+        // status item, so a failure here is expected (status stays nil).
+        let status = try? await backend?.status()
         apply(status: status)
     }
 }

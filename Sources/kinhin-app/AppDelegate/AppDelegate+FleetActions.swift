@@ -10,7 +10,7 @@ extension AppDelegate {
     @objc func startFleet() {
         Task {
             // Nothing configured yet: Setup is the answer, not an alert.
-            guard engine != nil || client != nil else { openSetupTab(); return }
+            guard backend != nil else { openSetupTab(); return }
             do {
                 try await performFleetAction(.start)
             } catch {
@@ -33,22 +33,16 @@ extension AppDelegate {
     /// entry point (menu item, Fleet tab button, App Intent). Throws when no
     /// backend is available — the @objc wrappers surface that per their own
     /// UX, and intents propagate it into the Shortcuts dialog.
-    func performFleetAction(_ action: PendingFleetAction) async throws {
+    func performFleetAction(_ action: FleetAction) async throws {
         defer {
             pendingFleetAction = nil
             mainController?.fleetModel.endPendingAction()
         }
         pendingFleetAction = action
-        if let engine {
-            if action == .start { await engine.start() } else { await engine.stop() }
-        } else if let client {
-            // Throw, don't alert: the menu wrappers alert, and an App Intent
-            // must fail in Shortcuts rather than report success.
-            let method: RPCMethod = action == .start ? .start : .stop
-            try await client.perform { try $0.command(method) }
-        } else {
-            throw FleetAccessError.notSetUp
-        }
+        guard let backend else { throw FleetAccessError.notSetUp }
+        // Throw, don't alert: the menu wrappers alert, and an App Intent
+        // must fail in Shortcuts rather than report success.
+        if action == .start { try await backend.start() } else { try await backend.stop() }
         await refresh()
     }
 
@@ -76,22 +70,14 @@ extension AppDelegate {
     /// Pauses or resumes the fleet through whichever backend is live.
     /// Throws when there is none (setup incomplete) or the daemon fails.
     func setFleetPaused(_ paused: Bool) async throws {
-        if let engine {
-            await engine.setPaused(paused)
-        } else if let client {
-            try await client.perform { try $0.command(paused ? .pause : .resume) }
-        } else {
-            throw FleetAccessError.notSetUp
-        }
+        guard let backend else { throw FleetAccessError.notSetUp }
+        try await backend.setPaused(paused)
     }
 
     /// Current fleet status from the in-process engine or the daemon.
     func fleetStatus() async throws -> FleetStatus {
-        if let engine {
-            return await engine.status()
-        }
-        guard let client else { throw FleetAccessError.notSetUp }
-        return try await client.perform { try $0.status() }
+        guard let backend else { throw FleetAccessError.notSetUp }
+        return try await backend.status()
     }
 
     @objc func deleteVM(_ sender: NSMenuItem) {
@@ -121,14 +107,8 @@ extension AppDelegate {
     /// since intents can't present alerts). Throws when no backend is set up
     /// — the menu path alerts, the intent path lands in the dialog.
     func performVMDelete(id: String) async throws {
-        if let engine {
-            await engine.deleteVM(id: id)
-        } else if let client {
-            let payload = try JSONEncoder().encode(Daemon.VMDeleteRequest(id: id))
-            try await client.perform { try $0.command(.deleteVM, payload: payload) }
-        } else {
-            throw FleetAccessError.notSetUp
-        }
+        guard let backend else { throw FleetAccessError.notSetUp }
+        try await backend.deleteVM(id: id)
         await refresh()
     }
 

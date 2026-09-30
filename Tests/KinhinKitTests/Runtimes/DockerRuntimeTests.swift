@@ -99,7 +99,7 @@ final class DockerRuntimeTests: XCTestCase {
             shell: shell, image: "img", cpus: 2, memoryGB: 4,
             binPath: bin
         )
-        _ = try await runtime.execScript("kinhin-abc", "echo hi")
+        _ = try await runtime.cli.exec("kinhin-abc", "echo hi")
         XCTAssertEqual(shell.calls.first, [bin, "exec", "kinhin-abc", "/bin/bash", "-lc", "echo hi"])
     }
 
@@ -141,7 +141,7 @@ final class DockerRuntimeTests: XCTestCase {
     func testAwaitReadyPollsUntilContainerAppears() async throws {
         let shell = FakeShell()
         shell.responses = [
-            ShellResult(exitCode: 1, stdout: "", stderr: ""),  // not yet
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),  // not yet
             ShellResult(exitCode: 0, stdout: "other\n", stderr: ""),  // still not ours
             ShellResult(exitCode: 0, stdout: "other\nkinhin-abc\n", stderr: ""),  // up
         ]
@@ -191,8 +191,14 @@ final class DockerRuntimeTests: XCTestCase {
             shell: shell, image: "img", cpus: 2, memoryGB: 4,
             binPath: bin
         )
-        let ids = await runtime.existingInstanceIDs()
+        let ids = try await runtime.existingInstanceIDs()
         XCTAssertEqual(ids, ["a", "b", "c"])
+
+        shell.defaultResult = ShellResult(exitCode: 1, stdout: "", stderr: "Cannot connect to the Docker daemon")
+        do {
+            _ = try await runtime.existingInstanceIDs()
+            XCTFail("a dead daemon must not read as \"no containers\"")
+        } catch {}
     }
 
     // MARK: - Config

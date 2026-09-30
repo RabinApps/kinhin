@@ -100,7 +100,7 @@ extension RuntimesModel {
             try RuntimesConfigEditor.apply(rc, to: configURL)
             routeOffer = nil
             reload()
-            onEdited?()
+            onChanged?()
         } catch {
             // The sheet closes (matching the alert it replaces) and the
             // editor's rejection is presented.
@@ -122,7 +122,7 @@ extension RuntimesModel {
         do {
             try RuntimesConfigEditor.apply(updated, to: configURL)
             reload()
-            onEdited?()
+            onChanged?()
         } catch {
             presentError(error)
         }

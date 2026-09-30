@@ -11,7 +11,7 @@ final class FleetActionsTests: XCTestCase {
     private func delegateWithDeadDaemon() -> AppDelegate {
         let delegate = AppDelegate()
         let socket = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-no-daemon-\(UUID()).sock")
-        delegate.client = RPCClient(socketURL: socket)
+        delegate.backend = .daemon(RPCClient(socketURL: socket))
         return delegate
     }
 

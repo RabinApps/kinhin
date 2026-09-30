@@ -34,12 +34,9 @@ extension AppDelegate {
     }
 
     private func rotate(_ target: CredentialRotation.Target, token: String) async throws {
-        if let engine {
-            await CredentialRotation.apply(target, token: token, to: engine)
-            Log.info("app", "replaced token for '\(target.accountName)' (in-process engine)")
-        } else if let client {
-            try await client.perform { try CredentialRotation.notify(target, token: token, daemon: $0) }
-            Log.info("app", "replaced token for '\(target.accountName)' (daemon notified)")
+        if let backend {
+            try await backend.rotate(target, token: token)
+            Log.info("app", "replaced token for '\(target.accountName)' (\(backend.logName))")
         } else {
             Log.info("app", "stored token for '\(target.accountName)' (no engine running yet)")
         }

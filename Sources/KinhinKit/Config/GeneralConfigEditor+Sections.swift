@@ -14,10 +14,7 @@ extension GeneralConfigEditor {
         }
         var lines = yaml.components(separatedBy: "\n")
 
-        func isTopKey(_ line: String) -> Bool {
-            guard let first = line.first, first != "#", first != "-" else { return false }
-            return line.hasPrefix(line.trimmingCharacters(in: .whitespaces)) && line.contains(":")
-        }
+        let isTopKey = YAMLText.isTopLevelKey
 
         if let start = lines.firstIndex(where: { isTopKey($0) && $0.trimmingCharacters(in: .whitespaces) == "\(name):" }
         ) {
@@ -35,32 +32,24 @@ extension GeneralConfigEditor {
             return lines.joined(separator: "\n")
         }
         guard present, let block = newText() else { return lines.joined(separator: "\n") }
-        while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
+        YAMLText.trimTrailingBlankLines(&lines)
         lines.append(contentsOf: block.components(separatedBy: "\n"))
         return lines.joined(separator: "\n")
     }
 
     static func sectionText(_ c: Snapshot.Container) -> String {
-        var lines = ["container:", "  image: \(quote(c.image))"]
-        if let base = c.baseImage, !base.isEmpty { lines.append("  base_image: \(quote(base))") }
+        var lines = ["container:", "  image: \(YAMLText.quoted(c.image))"]
+        if let base = c.baseImage, !base.isEmpty { lines.append("  base_image: \(YAMLText.quoted(base))") }
         lines += ["  cpus: \(c.cpus)", "  memory_gb: \(c.memoryGB)"]
-        if let labels = c.labels { lines.append("  labels: [\(labels.map(quote).joined(separator: ", "))]") }
+        if let labels = c.labels { lines.append("  labels: [\(labels.map(YAMLText.quoted).joined(separator: ", "))]") }
         return lines.joined(separator: "\n")
     }
 
     static func sectionText(_ d: Snapshot.Docker) -> String {
-        var lines = ["docker:", "  image: \(quote(d.image))"]
-        if let base = d.baseImage, !base.isEmpty { lines.append("  base_image: \(quote(base))") }
+        var lines = ["docker:", "  image: \(YAMLText.quoted(d.image))"]
+        if let base = d.baseImage, !base.isEmpty { lines.append("  base_image: \(YAMLText.quoted(base))") }
         lines += ["  cpus: \(d.cpus)", "  memory_gb: \(d.memoryGB)", "  max_slots: \(d.maxSlots)"]
-        if let platform = d.platform, !platform.isEmpty { lines.append("  platform: \(quote(platform))") }
+        if let platform = d.platform, !platform.isEmpty { lines.append("  platform: \(YAMLText.quoted(platform))") }
         return lines.joined(separator: "\n")
-    }
-
-    private static func quote(_ value: String) -> String {
-        let escaped =
-            value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
     }
 }

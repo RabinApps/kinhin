@@ -46,44 +46,27 @@ public enum AccountsConfigEditor {
     // MARK: - Writing
 
     private static func read(_ url: URL) throws -> String {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw ConfigEditError.notFound(url.path)
-        }
-        return try String(contentsOf: url, encoding: .utf8)
+        try ConfigFileEdit.read(url)
     }
 
     private static func write(_ accounts: [AccountConfig], to url: URL) throws -> String {
-        let original = try read(url)
-        let updated = try GeneralConfigEditor.replaceSectionToggle(
-            "accounts", present: !accounts.isEmpty, in: original, newText: { sectionText(accounts) })
-        do {
-            _ = try ConfigLoader.parse(updated)
-        } catch {
-            throw ConfigEditError.validation(error.localizedDescription)
+        try ConfigFileEdit.apply(to: url) { original in
+            try GeneralConfigEditor.replaceSectionToggle(
+                "accounts", present: !accounts.isEmpty, in: original, newText: { sectionText(accounts) })
         }
-        try updated.write(toFile: url.path, atomically: true, encoding: .utf8)
-        return updated
     }
 
     static func sectionText(_ accounts: [AccountConfig]) -> String {
         var lines = ["accounts:"]
         for account in accounts {
-            lines.append("  - name: \(quote(account.name))")
+            lines.append("  - name: \(YAMLText.quoted(account.name))")
             lines.append("    forge: \(account.forge.rawValue)")
-            lines.append("    scope: \(quote(account.scope))")
-            if let instance = account.instance { lines.append("    instance: \(quote(instance))") }
+            lines.append("    scope: \(YAMLText.quoted(account.scope))")
+            if let instance = account.instance { lines.append("    instance: \(YAMLText.quoted(instance))") }
             if let labels = account.labels {
-                lines.append("    labels: [\(labels.map(quote).joined(separator: ", "))]")
+                lines.append("    labels: [\(labels.map(YAMLText.quoted).joined(separator: ", "))]")
             }
         }
         return lines.joined(separator: "\n")
-    }
-
-    private static func quote(_ value: String) -> String {
-        let escaped =
-            value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
     }
 }

@@ -174,7 +174,7 @@ final class BaseImagePickerTests: XCTestCase {
             Set(model.imageRuntimes.map(\.runtime).filter { $0 != .tart }), [.appleContainer, .docker])
 
         var edited = 0
-        model.onEdited = { edited += 1 }
+        model.onChanged = { edited += 1 }
         model.saveBaseImage("debian:12", for: .docker)
         XCTAssertEqual(try saved(.docker), "debian:12")
         XCTAssertNil(try saved(.appleContainer), "the other runtime is untouched")

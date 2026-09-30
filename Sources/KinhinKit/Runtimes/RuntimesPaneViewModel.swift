@@ -174,7 +174,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                         .tart,
                         RuntimeHealth.missing(
                             tool: "tart",
-                            fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")
+                            fix: TartHealthProbe.installCommand)
                     )
                 }
             }
@@ -227,8 +227,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                             .tart,
                             RuntimeHealth.missing(
                                 tool: "tart",
-                                fix:
-                                    "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart"
+                                fix: TartHealthProbe.installCommand
                             )
                         )
                     }

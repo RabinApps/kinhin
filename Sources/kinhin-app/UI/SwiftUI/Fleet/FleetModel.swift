@@ -19,18 +19,13 @@ final class FleetModel {
     /// Nil until the first poll (or when setup isn't finished).
     var status: FleetStatus?
 
-    /// A start/stop command is in flight: its button shows a progress
-    /// indicator and the fleet controls disable until the command and its
-    /// status refresh complete (`endPendingAction`).
-    enum PendingAction {
-        case start
-        case stop
-    }
-
-    private(set) var pendingAction: PendingAction?
+    /// A start/stop command in flight: its button shows a progress indicator
+    /// and the fleet controls disable until the command and its status
+    /// refresh complete (`endPendingAction`).
+    private(set) var pendingAction: FleetAction?
     /// The app delegate mirrors its own pending state here (menu items and
     /// App Intents can begin a fleet action too, with no button click).
-    func setPending(_ action: PendingAction?) { pendingAction = action }
+    func setPending(_ action: FleetAction?) { pendingAction = action }
     var isBusy: Bool { pendingAction != nil }
 
     var statusLine: String { FleetStatusFormatter.summary(status) }

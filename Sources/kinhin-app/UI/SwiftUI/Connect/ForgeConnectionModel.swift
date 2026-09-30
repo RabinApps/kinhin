@@ -14,7 +14,7 @@ import Observation
 ///   (`github`, `gitea`, `forgejo`, `gitlab`).
 @MainActor
 @Observable
-final class ForgeConnectionModel {
+final class ForgeConnectionModel: ConfigFormModel {
     typealias Line = StatusLine
 
     /// The conventional accounts: name this card writes — one per forge
@@ -121,19 +121,18 @@ final class ForgeConnectionModel {
     /// Re-reads config + Keychain (off the main thread — a Keychain read can
     /// block on a system prompt) and refreshes the card.
     func reload() {
-        let snapshot = ConfigStore.snapshotOrLog(at: configURL)
         Task { [weak self] in
             guard let self else { return }
             let probe = self.hasStoredToken
             let stored = await Task.detached { Result { try probe() } }.value
-            self.render(snapshot: snapshot, stored: stored)
+            self.render(stored: stored)
         }
     }
 
     /// `stored` is the Keychain probe. A failed probe shows the Keychain
     /// error on the card instead of "Not connected yet", and leaves the token
     /// treated as absent for the buttons.
-    private func render(snapshot: GeneralConfigEditor.Snapshot?, stored: Result<Bool, Error>) {
+    private func render(stored: Result<Bool, Error>) {
         // A failed probe leaves the token treated as absent for the buttons
         // (the card itself already shows the probe error), but it is logged
         // so a broken Keychain is not indistinguishable from "no token".

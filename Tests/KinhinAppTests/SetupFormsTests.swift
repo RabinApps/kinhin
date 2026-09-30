@@ -247,7 +247,7 @@ final class SetupFormsTests: XCTestCase {
         model.configURL = configURL
         model.reload()
         var edited = 0
-        model.onEdited = { edited += 1 }
+        model.onChanged = { edited += 1 }
 
         let originalMax = try snapshot().maxRunners
         model.stage("max-runners", .maxRunners(6))
@@ -290,6 +290,18 @@ final class SetupFormsTests: XCTestCase {
         XCTAssertEqual(try snapshot().minRunners, 0)
     }
 
+    /// A config.yaml that doesn't parse is said on the form, not rendered
+    /// as "nothing configured".
+    func testMacToolsSaysWhenConfigIsUnreadable() throws {
+        try "labels: [unterminated\n".write(to: configURL, atomically: true, encoding: .utf8)
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.installedCheck = { _ in false }
+        model.reload()
+        XCTAssertEqual(model.busyLine.style, .error)
+        XCTAssertTrue(model.busyLine.text.contains("config.yaml can't be read"), model.busyLine.text)
+    }
+
     // MARK: Install flow
 
     private func installModel(
@@ -329,10 +341,15 @@ final class SetupFormsTests: XCTestCase {
         let choice = model.installOffer?.options.first { $0.id == "docker-colima" }
         model.confirmInstall(choice!)
         XCTAssertNil(model.installOffer, "the sheet closes and the install starts")
-        for _ in 0..<100 where shell.calls.isEmpty {
+        // reload() also starts a background container health check on the
+        // same shell, so look for the install among the calls, not first.
+        let install = ["/opt/homebrew/bin/brew", "install", "colima", "docker"]
+        for _ in 0..<100 where !shell.calls.contains(install) {
             try? await Task.sleep(nanoseconds: 50_000_000)
         }
-        XCTAssertEqual(shell.calls.first, ["/opt/homebrew/bin/brew", "install", "colima", "docker"])
+        XCTAssertTrue(shell.calls.contains(install), "\(shell.calls)")
+        XCTAssertFalse(
+            shell.calls.contains { $0.contains("orbstack") || $0.contains("--cask") }, "only the chosen option runs")
         // (The follow-up `colima start` is resolved from PATH after the real
         // install, so it isn't reachable with a fake shell.)
     }

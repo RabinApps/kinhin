@@ -1,8 +1,12 @@
 import Foundation
 
-// MARK: - Gitea adapter
+// MARK: - Gitea-family adapter
 
-/// Forge implementation for Gitea instances. Gitea's runner API differs from
+/// Forge implementation for Gitea and Forgejo instances (Forgejo is Gitea's
+/// wire-compatible upstream: same `/api/v1`, task queue and gitea-runner, so
+/// only the id and name differ, both taken from the credentials).
+///
+/// Gitea's runner API differs from
 /// GitHub's: registration tokens are long-lived (not 1 h), so the token is
 /// captured at forge construction instead of minted per VM; queued demand
 /// comes from the instance's task-queue entries (per-task repo attribution
@@ -10,8 +14,8 @@ import Foundation
 /// the endpoint fails or reports no usable entries — the fallback for older
 /// Gitea shapes, never overriding a legitimate zero.
 struct GiteaForge: Forge {
-    public let id: ForgeID = .gitea
-    public let name = "gitea"
+    let id: ForgeID
+    var name: String { id.rawValue }
     public let account: String
     public let credentials: ForgeCredentials
     public let labels: [String]
@@ -26,9 +30,10 @@ struct GiteaForge: Forge {
 
     public init(
         credentials: ForgeCredentials, labels: [String], client: GiteaClient, demandFloor: Int = 0,
-        registrationToken: String, account: String = "gitea"
+        registrationToken: String, account: String? = nil
     ) {
-        self.account = account
+        if case .forgejo = credentials { id = .forgejo } else { id = .gitea }
+        self.account = account ?? id.rawValue
         self.credentials = credentials
         self.labels = labels
         self.client = client
@@ -39,14 +44,16 @@ struct GiteaForge: Forge {
     /// Builds the forge from credentials, resolving the registration token
     /// up front (the same call the permission probe uses — fail fast here).
     public static func make(
-        credentials: GiteaCredentials, labels: [String], demandFloor: Int = 0, account: String = "gitea"
-    ) async throws
-        -> GiteaForge
-    {
+        forge: ForgeID = .gitea, credentials: GiteaCredentials, labels: [String], demandFloor: Int = 0,
+        account: String? = nil
+    ) async throws -> GiteaForge {
         let client = GiteaClient(credentials: credentials)
         let token = try await client.fetchRegistrationToken()
+        let (secret, scope, instance) = (credentials.token, credentials.scope, credentials.instance)
         return GiteaForge(
-            credentials: .gitea(token: credentials.token, scope: credentials.scope, instance: credentials.instance),
+            credentials: forge == .forgejo
+                ? .forgejo(token: secret, scope: scope, instance: instance)
+                : .gitea(token: secret, scope: scope, instance: instance),
             labels: labels,
             client: client,
             demandFloor: demandFloor,
@@ -57,10 +64,13 @@ struct GiteaForge: Forge {
 
     func registrationURL() -> String {
         switch credentials {
-        case .gitea(_, _, let instance): return instance
+        case .gitea(_, _, let instance), .forgejo(_, _, let instance): return instance
         default: return ""
         }
     }
+
+    /// Placeholder job name when the instance reports none ("gitea-task").
+    private var taskName: String { "\(name)-task" }
 
     func mintRegistrationToken() async throws -> String {
         registrationToken
@@ -87,11 +97,11 @@ struct GiteaForge: Forge {
             // a count): hold the floor instead of scaling to zero. A real
             // empty queue overrides the floor (0 tasks → 0 jobs).
             return (0..<demandFloor).map { _ in
-                ForgeJob(name: "gitea-task", runnerName: nil, repository: nil)
+                ForgeJob(name: taskName, runnerName: nil, repository: nil)
             }
         }
         return tasks.map { task in
-            ForgeJob(name: task.name ?? "gitea-task", runnerName: nil, repository: task.repository)
+            ForgeJob(name: task.name ?? taskName, runnerName: nil, repository: task.repository)
         }
     }
 
@@ -101,13 +111,13 @@ struct GiteaForge: Forge {
         let tasks = try await client.runningTasks().filter { $0.runnerName != nil }
         if !tasks.isEmpty {
             return tasks.map { task in
-                ForgeJob(name: task.name ?? "gitea-task", runnerName: task.runnerName, repository: task.repository)
+                ForgeJob(name: task.name ?? taskName, runnerName: task.runnerName, repository: task.repository)
             }
         }
         // Fallback: busy runners carry per-VM attribution even where per-task
         // runner names are absent from the queue endpoint.
         return try await client.listRunners().filter { $0.status == "busy" }.map { runner in
-            ForgeJob(name: "gitea-task", runnerName: runner.name, repository: nil)
+            ForgeJob(name: taskName, runnerName: runner.name, repository: nil)
         }
     }
 }

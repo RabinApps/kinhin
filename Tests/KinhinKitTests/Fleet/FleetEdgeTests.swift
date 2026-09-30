@@ -1,17 +1,30 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
 @testable import KinhinTestSupport
 
 final class FleetEdgeTests: XCTestCase {
+    /// Free disk the disk guard sees (tests move it between passes).
+    private final class FreeDisk: Sendable {
+        private let gb = Mutex(testHost.freeDiskGB)
+        var value: Int { gb.withLock { $0 } }
+        func set(_ value: Int) { gb.withLock { $0 = value } }
+    }
+    private let freeDisk = FreeDisk()
+
     func makeEngine(config: KinhinConfig? = nil, tart: FakeTart, github: FakeGitHub, ssh: FakeSSH) -> FleetEngine {
-        FleetEngine(
+        let freeDisk = self.freeDisk
+        return FleetEngine(
             config: config ?? makeTestConfig(),
             github: github,
             tart: tart,
             store: makeTestStore(),
             ssh: ssh,
-            host: testHost
+            host: testHost,
+            dependencies: .init(hostProbe: {
+                HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: freeDisk.value, arm64: true)
+            })
         )
     }
 
@@ -32,7 +45,7 @@ final class FleetEdgeTests: XCTestCase {
         github.queueDepth = 2
         let engine = makeEngine(tart: tart, github: github, ssh: FakeSSH())
         // 15 GB free < 50 GB default VM footprint + 10 GB reserve.
-        engine.hostProbe = { HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 15, arm64: true) }
+        freeDisk.set(15)
 
         try await engine.reconcileOnce()
         let status = await engine.status()
@@ -42,7 +55,7 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertTrue(lastError.contains("disk pressure"), "\(lastError)")
 
         // Freeing disk lets the next pass spawn again (desired = 2 → both clone).
-        engine.hostProbe = { HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 200, arm64: true) }
+        freeDisk.set(200)
         try await engine.reconcileOnce()
         try await waitUntil(timeout: 10) { tart.cloneCalls.count == 2 }
     }
@@ -54,7 +67,7 @@ final class FleetEdgeTests: XCTestCase {
         var cfg = makeTestConfig()
         cfg.diskGB = 30  // explicit footprint: 30 + 10 reserve = 40 needed
         let engine = makeEngine(config: cfg, tart: tart, github: github, ssh: FakeSSH())
-        engine.hostProbe = { HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 39, arm64: true) }
+        freeDisk.set(39)
 
         try await engine.reconcileOnce()
         var status = await engine.status()
@@ -62,7 +75,7 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertTrue(tart.cloneCalls.isEmpty)
 
         // 41 GB free clears 40 needed.
-        engine.hostProbe = { HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 41, arm64: true) }
+        freeDisk.set(41)
         try await engine.reconcileOnce()
         try await waitUntil(timeout: 10) { tart.cloneCalls.count == 1 }
         status = await engine.status()

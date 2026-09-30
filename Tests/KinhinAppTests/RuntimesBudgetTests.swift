@@ -96,7 +96,7 @@ final class RuntimesBudgetTests: XCTestCase {
     func testDebouncedWriteLandsAfterTheDragSettles() async throws {
         var edited = 0
         let model = await loadedModel()
-        model.onEdited = { edited += 1 }
+        model.onChanged = { edited += 1 }
         model.budgetSliderChanged(runtime: .appleContainer, fraction: 0.4)
 
         let yaml = await waitForDisk("appleContainer: 0.4")
@@ -151,13 +151,13 @@ final class RuntimesBudgetTests: XCTestCase {
         }
         defer { AlertKit.runModal = { $0.runModal() } }
         var edited = 0
-        model.onEdited = { edited += 1 }
+        model.onChanged = { edited += 1 }
 
         model.budgetSliderChanged(runtime: .appleContainer, fraction: 0.0)
         try? await Task.sleep(nanoseconds: 600_000_000)  // debounce fires with weight 0
 
         XCTAssertEqual(alerts, 1, "the exact-zero split must be named, not silently dropped")
-        XCTAssertEqual(edited, 0, "a rejected split never fires onEdited")
+        XCTAssertEqual(edited, 0, "a rejected split never fires onChanged")
         XCTAssertEqual(model.budgetShare(for: .appleContainer), 0, "snap back to the on-disk truth: no budget")
         XCTAssertEqual(model.percentText(for: .appleContainer), "0%")
         XCTAssertEqual(model.capPreviews[.tart], 2, "previews reflect the on-disk truth after the snap")

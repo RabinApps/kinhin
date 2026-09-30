@@ -26,6 +26,27 @@ enum StatusStyle {
 struct StatusLine: Equatable {
     var text: String
     var style: StatusStyle = .secondary
+
+    /// A config write the editor rejected (nothing was written).
+    static func notSaved(_ error: Error) -> StatusLine {
+        StatusLine(text: "Not saved — \(error.localizedDescription)", style: .error)
+    }
+
+    /// config.yaml doesn't parse: said on the form instead of rendering
+    /// defaults as if nothing were configured.
+    static func unreadableConfig(_ error: Error) -> StatusLine {
+        StatusLine(
+            text: "config.yaml can't be read — \(error.localizedDescription). Fix it in Advanced → Edit YAML.",
+            style: .error)
+    }
+}
+
+/// A settings form backed by config.yaml: where it reads and writes, and who
+/// to tell after a successful write (the app pushes the edit to the fleet).
+@MainActor
+protocol ConfigFormModel: AnyObject {
+    var configURL: URL { get set }
+    var onChanged: (() -> Void)? { get set }
 }
 
 /// One line of status feedback ("Connected ✓", "Not saved — …").

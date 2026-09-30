@@ -12,7 +12,7 @@ import Observation
 /// (`pendingDeselect`) before removing its account and token.
 @MainActor
 @Observable
-final class ConnectModel {
+final class ConnectModel: ConfigFormModel {
     /// The forges the selector offers, in fixed display order.
     static let allForges: [ForgeID] = [.github, .gitlab, .gitea, .forgejo]
 
@@ -188,18 +188,17 @@ final class ConnectModel {
     /// Re-reads config + Keychain and refreshes the selection and every card.
     func reload() {
         accounts.reload()
-        let snapshot = ConfigStore.snapshotOrLog(at: configURL)
         Task { [weak self] in
             guard let self else { return }
             let probe = self.hasStoredToken
             let tokens = await Task.detached {
                 ForgeID.allCases.map { forge in Result { try probe(forge) } }
             }.value
-            self.render(snapshot: snapshot, tokens: tokens)
+            self.render(tokens: tokens)
         }
     }
 
-    private func render(snapshot: GeneralConfigEditor.Snapshot?, tokens: [Result<Bool, Error>]) {
+    private func render(tokens: [Result<Bool, Error>]) {
         func stored(_ forge: ForgeID) -> Bool {
             guard let index = ForgeID.allCases.firstIndex(of: forge), index < tokens.count else { return false }
             // A failed Keychain probe shows as "token missing" — the form is

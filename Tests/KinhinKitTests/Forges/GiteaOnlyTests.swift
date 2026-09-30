@@ -232,13 +232,13 @@ final class ForgeRetryTests: XCTestCase {
 
     private func makeDual(github: FakeGitHub) throws -> FleetEngine {
         let cfg = try dualConfig()
-        let engine = FleetEngine(
-            config: cfg, github: github, tart: FakeTart(),
-            store: makeTestStore(), ssh: FakeSSH(), host: testHost)
-        engine.forgeState.withLock { $0.byPlatform["gitea"] = DualForgeTests.FakeGitea() }
         // Every account has a token stored (the Keychain is not under test
         // here; the GitHub client's permission flag is).
-        engine.tokenLoader = { _, _ in "tok" }
+        let engine = FleetEngine(
+            config: cfg, github: github, tart: FakeTart(),
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            dependencies: .init(tokenLoader: { _, _ in "tok" }))
+        engine.forgeState.withLock { $0.byPlatform["gitea"] = DualForgeTests.FakeGitea() }
         return engine
     }
 

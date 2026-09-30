@@ -97,7 +97,7 @@ enum ImageCommand {
                 }
             } catch TartError.missingBinary {
                 fail(
-                    "tart is not installed. Install it first (or click 'Install via Homebrew' in the app): brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart",
+                    "tart is not installed. Install it first (or click 'Install via Homebrew' in the app): \(TartHealthProbe.installCommand)",
                     exit: .runtime)
             } catch {
                 fail(error)
@@ -234,7 +234,7 @@ enum ImageCommand {
             print("set `image: \"\(options.target)\"` in your config to use it")
         } catch TartError.missingBinary {
             fail(
-                "tart is not installed. Install it first (or click 'Install via Homebrew' in the app): brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart",
+                "tart is not installed. Install it first (or click 'Install via Homebrew' in the app): \(TartHealthProbe.installCommand)",
                 exit: .runtime)
         } catch {
             fail(error)

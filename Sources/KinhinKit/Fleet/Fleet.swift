@@ -34,10 +34,6 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     /// Execution runtime backing this instance ("tart"; docker/host in
     /// later stages). Nil on old records → treated as tart on read.
     public var runtime: String?
-    /// Label pool this instance belongs to (a RuntimeID rawValue); nil →
-    /// the legacy single-pool fleet labels. Drives registration labels in
-    /// mixed fleets so runners join the right `runs-on` pool.
-    var poolLabels: String?
     public var job: String?
     /// Repositories with a job currently executing on this VM (org scope
     /// attribution, stamped by the reconcile loop from in-progress jobs;

@@ -57,15 +57,7 @@ public struct GiteaClient: Sendable {
 
     public init(credentials: GiteaCredentials, session: URLSession? = nil) {
         self.credentials = credentials
-        if let session {
-            self.session = session
-        } else {
-            let config = URLSessionConfiguration.default
-            config.timeoutIntervalForRequest = 30
-            config.timeoutIntervalForResource = 60
-            config.waitsForConnectivity = false
-            self.session = URLSession(configuration: config)
-        }
+        self.session = ForgeHTTP.session(session)
     }
 
     // MARK: Endpoints
@@ -238,15 +230,8 @@ public struct GiteaClient: Sendable {
     }
 
     static func isTransient(_ error: Error) -> Bool {
-        switch error {
-        case let error as GiteaError:
-            if case .http(let code, _) = error { return code == 0 || code >= 500 }
-            return false
-        case is URLError:
-            return true
-        default:
-            return false
-        }
+        if case .http(let code, _) = error as? GiteaError { return ForgeHTTP.isTransientStatus(code) }
+        return ForgeHTTP.isTransientNetworkError(error)
     }
 
     private func sendOnce(path: String, method: String) async throws -> (Data, HTTPURLResponse) {

@@ -60,12 +60,13 @@ final class HostRuntime: Runtime {
         try await shell.run(["/bin/bash", "-c", script], cwd: agentDir, timeout: timeout)
     }
 
-    func existingInstanceIDs() async -> [String] {
+    func existingInstanceIDs() async throws -> [String] {
         let fm = FileManager.default
         let base = Paths.appSupport.appendingPathComponent("host-instances", isDirectory: true)
-        // No dir yet (or an unreadable one) means no host instances exist;
-        // the fork in the directory is the source of truth.
-        guard let entries = try? fm.contentsOfDirectory(atPath: base.path) else { return [] }
+        // No dir yet means no host instances exist; an unreadable one throws
+        // (recovery then keeps the host records rather than dropping them).
+        guard fm.fileExists(atPath: base.path) else { return [] }
+        let entries = try fm.contentsOfDirectory(atPath: base.path)
         // Instance dirs are named exactly like the records ("kinhin-…").
         return entries.filter { $0.hasPrefix("kinhin-") }
     }
@@ -114,8 +115,6 @@ final class HostRuntime: Runtime {
 
     /// Engine-owned watch works unchanged (ephemeral deregistration
     /// semantics, same as GitHub-on-Tart).
-    func watchExit(id: String, forge: Forge, runnerCount: Int, route: RepoRoute) async throws {}
-
     /// Stops any Gitea daemons (they never exit on their own) and scrubs the
     /// work dir. Runner registrations are removed by the engine's forge
     /// cleanup. Idempotent: missing dirs are already clean.

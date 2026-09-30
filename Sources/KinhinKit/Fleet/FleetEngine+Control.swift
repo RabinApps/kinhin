@@ -59,10 +59,7 @@ extension FleetEngine {
             let problem = await statusBox.get().lastError
             let message = problem ?? "no forge configured — declare at least one accounts: entry"
             Log.error("engine", "startup blocked: \(message)")
-            await statusBox.modify {
-                $0.running = false
-                $0.lastError = message
-            }
+            await statusBox.modify { $0.lastError = message }
             runState.withLock { $0.running = false }
             return false
         }
@@ -78,12 +75,6 @@ extension FleetEngine {
         Log.info("engine", "starting fleet engine for \(served) (capacity cap: \(capacity.maxConcurrent))")
         await recoverIfNeeded()
         startCachePruneSweepIfNeeded()
-        // Mirror the flag into the status snapshot before returning (as
-        // `stop()` does): the first reconcile pass that would sync it runs in
-        // the task below, so callers reading status() right after start()
-        // (e.g. the daemon's config reload) could otherwise see running=false.
-        let isRunning = running
-        await statusBox.modify { $0.running = isRunning }
         let task = Task { [weak self] () -> Void in
             guard let self else { return }
             await self.reconcileLoop()
@@ -98,10 +89,6 @@ extension FleetEngine {
         reconcileTask = nil
         cachePruneTask?.cancel()
         cachePruneTask = nil
-        // Mirror the flag into the status snapshot now: the reconcile pass
-        // that would sync it is being cancelled, so status().running would
-        // otherwise stay stale true until the engine is started again.
-        await statusBox.modify { $0.running = false }
         // A token replaced while stopped must not survive into the next run
         // via the cache (minted under the old PAT's authority).
         invalidateRegistrationTokens()
@@ -138,14 +125,16 @@ extension FleetEngine {
     public func setPaused(_ value: Bool) async {
         runState.withLock { $0.paused = value }
         Log.info("engine", value ? "paused (no new VMs will be started)" : "resumed")
-        await statusBox.modify { $0.paused = value }
     }
 
     public func status() async -> FleetStatus {
         var status = await statusBox.get()
-        // Records live in the store; derive them on read so snapshots can
-        // never go stale relative to store mutations.
+        // Records live in the store and the run flags in `runState`; derive
+        // them on read so a snapshot can never disagree with either.
         status.records = store.all
+        let state = runState.withLock { $0 }
+        status.running = state.running
+        status.paused = state.paused
         status.runtime = runtime.id.rawValue
         // The UI surfaces this while paused so a deliberate pause doesn't
         // read as stuck — including when the queue gets re-checked.

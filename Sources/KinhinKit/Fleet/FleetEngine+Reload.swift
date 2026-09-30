@@ -51,10 +51,6 @@ extension FleetEngine {
         for task in tasks { task.cancel() }
         await drain(tasks, timeout: lifecycleDrainTimeout)
         invalidateRegistrationTokens()
-        // Mirror the flag into the status snapshot (stop() does the same):
-        // status().running must go false immediately, not at the next
-        // reconcile pass (which is now cancelled).
-        await statusBox.modify { $0.running = false }
     }
 
     /// Wait for cancelled lifecycle tasks to exit, up to `timeout`. Shell

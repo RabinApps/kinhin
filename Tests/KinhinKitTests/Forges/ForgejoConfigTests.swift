@@ -85,13 +85,13 @@ final class ForgejoConfigTests: XCTestCase {
 
     // MARK: The forge adapter
 
-    private func makeStubbedForgejoForge() -> ForgejoForge {
+    private func makeStubbedForgejoForge() -> GiteaForge {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubProtocol.self]
         let client = GiteaClient(
             credentials: GiteaCredentials(token: "fj", scope: "acme", instance: "https://code.example.com"),
             session: URLSession(configuration: config))
-        return ForgejoForge(
+        return GiteaForge(
             credentials: .forgejo(token: "fj", scope: "acme", instance: "https://code.example.com"),
             labels: ["macos:host"], client: client, registrationToken: "reg")
     }
@@ -112,6 +112,9 @@ final class ForgejoConfigTests: XCTestCase {
         defer { StubProtocol.handler = nil }
         let forge = makeStubbedForgejoForge()
         XCTAssertEqual(forge.id, .forgejo)
+        XCTAssertEqual(forge.name, "forgejo")
+        XCTAssertEqual(forge.account, "forgejo", "the default account is the forge's conventional name")
+        XCTAssertEqual(forge.registrationURL(), "https://code.example.com")
         XCTAssertTrue(forge.attributesByRepo, "repo attribution mirrors gitea-runner's job labels")
     }
 }

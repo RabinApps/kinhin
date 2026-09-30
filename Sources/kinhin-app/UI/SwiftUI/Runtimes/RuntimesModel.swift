@@ -13,7 +13,7 @@ import Observation
 /// engine gates the result and comments elsewhere in the file survive.
 @MainActor
 @Observable
-final class RuntimesModel {
+final class RuntimesModel: ConfigFormModel {
     typealias Line = StatusLine
 
     // MARK: Injectable seams (kept from the AppKit pane)
@@ -21,7 +21,7 @@ final class RuntimesModel {
     /// The config file this pane reads and edits (tests point it at a scratch file).
     @ObservationIgnored var configURL: URL = Paths.config
     /// Fired after any successful config write.
-    @ObservationIgnored var onEdited: (() -> Void)?
+    @ObservationIgnored var onChanged: (() -> Void)?
     /// Where routing problems and "nothing to do" explanations are shown.
     @ObservationIgnored var presentNotice: (_ title: String, _ message: String) -> Void = { title, message in
         AlertKit.notice(title, message)

@@ -38,10 +38,9 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation {
     func setupTabFinished() {
         setupIncomplete = false
         mainController?.setupIncompleteFlag = false
-        engine = nil
-        client = nil
+        backend = nil
         bootstrapEngine(reopenSetupOnFailure: false)
-        guard engine != nil || client != nil else {
+        guard backend != nil else {
             // Not ready after all: say why instead of silently resetting the
             // wizard (the old behavior looked like "Start fleet does nothing").
             setupIncomplete = true

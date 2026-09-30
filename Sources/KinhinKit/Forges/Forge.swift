@@ -7,7 +7,7 @@ public enum ForgeID: String, Codable, Sendable, CaseIterable {
     case github
     case gitea
     /// Gitea's upstream (wire-compatible: the same client, endpoints, and
-    /// runner binary serve it — see `ForgejoForge`).
+    /// runner binary serve it — see `GiteaForge`).
     case forgejo
     /// gitlab.com or a self-managed GitLab (≥ 16). Configured through
     /// `accounts:` entries only (no top-level section).

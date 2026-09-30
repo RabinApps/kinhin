@@ -104,15 +104,7 @@ public struct GitHubClient: GitHubServing {
 
     public init(credentials: GitHubCredentials, session: URLSession? = nil) {
         self.credentials = credentials
-        if let session {
-            self.session = session
-        } else {
-            let config = URLSessionConfiguration.default
-            config.timeoutIntervalForRequest = 30
-            config.timeoutIntervalForResource = 60
-            config.waitsForConnectivity = false
-            self.session = URLSession(configuration: config)
-        }
+        self.session = ForgeHTTP.session(session)
     }
 
     // MARK: Plumbing
@@ -174,7 +166,7 @@ public struct GitHubClient: GitHubServing {
                     continue  // can be transient (secondary limits)
                 case 404:
                     throw GitHubError.notFound(req.url?.path ?? "resource")
-                case 500...599:
+                case 429, 500...599:
                     lastError = GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
                     continue
                 default:
@@ -183,13 +175,17 @@ public struct GitHubClient: GitHubServing {
             } catch let error as GitHubError {
                 // Only retryable classes continue the loop.
                 if case .forbidden = error { lastError = error; continue }
-                if case .http(let code, _) = error, code >= 500 { lastError = error; continue }
+                if case .http(let code, _) = error, code == 429 || code >= 500 { lastError = error; continue }
                 if case .http(0, _) = error { lastError = error; continue }
                 throw error
-            } catch {
+            } catch let error where ForgeHTTP.isTransientNetworkError(error) {
                 // Network-layer error (offline, DNS, timeout): retry.
                 lastError = GitHubError.http(0, error.localizedDescription)
                 continue
+            } catch let error as URLError where error.code == .cancelled {
+                // A cancelled request surfaces as URLError; it must end the
+                // caller's task like any other cancellation, never retry.
+                throw CancellationError()
             }
         }
         throw lastError

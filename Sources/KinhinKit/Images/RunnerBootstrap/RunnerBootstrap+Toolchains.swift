@@ -3,6 +3,14 @@ import Foundation
 extension RunnerBootstrap {
     // MARK: - Managed toolchains (toolchains: config section)
 
+    /// The cache-env prefix a registration script starts with when its route
+    /// mounts the shared toolchain cache: the selection's exports plus a
+    /// blank line, or "" when the cache isn't mounted or nothing is selected.
+    static func cachePrefix(mounted: Bool, selection: ManagedToolchainSelection?, mountPath: String) -> String {
+        guard mounted, let selection else { return "" }
+        return cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: mountPath) + "\n\n"
+    }
+
     /// Shell exports pointing every selected ecosystem's download/package
     /// cache at the host-mounted cache share. Each export is guarded: when
     /// the share is not mounted (or the path is missing) the variable is

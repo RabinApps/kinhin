@@ -54,7 +54,7 @@ extension AppDelegate {
                 engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
                 Log.info("app", "routing reloaded into in-process engine")
             }
-        } else if let client {
+        } else if case .daemon(let client) = backend {
             do {
                 try await client.perform { try $0.reloadConfig() }
                 Log.info("app", "daemon notified: config reloaded (restarted if the change required it)")
@@ -108,7 +108,7 @@ extension AppDelegate {
                 return
             }
             await old.detachKeepingInstances()
-            engine = replacement
+            backend = .inProcess(replacement)
             Log.info(
                 "app",
                 "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))")

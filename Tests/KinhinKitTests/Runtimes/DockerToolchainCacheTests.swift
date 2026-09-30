@@ -146,7 +146,7 @@ final class DockerToolchainCacheTests: XCTestCase {
             store: makeTestStore(), ssh: FakeSSH(), host: testHost,
             containerShell: FakeShell()
         )
-        let runtime = try XCTUnwrap(engine.dockerRuntime)
+        let runtime = try XCTUnwrap(engine.runtimesByRuntime[.docker] as? DockerRuntime)
         let forge = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
             labels: ["kinhin"],

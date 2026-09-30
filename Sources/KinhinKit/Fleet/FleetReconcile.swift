@@ -17,8 +17,22 @@ extension FleetEngine {
         // not the engine's primary one (mixed fleets).
         var ownerByName: [String: RuntimeID] = [:]
         var ours: [String] = []
+        // Runtimes that couldn't be asked: their records are kept as they
+        // are (a failed listing is not proof the instances are gone).
+        var unlisted: Set<RuntimeID> = []
         for (runtimeID, runtimeInstance) in runtimesByRuntime.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-            for name in await runtimeInstance.existingInstanceIDs() {
+            let names: [String]
+            do {
+                names = try await runtimeInstance.existingInstanceIDs()
+            } catch {
+                Log.warn(
+                    "engine",
+                    "could not list \(runtimeID.rawValue) instances (\(error.localizedDescription)); keeping their records"
+                )
+                unlisted.insert(runtimeID)
+                continue
+            }
+            for name in names {
                 // "Ours" = instances this build spawns ("kinhin-") plus ones the
                 // pre-rename build spawned ("orchard-") so in-flight VMs are still
                 // recovered, attributed, and cleaned up across the rename.
@@ -44,6 +58,8 @@ extension FleetEngine {
                 // Records from builds that did not store a runtime.
                 if r.runtime == nil { r.runtime = owner.rawValue }
                 kept.append(r)
+            } else if unlisted.contains(RuntimeID(rawValue: record.runtime ?? "") ?? .tart) {
+                kept.append(record)
             } else {
                 Log.warn("engine", "record for \(record.id) has no matching instance; dropping")
             }
@@ -95,153 +111,137 @@ extension FleetEngine {
     /// One pass of the control loop. Public for tests.
     func reconcileOnce() async throws {
         let state = runState.withLock { $0 }
-        await statusBox.modify {
-            $0.running = state.running
-            $0.paused = state.paused
-        }
 
         // Forges that failed at startup get another chance (backed off).
         await retryDetachedForgesIfDue()
 
-        let records = store.all
-
         // 1. Clean up finished/failed VMs.
-        for record in records where record.phase == .failed {
+        for record in store.all where record.phase == .failed {
             await deleteVMRecord(id: record.id, reason: "failed: \(record.error ?? "unknown")")
         }
 
         // 2. Ask each attached forge for demand and running-work attribution.
-        // A forge is attached only when its platform's credential exists
-        // (GitHub: PAT provided at construction; Gitea: token in Keychain —
-        // verified in attachGiteaForgeIfNeeded), so VMs are never assigned
-        // to a platform the user hasn't authorized.
-        var queueDepth = 0
-        var demandByForge: [String: Int] = [:]
-        var demandByPool: [RuntimeID: Int] = [:]
         let attached = forgeState.withLock { Array($0.byPlatform.values) }
-        if !state.paused || config.autoResume {
-            // Auto-resume still watches the queue while paused: unpausing must
-            // happen the moment demand drains, and the pause keeps holding
-            // (no spawn/attribution below) until it does.
-            var perForgeJobs: [String: (attribution: Bool, jobs: [ForgeJob])] = [:]
-            var answeredQueue = false
-            for forge in attached {
-                do {
-                    let jobs = try await forge.queuedJobs()
-                    answeredQueue = true
-                    // Org-scope forges contribute repo attribution; repo-scope
-                    // forges suppress it (breakdown would carry no info).
-                    perForgeJobs[forge.account] = (forge.attributesByRepo, jobs)
-                    demandByForge[forge.account] = jobs.count
-                    queueDepth += jobs.count
-                    // Stage 2: bucket the same jobs into label pools so the
-                    // spawn loop can pick the right runtime per instance.
-                    for (poolID, count) in routing.demandByPool(for: jobs, forgeID: forge.id) {
-                        demandByPool[poolID, default: 0] += count
-                    }
-                } catch {
-                    let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
-                    Log.warn("engine", "could not fetch \(forge.name) queue: \(message)")
-                    await statusBox.modify { $0.lastError = message }
-                }
-            }
-            if state.paused {
-                // Paused with auto-resume: hold while demand remains, release
-                // once the queue is empty. A forge outage (all fetches failed,
-                // depth stays 0) must NOT read as "nothing to do" and unpause
-                // over the user's head.
-                if queueDepth == 0, !demandByForge.isEmpty {
-                    Log.info("engine", "auto-resume: queue is empty while paused")
-                    runState.withLock { $0.paused = false }
-                    await statusBox.modify { $0.paused = false }
-                }
-                // The status snapshot keeps queueDepth 0 while paused (as the
-                // old behavior did); demand re-polls fully on the resumed pass.
-                queueDepth = 0
-                demandByPool = [:]
-                demandByForge = [:]
-            } else {
-                let byRepo = ForgeDemand.mergeQueueByRepo(perForgeJobs)
-                await statusBox.modify {
-                    $0.queueDepth = queueDepth
-                    $0.queueByRepo = byRepo
-                    if answeredQueue { $0.queuePolledAt = Date() }
-                }
-                await attributeRunningJobs(attached)
-            }
-            // The paused branch masks queueDepth in the snapshot (legacy
-            // behavior), but the observation above was real: stamp its
-            // freshness there too. An outage leaves the old timestamp —
-            // the age then truthfully shows the data going stale.
-            if state.paused, answeredQueue {
-                await statusBox.modify { $0.queuePolledAt = Date() }
-            }
-        } else {
-            // Paused without auto-resume: clear attribution so stale repos
-            // don't linger.
-            await statusBox.modify { $0.runningByRepo = nil }
-            await clearRunningAttribution()
-        }
+        let demand = await pollDemand(attached, paused: state.paused)
 
-        // 3. Decide desired count.
-        let desired = Autoscaler.desiredCount(
-            queueDepth: queueDepth,
-            minRunners: config.minRunners,
-            maxRunners: config.maxRunners,
-            capacityCap: capacity.maxConcurrent,
-            runnersPerVM: max(1, config.runnersPerVM)
-        )
-
-        await statusBox.modify {
-            $0.desired = desired
-            $0.capacityCap = capacity.maxConcurrent
-            $0.jobCapacity = Autoscaler.jobCapacity(
-                maxRunners: config.maxRunners,
-                capacityCap: capacity.maxConcurrent,
-                runnersPerVM: max(1, config.runnersPerVM)
-            )
-            $0.records = store.all
-            $0.updatedAt = Date()
-        }
-
+        // 3. Decide the desired count and publish it.
+        let desired = await publishDesired(queueDepth: demand.queueDepth)
         guard !state.paused else { return }
 
-        // 4. Spawn up to desired — but never past what the disk can hold.
-        // The plan-time cap uses the last probed free space; this re-probe
-        // catches queue bursts that would otherwise fill the disk between
-        // spawns. Host-runtime slots cost no disk, so they skip the guard.
-        let currentActive = store.all.filter { $0.phase.isActive }.count
-        var toSpawn = desired - currentActive
+        // 4. Spawn up to desired, then 5. scale idle surplus down.
+        let active = store.all.filter { $0.phase.isActive }.count
+        try await spawn(upTo: desired, active: active, demand: demand, attached: attached)
+        await scaleDown(active: active, desired: desired, demand: demand)
+    }
+
+    /// What the forges are asking for this pass.
+    struct Demand {
+        var queueDepth = 0
+        /// Queued jobs per account (the spawn loop assigns VMs by unmet demand).
+        var byForge: [String: Int] = [:]
+        /// The same jobs bucketed into label pools (one per runtime).
+        var byPool: [RuntimeID: Int] = [:]
+    }
+
+    /// Polls every attached forge's queue (and running work) into `Demand`
+    /// and the status snapshot. Paused without auto-resume, nothing is
+    /// polled and attribution is cleared. Paused with auto-resume, the queue
+    /// is still watched — the pause releases the moment demand drains — but
+    /// no demand is returned, so nothing spawns this pass.
+    func pollDemand(_ attached: [Forge], paused: Bool) async -> Demand {
+        guard !paused || config.autoResume else {
+            // Clear attribution so stale repos don't linger.
+            await statusBox.modify { $0.runningByRepo = nil }
+            await clearRunningAttribution()
+            return Demand()
+        }
+        var demand = Demand()
+        var perForgeJobs: [String: (attribution: Bool, jobs: [ForgeJob])] = [:]
+        var answeredQueue = false
+        for forge in attached {
+            do {
+                let jobs = try await forge.queuedJobs()
+                answeredQueue = true
+                // Org-scope forges contribute repo attribution; repo-scope
+                // forges suppress it (breakdown would carry no info).
+                perForgeJobs[forge.account] = (forge.attributesByRepo, jobs)
+                demand.byForge[forge.account] = jobs.count
+                demand.queueDepth += jobs.count
+                for (poolID, count) in routing.demandByPool(for: jobs, forgeID: forge.id) {
+                    demand.byPool[poolID, default: 0] += count
+                }
+            } catch {
+                let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                Log.warn("engine", "could not fetch \(forge.name) queue: \(message)")
+                await statusBox.modify { $0.lastError = message }
+            }
+        }
+        if paused {
+            // Paused with auto-resume: hold while demand remains, release once
+            // the queue is empty. A forge outage (every fetch failed) must NOT
+            // read as "nothing to do" and unpause over the user's head.
+            if demand.queueDepth == 0, !demand.byForge.isEmpty {
+                Log.info("engine", "auto-resume: queue is empty while paused")
+                runState.withLock { $0.paused = false }
+            }
+            // The snapshot keeps queueDepth 0 while paused, but the
+            // observation was real: stamp its freshness. An outage leaves
+            // the old timestamp, so the age truthfully shows staleness.
+            if answeredQueue { await statusBox.modify { $0.queuePolledAt = Date() } }
+            return Demand()
+        }
+        let byRepo = ForgeDemand.mergeQueueByRepo(perForgeJobs)
+        await statusBox.modify { [demand] in
+            $0.queueDepth = demand.queueDepth
+            $0.queueByRepo = byRepo
+            if answeredQueue { $0.queuePolledAt = Date() }
+        }
+        await attributeRunningJobs(attached)
+        return demand
+    }
+
+    /// The desired instance count for `queueDepth`, published with the caps
+    /// and records into the status snapshot.
+    func publishDesired(queueDepth: Int) async -> Int {
+        let runnersPerVM = max(1, config.runnersPerVM)
+        let desired = Autoscaler.desiredCount(
+            queueDepth: queueDepth, minRunners: config.minRunners, maxRunners: config.maxRunners,
+            capacityCap: capacity.maxConcurrent, runnersPerVM: runnersPerVM)
+        let jobCapacity = Autoscaler.jobCapacity(
+            maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, runnersPerVM: runnersPerVM)
+        let records = store.all
+        await statusBox.modify { [capacity] in
+            $0.desired = desired
+            $0.capacityCap = capacity.maxConcurrent
+            $0.jobCapacity = jobCapacity
+            $0.records = records
+            $0.updatedAt = Date()
+        }
+        return desired
+    }
+
+    /// Starts instances up to `desired` — but never past what the disk can
+    /// hold. The plan-time cap uses the last probed free space; this
+    /// re-probe catches queue bursts that would otherwise fill the disk
+    /// between spawns. Host-runtime slots cost no disk, so they skip it.
+    func spawn(upTo desired: Int, active: Int, demand: Demand, attached: [Forge]) async throws {
+        var toSpawn = desired - active
         if toSpawn > 0 {
-            Log.info("engine", "scaling up: \(currentActive) active, want \(desired) (queue \(queueDepth))")
+            Log.info("engine", "scaling up: \(active) active, want \(desired) (queue \(demand.queueDepth))")
         }
         var diskPressureMessage: String?
         while toSpawn > 0 {
-            let id = VMRecord.newName()
-            var record = VMRecord(id: id, phase: .cloning)
-            record.phase = .cloning
-            // Per-VM platform assignment: the forge with the most unmet
-            // demand (its queued jobs minus VMs already serving it). Only
-            // attached forges are candidates — and forges only attach when
-            // their platform's token exists, so a VM is never assigned a
-            // platform the user has no credential for.
-            let assigned = ForgeDemand.assignAccount(
-                demand: demandByForge,
-                active: activeByPlatform(),
-                attached: Set(attached.map(\.account))
-            )
-            record.platform = assigned
-            // Per-VM runtime assignment: the label pool with the most unmet
-            // demand, within its capacity partition. Single-pool fleets
-            // reduce to the primary runtime with the fleet cap.
+            var record = VMRecord(id: VMRecord.newName(), phase: .cloning)
+            // The forge with the most unmet demand (its queued jobs minus VMs
+            // already serving it). Only attached forges are candidates, and a
+            // forge only attaches with a working token.
+            record.platform = ForgeDemand.assignAccount(
+                demand: demand.byForge, active: activeByPlatform(), attached: Set(attached.map(\.account)))
+            // The label pool with the most unmet demand, within its capacity
+            // partition. Single-pool fleets reduce to the primary runtime.
             let chosen = selectRuntime(
-                demand: demandByPool,
-                active: activeByRuntime(),
-                caps: capsByRuntime,
-                fallback: routing.defaultRuntime
-            )
+                demand: demand.byPool, active: activeByRuntime(), caps: capsByRuntime, fallback: routing.defaultRuntime)
             record.runtime = chosen.rawValue
-            record.poolLabels = chosen.rawValue
             if chosen != .host {
                 let diskPerVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: chosen.rawValue)
                 let freeDisk = hostProbe().freeDiskGB
@@ -269,22 +269,21 @@ extension FleetEngine {
                 if $0.lastError?.contains("disk pressure") == true { $0.lastError = nil }
             }
         }
+    }
 
-        // 5. Scale down: if we have more ready instances than desired, delete
-        // idle ones — but never from a pool whose jobs are still waiting.
-        if currentActive > desired {
-            let idle = store.all
-                .filter { $0.phase == .ready }
-                .sorted { $0.createdAt < $1.createdAt }
-            var surplus = currentActive - desired
-            for record in idle where surplus > 0 {
-                let poolID = RuntimeID(rawValue: record.runtime ?? "") ?? routing.defaultRuntime
-                let unmet = (demandByPool[poolID] ?? 0) - (activeByRuntime()[poolID] ?? 0)
-                guard unmet <= 0 else { continue }  // this pool still needs capacity
-                Log.info("engine", "scaling down: deleting idle \(record.id)")
-                await deleteVMRecord(id: record.id, reason: "scale down")
-                surplus -= 1
-            }
+    /// Deletes idle instances beyond `desired` — never from a pool whose
+    /// jobs are still waiting.
+    func scaleDown(active: Int, desired: Int, demand: Demand) async {
+        guard active > desired else { return }
+        let idle = store.all.filter { $0.phase == .ready }.sorted { $0.createdAt < $1.createdAt }
+        var surplus = active - desired
+        for record in idle where surplus > 0 {
+            let poolID = RuntimeID(rawValue: record.runtime ?? "") ?? routing.defaultRuntime
+            let unmet = (demand.byPool[poolID] ?? 0) - (activeByRuntime()[poolID] ?? 0)
+            guard unmet <= 0 else { continue }  // this pool still needs capacity
+            Log.info("engine", "scaling down: deleting idle \(record.id)")
+            await deleteVMRecord(id: record.id, reason: "scale down")
+            surplus -= 1
         }
     }
 

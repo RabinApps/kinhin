@@ -36,9 +36,7 @@ public enum LabelsConfigEditor {
     /// file must still pass `ConfigLoader.parse` or nothing is written.
     @discardableResult
     public static func apply(_ newLabels: [String], scope: Scope, to url: URL = Paths.config) throws -> String {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw ConfigEditError.notFound(url.path)
-        }
+        _ = try ConfigFileEdit.read(url)
         guard !newLabels.isEmpty else {
             throw ConfigEditError.validation(
                 scope == .fleet
@@ -50,35 +48,15 @@ public enum LabelsConfigEditor {
             throw ConfigEditError.validation("labels must not contain blank entries")
         }
 
-        let original = try String(contentsOf: url, encoding: .utf8)
-        let updated: String
-        switch scope {
-        case .fleet:
-            updated = try replaceTopLevelList(in: original, newLabels: newLabels)
-        case .container:
-            updated = try replaceContainerLabels(in: original, newLabels: newLabels)
+        return try ConfigFileEdit.apply(to: url) { original in
+            switch scope {
+            case .fleet: return try replaceTopLevelList(in: original, newLabels: newLabels)
+            case .container: return try replaceContainerLabels(in: original, newLabels: newLabels)
+            }
         }
-        do {
-            _ = try ConfigLoader.parse(updated)
-        } catch {
-            throw ConfigEditError.validation(error.localizedDescription)
-        }
-        try updated.write(toFile: url.path, atomically: true, encoding: .utf8)
-        return updated
     }
 
     // MARK: - Text surgery
-
-    /// A column-0 mapping key line (`key:`), not a comment.
-    private static func isTopKey(_ line: String) -> Bool {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        guard let first = trimmed.first, first != "#", first != "-" else { return false }
-        return (line.count - line.drop(while: { $0 == " " }).count) == 0 && trimmed.hasSuffix(":")
-    }
-
-    private static func indent(of line: String) -> Int {
-        line.count - line.drop(while: { $0 == " " }).count
-    }
 
     /// Replace the block-sequence under the column-0 `labels:` key (block
     /// or flow style), or append the block when the key is absent. A
@@ -88,12 +66,10 @@ public enum LabelsConfigEditor {
             throw ConfigEditError.yamlParse("top level must be a mapping")
         }
         var lines = yaml.components(separatedBy: "\n")
-        let block = ["labels:"] + newLabels.map { "  - \"\($0.escaped())\"" }
+        let block = ["labels:"] + newLabels.map { "  - \(YAMLText.quoted($0))" }
 
         guard let start = lines.firstIndex(where: { isLabelsKey($0, at: 0) }) else {
-            while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
-                lines.removeLast()
-            }
+            YAMLText.trimTrailingBlankLines(&lines)
             lines.append(contentsOf: block)
             return lines.joined(separator: "\n")
         }
@@ -112,7 +88,7 @@ public enum LabelsConfigEditor {
 
         var end = lines.count
         for index in (start + 1)..<lines.count where !lines[index].trimmingCharacters(in: .whitespaces).isEmpty {
-            if isTopKey(lines[index]) || indent(of: lines[index]) == 0 {
+            if YAMLText.isTopLevelKey(lines[index]) || YAMLText.indent(of: lines[index]) == 0 {
                 end = index
                 break
             }
@@ -132,7 +108,7 @@ public enum LabelsConfigEditor {
 
         guard
             let containerIdx = lines.firstIndex(where: {
-                isTopKey($0) && $0.trimmingCharacters(in: .whitespaces) == "container:"
+                YAMLText.isTopLevelKey($0) && $0.trimmingCharacters(in: .whitespaces) == "container:"
             })
         else {
             throw ConfigEditError.validation(
@@ -145,15 +121,15 @@ public enum LabelsConfigEditor {
                 "container: must use block style (one key per line) to edit container.labels")
         }
 
-        let block = ["  labels:"] + newLabels.map { "    - \"\($0.escaped())\"" }
+        let block = ["  labels:"] + newLabels.map { "    - \(YAMLText.quoted($0))" }
 
         // An existing labels: key at indent 2 within the container block.
         var labelsIdx: Int?
         for index in (containerIdx + 1)..<lines.count {
             let line = lines[index]
-            if isTopKey(line) { break }
+            if YAMLText.isTopLevelKey(line) { break }
             if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
-            if indent(of: line) < 2 { break }
+            if YAMLText.indent(of: line) < 2 { break }
             if isLabelsKey(line, at: 2) {
                 labelsIdx = index
                 break
@@ -175,7 +151,7 @@ public enum LabelsConfigEditor {
             for index in (start + 1)..<lines.count {
                 let line = lines[index]
                 if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
-                if isTopKey(line) || indent(of: line) <= 2 {
+                if YAMLText.isTopLevelKey(line) || YAMLText.indent(of: line) <= 2 {
                     end = index
                     break
                 }
@@ -190,19 +166,10 @@ public enum LabelsConfigEditor {
     /// A `labels:` key line at the given indent — plain, flow-valued, or
     /// with a trailing comment ("labels: [a, b]  # note").
     private static func isLabelsKey(_ line: String, at expectedIndent: Int) -> Bool {
-        guard indent(of: line) == expectedIndent else { return false }
+        guard YAMLText.indent(of: line) == expectedIndent else { return false }
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("labels:") else { return false }
         let rest = trimmed.dropFirst("labels:".count)
         return rest.isEmpty || rest.hasPrefix(" ")
-    }
-}
-
-private extension String {
-    /// YAML double-quoted scalar escaping for label values.
-    func escaped() -> String {
-        self
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
     }
 }

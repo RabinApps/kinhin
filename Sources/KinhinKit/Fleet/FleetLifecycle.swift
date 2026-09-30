@@ -50,7 +50,6 @@ extension FleetEngine {
             // Resolve this record's runtime and pool (mixed fleets: per-record).
             var probe = VMRecord(id: id, phase: .cloning)
             probe.runtime = store.all.first { $0.id == id }?.runtime
-            probe.poolLabels = store.all.first { $0.id == id }?.poolLabels
             let recordRuntime = runtime(for: probe)
             // Phase: provisioning (clone+boot for VMs, container run for
             // containers; idempotent for an existing id — recovery path).
@@ -128,12 +127,7 @@ extension FleetEngine {
 
             // If ephemeral, watch until the runner deregisters itself, then delete.
             if config.vm.ephemeral {
-                switch forge.exitSemantics {
-                case .deregisters:
-                    try await awaitEphemeralExit(id: id, ip: ip, forge: forge)
-                case .idleGrace:
-                    try await awaitGiteaExit(id: id, ip: ip, forge: forge)
-                }
+                try await awaitRunnerExit(id: id, forge: forge)
             }
         } catch is CancellationError {
             // Cancellation always originates from a path that owns teardown
@@ -155,16 +149,28 @@ extension FleetEngine {
         }
     }
 
-    /// Gitea ephemeral watch: gitea-runner daemons do NOT deregister after a
-    /// job (no --ephemeral), so "busy → idle for all runners" is the job-done
-    /// signal; after a short grace period (in case the next task is already
-    /// dispatching) the VM is deleted. Runners that never register trip the
-    /// registration timeout, exactly like the GitHub path.
-    func awaitGiteaExit(id: String, ip: String?, forge: Forge) async throws {
+    /// Watch an ephemeral instance's runner(s) until their job is done, then
+    /// delete it. With `runners_per_vm > 1` the instance hosts several runners
+    /// named `\(id)-r1…rN`; each is tracked individually, and the instance is
+    /// deleted only once EVERY runner was seen registered and then either:
+    ///
+    /// - `.deregisters` (GitHub, GitLab): none remain on the forge — partial
+    ///   deregistration (one runner's job finished) keeps it alive for the
+    ///   others;
+    /// - `.idleGrace` (Gitea family): gitea-runner daemons do NOT deregister
+    ///   after a job, so "busy → idle for all runners" for a short grace
+    ///   period (in case the next task is already dispatching) is the signal.
+    ///
+    /// Runners that never register trip the registration timeout. A failed
+    /// runner list is retried: an API hiccup must never read as "runners
+    /// deregistered", which would delete an instance mid-job.
+    func awaitRunnerExit(id: String, forge: Forge) async throws {
         let expected = Self.runnerNames(for: id, count: config.runnersPerVM)
+        let forgeName = forge.name
+        let idleGrace: TimeInterval? = forge.exitSemantics == .idleGrace ? 30 : nil
         let deadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 3600 * 6)))
+        // Allowance for the agents inside the instance to finish registering.
         let registrationDeadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 120)))
-        let idleGrace: TimeInterval = 30
         var seen: Set<String> = []
         var idleSince: Date?
         while Date() < deadline {
@@ -172,91 +178,22 @@ extension FleetEngine {
             let all: [ForgeRunner]
             do {
                 all = try await forge.runners()
-            } catch {
-                // An API hiccup must not read as "runners deregistered",
-                // which would delete a VM that is still running a job.
-                Log.warn(id, "\(forge.name) runner list failed; retrying: \(error.localizedDescription)")
+            } catch let error where !(error is CancellationError) && !Task.isCancelled {
+                Log.warn(id, "\(forgeName) runner list failed; retrying: \(error.localizedDescription)")
                 try await Task.sleep(for: .seconds(1))
                 continue
             }
+            // A detached engine's watcher must not delete or re-phase the instance.
             try Task.checkCancellation()
             let mine = all.filter { expected.contains($0.name) }
             for runner in mine where runner.online { seen.insert(runner.name) }
             let allSeen = expected.allSatisfy { seen.contains($0) }
 
-            if allSeen {
-                if mine.isEmpty {
-                    Log.info(id, "gitea runners deregistered; deleting VM")
-                    await deleteVMRecord(id: id, reason: "jobs finished")
-                    return
-                }
-                let anyBusy = mine.contains { $0.busy }
-                if anyBusy {
-                    idleSince = nil
-                    updateRecord(id) { $0.phase = .busy }
-                } else {
-                    let since = idleSince ?? Date()
-                    idleSince = since
-                    if Date().timeIntervalSince(since) >= idleGrace {
-                        Log.info(id, "gitea runners idle \(Int(idleGrace))s; job complete; deleting VM")
-                        await deleteVMRecord(id: id, reason: "jobs finished")
-                        return
-                    }
-                    updateRecord(id) { $0.phase = .ready }
-                }
-            } else if Date() > registrationDeadline {
-                Log.warn(id, "gitea runners never registered; deleting VM")
-                updateRecord(id) {
-                    $0.phase = .failed
-                    $0.error = "runner did not register within timeout"
-                }
-                await deleteVMRecord(id: id, reason: "registration timeout")
-                return
-            }
-            try await Task.sleep(for: .seconds(1))
-        }
-        Log.warn(id, "gitea ephemeral watch timed out; deleting VM")
-        await deleteVMRecord(id: id, reason: "timeout")
-    }
-
-    /// Wait for the VM's runner(s) to register, serve jobs, and deregister
-    /// (the ephemeral flow). With `runners_per_vm > 1` the VM hosts several
-    /// runners named `\(id)-r1…rN`. Every expected runner is tracked
-    /// individually: the VM is deleted only when EVERY runner was seen
-    /// registered at least once and NONE remain — partial deregistration
-    /// (one runner's job finished) keeps the VM alive for the others. Runners
-    /// that never register trip the registration timeout instead.
-    func awaitEphemeralExit(id: String, ip: String?, forge: Forge? = nil) async throws {
-        let expected = Self.runnerNames(for: id, count: config.runnersPerVM)
-        func current(_ runners: [ForgeRunner]) -> [ForgeRunner] {
-            runners.filter { expected.contains($0.name) }
-        }
-        /// The record's own account when known; the legacy client otherwise
-        /// (tests and adopted VMs).
-        func listRunners() async throws -> [ForgeRunner] {
-            if let forge { return try await forge.runners() }
-            return try await github.listRunners().map { ForgeRunner(id: $0.id, name: $0.name, busy: $0.busy) }
-        }
-
-        let deadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 3600 * 6)))
-        // Allowance for the agents inside the VM to finish registering.
-        let registrationDeadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 120)))
-        var seen: Set<String> = []
-        while Date() < deadline {
-            try Task.checkCancellation()
-            let mine = current(try await listRunners())
-            // A detached engine's watcher must not delete or re-phase the VM.
-            try Task.checkCancellation()
-            for runner in mine where runner.online {
-                seen.insert(runner.name)
-            }
-            let allSeen = expected.allSatisfy { seen.contains($0) }
-
             if allSeen, mine.isEmpty {
-                // Every runner completed its lifecycle; none remain on GitHub.
+                // Every runner completed its lifecycle; none remain.
                 let phase = store.all.first { $0.id == id }?.phase
-                if phase == .busy {
-                    Log.info(id, "all jobs finished; runners deregistered; deleting VM")
+                if phase == .busy || idleGrace != nil {
+                    Log.info(id, "all jobs finished; \(forgeName) runners deregistered; deleting VM")
                     await deleteVMRecord(id: id, reason: "jobs finished")
                 } else {
                     Log.warn(id, "runners vanished while ready; deleting VM")
@@ -264,13 +201,27 @@ extension FleetEngine {
                 }
                 return
             }
-
             if !mine.isEmpty {
-                let anyBusy = mine.contains { $0.busy }
-                updateRecord(id) { $0.phase = anyBusy ? .busy : .ready }
-            } else if Date() > registrationDeadline {
-                // Some runner(s) never registered at all.
-                Log.warn(id, "runners never registered on GitHub; deleting VM")
+                if mine.contains(where: \.busy) {
+                    idleSince = nil
+                    updateRecord(id) { $0.phase = .busy }
+                } else {
+                    updateRecord(id) { $0.phase = .ready }
+                    if let idleGrace, allSeen {
+                        let since = idleSince ?? Date()
+                        idleSince = since
+                        if Date().timeIntervalSince(since) >= idleGrace {
+                            Log.info(id, "\(forgeName) runners idle \(Int(idleGrace))s; job complete; deleting VM")
+                            await deleteVMRecord(id: id, reason: "jobs finished")
+                            return
+                        }
+                    }
+                }
+            }
+            // Deregistering forges wait while some runners are up; idle-grace
+            // forges need every runner registered to judge idleness at all.
+            if !allSeen, mine.isEmpty || idleGrace != nil, Date() > registrationDeadline {
+                Log.warn(id, "runners never registered on \(forgeName); deleting VM")
                 updateRecord(id) {
                     $0.phase = .failed
                     $0.error = "runner did not register within timeout"

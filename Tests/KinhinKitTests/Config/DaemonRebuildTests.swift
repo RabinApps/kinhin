@@ -14,18 +14,17 @@ final class DaemonRebuildTests: XCTestCase {
     /// makeTestConfig) so the restart diff compares like with like.
     func makeEngine(
         _ config: KinhinConfig, store: FleetStore = makeTestStore(), tart: TartControlling = FakeTart(),
-        github: FakeGitHub = FakeGitHub()
+        github: FakeGitHub = FakeGitHub(), drainTimeout: Duration = .seconds(5)
     ) -> FleetEngine {
-        let engine = FleetEngine(
+        FleetEngine(
             config: config,
             github: github,
             tart: tart,
             store: store,
             ssh: FakeSSH(),
-            host: host
+            host: host,
+            dependencies: .init(lifecycleDrainTimeout: drainTimeout)
         )
-        engine.lifecycleDrainTimeout = .seconds(5)
-        return engine
     }
 
     func scratchDir() throws -> URL {
@@ -343,8 +342,7 @@ final class DaemonRebuildTests: XCTestCase {
         let tart = BlockingTart()
         tart.vms["kinhin-live"] = TartVM(name: "kinhin-live", source: "tahoe-base", status: "running")
         store.upsert(VMRecord(id: "kinhin-live", phase: .ready))
-        let engine = makeEngine(makeTestConfig(), store: store, tart: tart)
-        engine.lifecycleDrainTimeout = .milliseconds(200)
+        let engine = makeEngine(makeTestConfig(), store: store, tart: tart, drainTimeout: .milliseconds(200))
         await engine.start()
         let deadline = Date().addingTimeInterval(5)
         while !tart.isBlockedInIP && Date() < deadline {

@@ -14,7 +14,7 @@ import Observation
 ///   **Rebuild image…** button with a confirmation dialog.
 @MainActor
 @Observable
-final class ToolchainsModel {
+final class ToolchainsModel: ConfigFormModel {
     /// How the grid is seeded when the form loads.
     enum Seed {
         /// From the saved config (every catalog entry ON when it has no
@@ -35,7 +35,7 @@ final class ToolchainsModel {
 
     @ObservationIgnored let seed: Seed
     var configURL: URL = Paths.config
-    @ObservationIgnored var onEdited: (() -> Void)?
+    @ObservationIgnored var onChanged: (() -> Void)?
 
     /// Confirms a rebuild. Injectable so tests never open a modal.
     @ObservationIgnored var confirmRebuild: (_ runtime: RuntimeID, _ plan: ToolchainsConfigEditor.Plan) -> Bool = {
@@ -188,7 +188,14 @@ final class ToolchainsModel {
 
     /// One image row per runtime that is actually set up.
     private func refreshImages() {
-        let snapshot = ConfigStore.snapshotOrLog(at: configURL)
+        let snapshot: GeneralConfigEditor.Snapshot?
+        do {
+            snapshot = try ConfigStore.snapshot(at: configURL)
+        } catch {
+            // Say so instead of listing no Linux images as if none were set up.
+            snapshot = nil
+            status = .unreadableConfig(error)
+        }
         var runtimes: [ImageRuntime] = []
         if TartController.isInstalled() { runtimes.append(ImageRuntime(runtime: .tart, platform: .macOS)) }
         if snapshot?.container != nil { runtimes.append(ImageRuntime(runtime: .appleContainer, platform: .linux)) }
@@ -278,7 +285,7 @@ final class ToolchainsModel {
             baseline = working
             status = Line(text: "Applied ✓ — rebuild an image below to use it.", style: .ok)
             refreshState()
-            onEdited?()
+            onChanged?()
         } catch {
             status = Line(text: "Not applied — \(error.localizedDescription)", style: .error)
         }
@@ -291,7 +298,7 @@ final class ToolchainsModel {
             try GeneralConfigEditor.setBaseImage(value, for: runtime, at: configURL)
             baseImageValues[runtime] = value
             status = Line(text: "Base image saved — rebuild the image to use it.")
-            onEdited?()
+            onChanged?()
         } catch {
             AlertKit.present(error: error, title: "Couldn't save the base image")
             baseImageValues[runtime] = ConfigStore.snapshotOrLog(at: configURL)?.baseImage(for: runtime)
