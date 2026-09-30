@@ -131,7 +131,14 @@ public struct ImagePreparer {
         let script = scripts.joined(separator: "\n\n")
 
         Log.info("image", "ensuring base image \(options.source) is present (this can download gigabytes once)")
-        try await tart.pull(image: options.source)
+        // A locally-created VM (tart create --linux, then OS-installed by
+        // hand) is already on disk — `tart pull` would fail on a non-registry
+        // reference. Local names contain no registry slash.
+        if options.source.contains("/") {
+            try await tart.pull(image: options.source)
+        } else {
+            Log.info("image", "source \(options.source) is a local VM — skipping the registry pull")
+        }
 
         Log.info("image", "cloning to scratch VM \(tmp)")
         try await tart.clone(source: options.source, to: tmp)

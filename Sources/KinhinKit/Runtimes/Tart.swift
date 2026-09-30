@@ -51,6 +51,12 @@ public protocol TartControlling: Sendable {
     func stop(name: String) async throws
     func delete(name: String) async throws
     func pull(image: String) async throws
+    /// Creates an empty Linux VM (`tart create --linux name`) with no OS —
+    /// the starting point of the "Linux VM from scratch" flow.
+    func createLinux(name: String) async throws
+    /// Boots the VM with `isoPath` attached as a second disk
+    /// (`tart run --disk <iso>`), for one-time OS installs.
+    func runWithDisk(name: String, isoPath: String) async throws
 }
 
 public extension TartControlling {
@@ -189,6 +195,28 @@ public struct TartController: TartControlling {
         let res = try await exec(["pull", image], timeout: 3600)
         guard res.succeeded else { throw TartError.commandFailed(what: "pull \(image)", stderr: res.stderr) }
     }
+
+    public func createLinux(name: String) async throws {
+        let res = try await exec(["create", "--linux", name])
+        guard res.succeeded else {
+            throw TartError.commandFailed(what: "create --linux \(name)", stderr: res.stderr)
+        }
+    }
+
+    public func runWithDisk(name: String, isoPath: String) async throws {
+        // `tart run` blocks while the VM runs; launch it detached like `run`.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: binary)
+        process.arguments = ["run", "--no-graphics", "--disk", isoPath, name]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            throw TartError.commandFailed(what: "run --disk \(name)", stderr: error.localizedDescription)
+        }
+    }
 }
 
 /// Stand-in used when tart is not installed but the fleet runs Linux jobs on
@@ -207,6 +235,8 @@ struct UnavailableTart: TartControlling {
     public func stop(name: String) async throws { throw missing }
     public func delete(name: String) async throws { throw missing }
     func pull(image: String) async throws { throw missing }
+    public func createLinux(name: String) async throws { throw missing }
+    public func runWithDisk(name: String, isoPath: String) async throws { throw missing }
 }
 
 extension KinhinConfig {

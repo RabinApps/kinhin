@@ -25,6 +25,23 @@ final class ImagePreparerTests: XCTestCase {
         XCTAssertEqual(tart.vms[options.target]?.source, scratch)
     }
 
+    func testImagePrepareSkipsTheRegistryPullForALocalSourceVM() async throws {
+        // A locally created VM (tart create --linux, then OS-installed) is not
+        // a registry reference — pulling it would fail. Names without a slash
+        // are treated as local and used as-is.
+        let tart = FakeTart()
+        let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
+        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
+        options.source = "ubuntu-scratch"
+        options.target = "ubuntu-base"
+
+        try await preparer.run(options)
+
+        XCTAssertTrue(tart.pullCalls.isEmpty, "a local VM is never pulled")
+        XCTAssertEqual(tart.cloneCalls.first?.source, "ubuntu-scratch")
+        XCTAssertEqual(tart.cloneCalls.last?.name, "ubuntu-base")
+    }
+
     func testImagePrepareReplacesExistingTarget() async throws {
         let tart = FakeTart()
         tart.vms["tahoe-base"] = TartVM(name: "tahoe-base", source: "old-source", status: "stopped")

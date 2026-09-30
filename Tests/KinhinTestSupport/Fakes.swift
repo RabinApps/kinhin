@@ -14,6 +14,8 @@ final class FakeTart: TartControlling, Sendable {
         /// Host directories shared into each booted VM, per run call.
         var runMounts: [[String]] = []
         var stopCalls: [String] = []
+        var createLinuxCalls: [String] = []
+        var runWithDiskCalls: [(name: String, isoPath: String)] = []
         var failNextClone = false
         /// Makes every `list()` throw, like `tart list` failing to launch.
         var failList = false
@@ -36,6 +38,8 @@ final class FakeTart: TartControlling, Sendable {
     /// Host directories shared into each booted VM, per run call.
     var runMounts: [[String]] { state.withLock { $0.runMounts } }
     var stopCalls: [String] { state.withLock { $0.stopCalls } }
+    var createLinuxCalls: [String] { state.withLock { $0.createLinuxCalls } }
+    var runWithDiskCalls: [(name: String, isoPath: String)] { state.withLock { $0.runWithDiskCalls } }
     /// One-shot: the next `clone` fails, the one after succeeds again.
     var failNextClone: Bool {
         get { state.withLock { $0.failNextClone } }
@@ -105,6 +109,24 @@ final class FakeTart: TartControlling, Sendable {
 
     func pull(image: String) async throws {
         state.withLock { $0.pullCalls.append(image) }
+    }
+
+    func createLinux(name: String) async throws {
+        state.withLock { state in
+            state.createLinuxCalls.append(name)
+            state.vms[name] = TartVM(name: name, source: "", status: "stopped")
+        }
+    }
+
+    func runWithDisk(name: String, isoPath: String) async throws {
+        state.withLock { state in
+            state.runWithDiskCalls.append((name, isoPath))
+            if let vm = state.vms[name] {
+                state.vms[name] = TartVM(
+                    name: vm.name, source: vm.source, status: "running", cpu: vm.cpu, memoryMB: vm.memoryMB,
+                    diskGB: vm.diskGB)
+            }
+        }
     }
 }
 

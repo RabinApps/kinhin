@@ -4,6 +4,42 @@ import KinhinKit
 enum ImageCommand {
     static func run(_ args: [String]) async throws {
         let cfg = loadConfigOrExit()
+        if hasFlag("--linux", in: args) {
+            // Linux tart VM from scratch (the tart.run quick-start flow):
+            // create the bare VM, optionally attach install media for the
+            // one-time interactive OS install, and point at
+            // `image prepare --source <vm>` for the agent bake.
+            if hasFlag("--container", in: args) || hasFlag("--docker", in: args) {
+                fail("--linux cannot be combined with --container or --docker", exit: .usage)
+            }
+            guard let name = flag("--target", in: args), !name.isEmpty else {
+                fail("--linux needs --target <vm-name>: the name of the base VM you are creating", exit: .usage)
+            }
+            do {
+                let tart = try TartController(configuredPath: cfg.tartPath)
+                let creator = TartLinuxVMCreator(tart: tart)
+                let iso = flag("--iso", in: args)
+                try await creator.run(TartLinuxVMCreator.Options(name: name, isoPath: iso))
+                if iso != nil {
+                    print("Linux VM '\(name)' created and booting with install media.")
+                    print(
+                        "Finish the OS install in the VM window (create an 'admin' user with your SSH key), then bake the runner agents with:"
+                    )
+                    print("  kinhin image prepare --source \(name)")
+                } else {
+                    print(
+                        "Linux VM '\(name)' created (no OS yet — re-run with --iso <arm64.iso> to attach install media)."
+                    )
+                }
+            } catch TartError.missingBinary {
+                fail(
+                    "tart is not installed. Install it first (or click 'Install via Homebrew' in the app): brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart",
+                    exit: .runtime)
+            } catch {
+                fail(error)
+            }
+            return
+        }
         if hasFlag("--container", in: args) {
             // Apple-container runtime path: bake agents into a Linux OCI image
             // (no tart involved). Refuses when no platform token is stored,

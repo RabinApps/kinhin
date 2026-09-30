@@ -163,6 +163,12 @@ func helpText() -> String {
                                     OrbStack / colima); bakes `toolchains:` the same way.
                                     --platform linux/amd64 bakes an x86_64 image that runs
                                     under emulation (slower; see docs)
+        image prepare --linux --target <name> [--iso <file>]
+                                    Create a Linux tart VM from scratch (tart create
+                                    --linux) instead of cloning a prepared image: the VM
+                                    boots with the arm64 ISO attached once, you install the
+                                    OS by hand, then `image prepare --source <name>` bakes
+                                    the agents into it
         toolchains                  Managed-toolchain catalog, selections, and cache state
         toolchains prune [--dry-run]   Expire stale host-cache entries now
         toolchains helper [--linux]    Print the per-job `kinhin-toolchain` helper baked into images

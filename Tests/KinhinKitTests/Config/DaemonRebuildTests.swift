@@ -406,4 +406,10 @@ final class BlockingTart: TartControlling, Sendable {
     }
 
     func pull(image: String) async throws {}
+
+    func createLinux(name: String) async throws {
+        state.withLock { $0.vms[name] = TartVM(name: name, source: "", status: "stopped") }
+    }
+
+    func runWithDisk(name: String, isoPath: String) async throws {}
 }
