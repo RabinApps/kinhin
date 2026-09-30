@@ -119,6 +119,25 @@ public enum Daemon {
         func set(_ engine: FleetEngine?) {
             wrapped.withLock { $0 = engine }
         }
+
+        /// The tail of the serial chain: each `serialized` call runs after
+        /// the previous one finished.
+        private let tail = Mutex<Task<Void, Never>?>(nil)
+
+        /// Run `operation` after every previously submitted one has finished
+        /// (FIFO), so engine swaps never interleave.
+        func serialized<T: Sendable>(_ operation: @escaping @Sendable () async -> T) async -> T {
+            let task = tail.withLock { tail -> Task<T, Never> in
+                let previous = tail
+                let next = Task {
+                    await previous?.value
+                    return await operation()
+                }
+                tail = Task { _ = await next.value }
+                return next
+            }
+            return await task.value
+        }
     }
 
     /// Legacy/compat entry: a fixed engine, wrapped in a throwaway ref.
@@ -136,7 +155,7 @@ public enum Daemon {
         _ request: RPCRequest,
         engineRef: EngineRef,
         configURL: URL = Paths.config,
-        engineFactory: ((KinhinConfig) throws -> FleetEngine)? = nil
+        engineFactory: (@Sendable (KinhinConfig) throws -> FleetEngine)? = nil
     ) async -> RPCResponse {
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()
@@ -207,52 +226,12 @@ public enum Daemon {
                 await engine.replaceCredentials(pat: replacement.pat)
                 return RPCResponse(id: request.id, ok: true)
             case .reloadConfig:
-                // The Runtimes pane, Config tab, or CLI just rewrote
-                // config.yaml. Routing-only edits apply live to the running
-                // engine; anything else (scope, bounds, VM shape, images,
-                // forge sections) requires rebuilding the engine from the
-                // new file. Failure (bad YAML, validation) leaves the
-                // running fleet untouched on its current config.
-                do {
-                    let cfg = try ConfigLoader.load(from: configURL)
-                    if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
-                        let replacement = try (engineFactory ?? Self.buildEngine)(cfg)
-                        let wasRunning = await engine.status().running
-                        let wasPaused = await engine.status().paused
-                        // A stopped fleet stays stopped across a rebuild — a
-                        // config edit must never start spawning VMs.
-                        if wasRunning {
-                            // Verify the replacement's forges while the old
-                            // engine still owns the fleet; nothing is adopted yet.
-                            replacement.markRunning()
-                            guard await replacement.prepareStart() else {
-                                // Startup verification failed (bad PAT, transient
-                                // network): keep the old engine serving instead
-                                // of trading a running fleet for a dead one.
-                                let error = await replacement.status().lastError ?? "startup verification failed"
-                                Log.error("daemon", "rebuild did not start: \(error) — keeping the previous engine")
-                                return RPCResponse(id: request.id, ok: false, error: "restart failed: \(error)")
-                            }
-                        }
-                        // Detach (and drain) the old engine BEFORE the
-                        // replacement recovers, so no instance is driven by
-                        // two engines at once.
-                        await engine.detachKeepingInstances()
-                        if wasRunning {
-                            await replacement.launch()
-                            if wasPaused { await replacement.setPaused(true) }
-                        }
-                        engineRef.set(replacement)
-                        Log.info(
-                            "daemon",
-                            "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))"
-                        )
-                        return RPCResponse(id: request.id, ok: true)
-                    }
-                    engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
-                    return RPCResponse(id: request.id, ok: true)
-                } catch {
-                    return RPCResponse(id: request.id, ok: false, error: "reload failed: \(error.localizedDescription)")
+                // Reloads are serialized: two overlapping rebuilds would each
+                // detach the same engine and launch a replacement, leaving
+                // an orphan engine driving the fleet. Each reload re-reads
+                // the current engine once it holds the gate.
+                return await engineRef.serialized {
+                    await reload(request, engineRef: engineRef, configURL: configURL, engineFactory: engineFactory)
                 }
             case .logs:
                 let entries = Log.snapshot(limit: 300)
@@ -260,6 +239,65 @@ public enum Daemon {
             }
         } catch {
             return RPCResponse(id: request.id, ok: false, error: error.localizedDescription)
+        }
+    }
+
+    /// Apply an edited config.yaml: routing-only edits apply live to the
+    /// running engine; anything else (scope, bounds, VM shape, images,
+    /// accounts) rebuilds the engine from the new file. Failure (bad YAML,
+    /// validation) leaves the running fleet untouched on its current config.
+    /// Callers hold `engineRef`'s serial gate.
+    static func reload(
+        _ request: RPCRequest,
+        engineRef: EngineRef,
+        configURL: URL,
+        engineFactory: (@Sendable (KinhinConfig) throws -> FleetEngine)?
+    ) async -> RPCResponse {
+        guard let engine = engineRef.engine else {
+            return RPCResponse(
+                id: request.id, ok: false, error: "no engine (rebuild failed) — fix the config and edit again")
+        }
+        do {
+            let cfg = try ConfigLoader.load(from: configURL)
+            if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
+                let replacement = try (engineFactory ?? Self.buildEngine)(cfg)
+                let previous = await engine.status()
+                let wasRunning = previous.running
+                let wasPaused = previous.paused
+                // A stopped fleet stays stopped across a rebuild — a
+                // config edit must never start spawning VMs.
+                if wasRunning {
+                    // Verify the replacement's forges while the old
+                    // engine still owns the fleet; nothing is adopted yet.
+                    replacement.markRunning()
+                    guard await replacement.prepareStart() else {
+                        // Startup verification failed (bad PAT, transient
+                        // network): keep the old engine serving instead
+                        // of trading a running fleet for a dead one.
+                        let error = await replacement.status().lastError ?? "startup verification failed"
+                        Log.error("daemon", "rebuild did not start: \(error) — keeping the previous engine")
+                        return RPCResponse(id: request.id, ok: false, error: "restart failed: \(error)")
+                    }
+                }
+                // Detach (and drain) the old engine BEFORE the
+                // replacement recovers, so no instance is driven by
+                // two engines at once.
+                await engine.detachKeepingInstances()
+                if wasRunning {
+                    await replacement.launch()
+                    if wasPaused { await replacement.setPaused(true) }
+                }
+                engineRef.set(replacement)
+                Log.info(
+                    "daemon",
+                    "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))"
+                )
+                return RPCResponse(id: request.id, ok: true)
+            }
+            engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
+            return RPCResponse(id: request.id, ok: true)
+        } catch {
+            return RPCResponse(id: request.id, ok: false, error: "reload failed: \(error.localizedDescription)")
         }
     }
 

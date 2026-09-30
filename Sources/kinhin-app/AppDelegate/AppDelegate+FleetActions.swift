@@ -7,17 +7,6 @@ import KinhinKit
 extension AppDelegate {
     // MARK: Actions
 
-    /// Sends a command to the background daemon and tells the user when it
-    /// fails (daemon not running, or it rejected the request) instead of
-    /// letting the menu action look like it worked.
-    func sendDaemonCommand(_ method: RPCMethod, payload: Data? = nil, failureTitle: String) {
-        do {
-            try client?.command(method, payload: payload)
-        } catch {
-            AlertKit.present(error: error, title: failureTitle)
-        }
-    }
-
     @objc func startFleet() {
         Task {
             // Nothing configured yet: Setup is the answer, not an alert.
@@ -49,12 +38,13 @@ extension AppDelegate {
             pendingFleetAction = nil
             mainController?.fleetModel.endPendingAction()
         }
-        pendingFleetAction = action == .start ? .start : .stop
+        pendingFleetAction = action
         if let engine {
             if action == .start { await engine.start() } else { await engine.stop() }
-        } else if client != nil {
-            let method: RPCMethod = action == .start ? .start : .stop
-            sendDaemonCommand(method, failureTitle: "Couldn't \(action == .start ? "start" : "stop") the fleet")
+        } else if let client {
+            // Throw, don't alert: the menu wrappers alert, and an App Intent
+            // must fail in Shortcuts rather than report success.
+            try client.command(action == .start ? .start : .stop)
         } else {
             throw FleetAccessError.notSetUp
         }
@@ -136,9 +126,9 @@ extension AppDelegate {
     func performVMDelete(id: String) async throws {
         if let engine {
             await engine.deleteVM(id: id)
-        } else if client != nil {
+        } else if let client {
             let payload = try JSONEncoder().encode(Daemon.VMDeleteRequest(id: id))
-            sendDaemonCommand(.deleteVM, payload: payload, failureTitle: "Couldn't delete \(id)")
+            try client.command(.deleteVM, payload: payload)
         } else {
             throw FleetAccessError.notSetUp
         }

@@ -111,14 +111,9 @@ final class SetupRepairRunner {
         runWithProgress("Preparing runner image (this takes a while)…") {
             let cfg = try ConfigLoader.load()
             let tart = try TartController(configuredPath: cfg.tartPath)
-            let preparer = ImagePreparer(tart: tart, ssh: SSHExecutor())
-            var options = ImagePreparer.Options()
-            // The app's one-click prepare bakes the config's provision
-            // script and managed toolchains too (same rule as the CLI's
-            // `image prepare`).
-            options.provisionScriptPath = cfg.provisionScript
-            options.toolchains = cfg.toolchains
-            try await preparer.run(options)
+            // The app's one-click prepare bakes everything the config asks
+            // for (base image, provision script, toolchains), like the CLI.
+            try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(ImagePreparer.Options(config: cfg))
         }
     }
 

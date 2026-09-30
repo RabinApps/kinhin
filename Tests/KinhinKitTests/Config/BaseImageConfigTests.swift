@@ -173,6 +173,20 @@ final class SetBaseImageTests: XCTestCase {
         XCTAssertNil(try ConfigLoader.load(from: url).baseImage)
     }
 
+    /// Clearing tart's base image must remove the top-level key, not an
+    /// indented `base_image:` inside an earlier `container:`/`docker:` block.
+    func testClearingTartBaseImageLeavesSectionBaseImagesAlone() throws {
+        let url = try file(both)
+        try GeneralConfigEditor.setBaseImage("debian:12", for: .appleContainer, at: url)
+        try GeneralConfigEditor.setBaseImage("ghcr.io/cirruslabs/macos-sequoia-base:latest", for: .tart, at: url)
+
+        try GeneralConfigEditor.setBaseImage(nil, for: .tart, at: url)
+
+        let cfg = try ConfigLoader.load(from: url)
+        XCTAssertNil(cfg.baseImage)
+        XCTAssertEqual(cfg.container?.baseImage, "debian:12", "the container's base image must survive")
+    }
+
     func testTartBaseImageRejectsHazardousReferencesBeforeWriting() throws {
         let url = try file(both)
         XCTAssertThrowsError(

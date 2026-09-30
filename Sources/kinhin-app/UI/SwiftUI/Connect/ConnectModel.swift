@@ -213,9 +213,12 @@ final class ConnectModel {
         }
 
         var configured: Set<ForgeID> = []
-        let configuredForges = Set((try? AccountsConfigEditor.accounts(at: configURL))?.map(\.forge) ?? [])
         // `try?` is safe: an unreadable config surfaces through the card's
-        // own reload path; this only decides which cards to show.
+        // own reload path; this only decides which cards to show. Only a
+        // card-owned account selects its card (others are "More accounts").
+        let configuredForges = Set(
+            ((try? AccountsConfigEditor.accounts(at: configURL)) ?? [])
+                .filter(ForgeConnectionModel.ownsAccount).map(\.forge))
         for forge in ForgeID.allCases where stored(forge) || configuredForges.contains(forge) {
             configured.insert(forge)
         }

@@ -210,15 +210,13 @@ enum ImageCommand {
         do {
             let tart = try TartController(configuredPath: cfg.tartPath)
             let preparer = ImagePreparer(tart: tart, ssh: SSHExecutor())
-            var options = ImagePreparer.Options()
-            options.source =
-                flag("--source", in: args) ?? cfg.baseImage.map(TartBaseImage.resolveSource(preparedName:))
-                ?? options.source
+            var options = ImagePreparer.Options(config: cfg)
+            options.source = flag("--source", in: args) ?? options.source
             options.target = flag("--target", in: args) ?? options.target
             options.runnerVersion = flag("--runner-version", in: args) ?? options.runnerVersion
             // The flag wins over the config key; either may be absent (no
             // user script is baked in that case).
-            options.provisionScriptPath = flag("--provision-script", in: args) ?? cfg.provisionScript
+            options.provisionScriptPath = flag("--provision-script", in: args) ?? options.provisionScriptPath
             // Managed toolchains: config section by default; --toolchain /
             // --stack flags (repeatable) override it for this prepare. A
             // bare --toolchain/--stack means "no managed toolchains".
@@ -230,8 +228,6 @@ enum ImageCommand {
                     stacks: stackFlags.isEmpty ? nil : stackFlags
                 )
                 options.toolchains = try ConfigLoader.parseToolchains(override)
-            } else {
-                options.toolchains = cfg.toolchains
             }
             try await preparer.run(options)
             print("image ready: \(options.target)")

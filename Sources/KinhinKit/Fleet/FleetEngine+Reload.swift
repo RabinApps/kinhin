@@ -33,10 +33,17 @@ extension FleetEngine {
     /// config rebuild must never do.
     public func detachKeepingInstances() async {
         runState.withLock { $0.running = false }
-        reconcileTask?.cancel()
-        reconcileTask = nil
         cachePruneTask?.cancel()
         cachePruneTask = nil
+        // Wait out an in-flight reconcile pass first: one already in its
+        // spawn loop could otherwise start a lifecycle after the drain below
+        // and keep driving an instance the replacement engine adopts.
+        let reconcile = reconcileTask
+        reconcileTask = nil
+        if let reconcile {
+            reconcile.cancel()
+            await drain([reconcile], timeout: lifecycleDrainTimeout)
+        }
         let tasks = lifecycleTasks.withLock { tasks -> [Task<Void, Never>] in
             defer { tasks.removeAll() }
             return Array(tasks.values)

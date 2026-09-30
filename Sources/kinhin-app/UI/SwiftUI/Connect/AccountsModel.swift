@@ -101,7 +101,10 @@ final class AccountsModel {
     func reload() {
         let accounts: [AccountConfig]
         do {
-            accounts = try AccountsConfigEditor.accounts(at: configURL)
+            // The forge cards above own each forge's conventional account.
+            accounts = try AccountsConfigEditor.accounts(at: configURL).filter {
+                !ForgeConnectionModel.ownsAccount($0)
+            }
         } catch ConfigEditError.notFound {
             accounts = []
         } catch {

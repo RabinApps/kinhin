@@ -3,8 +3,8 @@ import Foundation
 // FleetEngine — the `accounts:` forges. Every forge is an account, attached
 // here keyed by its name in `ForgeState.byPlatform`, so `VMRecord.platform`
 // and the demand maps carry the account name for all of them. The primary
-// GitHub account additionally attaches at construction under the "github"
-// platform key so a not-yet-verified fleet still routes single-pool jobs.
+// GitHub account additionally attaches at construction (under its account
+// name) so a not-yet-verified fleet still routes single-pool jobs.
 extension FleetEngine {
     /// Accounts without an attached forge (never attached yet, or dropped
     /// after a failed verification) — the retry loop's work list.
@@ -13,9 +13,9 @@ extension FleetEngine {
     }
 
     /// The registration-token cache for an account. The primary GitHub
-    /// account keeps the engine's original cache.
+    /// account (whatever its name) keeps the engine's original cache.
     func registrationCache(for account: String) -> RegistrationTokenCache {
-        if account == ForgeID.github.rawValue { return registrationTokens }
+        if account == config.primaryGitHub?.name { return registrationTokens }
         return forgeState.withLock { state in
             if let cache = state.accountRegistrationTokens[account] { return cache }
             let cache = RegistrationTokenCache(ttl: TimeInterval(config.tokenTTL))

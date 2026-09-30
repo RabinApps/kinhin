@@ -265,6 +265,33 @@ final class FleetEngineTests: XCTestCase {
         try await waitUntil(timeout: 10) { github.deletedRunnerIDs.count == 2 }
     }
 
+    /// An exit watcher deleting its own VM runs inside the lifecycle task:
+    /// deleteVMRecord must not cancel that task, or the runner cleanup that
+    /// follows fails on cancellation (and is swallowed) — leaving dead
+    /// registrations behind on forges whose runners never deregister.
+    func testLifecycleDeletingItsOwnVMStillSweepsRunners() async throws {
+        let tart = FakeTart()
+        let fake = FakeGitHub()
+        let engine = makeEngine(tart: tart, github: fake, ssh: FakeSSH())
+        let github = CancellationCheckingGitHub(fake)
+        engine.forgeState.withLock { state in
+            state.byPlatform["github"] = GitHubForge(
+                credentials: .github(token: "t", scope: "acme/widgets"), labels: ["kinhin"], client: github,
+                account: "github")
+        }
+        let vm = "kinhin-self-delete"
+        var record = VMRecord(id: vm, phase: .busy)
+        record.platform = "github"
+        engine.store.upsert(record)
+        fake.register(name: vm, busy: false)
+
+        engine.spawnLifecycleTask(id: vm) {
+            await engine.deleteVMRecord(id: vm, reason: "jobs finished")
+        }
+        try await waitUntil(timeout: 10) { !engine.store.all.contains { $0.id == vm } }
+        XCTAssertEqual(fake.deletedRunnerIDs.count, 1, "the lifecycle's own delete must deregister its runner")
+    }
+
     // MARK: Helpers
 
     func waitUntil(timeout: TimeInterval, _ condition: @escaping () async -> Bool) async throws {
@@ -274,5 +301,31 @@ final class FleetEngineTests: XCTestCase {
             try await Task.sleep(nanoseconds: 100_000_000)
         }
         XCTFail("condition not met within \(timeout)s")
+    }
+}
+
+/// Forwards to a FakeGitHub but fails on a cancelled task, the way the live
+/// URLSession client does.
+private final class CancellationCheckingGitHub: GitHubServing, Sendable {
+    let base: FakeGitHub
+    init(_ base: FakeGitHub) { self.base = base }
+    var configureURL: String { base.configureURL }
+    func fetchRegistrationToken() async throws -> RegistrationToken {
+        try Task.checkCancellation()
+        return try await base.fetchRegistrationToken()
+    }
+    func listRunners() async throws -> [GHRunner] {
+        try Task.checkCancellation()
+        return try await base.listRunners()
+    }
+    func deleteRunner(id: Int) async throws {
+        try Task.checkCancellation()
+        try await base.deleteRunner(id: id)
+    }
+    func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] {
+        try await base.queuedJobs(matching: labels)
+    }
+    func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] {
+        try await base.runningJobs(matching: labels)
     }
 }

@@ -106,6 +106,39 @@ final class DaemonRebuildTests: XCTestCase {
         XCTAssertFalse(ref.engine === engine)
     }
 
+    /// Two overlapping shape-edit reloads must not both rebuild from the same
+    /// old engine (each would launch a replacement, and one would be left
+    /// running with nothing referencing it): the second waits, then finds
+    /// the rebuilt engine already on the new config.
+    func testConcurrentReloadsRebuildOnce() async throws {
+        let dir = try scratchDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("config.yaml")
+        try yaml().write(to: url, atomically: true, encoding: .utf8)
+        let ref = Daemon.EngineRef(makeEngine(try ConfigLoader.parse(yaml())))
+
+        try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
+        let builds = Mutex(0)
+        let factory: @Sendable (KinhinConfig) throws -> FleetEngine = { [host] cfg in
+            builds.withLock { $0 += 1 }
+            return FleetEngine(
+                config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: host)
+        }
+        let responses = await withTaskGroup(of: RPCResponse.self) { group in
+            for id in 0..<4 {
+                group.addTask {
+                    await Daemon.handle(
+                        .init(id: 40 + id, method: .reloadConfig), engineRef: ref, configURL: url,
+                        engineFactory: factory)
+                }
+            }
+            return await group.reduce(into: []) { $0.append($1) }
+        }
+        XCTAssertTrue(responses.allSatisfy(\.ok), "\(responses.compactMap(\.error))")
+        XCTAssertEqual(builds.withLock { $0 }, 1, "only the first reload may rebuild the engine")
+        XCTAssertEqual(ref.engine?.activeConfig.vm.cpuCount, 6)
+    }
+
     /// A factory throw (missing token, tart missing) fails the RPC while
     /// the old engine keeps serving — no half-swapped state.
     func testDaemonReloadRebuildFailureKeepsTheOldEngine() async throws {

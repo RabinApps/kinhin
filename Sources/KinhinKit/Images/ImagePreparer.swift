@@ -66,6 +66,17 @@ public struct ImagePreparer {
             self.toolchains = toolchains
             self.toolchainTimeout = toolchainTimeout
         }
+
+        /// The options a config asks for: its `base_image:` (else the
+        /// default source), provision script and managed toolchains. Every
+        /// prepare entry point (CLI, setup checklist, app buttons) starts
+        /// here so none of them drops a configured key.
+        public init(config cfg: KinhinConfig) {
+            self.init(provisionScriptPath: cfg.provisionScript, toolchains: cfg.toolchains)
+            if let baseImage = cfg.baseImage {
+                source = TartBaseImage.resolveSource(preparedName: baseImage)
+            }
+        }
     }
 
     /// Full prepare pipeline. Slow (minutes); progress is logged.

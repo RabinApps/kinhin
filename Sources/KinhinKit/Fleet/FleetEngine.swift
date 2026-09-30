@@ -330,7 +330,7 @@ public final class FleetEngine: Sendable {
         if let primary = config.primaryGitHub {
             let client = github
             forgeState.withLock { state in
-                state.byPlatform[ForgeID.github.rawValue] = GitHubForge(
+                state.byPlatform[primary.name] = GitHubForge(
                     credentials: .github(token: pat, scope: primary.scope), labels: config.labels,
                     client: client, account: primary.name)
             }

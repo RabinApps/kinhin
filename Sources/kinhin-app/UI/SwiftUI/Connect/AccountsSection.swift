@@ -1,8 +1,9 @@
 import KinhinKit
 import SwiftUI
 
-/// "More accounts": extra accounts of every forge beyond the two cards
-/// above, each with its own token, scope and (where applicable) server.
+/// "More accounts": every account the forge cards above don't own (see
+/// `ForgeConnectionModel.ownsAccount`), each with its own token, scope and
+/// (where applicable) server.
 struct AccountsSection: View {
     @Bindable var model: AccountsModel
 
@@ -33,7 +34,7 @@ struct AccountsSection: View {
             StatusText(text: row.status.text, style: row.status.style)
             HStack(spacing: 8) {
                 SecureField(
-                    "Paste a \(row.account.forge == .github ? "personal access" : "Gitea access") token",
+                    "Paste a \(row.account.forge == .github ? "personal access" : "\(row.account.forge.displayName) access") token",
                     text: Binding(
                         get: { model.tokenTexts[row.account.name] ?? "" },
                         set: { model.tokenTexts[row.account.name] = $0 })

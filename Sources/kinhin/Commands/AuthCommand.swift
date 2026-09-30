@@ -332,18 +332,21 @@ enum AuthCommand {
                     try environment.exit(1)
                 }
             } else if giteaMode {
-                guard let gitea = cfg.gitea else {
-                    try environment.fail("no gitea section in config — add it before checking the Gitea token")
+                // --gitea and --forgejo each check their own primary account.
+                let name = forge == .forgejo ? "Forgejo" : "Gitea"
+                guard let account = forge == .forgejo ? cfg.forgejo : cfg.gitea else {
+                    try environment.fail(
+                        "no \(forge.rawValue) account in config — add one before checking the \(name) token")
                 }
-                print("Gitea token stored (starts with \(token.prefix(4))…), checking \(gitea.instance)…")
+                print("\(name) token stored (starts with \(token.prefix(4))…), checking \(account.instance)…")
                 do {
                     try await environment.checkGitea(
-                        GiteaCredentials(token: token, scope: gitea.scope, instance: gitea.instance))
-                    print("token works against \(gitea.scope) @ \(gitea.instance)")
+                        GiteaCredentials(token: token, scope: account.scope, instance: account.instance))
+                    print("token works against \(account.scope) @ \(account.instance)")
                 } catch {
                     print("token check failed: \(error.localizedDescription)")
                     print("")
-                    print(Self.requirements(for: .gitea, config: cfg).plainText)
+                    print(Self.requirements(for: forge, config: cfg).plainText)
                     try environment.exit(1)
                 }
             } else {

@@ -1,19 +1,30 @@
 import Foundation
 import Yams
 
-// FleetEngine — per-VM/container lifecycle and EngineError.
+// FleetEngine — per-VM/container lifecycle.
 extension FleetEngine {
     // MARK: - Lifecycle
 
+    /// The instance whose lifecycle task is running the current code (nil
+    /// outside a lifecycle task). `deleteVMRecord` reads it so a lifecycle
+    /// deleting its own instance does not cancel itself mid-cleanup.
+    @TaskLocal static var currentLifecycleID: String?
+
     func spawnLifecycle(for record: VMRecord) {
-        // Check, create and insert under one lock: a concurrent spawn cannot
-        // start a second task, and the task's own finishLifecycle cannot run
-        // before the entry exists (which would leave a stale entry behind).
+        spawnLifecycleTask(id: record.id) { [weak self] in
+            await self?.runLifecycle(id: record.id)
+        }
+    }
+
+    /// Start `body` as the lifecycle task for `id` (no-op when one is already
+    /// running). Check, create and insert happen under one lock: a concurrent
+    /// spawn cannot start a second task, and the task's own finishLifecycle
+    /// cannot run before the entry exists (which would leave a stale entry).
+    func spawnLifecycleTask(id: String, body: @escaping @Sendable () async -> Void) {
         lifecycleTasks.withLock { tasks in
-            guard tasks[record.id] == nil else { return }
-            tasks[record.id] = Task { [weak self] () -> Void in
-                guard let self else { return }
-                await self.runLifecycle(id: record.id)
+            guard tasks[id] == nil else { return }
+            tasks[id] = Task {
+                await Self.$currentLifecycleID.withValue(id) { await body() }
             }
         }
     }
@@ -283,8 +294,13 @@ extension FleetEngine {
     func deleteVMRecord(id: String, reason: String) async {
         Log.info(id, "deleting VM (\(reason))")
         updateRecord(id) { $0.phase = .deleting }
-        let task = lifecycleTasks.withLock { $0[id] }
-        task?.cancel()
+        // Stop the instance's lifecycle — unless that lifecycle is the caller
+        // (its exit watcher deleting a finished VM): cancelling ourselves
+        // would fail the runner cleanup below, silently, on cancellation.
+        if Self.currentLifecycleID != id {
+            let task = lifecycleTasks.withLock { $0[id] }
+            task?.cancel()
+        }
 
         // Clean up any lingering runner registrations for this VM on every
         // attached forge — the VM id itself, or its indexed runners (\(id)-rN).

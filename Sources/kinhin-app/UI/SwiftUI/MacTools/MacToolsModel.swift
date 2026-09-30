@@ -287,10 +287,7 @@ final class MacToolsModel {
         run("Preparing the runner image — this takes a while, but only once…") {
             let cfg = try ConfigLoader.load()
             let tart = try TartController(configuredPath: cfg.tartPath)
-            var options = ImagePreparer.Options()
-            options.provisionScriptPath = cfg.provisionScript
-            options.toolchains = cfg.toolchains
-            try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(options)
+            try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(ImagePreparer.Options(config: cfg))
         }
     }
 

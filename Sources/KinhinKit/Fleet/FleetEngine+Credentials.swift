@@ -21,7 +21,7 @@ extension FleetEngine {
             auth.client = client
         }
         forgeState.withLock { state in
-            state.byPlatform[ForgeID.github.rawValue] = GitHubForge(
+            state.byPlatform[primary.name] = GitHubForge(
                 credentials: .github(token: fresh.token, scope: fresh.scope), labels: config.labels,
                 client: client, account: primary.name)
         }

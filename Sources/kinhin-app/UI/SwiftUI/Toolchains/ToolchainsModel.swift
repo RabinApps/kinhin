@@ -343,13 +343,7 @@ final class ToolchainsModel {
         switch runtime {
         case .tart:
             let tart = try TartController(configuredPath: cfg.tartPath)
-            var options = ImagePreparer.Options()
-            if let baseImage = cfg.baseImage {
-                options.source = TartBaseImage.resolveSource(preparedName: baseImage)
-            }
-            options.provisionScriptPath = cfg.provisionScript
-            options.toolchains = cfg.toolchains
-            try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(options)
+            try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(ImagePreparer.Options(config: cfg))
         case .appleContainer:
             guard let image = cfg.container?.image else { throw ToolchainRebuildError.notConfigured("container") }
             try await SetupRepairRunner.startContainerSystem(shell: Shell())

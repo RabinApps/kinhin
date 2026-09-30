@@ -129,10 +129,10 @@ public enum GeneralConfigEditor {
         case .baseImage(nil):
             // Clearing the tart base image removes the key entirely (the
             // default must never be pinned into the file).
+            // Column-0 only: `container:` / `docker:` carry their own
+            // indented `base_image:`, which must survive.
             var lines = yaml.components(separatedBy: "\n")
-            if let idx = lines.firstIndex(where: {
-                $0.trimmingCharacters(in: .whitespaces).hasPrefix("base_image:")
-            }) {
+            if let idx = lines.firstIndex(where: { $0.hasPrefix("base_image:") }) {
                 lines.remove(at: idx)
             }
             return lines.joined(separator: "\n")

@@ -109,6 +109,30 @@ final class TokenReplacementTests: XCTestCase {
         XCTAssertEqual(probe.token, "ghp_new")
     }
 
+    /// A primary GitHub account not named "github" must be swapped under its
+    /// own name — never duplicated under a stale "github" key that polls with
+    /// an empty or old token.
+    func testReplaceCredentialsKeysPrimaryByAccountName() async {
+        var cfg = makeTestConfig()
+        cfg.accounts = [AccountConfig(name: "work", forge: .github, scope: "acme/widgets")]
+        let engine = FleetEngine(
+            config: cfg, pat: "ghp_old", tart: FakeTart(), store: makeTestStore(),
+            ssh: FakeSSH(), host: testHost, githubFactory: GitHubClientFactory { SwapProbeClient(token: $0.token) }
+        )
+        XCTAssertEqual(Set(engine.forges.keys), ["work"])
+
+        await engine.replaceCredentials(pat: "ghp_new")
+
+        XCTAssertEqual(Set(engine.forges.keys), ["work"], "no stale \"github\" forge may appear")
+        guard case .github(let token, _) = engine.forges["work"]?.credentials else {
+            return XCTFail("primary account must stay attached under its name")
+        }
+        XCTAssertEqual(token, "ghp_new")
+        XCTAssertTrue(
+            engine.registrationCache(for: "work") === engine.registrationTokens,
+            "the primary account keeps the engine's registration cache, which replaceCredentials invalidates")
+    }
+
     func testReplaceCredentialsInvalidatesRegistrationTokenCache() async throws {
         let github = FakeGitHub()
         let factory = GitHubClientFactory { _ in github }

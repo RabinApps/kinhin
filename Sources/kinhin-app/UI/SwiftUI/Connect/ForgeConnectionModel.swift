@@ -24,6 +24,13 @@ final class ForgeConnectionModel {
     /// This card's accounts: name.
     var accountName: String { Self.accountName(for: forge) }
 
+    /// True for the one `accounts:` entry a forge card owns: the forge's
+    /// conventional name on that forge. Every other entry (a GitHub account
+    /// named `work`, a second Gitea server) belongs to "More accounts".
+    static func ownsAccount(_ account: AccountConfig) -> Bool {
+        account.name == accountName(for: account.forge)
+    }
+
     /// Fields the card can move keyboard focus to.
     enum Field: Hashable {
         case token(ForgeID)
@@ -175,7 +182,7 @@ final class ForgeConnectionModel {
     /// read is treated as unconfigured; the write path surfaces the error.
     static func configuredAccount(forge: ForgeID, at url: URL) -> AccountConfig? {
         do {
-            return try AccountsConfigEditor.accounts(at: url).first { $0.forge == forge }
+            return try AccountsConfigEditor.accounts(at: url).first { $0.forge == forge && ownsAccount($0) }
         } catch {
             // No file or unreadable config: treat as unconfigured; the write
             // path surfaces the real error.

@@ -302,7 +302,7 @@ final class AuthCommandTests: XCTestCase {
 
         await expectFailure(
             ["auth", "status", "--gitea"],
-            message: "no gitea section in config — add it before checking the Gitea token",
+            message: "no gitea account in config — add one before checking the Gitea token",
             environment: env
         )
         XCTAssertTrue(recorder.checkedGitea.isEmpty)
@@ -322,6 +322,22 @@ final class AuthCommandTests: XCTestCase {
         XCTAssertEqual(recorder.checkedGitea[0].token, "gt_live")
         XCTAssertEqual(recorder.checkedGitea[0].scope, "acme/widgets")
         XCTAssertEqual(recorder.checkedGitea[0].instance, "https://gitea.example.com")
+    }
+
+    /// --forgejo checks the Forgejo account, never the Gitea one.
+    func testForgejoStatusProbesTheForgejoAccount() async throws {
+        let recorder = Recorder()
+        var cfg = workingConfig(gitea: true)
+        cfg.accounts.append(
+            AccountConfig(name: "forgejo", forge: .forgejo, scope: "team/app", instance: "https://codeberg.example"))
+        let env = makeEnvironment(stored: [.forgejo: "fj_live"], config: cfg, recorder)
+
+        try await AuthCommand.run(["auth", "status", "--forgejo"], environment: env)
+
+        XCTAssertEqual(recorder.checkedGitea.count, 1)
+        XCTAssertEqual(recorder.checkedGitea[0].token, "fj_live")
+        XCTAssertEqual(recorder.checkedGitea[0].scope, "team/app")
+        XCTAssertEqual(recorder.checkedGitea[0].instance, "https://codeberg.example")
     }
 
     func testGiteaStatusCheckFailureExits1() async {

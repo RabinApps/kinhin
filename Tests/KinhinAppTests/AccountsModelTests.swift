@@ -158,6 +158,25 @@ final class AccountsModelTests: XCTestCase {
         XCTAssertEqual(model.rows.map(\.tokenStored), [true, false])
     }
 
+    /// The forge cards own each forge's conventional account (`github`,
+    /// `gitea`, …); "More accounts" lists only the rest, so no account is
+    /// shown twice, and a GitHub account named `work` is never claimed by
+    /// the GitHub card (which writes by name and would add a duplicate).
+    func testCardOwnedAccountsAreNotListedTwice() async throws {
+        try AccountsConfigEditor.add(AccountConfig(name: "work", forge: .github, scope: "bigco"), to: url)
+        try AccountsConfigEditor.add(AccountConfig(name: "github", forge: .github, scope: "acme"), to: url)
+        let model = makeModel()
+        model.reload()
+        await settle(model) { !model.rows.isEmpty }
+        XCTAssertEqual(model.rows.map(\.account.name), ["work"])
+        XCTAssertEqual(ForgeConnectionModel.configuredAccount(forge: .github, at: url)?.name, "github")
+
+        try AccountsConfigEditor.remove(name: "github", at: url)
+        XCTAssertNil(
+            ForgeConnectionModel.configuredAccount(forge: .github, at: url),
+            "the card must not adopt an account it does not own")
+    }
+
     func testConnectVerifiesThenStoresTheToken() async {
         let model = makeModel()
         add(model)

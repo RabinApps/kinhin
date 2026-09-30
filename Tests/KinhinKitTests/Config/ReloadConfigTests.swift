@@ -131,10 +131,10 @@ final class ReloadConfigTests: XCTestCase {
             .init(id: 1, method: .reloadConfig),
             engineRef: ref,
             configURL: url,
-            engineFactory: { cfg in
+            engineFactory: { [host] cfg in
                 FleetEngine(
                     config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
-                    host: self.host)
+                    host: host)
             }
         )
         XCTAssertTrue(response.ok, "reload RPC should succeed: \(response.error ?? "")")

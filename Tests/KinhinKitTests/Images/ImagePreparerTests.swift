@@ -4,6 +4,22 @@ import XCTest
 @testable import KinhinTestSupport
 
 final class ImagePreparerTests: XCTestCase {
+    /// Every prepare entry point builds its options from the config, so a
+    /// configured `base_image:` is never silently dropped (two app buttons
+    /// used to ignore it).
+    func testOptionsFromConfigCarryBaseImageProvisionScriptAndToolchains() throws {
+        var cfg = makeTestConfig()
+        cfg.baseImage = "macos-sequoia-base"
+        cfg.provisionScript = "/tmp/provision.sh"
+        let options = ImagePreparer.Options(config: cfg)
+        XCTAssertEqual(options.source, "ghcr.io/cirruslabs/macos-sequoia-base:latest")
+        XCTAssertEqual(options.provisionScriptPath, "/tmp/provision.sh")
+        XCTAssertEqual(options.toolchains, cfg.toolchains)
+
+        cfg.baseImage = nil
+        XCTAssertEqual(ImagePreparer.Options(config: cfg).source, ImagePreparer.defaultSource)
+    }
+
     func testImagePrepareHappyPath() async throws {
         let tart = FakeTart()
         let ssh = FakeSSH()
