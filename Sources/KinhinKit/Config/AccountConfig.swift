@@ -11,12 +11,15 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     public var forge: ForgeID
     /// "owner/name" (one repository) or an org name.
     public var scope: String
-    /// Instance base URL. Required for Gitea/Forgejo, optional for GitLab
-    /// (gitlab.com when absent), unused for GitHub and Buildkite.
+    /// Instance base URL. Required for Gitea/Forgejo and Azure DevOps (the
+    /// organization URL), optional for GitLab (gitlab.com when absent),
+    /// unused for GitHub and Buildkite.
     public var instance: String?
     /// Job labels: Gitea-family `runs-on` labels (nil → the host-mode
     /// default), GitLab tags (nil → the top-level `labels:`) or Buildkite
-    /// agent tags, `key=value` (nil → `queue=kinhin`). Unused for GitHub.
+    /// agent tags, `key=value` (nil → `queue=kinhin`), or Azure DevOps agent
+    /// capabilities that pipelines demand (nil → none: the pool is kinhin's
+    /// alone). Unused for GitHub.
     public var labels: [String]?
 
     public init(name: String, forge: ForgeID, scope: String, instance: String? = nil, labels: [String]? = nil) {
@@ -46,11 +49,13 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     }
 
     /// A scope the forge accepts: GitLab paths nest (`group/sub/project`),
-    /// Buildkite takes `org/cluster`, the others `owner/name` or a bare org.
+    /// Buildkite takes `org/cluster`, Azure DevOps an agent pool name, the
+    /// others `owner/name` or a bare org.
     static func isValidScope(_ scope: String, forge: ForgeID) -> Bool {
         switch forge {
         case .gitlab: return GitLabCredentials.isValidScope(scope)
         case .buildkite: return BuildkiteCredentials.isValidScope(scope)
+        case .azuredevops: return AzureDevOpsCredentials.isValidScope(scope)
         case .github, .gitea, .forgejo: return isValidScope(scope)
         }
     }

@@ -45,6 +45,8 @@ extension ConfigLoader {
                 case .buildkite:
                     throw ConfigError.invalid(
                         "account '\(name)': scope must be 'org-slug/cluster' (the cluster's name or id)")
+                case .azuredevops:
+                    throw ConfigError.invalid("account '\(name)': scope must be the agent pool's name")
                 case .github, .gitea, .forgejo:
                     throw ConfigError.invalid("account '\(name)': scope must be 'owner/name' or an org name")
                 }
@@ -97,6 +99,27 @@ extension ConfigLoader {
                     }
                 }
                 result.append(AccountConfig(name: name, forge: forge, scope: scope, labels: entry.labels))
+            case .azuredevops:
+                guard let instance = entry.instance, !instance.isEmpty else {
+                    throw ConfigError.invalid(
+                        "account '\(name)': instance is required (the organization URL, e.g. https://dev.azure.com/acme)"
+                    )
+                }
+                do {
+                    _ = try AzureDevOpsCredentials.validate(instance: instance)
+                } catch {
+                    throw ConfigError.invalid(
+                        "account '\(name)': instance must be an organization URL like https://dev.azure.com/acme")
+                }
+                if let labels = entry.labels {
+                    guard !labels.isEmpty, labels.allSatisfy(AzureDevOpsCredentials.isValidLabel) else {
+                        throw ConfigError.invalid(
+                            "account '\(name)': labels must be agent capabilities like 'kinhin' or 'xcode=16' "
+                                + "(letters, digits and _)")
+                    }
+                }
+                result.append(
+                    AccountConfig(name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels))
             }
         }
         return result

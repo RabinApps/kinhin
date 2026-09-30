@@ -79,6 +79,15 @@ extension FleetEngine {
                     labels: account.labels ?? config.labels,
                     account: account.name
                 )
+            case .azuredevops:
+                guard let instance = account.instance else {
+                    throw EngineError.accountUnverified("no organization URL configured")
+                }
+                forge = try await AzureDevOpsForge.make(
+                    credentials: AzureDevOpsCredentials(token: token, scope: account.scope, instance: instance),
+                    labels: account.labels ?? [],
+                    account: account.name
+                )
             case .buildkite:
                 forge = try await BuildkiteForge.make(
                     credentials: BuildkiteCredentials(token: token, scope: account.scope),

@@ -65,7 +65,7 @@ final class ConfigInitAndHelpTests: XCTestCase {
 
     func testHelpTextAdvertisesEveryForgeInAuthAdd() {
         let help = helpText()
-        for forge in ["--github", "--gitea", "--forgejo", "--gitlab", "--buildkite"] {
+        for forge in ["--github", "--gitea", "--forgejo", "--gitlab", "--buildkite", "--azuredevops"] {
             XCTAssertTrue(help.contains(forge), "auth add help must list \(forge)")
         }
     }

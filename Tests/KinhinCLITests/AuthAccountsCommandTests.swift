@@ -201,4 +201,27 @@ final class AuthAccountsCommandTests: XCTestCase {
         XCTAssertEqual(recorder.checkedBuildkite.first?.scope, "acme/Mac Fleet")
         XCTAssertTrue(recorder.checkedGitHub.isEmpty, "a Buildkite account is never checked against GitHub")
     }
+
+    func testAzureDevOpsAccountRoundTrip() async throws {
+        let recorder = AuthRecorder()
+        try await AuthCommand.run(
+            [
+                "auth", "add", "ado", "--azuredevops", "--scope", "Mac Fleet", "--instance",
+                "https://dev.azure.com/acme",
+            ],
+            environment: environment(recorder))
+        let account = try XCTUnwrap(try ConfigLoader.load(from: configURL).accounts.first)
+        XCTAssertEqual(account.forge, .azuredevops)
+        XCTAssertEqual(account.instance, "https://dev.azure.com/acme")
+
+        try await AuthCommand.run(
+            ["auth", "set", "--azuredevops", "--token", "pat"], environment: environment(recorder))
+        XCTAssertEqual(recorder.savedAccounts.last?.forge, .azuredevops)
+        XCTAssertEqual(recorder.savedAccounts.last?.name, "ado")
+
+        try await AuthCommand.run(
+            ["auth", "status", "--azuredevops"], environment: environment(recorder, stored: ["ado": "pat"]))
+        XCTAssertEqual(recorder.checkedAzureDevOps.first?.scope, "Mac Fleet")
+        XCTAssertEqual(recorder.checkedAzureDevOps.first?.instance, "https://dev.azure.com/acme")
+    }
 }

@@ -253,6 +253,13 @@ struct TartRuntime: Runtime {
                     binary: "\"$HOME/buildkite-agent/buildkite-agent\"",
                     baseDir: "\"$HOME/buildkite-agent\""
                 )
+        case .azuredevops:
+            return cachePrefix
+                + RunnerBootstrap.azureRegistrationScript(
+                    organization: forge.registrationURL(), token: token, pool: forge.scope,
+                    runnerNames: FleetEngine.runnerNames(for: name, count: runnerCount),
+                    capabilities: AzureDevOpsForge.capabilityEnvironment(forge.labels),
+                    template: "\"$HOME/azure-agent\"", baseDir: "\"$HOME/azure-agents\"", copy: .apfsClone)
         }
     }
 

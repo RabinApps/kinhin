@@ -65,6 +65,7 @@ final class AccountsModel: ConfigFormModel {
         switch forge {
         case .gitlab: return "group/subgroup or group/project"
         case .buildkite: return "org-slug/cluster"
+        case .azuredevops: return "agent pool name"
         case .github, .gitea, .forgejo: return "owner/name, or an org"
         }
     }
@@ -76,12 +77,14 @@ final class AccountsModel: ConfigFormModel {
         case .github, .buildkite: return nil
         case .gitea, .forgejo: return "https://gitea.example.com"
         case .gitlab: return "https://gitlab.com (optional)"
+        case .azuredevops: return "https://dev.azure.com/your-org"
         }
     }
 
-    /// Self-hosted forges need a server address before the account makes sense.
+    /// Self-hosted forges (and Azure DevOps, whose organization is part of the
+    /// URL) need a server address before the account makes sense.
     func instanceRequired(for forge: ForgeID) -> Bool {
-        forge == .gitea || forge == .forgejo
+        forge == .gitea || forge == .forgejo || forge == .azuredevops
     }
 
     /// What the new account's token will need, shown as the form's hint.
@@ -97,6 +100,8 @@ final class AccountsModel: ConfigFormModel {
             return TokenRequirements.gitlab(scope: scope, instance: filled.isEmpty ? nil : filled)
         case .buildkite:
             return TokenRequirements.buildkite(scope: scope)
+        case .azuredevops:
+            return TokenRequirements.azureDevOps(scope: scope, instance: filled.isEmpty ? nil : filled)
         }
     }
 

@@ -88,12 +88,14 @@ final class ForgeConnectionModel: ConfigFormModel {
         case .github, .buildkite: return ""
         case .gitea, .forgejo: return "https://gitea.example.com"
         case .gitlab: return "https://gitlab.com (optional)"
+        case .azuredevops: return "https://dev.azure.com/your-org"
         }
     }
     var scopeLabel: String {
         switch forge {
         case .gitlab: return "Group or project"
         case .buildkite: return "Organization and cluster"
+        case .azuredevops: return "Agent pool"
         case .github, .gitea, .forgejo: return "Repository or org"
         }
     }
@@ -114,6 +116,9 @@ final class ForgeConnectionModel: ConfigFormModel {
                 scope: trimmedScope, instance: instance.trimmingCharacters(in: .whitespaces))
         case .buildkite:
             return TokenRequirements.buildkite(scope: trimmedScope)
+        case .azuredevops:
+            return TokenRequirements.azureDevOps(
+                scope: trimmedScope, instance: instance.trimmingCharacters(in: .whitespaces))
         }
     }
 
@@ -122,6 +127,7 @@ final class ForgeConnectionModel: ConfigFormModel {
         switch forge {
         case .gitlab: return "group/subgroup or group/project"
         case .buildkite: return "org-slug/cluster"
+        case .azuredevops: return "agent pool name"
         case .github, .gitea, .forgejo: return "owner/name, or an org name"
         }
     }
@@ -258,6 +264,11 @@ final class ForgeConnectionModel: ConfigFormModel {
             guard !scopeValue.isEmpty else { return }
             let report = await TokenHealthCheck.buildkite(token: token, scope: scopeValue)
             status = Line(text: report.message, style: report.ok ? .ok : .error)
+        case .azuredevops:
+            let scopeValue = scope.trimmingCharacters(in: .whitespaces)
+            guard !scopeValue.isEmpty, let instance = instanceIfAny else { return }
+            let report = await TokenHealthCheck.azureDevOps(token: token, scope: scopeValue, instance: instance)
+            status = Line(text: report.message, style: report.ok ? .ok : .error)
         case .gitea, .forgejo:
             break
         }
@@ -286,7 +297,7 @@ final class ForgeConnectionModel: ConfigFormModel {
         }
         guard let resolved else { return false }
         do {
-            if forge == .gitea || forge == .forgejo, instanceIfAny == nil { return false }
+            if forge == .gitea || forge == .forgejo || forge == .azuredevops, instanceIfAny == nil { return false }
             let refs = try await TokenHealthCheck.repositories(forge: forge, token: resolved, instance: instanceIfAny)
             repos = refs.prefix(300).map(\.fullName)
             if token != nil {

@@ -146,6 +146,30 @@ public struct TokenRequirements: Equatable, Sendable {
         )
     }
 
+    /// Azure DevOps: a PAT for the organization at `instance` that can manage
+    /// the agent pool in `scope`. It is also what agents register with, so
+    /// it reaches every instance.
+    public static func azureDevOps(scope: String, instance: String? = nil) -> TokenRequirements {
+        let pool = scope.trimmingCharacters(in: .whitespaces)
+        var base = (instance ?? "").trimmingCharacters(in: .whitespaces)
+        while base.hasSuffix("/") { base.removeLast() }
+        return TokenRequirements(
+            title: "Azure DevOps token permissions" + (pool.isEmpty ? "" : " for agent pool '\(pool)'"),
+            options: [
+                Option(
+                    kind: "Personal access token",
+                    url: base.isEmpty
+                        ? "https://dev.azure.com/<org>/_usersSettings/tokens" : "\(base)/_usersSettings/tokens",
+                    permissions: [
+                        "Scope: Agent Pools (Read & manage) — nothing else",
+                        "Role: Administrator on the agent pool",
+                    ])
+            ],
+            note:
+                "Agents register with this token, so it is copied into every runner instance: use a dedicated token with only this scope."
+        )
+    }
+
     /// Multi-line text for the CLI and log lines.
     public var plainText: String {
         var lines = ["\(title):"]

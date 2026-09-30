@@ -27,6 +27,11 @@ struct AuthEnvironment: Sendable {
         let report = await TokenHealthCheck.buildkite(token: credentials.token, scope: credentials.scope)
         guard report.ok else { throw CLIError(report.message) }
     }
+    var checkAzureDevOps: @Sendable (AzureDevOpsCredentials) async throws -> Void = { credentials in
+        let report = await TokenHealthCheck.azureDevOps(
+            token: credentials.token, scope: credentials.scope, instance: credentials.instance)
+        guard report.ok else { throw CLIError(report.message) }
+    }
     var loadConfig: @Sendable () -> KinhinConfig
     /// Best-effort live-swap notification to a running daemon.
     var notifyDaemon: @Sendable (String, ForgeID) -> Void
@@ -120,6 +125,9 @@ enum AuthCommand {
             return TokenRequirements.gitlab(scope: account?.scope ?? "", instance: account?.instance)
         case .buildkite:
             return TokenRequirements.buildkite(scope: config?.accounts.first { $0.forge == .buildkite }?.scope ?? "")
+        case .azuredevops:
+            let account = config?.accounts.first { $0.forge == .azuredevops }
+            return TokenRequirements.azureDevOps(scope: account?.scope ?? "", instance: account?.instance)
         }
     }
 
@@ -160,6 +168,7 @@ enum AuthCommand {
             switch forge {
             case .gitlab: expected = "a GitLab project or group path, e.g. group/project"
             case .buildkite: expected = "org-slug/cluster, the cluster's name or id"
+            case .azuredevops: expected = "the agent pool's name, with --instance https://dev.azure.com/ORG"
             case .github, .gitea, .forgejo: expected = "an org name, or owner/name for one repository"
             }
             try environment.fail("--scope is required (\(expected))")
@@ -261,6 +270,7 @@ enum AuthCommand {
             case .forgejo: kind = "Forgejo access token"
             case .gitlab: kind = "GitLab access token"
             case .buildkite: kind = "Buildkite API access token"
+            case .azuredevops: kind = "Azure DevOps personal access token"
             }
             return named.map { "\(kind) for account '\($0.name)'" } ?? kind
         }
@@ -293,7 +303,7 @@ enum AuthCommand {
             }
             target.forge = resolved.forge
             // The conventional names keep their original Keychain items and
-            // RPCs; GitLab and Buildkite have none, so all their accounts are
+            // RPCs; the other forges have none, so all their accounts are
             // named ones.
             if resolved.name != resolved.forge.rawValue
                 || !AccountConfig.reservedNames.contains(resolved.forge.rawValue)
@@ -382,6 +392,9 @@ enum AuthCommand {
                     GitLabCredentials(token: token, scope: account.scope, instance: account.instance))
             case .buildkite:
                 try await environment.checkBuildkite(BuildkiteCredentials(token: token, scope: account.scope))
+            case .azuredevops:
+                try await environment.checkAzureDevOps(
+                    AzureDevOpsCredentials(token: token, scope: account.scope, instance: account.instance ?? ""))
             }
             print("token works against \(against)")
         } catch {

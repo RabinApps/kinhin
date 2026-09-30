@@ -93,6 +93,24 @@ public enum TokenHealthCheck {
         }
     }
 
+    /// Check an Azure DevOps account: the PAT is accepted by the organization
+    /// and can manage the configured agent pool.
+    public static func azureDevOps(
+        token: String, scope: String, instance: String,
+        client azure: AzureDevOpsClient? = nil
+    ) async -> Report {
+        let client =
+            azure
+            ?? AzureDevOpsClient(credentials: AzureDevOpsCredentials(token: token, scope: scope, instance: instance))
+        do {
+            let pool = try await client.resolvePool()
+            return Report(ok: true, message: "Token works against agent pool \(pool.name) @ \(instance)")
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            return Report(ok: false, message: "Token check failed: \(message)")
+        }
+    }
+
     /// Forge-dispatching convenience for the settings form: resolves the
     /// stored token (via `keychainToken`) and the config scope, and returns
     /// an actionable "not checkable" report when a prerequisite is missing
@@ -137,6 +155,14 @@ public enum TokenHealthCheck {
                 return Report(ok: false, message: "No Buildkite account in config.yaml — add one to check the token.")
             }
             return await Self.buildkite(token: token, scope: account.scope)
+        case .azuredevops:
+            guard let account = config?.accounts.first(where: { $0.forge == .azuredevops }),
+                let instance = account.instance
+            else {
+                return Report(
+                    ok: false, message: "No Azure DevOps account in config.yaml — add one to check the token.")
+            }
+            return await Self.azureDevOps(token: token, scope: account.scope, instance: instance)
         }
     }
 
@@ -156,6 +182,11 @@ public enum TokenHealthCheck {
             return await gitlab(token: token, scope: account.scope, instance: account.instance)
         case .buildkite:
             return await buildkite(token: token, scope: account.scope)
+        case .azuredevops:
+            guard let instance = account.instance, !instance.isEmpty else {
+                return Report(ok: false, message: "This account has no organization URL in config.yaml.")
+            }
+            return await azureDevOps(token: token, scope: account.scope, instance: instance)
         }
     }
 
@@ -176,6 +207,10 @@ public enum TokenHealthCheck {
             ).listRepositories()
         case .buildkite:
             return try await BuildkiteClient(credentials: BuildkiteCredentials(token: token, scope: "")).listScopes()
+        case .azuredevops:
+            return try await AzureDevOpsClient(
+                credentials: AzureDevOpsCredentials(token: token, scope: "", instance: instance ?? "")
+            ).listPools()
         }
     }
 }

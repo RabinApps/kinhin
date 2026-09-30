@@ -106,6 +106,15 @@ struct LinuxContainerCLI: Sendable {
                     ephemeral: route.ephemeral,
                     binary: "/opt/buildkite-agent/buildkite-agent",
                     baseDir: "/opt/buildkite-agent")
+        case .azuredevops:
+            // Containers run as root, which the agent refuses unless allowed.
+            return cachePrefix
+                + RunnerBootstrap.azureRegistrationScript(
+                    organization: forge.registrationURL(), token: token, pool: forge.scope,
+                    runnerNames: FleetEngine.runnerNames(for: name, count: runnerCount),
+                    capabilities: AzureDevOpsForge.capabilityEnvironment(forge.labels),
+                    template: "/opt/azure-agent", baseDir: "/opt/azure-agents", copy: .archive,
+                    extraEnvironment: ["AGENT_ALLOW_RUNASROOT=1"])
         }
     }
 
