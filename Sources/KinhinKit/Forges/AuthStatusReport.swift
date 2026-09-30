@@ -66,7 +66,8 @@ public struct AuthStatusReport: Codable, Equatable, Sendable {
         }
     }
 
-    /// One entry per forge, in `ForgeID.allCases` order (github first).
+    /// One entry per classic forge: github, gitea, forgejo (a fixed JSON
+    /// contract; other forges appear only under `accounts`).
     public let forges: [Forge]
     /// The additional named accounts (see `Account`).
     public let accounts: [Account]

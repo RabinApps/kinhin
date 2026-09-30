@@ -2,16 +2,16 @@ import Foundation
 
 // MARK: - Forge identity & credentials
 
-/// Which platform a VM (or credential set) belongs to.
+/// Which platform a VM (or credential set) belongs to. Case order is the
+/// order forges are offered in (the app's pickers, CLI help, config errors).
 public enum ForgeID: String, Codable, Sendable, CaseIterable {
     case github
+    /// gitlab.com or a self-managed GitLab (≥ 16).
+    case gitlab
     case gitea
     /// Gitea's upstream (wire-compatible: the same client, endpoints, and
     /// runner binary serve it — see `GiteaForge`).
     case forgejo
-    /// gitlab.com or a self-managed GitLab (≥ 16). Configured through
-    /// `accounts:` entries only (no top-level section).
-    case gitlab
 
     /// The product name for UI and messages ("GitHub", "GitLab", …).
     public var displayName: String {

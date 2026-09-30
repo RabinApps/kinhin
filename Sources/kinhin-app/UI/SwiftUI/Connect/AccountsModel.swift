@@ -49,7 +49,7 @@ final class AccountsModel: ConfigFormModel {
     var tokenTexts: [String: String] = [:]
 
     /// The forges the add form offers, in fixed display order.
-    let forgeOptions: [ForgeID] = [.github, .gitlab, .gitea, .forgejo]
+    let forgeOptions = ForgeID.allCases
     var newForge: ForgeID = .github
     var newName = ""
     var newScope = ""

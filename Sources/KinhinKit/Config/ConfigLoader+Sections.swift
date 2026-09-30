@@ -34,7 +34,8 @@ extension ConfigLoader {
                 throw ConfigError.invalid("duplicate account name '\(name)'")
             }
             guard let rawForge = entry.forge, let forge = ForgeID(rawValue: rawForge) else {
-                throw ConfigError.invalid("account '\(name)': forge must be github, gitea, forgejo or gitlab")
+                let known = ForgeID.allCases.map(\.rawValue).joined(separator: ", ")
+                throw ConfigError.invalid("account '\(name)': forge must be one of \(known)")
             }
             guard let scope = entry.scope, AccountConfig.isValidScope(scope, forge: forge) else {
                 throw ConfigError.invalid(

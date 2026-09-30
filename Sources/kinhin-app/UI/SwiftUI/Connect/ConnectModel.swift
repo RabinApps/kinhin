@@ -13,8 +13,8 @@ import Observation
 @MainActor
 @Observable
 final class ConnectModel: ConfigFormModel {
-    /// The forges the selector offers, in fixed display order.
-    static let allForges: [ForgeID] = [.github, .gitlab, .gitea, .forgejo]
+    /// The forges the selector offers, in `ForgeID`'s declaration order.
+    static let allForges = ForgeID.allCases
 
     let accounts = AccountsModel()
 

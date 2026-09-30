@@ -58,7 +58,7 @@ final class AccountsConfigTests: XCTestCase {
             ("- {forge: github, scope: a}", "name is required"),
             ("- {name: Work, forge: github, scope: a}", "must be lowercase"),
             ("- {name: a, forge: github, scope: x}\n  - {name: a, forge: github, scope: y}", "duplicate"),
-            ("- {name: a, forge: bitbucket, scope: x}", "forge must be"),
+            ("- {name: a, forge: sourcehut, scope: x}", "forge must be one of github, gitlab"),
             ("- {name: a, forge: github, scope: x/y/z}", "scope must be"),
             ("- {name: a, forge: gitea, scope: x}", "instance is required"),
             ("- {name: a, forge: gitea, scope: x, instance: 'https://h/api'}", "instance must be a base URL"),

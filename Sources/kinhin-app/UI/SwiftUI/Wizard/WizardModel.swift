@@ -19,6 +19,13 @@ import Observation
 @MainActor
 @Observable
 final class WizardModel {
+    /// Every forge by name for prose: "GitHub, GitLab, Gitea or Forgejo".
+    nonisolated static var forgeNames: String {
+        let names = ForgeID.allCases.map(\.displayName)
+        guard let last = names.last, names.count > 1 else { return names.first ?? "" }
+        return names.dropLast().joined(separator: ", ") + " or " + last
+    }
+
     enum Step: Int, CaseIterable {
         case connect = 0
         case mac = 1
@@ -38,7 +45,7 @@ final class WizardModel {
             switch self {
             case .connect:
                 return
-                    "kinhin runs your CI jobs on this Mac. Select the forges to serve — GitHub, GitLab, Gitea or Forgejo — then paste a token and choose the repository, project or group to serve for each."
+                    "kinhin runs your CI jobs on this Mac. Select the forges to serve — \(WizardModel.forgeNames) — then paste a token and choose the repository, project or group to serve for each."
             case .mac:
                 return
                     "Choose what runs your jobs: Linux (Docker or Apple container), macOS virtual machines (tart), or both. You only need one."
@@ -91,7 +98,7 @@ final class WizardModel {
         var missing: [String] = []
         if !connect.isConnected {
             missing.append(
-                "Connect GitHub, GitLab, Gitea or Forgejo and choose a repository, project or group (step 1).")
+                "Connect \(Self.forgeNames) and choose a repository, project or group (step 1).")
         }
         if !mac.isReady {
             missing.append(
