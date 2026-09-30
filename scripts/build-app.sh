@@ -55,6 +55,15 @@ if [ "$app_src_hash" != "$app_dst_hash" ] || [ "$cli_src_hash" != "$cli_dst_hash
 fi
 echo "==> hashes verified: kinhin-app $app_src_hash / kinhin $cli_src_hash"
 
+# SwiftPM resource bundle (forge icons). ForgeIcon looks for it in
+# Contents/Resources; without it the app falls back to a generic symbol.
+RESOURCE_BUNDLE="kinhin_kinhin-app.bundle"
+if [ ! -d "$BIN_DIR/$RESOURCE_BUNDLE/Contents/Resources/ForgeIcons" ]; then
+    echo "FATAL: $BIN_DIR/$RESOURCE_BUNDLE/Contents/Resources/ForgeIcons missing — did the kinhin-app build copy its resources?" >&2
+    exit 1
+fi
+cp -R "$BIN_DIR/$RESOURCE_BUNDLE" "$APP/Contents/Resources/$RESOURCE_BUNDLE"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

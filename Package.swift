@@ -28,7 +28,10 @@ let package = Package(
         .executableTarget(
             name: "kinhin-app",
             dependencies: ["KinhinKit"],
-            path: "Sources/kinhin-app"
+            path: "Sources/kinhin-app",
+            // Forge brand marks; scripts/build-app.sh copies the resulting
+            // bundle into the .app (see ForgeIcon).
+            resources: [.copy("Resources/ForgeIcons")]
         ),
         // Headless CLI.
         .executableTarget(

@@ -9,7 +9,7 @@ struct ForgeCard: View {
     @FocusState private var focus: ForgeConnectionModel.Field?
 
     var body: some View {
-        FormCard(title: model.forge.displayName) {
+        FormCard(title: model.forge.displayName, forge: model.forge) {
             HStack {
                 StatusText(text: model.status.text, style: model.status.style)
                 Spacer()

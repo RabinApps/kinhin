@@ -93,11 +93,16 @@ struct SectionHeader: View {
 struct FormCard<Content: View>: View {
     let title: String
     var subtitle: String?
+    /// A forge whose brand mark leads the title (forge cards).
+    var forge: ForgeID?
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.system(size: 13, weight: .semibold))
+            HStack(spacing: 6) {
+                if let forge { ForgeIconView(forge: forge, size: 14) }
+                Text(title).font(.system(size: 13, weight: .semibold))
+            }
             if let subtitle { HintText(subtitle) }
             content
         }

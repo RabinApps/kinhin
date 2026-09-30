@@ -59,6 +59,7 @@ struct ConnectView: View {
             HStack(spacing: 5) {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 11, weight: .semibold))
+                ForgeIconView(forge: forge, size: 12)
                 Text(forge.displayName).font(.system(size: 12, weight: .semibold))
             }
             .padding(.horizontal, 10)

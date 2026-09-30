@@ -24,6 +24,7 @@ struct MoreAccountsCard: View {
     private func accountRow(_ row: AccountsModel.Row) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
+                ForgeIconView(forge: row.account.forge, size: 12)
                 Text(row.account.name).font(.system(size: 12, weight: .semibold))
                 Text(describe(row.account)).font(.system(size: 11)).foregroundStyle(.secondary)
                 Spacer()
@@ -57,11 +58,15 @@ struct MoreAccountsCard: View {
             HStack(spacing: 8) {
                 Picker("", selection: $model.newForge) {
                     ForEach(model.forgeOptions, id: \.self) { forge in
-                        Text(forge.displayName).tag(forge)
+                        Label {
+                            Text(forge.displayName)
+                        } icon: {
+                            ForgeIcon.image(for: forge)
+                        }.tag(forge)
                     }
                 }
                 .labelsHidden()
-                .frame(width: 90)
+                .frame(width: 110)
                 .accessibilityIdentifier("account-new-forge")
                 TextField("", text: $model.newName, prompt: Text(verbatim: "name, e.g. work"))
                     .textFieldStyle(.roundedBorder)
