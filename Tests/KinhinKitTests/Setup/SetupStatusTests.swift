@@ -19,7 +19,7 @@ final class SetupStatusTests: XCTestCase {
 
     private func config() -> KinhinConfig {
         var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         cfg.labels = ["self-hosted", "macos"]
         cfg.image = "tahoe-base"
         return cfg
@@ -44,14 +44,16 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(config()),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
 
         // Without a container: config, the container rows never appear.
-        XCTAssertEqual(status.checks.map(\.id), ["arch", "clt", "tart", "config", "token", "image", "toolchain-cache"])
+        XCTAssertEqual(
+            status.checks.map(\.id),
+            ["arch", "clt", "tart", "config", "account-token-github", "image", "toolchain-cache"])
         XCTAssertEqual(status.ready, true)
-        XCTAssertEqual(status.checks.map(\.action), [nil, nil, nil, nil, "replace_token", nil, nil])
+        XCTAssertEqual(status.checks.map(\.action), [nil, nil, nil, nil, "replace_account_token", nil, nil])
 
         // The JSON contract decodes cleanly (this is what --json emits).
         let data = try! JSONEncoder().encode(status)
@@ -67,20 +69,23 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .missing,
             tartList: [],
             config: .missing,
-            tokenStored: false
+            accountTokensStored: ["github": false]
         )
         let status = await computer.compute()
 
         XCTAssertEqual(status.ready, false)
+        // No config → no accounts → no token rows yet; the config row is the
+        // onboarding entry point, and the token row appears once a config
+        // declares its first account.
         XCTAssertEqual(
-            status.checks.map(\.ok), [true, false, false, false, false, false, true],
+            status.checks.map(\.ok), [true, false, false, false, false, true],
             "the terminal toolchain-cache row is advisory-green even on a fresh machine")
 
         let byID = Dictionary(uniqueKeysWithValues: status.checks.map { ($0.id, $0) })
         XCTAssertEqual(byID["clt"]?.action, "fix_clt")
         XCTAssertEqual(byID["tart"]?.action, "install_tart")
         XCTAssertEqual(byID["config"]?.action, "create_config")
-        XCTAssertEqual(byID["token"]?.action, "enter_token")
+        XCTAssertNil(byID["account-token-github"], "no config → no accounts → no token row")
         XCTAssertEqual(byID["image"]?.action, "prepare_image")
         XCTAssertNil(byID["arch"]?.action)
         // Image check defers to tart.
@@ -92,7 +97,7 @@ final class SetupStatusTests: XCTestCase {
         // by both front ends.
         let labels = [
             "install_tart", "rollback_tart", "reinstall_tart",
-            "create_config", "enter_token", "prepare_image",
+            "create_config", "enter_account_token", "prepare_image",
         ]
         for action in labels {
             XCTAssertNotEqual(
@@ -109,7 +114,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .killedOnLaunch,
             tartList: [],
             config: .loaded(config()),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let rollback = status.checks.first { $0.id == "tart-rollback" }
@@ -127,7 +132,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "other-image"), vm(name: "tahoe-base")],
             config: .loaded(config()),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let image = status.checks.first { $0.id == "image" }
@@ -141,7 +146,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "unrelated")],
             config: .loaded(config()),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let image = status.checks.first { $0.id == "image" }
@@ -156,7 +161,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .broken("segfault"),
             tartList: nil,
             config: .loaded(config()),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let image = status.checks.first { $0.id == "image" }
@@ -180,7 +185,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: nil,
             config: .loaded(cfg),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let image = await computer.compute().checks.first { $0.id == "image" }
         XCTAssertEqual(image?.ok, false)
@@ -194,7 +199,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .missing,
             tartList: [],
             config: .missing,
-            tokenStored: false
+            accountTokensStored: ["github": false]
         )
         let status = await computer.compute()
         XCTAssertEqual(status.checks.first { $0.id == "arch" }?.ok, false)
@@ -209,7 +214,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .invalid,
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let configCheck = status.checks.first { $0.id == "config" }
@@ -223,13 +228,13 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: config(),
-            tokenStored: true
+            githubTokenStored: true
         )
         let status = await computer.compute()
         XCTAssertEqual(
-            status.checks.first { $0.id == "token" }?.action, "replace_token",
+            status.checks.first { $0.id == "account-token-github" }?.action, "replace_account_token",
             "a stored token stays replaceable (rotated/expired PATs are routine)")
-        XCTAssertTrue(status.checks.first { $0.id == "token" }?.detail.contains("Keychain") ?? false)
+        XCTAssertTrue(status.checks.first { $0.id == "account-token-github" }?.detail.contains("Keychain") ?? false)
     }
 
     // MARK: Provision script row — only when the config declares one
@@ -247,13 +252,15 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(configWithProvisionScript(nil)),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         XCTAssertNil(
             status.checks.first { $0.id == "provision-script" },
             "no provision_script in config → no row")
-        XCTAssertEqual(status.checks.map(\.id), ["arch", "clt", "tart", "config", "token", "image", "toolchain-cache"])
+        XCTAssertEqual(
+            status.checks.map(\.id),
+            ["arch", "clt", "tart", "config", "account-token-github", "image", "toolchain-cache"])
         XCTAssertTrue(status.ready)
     }
 
@@ -265,7 +272,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(configWithProvisionScript(path)),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let row = status.checks.first { $0.id == "provision-script" }
@@ -276,7 +283,7 @@ final class SetupStatusTests: XCTestCase {
         // The row sits right after config, before tokens.
         XCTAssertEqual(
             status.checks.map(\.id),
-            ["arch", "clt", "tart", "config", "provision-script", "token", "image", "toolchain-cache"])
+            ["arch", "clt", "tart", "config", "provision-script", "account-token-github", "image", "toolchain-cache"])
     }
 
     func testMissingProvisionScriptProducesFixRowAndBlocksReady() async {
@@ -287,7 +294,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(configWithProvisionScript(missing)),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let row = status.checks.first { $0.id == "provision-script" }
@@ -307,7 +314,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(configWithProvisionScript(path)),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let row = status.checks.first { $0.id == "provision-script" }
@@ -326,7 +333,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(configWithProvisionScript("~/kinhin/provision-\(UUID().uuidString).sh")),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let row = status.checks.first { $0.id == "provision-script" }
@@ -347,11 +354,13 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(config()),
-            tokenStored: true,
+            accountTokensStored: ["github": true],
             toolchainCacheState: (usable: false, shareCacheOn: true)
         )
         let status = await computer.compute()
-        XCTAssertEqual(status.checks.map(\.id), ["arch", "clt", "tart", "config", "token", "image", "toolchain-cache"])
+        XCTAssertEqual(
+            status.checks.map(\.id),
+            ["arch", "clt", "tart", "config", "account-token-github", "image", "toolchain-cache"])
         let row = try! XCTUnwrap(status.checks.first { $0.id == "toolchain-cache" })
         XCTAssertEqual(row.action, "create_toolchain_cache")
         XCTAssertTrue(
@@ -366,7 +375,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(config()),
-            tokenStored: true,
+            accountTokensStored: ["github": true],
             toolchainCacheState: (usable: true, shareCacheOn: true)
         )
         let status = await computer.compute()
@@ -383,7 +392,7 @@ final class SetupStatusTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(config()),
-            tokenStored: true,
+            accountTokensStored: ["github": true],
             toolchainCacheState: (usable: true, shareCacheOn: false)
         )
         let status = await computer.compute()
@@ -399,21 +408,20 @@ final class SetupStatusTests: XCTestCase {
 
 /// Tiny fixture helpers for the provision-script row tests.
 enum ProvisionScriptFixtures {}
-
 /// Tiny convenience so scenario tests read cleanly.
 enum SetupCheckHelper {
     static func make(
         tartHealth: TartHealth,
         tartList: [TartVM],
         config: KinhinConfig,
-        tokenStored: Bool
+        githubTokenStored: Bool = true
     ) -> SetupStatusComputer {
         SetupStatusComputer(
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),
             tartHealth: tartHealth,
             tartList: tartList,
             config: .loaded(config),
-            tokenStored: tokenStored
+            accountTokensStored: ["github": githubTokenStored]
         )
     }
 }

@@ -9,7 +9,10 @@ import Yams
 final class LabelsConfigEditorTests: XCTestCase {
     private let baseConfig = """
         # kinhin configuration
-        repo: "acme/ios-app"
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/ios-app"
 
         labels: ["self-hosted", "macos", "arm64"]
 
@@ -123,7 +126,10 @@ final class LabelsConfigEditorTests: XCTestCase {
 
     func testApplyContainerLabelsWithoutContainerSectionFails() throws {
         let noContainer = """
-            repo: "acme/ios-app"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/ios-app"
             labels: ["self-hosted"]
             """
         let url = try tempConfig(noContainer)
@@ -159,8 +165,8 @@ final class LabelsConfigEditorTests: XCTestCase {
     // MARK: Validation gating
 
     func testInvalidGlobalConfigStillBlocksWrite() throws {
-        // Removing repo: makes the file invalid regardless of labels.
-        let broken = baseConfig.replacingOccurrences(of: "repo: \"acme/ios-app\"", with: "# repo removed")
+        // A wrong-typed value makes the file invalid regardless of labels.
+        let broken = baseConfig.replacingOccurrences(of: "max_runners: 4", with: "max_runners: four")
         let url = try tempConfig(broken)
         defer { try? FileManager.default.removeItem(at: url) }
 

@@ -24,29 +24,29 @@ final class ConfigInitAndHelpTests: XCTestCase {
         try ConfigCommands.configInit([], configURL: configURL)
         XCTAssertTrue(FileManager.default.fileExists(atPath: configURL.path))
 
-        // The written file must parse back as a valid (template) config.
+        // The written file must parse back as the template (no accounts yet).
         let yaml = try String(contentsOf: configURL, encoding: .utf8)
         let cfg = try ConfigLoader.parse(yaml)
-        XCTAssertEqual(cfg.repo, ConfigLoader.templateRepo)
+        XCTAssertTrue(cfg.accounts.isEmpty, "the template starts with no accounts")
     }
 
     func testConfigInitNeverOverwritesExistingFile() throws {
-        try "repo: acme/custom".write(to: configURL, atomically: true, encoding: .utf8)
+        try "labels: [a]".write(to: configURL, atomically: true, encoding: .utf8)
 
         try ConfigCommands.configInit([], configURL: configURL)
 
         let yaml = try String(contentsOf: configURL, encoding: .utf8)
-        XCTAssertEqual(yaml, "repo: acme/custom", "an existing config must be left untouched")
+        XCTAssertEqual(yaml, "labels: [a]", "an existing config must be left untouched")
     }
 
     func testConfigInitForceOverwritesExistingFile() throws {
-        try "repo: acme/custom".write(to: configURL, atomically: true, encoding: .utf8)
+        try "labels: [a]".write(to: configURL, atomically: true, encoding: .utf8)
 
         try ConfigCommands.configInit(["--force"], configURL: configURL)
 
         let yaml = try String(contentsOf: configURL, encoding: .utf8)
         let cfg = try ConfigLoader.parse(yaml)
-        XCTAssertEqual(cfg.repo, ConfigLoader.templateRepo, "--force must replace the file with the template")
+        XCTAssertTrue(cfg.accounts.isEmpty, "--force must replace the file with the template")
     }
 
     // MARK: help text

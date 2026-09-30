@@ -4,7 +4,8 @@ import XCTest
 @testable import KinhinTestSupport
 
 final class BaseImageConfigTests: XCTestCase {
-    private let head = "repo: \"acme/widgets\"\nlabels: [self-hosted]\n"
+    private let head =
+        "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [self-hosted]\n"
 
     // MARK: parsing
 
@@ -128,7 +129,7 @@ final class SetBaseImageTests: XCTestCase {
     }
 
     private let both =
-        "repo: \"acme/widgets\"\nlabels: [self-hosted]\n# keep me\ncontainer:\n  image: \"c\"\ndocker:\n  image: \"d\"\n"
+        "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [self-hosted]\n# keep me\ncontainer:\n  image: \"c\"\ndocker:\n  image: \"d\"\n"
 
     func testSetsEachRuntimeIndependentlyAndKeepsComments() throws {
         let url = try file(both)
@@ -148,7 +149,9 @@ final class SetBaseImageTests: XCTestCase {
     }
 
     func testRefusesWhenTheRuntimeIsNotConfiguredOrNotLinux() throws {
-        let url = try file("repo: \"acme/widgets\"\nlabels: [self-hosted]\ndocker:\n  image: \"d\"\n")
+        let url = try file(
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [self-hosted]\ndocker:\n  image: \"d\"\n"
+        )
         XCTAssertThrowsError(try GeneralConfigEditor.setBaseImage("debian:12", for: .appleContainer, at: url))
         XCTAssertThrowsError(try GeneralConfigEditor.setBaseImage("debian:12", for: .tart, at: url))
     }

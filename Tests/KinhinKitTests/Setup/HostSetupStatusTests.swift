@@ -10,7 +10,7 @@ final class HostSetupStatusTests: XCTestCase {
 
     private func config(hostRoute: Bool) -> KinhinConfig {
         var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         if hostRoute {
             var rc = KinhinConfig.RuntimeConfig()
             rc.routes = [.init(pattern: "acme/scripts", runtime: RuntimeID.host.rawValue, consent: true)]
@@ -27,7 +27,7 @@ final class HostSetupStatusTests: XCTestCase {
                     name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "suspended",
                     cpu: nil, memoryMB: nil)
             ],
-            config: .loaded(config(hostRoute: hostRoute)), tokenStored: true, hostHealth: health
+            config: .loaded(config(hostRoute: hostRoute)), accountTokensStored: ["github": true], hostHealth: health
         ).compute()
     }
 

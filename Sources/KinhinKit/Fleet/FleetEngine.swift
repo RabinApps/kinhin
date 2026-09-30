@@ -150,10 +150,24 @@ public final class FleetEngine: Sendable {
         config: KinhinConfig, github: GitHubServing, tart: TartControlling, store: FleetStore, ssh: SSHExecuting,
         host: HostResources, containerShell: ShellRunning? = nil
     ) {
-        let credentials = GitHubCredentials(token: "", scope: config.repo)
+        let credentials = GitHubCredentials(token: "", scope: config.primaryGitHub?.scope ?? "")
         self.githubAuth = Mutex(GitHubAuth(credentials: credentials, client: github))
-        self.forgeState = Mutex(
-            ForgeState(byPlatform: Self.initialForges(config: config, credentials: credentials, client: github)))
+        // The primary GitHub account attaches immediately under its account
+        // name as an unverified placeholder (empty token): demand polling and
+        // the reconcile loop work before the fleet starts, while start()'s
+        // verified attach (via the account path) is the real gate. Other
+        // accounts attach in start()/retry once their tokens load.
+        let initial: [String: Forge]
+        if let primary = config.primaryGitHub {
+            initial = [
+                primary.name: GitHubForge(
+                    credentials: .github(token: credentials.token, scope: primary.scope), labels: config.labels,
+                    client: github, account: primary.name)
+            ]
+        } else {
+            initial = [:]
+        }
+        self.forgeState = Mutex(ForgeState(byPlatform: initial))
         let tartInstance = TartRuntime(
             tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh,
             toolchainsConfig: { [config] in config.toolchains })
@@ -290,12 +304,7 @@ public final class FleetEngine: Sendable {
     private static func initialForges(
         config: KinhinConfig, credentials: GitHubCredentials, client: GitHubServing
     ) -> [String: Forge] {
-        guard config.githubEnabled else { return [:] }
-        return [
-            "github": GitHubForge(
-                credentials: .github(token: credentials.token, scope: credentials.scope), labels: config.labels,
-                client: client)
-        ]
+        [:]  // forges attach in start()/retry (accounts hold the scopes)
     }
 
     /// Convenience initializer matching the production wiring: a client
@@ -315,12 +324,16 @@ public final class FleetEngine: Sendable {
             host: host
         )
         self.githubFactory = githubFactory
-        let client = github
         githubAuth.withLock { $0.credentials = credentials }
-        forgeState.withLock {
-            $0.byPlatform = Self.initialForges(config: config, credentials: credentials, client: client)
+        // Re-stamp the primary forge with the real PAT (the designated init
+        // built it with an empty token).
+        if let primary = config.primaryGitHub {
+            let client = github
+            forgeState.withLock { state in
+                state.byPlatform[ForgeID.github.rawValue] = GitHubForge(
+                    credentials: .github(token: pat, scope: primary.scope), labels: config.labels,
+                    client: client, account: primary.name)
+            }
         }
-        // NOTE: `runtime` was initialized in the designated init; convenience
-        // inits cannot reassign let properties.
     }
 }

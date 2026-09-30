@@ -5,9 +5,10 @@ import XCTest
 final class AccountChecklistTests: XCTestCase {
     private let config = try! ConfigLoader.parse(
         """
-        repo: acme/widgets
-        labels: [a]
         accounts:
+          - name: github
+            forge: github
+            scope: acme/widgets
           - {name: work, forge: github, scope: bigco}
           - {name: home, forge: gitea, scope: me, instance: "https://git.lan"}
 
@@ -17,7 +18,7 @@ final class AccountChecklistTests: XCTestCase {
         await SetupStatusComputer(
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),
             clt: .ok(version: "15"), tartHealth: .healthy, tartList: [], config: .loaded(config),
-            tokenStored: true, giteaTokenStored: false, accountTokensStored: stored
+            accountTokensStored: ["github": true, "home": false].merging(stored) { _, new in new }
         ).compute()
     }
 
@@ -35,7 +36,8 @@ final class AccountChecklistTests: XCTestCase {
 
     func testConfigRowMentionsTheExtraAccounts() async {
         let result = await status(["work": true, "home": true])
-        XCTAssertTrue(result.checks.first { $0.id == "config" }?.detail.contains("+ 2 more accounts") == true)
+        XCTAssertTrue(result.checks.first { $0.id == "config" }?.detail.contains("work") == true)
+        XCTAssertTrue(result.checks.first { $0.id == "config" }?.detail.contains("home") == true)
     }
 
     func testEveryAccountActionIsTitledAndHandled() {

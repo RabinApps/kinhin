@@ -17,7 +17,10 @@ final class RuntimesBudgetTests: XCTestCase {
 
     /// Pool shapes: tart (4 CPU, 8 GB) and container (2 CPU, 4 GB).
     private let config = """
-        repo: "acme/widgets"
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
         labels: ["self-hosted"]
         reserve:
           cpu: 2
@@ -173,7 +176,10 @@ final class RuntimesBudgetTests: XCTestCase {
 
     func testStarvedRouteWarningTextNamesTheRuntimeAndRouteCount() async throws {
         let routed = """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             reserve:
               cpu: 2
@@ -204,7 +210,10 @@ final class RuntimesBudgetTests: XCTestCase {
         // Host runners draw no VM/container budget ("cap n/a" in the pane),
         // so no split can strand a host route.
         let hostRouted = """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             reserve:
               cpu: 2

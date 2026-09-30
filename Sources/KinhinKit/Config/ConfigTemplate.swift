@@ -6,16 +6,27 @@ extension ConfigLoader {
         """
         # kinhin configuration
         # Location: ~/Library/Application Support/Kinhin/config.yaml
-        # (Upgrading from the pre-rename Orchard build? Your config, logs,
-        # and Keychain tokens migrate automatically on first launch.)
 
-        # GitHub scope to serve (required). Jobs whose `runs-on:` matches
-        # (subset of) `labels` below will be run here.
+        # The forges this fleet serves. Every entry is one account: a scope
+        # on a forge with its own token (kinhin auth set --account NAME).
         #   "owner/name"  → a single repository
         #   "your-org"    → an entire organization (org-level runners serve
         #                   every repo's queued jobs; the PAT needs org
         #                   runner-management permissions)
-        repo: "your-org/your-repo"
+        # The names "github" / "gitea" / "forgejo" are the primary accounts
+        # (their tokens keep the original Keychain items); others are yours
+        # to name. Uncomment the entry you need:
+        # accounts:
+        #   - name: github
+        #     forge: github
+        #     scope: "your-org/your-repo"   # or just "your-org"
+        #   - name: gitea
+        #     forge: gitea
+        #     scope: "owner/name"           # or an org name
+        #     instance: "https://gitea.example.com"
+        #   - name: work                    # additional accounts: any name
+        #     forge: gitlab
+        #     scope: "group/project"
 
         # Labels jobs must request to be picked up by this fleet.
         labels: ["self-hosted", "macos", "arm64"]
@@ -94,27 +105,11 @@ extension ConfigLoader {
         #     max_age_days: 30   # entries unused this long are deleted (0 = never)
         #     max_gb: 50         # LRU eviction beyond this size (0 = unlimited)
 
-        # Optional: also serve Gitea Actions from the same fleet. VMs are
-        # assigned to whichever forge (GitHub or Gitea) has the most pending
-        # work at spawn time. Requires a Gitea access token (kinhin auth set
-        # --gitea) with runner-management rights on the scope below.
-        # gitea:
-        #   instance: "https://gitea.example.com"
-        #   scope: "owner/name"        # or an org name
-        #   labels: ["macos:host"]     # jobs opt in via runs-on: macos:host
-
-        # Optional: serve more accounts. `repo:` and `gitea:` above are the
-        # built-in accounts "github" and "gitea"; each entry here is another
-        # GitHub org/repo or Gitea instance with its own token. Manage them
-        # with `kinhin auth add|list|remove` and `kinhin auth set --account NAME`.
-        # accounts:
-        #   - name: work
-        #     forge: github
-        #     scope: "bigco"             # org, or owner/name
-        #   - name: home-gitea
-        #     forge: gitea
-        #     scope: "me/repo"
-        #     instance: "https://git.home.lan"
+        # Optional: serve more forges from the same fleet. Every accounts:
+        # entry above is one forge; VMs are assigned to whichever forge has
+        # the most pending work at spawn time. Manage accounts with
+        # `kinhin auth add|list|remove` and `kinhin auth set --account NAME`.
+        # Gitea-family labels let jobs opt in via runs-on: (e.g. macos:host).
 
         # Optional: route repos and workflows to different execution runtimes.
         # macOS jobs need Tart VMs; Linux jobs can run in Apple-container

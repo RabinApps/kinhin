@@ -15,7 +15,7 @@ final class ContainerSetupStatusTests: XCTestCase {
         container: KinhinConfig.ContainerConfig? = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
     ) -> KinhinConfig {
         var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         cfg.container = container
         return cfg
     }
@@ -37,7 +37,7 @@ final class ContainerSetupStatusTests: XCTestCase {
                     cpu: nil, memoryMB: nil)
             ],
             config: .loaded(config(container: container)),
-            tokenStored: true,
+            accountTokensStored: ["github": true],
             containerHealth: containerHealth,
             containerImages: containerImages,
             osVersion: OperatingSystemVersion(majorVersion: macOS, minorVersion: 0, patchVersion: 0)
@@ -55,7 +55,10 @@ final class ContainerSetupStatusTests: XCTestCase {
         let status = await computer(containerHealth: .ready, containerImages: ["kinhin-ci-linux"]).compute()
         XCTAssertEqual(
             status.checks.map(\.id),
-            ["arch", "clt", "tart", "config", "token", "image", "container-cli", "container-image", "toolchain-cache"])
+            [
+                "arch", "clt", "tart", "config", "account-token-github", "image", "container-cli", "container-image",
+                "toolchain-cache",
+            ])
         XCTAssertEqual(status.ready, true)
     }
 
@@ -180,11 +183,12 @@ final class ContainerKernelTests: XCTestCase {
 
     private func status(kernel: Bool?) async -> SetupStatus {
         var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         cfg.container = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
         return await SetupStatusComputer(
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),
-            clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [], config: .loaded(cfg), tokenStored: true,
+            clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [], config: .loaded(cfg),
+            accountTokensStored: ["github": true],
             containerHealth: .ready, containerImages: ["kinhin-ci-linux"], containerKernelInstalled: kernel
         ).compute()
     }

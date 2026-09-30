@@ -14,7 +14,7 @@ final class DockerSetupStatusTests: XCTestCase {
         docker: KinhinConfig.DockerForgeConfig? = KinhinConfig.DockerForgeConfig(image: "ghcr.io/acme/kinhin-ci-linux")
     ) -> KinhinConfig {
         var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         cfg.docker = docker
         return cfg
     }
@@ -35,7 +35,7 @@ final class DockerSetupStatusTests: XCTestCase {
                     cpu: nil, memoryMB: nil)
             ],
             config: .loaded(config(docker: docker)),
-            tokenStored: true,
+            accountTokensStored: ["github": true],
             dockerHealth: dockerHealth,
             dockerImages: dockerImages,
             dockerImageArchitecture: dockerImageArchitecture
@@ -56,7 +56,10 @@ final class DockerSetupStatusTests: XCTestCase {
             .compute()
         XCTAssertEqual(
             status.checks.map(\.id),
-            ["arch", "clt", "tart", "config", "token", "image", "docker-cli", "docker-image", "toolchain-cache"])
+            [
+                "arch", "clt", "tart", "config", "account-token-github", "image", "docker-cli", "docker-image",
+                "toolchain-cache",
+            ])
         XCTAssertEqual(status.ready, true)
     }
 

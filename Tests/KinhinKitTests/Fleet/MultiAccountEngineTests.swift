@@ -10,12 +10,14 @@ final class MultiAccountEngineTests: XCTestCase {
     private func config() throws -> KinhinConfig {
         try ConfigLoader.parse(
             """
-            repo: "acme/widgets"
-            labels: [kinhin]
-            poll_interval: 5
             accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
               - {name: work, forge: github, scope: bigco}
               - {name: side, forge: github, scope: me/proj}
+            labels: [kinhin]
+            poll_interval: 5
 
             """)
     }
@@ -45,7 +47,7 @@ final class MultiAccountEngineTests: XCTestCase {
     }
 
     func testEveryAccountWithATokenIsAttached() async throws {
-        let engine = try makeEngine(tokens: ["work": "w", "side": "s"], clients: Clients())
+        let engine = try makeEngine(tokens: ["github": "gh", "work": "w", "side": "s"], clients: Clients())
         await engine.start()
         XCTAssertEqual(Set(engine.forges.keys), ["github", "work", "side"])
         XCTAssertEqual(engine.forges["work"]?.account, "work")
@@ -53,7 +55,7 @@ final class MultiAccountEngineTests: XCTestCase {
     }
 
     func testAccountWithoutATokenIsSkippedAndExplained() async throws {
-        let engine = try makeEngine(tokens: ["work": "w"], clients: Clients())
+        let engine = try makeEngine(tokens: ["github": "gh", "work": "w"], clients: Clients())
         await engine.start()
         XCTAssertEqual(Set(engine.forges.keys), ["github", "work"], "one missing token must not drop the others")
         let error = await engine.status().lastError
@@ -64,7 +66,7 @@ final class MultiAccountEngineTests: XCTestCase {
     func testFailingAccountIsDetachedWithoutAffectingOthers() async throws {
         let clients = Clients()
         clients.client(for: "s").permissionDenied = true
-        let engine = try makeEngine(tokens: ["work": "w", "side": "s"], clients: clients)
+        let engine = try makeEngine(tokens: ["github": "gh", "work": "w", "side": "s"], clients: clients)
         await engine.start()
         XCTAssertEqual(Set(engine.forges.keys), ["github", "work"])
         XCTAssertEqual(engine.detachedAccounts().map(\.name), ["side"])
@@ -77,7 +79,7 @@ final class MultiAccountEngineTests: XCTestCase {
         let clients = Clients()
         let bad = clients.client(for: "s")
         bad.permissionDenied = true
-        let engine = try makeEngine(tokens: ["work": "w", "side": "s"], clients: clients)
+        let engine = try makeEngine(tokens: ["github": "gh", "work": "w", "side": "s"], clients: clients)
         await engine.start()
         XCTAssertEqual(engine.detachedAccounts().count, 1)
 
@@ -90,7 +92,7 @@ final class MultiAccountEngineTests: XCTestCase {
     func testNewVMGoesToTheAccountWithTheMostUnmetDemand() async throws {
         let clients = Clients()
         clients.client(for: "w").queueDepth = 3
-        let engine = try makeEngine(tokens: ["work": "w", "side": "s"], clients: clients)
+        let engine = try makeEngine(tokens: ["github": "gh", "work": "w", "side": "s"], clients: clients)
         await engine.attachAccountsIfNeeded()  // no background loop: one deterministic pass
         try await engine.reconcileOnce()
         let platforms = engine.store.all.compactMap(\.platform)
@@ -102,7 +104,7 @@ final class MultiAccountEngineTests: XCTestCase {
     func testRegistrationTokenComesFromTheRecordsOwnAccount() async throws {
         let clients = Clients()
         clients.client(for: "s").queueDepth = 1
-        let engine = try makeEngine(tokens: ["work": "w", "side": "s"], clients: clients)
+        let engine = try makeEngine(tokens: ["github": "gh", "work": "w", "side": "s"], clients: clients)
         await engine.attachAccountsIfNeeded()
         try await engine.reconcileOnce()
         for _ in 0..<100 where clients.client(for: "s").registrationTokenCalls < 2 {
@@ -117,7 +119,7 @@ final class MultiAccountEngineTests: XCTestCase {
 
     func testReplaceTokenSwapsOnlyThatAccount() async throws {
         let clients = Clients()
-        let engine = try makeEngine(tokens: ["work": "w", "side": "s"], clients: clients)
+        let engine = try makeEngine(tokens: ["github": "gh", "work": "w", "side": "s"], clients: clients)
         await engine.start()
         let workBefore = engine.forges["work"] as? GitHubForge
         await engine.replaceToken(account: "side", token: "s2")
@@ -130,7 +132,7 @@ final class MultiAccountEngineTests: XCTestCase {
     }
 
     func testReplaceTokenForUnknownAccountIsIgnored() async throws {
-        let engine = try makeEngine(tokens: ["work": "w", "side": "s"], clients: Clients())
+        let engine = try makeEngine(tokens: ["github": "gh", "work": "w", "side": "s"], clients: Clients())
         await engine.start()
         await engine.replaceToken(account: "nope", token: "x")
         XCTAssertEqual(Set(engine.forges.keys), ["github", "work", "side"])

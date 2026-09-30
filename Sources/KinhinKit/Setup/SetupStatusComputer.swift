@@ -12,8 +12,6 @@ public struct SetupStatusComputer: Sendable {
     let tartHealth: TartHealth?
     let tartList: [TartVM]?
     let config: ConfigScenario
-    let tokenStored: Bool?
-    let giteaTokenStored: Bool?
     /// Named-account token state by account name (fixture). nil probes the
     /// Keychain for each `accounts:` entry.
     let accountTokensStored: [String: Bool]?
@@ -48,8 +46,6 @@ public struct SetupStatusComputer: Sendable {
         tartHealth: TartHealth? = nil,
         tartList: [TartVM]? = nil,
         config: ConfigScenario = .live,
-        tokenStored: Bool? = nil,
-        giteaTokenStored: Bool? = nil,
         accountTokensStored: [String: Bool]? = nil,
         tokenReadFailures: [String: String] = [:],
         containerHealth: RuntimeHealth? = nil,
@@ -67,8 +63,6 @@ public struct SetupStatusComputer: Sendable {
         self.tartHealth = tartHealth
         self.tartList = tartList
         self.config = config
-        self.tokenStored = tokenStored
-        self.giteaTokenStored = giteaTokenStored
         self.accountTokensStored = accountTokensStored
         self.tokenReadFailures = tokenReadFailures
         self.containerHealth = containerHealth
@@ -217,30 +211,9 @@ public struct SetupStatusComputer: Sendable {
             checks.append(Self.provisionScriptCheck(cfg))
         }
 
-        // 5. Token(s) — GitHub always (replaceable even when stored);
-        // a Gitea row appears when the config declares that forge.
-        // A Gitea-only config (no real GitHub repo) has no GitHub row.
-        let githubInUse = parsed.map { $0.githubEnabled } ?? true
-        if githubInUse {
-            checks.append(
-                tokenRow(
-                    id: "token", title: "GitHub token stored",
-                    state: tokenState(key: "github", override: tokenStored) { try KeychainTokenStore.load() },
-                    missing: "a PAT with repo scope is required",
-                    replaceAction: "replace_token", enterAction: "enter_token"))
-        }
-        if case .parsed(let cfg) = evaluation, cfg.gitea != nil {
-            checks.append(
-                tokenRow(
-                    id: "gitea-token", title: "Gitea token stored",
-                    state: tokenState(key: "gitea", override: giteaTokenStored) {
-                        try KeychainTokenStore.load(forge: .gitea)
-                    },
-                    missing: "a Gitea access token with runner-management rights is required (kinhin auth set --gitea)",
-                    replaceAction: "replace_gitea_token", enterAction: "enter_gitea_token"))
-        }
-
-        // One row per additional named account.
+        // 5. Token(s) — one row per configured account, in config order. The
+        // legacy per-forge rows are gone: every forge is an accounts: entry.
+        // A template config (no accounts) has no token rows.
         if case .parsed(let cfg) = evaluation {
             for account in cfg.accounts {
                 let provider = account.forge.displayName

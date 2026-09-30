@@ -97,7 +97,7 @@ final class TokenReplacementTests: XCTestCase {
 
     func testReplaceCredentialsPreservesScope() async {
         var cfg = makeTestConfig()
-        cfg.repo = "acme"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme")]
         let engine = FleetEngine(
             config: cfg, pat: "ghp_old", tart: FakeTart(), store: makeTestStore(),
             ssh: FakeSSH(), host: testHost, githubFactory: GitHubClientFactory { SwapProbeClient(token: $0.token) }
@@ -175,12 +175,13 @@ final class TokenReplacementTests: XCTestCase {
                 TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "stopped")
             ],
             config: makeTestConfig(),
-            tokenStored: true
+            githubTokenStored: true
         )
         let status = await computer.compute()
-        let token = status.checks.first { $0.id == "token" }
-        XCTAssertEqual(token?.action, "replace_token", "a stored token must remain replaceable from the checklist")
-        XCTAssertEqual(SetupAction.title(for: "replace_token"), "Replace Token…")
+        let token = status.checks.first { $0.id == "account-token-github" }
+        XCTAssertEqual(
+            token?.action, "replace_account_token", "a stored token must remain replaceable from the checklist")
+        XCTAssertEqual(SetupAction.title(for: "replace_account_token"), "Replace Token…")
     }
 
     func testMissingTokenOffersEnterAction() async {
@@ -190,10 +191,10 @@ final class TokenReplacementTests: XCTestCase {
                 TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "stopped")
             ],
             config: makeTestConfig(),
-            tokenStored: false
+            githubTokenStored: false
         )
         let status = await computer.compute()
-        XCTAssertEqual(status.checks.first { $0.id == "token" }?.action, "enter_token")
+        XCTAssertEqual(status.checks.first { $0.id == "account-token-github" }?.action, "enter_account_token")
     }
 
     func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {

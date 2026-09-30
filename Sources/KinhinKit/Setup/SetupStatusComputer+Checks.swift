@@ -72,15 +72,16 @@ extension SetupStatusComputer {
     static func configCheck(_ evaluation: ConfigEvaluation, path: String) -> SetupCheckResult {
         switch evaluation {
         case .parsed(let cfg):
-            var scope = cfg.repo.contains("/") ? "repo: \(cfg.repo)" : "org: \(cfg.repo) (all its repos)"
-            if !cfg.githubEnabled, let gitea = cfg.gitea {
-                scope = "gitea: \(gitea.scope) @ \(gitea.instance)"
-            } else if !cfg.githubEnabled {
-                scope = "accounts: \(cfg.accounts.map(\.name).joined(separator: ", "))"
-            }
-            if cfg.githubEnabled || cfg.gitea != nil, !cfg.accounts.isEmpty {
-                scope += " + \(cfg.accounts.count) more account\(cfg.accounts.count == 1 ? "" : "s")"
-            }
+            let scope =
+                cfg.accounts.isEmpty
+                ? "no accounts yet"
+                : cfg.accounts.map { account -> String in
+                    var text = "\(account.name): \(account.scope)"
+                    if let instance = account.instance, !instance.isEmpty {
+                        text += " @ \(instance)"
+                    }
+                    return text
+                }.joined(separator: ", ")
             return SetupCheckResult(
                 id: "config",
                 title: "Config created",
@@ -93,7 +94,7 @@ extension SetupStatusComputer {
                 id: "config",
                 title: "Config created",
                 ok: false,
-                detail: "template created — set your repo in \(path)",
+                detail: "template created — add an account in \(path)",
                 action: "edit_config"
             )
         case .invalidFile:

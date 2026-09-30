@@ -5,7 +5,6 @@ import XCTest
 final class AuthStatusAccountsTests: XCTestCase {
     private let config = try! ConfigLoader.parse(
         """
-        repo: acme/widgets
         labels: [a]
         accounts:
           - {name: work, forge: github, scope: bigco}

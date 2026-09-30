@@ -20,7 +20,10 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: [x]
                 runtimes:
                   routes:
@@ -37,7 +40,10 @@ final class HostRuntimeTests: XCTestCase {
     func testHostRouteWithConsentParses() throws {
         let cfg = try ConfigLoader.parse(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: [x]
             runtimes:
               routes:
@@ -54,7 +60,10 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: [x]
                 runtimes:
                   default: host
@@ -69,7 +78,10 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: [x]
                 runtimes:
                   routes:
@@ -84,7 +96,8 @@ final class HostRuntimeTests: XCTestCase {
     }
 
     func testNoHostRoutesMeansNoHostRuntime() throws {
-        let cfg = try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [x]\n")
+        let cfg = try ConfigLoader.parse(
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [x]\n")
         XCTAssertFalse(cfg.hostRoutesConfigured)
     }
 

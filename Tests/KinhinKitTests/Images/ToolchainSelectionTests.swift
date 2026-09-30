@@ -11,7 +11,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testConfigParsesToolchainsSection() throws {
         let cfg = try ConfigLoader.parse(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains:
               specs: ["go@1.23.4", "node@22"]
@@ -41,14 +44,20 @@ final class ToolchainSelectionTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: ["self-hosted"]
                 toolchains: {specs: ["go@1", "go@1"]}
                 """))
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: ["self-hosted"]
                 toolchains: {brew: [""]}
                 """))
@@ -57,7 +66,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testUnknownStackRejectedWithKnownList() {
         let error = self.thrownConfigError(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {stacks: ["flutterish"]}
             """)
@@ -70,7 +82,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testStackWithoutNodeRequirementFailsNamingTheFix() {
         let error = self.thrownConfigError(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {stacks: ["vercel"]}
             """)
@@ -81,7 +96,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testStackWithExplicitNodeRequirementPasses() throws {
         let cfg = try ConfigLoader.parse(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["node@22"], stacks: ["vercel"]}
             """)
@@ -92,7 +110,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testNpmToolWithoutNodeRequirementFails() {
         let error = self.thrownConfigError(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["pnpm"]}
             """)
@@ -103,14 +124,20 @@ final class ToolchainSelectionTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: ["self-hosted"]
                 toolchains: {cache: {max_age_days: -5}}
                 """))
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: ["self-hosted"]
                 toolchains: {cache: {max_gb: -1}}
                 """))
@@ -138,7 +165,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testKnownSpecResolvesToMiseWithCacheEnvsAndVerify() throws {
         let sel = try selection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["go@1.23.4"]}
             """)
@@ -150,7 +180,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testUnknownSpecPassesThroughToMise() throws {
         let sel = try selection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["zig@0.13"]}
             """)
@@ -160,7 +193,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testNodeSelectionBringsNpmCache() throws {
         let sel = try selection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["node@22"]}
             """)
@@ -170,7 +206,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testNpmToolResolvesAsGlobalInstall() throws {
         let sel = try selection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["node@22", "pnpm"]}
             """)
@@ -182,7 +221,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testVercelStackResolvesToEASStyleGlobalWithVersion() throws {
         let sel = try selection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["node@22"], stacks: ["vercel@1.2.3"]}
             """)
@@ -193,7 +235,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testFlutterStackResolvesToBrewFvmWithCacheAndPin() throws {
         let sel = try selection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {stacks: ["flutter@3.24.0"]}
             """)
@@ -207,7 +252,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testDotnetResolvesToCaskWithNugetCache() throws {
         let sel = try selection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["dotnet"]}
             """)
@@ -219,7 +267,10 @@ final class ToolchainSelectionTests: XCTestCase {
     func testDeduplicatesAcrossSelectionSurfaces() throws {
         let sel = try selection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["node@22", "pnpm"], brew: ["cocoapods"], stacks: ["react-native"]}
             """)

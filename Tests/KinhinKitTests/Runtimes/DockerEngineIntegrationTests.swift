@@ -19,7 +19,10 @@ final class DockerEngineIntegrationTests: XCTestCase {
     func testDockerConfigParsingAndValidation() throws {
         let cfg = try ConfigLoader.parse(
             """
-            repo: "acme"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme"
             labels: ["kinhin"]
             docker:
               image: "ghcr.io/acme/kinhin-ci-linux"
@@ -36,7 +39,10 @@ final class DockerEngineIntegrationTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
                 labels: ["kinhin"]
                 docker:
                   image: ""
@@ -47,7 +53,10 @@ final class DockerEngineIntegrationTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
                 labels: ["kinhin"]
                 docker:
                   cpus: 0
@@ -58,7 +67,10 @@ final class DockerEngineIntegrationTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
                 labels: ["kinhin"]
                 docker:
                   image: "img"

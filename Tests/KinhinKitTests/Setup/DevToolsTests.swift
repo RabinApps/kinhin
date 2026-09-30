@@ -131,7 +131,7 @@ final class DevToolsTests: XCTestCase {
         // everything else is fine — the fleet must NOT report ready, and the
         // row must carry the fix action.
         var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         let computer = SetupStatusComputer(
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),
             clt: .outdated(version: "26.6", macOSVersion: "27.0"),
@@ -140,7 +140,7 @@ final class DevToolsTests: XCTestCase {
                 TartVM(name: "tahoe-base", source: "ghcr.io/cirruslabs/macos-tahoe-base:latest", status: "suspended")
             ],
             config: .loaded(cfg),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let cltRow = status.checks.first { $0.id == "clt" }

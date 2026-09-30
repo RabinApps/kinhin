@@ -18,10 +18,14 @@ final class DoctorReportTests: XCTestCase {
         -> KinhinConfig
     {
         var cfg = KinhinConfig.default
-        cfg.repo = repo
+        if !repo.isEmpty {
+            cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: repo)]
+        }
         if gitea {
-            cfg.gitea = KinhinConfig.GiteaForgeConfig(
-                instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
+            cfg.accounts.append(
+                AccountConfig(
+                    name: "gitea", forge: .gitea, scope: "acme", instance: "https://gitea.example.com",
+                    labels: ["macos:host"]))
         }
         if container {
             cfg.container = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux", cpus: 4, memoryGB: 8)
@@ -46,6 +50,10 @@ final class DoctorReportTests: XCTestCase {
             ],
             config: config.map(ConfigScenario.loaded) ?? .missing,
             authLoad: { stored[$0] },
+            accountLoad: { forge, name in
+                guard let account = config?.accounts.first(where: { $0.name == name }) else { return nil }
+                return account.forge == forge ? stored[forge] : nil
+            },
             containerHealth: containerHealth,
             containerImages: containerImages
         )
@@ -144,11 +152,11 @@ final class DoctorReportTests: XCTestCase {
             config: Self.config(gitea: true)
         ).build()
         XCTAssertTrue(
-            withGitea.checks.contains { $0.id == "gitea-token" && $0.ok },
+            withGitea.checks.contains { $0.id == "account-token-gitea" && $0.ok },
             "the embedded checklist sees the same token source as the auth half")
 
         let without = await builder(stored: [.github: "ghp_x"], config: Self.config()).build()
-        XCTAssertFalse(without.checks.contains { $0.id == "gitea-token" })
+        XCTAssertFalse(without.checks.contains { $0.id == "account-token-gitea" })
     }
 
     // MARK: - ready truth table (the contract's headline field)
@@ -271,9 +279,9 @@ final class DoctorReportTests: XCTestCase {
     // MARK: - Config resolution parity
 
     func testTemplateConfigResolvesLikeTheChecklist() async {
-        // The starter template's placeholder repo must never earn a green
+        // The starter template (no accounts) must never earn a green
         // checkmark nor a capacity section — same evaluation as the checklist.
-        let report = await builder(config: Self.config(repo: ConfigLoader.templateRepo)).build()
+        let report = await builder(config: Self.config(repo: "")).build()
         XCTAssertNil(report.capacity, "a template config is not a working config")
         let configRow = report.checks.first { $0.id == "config" }
         XCTAssertEqual(configRow?.ok, false)

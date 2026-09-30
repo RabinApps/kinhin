@@ -2,10 +2,10 @@ import Foundation
 
 /// One forge account: a scope on a forge, served with its own token.
 ///
-/// The legacy `repo:` and `gitea:` sections are the two built-in accounts
-/// named `github` and `gitea` (see `KinhinConfig.allAccounts`); every entry
-/// of the `accounts:` list is an additional one. Tokens live in the Keychain,
-/// keyed by forge + account name (see `KeychainTokenStore`).
+/// Every forge this config serves is an entry of the `accounts:` list. The
+/// entry named "github" ("gitea", "forgejo") maps to the original Keychain
+/// item and the app's primary card; other entries are additional accounts
+/// keyed by name (see `KeychainTokenStore`).
 public struct AccountConfig: Sendable, Equatable, Codable {
     public var name: String
     public var forge: ForgeID
@@ -30,8 +30,8 @@ public struct AccountConfig: Sendable, Equatable, Codable {
         case name, forge, scope, instance, labels
     }
 
-    /// Names reserved for the legacy top-level sections (`repo:`, `gitea:`,
-    /// `forgejo:`). GitLab has none, so "gitlab" is an ordinary account name.
+    /// Names the app treats specially (the primary per-forge cards). GitLab
+    /// has none, so "gitlab" is an ordinary account name.
     public static let reservedNames: Set<String> = [
         ForgeID.github.rawValue, ForgeID.gitea.rawValue, ForgeID.forgejo.rawValue,
     ]
@@ -58,40 +58,19 @@ public struct AccountConfig: Sendable, Equatable, Codable {
 }
 
 extension KinhinConfig {
-    /// Every account this config serves: the legacy `github` / `gitea` /
-    /// `forgejo` accounts (when configured) followed by the explicit
-    /// `accounts:` list.
-    public var allAccounts: [AccountConfig] {
-        var result: [AccountConfig] = []
-        if githubEnabled {
-            result.append(AccountConfig(name: ForgeID.github.rawValue, forge: .github, scope: repo))
-        }
-        if let gitea {
-            result.append(
-                AccountConfig(
-                    name: ForgeID.gitea.rawValue, forge: .gitea, scope: gitea.scope, instance: gitea.instance,
-                    labels: gitea.labels))
-        }
-        if let forgejo {
-            result.append(
-                AccountConfig(
-                    name: ForgeID.forgejo.rawValue, forge: .forgejo, scope: forgejo.scope,
-                    instance: forgejo.instance, labels: forgejo.labels))
-        }
-        return result + accounts
-    }
+    /// Every account this config serves. (Kept as a named view: engine and
+    /// CLI iterate it; under the accounts-only schema it is just `accounts`.)
+    public var allAccounts: [AccountConfig] { accounts }
 }
 
-/// Token presence across a forge's accounts (the legacy one and every
-/// `accounts:` entry) — what image baking gates on: an agent is baked in when
-/// *any* account of its platform can use it.
+/// Token presence across a forge's accounts — what image baking gates on: an
+/// agent is baked in when *any* account of its platform can use it.
 public enum AccountTokens {
     public static func anyStored(
         for forge: ForgeID,
         config: KinhinConfig? = loadedConfig(),
         load: (ForgeID, String) throws -> String? = { try KeychainTokenStore.load(forge: $0, name: $1) }
     ) throws -> Bool {
-        if try load(forge, forge.rawValue) != nil { return true }
         return try (config?.accounts ?? []).contains { try $0.forge == forge && load($0.forge, $0.name) != nil }
     }
 

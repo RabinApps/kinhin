@@ -1,7 +1,7 @@
 import Foundation
 import Yams
 
-// MARK: - Section toggles (gitea / container / docker)
+// MARK: - Section toggles (container / docker)
 
 extension GeneralConfigEditor {
     /// Remove or (re)write a whole top-level section block. `newText` renders
@@ -38,14 +38,6 @@ extension GeneralConfigEditor {
         while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
         lines.append(contentsOf: block.components(separatedBy: "\n"))
         return lines.joined(separator: "\n")
-    }
-
-    static func sectionText(_ g: Snapshot.Gitea) -> String {
-        """
-        gitea:
-          instance: \(quote(g.instance))
-          scope: \(quote(g.scope))
-        """
     }
 
     static func sectionText(_ c: Snapshot.Container) -> String {

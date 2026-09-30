@@ -53,7 +53,7 @@ final class RoutingTests: XCTestCase {
     }
 
     func testHostIsOfferedEvenWhenOnlyTartIsSetUp() async {
-        write("repo: \"acme/widgets\"\nlabels: [a]\n")
+        write("accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [a]\n")
         let model = makeModel()
         model.reload()
         await waitUntilLoaded(model)
@@ -62,7 +62,7 @@ final class RoutingTests: XCTestCase {
     }
 
     func testAddingAHostRouteRecordsConsent() async throws {
-        write("repo: \"acme/widgets\"\nlabels: [a]\n")
+        write("accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [a]\n")
         let model = makeModel()
         model.reload()
         await waitUntilLoaded(model)
@@ -79,7 +79,10 @@ final class RoutingTests: XCTestCase {
     func testAddRouteWritesTheRoute() async throws {
         write(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: [a]
             docker:
               image: "kinhin-ci-linux"
@@ -100,7 +103,9 @@ final class RoutingTests: XCTestCase {
     }
 
     func testCancellingAddRouteChangesNothing() async throws {
-        write("repo: \"acme/widgets\"\nlabels: [a]\ndocker:\n  image: \"x\"\n")
+        write(
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [a]\ndocker:\n  image: \"x\"\n"
+        )
         let before = try String(contentsOf: configURL, encoding: .utf8)
         let model = makeModel()
         model.reload()
@@ -112,7 +117,7 @@ final class RoutingTests: XCTestCase {
     }
 
     func testDuplicateRouteIsRejectedInsideTheSheet() async throws {
-        write("repo: \"acme/widgets\"\nlabels: [a]\n")
+        write("accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [a]\n")
         let model = makeModel()
         model.reload()
         await waitUntilLoaded(model)
@@ -134,7 +139,7 @@ final class RoutingTests: XCTestCase {
     }
 
     func testEmptyPatternIsRejectedInsideTheSheet() async throws {
-        write("repo: \"acme/widgets\"\nlabels: [a]\n")
+        write("accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [a]\n")
         let before = try String(contentsOf: configURL, encoding: .utf8)
         let model = makeModel()
         model.reload()
@@ -146,7 +151,7 @@ final class RoutingTests: XCTestCase {
     }
 
     func testHostRouteNeedsConsentInsideTheSheet() async throws {
-        write("repo: \"acme/widgets\"\nlabels: [a]\n")
+        write("accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [a]\n")
         let before = try String(contentsOf: configURL, encoding: .utf8)
         let model = makeModel()
         model.reload()
@@ -179,7 +184,7 @@ final class RoutingTests: XCTestCase {
     }
 
     func testRemoveRouteWritesTheRemoval() async throws {
-        write("repo: \"acme/widgets\"\nlabels: [a]\n")
+        write("accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [a]\n")
         let model = makeModel()
         model.reload()
         await waitUntilLoaded(model)
@@ -213,9 +218,12 @@ final class RoutingTests: XCTestCase {
     }
 
     func testRoutableRuntimes() throws {
-        let plain = try ConfigLoader.parse("repo: \"a/b\"\nlabels: [x]\n")
+        let plain = try ConfigLoader.parse(
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"a/b\"\nlabels: [x]\n")
         XCTAssertEqual(RuntimesModel.routableRuntimes(in: plain), [.tart, .host])
-        let both = try ConfigLoader.parse("repo: \"a/b\"\nlabels: [x]\ncontainer:\n  image: i\ndocker:\n  image: i\n")
+        let both = try ConfigLoader.parse(
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"a/b\"\nlabels: [x]\ncontainer:\n  image: i\ndocker:\n  image: i\n"
+        )
         XCTAssertEqual(RuntimesModel.routableRuntimes(in: both), [.tart, .appleContainer, .docker, .host])
     }
 }

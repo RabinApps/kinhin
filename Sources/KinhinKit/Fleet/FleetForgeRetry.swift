@@ -1,20 +1,13 @@
 import Foundation
 
-/// Backoff bookkeeping for forges that were detached at startup (a bad
-/// token, a transient network error, an unreachable Gitea server).
+/// Backoff bookkeeping for accounts that failed to attach (a bad token, a
+/// transient network error, an unreachable server).
 struct ForgeRetryState: Sendable {
     static let initialDelay: TimeInterval = 30
     static let maxDelay: TimeInterval = 300
 
-    /// GitHub is configured but failed verification and is not attached.
-    var githubDetached = false
     var delay: TimeInterval = ForgeRetryState.initialDelay
     var nextAttempt: Date = .distantPast
-
-    mutating func markGitHubDetached(now: Date) {
-        githubDetached = true
-        scheduleNext(after: ForgeRetryState.initialDelay, now: now)
-    }
 
     mutating func scheduleNext(after delay: TimeInterval, now: Date) {
         self.delay = delay
@@ -28,74 +21,27 @@ struct ForgeRetryState: Sendable {
 }
 
 extension FleetEngine {
-    /// Re-attaches configured forges that are currently detached: GitHub when
-    /// its startup check failed, Gitea when its token or server was
-    /// unavailable. Runs from every reconcile pass but only acts when the
-    /// backoff has elapsed (30s, doubling to 5 min), and stops on its own once
-    /// every configured forge is attached. `ignoreBackoff` is for tests.
+    /// Re-attaches accounts that are currently detached: any account whose
+    /// verification failed, whose token was missing, or whose server was
+    /// unreachable. Runs from every reconcile pass but only acts when the
+    /// backoff has elapsed (30s, doubling to 5 min), and stops on its own
+    /// once every configured account is attached. `ignoreBackoff` is for
+    /// tests.
     func retryDetachedForgesIfDue(now: Date = Date(), ignoreBackoff: Bool = false) async {
         guard running else { return }
-        let (githubDetached, giteaDetached, forgejoDetached, due) = forgeState.withLock { state in
-            (
-                state.retry.githubDetached,
-                config.gitea != nil && state.byPlatform["gitea"] == nil,
-                config.forgejo != nil && state.byPlatform["forgejo"] == nil,
-                now >= state.retry.nextAttempt
-            )
-        }
+        let due = forgeState.withLock { now >= $0.retry.nextAttempt }
         let accountsDetached = !detachedAccounts().isEmpty
-        guard githubDetached || giteaDetached || forgejoDetached || accountsDetached, ignoreBackoff || due else {
-            return
-        }
+        guard accountsDetached, ignoreBackoff || due else { return }
 
-        if githubDetached { await retryGitHub() }
-        if giteaDetached {
-            await attachGiteaForgeIfNeeded()
-            if forgeState.withLock({ $0.byPlatform["gitea"] != nil }) {
-                await statusBox.modify { if $0.lastError?.hasPrefix("gitea") == true { $0.lastError = nil } }
-            }
-        }
-        if forgejoDetached {
-            await attachForgejoForgeIfNeeded()
-            if forgeState.withLock({ $0.byPlatform["forgejo"] != nil }) {
-                await statusBox.modify { if $0.lastError?.hasPrefix("forgejo") == true { $0.lastError = nil } }
-            }
-        }
+        await attachAccountsIfNeeded()
 
-        if accountsDetached { await attachAccountsIfNeeded() }
-
-        let accountsStillMissing = !detachedAccounts().isEmpty
-        let stillMissing = forgeState.withLock { state in
-            state.retry.githubDetached || (config.gitea != nil && state.byPlatform["gitea"] == nil)
-                || (config.forgejo != nil && state.byPlatform["forgejo"] == nil)
-        }
-        let anyMissing = stillMissing || accountsStillMissing
+        let stillDetached = !detachedAccounts().isEmpty
         forgeState.withLock { state in
-            if anyMissing {
+            if stillDetached {
                 state.retry.backOff(now: now)
             } else {
                 state.retry.scheduleNext(after: ForgeRetryState.initialDelay, now: now)
             }
         }
-    }
-
-    private func retryGitHub() async {
-        let verification = await OrgPermissionProbe.verify(github: github, scope: config.repo)
-        guard verification.ok else {
-            Log.warn("engine", "GitHub still unavailable: \(verification.message)")
-            await statusBox.modify { $0.lastError = "GitHub: \(verification.message)" }
-            return
-        }
-        let creds = githubAuth.withLock { $0.credentials }
-        let client = github
-        forgeState.withLock { state in
-            state.byPlatform["github"] = GitHubForge(
-                credentials: .github(token: creds.token, scope: creds.scope),
-                labels: config.labels, client: client)
-            state.retry.githubDetached = false
-        }
-        registrationTokens.invalidate()
-        await statusBox.modify { if $0.lastError?.hasPrefix("GitHub:") == true { $0.lastError = nil } }
-        Log.info("engine", "GitHub forge re-attached after startup failure (scope: \(config.repo))")
     }
 }

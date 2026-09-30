@@ -19,14 +19,6 @@ public struct KinhinConfig: Sendable, Equatable {
         public static let `default` = VM(cpuCount: 4, memoryGB: 8, ephemeral: true)
     }
 
-    /// GitHub repository to serve, e.g. "acme/widgets". The starter
-    /// template's placeholder means "no GitHub": a config with a `gitea:`
-    /// section and this placeholder serves Gitea only (see `githubEnabled`).
-    public var repo: String
-
-    /// True when GitHub is a real forge for this config (a real repo/org,
-    /// not empty and not the starter placeholder).
-    public var githubEnabled: Bool { !repo.isEmpty && repo != ConfigLoader.templateRepo }
     /// Labels a job must request (subset of these) to be picked up by this fleet.
     public var labels: [String]
     /// Never run fewer than this many idle runners.
@@ -58,10 +50,6 @@ public struct KinhinConfig: Sendable, Equatable {
     public var tartPath: String?
     /// Reserve headroom on the host so your Mac stays responsive.
     public var reserve: Reserve
-    /// Gitea forge settings (absent → Gitea not served by this fleet).
-    public var gitea: GiteaForgeConfig?
-    /// Forgejo forge settings (nil → Forgejo not served by this fleet).
-    public var forgejo: ForgejoForgeConfig?
     /// Apple-container runtime settings (nil → feature off; VMs always used).
     public var container: ContainerConfig?
     /// Per-repo/per-workflow runtime routing (nil → the legacy single-pool
@@ -83,6 +71,42 @@ public struct KinhinConfig: Sendable, Equatable {
     /// Additional forge accounts beyond the legacy `repo:` / `gitea:` ones,
     /// each with its own Keychain token. See `allAccounts` for the full set.
     public var accounts: [AccountConfig] = []
+
+    // MARK: Forge views (derived from `accounts`)
+
+    /// The primary GitHub account: the entry named "github" when present,
+    /// else the first `forge: github` entry. The engine attaches it as the
+    /// "github" platform at construction, and `replaceCredentials` swaps its
+    /// token live; further GitHub accounts attach under their own names.
+    public var primaryGitHub: AccountConfig? {
+        accounts.first { $0.name == ForgeID.github.rawValue && $0.forge == .github }
+            ?? accounts.first { $0.forge == .github }
+    }
+
+    /// The primary GitHub account's scope ("" when GitHub isn't configured).
+    public var repo: String { primaryGitHub?.scope ?? "" }
+
+    /// True when a GitHub account is configured.
+    public var githubEnabled: Bool { primaryGitHub != nil }
+
+    /// The primary Gitea account as a forge config (the entry named "gitea"
+    /// when present, else the first `forge: gitea` entry; nil when none).
+    public var gitea: GiteaForgeConfig? {
+        forgeView(.gitea)
+    }
+
+    /// The primary Forgejo account as a forge config (same naming rule as
+    /// `gitea`; nil when none).
+    public var forgejo: ForgejoForgeConfig? {
+        forgeView(.forgejo)
+    }
+
+    private func forgeView(_ forge: ForgeID) -> GiteaForgeConfig? {
+        let entry =
+            accounts.first { $0.name == forge.rawValue && $0.forge == forge }
+            ?? accounts.first { $0.forge == forge }
+        return entry.map { GiteaForgeConfig(instance: $0.instance ?? "", scope: $0.scope, labels: $0.labels) }
+    }
 
     /// True when any route targets host execution (the HostRuntime joins the
     /// fleet only then — its agent check and pool never appear otherwise).
@@ -316,7 +340,7 @@ public struct KinhinConfig: Sendable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case repo, labels, image
+        case labels, image
         case minRunners = "min_runners"
         case maxRunners = "max_runners"
         case runnersPerVM = "runners_per_vm"
@@ -327,8 +351,6 @@ public struct KinhinConfig: Sendable, Equatable {
         case diskGB = "disk_gb"
         case tartPath = "tart_path"
         case reserve
-        case gitea
-        case forgejo
         case container
         case docker
         case runtimes
@@ -338,7 +360,6 @@ public struct KinhinConfig: Sendable, Equatable {
     }
 
     public static let `default` = KinhinConfig(
-        repo: "",
         labels: ["self-hosted", "macos", "arm64"],
         minRunners: 0,
         maxRunners: 2,

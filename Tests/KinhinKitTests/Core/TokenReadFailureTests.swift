@@ -16,10 +16,9 @@ final class TokenReadFailureTests: XCTestCase {
     private func configWithAccount() throws -> KinhinConfig {
         try ConfigLoader.parse(
             """
-            repo: acme/widgets
-            labels: [x]
             accounts:
               - {name: work, forge: github, scope: bigco}
+            labels: [x]
 
             """)
     }
@@ -36,7 +35,9 @@ final class TokenReadFailureTests: XCTestCase {
     // MARK: Engine token
 
     func testEngineTokenPropagatesAKeychainFailure() {
-        XCTAssertThrowsError(try ConfigLoader.engineToken(for: githubConfig(), load: { _ in throw KeychainDown() })) {
+        XCTAssertThrowsError(
+            try ConfigLoader.engineToken(for: githubConfig(), loadAccount: { _, _ in throw KeychainDown() })
+        ) {
             XCTAssertEqual($0.localizedDescription, "the login keychain is locked")
         }
     }
@@ -44,12 +45,12 @@ final class TokenReadFailureTests: XCTestCase {
     func testEngineTokenPropagatesAnAccountFailure() throws {
         let cfg = try configWithAccount()
         XCTAssertThrowsError(
-            try ConfigLoader.engineToken(for: cfg, load: { _ in nil }, loadAccount: { _, _ in throw KeychainDown() }))
+            try ConfigLoader.engineToken(for: cfg, loadAccount: { _, _ in throw KeychainDown() }))
     }
 
     func testAnyStoredPropagatesAKeychainFailure() {
         XCTAssertThrowsError(
-            try AccountTokens.anyStored(for: .github, config: nil, load: { _, _ in throw KeychainDown() }))
+            try AccountTokens.anyStored(for: .github, config: githubConfig(), load: { _, _ in throw KeychainDown() }))
     }
 
     // MARK: Reports
@@ -89,14 +90,14 @@ final class TokenReadFailureTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [],
             config: .loaded(githubConfig()),
-            tokenStored: false,
+            accountTokensStored: ["github": false],
             tokenReadFailures: failures
         ).compute()
     }
 
     func testChecklistShowsAKeychainErrorRowWithoutAFixAction() async throws {
-        let status = await checklist(failures: ["github": "the login keychain is locked"])
-        let row = try XCTUnwrap(status.checks.first { $0.id == "token" })
+        let status = await checklist(failures: ["account:github": "the login keychain is locked"])
+        let row = try XCTUnwrap(status.checks.first { $0.id == "account-token-github" })
         XCTAssertFalse(row.ok)
         XCTAssertTrue(row.detail.contains("Keychain error — the login keychain is locked"), row.detail)
         XCTAssertNil(row.action, "re-entering a token can't help when the Keychain won't read")
@@ -105,8 +106,8 @@ final class TokenReadFailureTests: XCTestCase {
 
     func testChecklistStillAsksForAMissingTokenWhenThereIsNoFailure() async throws {
         let status = await checklist(failures: [:])
-        let row = try XCTUnwrap(status.checks.first { $0.id == "token" })
-        XCTAssertEqual(row.action, "enter_token")
+        let row = try XCTUnwrap(status.checks.first { $0.id == "account-token-github" })
+        XCTAssertEqual(row.action, "enter_account_token")
         XCTAssertFalse(row.detail.contains("Keychain error"))
     }
 

@@ -94,8 +94,6 @@ public struct DoctorReportBuilder: Sendable {
                 return false
             }
         }
-        let githubStored = stored("github") { try authLoad(.github) }
-        let giteaStored = stored("gitea") { try authLoad(.gitea) }
         var accountStored: [String: Bool] = [:]
         for account in parsed?.accounts ?? [] {
             accountStored[account.name] = stored("account:\(account.name)") {
@@ -108,8 +106,6 @@ public struct DoctorReportBuilder: Sendable {
             tartHealth: resolvedTart,
             tartList: tartList,
             config: config,
-            tokenStored: githubStored,
-            giteaTokenStored: giteaStored,
             accountTokensStored: accountStored,
             tokenReadFailures: tokenFailures,
             containerHealth: containerHealth,

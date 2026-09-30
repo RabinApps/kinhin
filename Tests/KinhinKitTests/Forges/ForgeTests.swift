@@ -326,16 +326,20 @@ final class ForgeTests: XCTestCase {
         XCTAssertTrue(script.contains("gitea.com/gitea/runner/releases"), "gitea runner baked when token exists")
     }
 
-    // MARK: Config gitea section
+    // MARK: Config gitea account
 
-    func testConfigParsesGiteaSection() throws {
+    func testConfigParsesGiteaAccount() throws {
         let yaml = """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
+              - name: gitea
+                forge: gitea
+                instance: "https://gitea.example.com"
+                scope: "acme"
+                labels: ["macos:host"]
             labels: ["self-hosted"]
-            gitea:
-              instance: "https://gitea.example.com"
-              scope: "acme"
-              labels: ["macos:host"]
             """
         let cfg = try ConfigLoader.parse(yaml)
         XCTAssertEqual(cfg.gitea?.instance, "https://gitea.example.com")
@@ -343,37 +347,41 @@ final class ForgeTests: XCTestCase {
         XCTAssertEqual(cfg.gitea?.labels, ["macos:host"])
     }
 
-    func testConfigRejectsInvalidGiteaSection() {
+    func testConfigRejectsInvalidGiteaAccount() {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: gitea
+                    forge: gitea
+                    scope: "acme"
                 labels: ["self-hosted"]
-                gitea:
-                  scope: "acme"
                 """), "missing instance must be rejected")
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: gitea
+                    forge: gitea
+                    instance: "not a url"
+                    scope: "acme"
                 labels: ["self-hosted"]
-                gitea:
-                  instance: "not a url"
-                  scope: "acme"
                 """), "non-URL instance must be rejected")
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: gitea
+                    forge: gitea
+                    instance: "https://gitea.example.com"
+                    scope: "a/b/c"
                 labels: ["self-hosted"]
-                gitea:
-                  instance: "https://gitea.example.com"
-                  scope: "a/b/c"
                 """), "invalid scope must be rejected")
     }
 
     func testConfigWithoutGiteaSectionParsesCleanly() throws {
-        let cfg = try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [\"self-hosted\"]")
+        let cfg = try ConfigLoader.parse(
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [\"self-hosted\"]")
         XCTAssertNil(cfg.gitea)
     }
 

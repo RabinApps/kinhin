@@ -337,7 +337,7 @@ func makeTestStore() -> FleetStore {
 
 func makeTestConfig(repo: String = "acme/widgets") -> KinhinConfig {
     var cfg = KinhinConfig.default
-    cfg.repo = repo
+    cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: repo)]
     cfg.labels = ["kinhin"]
     cfg.pollInterval = 5
     cfg.vmBootTimeout = 30

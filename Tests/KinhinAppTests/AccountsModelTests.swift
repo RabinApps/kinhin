@@ -25,7 +25,7 @@ final class AccountsModelTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         url = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-accts-\(UUID().uuidString).yaml")
-        try "repo: acme/widgets\nlabels: [a]\n".write(to: url, atomically: true, encoding: .utf8)
+        try "labels: [a]\n".write(to: url, atomically: true, encoding: .utf8)
         stored.set([])
         saved = []
         deleted = []

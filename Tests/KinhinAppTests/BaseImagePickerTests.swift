@@ -14,7 +14,10 @@ final class BaseImagePickerTests: XCTestCase {
         configURL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "kinhin-bip-\(UUID().uuidString).yaml")
         try """
-        repo: "acme/widgets"
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
         labels: [self-hosted]
         container:
           image: "kinhin-ci-linux"
@@ -82,7 +85,7 @@ final class BaseImagePickerTests: XCTestCase {
         model.configURL = configURL
         model.reload()
         // Remove the docker section behind the page's back so the save is refused.
-        try "repo: \"acme/widgets\"\nlabels: [self-hosted]\ncontainer:\n  image: \"kinhin-ci-linux\"\n"
+        try "labels: [self-hosted]\ncontainer:\n  image: \"kinhin-ci-linux\"\n"
             .write(to: configURL, atomically: true, encoding: .utf8)
         model.saveBaseImage("debian:12", for: .docker)
         XCTAssertEqual(alerts, 1, "the failure is shown")

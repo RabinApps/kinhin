@@ -11,37 +11,19 @@ extension ForgeConnectionModel {
         guard tokenStored, !scopeValue.isEmpty else { return }
         do {
             switch forge {
-            case .github:
-                guard scopeValue != lastWrittenScope else { return }
-                try GeneralConfigEditor.apply(.repo(scopeValue), to: configURL)
-                lastWrittenScope = scopeValue
-                status = Line(text: "Now serving \(scopeValue) ✓", style: .ok)
-                connected = tokenStored
-                onChanged?()
-                // Now that there is a scope, check the token can manage its runners.
-                Task { [weak self] in await self?.verifyPermission(scope: scopeValue, token: nil) }
-            case .gitea, .forgejo:
-                guard let instanceValue = instanceIfAny else { return }
-                let section = GeneralConfigEditor.Snapshot.Gitea(instance: instanceValue, scope: scopeValue)
-                guard section != lastWrittenGitea else { return }
-                try GeneralConfigEditor.apply(.gitea(section), to: configURL)
-                lastWrittenGitea = section
-                connected = tokenStored
-                status = Line(text: "Now serving \(scopeValue) on \(forge.displayName) ✓", style: .ok)
-                onChanged?()
-            case .gitlab:
+            case .github, .gitea, .forgejo, .gitlab:
                 let instanceValue = instanceIfAny
                 guard scopeValue != lastWrittenScope || instanceValue != lastWrittenInstanceIfAny else { return }
-                var account = AccountConfig(name: Self.gitlabAccountName, forge: .gitlab, scope: scopeValue)
+                var account = AccountConfig(name: accountName, forge: forge, scope: scopeValue)
                 account.instance = instanceValue
                 if try AccountsConfigEditor.accounts(at: configURL).contains(where: {
-                    $0.name == Self.gitlabAccountName
+                    $0.name == accountName
                 }) {
                     try AccountsConfigEditor.update(account, at: configURL)
                 } else {
                     try AccountsConfigEditor.add(account, to: configURL)
                     if let fresh = try AccountsConfigEditor.accounts(at: configURL).first(where: {
-                        $0.name == Self.gitlabAccountName
+                        $0.name == accountName
                     }) {
                         account = fresh
                     }
@@ -49,8 +31,15 @@ extension ForgeConnectionModel {
                 lastWrittenScope = scopeValue
                 lastWrittenInstance = instanceValue ?? ""
                 connected = tokenStored
-                status = Line(text: "Now serving \(scopeValue) on GitLab ✓", style: .ok)
+                status =
+                    forge == .github
+                    ? Line(text: "Now serving \(scopeValue) ✓", style: .ok)
+                    : Line(text: "Now serving \(scopeValue) on \(forge.displayName) ✓", style: .ok)
                 onChanged?()
+                if forge == .github {
+                    // Now that there is a scope, check the token can manage its runners.
+                    Task { [weak self] in await self?.verifyPermission(scope: scopeValue, token: nil) }
+                }
             }
         } catch {
             status = Line(text: "Not saved — \(error.localizedDescription)", style: .error)
@@ -67,8 +56,7 @@ extension ForgeConnectionModel {
     /// deselecting would remove — used to skip the confirmation for a forge
     /// that was merely selected.
     var hasCommittedState: Bool {
-        tokenStored
-            || (forge == .gitea || forge == .forgejo ? lastWrittenGitea != nil : !lastWrittenScope.isEmpty)
+        tokenStored || !lastWrittenScope.isEmpty || !lastWrittenInstance.isEmpty
     }
 
     /// Removes the forge's config entry and Keychain token. A failed config
@@ -76,16 +64,9 @@ extension ForgeConnectionModel {
     /// keep the card open for a retry instead of half-removing the forge.
     func deselect() throws {
         do {
-            switch forge {
-            case .github:
-                // Reset to the template so the file stays valid and "no repo"
-                // reads back as unconfigured.
-                try GeneralConfigEditor.apply(.repo(ConfigLoader.templateRepo), to: configURL)
-            case .gitea, .forgejo:
-                try GeneralConfigEditor.apply(.gitea(nil), to: configURL)
-            case .gitlab:
-                try AccountsConfigEditor.remove(name: Self.gitlabAccountName, at: configURL)
-            }
+            try AccountsConfigEditor.remove(name: accountName, at: configURL)
+        } catch ConfigEditError.unsupported {
+            // No account entry (a token-only connect): nothing to remove.
         } catch {
             status = Line(text: "Couldn't remove — \(error.localizedDescription)", style: .error)
             throw error
@@ -95,7 +76,6 @@ extension ForgeConnectionModel {
         connected = false
         lastWrittenScope = ""
         lastWrittenInstance = ""
-        lastWrittenGitea = nil
         status = Line(text: "Not connected yet.", style: .warn)
         onChanged?()
     }
@@ -106,7 +86,8 @@ extension ForgeConnectionModel {
 
     func markTokenStoredForTesting(_ stored: Bool) {
         tokenStored = stored
-        connected = stored && Self.countsAsConnected(forge: forge, scope: lastWrittenScope, gitea: lastWrittenGitea)
+        connected =
+            stored && Self.countsAsConnected(forge: forge, scope: lastWrittenScope, instance: lastWrittenInstance)
     }
 
     func enterScopeForTesting(_ value: String) {

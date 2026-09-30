@@ -56,7 +56,7 @@ final class AuthAccountsCommandTests: XCTestCase {
         super.setUp()
         configURL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "kinhin-auth-\(UUID().uuidString).yaml")
-        try? "repo: acme/widgets\nlabels: [a]\n".write(to: configURL, atomically: true, encoding: .utf8)
+        try? "labels: [a]\n".write(to: configURL, atomically: true, encoding: .utf8)
     }
 
     override func tearDown() {

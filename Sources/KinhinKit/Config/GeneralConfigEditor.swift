@@ -36,7 +36,6 @@ public enum GeneralConfigEditor {
 
     /// The editable fields, keyed for the UI.
     public enum Field: Equatable, Sendable {
-        case repo(String)
         case labels([String])
         case minRunners(Int)
         case maxRunners(Int)
@@ -49,8 +48,6 @@ public enum GeneralConfigEditor {
         case image(String)
         case reserveCPU(Int)
         case reserveMemoryGB(Int)
-        /// Toggle the whole `gitea:` section: nil removes it.
-        case gitea(Snapshot.Gitea?)
         case container(Snapshot.Container?)
         case docker(Snapshot.Docker?)
     }
@@ -68,7 +65,6 @@ public enum GeneralConfigEditor {
 
     private static func keyPath(for field: Field) -> KeyPath {
         switch field {
-        case .repo: return .top("repo")
         case .labels: return .top("labels")
         case .minRunners: return .top("min_runners")
         case .maxRunners: return .top("max_runners")
@@ -81,7 +77,7 @@ public enum GeneralConfigEditor {
         case .image: return .top("image")
         case .reserveCPU: return .under("reserve", "cpu")
         case .reserveMemoryGB: return .under("reserve", "memory_gb")
-        case .gitea, .container, .docker: return .top("unused")  // handled separately
+        case .container, .docker: return .top("unused")  // handled separately
         }
     }
 
@@ -96,7 +92,6 @@ public enum GeneralConfigEditor {
             return "\"\(escaped)\""
         }
         switch field {
-        case .repo(let s): return quoted(s)
         case .labels(let list):
             return "[" + list.map { quoted($0.trimmingCharacters(in: .whitespaces)) }.joined(separator: ", ") + "]"
         case .minRunners, .maxRunners, .runnersPerVM,
@@ -114,7 +109,7 @@ public enum GeneralConfigEditor {
         case .vmEphemeral(let b): return boolText(b)
         case .autoResume(let b): return boolText(b)
         case .image(let s): return quoted(s)
-        case .gitea, .container, .docker: return ""  // handled separately
+        case .container, .docker: return ""  // handled separately
         }
     }
 
@@ -123,7 +118,6 @@ public enum GeneralConfigEditor {
     /// `reserve:`) when missing.
     static func replace(field: Field, in yaml: String) throws -> String {
         switch field {
-        case .gitea(let g): return try replaceSectionToggle("gitea", present: g != nil, in: yaml) { g.map(sectionText) }
         case .container(let c):
             return try replaceSectionToggle("container", present: c != nil, in: yaml) { c.map(sectionText) }
         case .docker(let d):

@@ -10,7 +10,6 @@ final class AccountsConfigEditorTests: XCTestCase {
         url = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-accounts-\(UUID().uuidString).yaml")
         try? """
         # my fleet
-        repo: acme/widgets
         labels: [self-hosted]
         max_runners: 3   # keep small
 

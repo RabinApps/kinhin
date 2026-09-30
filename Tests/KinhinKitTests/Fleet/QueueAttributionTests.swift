@@ -138,7 +138,7 @@ final class QueueAttributionTests: XCTestCase {
 
     func makeEngine(scope: String, github: FakeGitHub) -> FleetEngine {
         var cfg = makeTestConfig()
-        cfg.repo = scope
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: scope)]
         return FleetEngine(
             config: cfg, github: github, tart: FakeTart(),
             store: makeTestStore(), ssh: FakeSSH(), host: testHost

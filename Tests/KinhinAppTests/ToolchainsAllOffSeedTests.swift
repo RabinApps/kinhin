@@ -23,7 +23,8 @@ import XCTest
     }
 
     private func makeModel(
-        _ yaml: String = "repo: \"acme/widgets\"\nlabels: [self-hosted]\ntoolchains:\n  specs: [\"node@22\"]\n"
+        _ yaml: String =
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [self-hosted]\ntoolchains:\n  specs: [\"node@22\"]\n"
     ) throws -> ToolchainsModel {
         try yaml.write(to: configURL, atomically: true, encoding: .utf8)
         let model = ToolchainsModel(seed: .allOff)
@@ -62,7 +63,9 @@ import XCTest
     }
 
     func testCheckboxTogglesStack() throws {
-        let model = try makeModel("repo: \"acme/widgets\"\nlabels: [self-hosted]\ntoolchains:\n  stacks: [\"expo\"]\n")
+        let model = try makeModel(
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [self-hosted]\ntoolchains:\n  stacks: [\"expo\"]\n"
+        )
         XCTAssertNil(model.working.stacks["expo"], "stack must start OFF")
 
         // expo takes no version, so the selection is the empty version —
@@ -100,7 +103,8 @@ import XCTest
     /// What lands in config.yaml after the user ticks boxes with the default
     /// field contents: bare `id@version` specs, no doubled ids, no dashes.
     func testTickedDefaultsWriteCleanSpecs() throws {
-        let model = try makeModel("repo: \"acme/widgets\"\nlabels: [self-hosted]\n")
+        let model = try makeModel(
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [self-hosted]\n")
         model.setTool("node", on: true)
         model.setTool("supabase", on: true)
         model.setStack("expo", on: true)

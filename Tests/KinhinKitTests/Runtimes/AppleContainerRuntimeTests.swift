@@ -232,7 +232,10 @@ final class AppleContainerRuntimeTests: XCTestCase {
 
     func testContainerConfigParsingAndValidation() throws {
         let yaml = """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["kinhin"]
             container:
               image: "kinhin-ci-linux"
@@ -248,7 +251,10 @@ final class AppleContainerRuntimeTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: ["kinhin"]
                 container:
                   image: ""
@@ -259,7 +265,10 @@ final class AppleContainerRuntimeTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: ["kinhin"]
                 container:
                   image: "x"
@@ -271,7 +280,8 @@ final class AppleContainerRuntimeTests: XCTestCase {
     }
 
     func testConfigWithoutContainerSectionIsNil() throws {
-        let cfg = try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [\"kinhin\"]")
+        let cfg = try ConfigLoader.parse(
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [\"kinhin\"]")
         XCTAssertNil(cfg.container)
     }
 

@@ -237,8 +237,7 @@ final class AccountsModel {
             guard let instance = account.instance, !instance.isEmpty else {
                 return StatusLine(text: "This account has no server address in config.yaml.", style: .error)
             }
-            let report = await TokenHealthCheck.gitea(
-                token: token, config: KinhinConfig.GiteaForgeConfig(instance: instance, scope: account.scope))
+            let report = await TokenHealthCheck.gitea(token: token, scope: account.scope, instance: instance)
             return StatusLine(text: report.message, style: report.ok ? .ok : .error)
         case .gitlab:
             let report = await TokenHealthCheck.gitlab(token: token, scope: account.scope, instance: account.instance)

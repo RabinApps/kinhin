@@ -3,9 +3,22 @@ import XCTest
 @testable import KinhinKit
 
 final class ConfigTests: XCTestCase {
+    private static let account = """
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
+        """
+    private static let orgAccount = """
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme"
+        """
+
     func testMinimalValidConfig() throws {
         let yaml = """
-            repo: "acme/widgets"
+            \(Self.account)
             labels: ["kinhin"]
             """
         let cfg = try ConfigLoader.parse(yaml)
@@ -18,7 +31,7 @@ final class ConfigTests: XCTestCase {
 
     func testRunnersPerVMParses() throws {
         let yaml = """
-            repo: "acme/widgets"
+            \(Self.account)
             labels: ["x"]
             max_runners: 2
             runners_per_vm: 6
@@ -29,7 +42,10 @@ final class ConfigTests: XCTestCase {
     func testRunnersPerVMRejectsZeroAndNine() throws {
         for bad in [0, 9] {
             let yaml = """
-                repo: "a/b"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "a/b"
                 labels: ["x"]
                 runners_per_vm: \(bad)
                 """
@@ -44,7 +60,7 @@ final class ConfigTests: XCTestCase {
 
     func testFullConfig() throws {
         let yaml = """
-            repo: "acme/widgets"
+            \(Self.account)
             labels: ["a", "b"]
             min_runners: 1
             max_runners: 3
@@ -73,13 +89,13 @@ final class ConfigTests: XCTestCase {
     }
 
     func testReserveDiskDefaultsToTen() throws {
-        let cfg = try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [x]\n")
+        let cfg = try ConfigLoader.parse("\(Self.account)\nlabels: [x]\n")
         XCTAssertEqual(cfg.reserve.diskGB, 10, "the default reserve keeps disk headroom too")
     }
 
     func testNegativeReserveDiskThrows() {
         XCTAssertThrowsError(
-            try ConfigLoader.parse("repo: \"acme/widgets\"\nlabels: [x]\nreserve:\n  disk_gb: -1\n")
+            try ConfigLoader.parse("\(Self.account)\nlabels: [x]\nreserve:\n  disk_gb: -1\n")
         ) { error in
             guard case .invalid(let message) = error as? ConfigError else {
                 return XCTFail("wrong error: \(error)")
@@ -88,21 +104,26 @@ final class ConfigTests: XCTestCase {
         }
     }
 
-    func testMissingRepoThrows() {
-        XCTAssertThrowsError(try ConfigLoader.parse("labels: [\"x\"]")) { error in
-            XCTAssertEqual(error as? ConfigError, .missing("repo"))
-        }
+    func testMissingAccountsIsTheTemplateState() throws {
+        // No accounts is valid: it is the starter-template state (the
+        // checklist classifies it; the engine refuses to run).
+        let cfg = try ConfigLoader.parse("labels: [\"x\"]")
+        XCTAssertTrue(cfg.accounts.isEmpty)
     }
 
-    func testBadRepoShapeThrows() {
+    func testBadScopeShapeThrows() {
         // Three segments is neither owner/name nor an org.
-        XCTAssertThrowsError(try ConfigLoader.parse("repo: \"a/b/c\"")) { error in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse("accounts:\n  - name: github\n    forge: github\n    scope: \"a/b/c\"\n")
+        ) { error in
             guard case ConfigError.invalid(let why) = (error as! ConfigError) else {
                 return XCTFail("wrong error")
             }
             XCTAssertTrue(why.contains("scope must be"), why)
         }
-        XCTAssertThrowsError(try ConfigLoader.parse("repo: \"acme//widgets\"")) { _ in
+        XCTAssertThrowsError(
+            try ConfigLoader.parse("accounts:\n  - name: github\n    forge: github\n    scope: \"acme//widgets\"\n")
+        ) { _ in
             // empty segment
         }
     }
@@ -110,7 +131,7 @@ final class ConfigTests: XCTestCase {
     // MARK: org scope (many repos, one fleet)
 
     func testOrgScopeParses() throws {
-        let cfg = try ConfigLoader.parse("repo: \"acme\"\nlabels: [\"x\"]")
+        let cfg = try ConfigLoader.parse(Self.orgAccount)
         XCTAssertEqual(cfg.repo, "acme")
         XCTAssertFalse(cfg.repo.contains("/"))
     }
@@ -130,7 +151,7 @@ final class ConfigTests: XCTestCase {
 
     func testMaxBelowMinThrows() {
         let yaml = """
-            repo: "a/b"
+            \(Self.account)
             labels: ["x"]
             min_runners: 3
             max_runners: 2
@@ -145,7 +166,7 @@ final class ConfigTests: XCTestCase {
 
     func testTinyPollIntervalThrows() {
         let yaml = """
-            repo: "a/b"
+            \(Self.account)
             labels: ["x"]
             poll_interval: 1
             """
@@ -156,7 +177,8 @@ final class ConfigTests: XCTestCase {
         // The shipped template must document every knob a user may set.
         let template = ConfigLoader.template()
         for key in [
-            "repo:", "labels:", "min_runners:", "max_runners:", "runners_per_vm:", "poll_interval:", "vm:", "image:",
+            "accounts:", "labels:", "min_runners:", "max_runners:", "runners_per_vm:", "poll_interval:", "vm:",
+            "image:",
             "reserve:",
         ] {
             XCTAssertTrue(template.contains(key), "template missing '\(key)'")

@@ -14,7 +14,6 @@ final class SetupFormsTests: XCTestCase {
         configURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("kinhin-setupforms-\(UUID().uuidString).yaml")
         try? """
-        repo: "your-org/your-repo"
         labels: [self-hosted, macOS]
         """.write(to: configURL, atomically: true, encoding: .utf8)
     }
@@ -26,6 +25,14 @@ final class SetupFormsTests: XCTestCase {
 
     private func snapshot() throws -> GeneralConfigEditor.Snapshot {
         try GeneralConfigEditor.snapshot(from: String(contentsOf: configURL, encoding: .utf8))
+    }
+
+    private func accounts() throws -> [AccountConfig] {
+        try AccountsConfigEditor.accounts(at: configURL)
+    }
+
+    private func account(_ name: String) throws -> AccountConfig {
+        try XCTUnwrap(try accounts().first { $0.name == name })
     }
 
     /// - Parameter reload: pass `false` in tests that select a forge by hand
@@ -54,7 +61,7 @@ final class SetupFormsTests: XCTestCase {
         model.onChanged = { changed += 1 }
         github.markTokenStoredForTesting(true)
         github.enterScopeForTesting("acme/api")
-        XCTAssertEqual(try snapshot().repo, "acme/api")
+        XCTAssertEqual(try account("github").scope, "acme/api")
         XCTAssertEqual(changed, 1)
         XCTAssertTrue(model.isConnected)
     }
@@ -86,7 +93,10 @@ final class SetupFormsTests: XCTestCase {
     /// unconnected (wizard step 4 said so) and kept the repo picker locked.
     func testStoringATokenUnlocksTheRepoPickerAndConnects() async throws {
         try """
-        repo: "acme/api"
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/api"
         labels: [self-hosted]
         """.write(to: configURL, atomically: true, encoding: .utf8)
         let model = connectModel()
@@ -106,7 +116,7 @@ final class SetupFormsTests: XCTestCase {
         let github = try card(model, .github)
         github.scope = "acme/web"
         github.didStoreToken()
-        XCTAssertEqual(try snapshot().repo, "acme/web")
+        XCTAssertEqual(try account("github").scope, "acme/web")
         XCTAssertTrue(model.isConnected)
     }
 
@@ -116,7 +126,7 @@ final class SetupFormsTests: XCTestCase {
         gitea.instance = "https://git.example.com"
         gitea.scope = "team/repo"
         gitea.didStoreToken()
-        XCTAssertEqual(try snapshot().gitea?.scope, "team/repo")
+        XCTAssertEqual(try account("gitea").scope, "team/repo")
         XCTAssertTrue(model.isConnected)
     }
 
@@ -124,10 +134,10 @@ final class SetupFormsTests: XCTestCase {
         let model = connectModel()
         let github = try card(model, .github)
         github.enterScopeForTesting("acme/api")
-        XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "no token, so no repo is written")
+        XCTAssertTrue(try accounts().isEmpty, "no token, so no account is written")
         let gitea = try card(model, .gitea)
         gitea.enterForTesting(instance: "https://git.example.com", scope: "team/repo")
-        XCTAssertNil(try snapshot().gitea, "no Gitea token, so no gitea section is written")
+        XCTAssertTrue(try accounts().isEmpty, "no Gitea token, so no account is written")
         XCTAssertFalse(model.isConnected)
         XCTAssertFalse(github.scopeEnabled, "the repo field is locked until connected")
         XCTAssertFalse(gitea.scopeEnabled)
@@ -138,7 +148,7 @@ final class SetupFormsTests: XCTestCase {
         let github = try card(model, .github)
         github.markTokenStoredForTesting(true)
         github.enterScopeForTesting("a/b/c")
-        XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "engine validation gates every write")
+        XCTAssertTrue(try accounts().isEmpty, "engine validation gates every write")
         XCTAssertTrue(github.status.text.contains("Not saved"))
     }
 
@@ -147,9 +157,9 @@ final class SetupFormsTests: XCTestCase {
         let gitea = try card(model, .gitea)
         gitea.markTokenStoredForTesting(true)
         gitea.enterForTesting(instance: "https://git.example.com", scope: "team/repo")
-        let giteaSection = try XCTUnwrap(snapshot().gitea)
-        XCTAssertEqual(giteaSection.instance, "https://git.example.com")
-        XCTAssertEqual(giteaSection.scope, "team/repo")
+        let giteaEntry = try account("gitea")
+        XCTAssertEqual(giteaEntry.instance, "https://git.example.com")
+        XCTAssertEqual(giteaEntry.scope, "team/repo")
     }
 
     func testGiteaNeedsBothServerAndScopeBeforeWriting() throws {
@@ -157,7 +167,7 @@ final class SetupFormsTests: XCTestCase {
         let gitea = try card(model, .gitea)
         gitea.markTokenStoredForTesting(true)
         gitea.enterForTesting(instance: "https://git.example.com", scope: "")
-        XCTAssertNil(try snapshot().gitea, "a half-filled gitea: section would make the config invalid")
+        XCTAssertTrue(try accounts().isEmpty, "a half-filled account would make the config invalid")
     }
 
     func testEitherForgeAloneCountsAsConnected() throws {
@@ -168,7 +178,7 @@ final class SetupFormsTests: XCTestCase {
         gitea.markTokenStoredForTesting(true)
         gitea.enterForTesting(instance: "https://git.example.com", scope: "team/repo")
         XCTAssertTrue(model.isConnected, "a Gitea-only setup can finish onboarding")
-        XCTAssertEqual(try snapshot().repo, "your-org/your-repo", "no GitHub repo is required")
+        XCTAssertFalse(try accounts().contains { $0.forge == .github }, "no GitHub account is required")
     }
 
     func testTartIsOptionalWhenALinuxRuntimeIsReady() throws {
@@ -206,7 +216,13 @@ final class SetupFormsTests: XCTestCase {
 
         // The Accounts page (flag off) never changes choices on its own.
         try? FileManager.default.removeItem(at: configURL)
-        try? "repo: \"acme/widgets\"\nlabels: [a]\n".write(to: configURL, atomically: true, encoding: .utf8)
+        try? """
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
+        labels: [a]
+        """.write(to: configURL, atomically: true, encoding: .utf8)
         let quiet = MacToolsModel()
         quiet.configURL = configURL
         quiet.reload()

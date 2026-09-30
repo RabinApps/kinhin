@@ -231,7 +231,10 @@ final class BudgetEditorTests: XCTestCase {
 
     func testBudgetRoundTripThroughConfigEditor() throws {
         let base = """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             container:
               image: "kinhin-ci-linux"

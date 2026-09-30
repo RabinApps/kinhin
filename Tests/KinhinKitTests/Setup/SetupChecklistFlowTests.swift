@@ -32,11 +32,13 @@ final class SetupChecklistFlowTests: XCTestCase {
         container: Bool = false
     ) -> KinhinConfig {
         var cfg = KinhinConfig.default
-        cfg.repo = repo
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: repo)]
         cfg.image = "tahoe-base"
         if gitea {
-            cfg.gitea = KinhinConfig.GiteaForgeConfig(
-                instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
+            cfg.accounts.append(
+                AccountConfig(
+                    name: "gitea", forge: .gitea, scope: "acme", instance: "https://gitea.example.com",
+                    labels: ["macos:host"]))
         }
         if container {
             cfg.container = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux")
@@ -48,8 +50,8 @@ final class SetupChecklistFlowTests: XCTestCase {
     private func readyComputer(
         gitea: Bool = false,
         container: Bool = false,
-        tokenStored: Bool = true,
-        giteaTokenStored: Bool? = nil
+        githubTokenStored: Bool = true,
+        giteaTokenStored: Bool = true
     ) -> SetupStatusComputer {
         SetupStatusComputer(
             host: host(),
@@ -57,10 +59,8 @@ final class SetupChecklistFlowTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(config(gitea: gitea, container: container)),
-            tokenStored: tokenStored,
-            // nil must never leak to the real Keychain: when the Gitea row
-            // will be computed, default to "stored" unless the test says so.
-            giteaTokenStored: giteaTokenStored ?? (gitea ? true : nil),
+            accountTokensStored: ["github": githubTokenStored, "gitea": giteaTokenStored]
+                .filter { gitea ? $0.key == "github" || $0.key == "gitea" : $0.key == "github" },
             containerHealth: container ? .ready : nil,
             containerImages: container ? ["kinhin-ci-linux"] : nil
         )
@@ -82,7 +82,7 @@ final class SetupChecklistFlowTests: XCTestCase {
                 tartHealth: .missing,
                 tartList: [],
                 config: .missing,
-                tokenStored: false
+                accountTokensStored: ["github": false]
             )
             let status = await computer.compute()
             let row = status.checks.first { $0.id == "clt" }
@@ -102,7 +102,7 @@ final class SetupChecklistFlowTests: XCTestCase {
             tartHealth: .healthy,
             tartList: [vm(name: "tahoe-base")],
             config: .loaded(config()),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         let row = status.checks.first { $0.id == "clt" }
@@ -113,20 +113,20 @@ final class SetupChecklistFlowTests: XCTestCase {
 
     func testGiteaRowAbsentWhenForgeNotConfigured() async {
         let status = await readyComputer().compute()
-        XCTAssertNil(status.checks.first { $0.id == "gitea-token" })
+        XCTAssertNil(status.checks.first { $0.id == "account-token-gitea" })
     }
 
     func testGiteaTokenStatesMapToEnterAndReplaceActions() async {
         let missing = await readyComputer(gitea: true, giteaTokenStored: false).compute()
-        let giteaMissing = missing.checks.first { $0.id == "gitea-token" }
+        let giteaMissing = missing.checks.first { $0.id == "account-token-gitea" }
         XCTAssertEqual(giteaMissing?.ok, false)
-        XCTAssertEqual(giteaMissing?.action, "enter_gitea_token")
+        XCTAssertEqual(giteaMissing?.action, "enter_account_token")
         XCTAssertFalse(missing.ready, "a missing Gitea token must block readiness when the forge is configured")
 
         let stored = await readyComputer(gitea: true, giteaTokenStored: true).compute()
-        let giteaStored = stored.checks.first { $0.id == "gitea-token" }
+        let giteaStored = stored.checks.first { $0.id == "account-token-gitea" }
         XCTAssertEqual(giteaStored?.ok, true)
-        XCTAssertEqual(giteaStored?.action, "replace_gitea_token", "stored tokens stay replaceable")
+        XCTAssertEqual(giteaStored?.action, "replace_account_token", "stored tokens stay replaceable")
         XCTAssertTrue(stored.ready, "a stored Gitea token satisfies the row")
     }
 
@@ -136,7 +136,10 @@ final class SetupChecklistFlowTests: XCTestCase {
         let status = await readyComputer(gitea: true).compute()
         XCTAssertEqual(
             status.checks.map(\.id),
-            ["arch", "clt", "tart", "config", "token", "gitea-token", "image", "toolchain-cache"])
+            [
+                "arch", "clt", "tart", "config", "account-token-github", "account-token-gitea", "image",
+                "toolchain-cache",
+            ])
     }
 
     func testGiteaAndContainerRowsOrderTogether() async {
@@ -144,8 +147,8 @@ final class SetupChecklistFlowTests: XCTestCase {
         XCTAssertEqual(
             status.checks.map(\.id),
             [
-                "arch", "clt", "tart", "config", "token", "gitea-token", "image", "container-cli", "container-image",
-                "toolchain-cache",
+                "arch", "clt", "tart", "config", "account-token-github", "account-token-gitea", "image",
+                "container-cli", "container-image", "toolchain-cache",
             ])
         XCTAssertTrue(status.ready)
     }
@@ -159,12 +162,12 @@ final class SetupChecklistFlowTests: XCTestCase {
             tartHealth: .killedOnLaunch,
             tartList: [],
             config: .loaded(config()),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         )
         let status = await computer.compute()
         XCTAssertEqual(
             status.checks.map(\.id),
-            ["arch", "clt", "tart-rollback", "config", "token", "image", "toolchain-cache"])
+            ["arch", "clt", "tart-rollback", "config", "account-token-github", "image", "toolchain-cache"])
     }
 
     // MARK: Readiness — ready is exactly "every check ok"
@@ -177,37 +180,38 @@ final class SetupChecklistFlowTests: XCTestCase {
                 "arch",
                 SetupStatusComputer(
                     host: host(arm64: false), clt: .ok(version: "27.0"), tartHealth: .healthy,
-                    tartList: [vm(name: "tahoe-base")], config: .loaded(config()), tokenStored: true)
+                    tartList: [vm(name: "tahoe-base")], config: .loaded(config()), accountTokensStored: ["github": true]
+                )
             ),
             (
                 "clt",
                 SetupStatusComputer(
                     host: host(), clt: .missing, tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .loaded(config()), tokenStored: true)
+                    config: .loaded(config()), accountTokensStored: ["github": true])
             ),
             (
                 "tart",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .broken("crash"), tartList: [],
-                    config: .loaded(config()), tokenStored: true)
+                    config: .loaded(config()), accountTokensStored: ["github": true])
             ),
             (
                 "config",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .missing, tokenStored: true)
+                    config: .missing, accountTokensStored: ["github": true])
             ),
             (
-                "token",
+                "account-token-github",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .loaded(config()), tokenStored: false)
+                    config: .loaded(config()), accountTokensStored: ["github": false])
             ),
             (
                 "image",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "unrelated")],
-                    config: .loaded(config()), tokenStored: true)
+                    config: .loaded(config()), accountTokensStored: ["github": true])
             ),
         ]
         for (blockedBy, computer) in blockers {
@@ -232,19 +236,20 @@ final class SetupChecklistFlowTests: XCTestCase {
                 "fresh",
                 SetupStatusComputer(
                     host: host(), clt: .missing, tartHealth: .missing, tartList: [], config: .missing,
-                    tokenStored: false)
+                    accountTokensStored: ["github": false])
             ),
             (
                 "killed",
                 SetupStatusComputer(
                     host: host(), clt: .outdated(version: "26.6", macOSVersion: "27.0"), tartHealth: .killedOnLaunch,
-                    tartList: [], config: .template, tokenStored: false)
+                    tartList: [], config: .template, accountTokensStored: ["github": false])
             ),
             (
                 "mixed forges",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .loaded(config(gitea: true, container: true)), tokenStored: false, giteaTokenStored: false,
+                    config: .loaded(config(gitea: true, container: true)),
+                    accountTokensStored: ["github": false, "gitea": false],
                     containerHealth: .broken("service down"), containerImages: [])
             ),
         ]
@@ -268,49 +273,49 @@ final class SetupChecklistFlowTests: XCTestCase {
                 "clt", "fix_clt",
                 SetupStatusComputer(
                     host: host(), clt: .missing, tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .loaded(config()), tokenStored: true)
+                    config: .loaded(config()), accountTokensStored: ["github": true])
             ),
             (
                 "tart", "install_tart",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .missing, tartList: [],
-                    config: .loaded(config()), tokenStored: true)
+                    config: .loaded(config()), accountTokensStored: ["github": true])
             ),
             (
                 "tart-rollback", "rollback_tart",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .killedOnLaunch, tartList: [],
-                    config: .loaded(config()), tokenStored: true)
+                    config: .loaded(config()), accountTokensStored: ["github": true])
             ),
             (
                 "tart", "reinstall_tart",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .broken("crash"), tartList: [],
-                    config: .loaded(config()), tokenStored: true)
+                    config: .loaded(config()), accountTokensStored: ["github": true])
             ),
             (
                 "config", "create_config",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .missing, tokenStored: true)
+                    config: .missing, accountTokensStored: ["github": true])
             ),
             (
                 "config", "edit_config",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .template, tokenStored: true)
+                    config: .template, accountTokensStored: ["github": true])
             ),
             (
-                "token", "enter_token",
+                "account-token-github", "enter_account_token",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .loaded(config()), tokenStored: false)
+                    config: .loaded(config()), accountTokensStored: ["github": false])
             ),
             (
                 "image", "prepare_image",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "unrelated")],
-                    config: .loaded(config()), tokenStored: true)
+                    config: .loaded(config()), accountTokensStored: ["github": true])
             ),
         ]
         for (id, expectedAction, computer) in cases {
@@ -326,7 +331,7 @@ final class SetupChecklistFlowTests: XCTestCase {
     func testViewModelCanStartTracksStatusReadiness() async {
         // This is the path the window's Start button takes: the computer's
         // SetupStatus feeds SetupViewModel, whose canStart gates the button.
-        let blocked = await readyComputer(tokenStored: false).compute()
+        let blocked = await readyComputer(githubTokenStored: false).compute()
         let blockedVM = SetupViewModel(status: blocked)
         XCTAssertFalse(blockedVM.canStart)
         XCTAssertFalse(blockedVM.ready)
@@ -351,19 +356,19 @@ final class SetupChecklistFlowTests: XCTestCase {
                 "fresh",
                 SetupStatusComputer(
                     host: host(), clt: .missing, tartHealth: .missing, tartList: [], config: .missing,
-                    tokenStored: false)
+                    accountTokensStored: ["github": false])
             ),
             (
                 "gitea",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .loaded(config(gitea: true)), tokenStored: true, giteaTokenStored: false)
+                    config: .loaded(config(gitea: true)), accountTokensStored: ["github": true, "gitea": false])
             ),
             (
                 "container down",
                 SetupStatusComputer(
                     host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .loaded(config(container: true)), tokenStored: true,
+                    config: .loaded(config(container: true)), accountTokensStored: ["github": true],
                     containerHealth: .broken("service down"), containerImages: [])
             ),
         ]
@@ -390,7 +395,7 @@ final class SetupChecklistFlowTests: XCTestCase {
             tartHealth: .missing,
             tartList: [],
             config: .loaded(config()),
-            tokenStored: true
+            accountTokensStored: ["github": true]
         ).compute()
         let vm = SetupViewModel(status: status)
         let tartRow = vm.rows.first { $0.id == "tart" }

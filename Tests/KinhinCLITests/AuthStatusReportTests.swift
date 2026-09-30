@@ -12,10 +12,14 @@ import XCTest
 final class AuthStatusReportTests: XCTestCase {
     private static func config(repo: String = "acme/widgets", gitea: Bool = false) -> KinhinConfig {
         var cfg = KinhinConfig.default
-        cfg.repo = repo
+        if !repo.isEmpty {
+            cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: repo)]
+        }
         if gitea {
-            cfg.gitea = KinhinConfig.GiteaForgeConfig(
-                instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
+            cfg.accounts.append(
+                AccountConfig(
+                    name: "gitea", forge: .gitea, scope: "acme", instance: "https://gitea.example.com",
+                    labels: ["macos:host"]))
         }
         return cfg
     }
@@ -24,7 +28,9 @@ final class AuthStatusReportTests: XCTestCase {
         stored: [ForgeID: String] = [:],
         config: KinhinConfig? = nil
     ) -> AuthStatusReport {
-        AuthStatusReporter.report(config: config, load: { stored[$0] })
+        // Both token sources inject the same map so no test touches the real
+        // Keychain (the account rows use `loadAccount`).
+        AuthStatusReporter.report(config: config, load: { stored[$0] }, loadAccount: { forge, _ in stored[forge] })
     }
 
     /// The default fixture, for call sites that need a working config.
@@ -66,7 +72,7 @@ final class AuthStatusReportTests: XCTestCase {
         XCTAssertTrue(forge.stored)
         XCTAssertFalse(forge.configured)
         XCTAssertNil(forge.scope)
-        XCTAssertTrue(forge.detail.contains("set repo in config.yaml"))
+        XCTAssertTrue(forge.detail.contains("add a github account to config.yaml"))
     }
 
     func testGitHubMissingTokenPointsAtAuthSet() {
@@ -84,7 +90,8 @@ final class AuthStatusReportTests: XCTestCase {
         XCTAssertTrue(forge.configured)
         XCTAssertEqual(forge.scope, "acme")
         XCTAssertEqual(forge.instance, "https://gitea.example.com")
-        XCTAssertTrue(forge.detail.contains("acme @ https://gitea.example.com"))
+        XCTAssertTrue(forge.detail.contains("scope: acme"))
+        XCTAssertTrue(forge.detail.contains("https://gitea.example.com"))
     }
 
     /// A token stored before the config declares gitea: stays visible but is
@@ -92,10 +99,10 @@ final class AuthStatusReportTests: XCTestCase {
     func testGiteaStoredWithoutConfigIsStoredButUnconfigured() {
         let forge = reportWithDefaultConfig(stored: [.gitea: "gt_x"]).forges[1]
         XCTAssertTrue(forge.stored)
-        XCTAssertFalse(forge.configured, "no gitea: section → not in use")
+        XCTAssertFalse(forge.configured, "no gitea account → not in use")
         XCTAssertNil(forge.scope)
         XCTAssertNil(forge.instance)
-        XCTAssertTrue(forge.detail.contains("gitea: section"))
+        XCTAssertTrue(forge.detail.contains("add a gitea account to config.yaml"))
     }
 
     func testGiteaUnconfiguredWithoutTokenStaysACleanFalse() {
@@ -157,13 +164,13 @@ final class AuthStatusReportTests: XCTestCase {
             notifyDaemon: { _, _ in },
             fail: { _ in throw ReportExit(code: 1) },
             exit: { code in try onExit(code) },
+            loadAccount: { forge, _ in stored[forge] },
             jsonConfig: .some(config)
         )
     }
 
     func testJSONStatusEmitsParseableDocument() async throws {
-        var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        let cfg = Self.config()
         let env = makeEnvironment(stored: [.github: "ghp_live"], config: cfg)
 
         // The command's emitter returns exactly the document it printed —
@@ -177,8 +184,7 @@ final class AuthStatusReportTests: XCTestCase {
     }
 
     func testJSONStatusRunExits1WhenARequiredTokenIsMissing() async {
-        var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        let cfg = Self.config()
         let env = makeEnvironment(config: cfg) { code in
             XCTAssertEqual(code, 1, "allGood == false must exit 1 so `&&`-chained setup scripts stop")
             throw ReportExit(code: code)
@@ -196,8 +202,7 @@ final class AuthStatusReportTests: XCTestCase {
 
     func testJSONStatusNeverProbesTheForgeAPIs() async throws {
         // The check hooks would record if touched; --json must stay static.
-        var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        let cfg = Self.config()
         let frozen = cfg
         let probed = Mutex(false)
         let env = AuthEnvironment(
@@ -211,6 +216,7 @@ final class AuthStatusReportTests: XCTestCase {
             notifyDaemon: { _, _ in },
             fail: { _ in throw ReportExit(code: 1) },
             exit: { _ in throw ReportExit(code: 1) },
+            loadAccount: { forge, _ in [.github: "ghp_x"][forge] },
             jsonConfig: .some(frozen)
         )
 

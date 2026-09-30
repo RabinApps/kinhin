@@ -27,7 +27,10 @@ import XCTest
     }
 
     private let sampleConfig = """
-        repo: "acme/widgets"
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
         labels: [self-hosted]
         toolchains:
           specs: ["node@22", "go", "pnpm"]
@@ -109,7 +112,8 @@ import XCTest
     /// Resetting field texts from a populated selection yields a row per
     /// catalog tool/stack.
     func testResetFieldTextsCoversTheWholeCatalog() throws {
-        let model = try makeModel("repo: \"acme/widgets\"\nlabels: [self-hosted]\n")
+        let model = try makeModel(
+            "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [self-hosted]\n")
         model.working = model.catalogSelection()
         model.resetFieldTexts()
         XCTAssertEqual(model.toolText.count, ToolchainCatalog.tools.count)

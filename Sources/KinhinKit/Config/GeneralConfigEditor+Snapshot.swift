@@ -6,7 +6,6 @@ import Yams
 extension GeneralConfigEditor {
     /// The typed subset the UI edits, decoded from the raw YAML.
     public struct Snapshot: Equatable, Sendable {
-        public var repo: String
         public var labels: [String]
         public var minRunners: Int
         public var maxRunners: Int
@@ -19,7 +18,6 @@ extension GeneralConfigEditor {
         public var image: String
         public var reserveCPU: Int
         public var reserveMemoryGB: Int
-        public var gitea: Gitea?
         public var container: Container?
         public var docker: Docker?
 
@@ -34,15 +32,6 @@ extension GeneralConfigEditor {
             case .appleContainer: return container?.baseImage
             case .docker: return docker?.baseImage
             default: return nil
-            }
-        }
-
-        public struct Gitea: Equatable, Sendable {
-            public var instance: String
-            public var scope: String
-            public init(instance: String, scope: String) {
-                self.instance = instance
-                self.scope = scope
             }
         }
 
@@ -105,7 +94,6 @@ extension GeneralConfigEditor {
         let vm = partial.vm
         let reserve = partial.reserve
         return Snapshot(
-            repo: partial.repo ?? "",
             labels: partial.labels ?? d.labels,
             minRunners: partial.minRunners ?? d.minRunners,
             maxRunners: partial.maxRunners ?? d.maxRunners,
@@ -118,7 +106,6 @@ extension GeneralConfigEditor {
             image: partial.image ?? d.image,
             reserveCPU: reserve?.cpu ?? d.reserve.cpu,
             reserveMemoryGB: reserve?.memoryGB ?? d.reserve.memoryGB,
-            gitea: partial.gitea.map { .init(instance: $0.instance ?? "", scope: $0.scope ?? "") },
             container: partial.container.map {
                 .init(
                     image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memoryGB ?? 8,

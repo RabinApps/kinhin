@@ -4,8 +4,8 @@ import Foundation
 /// Like the other editors it edits text (the rest of the file keeps its
 /// comments and layout), re-validates through `ConfigLoader.parse`, and
 /// writes only when the result is valid. The `accounts:` block itself is
-/// rewritten whole. The legacy `repo:` / `gitea:` accounts are edited by
-/// `GeneralConfigEditor`.
+/// rewritten whole. This is the editor for every forge account — GitHub,
+/// GitLab, Gitea and Forgejo all live in the one list.
 public enum AccountsConfigEditor {
     /// The explicit accounts in the file at `url`.
     public static func accounts(at url: URL = Paths.config) throws -> [AccountConfig] {

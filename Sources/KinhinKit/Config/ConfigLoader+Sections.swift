@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Section validators (base_image, Gitea family, accounts)
+// MARK: - Section validators (base_image, accounts)
 
 extension ConfigLoader {
     /// `base_image:` is optional; when present it must be usable as a bare
@@ -14,36 +14,10 @@ extension ConfigLoader {
         return trimmed
     }
 
-    /// Validates one Gitea-family forge section (`gitea:`, `forgejo:` — the
-    /// two share the instance/scope/labels shape and validation rules).
-    static func parseGiteaFamily(
-        partial: PartialConfig.PartialGitea, section: String
-    ) throws -> KinhinConfig.GiteaForgeConfig {
-        guard let instance = partial.instance, !instance.isEmpty else {
-            throw ConfigError.invalid("\(section).instance is required (e.g. https://gitea.example.com)")
-        }
-        do {
-            _ = try GiteaCredentials.validate(instance: instance)
-        } catch {
-            throw ConfigError.invalid("\(section).instance must be a base URL like https://gitea.example.com (no path)")
-        }
-        guard let scope = partial.scope, !scope.isEmpty else {
-            throw ConfigError.invalid("\(section).scope is required ('owner/name' or an org name)")
-        }
-        let scopeSegments = scope.split(separator: "/")
-        guard (1...2).contains(scopeSegments.count),
-            scopeSegments.allSatisfy({ !$0.isEmpty })
-        else {
-            throw ConfigError.invalid("\(section).scope must be 'owner/name' or an org name, got '\(scope)'")
-        }
-        if let labels = partial.labels, labels.isEmpty {
-            throw ConfigError.invalid("\(section).labels must be non-empty when present")
-        }
-        return KinhinConfig.GiteaForgeConfig(instance: instance, scope: scope, labels: partial.labels)
-    }
-
-    /// Validates the `accounts:` list: unique tame names (not the legacy
-    /// `github`/`gitea`), a known forge, a scope, and a Gitea instance URL.
+    /// Validates the `accounts:` list: unique tame names, a known forge, a
+    /// scope, and a Gitea-family instance URL. The names "github", "gitea"
+    /// and "forgejo" are the primary accounts (they map to the original
+    /// Keychain items and the app's per-forge cards).
     static func parseAccounts(_ entries: [PartialConfig.PartialAccount]) throws -> [AccountConfig] {
         var seen: Set<String> = []
         var result: [AccountConfig] = []
@@ -55,11 +29,6 @@ extension ConfigLoader {
             guard AccountConfig.isValidName(name) else {
                 throw ConfigError.invalid(
                     "\(position).name '\(name)' must be lowercase letters, digits, '-' or '_' (max 32)")
-            }
-            guard !AccountConfig.reservedNames.contains(name) else {
-                throw ConfigError.invalid(
-                    "\(position).name '\(name)' is reserved for the top-level repo:/gitea:/forgejo: sections — pick another name"
-                )
             }
             guard seen.insert(name).inserted else {
                 throw ConfigError.invalid("duplicate account name '\(name)'")

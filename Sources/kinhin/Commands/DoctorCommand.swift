@@ -101,15 +101,11 @@ enum DoctorCommand {
             }
         }
         let doctorConfig = try? ConfigLoader.load()
-        if doctorConfig?.githubEnabled ?? true {
+        let doctorAccounts = doctorConfig?.accounts ?? []
+        if doctorAccounts.isEmpty {
             print("  token:      \(tokenStatus(fix: "kinhin auth set") { try KeychainTokenStore.load() })")
         }
-        if doctorConfig?.gitea != nil {
-            print(
-                "  gitea tok:  \(tokenStatus(fix: "kinhin auth set --gitea") { try KeychainTokenStore.load(forge: .gitea) })"
-            )
-        }
-        for account in doctorConfig?.accounts ?? [] {
+        for account in doctorAccounts {
             let status = tokenStatus(fix: "kinhin auth set --account \(account.name)") {
                 try KeychainTokenStore.load(forge: account.forge, name: account.name)
             }
@@ -163,17 +159,17 @@ enum DoctorCommand {
                 print("  WARNING: a single VM does not fit the host within reserved headroom")
             }
             print("  image:      \(cfg.image)")
-            if cfg.githubEnabled, !cfg.repo.contains("/") {
-                print("  scope:      organization '\(cfg.repo)' — runners serve every repo")
+            if let repo = cfg.primaryGitHub?.scope, !repo.isEmpty, !repo.contains("/") {
+                print("  scope:      organization '\(repo)' — runners serve every repo")
                 print(
-                    TokenRequirements.github(scope: cfg.repo).plainText
+                    TokenRequirements.github(scope: repo).plainText
                         .split(separator: "\n").map { "  \($0)" }.joined(separator: "\n"))
                 // Active verification: mint (and discard) a registration token —
                 // the exact call the fleet's lifecycle depends on.
                 do {
                     if let token = try KeychainTokenStore.load() {
-                        let client = GitHubClient(credentials: GitHubCredentials(token: token, scope: cfg.repo))
-                        let report = await OrgPermissionProbe.verify(github: client, scope: cfg.repo)
+                        let client = GitHubClient(credentials: GitHubCredentials(token: token, scope: repo))
+                        let report = await OrgPermissionProbe.verify(github: client, scope: repo)
                         print("  org perms:  \(report.message)")
                     } else {
                         print("  org perms:  cannot verify — no token stored (run: kinhin auth set)")

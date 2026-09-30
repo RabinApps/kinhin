@@ -21,7 +21,10 @@ final class LinuxToolchainsTests: XCTestCase {
         // a Linux recipe (flutter) remain.
         let sel = try linuxSelection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["node@22", "go@1.23"], brew: ["yamllint", "awscli", "wget"], stacks: ["flutter@3.24.0", "vercel", "react-native"]}
             """)
@@ -40,7 +43,10 @@ final class LinuxToolchainsTests: XCTestCase {
     func testLinuxFlutterInstallsFromGit() throws {
         let sel = try linuxSelection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {stacks: ["flutter@3.24.0"]}
             """)
@@ -74,7 +80,10 @@ final class LinuxToolchainsTests: XCTestCase {
     func testLinuxFlutterDefaultsToTheStableChannel() throws {
         let sel = try linuxSelection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {stacks: ["flutter"]}
             """)
@@ -94,7 +103,10 @@ final class LinuxToolchainsTests: XCTestCase {
     func testLinuxDotnetUsesAptInstallerWithNugetCache() throws {
         let sel = try linuxSelection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["dotnet"]}
             """)
@@ -106,7 +118,10 @@ final class LinuxToolchainsTests: XCTestCase {
     func testLinuxSelectionAutoInjectsMiseCacheAndSkipsHomebrewCache() throws {
         let sel = try linuxSelection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["node@22"], brew: ["wget"]}
             """)
@@ -119,7 +134,10 @@ final class LinuxToolchainsTests: XCTestCase {
     func testLinuxManagedScriptCoversAptMiseNpmAndGuards() throws {
         let sel = try linuxSelection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["dotnet", "node@22"], stacks: ["vercel"]}
             """)
@@ -143,7 +161,10 @@ final class LinuxToolchainsTests: XCTestCase {
     func testLinuxManagedScriptSkipsCacheExportsWithoutMount() throws {
         let sel = try linuxSelection(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: ["node@22"]}
             """)
@@ -249,7 +270,10 @@ final class LinuxToolchainsTests: XCTestCase {
             toolchainsConfig: {
                 try? ConfigLoader.parse(
                     """
-                    repo: "acme/widgets"
+                    accounts:
+                      - name: github
+                        forge: github
+                        scope: "acme/widgets"
                     labels: ["self-hosted"]
                     toolchains: {specs: ["node@22", "pnpm"]}
                     """

@@ -36,7 +36,10 @@ final class RouteToEngineReloadTests: XCTestCase {
     /// the Linux side on top (container routes are rejected without a
     /// container section).
     private let baseYAML = """
-        repo: "acme/widgets"
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
         labels: ["self-hosted", "macos", "arm64"]
         max_runners: 4
         poll_interval: 30

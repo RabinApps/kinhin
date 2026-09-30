@@ -5,7 +5,11 @@ import Foundation
 /// Public because the toolchains validation entry (`parseToolchains`) takes
 /// a `PartialToolchains` — the CLI's flag overrides reuse the same rules.
 public struct PartialConfig: Decodable {
+    /// Removed keys: decoded only so the loader can reject them with a
+    /// pointer to the accounts: replacement instead of a silent ignore.
     var repo: String?
+    var gitea: PartialGitea?
+    var forgejo: PartialGitea?
     var labels: [String]?
     var minRunners: Int?
     var maxRunners: Int?
@@ -19,14 +23,12 @@ public struct PartialConfig: Decodable {
     var diskGB: Int?
     var tartPath: String?
     var reserve: PartialReserve?
-    var gitea: PartialGitea?
     var container: PartialContainer?
     var docker: PartialDocker?
     var runtimes: PartialRuntimes?
     var provisionScript: String?
     var toolchains: PartialToolchains?
     var accounts: [PartialAccount]?
-    var forgejo: PartialForgejo?
 
     struct PartialAccount: Decodable {
         var name: String?
@@ -36,15 +38,13 @@ public struct PartialConfig: Decodable {
         var labels: [String]?
     }
 
+    /// Gitea-family sections are gone (accounts: entries replace them);
+    /// the shape is kept only for the removed-key rejection message.
     struct PartialGitea: Decodable {
         var instance: String?
         var scope: String?
         var labels: [String]?
     }
-
-    /// Typealias so both Gitea-family sections validate through one function
-    /// (the instance/scope/labels shape is identical for gitea: and forgejo:).
-    typealias PartialForgejo = PartialGitea
 
     struct PartialVM: Decodable {
         var cpu: Int?
@@ -190,4 +190,7 @@ public struct PartialConfig: Decodable {
         case toolchains
         case accounts
     }
+
+    /// forgejo is a stored property (decoded for the removed-key rejection);
+    /// the enum case above covers gitea's key.
 }

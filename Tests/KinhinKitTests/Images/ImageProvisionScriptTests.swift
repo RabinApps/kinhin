@@ -197,7 +197,10 @@ final class ImageProvisionScriptTests: XCTestCase {
     func testConfigParsesProvisionScript() throws {
         let cfg = try ConfigLoader.parse(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             provision_script: "~/kinhin/provision.sh"
             """)
@@ -208,14 +211,20 @@ final class ImageProvisionScriptTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: ["self-hosted"]
                 provision_script: ""
                 """), "an empty path must be rejected")
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme/widgets"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme/widgets"
                 labels: ["self-hosted"]
                 provision_script: "   "
                 """), "a whitespace path must be rejected")

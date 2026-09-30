@@ -10,15 +10,19 @@ import Observation
 /// - The scope picker is an editable combo box: choose from the list, or type
 ///   a path (one repo / project) or a name (every repo in an org / group).
 /// - Config writes go through the editors (comments preserved,
-///   engine-validated): GitHub → `repo:`, Gitea/Forgejo → `gitea:` /
-///   `forgejo:`, GitLab → the `accounts:` entry named `gitlab`.
+///   engine-validated): every forge edits its conventional `accounts:` entry
+///   (`github`, `gitea`, `forgejo`, `gitlab`).
 @MainActor
 @Observable
 final class ForgeConnectionModel {
     typealias Line = StatusLine
 
-    /// GitLab has no top-level section; its card edits this account.
-    static let gitlabAccountName = "gitlab"
+    /// The conventional accounts: name this card writes — one per forge
+    /// (`github`, `gitea`, `forgejo`, `gitlab`), matching the template.
+    static func accountName(for forge: ForgeID) -> String { forge.rawValue }
+
+    /// This card's accounts: name.
+    var accountName: String { Self.accountName(for: forge) }
 
     /// Fields the card can move keyboard focus to.
     enum Field: Hashable {
@@ -62,7 +66,6 @@ final class ForgeConnectionModel {
     @ObservationIgnored var connected = false
     @ObservationIgnored var lastWrittenScope = ""
     @ObservationIgnored var lastWrittenInstance = ""
-    @ObservationIgnored var lastWrittenGitea: GeneralConfigEditor.Snapshot.Gitea?
 
     init(forge: ForgeID) {
         self.forge = forge
@@ -134,33 +137,18 @@ final class ForgeConnectionModel {
             Log.warn("app", "\(forge.rawValue) token probe failed: \(error.localizedDescription)")
             hasToken = false
         }
-        switch forge {
-        case .github:
-            let repo = snapshot?.repo ?? ""
-            let configuredRepo = (repo == ConfigLoader.templateRepo) ? "" : repo
-            lastWrittenScope = configuredRepo
-            scope = configuredRepo
-        case .gitea, .forgejo:
-            let section = snapshot?.gitea
-            lastWrittenGitea = section
-            if let section {
-                instance = section.instance
-                scope = section.scope
-            }
-        case .gitlab:
-            let account = Self.configuredGitLabAccount(at: configURL)
-            lastWrittenScope = account?.scope ?? ""
-            lastWrittenInstance = account?.instance ?? ""
-            if let account {
-                instance = account.instance ?? ""
-                scope = account.scope
-            }
+        let account = Self.configuredAccount(forge: forge, at: configURL)
+        lastWrittenScope = account?.scope ?? ""
+        lastWrittenInstance = account?.instance ?? ""
+        if let account {
+            instance = account.instance ?? ""
+            scope = account.scope
         }
         tokenStored = hasToken
         connected =
             hasToken
             && Self.countsAsConnected(
-                forge: forge, scope: lastWrittenScope, gitea: lastWrittenGitea)
+                forge: forge, scope: lastWrittenScope, instance: lastWrittenInstance)
         if case .failure(let error) = stored {
             status = Line(text: "Keychain error — \(error.localizedDescription)", style: .error)
         } else {
@@ -173,22 +161,21 @@ final class ForgeConnectionModel {
 
     private static let storedTokenText = "Token stored in your Keychain ✓ — paste a new one only to replace it."
 
-    static func countsAsConnected(forge: ForgeID, scope: String, gitea: GeneralConfigEditor.Snapshot.Gitea?)
-        -> Bool
-    {
+    /// A forge counts as connected once it has a scope — except the
+    /// self-hosted forges, which also need a server address (GitLab defaults
+    /// to gitlab.com and GitHub has no instance field).
+    static func countsAsConnected(forge: ForgeID, scope: String, instance: String) -> Bool {
         switch forge {
-        case .github, .gitlab:
-            return !scope.isEmpty
-        case .gitea, .forgejo:
-            return gitea != nil && !gitea!.scope.isEmpty && !gitea!.instance.isEmpty
+        case .gitea, .forgejo: return !scope.isEmpty && !instance.isEmpty
+        default: return !scope.isEmpty
         }
     }
 
-    /// The `accounts:` entry this card's GitLab account writes to (nil when
-    /// absent). A failed read is reported through the card's status instead.
-    static func configuredGitLabAccount(at url: URL) -> AccountConfig? {
+    /// The `accounts:` entry this card writes (nil when absent). A failed
+    /// read is treated as unconfigured; the write path surfaces the error.
+    static func configuredAccount(forge: ForgeID, at url: URL) -> AccountConfig? {
         do {
-            return try AccountsConfigEditor.accounts(at: url).first { $0.forge == .gitlab }
+            return try AccountsConfigEditor.accounts(at: url).first { $0.forge == forge }
         } catch {
             // No file or unreadable config: treat as unconfigured; the write
             // path surfaces the real error.
@@ -231,7 +218,8 @@ final class ForgeConnectionModel {
     /// treating the forge as unconnected until the next reload.
     func didStoreToken() {
         tokenStored = true
-        connected = Self.countsAsConnected(forge: forge, scope: lastWrittenScope, gitea: lastWrittenGitea)
+        connected = Self.countsAsConnected(
+            forge: forge, scope: lastWrittenScope, instance: lastWrittenInstance)
         commit()
         onChanged?()
     }

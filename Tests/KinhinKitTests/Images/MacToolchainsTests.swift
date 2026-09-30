@@ -11,7 +11,10 @@ final class MacToolchainsTests: XCTestCase {
     private func toolchainsConfig(_ toolchainsYAML: String) throws -> KinhinConfig {
         try ConfigLoader.parse(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains:
             \(toolchainsYAML)
@@ -104,14 +107,20 @@ final class MacToolchainsTests: XCTestCase {
     func testRepoRouteCarriesShareCacheFromConfig() throws {
         let cfg = try ConfigLoader.parse(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {share_cache: true}
             """)
         XCTAssertEqual(RepoRoute.from(config: cfg).cacheMount, true)
         let plain = try ConfigLoader.parse(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             """)
         XCTAssertEqual(RepoRoute.from(config: plain).cacheMount, false)
@@ -125,7 +134,10 @@ final class MacToolchainsTests: XCTestCase {
             toolchainsConfig: {
                 try? ConfigLoader.parse(
                     """
-                    repo: "acme/widgets"
+                    accounts:
+                      - name: github
+                        forge: github
+                        scope: "acme/widgets"
                     labels: ["self-hosted"]
                     toolchains: {specs: ["node@22", "pnpm"]}
                     """

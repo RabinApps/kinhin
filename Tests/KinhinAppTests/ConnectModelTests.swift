@@ -13,8 +13,8 @@ final class ConnectModelTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("kinhin-connect-\\(UUID().uuidString).yaml")
-        try? "repo: \"your-org/your-repo\"\nlabels: [a]\n".write(to: url, atomically: true, encoding: .utf8)
+            .appendingPathComponent("kinhin-connect-\(UUID().uuidString).yaml")
+        try? "labels: [a]\n".write(to: url, atomically: true, encoding: .utf8)
     }
 
     override func tearDown() async throws {
@@ -39,12 +39,16 @@ final class ConnectModelTests: XCTestCase {
         for _ in 0..<100 where !condition() { try? await Task.sleep(nanoseconds: 20_000_000) }
     }
 
+    private func accounts() throws -> [AccountConfig] {
+        try AccountsConfigEditor.accounts(at: url)
+    }
+
     // MARK: Selector
 
     func testFreshInstallStartsWithNothingSelectedAndNoCards() {
         let model = makeModel()
         for forge in ConnectModel.allForges {
-            XCTAssertFalse(model.isSelected(forge), "\\(forge)")
+            XCTAssertFalse(model.isSelected(forge), "\(forge)")
             XCTAssertNil(model.card(for: forge))
         }
         XCTAssertFalse(model.isConnected)
@@ -53,10 +57,12 @@ final class ConnectModelTests: XCTestCase {
     func testExistingInstallPreselectsConfiguredForges() async throws {
         try AccountsConfigEditor.add(
             AccountConfig(name: "gitlab", forge: .gitlab, scope: "acme/platform/api"), to: url)
-        try GeneralConfigEditor.apply(.gitea(.init(instance: "https://git.example.com", scope: "team/repo")), to: url)
+        try AccountsConfigEditor.add(
+            AccountConfig(name: "gitea", forge: .gitea, scope: "team/repo", instance: "https://git.example.com"),
+            to: url)
         let model = makeModel()
         await settle(model) { model.isSelected(.gitlab) && model.isSelected(.gitea) }
-        XCTAssertFalse(model.isSelected(.github), "the template repo reads as nothing configured")
+        XCTAssertFalse(model.isSelected(.github), "no GitHub account means GitHub is not configured")
         XCTAssertTrue(model.isSelected(.gitlab))
         XCTAssertTrue(model.isSelected(.gitea))
         XCTAssertFalse(model.isSelected(.forgejo))
@@ -81,7 +87,9 @@ final class ConnectModelTests: XCTestCase {
     // MARK: Deselect
 
     func testDeselectingAConfiguredForgeAsksForConfirmation() async throws {
-        try GeneralConfigEditor.apply(.gitea(.init(instance: "https://git.example.com", scope: "team/repo")), to: url)
+        try AccountsConfigEditor.add(
+            AccountConfig(name: "gitea", forge: .gitea, scope: "team/repo", instance: "https://git.example.com"),
+            to: url)
         let model = makeModel()
         var deleted: [ForgeID] = []
         model.deleteToken = { deleted.append($0) }
@@ -97,7 +105,7 @@ final class ConnectModelTests: XCTestCase {
         XCTAssertNil(model.pendingDeselect)
         XCTAssertFalse(model.isSelected(.gitea))
         XCTAssertNil(model.card(for: .gitea))
-        XCTAssertNil(try GeneralConfigEditor.snapshot(from: String(contentsOf: url, encoding: .utf8)).gitea)
+        XCTAssertFalse(try accounts().contains { $0.forge == .gitea })
     }
 
     func testDeselectingAnUntouchedForgeJustHidesItsCard() async throws {
@@ -111,7 +119,9 @@ final class ConnectModelTests: XCTestCase {
     }
 
     func testCancellingTheDeselectKeepsTheCard() async throws {
-        try GeneralConfigEditor.apply(.gitea(.init(instance: "https://git.example.com", scope: "team/repo")), to: url)
+        try AccountsConfigEditor.add(
+            AccountConfig(name: "gitea", forge: .gitea, scope: "team/repo", instance: "https://git.example.com"),
+            to: url)
         let model = makeModel()
         await settle(model) { model.isSelected(.gitea) && model.card(for: .gitea)?.hasCommittedState == true }
         model.requestDeselect(.gitea)
@@ -162,7 +172,9 @@ final class ConnectModelTests: XCTestCase {
     /// orphan the Keychain token: the error shows on the card's status line
     /// and the forge stays so the user can retry.
     func testFailedDeselectKeepsTheCardAndShowsTheError() async throws {
-        try GeneralConfigEditor.apply(.gitea(.init(instance: "https://git.example.com", scope: "team/repo")), to: url)
+        try AccountsConfigEditor.add(
+            AccountConfig(name: "gitea", forge: .gitea, scope: "team/repo", instance: "https://git.example.com"),
+            to: url)
         let model = makeModel()
         var deleted: [ForgeID] = []
         model.deleteToken = { deleted.append($0) }
@@ -196,12 +208,18 @@ final class ConnectModelTests: XCTestCase {
     }
 
     func testIsConnectedCountsASavedRepo() async throws {
-        try "repo: \"acme/api\"\nlabels: [a]\n".write(to: url, atomically: true, encoding: .utf8)
-        // A saved repo counts as connected once its forge also has a token:
-        // the wizard gate needs both before the fleet can start.
+        try """
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/api"
+        labels: [a]
+        """.write(to: url, atomically: true, encoding: .utf8)
+        // A saved account counts as connected once its forge also has a
+        // token: the wizard gate needs both before the fleet can start.
         let model = makeModel(stored: [.github])
         await settle(model) { model.isConnected }
-        XCTAssertTrue(model.isConnected, "saved repo + stored token counts as connected")
+        XCTAssertTrue(model.isConnected, "saved account + stored token counts as connected")
     }
 
     // MARK: Card behavior (through ForgeConnectionModel)
@@ -227,15 +245,15 @@ final class ConnectModelTests: XCTestCase {
         let card = try XCTUnwrap(model.card(for: .gitea))
         card.markTokenStoredForTesting(true)
         card.enterForTesting(instance: "https://git.example.com", scope: "team/repo")
-        let gitea = try XCTUnwrap(
-            try GeneralConfigEditor.snapshot(from: String(contentsOf: url, encoding: .utf8)).gitea)
+        let gitea = try XCTUnwrap(try accounts().first { $0.forge == .gitea })
         XCTAssertEqual(gitea.instance, "https://git.example.com")
         XCTAssertEqual(gitea.scope, "team/repo")
 
-        // Half-filled: the section is not written.
-        try GeneralConfigEditor.apply(.gitea(nil), to: url)
+        // Half-filled: the account is not (re)written. Reset to a fresh file
+        // first so the half-filled state is observable.
+        try AccountsConfigEditor.remove(name: "gitea", at: url)
         card.enterForTesting(instance: "https://git.example.com", scope: "")
-        XCTAssertNil(try GeneralConfigEditor.snapshot(from: String(contentsOf: url, encoding: .utf8)).gitea)
+        XCTAssertFalse(try accounts().contains { $0.forge == .gitea })
     }
 
     func testScopeFieldIsLockedUntilTheTokenIsStored() {
@@ -252,9 +270,7 @@ final class ConnectModelTests: XCTestCase {
         model.setSelected(true, for: .github)
         let card = try! XCTUnwrap(model.card(for: .github))
         card.enterScopeForTesting("acme/api")
-        XCTAssertEqual(
-            try GeneralConfigEditor.snapshot(from: String(contentsOf: url, encoding: .utf8)).repo,
-            "your-org/your-repo", "no token, so no repo is written")
+        XCTAssertTrue(try accounts().isEmpty, "no token, so no account is written")
         XCTAssertFalse(model.isConnected)
     }
 
@@ -264,9 +280,7 @@ final class ConnectModelTests: XCTestCase {
         let card = try! XCTUnwrap(model.card(for: .github))
         card.markTokenStoredForTesting(true)
         card.enterScopeForTesting("a/b/c")
-        XCTAssertEqual(
-            try GeneralConfigEditor.snapshot(from: String(contentsOf: url, encoding: .utf8)).repo,
-            "your-org/your-repo", "engine validation gates every write")
+        XCTAssertTrue(try accounts().isEmpty, "engine validation gates every write")
         XCTAssertTrue(card.status.text.contains("Not saved"))
     }
 

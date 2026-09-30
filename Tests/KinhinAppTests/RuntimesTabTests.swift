@@ -56,7 +56,10 @@ final class RuntimesTabTests: XCTestCase {
         // Minimal config: no container:, no docker: — those runtimes must
         // still appear in the sweep, which is the whole point.
         let yaml = """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             """
         let vm = await RuntimesPaneViewModel.load(
@@ -88,12 +91,18 @@ final class RuntimesTabTests: XCTestCase {
     }
 
     private let validConfig = """
-        repo: "acme/widgets"
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
         labels: ["self-hosted", "macos", "arm64"]
         """
 
     private let invalidConfig = """
-        repo: ""
+        accounts:
+          - name: github
+            forge: github
+            scope: ""
         labels: ["self-hosted"]
         """
 
@@ -111,7 +120,7 @@ final class RuntimesTabTests: XCTestCase {
         let url = tempConfig(validConfig)
         defer { try? FileManager.default.removeItem(at: url) }
 
-        XCTAssertThrowsError(try ConfigEditor.save("repo: [unclosed", to: url)) { error in
+        XCTAssertThrowsError(try ConfigEditor.save("accounts: [unclosed", to: url)) { error in
             guard case ConfigEditError.rejected = error else {
                 return XCTFail("expected a validation error, got: \(error)")
             }
@@ -154,7 +163,10 @@ final class RuntimesTabTests: XCTestCase {
     func testModelLoadsPoolsRoutesAndLabels() async {
         let model = await loadedModel(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             fleet: none
             """)
@@ -166,7 +178,7 @@ final class RuntimesTabTests: XCTestCase {
     }
 
     func testModelReportsABrokenConfigInsteadOfRenderingNothing() async {
-        let model = await loadedModel("repo: [unclosed\n")
+        let model = await loadedModel("accounts: [unclosed\n")
         defer { try? FileManager.default.removeItem(at: model.configURL) }
         XCTAssertTrue(model.loadFailed, "a broken config must be named, never silently blank")
         XCTAssertTrue(model.emptyMessage.contains("config.yaml has a problem"))

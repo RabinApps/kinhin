@@ -19,10 +19,6 @@ final class ActionCoverageTests: XCTestCase {
         "reinstall_tart",
         "create_config",
         "edit_config",
-        "enter_token",
-        "replace_token",
-        "enter_gitea_token",
-        "replace_gitea_token",
         "enter_account_token",
         "replace_account_token",
         "prepare_image",
@@ -38,7 +34,7 @@ final class ActionCoverageTests: XCTestCase {
         cltState: CLTState,
         tartHealth: TartHealth,
         configScenario: ConfigScenario,
-        tokenStored: Bool,
+        githubTokenStored: Bool = true,
         giteaTokenStored: Bool? = nil,
         containerHealth: RuntimeHealth? = nil,
         containerImages: [String]? = nil,
@@ -50,8 +46,9 @@ final class ActionCoverageTests: XCTestCase {
             tartHealth: tartHealth,
             tartList: [],
             config: configScenario,
-            tokenStored: tokenStored,
-            giteaTokenStored: giteaTokenStored,
+            accountTokensStored: {
+                var m = ["github": githubTokenStored]; if let g = giteaTokenStored { m["gitea"] = g }; return m
+            }(),
             containerHealth: containerHealth,
             containerImages: containerImages,
             dockerHealth: dockerHealth,
@@ -61,15 +58,17 @@ final class ActionCoverageTests: XCTestCase {
 
     private var fixtureConfig: KinhinConfig {
         var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         return cfg
     }
 
     /// A config that also declares the Gitea forge (adds the gitea-token row).
     private var giteaConfig: KinhinConfig {
         var cfg = fixtureConfig
-        cfg.gitea = KinhinConfig.GiteaForgeConfig(
-            instance: "https://gitea.example.com", scope: "acme", labels: ["macos:host"])
+        cfg.accounts.append(
+            AccountConfig(
+                name: "gitea", forge: .gitea, scope: "acme", instance: "https://gitea.example.com",
+                labels: ["macos:host"]))
         return cfg
     }
 
@@ -106,11 +105,9 @@ final class ActionCoverageTests: XCTestCase {
         return cfg
     }
 
-    /// The parsed result of the auto-created starter template (placeholder repo).
+    /// The parsed result of the auto-created starter template (no accounts yet).
     private var templateConfig: KinhinConfig {
-        var cfg = KinhinConfig.default
-        cfg.repo = ConfigLoader.templateRepo
-        return cfg
+        KinhinConfig.default
     }
 
     /// Collects every action across all reachable checklist states.
@@ -118,75 +115,77 @@ final class ActionCoverageTests: XCTestCase {
         let scenarios: [(String, SetupStatusComputer)] = [
             (
                 "fresh machine",
-                computer(cltState: .missing, tartHealth: .missing, configScenario: .missing, tokenStored: false)
+                computer(cltState: .missing, tartHealth: .missing, configScenario: .missing, githubTokenStored: false)
             ),
             (
                 "stored token",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(fixtureConfig),
-                    tokenStored: true)
+                    githubTokenStored: true)
             ),
             (
                 "clt outdated",
                 computer(
                     cltState: .outdated(version: "26.6", macOSVersion: "27.0"), tartHealth: .healthy,
-                    configScenario: .loaded(fixtureConfig), tokenStored: true)
+                    configScenario: .loaded(fixtureConfig), githubTokenStored: true)
             ),
             (
                 "template config",
                 computer(
-                    cltState: .ok(version: "27.0"), tartHealth: .missing, configScenario: .template, tokenStored: false)
+                    cltState: .ok(version: "27.0"), tartHealth: .missing, configScenario: .template,
+                    githubTokenStored: false)
             ),
             (
                 "killed on launch",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .killedOnLaunch, configScenario: .loaded(fixtureConfig),
-                    tokenStored: true)
+                    githubTokenStored: true)
             ),
             (
                 "broken tart",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .broken("segfault"),
-                    configScenario: .loaded(fixtureConfig), tokenStored: true)
+                    configScenario: .loaded(fixtureConfig), githubTokenStored: true)
             ),
             (
                 "image missing",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(fixtureConfig),
-                    tokenStored: true)
+                    githubTokenStored: true)
             ),
             (
                 "gitea configured, token missing",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(giteaConfig),
-                    tokenStored: true, giteaTokenStored: false)
+                    giteaTokenStored: false)
             ),
             (
                 "gitea token stored",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(giteaConfig),
-                    tokenStored: true, giteaTokenStored: true)
+                    giteaTokenStored: true)
             ),
             (
                 "extra accounts, one token missing",
                 SetupStatusComputer(
                     host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),
                     clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [],
-                    config: .loaded(accountsConfig), tokenStored: true,
+                    config: .loaded(accountsConfig),
                     accountTokensStored: ["work": true, "home": false])
             ),
             (
                 "container CLI missing",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig),
-                    tokenStored: true, containerHealth: .missing(tool: "apple container", fix: "brew install container")
+                    githubTokenStored: true,
+                    containerHealth: .missing(tool: "apple container", fix: "brew install container")
                 )
             ),
             (
                 "container service down",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig),
-                    tokenStored: true,
+                    githubTokenStored: true,
                     containerHealth: .broken(
                         "the container system service is not running — start it with: container system start"))
             ),
@@ -194,26 +193,26 @@ final class ActionCoverageTests: XCTestCase {
                 "container image missing",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig),
-                    tokenStored: true, containerHealth: .ready, containerImages: [])
+                    githubTokenStored: true, containerHealth: .ready, containerImages: [])
             ),
             (
                 "container fully ready",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(containerConfig),
-                    tokenStored: true, containerHealth: .ready, containerImages: ["kinhin-ci-linux"])
+                    githubTokenStored: true, containerHealth: .ready, containerImages: ["kinhin-ci-linux"])
             ),
             (
                 "docker CLI missing",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .loaded(dockerConfig),
-                    tokenStored: true, dockerHealth: .missing(tool: "docker", fix: "install Docker Desktop"))
+                    githubTokenStored: true, dockerHealth: .missing(tool: "docker", fix: "install Docker Desktop"))
             ),
             (
                 "provision script missing",
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy,
                     configScenario: .loaded(provisionScriptConfig(path: "/nonexistent/kinhin-provision.sh")),
-                    tokenStored: true)
+                    githubTokenStored: true)
             ),
         ]
 
@@ -245,7 +244,7 @@ final class ActionCoverageTests: XCTestCase {
     /// collided — pinning the exact regression.
     func testActionIDsAreNotRowIDs() async {
         let status = await computer(
-            cltState: .missing, tartHealth: .missing, configScenario: .missing, tokenStored: false
+            cltState: .missing, tartHealth: .missing, configScenario: .missing, githubTokenStored: false
         ).compute()
         for check in status.checks {
             if let action = check.action {
@@ -261,19 +260,19 @@ final class ActionCoverageTests: XCTestCase {
     /// placeholder repo would otherwise let the fleet "start" against nothing.
     func testTemplateConfigIsNotMarkedReady() async {
         let status = await computer(
-            cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .template, tokenStored: true
+            cltState: .ok(version: "27.0"), tartHealth: .healthy, configScenario: .template, githubTokenStored: true
         ).compute()
         let configCheck = status.checks.first { $0.id == "config" }
         XCTAssertEqual(configCheck?.ok, false)
         XCTAssertEqual(configCheck?.action, "edit_config")
-        XCTAssertTrue(configCheck?.detail.contains("set your repo") ?? false)
+        XCTAssertTrue(configCheck?.detail.contains("add an account") ?? false)
         XCTAssertFalse(status.ready, "template config must not make the machine ready")
     }
 
     /// The config states render three distinct outcomes.
     func testConfigCheckThreeStates() {
         var real = KinhinConfig.default
-        real.repo = "acme/widgets"
+        real.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         let ok = SetupStatusComputer.configCheck(.parsed(real), path: "/tmp/x.yaml")
         let template = SetupStatusComputer.configCheck(.templateConfig, path: "/tmp/x.yaml")
         let invalid = SetupStatusComputer.configCheck(.invalidFile, path: "/tmp/x.yaml")
@@ -285,11 +284,11 @@ final class ActionCoverageTests: XCTestCase {
         XCTAssertNotEqual(SetupAction.title(for: "edit_config"), "edit_config", "edit_config needs a human title")
     }
 
-    /// The starter template parses to exactly the placeholder-repo config.
+    /// The starter template parses to the no-accounts (template) state.
     func testTemplateParsesToTemplateConfig() throws {
         let parsed = try ConfigLoader.parse(ConfigLoader.template())
         XCTAssertTrue(ConfigLoader.isTemplate(parsed))
-        XCTAssertEqual(parsed.repo, ConfigLoader.templateRepo)
+        XCTAssertTrue(parsed.accounts.isEmpty)
     }
 
     /// Every action the row view-model exposes is the contract action, not the row id.

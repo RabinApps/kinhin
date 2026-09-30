@@ -38,7 +38,10 @@ final class DaemonRebuildTests: XCTestCase {
     /// Minimal valid YAML for a config shape (makeTestConfig's values).
     func yaml(repo: String = "acme/widgets", vmCPU: Int = 4, runtimes: String? = nil) -> String {
         var text = """
-            repo: "\(repo)"
+            accounts:
+              - name: github
+                forge: github
+                scope: "\(repo)"
             labels: ["kinhin"]
             poll_interval: 5
             vm:

@@ -5,15 +5,15 @@ import Yams
 public struct ConfigLoader {
     public init() {}
 
-    /// The repo value written by the starter template. A config containing it
-    /// is a *template*, not a working config — the engine must refuse to run
-    /// against it and the checklist must ask for a real repo instead of
-    /// showing a green checkmark over a placeholder.
+    /// The GitHub repo value used to be carried by `repo:`; under the
+    /// accounts schema there is no placeholder. Kept for the checklist's
+    /// template wording only.
     public static let templateRepo = "your-org/your-repo"
 
-    /// True when the parsed config still carries the template's placeholder repo.
+    /// True when the parsed config carries no forge accounts yet (the
+    /// starter-template state).
     static func isTemplate(_ cfg: KinhinConfig) -> Bool {
-        cfg.repo == templateRepo
+        cfg.accounts.isEmpty
     }
 
     /// The GitHub token the engine is built with. With GitHub configured it is
@@ -24,22 +24,16 @@ public struct ConfigLoader {
     /// forge has a usable token. Throws when the Keychain itself fails, so a
     /// locked or denied Keychain is reported as such instead of "no token".
     public static func engineToken(
-        for cfg: KinhinConfig, load: (ForgeID) throws -> String? = { try KeychainTokenStore.load(forge: $0) },
+        for cfg: KinhinConfig,
         loadAccount: (ForgeID, String) throws -> String? = { try KeychainTokenStore.load(forge: $0, name: $1) }
     ) throws -> String? {
-        let extraReady = try cfg.accounts.contains { try loadAccount($0.forge, $0.name) != nil }
-        let giteaReady = try extraReady || (cfg.gitea != nil && load(.gitea) != nil)
-        let forgejoReady = try cfg.forgejo != nil && load(.forgejo) != nil
-        if cfg.githubEnabled {
-            if let token = try load(.github) { return token }
-            return giteaReady || forgejoReady ? "" : nil
-        }
-        return giteaReady || forgejoReady ? "" : nil
+        let anyAccountReady = try cfg.accounts.contains { try loadAccount($0.forge, $0.name) != nil }
+        return anyAccountReady ? "" : nil
     }
 
     /// True when at least one forge is configured for real work.
     public static func hasAnyForge(_ cfg: KinhinConfig) -> Bool {
-        cfg.githubEnabled || cfg.gitea != nil || cfg.forgejo != nil || !cfg.accounts.isEmpty
+        !cfg.accounts.isEmpty
     }
 
     /// Creates the starter config on first run. Never overwrites: an existing
@@ -74,20 +68,16 @@ public struct ConfigLoader {
     public static func parse(_ yaml: String) throws -> KinhinConfig {
         let partial = try YAMLDecoder().decode(PartialConfig.self, from: yaml)
 
-        // `repo:` is the legacy GitHub account; it may be omitted when the
-        // config names its accounts in the `accounts:` list instead.
+        // Every forge is an `accounts:` entry. A config with none is the
+        // starter-template state: it parses (so editors and the checklist can
+        // classify it) but `hasAnyForge` is false and the engine refuses to run.
         let accounts = try Self.parseAccounts(partial.accounts ?? [])
-        let repo = partial.repo ?? ""
-        if repo.isEmpty, accounts.isEmpty {
-            throw ConfigError.missing("repo")
-        }
-        // Scope: "owner/name" (one repository) or a single segment (an org —
-        // org-level runners serve every repo in the organization).
-        if !repo.isEmpty, !AccountConfig.isValidScope(repo) {
-            throw ConfigError.invalid("scope must be 'owner/name' or an org name, got '\(repo)'")
-        }
-        guard let labels = partial.labels, !labels.isEmpty else {
-            throw ConfigError.missing("labels")
+        let labels: [String]
+        if let provided = partial.labels {
+            guard !provided.isEmpty else { throw ConfigError.invalid("labels must not be empty") }
+            labels = provided
+        } else {
+            labels = KinhinConfig.default.labels
         }
         let minRunners = partial.minRunners ?? 0
         let maxRunners = partial.maxRunners ?? 1
@@ -107,7 +97,6 @@ public struct ConfigLoader {
         }
 
         var cfg = KinhinConfig.default
-        cfg.repo = repo
         cfg.accounts = accounts
         cfg.labels = labels
         cfg.minRunners = minRunners
@@ -143,11 +132,15 @@ public struct ConfigLoader {
         if let toolchains = partial.toolchains {
             cfg.toolchains = try Self.parseToolchains(toolchains)
         }
-        if let gitea = partial.gitea {
-            cfg.gitea = try Self.parseGiteaFamily(partial: gitea, section: "gitea")
+        if partial.repo != nil {
+            throw ConfigError.invalid(
+                "repo: is gone — declare the forge as an accounts: entry: "
+                    + "accounts: [{name: github, forge: github, scope: owner/name}]")
         }
-        if let forgejo = partial.forgejo {
-            cfg.forgejo = try Self.parseGiteaFamily(partial: forgejo, section: "forgejo")
+        if partial.gitea != nil || partial.forgejo != nil {
+            throw ConfigError.invalid(
+                "gitea:/forgejo: are gone — declare each forge as an accounts: entry "
+                    + "(accounts: [{name: gitea, forge: gitea, scope: ..., instance: ...}])")
         }
         if let container = partial.container {
             guard let containerImage = container.image, !containerImage.isEmpty else {

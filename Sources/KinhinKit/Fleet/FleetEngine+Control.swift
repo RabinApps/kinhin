@@ -30,34 +30,28 @@ extension FleetEngine {
             Log.warn("engine", LinuxPlatform.emulationNotice)
         }
 
-        // Verify the PAT can manage runners for the scope BEFORE spawning
-        // anything — a forbidden org token otherwise surfaces as per-VM
-        // registration failures (and deleted VMs) instead of a clear answer.
-        // Failure keeps the engine stopped and surfaced via lastError.
-        // Each configured forge is verified independently: one failing forge
-        // (bad token, missing org rights) must not take the other down. The
-        // failing forge is detached with its reason in lastError; the fleet
-        // only refuses to start when NO forge is usable.
-        var githubProblem: String?
-        if config.githubEnabled {
-            let verification = await OrgPermissionProbe.verify(github: github, scope: config.repo)
-            if !verification.ok {
-                githubProblem = verification.message
-                forgeState.withLock { $0.retry.markGitHubDetached(now: Date()) }
-                _ = forgeState.withLock { $0.byPlatform.removeValue(forKey: "github") }
-                Log.error("engine", "GitHub unavailable: \(verification.message)")
+        // Verify each forge can manage its runners BEFORE spawning anything
+        // — a forbidden token otherwise surfaces as per-VM registration
+        // failures (and deleted VMs) instead of a clear answer. The primary
+        // GitHub account's construction-time forge is an unverified
+        // placeholder: detach it so the verified account attach below is the
+        // real gate. A failing account is detached with its reason in
+        // lastError; the fleet only refuses to start when NO forge is usable.
+        if let primary = config.primaryGitHub {
+            _ = forgeState.withLock { $0.byPlatform.removeValue(forKey: primary.name) }
+        }
+        await attachAccountsIfNeeded()
+        if !detachedAccounts().isEmpty {
+            // Failed accounts retry on the backoff schedule (30s, doubling),
+            // not on the next reconcile pass.
+            forgeState.withLock {
+                $0.retry.scheduleNext(after: ForgeRetryState.initialDelay, now: Date())
             }
         }
-        await attachGiteaForgeIfNeeded()
-        await attachForgejoForgeIfNeeded()
-        await attachAccountsIfNeeded()
         let attachedCount = forgeState.withLock { $0.byPlatform.count }
         guard attachedCount > 0 else {
-            let giteaProblem = await statusBox.get().lastError
-            let message =
-                githubProblem
-                ?? giteaProblem
-                ?? "no forge configured — set a GitHub repo, a gitea: section, or an accounts: list"
+            let problem = await statusBox.get().lastError
+            let message = problem ?? "no forge configured — declare at least one accounts: entry"
             Log.error("engine", "startup blocked: \(message)")
             await statusBox.modify {
                 $0.running = false
@@ -65,10 +59,6 @@ extension FleetEngine {
             }
             runState.withLock { $0.running = false }
             return false
-        }
-        if let githubProblem {
-            // Running on the remaining forge(s): keep the reason visible.
-            await statusBox.modify { $0.lastError = "GitHub: \(githubProblem)" }
         }
         return true
     }

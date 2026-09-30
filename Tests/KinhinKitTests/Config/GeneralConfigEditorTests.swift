@@ -23,7 +23,10 @@ final class GeneralConfigEditorTests: XCTestCase {
 
     private static let sample = """
         # kinhin configuration
-        repo: "acme/widgets"
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
         labels: ["self-hosted", "macos"]
         min_runners: 0
         max_runners: 2
@@ -44,7 +47,6 @@ final class GeneralConfigEditorTests: XCTestCase {
 
     func testSnapshotReadsAllGeneralKeys() throws {
         let snap = try GeneralConfigEditor.snapshot(from: Self.sample)
-        XCTAssertEqual(snap.repo, "acme/widgets")
         XCTAssertEqual(snap.labels, ["self-hosted", "macos"])
         XCTAssertEqual(snap.minRunners, 0)
         XCTAssertEqual(snap.maxRunners, 2)
@@ -56,13 +58,13 @@ final class GeneralConfigEditorTests: XCTestCase {
         XCTAssertEqual(snap.image, "tahoe-base")
         XCTAssertEqual(snap.reserveCPU, 2)
         XCTAssertEqual(snap.reserveMemoryGB, 4)
-        XCTAssertNil(snap.gitea)
         XCTAssertNil(snap.container)
         XCTAssertNil(snap.docker)
     }
 
     func testSnapshotFillsDefaultsForMissingKeys() throws {
-        let snap = try GeneralConfigEditor.snapshot(from: "repo: \"acme/x\"\n")
+        let snap = try GeneralConfigEditor.snapshot(
+            from: "accounts:\n  - name: github\n    forge: github\n    scope: \"a/b\"\n")
         XCTAssertEqual(snap.labels, KinhinConfig.default.labels)
         XCTAssertEqual(snap.pollInterval, KinhinConfig.default.pollInterval)
         XCTAssertEqual(snap.vmCPU, KinhinConfig.default.vm.cpuCount)
@@ -75,7 +77,7 @@ final class GeneralConfigEditorTests: XCTestCase {
     func testSnapshotNamesAWrongTypedKeyInsteadOfShowingDefaults() {
         // A mistyped value must not render as the default (the form would
         // then show a number the file does not contain).
-        let yaml = "repo: \"acme/x\"\nvm:\n  cpu: four\n"
+        let yaml = "labels: [\"ci\"]\nvm:\n  cpu: four\n"
         XCTAssertThrowsError(try GeneralConfigEditor.snapshot(from: yaml)) { error in
             let message = error.localizedDescription
             XCTAssertTrue(message.contains("vm.cpu"), message)
@@ -84,11 +86,11 @@ final class GeneralConfigEditorTests: XCTestCase {
 
     // MARK: Targeted surgery
 
-    func testRepoEditPreservesCommentsAndNeighbors() throws {
+    func testScalarEditPreservesCommentsAndNeighbors() throws {
         try write(Self.sample)
-        _ = try GeneralConfigEditor.apply(.repo("acme/other"), to: file)
+        _ = try GeneralConfigEditor.apply(.minRunners(1), to: file)
         let updated = try String(contentsOf: file, encoding: .utf8)
-        XCTAssertTrue(updated.contains("repo: \"acme/other\""))
+        XCTAssertTrue(updated.contains("min_runners: 1"))
         XCTAssertTrue(updated.contains("# kinhin configuration"), "header comment survives")
         XCTAssertTrue(updated.contains("# per-VM cores"), "trailing comment on untouched key survives")
         XCTAssertTrue(updated.contains("# Optional section below"))
@@ -136,7 +138,7 @@ final class GeneralConfigEditorTests: XCTestCase {
 
     func testCreatingMissingSectionKey() throws {
         // A full valid config missing only the vm: section.
-        try write("repo: \"acme/x\"\nlabels: [\"ci\"]\n")
+        try write("accounts:\n  - name: github\n    forge: github\n    scope: \"acme/x\"\nlabels: [\"ci\"]\n")
         _ = try GeneralConfigEditor.apply(.vmCPU(8), to: file)
         let updated = try String(contentsOf: file, encoding: .utf8)
         XCTAssertTrue(updated.contains("vm:\n  cpu: 8"))
@@ -146,23 +148,22 @@ final class GeneralConfigEditorTests: XCTestCase {
 
     // MARK: Section toggles
 
-    func testGiteaSectionInsertAndRemove() throws {
+    func testAccountsAddAndRemovePreserveTheRest() throws {
         try write(Self.sample)
-        _ = try GeneralConfigEditor.apply(
-            .gitea(.init(instance: "https://gitea.acme.dev", scope: "acme/api")), to: file)
-        var updated = try String(contentsOf: file, encoding: .utf8)
-        XCTAssertTrue(updated.contains("gitea:"))
-        XCTAssertTrue(updated.contains("instance: \"https://gitea.acme.dev\""))
-        XCTAssertTrue(updated.contains("# Optional section below"), "comments survive section insert")
-        var snap = try GeneralConfigEditor.snapshot(from: updated)
-        XCTAssertEqual(snap.gitea?.instance, "https://gitea.acme.dev")
+        _ = try AccountsConfigEditor.add(
+            AccountConfig(name: "gitea", forge: .gitea, scope: "acme", instance: "https://gitea.acme.dev"), to: file)
+        let updated = try String(contentsOf: file, encoding: .utf8)
+        XCTAssertTrue(updated.contains("name: \"gitea\""), updated)
+        XCTAssertTrue(updated.contains("# Optional section below"), "comments survive accounts insert")
+        var accounts = try AccountsConfigEditor.accounts(at: file)
+        XCTAssertEqual(accounts.map(\.name), ["github", "gitea"])
 
-        _ = try GeneralConfigEditor.apply(.gitea(nil), to: file)
-        updated = try String(contentsOf: file, encoding: .utf8)
-        XCTAssertFalse(updated.contains("gitea:"))
-        snap = try GeneralConfigEditor.snapshot(from: updated)
-        XCTAssertNil(snap.gitea)
-        XCTAssertTrue(updated.contains("repo: \"acme/widgets\""))
+        _ = try AccountsConfigEditor.remove(name: "gitea", at: file)
+        accounts = try AccountsConfigEditor.accounts(at: file)
+        XCTAssertEqual(accounts.map(\.name), ["github"])
+        XCTAssertTrue(
+            try String(contentsOf: file, encoding: .utf8).contains("image: \"tahoe-base\""),
+            "the rest of the file is untouched")
     }
 
     func testContainerAndDockerToggles() throws {
@@ -189,11 +190,11 @@ final class GeneralConfigEditorTests: XCTestCase {
 
     // MARK: Validation gate
 
-    func testInvalidRepoNeverWrites() throws {
+    func testInvalidEditNeverWrites() throws {
         try write(Self.sample)
         let before = try Data(contentsOf: file)
-        // An empty repo fails ConfigLoader validation → nothing lands.
-        XCTAssertThrowsError(try GeneralConfigEditor.apply(.repo(""), to: file))
+        // Empty labels fail ConfigLoader validation → nothing lands.
+        XCTAssertThrowsError(try GeneralConfigEditor.apply(.labels([]), to: file))
         let after = try Data(contentsOf: file)
         XCTAssertEqual(before, after, "the file is byte-identical after a rejected edit")
     }

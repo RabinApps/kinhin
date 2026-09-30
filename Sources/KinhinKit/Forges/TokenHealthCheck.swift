@@ -32,15 +32,15 @@ public enum TokenHealthCheck {
 
     /// Check the Gitea provider against its configured instance.
     public static func gitea(
-        token: String, config: KinhinConfig.GiteaForgeConfig,
+        token: String, scope: String, instance: String,
         client gitea: GiteaClient? = nil
     ) async -> Report {
         let client =
             gitea
-            ?? GiteaClient(credentials: GiteaCredentials(token: token, scope: config.scope, instance: config.instance))
+            ?? GiteaClient(credentials: GiteaCredentials(token: token, scope: scope, instance: instance))
         do {
             _ = try await client.fetchRegistrationToken()
-            return Report(ok: true, message: "Token works against \(config.scope) @ \(config.instance)")
+            return Report(ok: true, message: "Token works against \(scope) @ \(instance)")
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             return Report(ok: false, message: "Token check failed: \(message)")
@@ -97,22 +97,19 @@ public enum TokenHealthCheck {
         }
         switch forge {
         case .github:
-            guard let scope = config?.repo, !scope.isEmpty else {
-                return Report(ok: false, message: "No scope to check — set repo in config.yaml first.")
+            guard let scope = config?.primaryGitHub?.scope, !scope.isEmpty else {
+                return Report(ok: false, message: "No scope to check — add a GitHub account to config.yaml first.")
             }
             return await Self.github(token: token, scope: scope, client: github)
-        case .gitea:
-            guard let giteaConfig = config?.gitea else {
-                return Report(ok: false, message: "No gitea: section in config.yaml — add one to check the token.")
+        case .gitea, .forgejo:
+            guard let account = config?.accounts.first(where: { $0.forge == forge }) else {
+                return Report(
+                    ok: false, message: "No \(forge.rawValue) account in config.yaml — add one to check the token.")
             }
-            return await Self.gitea(token: token, config: giteaConfig, client: gitea)
-        case .forgejo:
-            guard let forgejoConfig = config?.forgejo else {
-                return Report(ok: false, message: "No forgejo: section in config.yaml — add one to check the token.")
-            }
-            return await Self.gitea(token: token, config: forgejoConfig, client: gitea)
+            return await Self.gitea(
+                token: token, scope: account.scope, instance: account.instance ?? "", client: gitea)
         case .gitlab:
-            // GitLab lives in accounts:; the form checks the one named "gitlab".
+            // GitLab always lived in accounts:; check the one named "gitlab".
             guard let account = config?.accounts.first(where: { $0.forge == .gitlab }) else {
                 return Report(ok: false, message: "No GitLab account in config.yaml — add one to check the token.")
             }

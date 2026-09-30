@@ -27,7 +27,12 @@ final class ReloadRestartPolicyTests: XCTestCase {
             return cfg
         }
         XCTAssertTrue(
-            FleetEngine.restartRequired(from: base, to: with { $0.repo = "acme/other" }), "scope change must restart")
+            FleetEngine.restartRequired(
+                from: base,
+                to: with {
+                    $0.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/other")]
+                }),
+            "scope change must restart")
         XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.minRunners = 2 }), "bounds must restart")
         XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.maxRunners = 8 }), "bounds must restart")
         XCTAssertTrue(FleetEngine.restartRequired(from: base, to: with { $0.runnersPerVM = 3 }), "density must restart")
@@ -46,8 +51,13 @@ final class ReloadRestartPolicyTests: XCTestCase {
             "runtime sections must restart")
         XCTAssertTrue(
             FleetEngine.restartRequired(
-                from: base, to: with { $0.gitea = .init(instance: "https://gitea.example.com", scope: "acme") }),
-            "forge sections must restart")
+                from: base,
+                to: with {
+                    $0.accounts.append(
+                        AccountConfig(
+                            name: "gitea", forge: .gitea, scope: "acme", instance: "https://gitea.example.com"))
+                }),
+            "forge accounts must restart")
         XCTAssertTrue(
             FleetEngine.restartRequired(from: base, to: with { $0.toolchains = .init(specs: ["node@22"]) }),
             "toolchains must restart")

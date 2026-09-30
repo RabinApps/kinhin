@@ -28,7 +28,7 @@ final class RuntimeRoutingTests: XCTestCase {
 
     private func dockerConfig() -> KinhinConfig {
         var cfg = makeTestConfig()
-        cfg.repo = "acme"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme")]
         cfg.docker = .init(image: "ghcr.io/acme/kinhin-ci-linux", cpus: 2, memoryGB: 4, maxSlots: 8)
         cfg.runtimes = KinhinConfig.RuntimeConfig(
             defaultRuntime: "tart",
@@ -248,7 +248,10 @@ final class RuntimeRoutingTests: XCTestCase {
     func testRuntimesSectionParses() throws {
         let cfg = try ConfigLoader.parse(
             """
-            repo: "acme"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme"
             labels: ["kinhin"]
             container:
               image: "kinhin-ci-linux"
@@ -272,7 +275,10 @@ final class RuntimeRoutingTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
                 labels: ["kinhin"]
                 runtimes:
                   routes:
@@ -288,7 +294,10 @@ final class RuntimeRoutingTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
                 labels: ["kinhin"]
                 runtimes:
                   routes:
@@ -304,7 +313,10 @@ final class RuntimeRoutingTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
                 labels: ["kinhin"]
                 runtimes:
                   routes:
@@ -320,7 +332,10 @@ final class RuntimeRoutingTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
                 labels: ["kinhin"]
                 container:
                   image: "img"
@@ -336,7 +351,10 @@ final class RuntimeRoutingTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
                 labels: ["kinhin"]
                 container:
                   image: "img"
@@ -354,7 +372,10 @@ final class RuntimeRoutingTests: XCTestCase {
         XCTAssertThrowsError(
             try ConfigLoader.parse(
                 """
-                repo: "acme"
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
                 labels: ["kinhin"]
                 container:
                   image: "img"
@@ -374,7 +395,8 @@ final class RuntimeRoutingTests: XCTestCase {
 
     private func makeEngine(runtimes: KinhinConfig.RuntimeConfig?) -> FleetEngine {
         var cfg = makeTestConfig()
-        cfg.repo = "acme"  // org scope: queued jobs carry repo attribution
+        // Org scope: queued jobs carry repo attribution.
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme")]
         cfg.container = .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4)
         cfg.runtimes = runtimes
         return FleetEngine(

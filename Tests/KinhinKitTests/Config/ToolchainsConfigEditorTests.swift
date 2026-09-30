@@ -5,7 +5,10 @@ import XCTest
 final class ToolchainsConfigEditorTests: XCTestCase {
     private let base = """
         # my fleet
-        repo: "acme/widgets"
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
         labels: [self-hosted, macOS]
         max_runners: 2
         """
@@ -44,7 +47,7 @@ final class ToolchainsConfigEditorTests: XCTestCase {
         let withTools = try ToolchainsConfigEditor.replace(sel, in: base)
         let cleared = try ToolchainsConfigEditor.replace(ToolchainsSelection(), in: withTools)
         XCTAssertFalse(cleared.contains("toolchains:"))
-        XCTAssertTrue(cleared.contains("repo: \"acme/widgets\""))
+        XCTAssertTrue(cleared.contains("scope: \"acme/widgets\""))
     }
 
     func testUnknownEntriesAndCachePolicySurviveAnEdit() throws {
@@ -200,7 +203,10 @@ final class ToolchainVersionNormalizationTests: XCTestCase {
     func testLoadingRepairsAnAlreadyCorruptedConfig() throws {
         let cfg = try ConfigLoader.parse(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: [self-hosted]
             toolchains:
               specs: ["node@node@22", "java", "supabase@—", "sometool@0.13"]

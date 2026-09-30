@@ -148,28 +148,28 @@ final class WizardModel {
     // MARK: Summary
 
     func refreshSummary() {
-        let snap = ConfigStore.snapshotOrLog()
-        let repo = (snap?.repo == ConfigLoader.templateRepo ? "" : snap?.repo) ?? ""
-        let extra: [AccountConfig]
+        var accounts: [AccountConfig]
         do {
-            extra = try AccountsConfigEditor.accounts()
-        } catch ConfigEditError.notFound {
-            extra = []
+            accounts = try AccountsConfigEditor.accounts()
         } catch {
+            // No file yet or unreadable config: the summary shows "not chosen
+            // yet"; the real error surfaces when the config is saved.
             Log.warn("config", "could not read accounts for the summary: \(error.localizedDescription)")
-            extra = []
+            accounts = []
         }
-        let serving =
-            repo.isEmpty
-            ? (snap?.gitea == nil ? (extra.isEmpty ? "— not chosen yet" : "see accounts") : "Gitea only") : repo
-        var lines: [String] = ["Serving:  \(serving)"]
-        if let gitea = snap?.gitea {
-            lines.append("Gitea:  \(gitea.scope) @ \(gitea.instance)")
+        var lines: [String] = []
+        if accounts.isEmpty {
+            lines.append("Serving:  — not chosen yet")
         } else {
-            lines.append("Gitea:  not used")
-        }
-        if !extra.isEmpty {
-            lines.append("Accounts:  \(extra.map { "\($0.name) (\($0.scope))" }.joined(separator: ", "))")
+            lines.append("Serving:")
+            for account in accounts {
+                var line = "•  \(account.scope)"
+                if let instance = account.instance, !instance.isEmpty {
+                    line += " @ \(instance)"
+                }
+                line += " — \(account.forge.displayName), account \(account.name)"
+                lines.append(line)
+            }
         }
         lines.append("Runs on:  \(mac.runsOnDescription)")
         // Summarize the step-3 toolchain selection on the final "Ready to

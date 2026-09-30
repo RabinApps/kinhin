@@ -8,7 +8,11 @@ enum RunCommands {
         let cfg = loadConfigOrExit()
         let engine = try engineFromConfig(cfg)
         await engine.start()
-        print("fleet running for \(cfg.githubEnabled ? cfg.repo : "Gitea \(cfg.gitea?.scope ?? "")") — Ctrl-C to stop")
+        let scopes =
+            cfg.accounts.map { account -> String in
+                account.forge == .github ? account.scope : "\(account.forge.rawValue): \(account.scope)"
+            }.joined(separator: ", ")
+        print("fleet running for \(scopes.isEmpty ? "no accounts" : scopes) — Ctrl-C to stop")
         // Park until interrupted.
         let signalSource = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
         signal(SIGINT, SIG_IGN)

@@ -181,17 +181,15 @@ public enum Daemon {
                 }
                 await engine.deleteVM(id: id)
                 return RPCResponse(id: request.id, ok: true)
-            case .replaceGiteaToken:
+            case .replaceGiteaToken, .replaceForgejoToken:
+                // Gitea/Forgejo tokens are account tokens under the accounts
+                // schema; the legacy RPC cases stay on the wire but route to
+                // the account swap by forge name.
+                let account = request.method == .replaceGiteaToken ? ForgeID.gitea.rawValue : ForgeID.forgejo.rawValue
                 guard let replacement = decodePayload(GiteaTokenReplaceRequest.self) else {
                     return RPCResponse(id: request.id, ok: false, error: "expected {\"token\": \"...\"}")
                 }
-                await engine.replaceGiteaToken(replacement.token)
-                return RPCResponse(id: request.id, ok: true)
-            case .replaceForgejoToken:
-                guard let replacement = decodePayload(ForgejoTokenReplaceRequest.self) else {
-                    return RPCResponse(id: request.id, ok: false, error: "expected {\"token\": \"...\"}")
-                }
-                await engine.replaceForgejoToken(replacement.token)
+                await engine.replaceToken(account: account, token: replacement.token)
                 return RPCResponse(id: request.id, ok: true)
             case .replaceAccountToken:
                 guard let replacement = decodePayload(AccountTokenReplaceRequest.self) else {

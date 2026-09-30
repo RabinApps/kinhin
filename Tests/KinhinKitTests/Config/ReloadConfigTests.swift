@@ -104,7 +104,10 @@ final class ReloadConfigTests: XCTestCase {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("config.yaml")
         let yaml = """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted", "macos", "arm64"]
             max_runners: 4
             container:
@@ -152,7 +155,8 @@ final class ReloadConfigTests: XCTestCase {
             .appendingPathComponent("kinhin-reload-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("config.yaml")
-        try "repo: \"acme/widgets\"\nlabels: []\n".write(to: url, atomically: true, encoding: .utf8)
+        try "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: []\n".write(
+            to: url, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let response = await Daemon.handle(

@@ -11,7 +11,10 @@ final class ToolchainCatalogInvariantTests: XCTestCase {
         let stackList = stacks.map { "\"\($0)\"" }.joined(separator: ", ")
         let cfg = try ConfigLoader.parse(
             """
-            repo: "acme/widgets"
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
             labels: ["self-hosted"]
             toolchains: {specs: [\(specList)], stacks: [\(stackList)]}
             """)

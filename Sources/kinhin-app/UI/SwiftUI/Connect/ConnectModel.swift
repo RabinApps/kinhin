@@ -37,6 +37,9 @@ final class ConnectModel {
     @ObservationIgnored var hasStoredToken: @Sendable (ForgeID) throws -> Bool = {
         try KeychainTokenStore.load(forge: $0) != nil
     }
+    {
+        didSet { accounts.hasStoredToken = { [hasStoredToken] forge, _ in try hasStoredToken(forge) } }
+    }
     /// Deletes the stored token when a forge is deselected.
     @ObservationIgnored var deleteToken: (ForgeID) -> Void = {
         KeychainTokenStore.delete(forge: $0)
@@ -210,18 +213,11 @@ final class ConnectModel {
         }
 
         var configured: Set<ForgeID> = []
-        let repo = snapshot?.repo ?? ""
-        if stored(.github) || (!repo.isEmpty && repo != ConfigLoader.templateRepo) {
-            configured.insert(.github)
-        }
-        if stored(.gitlab) || ForgeConnectionModel.configuredGitLabAccount(at: configURL) != nil {
-            configured.insert(.gitlab)
-        }
-        if stored(.gitea) || snapshot?.gitea != nil {
-            configured.insert(.gitea)
-        }
-        if stored(.forgejo) {
-            configured.insert(.forgejo)
+        let configuredForges = Set((try? AccountsConfigEditor.accounts(at: configURL))?.map(\.forge) ?? [])
+        // `try?` is safe: an unreadable config surfaces through the card's
+        // own reload path; this only decides which cards to show.
+        for forge in ForgeID.allCases where stored(forge) || configuredForges.contains(forge) {
+            configured.insert(forge)
         }
 
         selected = configured

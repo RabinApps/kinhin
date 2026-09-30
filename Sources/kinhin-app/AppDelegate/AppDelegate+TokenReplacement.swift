@@ -33,27 +33,20 @@ extension AppDelegate {
             } else {
                 Log.info("app", "replaced GitHub token (no engine running yet)")
             }
-        case .gitea:
-            try KeychainTokenStore.save(token, forge: .gitea)
+        case .gitea, .forgejo:
+            // Gitea-family tokens belong to the primary account of that forge
+            // (named "gitea"/"forgejo"), which routes through the account swap.
+            let forge = forge
+            try KeychainTokenStore.save(token, forge: forge)
+            let accountName = forge == .gitea ? ForgeID.gitea.rawValue : ForgeID.forgejo.rawValue
             if let engine {
-                await engine.replaceGiteaToken(token)
-                Log.info("app", "replaced Gitea token (in-process engine)")
+                await engine.replaceToken(account: accountName, token: token)
+                Log.info("app", "replaced \(forge.rawValue) token (in-process engine)")
             } else if let client {
-                try client.replaceGiteaToken(token)
-                Log.info("app", "replaced Gitea token (daemon notified)")
+                try client.replaceAccountToken(account: accountName, token: token)
+                Log.info("app", "replaced \(forge.rawValue) token (daemon notified)")
             } else {
-                Log.info("app", "replaced Gitea token (no engine running yet)")
-            }
-        case .forgejo:
-            try KeychainTokenStore.save(token, forge: .forgejo)
-            if let engine {
-                await engine.replaceForgejoToken(token)
-                Log.info("app", "replaced Forgejo token (in-process engine)")
-            } else if let client {
-                try client.replaceForgejoToken(token)
-                Log.info("app", "replaced Forgejo token (daemon notified)")
-            } else {
-                Log.info("app", "replaced Forgejo token (no engine running yet)")
+                Log.info("app", "replaced \(forge.rawValue) token (no engine running yet)")
             }
         case .gitlab:
             // GitLab has no legacy section: its token belongs to the account named "gitlab".

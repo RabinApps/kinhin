@@ -54,7 +54,8 @@ class MainWindowTestCase: XCTestCase {
         delegate = RecordingTabsDelegate()
         scratchConfig = FileManager.default.temporaryDirectory.appendingPathComponent(
             "kinhin-mainwindow-\(UUID().uuidString).yaml")
-        try? "repo: \"your-org/your-repo\"\nlabels: [a]\n".write(to: scratchConfig, atomically: true, encoding: .utf8)
+        try? "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n".write(
+            to: scratchConfig, atomically: true, encoding: .utf8)
         window = MainTabsWindowController(defaults: suite)
         window.delegate = delegate
     }

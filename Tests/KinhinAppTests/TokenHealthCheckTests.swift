@@ -19,7 +19,7 @@ final class TokenHealthCheckTests: XCTestCase {
 
     private static func configWithRepo(_ repo: String) -> KinhinConfig {
         var cfg = KinhinConfig.default
-        cfg.repo = repo
+        cfg.accounts = repo.isEmpty ? [] : [AccountConfig(name: "github", forge: .github, scope: repo)]
         return cfg
     }
 
@@ -56,22 +56,19 @@ final class TokenHealthCheckTests: XCTestCase {
         XCTAssertTrue(report.message.contains("No scope to check"))
     }
 
-    func testGiteaCheckWithoutConfigSectionIsNotCheckable() async {
+    func testGiteaCheckWithoutConfigAccountIsNotCheckable() async {
         let report = await TokenHealthCheck.check(
             forge: .gitea,
             config: Self.configWithRepo("acme/widgets"),
             keychainToken: { _ in "gt_x" }
         )
         XCTAssertFalse(report.ok)
-        XCTAssertTrue(report.message.contains("gitea:"))
+        XCTAssertTrue(report.message.contains("gitea account"))
     }
 
     func testGiteaCheckFailureSurfacesProbeError() async {
         let report = await TokenHealthCheck.gitea(
-            token: "gt_bad",
-            config: KinhinConfig.GiteaForgeConfig(instance: "http://127.0.0.1:1", scope: "acme"),
-            client: giteaClient()
-        )
+            token: "gt_bad", scope: "acme", instance: "http://127.0.0.1:1", client: giteaClient())
         XCTAssertFalse(report.ok, "an unroutable instance cannot validate the token")
         XCTAssertTrue(report.message.contains("Token check failed"))
     }

@@ -101,59 +101,36 @@ public enum AuthStatusReporter {
         config: KinhinConfig?, load: (ForgeID) throws -> String?,
         loadAccount: (ForgeID, String) throws -> String? = { try KeychainTokenStore.load(forge: $0, name: $1) }
     ) -> AuthStatusReport {
-        let githubRead = read { try load(.github) }
-        let githubToken = githubRead.token
-        let repo = config?.repo
-        // The starter placeholder repo means "no GitHub" (Gitea-only configs).
-        let githubConfigured = !(repo ?? "").isEmpty && repo != ConfigLoader.templateRepo
-
-        let giteaRead = read { try load(.gitea) }
-        let giteaToken = giteaRead.token
-        let gitea = config?.gitea
-
+        let accounts = config?.accounts ?? []
         var forges: [AuthStatusReport.Forge] = []
-        forges.append(
-            AuthStatusReport.Forge(
-                id: ForgeID.github.rawValue,
-                stored: githubToken != nil,
-                prefix: githubToken.map { String($0.prefix(4)) },
-                configured: githubConfigured,
-                scope: githubConfigured ? repo : nil,
-                instance: nil,
-                detail: githubRead.failureDetail ?? githubDetail(token: githubToken, scope: repo)
-            ))
-        forges.append(
-            AuthStatusReport.Forge(
-                id: ForgeID.gitea.rawValue,
-                stored: giteaToken != nil,
-                prefix: giteaToken.map { String($0.prefix(4)) },
-                configured: gitea != nil,
-                scope: gitea?.scope,
-                instance: gitea?.instance,
-                detail: giteaRead.failureDetail
-                    ?? giteaDetail(token: giteaToken, config: gitea, section: "gitea", fix: "--gitea")
-            ))
-        let forgejoRead = read { try load(.forgejo) }
-        let forgejoToken = forgejoRead.token
-        let forgejo = config?.forgejo
-        forges.append(
-            AuthStatusReport.Forge(
-                id: ForgeID.forgejo.rawValue,
-                stored: forgejoToken != nil,
-                prefix: forgejoToken.map { String($0.prefix(4)) },
-                configured: forgejo != nil,
-                scope: forgejo?.scope,
-                instance: forgejo?.instance,
-                detail: forgejoRead.failureDetail
-                    ?? giteaDetail(token: forgejoToken, config: forgejo, section: "forgejo", fix: "--forgejo")
-            ))
+        // The three classic forge rows keep their JSON contract (GitLab has
+        // no standalone row — its accounts appear in the list below).
+        for forge in [ForgeID.github, .gitea, .forgejo] {
+            // The conventional account (named like the forge) drives the
+            // per-forge row; additional accounts of the same forge show under
+            // `accounts` below.
+            let account =
+                accounts.first { $0.name == forge.rawValue && $0.forge == forge }
+                ?? accounts.first { $0.forge == forge }
+            let forgeRead = read { try load(forge) }
+            let token = forgeRead.token
+            let masked = token.map { String($0.prefix(4)) }
+            forges.append(
+                AuthStatusReport.Forge(
+                    id: forge.rawValue,
+                    stored: token != nil,
+                    prefix: masked,
+                    configured: account != nil,
+                    scope: account?.scope,
+                    instance: account?.instance,
+                    detail: forgeRead.failureDetail
+                        ?? accountDetail(token: token, account: account, forge: forge)
+                ))
+        }
 
-        // Every configured forge needs its token, and at least one forge must
-        // be configured (each forge is optional on its own).
-        let githubOK = githubConfigured && githubToken != nil
-        let giteaOK = gitea != nil && giteaToken != nil
-        let forgejoOK = forgejo != nil && forgejoToken != nil
-        let accounts = (config?.accounts ?? []).map { account -> AuthStatusReport.Account in
+        // Every configured account needs its token, and at least one account
+        // must be configured (each forge is optional on its own).
+        let accountRows = accounts.map { account -> AuthStatusReport.Account in
             let accountRead = read { try loadAccount(account.forge, account.name) }
             let token = accountRead.token
             let masked = token.map { "\(String($0.prefix(4)))…" }
@@ -166,15 +143,8 @@ public enum AuthStatusReporter {
                 prefix: token.map { String($0.prefix(4)) }, scope: account.scope, instance: account.instance,
                 detail: detail)
         }
-        let accountsOK = accounts.allSatisfy(\.stored)
-        let anyForge = githubOK || giteaOK || forgejoOK || accounts.contains(where: \.stored)
-        let allGood =
-            anyForge
-            && (!githubConfigured || githubToken != nil)
-            && (gitea == nil || giteaToken != nil)
-            && (forgejo == nil || forgejoToken != nil)
-            && accountsOK
-        return AuthStatusReport(forges: forges, allGood: allGood, accounts: accounts)
+        let allGood = !accountRows.isEmpty && accountRows.allSatisfy(\.stored)
+        return AuthStatusReport(forges: forges, allGood: allGood, accounts: accountRows)
     }
 
     /// One Keychain read. A failure is kept apart from "no token stored" so the
@@ -195,33 +165,26 @@ public enum AuthStatusReporter {
         }
     }
 
-    private static func githubDetail(token: String?, scope: String?) -> String {
+    /// Detail for one forge row: the account (when configured) pairs with the
+    /// token to explain what is missing. Self-hosted instances appear in the
+    /// scope line (`scope: org @ https://…`) like the old gitea: rows did.
+    private static func accountDetail(token: String?, account: AccountConfig?, forge: ForgeID) -> String {
         let masked = token.map { "\(String($0.prefix(4)))…" } ?? "—"
-        switch (token != nil, scope?.isEmpty == false) {
-        case (true, true):
-            return "stored in Keychain (\(masked)) · scope: \(scope!)"
-        case (true, false):
-            return "stored in Keychain (\(masked)) — set repo in config.yaml to use it"
-        case (false, true):
-            return "no token stored — run: kinhin auth set"
-        case (false, false):
-            return "no token stored — set repo in config.yaml, then run: kinhin auth set"
+        let name = forge.rawValue
+        let scopeLine: (AccountConfig) -> String = { account in
+            var line = "scope: \(account.scope)"
+            if let instance = account.instance, !instance.isEmpty { line += " @ \(instance)" }
+            return line
         }
-    }
-
-    private static func giteaDetail(
-        token: String?, config: KinhinConfig.GiteaForgeConfig?, section: String, fix: String
-    ) -> String {
-        let masked = token.map { "\(String($0.prefix(4)))…" } ?? "—"
-        switch (token != nil, config != nil) {
+        switch (token != nil, account != nil) {
         case (true, true):
-            return "stored in Keychain (\(masked)) · scope: \(config!.scope) @ \(config!.instance)"
+            return "stored in Keychain (\(masked)) · \(scopeLine(account!))"
         case (true, false):
-            return "stored in Keychain (\(masked)) — no \(section): section in config.yaml, not in use"
+            return "stored in Keychain (\(masked)) — add a \(name) account to config.yaml to use it"
         case (false, true):
-            return "no token stored — run: kinhin auth set \(fix)"
+            return "no token stored — run: kinhin auth set --account \(name)"
         case (false, false):
-            return "no token stored — add a \(section): section to config.yaml to use this forge"
+            return "no token stored — add a \(name) account to config.yaml, then run: kinhin auth set"
         }
     }
 }

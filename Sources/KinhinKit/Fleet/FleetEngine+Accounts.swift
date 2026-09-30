@@ -1,18 +1,18 @@
 import Foundation
 
-// FleetEngine — the additional `accounts:` forges. The legacy `repo:` and
-// `gitea:` sections keep their dedicated paths (accounts "github"/"gitea");
-// every explicit account is attached here, keyed by its name in
-// `ForgeState.byPlatform`, so `VMRecord.platform` and the demand maps carry the
-// account name for all of them.
+// FleetEngine — the `accounts:` forges. Every forge is an account, attached
+// here keyed by its name in `ForgeState.byPlatform`, so `VMRecord.platform`
+// and the demand maps carry the account name for all of them. The primary
+// GitHub account additionally attaches at construction under the "github"
+// platform key so a not-yet-verified fleet still routes single-pool jobs.
 extension FleetEngine {
-    /// Explicit accounts without an attached forge (never attached yet, or
-    /// dropped after a failed verification) — the retry loop's work list.
+    /// Accounts without an attached forge (never attached yet, or dropped
+    /// after a failed verification) — the retry loop's work list.
     func detachedAccounts() -> [AccountConfig] {
         forgeState.withLock { state in config.accounts.filter { state.byPlatform[$0.name] == nil } }
     }
 
-    /// The registration-token cache for an account. The legacy GitHub
+    /// The registration-token cache for an account. The primary GitHub
     /// account keeps the engine's original cache.
     func registrationCache(for account: String) -> RegistrationTokenCache {
         if account == ForgeID.github.rawValue { return registrationTokens }
@@ -32,9 +32,9 @@ extension FleetEngine {
         for cache in caches { cache.invalidate() }
     }
 
-    /// Attach every explicit account that isn't attached yet. One failing
-    /// account (no token, bad scope, unreachable instance) is logged and
-    /// surfaced in `lastError` without affecting the others.
+    /// Attach every account that isn't attached yet. One failing account
+    /// (no token, bad scope, unreachable instance) is logged and surfaced in
+    /// `lastError` without affecting the others.
     func attachAccountsIfNeeded() async {
         for account in detachedAccounts() {
             guard
@@ -107,23 +107,15 @@ extension FleetEngine {
         }
     }
 
-    /// Swap one account's token live. The legacy accounts route to their
-    /// dedicated methods; an unknown account is ignored with a warning.
+    /// Swap one account's token live: re-attach its forge without
+    /// re-verification (the CLI/app verified before saving). An unknown
+    /// account is ignored with a warning.
     public func replaceToken(account name: String, token: String) async {
-        switch name {
-        case ForgeID.github.rawValue:
-            await replaceCredentials(pat: token)
-        case ForgeID.gitea.rawValue:
-            await replaceGiteaToken(token)
-        case ForgeID.forgejo.rawValue:
-            await replaceForgejoToken(token)
-        default:
-            guard let account = config.accounts.first(where: { $0.name == name }) else {
-                Log.warn("engine", "token replaced for unknown account '\(name)' — ignoring")
-                return
-            }
-            await attach(account: account, token: token, verify: false)
+        guard let account = config.accounts.first(where: { $0.name == name }) else {
+            Log.warn("engine", "token replaced for unknown account '\(name)' — ignoring")
+            return
         }
+        await attach(account: account, token: token, verify: false)
     }
 
     /// True when any attached GitHub forge is org-scoped (an org fleet

@@ -104,9 +104,11 @@ final class AuthCommandTests: XCTestCase {
 
     private func workingConfig(gitea: Bool = false) -> KinhinConfig {
         var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         if gitea {
-            cfg.gitea = KinhinConfig.GiteaForgeConfig(instance: "https://gitea.example.com", scope: "acme/widgets")
+            cfg.accounts.append(
+                AccountConfig(
+                    name: "gitea", forge: .gitea, scope: "acme/widgets", instance: "https://gitea.example.com"))
         }
         return cfg
     }

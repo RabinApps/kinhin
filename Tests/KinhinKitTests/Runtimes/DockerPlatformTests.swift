@@ -8,7 +8,8 @@ import XCTest
 /// argv, runner labels, the bake, and the checklist, and is always disclosed.
 final class DockerPlatformTests: XCTestCase {
     private let bin = "/usr/local/bin/docker"
-    private let base = "repo: \"acme/widgets\"\nlabels: [self-hosted, macos, arm64]\n"
+    private let base =
+        "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [self-hosted, macos, arm64]\n"
 
     // MARK: Config
 
@@ -156,13 +157,13 @@ final class DockerPlatformTests: XCTestCase {
 
     private func checklist(platform: LinuxPlatform, imageArch: String?) async -> SetupCheckResult? {
         var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         cfg.docker = .init(image: "ci", platform: platform)
         let status = await SetupStatusComputer(
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),
             clt: .ok(version: "27.0"), tartHealth: .healthy,
             tartList: [TartVM(name: "b", source: "s", status: "suspended", cpu: nil, memoryMB: nil)],
-            config: .loaded(cfg), tokenStored: true, dockerHealth: .ready, dockerImages: ["ci"],
+            config: .loaded(cfg), accountTokensStored: ["github": true], dockerHealth: .ready, dockerImages: ["ci"],
             dockerImageArchitecture: imageArch
         ).compute()
         return status.checks.first { $0.id == "docker-image" }
@@ -192,7 +193,7 @@ final class DockerPlatformTests: XCTestCase {
 
     func testDoctorDockerSectionCarriesThePlatformAndNote() async throws {
         var cfg = KinhinConfig.default
-        cfg.repo = "acme/widgets"
+        cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         cfg.docker = .init(image: "ci", platform: .amd64)
         let report = await DoctorReportBuilder(
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),

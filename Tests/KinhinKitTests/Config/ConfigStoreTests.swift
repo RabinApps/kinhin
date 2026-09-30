@@ -44,9 +44,8 @@ final class ConfigStoreTests: XCTestCase {
     }
 
     func testSnapshotReadsValidConfig() throws {
-        let url = try write("repo: acme/widgets\nmax_runners: 3\n")
+        let url = try write("accounts:\n  - name: github\n    forge: github\n    scope: acme/widgets\nmax_runners: 3\n")
         let snapshot = try XCTUnwrap(ConfigStore.snapshot(at: url))
-        XCTAssertEqual(snapshot.repo, "acme/widgets")
         XCTAssertEqual(snapshot.maxRunners, 3)
     }
 

@@ -11,7 +11,10 @@ final class RuntimesPaneTests: XCTestCase {
 
     private let baseConfig = """
         # kinhin configuration
-        repo: "acme/ios-app"
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/ios-app"
 
         labels: ["self-hosted", "macos", "arm64"]
 
