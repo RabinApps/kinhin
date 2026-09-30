@@ -32,7 +32,7 @@ struct GiteaForge: Forge {
         credentials: ForgeCredentials, labels: [String], client: GiteaClient, demandFloor: Int = 0,
         registrationToken: String, account: String? = nil
     ) {
-        if case .forgejo = credentials { id = .forgejo } else { id = .gitea }
+        id = credentials.forge == .forgejo ? .forgejo : .gitea
         self.account = account ?? id.rawValue
         self.credentials = credentials
         self.labels = labels
@@ -49,11 +49,9 @@ struct GiteaForge: Forge {
     ) async throws -> GiteaForge {
         let client = GiteaClient(credentials: credentials)
         let token = try await client.fetchRegistrationToken()
-        let (secret, scope, instance) = (credentials.token, credentials.scope, credentials.instance)
         return GiteaForge(
-            credentials: forge == .forgejo
-                ? .forgejo(token: secret, scope: scope, instance: instance)
-                : .gitea(token: secret, scope: scope, instance: instance),
+            credentials: ForgeCredentials(
+                forge: forge, token: credentials.token, scope: credentials.scope, instance: credentials.instance),
             labels: labels,
             client: client,
             demandFloor: demandFloor,
@@ -63,10 +61,7 @@ struct GiteaForge: Forge {
     }
 
     func registrationURL() -> String {
-        switch credentials {
-        case .gitea(_, _, let instance), .forgejo(_, _, let instance): return instance
-        default: return ""
-        }
+        credentials.instance ?? ""
     }
 
     /// Placeholder job name when the instance reports none ("gitea-task").

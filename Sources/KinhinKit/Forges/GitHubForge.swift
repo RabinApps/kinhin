@@ -29,10 +29,7 @@ struct GitHubForge: Forge {
     }
 
     func registrationURL() -> String {
-        switch credentials {
-        case .github(_, let scope): return GitHubCredentials(token: "", scope: scope).configureURL
-        default: return ""
-        }
+        GitHubCredentials(token: "", scope: credentials.scope).configureURL
     }
 
     func mintRegistrationToken() async throws -> String {

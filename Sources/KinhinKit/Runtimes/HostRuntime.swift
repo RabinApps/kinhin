@@ -80,7 +80,7 @@ final class HostRuntime: Runtime {
         forge: Forge, token: String, runnerTokens: [String: String], name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String {
-        switch forge.credentials {
+        switch forge.credentials.forge {
         case .github:
             break
         case .gitea, .forgejo:

@@ -127,10 +127,10 @@ final class TokenReplacementTests: XCTestCase {
         await engine.replaceCredentials(pat: "ghp_new")
 
         XCTAssertEqual(Set(engine.forges.keys), ["work"], "no stale \"github\" forge may appear")
-        guard case .github(let token, _) = engine.forges["work"]?.credentials else {
+        guard let credentials = engine.forges["work"]?.credentials, credentials.forge == .github else {
             return XCTFail("primary account must stay attached under its name")
         }
-        XCTAssertEqual(token, "ghp_new")
+        XCTAssertEqual(credentials.token, "ghp_new")
         XCTAssertEqual(client(engine, account: "work")?.token, "ghp_new")
     }
 

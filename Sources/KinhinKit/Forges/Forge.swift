@@ -24,35 +24,38 @@ public enum ForgeID: String, Codable, Sendable, CaseIterable {
     }
 }
 
-/// Unified credential set across forges.
-public enum ForgeCredentials: Sendable {
-    case github(token: String, scope: String)
-    case gitea(token: String, scope: String, instance: String)
-    case forgejo(token: String, scope: String, instance: String)
-    case gitlab(token: String, scope: String, instance: String)
-
-    public var forge: ForgeID {
-        switch self {
-        case .github: return .github
-        case .gitea: return .gitea
-        case .forgejo: return .forgejo
-        case .gitlab: return .gitlab
-        }
-    }
-
-    public var token: String {
-        switch self {
-        case .github(let token, _), .gitea(let token, _, _), .forgejo(let token, _, _), .gitlab(let token, _, _):
-            return token
-        }
-    }
-
+/// Unified credential set across forges: the forge, its token, the scope it
+/// serves, and (self-hostable forges) the instance URL.
+public struct ForgeCredentials: Sendable, Equatable {
+    public let forge: ForgeID
+    public let token: String
     /// "owner/name" (one repository) or an org name; any depth on GitLab.
-    public var scope: String {
-        switch self {
-        case .github(_, let scope), .gitea(_, let scope, _), .forgejo(_, let scope, _), .gitlab(_, let scope, _):
-            return scope
-        }
+    public let scope: String
+    /// The instance base URL; nil on forges with a single hosted instance
+    /// (GitHub).
+    public let instance: String?
+
+    public init(forge: ForgeID, token: String, scope: String, instance: String? = nil) {
+        self.forge = forge
+        self.token = token
+        self.scope = scope
+        self.instance = instance
+    }
+
+    public static func github(token: String, scope: String) -> ForgeCredentials {
+        ForgeCredentials(forge: .github, token: token, scope: scope)
+    }
+
+    public static func gitea(token: String, scope: String, instance: String) -> ForgeCredentials {
+        ForgeCredentials(forge: .gitea, token: token, scope: scope, instance: instance)
+    }
+
+    public static func forgejo(token: String, scope: String, instance: String) -> ForgeCredentials {
+        ForgeCredentials(forge: .forgejo, token: token, scope: scope, instance: instance)
+    }
+
+    public static func gitlab(token: String, scope: String, instance: String) -> ForgeCredentials {
+        ForgeCredentials(forge: .gitlab, token: token, scope: scope, instance: instance)
     }
 }
 

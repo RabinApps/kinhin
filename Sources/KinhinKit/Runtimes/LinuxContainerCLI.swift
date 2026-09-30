@@ -77,7 +77,7 @@ struct LinuxContainerCLI: Sendable {
         let selection = toolchainsConfig().map { ToolchainCatalog.selection(from: $0, platform: .linux) }
         let cachePrefix = RunnerBootstrap.cachePrefix(
             mounted: route.cacheMount, selection: selection, mountPath: ToolchainCacheMount.linuxGuestPath)
-        switch forge.credentials {
+        switch forge.credentials.forge {
         case .github:
             return cachePrefix
                 + RunnerBootstrap.linuxGitHubRegistrationScript(

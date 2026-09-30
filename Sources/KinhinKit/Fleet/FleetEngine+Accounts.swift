@@ -111,8 +111,7 @@ extension FleetEngine {
     var githubOrgScoped: Bool {
         forgeState.withLock { state in
             state.byPlatform.values.contains { forge in
-                guard case .github(_, let scope) = forge.credentials else { return false }
-                return !scope.contains("/")
+                forge.credentials.forge == .github && !forge.credentials.scope.contains("/")
             }
         }
     }

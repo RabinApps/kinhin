@@ -213,7 +213,7 @@ struct TartRuntime: Runtime {
         // produces; exports are guarded no-ops when the share is absent.
         let cachePrefix = RunnerBootstrap.cachePrefix(
             mounted: route.cacheMount, selection: cachedToolchainSelection, mountPath: ToolchainCacheMount.guestPath)
-        switch forge.credentials {
+        switch forge.credentials.forge {
         case .github:
             return cachePrefix
                 + RunnerBootstrap.registrationScript(
