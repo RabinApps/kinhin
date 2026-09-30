@@ -21,32 +21,8 @@ extension HostRuntime {
 
     /// Stops this instance's GitLab runners that have not finished their job
     /// (a scale-down or engine stop mid-job): the recorded background job and
-    /// its `gitlab-runner run-single` child. A pid is only signalled while it
-    /// still looks like ours (pids get reused).
+    /// its `gitlab-runner run-single` child.
     func stopGitLabRunners(id: String) async {
-        let workDir = workDirectory(for: id)
-        // No runner.pid means no GitLab runner was started here (an absent
-        // dir, or another forge's instance), so there is nothing to stop.
-        let fm = FileManager.default
-        // A missing or unreadable dir holds no runners to stop.
-        let entries = (try? fm.contentsOfDirectory(atPath: workDir.path)) ?? []
-        guard
-            entries.contains(where: {
-                fm.fileExists(atPath: workDir.appendingPathComponent($0).appendingPathComponent("runner.pid").path)
-            })
-        else { return }
-        let script = """
-            for f in \(RunnerBootstrap.shellQuote(workDir.path))/*/runner.pid; do
-              [ -f "$f" ] || continue
-              pid="$(cat "$f")"
-              if ps -p "$pid" -o command= | grep -q 'run-single'; then
-                pkill -TERM -P "$pid" || true
-                kill "$pid" || true
-              fi
-            done
-            """
-        await bestEffortAsync(id, "stopping gitlab runners") {
-            _ = try await shell.run(["/bin/bash", "-c", script], cwd: nil, timeout: 30)
-        }
+        await stopRecordedAgents(id: id, pidFile: "runner.pid", command: "run-single", what: "gitlab runners")
     }
 }

@@ -131,6 +131,37 @@ final class HostRuntime: Runtime {
 
     // MARK: - Helpers
 
+    /// Stops the background agents an instance recorded in
+    /// `<work dir>/<runner>/<pidFile>` (GitLab runners, Buildkite agents) and
+    /// their children. A pid is only signalled while its command line still
+    /// contains `command`, since pids get reused.
+    func stopRecordedAgents(id: String, pidFile: String, command: String, what: String) async {
+        let workDir = workDirectory(for: id)
+        let fm = FileManager.default
+        // A missing or unreadable dir holds no agents to stop.
+        let entries = (try? fm.contentsOfDirectory(atPath: workDir.path)) ?? []
+        // No pid file means no such agent was started here (another forge's
+        // instance), so there is nothing to stop.
+        guard
+            entries.contains(where: {
+                fm.fileExists(atPath: workDir.appendingPathComponent($0).appendingPathComponent(pidFile).path)
+            })
+        else { return }
+        let script = """
+            for f in \(RunnerBootstrap.shellQuote(workDir.path))/*/\(pidFile); do
+              [ -f "$f" ] || continue
+              pid="$(cat "$f")"
+              if ps -p "$pid" -o command= | grep -q \(RunnerBootstrap.shellQuote(command)); then
+                pkill -TERM -P "$pid" || true
+                kill "$pid" || true
+              fi
+            done
+            """
+        await bestEffortAsync(id, "stopping \(what)") {
+            _ = try await shell.run(["/bin/bash", "-c", script], cwd: nil, timeout: 30)
+        }
+    }
+
     /// Per-instance scratch dir, scrubbed at teardown.
     func workDirectory(for id: String) -> URL {
         Paths.appSupport.appendingPathComponent("host-instances/\(id)", isDirectory: true)
