@@ -1,6 +1,6 @@
 # kinhin ○
 
-**The mindful CI — autoscaling runners that live on your Mac: GitHub Actions, GitLab CI/CD, Gitea/Forgejo Actions, Buildkite, and Azure Pipelines.**
+**The mindful CI — autoscaling runners that live on your Mac: GitHub Actions, GitLab CI/CD, Gitea/Forgejo Actions, Buildkite, Azure Pipelines, and Bitbucket Pipelines.**
 
 > ○ kinhin (kin-hin) is walking meditation: slow, deliberate steps between sittings.
 > Here, one step at a time: a queued job arrives, a runner is born, serves, and is released.
@@ -26,7 +26,7 @@ Your Mac stays usable: host CPU, memory, and disk headroom are always reserved.
 
 - **Ephemeral by default** — every job gets a freshly cloned VM; the runner deregisters itself
   afterwards and the VM is deleted. No state leaks between jobs.
-- **Multi-forge** — GitHub Actions, GitLab CI/CD, Gitea Actions, Forgejo, Buildkite, and Azure Pipelines from the same pool; the Forge
+- **Multi-forge** — GitHub Actions, GitLab CI/CD, Gitea Actions, Forgejo, Buildkite, Azure Pipelines, and Bitbucket Pipelines from the same pool; the Forge
   abstraction keeps the door open for other platforms (see [Forge support](docs/forges.md)).
 - **Multi-runtime** — macOS jobs run in Tart VMs, Linux jobs in [apple/container](https://github.com/apple/container)
   microVMs or Docker containers, from one fleet: each job is routed by repo, workflow, or `runs-on:` label, and the host
@@ -54,7 +54,7 @@ Your Mac stays usable: host CPU, memory, and disk headroom are always reserved.
   brew install openai/tools/tart
   ```
 - A GitHub PAT with `repo` scope for the repository you want to serve (or a GitLab, Gitea/Forgejo,
-  Buildkite or Azure DevOps access token if you only use those — see [Forge support](docs/forges.md))
+  Buildkite, Azure DevOps or Bitbucket access token if you only use those — see [Forge support](docs/forges.md))
 - Optional — Linux jobs in [apple/container](https://github.com/apple/container):
   `brew install container && container system start` (macOS jobs always need Tart)
 - ~60 GB free disk for the base image plus per-VM scratch
@@ -157,7 +157,7 @@ constraint. See [How scaling works](docs/scaling.md) for the formula and the sca
 ```
 kinhin config init          Write the starter config
 kinhin auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
-kinhin auth add|list|remove    Manage additional accounts (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps; auth set --account NAME stores one's token)
+kinhin auth add|list|remove    Manage additional accounts (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket; auth set --account NAME stores one's token)
 kinhin auth status --json    All forges' stored-token state in one machine-readable document (exit 1 until ready)
 kinhin doctor [--json]      Prerequisites + computed capacity (--json: host, runtime health, stored tokens, checklist,
                              and capacity in one machine-readable document; ready=false until every half passes)
@@ -171,8 +171,8 @@ kinhin runtimes route remove <pattern>
                              Delete that route (e.g. `acme/api` or `acme/web@Nightly`)
 kinhin setup repair host-agent
                              Install the GitHub + Gitea runner agents for host routes (one time); gitlab-runner,
-                             buildkite-agent or the Azure Pipelines agent is added too when a GitLab, Buildkite
-                             or Azure DevOps account is configured
+                             buildkite-agent, the Azure Pipelines agent or the Bitbucket runner is added too when
+                             a GitLab, Buildkite, Azure DevOps or Bitbucket account is configured
 kinhin image prepare        Build the runner base image (once); --provision-script <file>
                              bakes your toolchains in (see docs/toolchains.md); `toolchains:`
                              config entries are baked automatically and downloads
@@ -209,7 +209,7 @@ kinhin logs [-n N]          Recent log lines
 | [The kinhin app](docs/app.md)                                    | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together     |
 | [How scaling works](docs/scaling.md)                             | Capacity cap, the scaling loop, `runners_per_vm`, recovery                  |
 | [Toolchains & the shared cache](docs/toolchains.md)              | Provision scripts, managed toolchains, per-job installs, the download cache |
-| [Forge support](docs/forges.md)                                  | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, multiple accounts |
+| [Forge support](docs/forges.md)                                  | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, multiple accounts |
 | [Runtimes & routing](docs/runtimes.md)                           | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing   |
 | [Architecture](docs/architecture.md)                             | Package targets, source layout, tests, CI                                   |
 | [Runtime abstraction design](docs/runtime-abstraction-design.md) | Historical design document for the shipped Runtime layer                    |

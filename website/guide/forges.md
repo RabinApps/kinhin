@@ -1,8 +1,8 @@
-# Forge support (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, & the future)
+# Forge support (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, & the future)
 
 Kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a
 registration token, list/delete runners, report queued demand, track running jobs — and each
-CI platform implements it behind that interface. Today six forges ship:
+CI platform implements it behind that interface. Today seven forges ship:
 
 | Forge          | Status       | Runner agent                             | Scope shape                              |
 | -------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
@@ -12,6 +12,7 @@ CI platform implements it behind that interface. Today six forges ship:
 | GitLab CI/CD   | ✅ supported | gitlab-runner (GitLab's official agent)  | project or group path (`group/sub/proj`) |
 | Buildkite      | ✅ supported | buildkite-agent (Buildkite's agent)      | `org/cluster` (cluster name or id)       |
 | Azure Pipelines | ✅ supported | Azure Pipelines agent (vsts-agent)      | an agent pool in an organization         |
+| Bitbucket Pipelines | ✅ supported | Bitbucket shell runner (Java-based)  | a workspace, or `workspace/repo-slug`    |
 
 One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned
 at spawn to whichever forge has the most pending work, registers there, and is deleted when its
@@ -153,12 +154,43 @@ accounts:
 - `kinhin image prepare`, the Linux bakes and `kinhin setup repair host-agent` install the agent
   once an Azure DevOps account is set up, verified against the release notes' SHA-256 table.
 
+## Adding Bitbucket
+
+Bitbucket Cloud self-hosted runners belong to a workspace (or a single repository). The scope is
+the workspace slug, or `workspace/repo-slug` for one repository — Bitbucket is hosted only:
+
+```yaml
+accounts:
+  - name: bb
+    forge: bitbucket
+    scope: "acme" # a workspace, or acme/api-server for one repository
+    labels: ["xcode=16"] # optional: extra runs-on selectors the runners advertise
+```
+
+- Add it with `kinhin auth add bb --bitbucket --scope acme`, then `kinhin auth set --bitbucket`
+  (the first Bitbucket account) or `--account NAME`.
+- Token: a **workspace access token** (or repository access token) with the runner and pipeline
+  scopes — app passwords do not cover runners. The token stays in the Keychain; runners
+  authenticate with their own OAuth client credentials.
+- Registration: kinhin creates a runner on the forge per runner name with `self.hosted`,
+  `macos` (or `linux.shell` in containers) plus the account's labels, and captures the OAuth
+  client id/secret the create response returns (the secret is shown only once). Runners are
+  deleted through the API when the instance is.
+- The runner stays connected across steps, so the instance goes once its runners have been busy
+  and then idle for a grace period — the same watch the Gitea family uses.
+- Demand: there is no queued-steps endpoint, so kinhin polls the active pipelines' steps — the
+  one repository, or the workspace's recently active repositories (inside Bitbucket's ~1000
+  requests/hour budget). The step payload does not expose `runs_on` yet, so every active step
+  counts; the runner itself matches `runs-on:` labels at the forge.
+- The runner is Java-based: images bake the package plus a Temurin JDK 25 (verified against
+  Temurin's per-asset SHA-256; the package is pinned by digest — Atlassian publishes none).
+
 ## Multiple accounts
 
 Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the
 primary accounts (their tokens keep the original Keychain items). To serve more — a second
 GitHub org, another Gitea or Forgejo instance, a GitLab project or group, a Buildkite
-cluster, an Azure DevOps pool — add more entries;
+cluster, an Azure DevOps pool, a Bitbucket workspace — add more entries;
 every one has its own scope and its own token:
 
 ```yaml
@@ -188,9 +220,9 @@ accounts:
 
 The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo
 landed as a thin re-brand of the Gitea forge, GitLab as a per-runner adapter
-(`GitLabForge`), Buildkite as a cluster-token adapter (`BuildkiteForge`), and Azure DevOps as a
-PAT-registered pool adapter (`AzureDevOpsForge`). Bitbucket Pipelines is next; Sourcehut is a
-candidate. Adding one means implementing
+(`GitLabForge`), Buildkite as a cluster-token adapter (`BuildkiteForge`), Azure DevOps as a
+PAT-registered pool adapter (`AzureDevOpsForge`), and Bitbucket as a per-runner adapter with
+idle-grace exit (`BitbucketForge`). Sourcehut is a candidate. Adding one means implementing
 the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool,
 checklist, status surfaces, and tests all come for free. See
 `Sources/KinhinKit/Forges/Forge.swift` for the contract.

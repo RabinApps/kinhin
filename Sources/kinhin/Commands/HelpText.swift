@@ -15,8 +15,8 @@ func helpText() -> String {
         auth [set]                  Store (or replace) your GitHub PAT in the Keychain (or: auth set --token)
         auth set --gitea            Store (or replace) your Gitea access token (auth set --gitea --token X)
         auth set --account NAME     Store the token for a named account (--token X to skip the prompt)
-        auth add NAME --github|--gitlab|--gitea|--forgejo|--buildkite|--azuredevops --scope S [--instance URL] [--token X]
-                                    Add another account (GitHub, GitLab, Gitea, Forgejo, Buildkite or Azure DevOps) to the config
+        auth add NAME --github|--gitlab|--gitea|--forgejo|--buildkite|--azuredevops|--bitbucket --scope S [--instance URL] [--token X]
+                                    Add another account (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps or Bitbucket) to the config
         auth list                   List every account and whether its token is stored
         auth remove NAME            Remove an account from the config and delete its token
         auth status [--json]        Show whether a token is stored and valid (--json: all forges, machine output, exit 1 until ready)
@@ -24,7 +24,7 @@ func helpText() -> String {
         doctor [--json]             Check prerequisites and print the computed capacity (--json: merged machine-readable diagnostics document)
         setup-status [--json]       First-run checklist (pass --json for machine output)
         setup repair host-agent     Install the GitHub + Gitea runner agents for host runs (unisolated, on this Mac);
-                                    gitlab-runner / buildkite-agent / the Azure Pipelines agent are added only when a GitLab / Buildkite / Azure DevOps account is configured
+                                    gitlab-runner / buildkite-agent / the Azure Pipelines agent / the Bitbucket runner are added only when a GitLab / Buildkite / Azure DevOps / Bitbucket account is configured
         setup repair docker [--method desktop|orbstack|colima]
                                     Install Docker (default: the first method this Mac supports)
         setup repair container      Install Apple container and its system service (Apple silicon, macOS 26+)

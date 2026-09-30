@@ -1,10 +1,10 @@
-# Forge support (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, & the future)
+# Forge support (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, & the future)
 
-Which CI platforms kinhin serves, how to add Gitea, Forgejo, GitLab, Buildkite and Azure DevOps, and how to serve many accounts from one fleet.
+Which CI platforms kinhin serves, how to add Gitea, Forgejo, GitLab, Buildkite, Azure DevOps and Bitbucket, and how to serve many accounts from one fleet.
 
 [← Back to README](../README.md)
 
-kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today six forges ship:
+kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today seven forges ship:
 
 | Forge          | Status       | Runner agent                             | Scope shape                              |
 | -------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
@@ -14,6 +14,7 @@ kinhin is built on a **Forge abstraction**: the engine speaks one unified protoc
 | GitLab CI/CD   | ✅ supported | gitlab-runner (GitLab's official agent)  | project or group path (`group/sub/proj`) |
 | Buildkite      | ✅ supported | buildkite-agent (Buildkite's agent)      | `org/cluster` (cluster name or id)       |
 | Azure Pipelines | ✅ supported | Azure Pipelines agent (vsts-agent)      | an agent pool in an organization         |
+| Bitbucket Pipelines | ✅ supported | Bitbucket shell runner (Java-based)  | a workspace, or `workspace/repo-slug`    |
 
 One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned at spawn to whichever forge has the most pending work, registers there, and is deleted when its job finishes. Token-gating ties platforms to credentials — an agent is baked into the image and a forge attaches only when that platform's token exists.
 
@@ -107,9 +108,28 @@ accounts:
 - Jobs pick agents by demands, and the account's labels are advertised as agent capabilities. A queued request counts as kinhin demand when its demands include every label: `kinhin` matches a `kinhin` demand, and `xcode=16` matches `xcode -equals 16`. **Without labels, every request in the pool counts**, so give kinhin its own pool, or set a label and add `demands: [kinhin]` to the pipelines it should run. Demand is attributed per pipeline.
 - Image provisioning is token-gated: `kinhin image prepare` and the Linux image bakes install the agent only when an Azure DevOps account has a stored token. The Linux bake also runs the agent's `installdependencies.sh`. On the host runtime, `kinhin setup repair host-agent` installs the agent once an Azure DevOps account is configured. The version comes from the agent's GitHub releases (pinned fallback when offline) and is verified against the SHA-256 table in the release notes.
 
+## Adding Bitbucket
+
+Bitbucket Cloud self-hosted runners belong to a **workspace** (or a single repository). The account's scope is the workspace slug, or `workspace/repo-slug` to serve one repository — there is no instance URL, Bitbucket is hosted only:
+
+```yaml
+accounts:
+  - name: bb # any account name
+    forge: bitbucket
+    scope: "acme" # a workspace, or acme/api-server for one repository
+    labels: ["xcode=16"] # optional: extra runs-on selectors the runners advertise
+```
+
+- Add it from the CLI with `kinhin auth add bb --bitbucket --scope acme [--token T]`; `kinhin auth set --bitbucket` stores the token of the first Bitbucket account and `--account NAME` targets any other one. The app's Connect and Add-an-account forms offer Bitbucket too.
+- Token: a **workspace access token** (workspace scopes) or a **repository access token** (`workspace/repo` scopes) with the runner and pipeline scopes — app passwords do not cover runners. The token stays in the Mac's Keychain; runners authenticate with their own OAuth client credentials.
+- Registration: when an instance spawns, kinhin creates a runner on the forge per runner name with the labels `self.hosted`, `macos` (or `linux.shell` in containers) plus the account's labels, and captures the OAuth client id/secret the create response returns — **the secret is shown only once**, so kinhin stores the whole bundle and the bootstrap hands it to the runner through a private file. Because runners are created per instance, teardown and the engine's cleanup delete them through the API.
+- The runner stays connected across steps (Bitbucket's runner protocol has no single-job mode), so the instance goes once its runners have been **busy and then idle for a grace period** — the same watch the Gitea family uses. On the host runtime, a runner stopped mid-job by scale-down or engine stop is terminated along with its instance.
+- Demand: the public API has no queued-steps endpoint, so kinhin polls the active pipelines' steps — the one repository, or the workspace's recently active repositories (one page of repos, one page of pipelines each), which keeps the poll inside Bitbucket's roughly 1000 requests/hour budget. The step payload does not expose `runs_on` yet, so every active step counts as demand; the runner itself matches `runs-on:` labels at the forge. Demand is attributed per repository.
+- The runner is Java-based: images bake the runner package **and a Temurin JDK 25** (verified against Temurin's per-asset SHA-256; the package itself is pinned by digest, since Atlassian publishes no checksums). Image provisioning is token-gated as with the other forges, and `kinhin setup repair host-agent` installs the runner for host routes.
+
 ## Multiple accounts
 
-Serve as many GitHub orgs/repos, Gitea/Forgejo instances, GitLab projects/groups, Buildkite clusters and Azure DevOps pools as you like from one fleet. Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the primary accounts (their tokens keep the original Keychain items — nothing to migrate), and additional entries each carry their own token:
+Serve as many GitHub orgs/repos, Gitea/Forgejo instances, GitLab projects/groups, Buildkite clusters, Azure DevOps pools and Bitbucket workspaces as you like from one fleet. Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the primary accounts (their tokens keep the original Keychain items — nothing to migrate), and additional entries each carry their own token:
 
 ```yaml
 accounts:
@@ -130,6 +150,6 @@ accounts:
 
 ## More forges are planned
 
-The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo landed as a thin re-brand of the Gitea forge, GitLab as a per-runner adapter (`GitLabForge`), Buildkite as a cluster-token adapter (`BuildkiteForge`), and Azure DevOps as a PAT-registered pool adapter (`AzureDevOpsForge`). Bitbucket Pipelines is next; Sourcehut is a candidate. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
+The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo landed as a thin re-brand of the Gitea forge, GitLab as a per-runner adapter (`GitLabForge`), Buildkite as a cluster-token adapter (`BuildkiteForge`), Azure DevOps as a PAT-registered pool adapter (`AzureDevOpsForge`), and Bitbucket as a per-runner adapter with idle-grace exit (`BitbucketForge`). Sourcehut is a candidate for the next one. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
 
 Forges decide _who hands kinhin jobs_; [runtimes](runtimes.md) decide _where those jobs execute_.

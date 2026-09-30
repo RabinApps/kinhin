@@ -65,7 +65,7 @@ final class ConfigInitAndHelpTests: XCTestCase {
 
     func testHelpTextAdvertisesEveryForgeInAuthAdd() {
         let help = helpText()
-        for forge in ["--github", "--gitea", "--forgejo", "--gitlab", "--buildkite", "--azuredevops"] {
+        for forge in ["--github", "--gitea", "--forgejo", "--gitlab", "--buildkite", "--azuredevops", "--bitbucket"] {
             XCTAssertTrue(help.contains(forge), "auth add help must list \(forge)")
         }
     }
@@ -74,7 +74,7 @@ final class ConfigInitAndHelpTests: XCTestCase {
         let help = helpText()
         XCTAssertTrue(
             help.contains(
-                "gitlab-runner / buildkite-agent / the Azure Pipelines agent are added only when a GitLab / Buildkite / Azure DevOps account is configured"
+                "gitlab-runner / buildkite-agent / the Azure Pipelines agent / the Bitbucket runner are added only when a GitLab / Buildkite / Azure DevOps / Bitbucket account is configured"
             ),
             "host-agent help must match HostAgentInstaller's conditional agent installs")
     }
