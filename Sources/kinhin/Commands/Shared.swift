@@ -13,47 +13,18 @@ func noteAutoCreatedConfigIfMissing() -> Bool {
     return false
 }
 
-/// After `auth set` saves a fresh PAT, tell a running daemon so the swap is
-/// live immediately (otherwise it would keep the old token until restart).
+/// After `auth set` saves a token, tell a running daemon so the swap is live
+/// immediately (otherwise it would keep the old token until restart).
 /// Best-effort: no daemon is not an error.
-func notifyDaemonTokenReplaced(_ pat: String) {
+func notifyDaemonTokenReplaced(_ target: CredentialRotation.Target, token: String) {
     guard RPCClient.isDaemonAlive() else { return }
     do {
-        try RPCClient().replaceToken(pat: pat)
-        print("running daemon notified — new token is live")
-    } catch {
-        warn("could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token")
-    }
-}
-
-/// Same best-effort notification for the Gitea token.
-func notifyDaemonGiteaTokenReplaced(_ token: String) {
-    guard RPCClient.isDaemonAlive() else { return }
-    do {
-        try RPCClient().replaceGiteaToken(token)
-        print("running daemon notified — new Gitea token is live")
-    } catch {
-        warn("could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token")
-    }
-}
-
-/// Same best-effort notification for the Forgejo token.
-func notifyDaemonForgejoTokenReplaced(_ token: String) {
-    guard RPCClient.isDaemonAlive() else { return }
-    do {
-        try RPCClient().replaceForgejoToken(token)
-        print("running daemon notified — new Forgejo token is live")
-    } catch {
-        warn("could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token")
-    }
-}
-
-/// Same best-effort notification for a named account's token.
-func notifyDaemonAccountTokenReplaced(account: String, token: String) {
-    guard RPCClient.isDaemonAlive() else { return }
-    do {
-        try RPCClient().replaceAccountToken(account: account, token: token)
-        print("running daemon notified — new token for '\(account)' is live")
+        try CredentialRotation.notify(target, token: token, daemon: RPCClient())
+        if case .account(let name) = target {
+            print("running daemon notified — new token for '\(name)' is live")
+        } else {
+            print("running daemon notified — new token is live")
+        }
     } catch {
         warn("could not notify running daemon (\(error.localizedDescription)); restart it to pick up the new token")
     }
@@ -244,76 +215,7 @@ func engineFromConfig(_ cfg: KinhinConfig) throws -> FleetEngine {
             "config has no forge yet — set your repo (or a gitea: section) in \(Paths.config.path) first",
             exit: .config)
     }
-    let tart = try cfg.makeTartControlling()
-    let host = ResourceProbe().snapshot()
-    let engine = FleetEngine(
-        config: cfg,
-        pat: tokenOrExit(for: cfg),
-        tart: tart,
-        store: FleetStore(),
-        ssh: SSHExecutor(),
-        host: host
-    )
-    engine.useLiveDiskProbe()
-    return engine
-}
-
-func renderStatus(_ status: FleetStatus) -> String {
-    var lines: [String] = []
-    lines.append("engine:    \(status.running ? (status.paused ? "paused" : "running") : "stopped")")
-    // Same note the menu bar and Fleet tab show: a deliberate pause (e.g. a
-    // pause-first VM delete) must not read as stuck in a terminal either.
-    // With the cadence known, say when the queue is re-checked; older
-    // daemons (no pollInterval on the status) get the timeless wording.
-    if status.paused, status.autoResume == true {
-        let release = status.autoResumeCadence ?? "the fleet releases itself when the queue is empty"
-        lines.append("auto-resume: on — \(release)")
-    }
-    // Freshness of the queue numbers, for scripts and paused snapshots:
-    // every reconcile pass touches updatedAt, but only a forge answering a
-    // demand fetch moves this. Untracked (never polled, or an older daemon
-    // predating the field) prints nothing rather than guessing an age.
-    if let age = status.queueAgeSeconds {
-        let flag = status.queueAgeIsStale == true ? " (stale — a forge poll failed or the engine is stopped)" : ""
-        lines.append("queue age:  \(age)s old\(flag)")
-    }
-    lines.append(
-        "repo:      (see config)   queue: \(status.queueDepth)   desired: \(status.desired)   capacity cap: \(status.capacityCap)"
-    )
-    lines.append("job slots: \(status.jobCapacity) concurrent jobs (VM cap × runners_per_vm)")
-    if let byRepo = status.queueByRepo, byRepo.count > 1 {
-        let breakdown = byRepo.sorted { $0.value > $1.value }
-            .map { "\($0.key) ×\($0.value)" }
-            .joined(separator: ", ")
-        lines.append("queue by repo: \(breakdown)")
-    } else if let byRepo = status.queueByRepo, let only = byRepo.first, status.queueDepth > 0 {
-        lines.append("queue by repo: \(only.key) ×\(only.value)")
-    }
-    if let byRepo = status.runningByRepo, status.activeCount > 0, !byRepo.isEmpty {
-        let breakdown = byRepo.sorted { $0.value > $1.value }
-            .map { "\($0.key) ×\($0.value)" }
-            .joined(separator: ", ")
-        lines.append("running by repo: \(breakdown)")
-    }
-    if let err = status.lastError {
-        lines.append("last error: \(err)")
-    }
-    if status.records.isEmpty {
-        lines.append("no VMs")
-    } else {
-        lines.append("VMs:")
-        for record in status.records {
-            var line = "  \(record.id)  \(record.phase.rawValue)"
-            if let platform = record.platform, platform != "github" { line += " [\(platform)]" }
-            if let ip = record.ip { line += "  ip=\(ip)" }
-            line += "  up=\(Int(Date().timeIntervalSince(record.createdAt)))s"
-            if let job = record.job { line += "  job=\(job)" }
-            if let repos = record.repos, !repos.isEmpty { line += "  repos=\(repos.joined(separator: ","))" }
-            if let err = record.error { line += "  error=\(err.prefix(120))" }
-            lines.append(line)
-        }
-    }
-    return lines.joined(separator: "\n")
+    return try FleetEngine.production(config: cfg, token: tokenOrExit(for: cfg))
 }
 
 // A tiny flag parser: --key value / --flag.

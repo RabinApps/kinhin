@@ -133,6 +133,20 @@ final class TokenReplacementTests: XCTestCase {
             "the primary account keeps the engine's registration cache, which replaceCredentials invalidates")
     }
 
+    /// Rotating the primary GitHub account by name (the app's Connect card,
+    /// `auth set --account work`) swaps the same state as the PAT swap.
+    func testRotatingThePrimaryAccountByNameSwapsTheClient() async {
+        var cfg = makeTestConfig()
+        cfg.accounts = [AccountConfig(name: "work", forge: .github, scope: "acme/widgets")]
+        let engine = FleetEngine(
+            config: cfg, pat: "ghp_old", tart: FakeTart(), store: makeTestStore(),
+            ssh: FakeSSH(), host: testHost, githubFactory: GitHubClientFactory { SwapProbeClient(token: $0.token) }
+        )
+        await CredentialRotation.apply(.account("work"), token: "ghp_new", to: engine)
+        XCTAssertEqual((engine.github as? SwapProbeClient)?.token, "ghp_new")
+        XCTAssertEqual(CredentialRotation.Target.forge(.gitea).accountName, "gitea")
+    }
+
     func testReplaceCredentialsInvalidatesRegistrationTokenCache() async throws {
         let github = FakeGitHub()
         let factory = GitHubClientFactory { _ in github }

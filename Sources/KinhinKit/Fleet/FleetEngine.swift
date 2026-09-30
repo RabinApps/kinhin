@@ -227,24 +227,9 @@ public final class FleetEngine: Sendable {
         self.ssh = ssh
         self.registrationTokens = RegistrationTokenCache(ttl: TimeInterval(config.tokenTTL))
         self.statusBox = FleetStatusBox()
-        // The primary runtime's per-instance disk footprint: the explicit
-        // disk_gb when set, else a runtime default (50 GB tart VMs, 8 GB
-        // Linux container slots, 0 for host). The same estimate feeds the
+        // The primary runtime's cap; its disk estimate also feeds the
         // pre-spawn disk guard and `kinhin doctor`.
-        let primaryRuntimeID =
-            config.container != nil
-            ? RuntimeID.appleContainer
-            : config.docker != nil ? RuntimeID.docker : RuntimeID.tart
-        let diskPerVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: primaryRuntimeID.rawValue)
-        self.capacity = Capacity.plan(
-            host: host,
-            vmCPU: config.container?.cpus ?? config.docker?.cpus ?? config.vm.cpuCount,
-            vmMemoryGB: config.container?.memoryGB ?? config.docker?.memoryGB ?? config.vm.memoryGB,
-            reservedCPU: config.reserve.cpu,
-            reservedMemoryGB: config.reserve.memoryGB,
-            diskPerVMGB: diskPerVM,
-            userMax: config.maxRunners
-        )
+        self.capacity = Capacity.plan(for: config, host: host)
         let routing = RuntimeConfigModel(
             config: config.runtimes,
             fleetLabels: config.labels,
@@ -255,43 +240,9 @@ public final class FleetEngine: Sendable {
             hostConfigured: config.hostRoutesConfigured
         )
 
-        let caps: [RuntimeID: Int]
-        if config.runtimes != nil, config.container != nil || config.docker != nil {
-            // Mixed fleet: partition the usable host budget between runtimes
-            // by the configured weights (deterministic, no overcommit).
-            let partition = RuntimeCapacity.partition(
-                hostUsableCPU: max(0, host.logicalCores - config.reserve.cpu),
-                hostUsableMemoryGB: max(0, host.memoryGB - config.reserve.memoryGB),
-                weights: config.runtimes?.budget ?? [:],
-                defaultRuntime: RuntimeID(rawValue: config.runtimes?.defaultRuntime ?? "tart") ?? .tart,
-                shape: { id in
-                    switch id {
-                    case .appleContainer:
-                        return (config.container?.cpus ?? 4, config.container?.memoryGB ?? 8)
-                    case .docker:
-                        return (config.docker?.cpus ?? 2, config.docker?.memoryGB ?? 4)
-                    case .host:
-                        // Host slots cost the Mac nothing extra beyond the
-                        // user's own processes (1/1 keeps the math non-zero
-                        // without shrinking other pools).
-                        return (1, 1)
-                    default:
-                        return (config.vm.cpuCount, config.vm.memoryGB)
-                    }
-                }
-            )
-            var partitioned = partition.caps
-            // Docker's hard slot cap applies on top of the budget partition.
-            if let dockerConfig = config.docker, let partitionCap = partitioned[.docker] {
-                partitioned[.docker] = min(partitionCap, dockerConfig.maxSlots)
-            }
-            caps = partitioned
-        } else {
-            // Single-pool fleets (legacy tart-only and container-only) keep
-            // the fleet cap semantics and the legacy status shape (nil
-            // capacityByRuntime).
-            caps = [:]
-        }
+        // Mixed fleets partition the usable host budget between runtimes;
+        // single-pool fleets keep the fleet cap (no per-runtime caps).
+        let caps = RuntimeCapacity.caps(for: config, host: host)
         self.routingState = Mutex(RoutingState(model: routing, caps: caps))
         // Phase 2 wiring (the boxes are computed properties, so these must
         // come after every stored property is initialized).

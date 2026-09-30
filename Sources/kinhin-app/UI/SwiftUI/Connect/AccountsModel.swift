@@ -231,21 +231,8 @@ final class AccountsModel {
     // MARK: Live verification
 
     static func liveVerify(_ account: AccountConfig, token: String) async -> StatusLine {
-        switch account.forge {
-        case .github:
-            let client = GitHubClient(credentials: GitHubCredentials(token: token, scope: account.scope))
-            let report = await OrgPermissionProbe.verify(github: client, scope: account.scope)
-            return StatusLine(text: report.message, style: report.ok ? .ok : .error)
-        case .gitea, .forgejo:
-            guard let instance = account.instance, !instance.isEmpty else {
-                return StatusLine(text: "This account has no server address in config.yaml.", style: .error)
-            }
-            let report = await TokenHealthCheck.gitea(token: token, scope: account.scope, instance: instance)
-            return StatusLine(text: report.message, style: report.ok ? .ok : .error)
-        case .gitlab:
-            let report = await TokenHealthCheck.gitlab(token: token, scope: account.scope, instance: account.instance)
-            return StatusLine(text: report.message, style: report.ok ? .ok : .error)
-        }
+        let report = await TokenHealthCheck.account(account, token: token)
+        return StatusLine(text: report.message, style: report.ok ? .ok : .error)
     }
 
     // MARK: Test hooks

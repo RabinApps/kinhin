@@ -271,21 +271,8 @@ final class ForgeConnectionModel {
         }
         guard let resolved else { return false }
         do {
-            let refs: [RepoRef]
-            switch forge {
-            case .github:
-                refs = try await GitHubClient(credentials: GitHubCredentials(token: resolved, scope: ""))
-                    .listRepositories()
-            case .gitea, .forgejo:
-                guard let instanceValue = instanceIfAny else { return false }
-                refs = try await GiteaClient(
-                    credentials: GiteaCredentials(token: resolved, scope: "", instance: instanceValue)
-                ).listRepositories()
-            case .gitlab:
-                refs = try await GitLabClient(
-                    credentials: GitLabCredentials(token: resolved, scope: "", instance: instanceIfAny)
-                ).listRepositories()
-            }
+            if forge == .gitea || forge == .forgejo, instanceIfAny == nil { return false }
+            let refs = try await TokenHealthCheck.repositories(forge: forge, token: resolved, instance: instanceIfAny)
             repos = refs.prefix(300).map(\.fullName)
             if token != nil {
                 status = Line(

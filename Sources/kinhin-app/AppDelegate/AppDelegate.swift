@@ -151,19 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cfg.canRunOnThisHost()
         {
             do {
-                let tart = try cfg.makeTartControlling()
-                // Factory-based init so a later token swap re-targets the
-                // client without an app restart.
-                let built = FleetEngine(
-                    config: cfg,
-                    pat: pat,
-                    tart: tart,
-                    store: FleetStore(),
-                    ssh: SSHExecutor(),
-                    host: ResourceProbe().snapshot()
-                )
-                built.useLiveDiskProbe()
-                engine = built
+                engine = try FleetEngine.production(config: cfg, token: pat)
                 setupIncomplete = false
                 Log.info("app", "no daemon; running engine in-process (not started yet)")
             } catch {

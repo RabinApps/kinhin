@@ -89,18 +89,10 @@ extension AppDelegate {
             return
         }
         do {
-            let tart = try cfg.makeTartControlling()
-            let wasRunning = await old.status().running
-            let wasPaused = await old.status().paused
-            let replacement = FleetEngine(
-                config: cfg,
-                pat: pat,
-                tart: tart,
-                store: FleetStore(),
-                ssh: SSHExecutor(),
-                host: ResourceProbe().snapshot()
-            )
-            replacement.useLiveDiskProbe()
+            let replacement = try FleetEngine.production(config: cfg, token: pat)
+            let previous = await old.status()
+            let wasRunning = previous.running
+            let wasPaused = previous.paused
             // A stopped fleet stays stopped across a rebuild — a config edit
             // must never start spawning VMs.
             if wasRunning {

@@ -111,6 +111,12 @@ extension FleetEngine {
     /// re-verification (the CLI/app verified before saving). An unknown
     /// account is ignored with a warning.
     public func replaceToken(account name: String, token: String) async {
+        // The primary GitHub account also drives the legacy client and the
+        // engine's registration cache: swap all of them together.
+        if name == config.primaryGitHub?.name {
+            await replaceCredentials(pat: token)
+            return
+        }
         guard let account = config.accounts.first(where: { $0.name == name }) else {
             Log.warn("engine", "token replaced for unknown account '\(name)' — ignoring")
             return

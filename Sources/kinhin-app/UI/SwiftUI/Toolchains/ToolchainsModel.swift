@@ -56,7 +56,7 @@ final class ToolchainsModel {
     /// Runs the actual image build for a runtime (real implementation below).
     @ObservationIgnored var rebuild: (_ runtime: RuntimeID, _ config: KinhinConfig) async throws -> Void = {
         runtime, cfg in
-        try await ToolchainsModel.rebuildImage(runtime: runtime, config: cfg)
+        try await ImageBuildService.rebuild(runtime, config: cfg)
     }
 
     // MARK: Selection
@@ -338,37 +338,6 @@ final class ToolchainsModel {
         }
     }
 
-    /// The real image builds (same calls the setup checklist and CLI make).
-    static func rebuildImage(runtime: RuntimeID, config cfg: KinhinConfig) async throws {
-        switch runtime {
-        case .tart:
-            let tart = try TartController(configuredPath: cfg.tartPath)
-            try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(ImagePreparer.Options(config: cfg))
-        case .appleContainer:
-            guard let image = cfg.container?.image else { throw ToolchainRebuildError.notConfigured("container") }
-            try await SetupRepairRunner.startContainerSystem(shell: Shell())
-            let base = LinuxImageOptions.baseImage(
-                configured: image, localImages: await AppleContainerRuntime().localImageNames(),
-                fallback: LinuxBaseImage.resolve(configured: cfg.container?.baseImage))
-            var options = ContainerImagePreparer.Options(image: base, target: image)
-            options.toolchains = cfg.toolchains
-            try await ContainerImagePreparer(shell: Shell()).prepare(options)
-        case .docker:
-            guard let image = cfg.docker?.image else { throw ToolchainRebuildError.notConfigured("docker") }
-            let base = LinuxImageOptions.baseImage(
-                configured: image,
-                localImages: await DockerRuntime(image: image).localImageNames(
-                    reusing: image, for: cfg.docker?.platform ?? .arm64),
-                fallback: LinuxBaseImage.resolve(configured: cfg.docker?.baseImage))
-            var options = DockerImagePreparer.Options(image: base, target: image)
-            options.platform = cfg.docker?.platform ?? .arm64
-            options.toolchains = cfg.toolchains
-            try await DockerImagePreparer(shell: Shell()).prepare(options)
-        case .host:
-            break
-        }
-    }
-
     // MARK: Test hooks
 
     func toggleToolForTesting(_ id: String, version: String = "", on: Bool = true) {
@@ -384,14 +353,5 @@ final class ToolchainsModel {
     var applyEnabledForTesting: Bool { applyEnabled }
     var rebuildEnabledForTesting: [RuntimeID: Bool] {
         Dictionary(uniqueKeysWithValues: imageRuntimes.map { ($0.runtime, rebuildEnabled) })
-    }
-}
-
-enum ToolchainRebuildError: LocalizedError {
-    case notConfigured(String)
-    var errorDescription: String? {
-        switch self {
-        case .notConfigured(let name): return "\(name) isn't set up in config.yaml."
-        }
     }
 }

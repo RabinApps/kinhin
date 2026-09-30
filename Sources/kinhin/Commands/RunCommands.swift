@@ -71,7 +71,7 @@ enum RunCommands {
             if args.contains("--json") {
                 try emitJSON(StatusDocument(daemonRunning: true, fleet: status))
             } else {
-                print(renderStatus(status))
+                print(FleetStatusFormatter.report(status))
             }
         } else {
             if args.contains("--json") {
@@ -83,15 +83,7 @@ enum RunCommands {
                 let cfg = try? ConfigLoader.load()
             {
                 let host = ResourceProbe().snapshot()
-                let plan = Capacity.plan(
-                    host: host,
-                    vmCPU: cfg.vm.cpuCount,
-                    vmMemoryGB: cfg.vm.memoryGB,
-                    reservedCPU: cfg.reserve.cpu,
-                    reservedMemoryGB: cfg.reserve.memoryGB,
-                    diskPerVMGB: cfg.diskGB ?? 0,
-                    userMax: cfg.maxRunners
-                )
+                let plan = Capacity.plan(for: cfg, host: host)
                 print("capacity: \(plan.maxConcurrent) concurrent VM(s) available (binding: \(plan.bindingConstraint))")
                 let rpv = max(1, cfg.runnersPerVM)
                 let slots = plan.maxConcurrent * rpv
@@ -122,7 +114,7 @@ enum RunCommands {
             // A dead or failing daemon reads as "not running" on this refresh.
             if RPCClient.isDaemonAlive(), let status = try? RPCClient().status() {
                 print("\u{1B}[2J\u{1B}[H")  // clear screen
-                print(renderStatus(status))
+                print(FleetStatusFormatter.report(status))
                 print("(refreshing every 2s — Ctrl-C to exit)")
             } else {
                 print("\u{1B}[2J\u{1B}[H")

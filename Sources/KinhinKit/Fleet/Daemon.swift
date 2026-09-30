@@ -86,17 +86,7 @@ public enum Daemon {
         guard let pat = try ConfigLoader.engineToken(for: cfg) else {
             throw DaemonError.missingToken
         }
-        let tart = try cfg.makeTartControlling()
-        let engine = FleetEngine(
-            config: cfg,
-            pat: pat,
-            tart: tart,
-            store: FleetStore(),
-            ssh: SSHExecutor(),
-            host: ResourceProbe().snapshot()
-        )
-        engine.useLiveDiskProbe()
-        return engine
+        return try FleetEngine.production(config: cfg, token: pat)
     }
 
     /// Thread-safe box around the "current" engine. A config edit that the

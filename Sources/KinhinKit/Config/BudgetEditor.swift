@@ -87,35 +87,14 @@ public enum BudgetEditor {
         return result
     }
 
-    /// Instance caps at a given split — the same partition math the engine
-    /// uses, exposed for live UI previews ("cap N" next to each slider).
+    /// Instance caps at a candidate split, for live UI previews ("cap N"
+    /// next to each slider) — the engine's own partition for `config` at
+    /// these weights (shapes, defaults and Docker's slot cap included).
     /// Pure: no disk, no probing.
     public static func previewCaps(
-        host: HostResources,
-        reserve: KinhinConfig.Reserve,
-        vmShape: (cpu: Int, memoryGB: Int),
-        containerShape: (cpu: Int, memoryGB: Int)?,
-        weights: [String: Double],
-        defaultRuntime: RuntimeID,
-        dockerShape: (cpu: Int, memoryGB: Int)? = nil
+        config: KinhinConfig, host: HostResources, weights: [String: Double], defaultRuntime: RuntimeID
     ) -> [RuntimeID: Int] {
-        let partition = RuntimeCapacity.partition(
-            hostUsableCPU: max(0, host.logicalCores - reserve.cpu),
-            hostUsableMemoryGB: max(0, host.memoryGB - reserve.memoryGB),
-            weights: weights,
-            defaultRuntime: defaultRuntime,
-            shape: { id in
-                switch id {
-                case .appleContainer:
-                    return (containerShape?.cpu ?? vmShape.cpu, containerShape?.memoryGB ?? vmShape.memoryGB)
-                case .docker:
-                    return (dockerShape?.cpu ?? vmShape.cpu, dockerShape?.memoryGB ?? vmShape.memoryGB)
-                default:
-                    return vmShape
-                }
-            }
-        )
-        return partition.caps
+        RuntimeCapacity.partitionedCaps(for: config, host: host, weights: weights, defaultRuntime: defaultRuntime)
     }
 
     /// Routes whose target runtime cannot run a single instance at this

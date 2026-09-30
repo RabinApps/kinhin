@@ -40,7 +40,7 @@ struct AuthEnvironment: Sendable {
     var deleteAccount: @Sendable (ForgeID, String) -> Void = { KeychainTokenStore.delete(forge: $0, name: $1) }
     /// Best-effort live-swap notification for a named account: (account, token).
     var notifyDaemonAccount: @Sendable (String, String) -> Void = { account, token in
-        notifyDaemonAccountTokenReplaced(account: account, token: token)
+        notifyDaemonTokenReplaced(.account(account), token: token)
     }
     /// The config file `auth add/remove` edit.
     var configURL: URL = Paths.config
@@ -73,15 +73,7 @@ struct AuthEnvironment: Sendable {
         checkGitHub: { credentials in _ = try await GitHubClient(credentials: credentials).listRunners() },
         checkGitea: { credentials in _ = try await GiteaClient(credentials: credentials).fetchRegistrationToken() },
         loadConfig: { loadConfigOrExit() },
-        notifyDaemon: { token, forge in
-            switch forge {
-            case .github: notifyDaemonTokenReplaced(token)
-            case .gitea: notifyDaemonGiteaTokenReplaced(token)
-            case .forgejo: notifyDaemonForgejoTokenReplaced(token)
-            // GitLab has no legacy section: its tokens always go through accounts.
-            case .gitlab: notifyDaemonAccountTokenReplaced(account: ForgeID.gitlab.rawValue, token: token)
-            }
-        },
+        notifyDaemon: { token, forge in notifyDaemonTokenReplaced(.forge(forge), token: token) },
         fail: { Self.fail($0) },
         exit: { Self.exit($0) }
     )

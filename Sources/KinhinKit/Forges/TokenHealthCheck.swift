@@ -116,4 +116,39 @@ public enum TokenHealthCheck {
             return await Self.gitlab(token: token, scope: account.scope, instance: account.instance)
         }
     }
+
+    /// Check any `accounts:` entry's token the way its forge needs: GitHub's
+    /// runner-management permission, a Gitea-family registration mint, or
+    /// GitLab's version, scopes and scope.
+    public static func account(_ account: AccountConfig, token: String) async -> Report {
+        switch account.forge {
+        case .github:
+            return await github(token: token, scope: account.scope)
+        case .gitea, .forgejo:
+            guard let instance = account.instance, !instance.isEmpty else {
+                return Report(ok: false, message: "This account has no server address in config.yaml.")
+            }
+            return await gitea(token: token, scope: account.scope, instance: instance)
+        case .gitlab:
+            return await gitlab(token: token, scope: account.scope, instance: account.instance)
+        }
+    }
+
+    /// The repositories a token can see on a forge (the Connect form's
+    /// picker). `instance` is required for Gitea-family forges; GitLab
+    /// defaults to gitlab.com.
+    public static func repositories(forge: ForgeID, token: String, instance: String?) async throws -> [RepoRef] {
+        switch forge {
+        case .github:
+            return try await GitHubClient(credentials: GitHubCredentials(token: token, scope: "")).listRepositories()
+        case .gitea, .forgejo:
+            return try await GiteaClient(
+                credentials: GiteaCredentials(token: token, scope: "", instance: instance ?? "")
+            ).listRepositories()
+        case .gitlab:
+            return try await GitLabClient(
+                credentials: GitLabCredentials(token: token, scope: "", instance: instance)
+            ).listRepositories()
+        }
+    }
 }

@@ -112,7 +112,7 @@ final class RPCClientErrorTests: XCTestCase {
     }
 
     func testRejectionMapsToUserFacingMessage() {
-        // replaceToken / replaceGiteaToken / reloadConfig map ok:false
+        // replaceToken / replaceAccountToken / reloadConfig map ok:false
         // responses to RPCError.rejected; the LocalizedError text is the
         // user-facing contract the CLI and app surface.
         let rejected = RPCError.rejected("keychain save failed")

@@ -32,14 +32,7 @@ extension RuntimesModel {
         guard let parsed = parsedConfig, let rc = currentRuntimeConfig else { return }
         let def = defaultRuntimeID
         let caps = BudgetEditor.previewCaps(
-            host: hostSnapshot(),
-            reserve: parsed.reserve,
-            vmShape: (parsed.vm.cpuCount, parsed.vm.memoryGB),
-            containerShape: parsed.container.map { ($0.cpus, $0.memoryGB) },
-            weights: budget,
-            defaultRuntime: def,
-            dockerShape: parsed.docker.map { ($0.cpus, $0.memoryGB) }
-        )
+            config: parsed, host: hostSnapshot(), weights: budget, defaultRuntime: def)
         capPreviews = caps
         // Percent labels update live (they were rendered for the old split).
         var shares: [String: Double] = [:]

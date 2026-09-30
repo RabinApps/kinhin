@@ -15,6 +15,8 @@ public enum ImageError: LocalizedError {
     /// JSON, malformed tag). Network failures do not get here — the fetch itself
     /// degrades to the pinned version.
     case malformedVersionFeed(feed: String, reason: String)
+    /// A rebuild was asked for a runtime whose config section is missing.
+    case notConfigured(section: String)
 
     public var errorDescription: String? {
         switch self {
@@ -25,6 +27,8 @@ public enum ImageError: LocalizedError {
         case .provisionScriptUnreadable(let path, let why): return "user provision script '\(path)': \(why)"
         case .malformedVersionFeed(let feed, let why):
             return "runner release feed '\(feed)' returned an unusable payload: \(why)"
+        case .notConfigured(let section):
+            return "no \(section).image is set — add a \(section): section first"
         }
     }
 }

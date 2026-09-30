@@ -33,7 +33,7 @@ final class FleetModel {
     func setPending(_ action: PendingAction?) { pendingAction = action }
     var isBusy: Bool { pendingAction != nil }
 
-    var statusLine: String { AppDelegate.statusLineText(for: status) }
+    var statusLine: String { FleetStatusFormatter.summary(status) }
     var running: Bool { status?.running ?? false }
     var paused: Bool { status?.paused ?? false }
     /// Non-nil while the fleet is paused with auto-resume on: shown on the
@@ -84,9 +84,7 @@ final class FleetModel {
 
     func detail(for record: VMRecord) -> String {
         var parts: [String] = []
-        if let repos = record.repos, !repos.isEmpty {
-            parts.append(repos.count == 1 ? repos[0] : "\(repos.count) repos")
-        }
+        if let repos = FleetStatusFormatter.repos(of: record) { parts.append(repos) }
         if let job = record.job { parts.append(job) }
         if let err = record.error { parts.append("⚠︎ \(err)") }
         return parts.joined(separator: " · ")

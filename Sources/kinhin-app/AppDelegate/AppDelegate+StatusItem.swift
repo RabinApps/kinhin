@@ -104,51 +104,10 @@ extension AppDelegate {
         }
     }
 
-    /// The first menu line: state word, counters, and the org-scope per-repo
-    /// summaries (top 2 each) when the fleet serves more than one repo.
-    /// Static so the Fleet tab can render the exact same line.
+    /// The first menu line (shared with the Fleet tab): state word,
+    /// counters, and the org-scope per-repo summaries.
     func statusLine(for status: FleetStatus) -> String {
-        AppDelegate.statusLineText(for: status)
-    }
-
-    /// Shared rendering of the status line for the menu and the Fleet tab.
-    static func statusLineText(for status: FleetStatus?) -> String {
-        guard let status else { return "Needs setup — open the Setup tab" }
-        let state = !status.running ? "Stopped" : (status.paused ? "Paused" : "Running")
-        var line = "\(state) — queue \(status.queueDepth) · desired \(status.desired) · cap \(status.capacityCap)"
-        if status.jobCapacity > 0 { line += " · \(status.jobCapacity) job slots" }
-        // A deliberate pause (e.g. a pause-first VM delete) must not read as
-        // stuck: when the policy is on, the fleet will release itself. With
-        // the cadence known, say when the queue is re-checked; nil (older
-        // daemon) falls back to the short form. Nil autoResume means off —
-        // no note at all.
-        if status.paused, status.autoResume == true {
-            line += "\n  ⏳ auto-resume: \(status.autoResumeCadence ?? "releases when the queue is empty")"
-        }
-        // Freshness of those queue numbers: only a forge *answering* a demand
-        // fetch refreshes them, so a paused snapshot (or one from a stalled
-        // poll) can be old. Same rule as the CLI's "queue age:" line, via the
-        // shared FleetStatus helpers. Omitted when never polled or when an
-        // older daemon predates the field.
-        if let age = status.queueAgeSeconds {
-            line += "\n  ⏱ queue age: \(age)s old"
-            if status.queueAgeIsStale == true {
-                line += " (stale — a forge poll failed or the engine is stopped)"
-            }
-        }
-        // Org scope: which repos the queued work comes from.
-        if let byRepo = status.queueByRepo, status.queueDepth > 0, !byRepo.isEmpty {
-            let top = byRepo.sorted { $0.value > $1.value }.prefix(2)
-            let summary = top.map { "\($0.key) ×\($0.value)" }.joined(separator: ", ")
-            line += "\n  ↳ \(summary)"
-        }
-        // Org scope: which repos the running work comes from.
-        if let byRepo = status.runningByRepo, status.activeCount > 0, !byRepo.isEmpty {
-            let top = byRepo.sorted { $0.value > $1.value }.prefix(2)
-            let summary = top.map { "\($0.key) ×\($0.value)" }.joined(separator: ", ")
-            line += "\n  ▶ \(summary)"
-        }
-        return line
+        FleetStatusFormatter.summary(status)
     }
 
     /// Hides the fleet actions that make no sense in the current state.
@@ -180,7 +139,7 @@ extension AppDelegate {
     /// otherwise the shared state line.
     func statusLineText(pending: PendingFleetAction?, status: FleetStatus?) -> String {
         if let pending { return pending == .start ? "Starting…" : "Stopping…" }
-        guard let status else { return AppDelegate.statusLineText(for: nil) }
+        guard let status else { return FleetStatusFormatter.summary(nil) }
         return statusLine(for: status)
     }
 
@@ -213,10 +172,7 @@ extension AppDelegate {
         }
         for record in status.records {
             var title = "  \(record.id) — \(record.phase.rawValue)"
-            if let repos = record.repos, !repos.isEmpty {
-                let reposText = repos.count == 1 ? repos[0] : "\(repos.count) repos"
-                title += " — \(reposText)"
-            }
+            if let repos = FleetStatusFormatter.repos(of: record) { title += " — \(repos)" }
             if let job = record.job { title += " (\(job))" }
             if let err = record.error { title += " ⚠︎ \(err.prefix(40))" }
             let item = menu.addItem(withTitle: title, action: #selector(deleteVM(_:)), keyEquivalent: "")

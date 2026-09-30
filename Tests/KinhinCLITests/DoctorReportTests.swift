@@ -423,4 +423,17 @@ final class DoctorReportTests: XCTestCase {
         let decoded = try JSONDecoder().decode(DoctorReport.self, from: try JSONEncoder().encode(report))
         XCTAssertEqual(decoded, report)
     }
+
+    // MARK: - Human rendering
+
+    /// `kinhin doctor` prints the same report `--json` emits: a broken tart,
+    /// a missing account token and the capacity all come from the report.
+    func testPlainTextRendersTheSharedReport() async {
+        let report = await builder(config: Self.config(), tartHealth: .killedOnLaunch).build()
+        let text = report.plainText
+        XCTAssertTrue(text.hasPrefix("kinhin doctor"), text)
+        XCTAssertTrue(text.contains("tart:       INSTALLED BUT KILLED ON LAUNCH ✗"), text)
+        XCTAssertTrue(text.contains("tok github: no token stored — run: kinhin auth set --account github"), text)
+        XCTAssertTrue(text.contains("capacity:   up to"), text)
+    }
 }

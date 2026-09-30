@@ -21,55 +21,27 @@ extension AppDelegate {
     /// engine, or the daemon over RPC) so the swap takes effect without a
     /// restart. Called from the Setup tab's Connect form.
     func notifyTokenReplaced(forge: ForgeID, token: String) async throws {
-        switch forge {
-        case .github:
-            try KeychainTokenStore.save(token)
-            if let engine {
-                await engine.replaceCredentials(pat: token)
-                Log.info("app", "replaced GitHub token (in-process engine)")
-            } else if let client {
-                try await client.perform { try $0.replaceToken(pat: token) }
-                Log.info("app", "replaced GitHub token (daemon notified)")
-            } else {
-                Log.info("app", "replaced GitHub token (no engine running yet)")
-            }
-        case .gitea, .forgejo:
-            // Gitea-family tokens belong to the primary account of that forge
-            // (named "gitea"/"forgejo"), which routes through the account swap.
-            let forge = forge
-            try KeychainTokenStore.save(token, forge: forge)
-            let accountName = forge == .gitea ? ForgeID.gitea.rawValue : ForgeID.forgejo.rawValue
-            if let engine {
-                await engine.replaceToken(account: accountName, token: token)
-                Log.info("app", "replaced \(forge.rawValue) token (in-process engine)")
-            } else if let client {
-                try await client.perform { try $0.replaceAccountToken(account: accountName, token: token) }
-                Log.info("app", "replaced \(forge.rawValue) token (daemon notified)")
-            } else {
-                Log.info("app", "replaced \(forge.rawValue) token (no engine running yet)")
-            }
-        case .gitlab:
-            // GitLab has no legacy section: its token belongs to the account named "gitlab".
-            try await notifyAccountTokenReplaced(
-                account: AccountConfig(name: ForgeID.gitlab.rawValue, forge: .gitlab, scope: ""), token: token)
-            return
-        }
-        await refresh()
+        // Every forge card's token lives under its primary account's item.
+        try KeychainTokenStore.save(token, forge: forge, name: forge.rawValue)
+        try await rotate(.forge(forge), token: token)
     }
 
     /// Same for a named `accounts:` entry: save to the Keychain under the
     /// account's own item, then hand the token to the engine (or daemon).
     func notifyAccountTokenReplaced(account: AccountConfig, token: String) async throws {
         try KeychainTokenStore.save(token, forge: account.forge, name: account.name)
+        try await rotate(.account(account.name), token: token)
+    }
+
+    private func rotate(_ target: CredentialRotation.Target, token: String) async throws {
         if let engine {
-            await engine.replaceToken(account: account.name, token: token)
-            Log.info("app", "replaced token for account '\(account.name)' (in-process engine)")
+            await CredentialRotation.apply(target, token: token, to: engine)
+            Log.info("app", "replaced token for '\(target.accountName)' (in-process engine)")
         } else if let client {
-            let name = account.name
-            try await client.perform { try $0.replaceAccountToken(account: name, token: token) }
-            Log.info("app", "replaced token for account '\(account.name)' (daemon notified)")
+            try await client.perform { try CredentialRotation.notify(target, token: token, daemon: $0) }
+            Log.info("app", "replaced token for '\(target.accountName)' (daemon notified)")
         } else {
-            Log.info("app", "stored token for account '\(account.name)' (no engine running yet)")
+            Log.info("app", "stored token for '\(target.accountName)' (no engine running yet)")
         }
         await refresh()
     }

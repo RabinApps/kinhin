@@ -50,16 +50,6 @@ public struct RPCClient: Sendable {
         try command(.replaceToken, payload: JSONEncoder().encode(TokenReplaceRequest(pat: pat)))
     }
 
-    /// Ask the daemon to swap its Gitea access token.
-    public func replaceGiteaToken(_ token: String) throws {
-        try command(.replaceGiteaToken, payload: JSONEncoder().encode(GiteaTokenReplaceRequest(token: token)))
-    }
-
-    /// Ask the daemon to swap its Forgejo access token.
-    public func replaceForgejoToken(_ token: String) throws {
-        try command(.replaceForgejoToken, payload: JSONEncoder().encode(ForgejoTokenReplaceRequest(token: token)))
-    }
-
     /// Ask the daemon to swap one account's token (already in the Keychain).
     public func replaceAccountToken(account: String, token: String) throws {
         try command(

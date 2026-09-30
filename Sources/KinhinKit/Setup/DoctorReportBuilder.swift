@@ -286,19 +286,7 @@ public struct DoctorReportBuilder: Sendable {
         // the runtime default), so doctor's cap is the cap the fleet enforces.
         var capacitySection: DoctorReport.CapacitySection?
         if let cfg = parsed {
-            let runtimeID =
-                cfg.container != nil
-                ? RuntimeID.appleContainer.rawValue
-                : cfg.docker != nil ? RuntimeID.docker.rawValue : RuntimeID.tart.rawValue
-            let plan = Capacity.plan(
-                host: resolvedHost,
-                vmCPU: cfg.vm.cpuCount,
-                vmMemoryGB: cfg.vm.memoryGB,
-                reservedCPU: cfg.reserve.cpu,
-                reservedMemoryGB: cfg.reserve.memoryGB,
-                diskPerVMGB: ResourceProbe.effectiveDiskPerVMGB(diskGB: cfg.diskGB, runtime: runtimeID),
-                userMax: cfg.maxRunners
-            )
+            let plan = Capacity.plan(for: cfg, host: resolvedHost)
             capacitySection = DoctorReport.CapacitySection(
                 maxConcurrent: plan.maxConcurrent,
                 bindingConstraint: plan.bindingConstraint,

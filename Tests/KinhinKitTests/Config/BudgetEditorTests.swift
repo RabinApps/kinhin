@@ -185,15 +185,26 @@ final class BudgetEditorTests: XCTestCase {
 
     // MARK: previewCaps
 
+    /// A config with the given shapes (and this suite's reserve).
+    private func previewConfig(container: (Int, Int)? = nil, docker: (Int, Int, Int)? = nil) -> KinhinConfig {
+        var cfg = KinhinConfig.default
+        cfg.vm.cpuCount = 4
+        cfg.vm.memoryGB = 8
+        cfg.reserve = reserve
+        if let container {
+            cfg.container = KinhinConfig.ContainerConfig(image: "linux", cpus: container.0, memoryGB: container.1)
+        }
+        if let docker {
+            cfg.docker = KinhinConfig.DockerForgeConfig(
+                image: "linux", cpus: docker.0, memoryGB: docker.1, maxSlots: docker.2)
+        }
+        return cfg
+    }
+
     func testPreviewCapsMatchPartitionMath() {
         let caps = BudgetEditor.previewCaps(
-            host: host,
-            reserve: reserve,
-            vmShape: (4, 8),
-            containerShape: (2, 4),
-            weights: ["tart": 0.6, "appleContainer": 0.4],
-            defaultRuntime: .tart
-        )
+            config: previewConfig(container: (2, 4)), host: host,
+            weights: ["tart": 0.6, "appleContainer": 0.4], defaultRuntime: .tart)
         // usable 10 cpu / 28 GB: container 0.4 → 4cpu/11GB ÷ (2,4) = 2;
         // tart remainder 6cpu/17GB ÷ (4,8) = 1.
         XCTAssertEqual(caps[.appleContainer], 2)
@@ -202,13 +213,8 @@ final class BudgetEditorTests: XCTestCase {
 
     func testPreviewCapsAtSliderExtreme() {
         let caps = BudgetEditor.previewCaps(
-            host: host,
-            reserve: reserve,
-            vmShape: (4, 8),
-            containerShape: (2, 4),
-            weights: ["appleContainer": 1.0],
-            defaultRuntime: .tart
-        )
+            config: previewConfig(container: (2, 4)), host: host, weights: ["appleContainer": 1.0],
+            defaultRuntime: .tart)
         // Everything to containers: 10÷2 = 5 (memory 28÷4 = 7, cpu binds).
         XCTAssertEqual(caps[.appleContainer], 5)
         XCTAssertEqual(caps[.tart], 0)
@@ -216,15 +222,22 @@ final class BudgetEditorTests: XCTestCase {
 
     func testPreviewCapsEmptyWeightsGivesDefaultEverything() {
         let caps = BudgetEditor.previewCaps(
-            host: host,
-            reserve: reserve,
-            vmShape: (4, 8),
-            containerShape: nil,
-            weights: [:],
-            defaultRuntime: .tart
-        )
+            config: previewConfig(), host: host, weights: [:], defaultRuntime: .tart)
         // No split: the whole usable budget in VM shape → 10÷4 = 2.
         XCTAssertEqual(caps[.tart], 2)
+    }
+
+    /// The preview is the engine's partition: host slots cost (1,1), not
+    /// the VM shape, and Docker's slot cap applies on top of its share.
+    func testPreviewCapsMatchTheEngineForHostAndDocker() {
+        var cfg = previewConfig(docker: (2, 4, 3))
+        cfg.runtimes = KinhinConfig.RuntimeConfig(
+            defaultRuntime: "tart", budget: ["docker": 0.8, "host": 0.1], routes: [])
+        let weights = cfg.runtimes?.budget ?? [:]
+        let preview = BudgetEditor.previewCaps(config: cfg, host: host, weights: weights, defaultRuntime: .tart)
+        XCTAssertEqual(preview[.docker], 3, "8 cpu ÷ 2 = 4, capped at max_slots 3")
+        XCTAssertEqual(preview[.host], 1, "host slots are (1,1): 1 cpu ÷ 1")
+        XCTAssertEqual(preview, RuntimeCapacity.caps(for: cfg, host: host), "preview must equal the engine's caps")
     }
 
     // MARK: Round-trip through the validated config editor

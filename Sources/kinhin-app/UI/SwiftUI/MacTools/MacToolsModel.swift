@@ -260,7 +260,7 @@ final class MacToolsModel {
     func startContainerService() -> Task<Void, Never> {
         let shell = installShell
         return run("Starting the Apple container service…") {
-            try await SetupRepairRunner.startContainerSystem(shell: shell)
+            try await AppleContainerRuntime.startSystem(shell: shell)
         }
     }
 
@@ -285,9 +285,7 @@ final class MacToolsModel {
 
     func prepareImage() {
         run("Preparing the runner image — this takes a while, but only once…") {
-            let cfg = try ConfigLoader.load()
-            let tart = try TartController(configuredPath: cfg.tartPath)
-            try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(ImagePreparer.Options(config: cfg))
+            try await ImageBuildService.rebuild(.tart, config: ConfigLoader.load())
         }
     }
 

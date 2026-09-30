@@ -127,32 +127,7 @@ extension FleetEngine {
             dockerPlatform: newConfig.docker?.platform ?? .arm64,
             hostConfigured: newConfig.hostRoutesConfigured
         )
-        var caps: [RuntimeID: Int] = [:]
-        if newConfig.runtimes != nil, newConfig.container != nil || newConfig.docker != nil {
-            // Same partition the init computes for a mixed fleet.
-            let partition = RuntimeCapacity.partition(
-                hostUsableCPU: max(0, host.logicalCores - newConfig.reserve.cpu),
-                hostUsableMemoryGB: max(0, host.memoryGB - newConfig.reserve.memoryGB),
-                weights: newConfig.runtimes?.budget ?? [:],
-                defaultRuntime: RuntimeID(rawValue: newConfig.runtimes?.defaultRuntime ?? "tart") ?? .tart,
-                shape: { id in
-                    switch id {
-                    case .appleContainer:
-                        return (newConfig.container?.cpus ?? 4, newConfig.container?.memoryGB ?? 8)
-                    case .docker:
-                        return (newConfig.docker?.cpus ?? 2, newConfig.docker?.memoryGB ?? 4)
-                    case .host:
-                        return (1, 1)
-                    default:
-                        return (newConfig.vm.cpuCount, newConfig.vm.memoryGB)
-                    }
-                }
-            )
-            caps = partition.caps
-            if let dockerConfig = newConfig.docker, let partitionCap = caps[.docker] {
-                caps[.docker] = min(partitionCap, dockerConfig.maxSlots)
-            }
-        }
+        let caps = RuntimeCapacity.caps(for: newConfig, host: host)
         routingState.withLock { $0 = RoutingState(model: model, caps: caps) }
         // Fleet label edits must reach the forge's demand query too —
         // queuedJobs(matching:) filters by the forge's label set.

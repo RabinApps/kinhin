@@ -69,7 +69,7 @@ final class SetupRepairRunner {
     /// Starts the container system service if it isn't running.
     func startContainerSystem() {
         runWithProgress("Starting the container system…") {
-            try await Self.startContainerSystem(shell: Shell())
+            try await AppleContainerRuntime.startSystem()
         }
     }
 
@@ -80,82 +80,26 @@ final class SetupRepairRunner {
         }
     }
 
-    /// Makes the container system usable: running, and with a Linux kernel
-    /// installed (a system started by hand may lack one).
-    static func startContainerSystem(shell: ShellRunning) async throws {
-        try await startContainerServices(shell: shell)
-        try await AppleContainerRuntime.ensureKernel(shell: shell)
-    }
-
-    private static func startContainerServices(shell: ShellRunning) async throws {
-        guard !(await AppleContainerRuntime(shell: shell).health()).isReady else { return }
-        let result = try await shell.run(
-            // --enable-kernel-install: without it the CLI asks a question and
-            // fails ("failed to read user input") when run without a terminal.
-            [AppleContainerRuntime.resolvedBinaryPath, "system", "start", "--enable-kernel-install"],
-            cwd: nil, timeout: 120
-        )
-        guard result.succeeded else {
-            throw NSError(
-                domain: "kinhin", code: 1,
-                userInfo: [
-                    NSLocalizedDescriptionKey: result.stderr.isEmpty ? "container system start failed" : result.stderr
-                ])
-        }
-    }
-
     // MARK: Images
 
     /// Bakes the runner agents into the configured macOS runner image.
     func prepareImage() {
         runWithProgress("Preparing runner image (this takes a while)…") {
-            let cfg = try ConfigLoader.load()
-            let tart = try TartController(configuredPath: cfg.tartPath)
-            // The app's one-click prepare bakes everything the config asks
-            // for (base image, provision script, toolchains), like the CLI.
-            try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(ImagePreparer.Options(config: cfg))
+            try await ImageBuildService.rebuild(.tart, config: ConfigLoader.load())
         }
     }
 
     /// Bakes the runner agents into the configured Linux container image.
     func prepareContainerImage() {
         runWithProgress("Preparing container image (this takes a while)…") {
-            let cfg = try ConfigLoader.load()
-            guard let image = cfg.container?.image else {
-                throw ConfigError.invalid("no container.image is set — add a container: section first")
-            }
-            try await Self.startContainerSystem(shell: Shell())
-            let preparer = ContainerImagePreparer(shell: Shell())
-            // The config's toolchains section bakes into the Linux image too
-            // (macOS-only entries are skipped for containers, never an error).
-            let base = LinuxImageOptions.baseImage(
-                configured: image, localImages: await AppleContainerRuntime().localImageNames(),
-                fallback: LinuxBaseImage.resolve(configured: cfg.container?.baseImage))
-            var options = ContainerImagePreparer.Options(image: base, target: image)
-            options.toolchains = cfg.toolchains
-            try await preparer.prepare(options)
+            try await ImageBuildService.rebuild(.appleContainer, config: ConfigLoader.load())
         }
     }
 
     /// Bakes the runner agents into the configured Docker image.
     func prepareDockerImage() {
         runWithProgress("Preparing docker image (this takes a while)…") {
-            let cfg = try ConfigLoader.load()
-            guard let image = cfg.docker?.image else {
-                throw ConfigError.invalid("no docker.image is set — add a docker: section first")
-            }
-            let preparer = DockerImagePreparer(shell: Shell())
-            // The config's toolchains section bakes into the Linux image too
-            // (macOS-only entries are skipped for containers, never an error).
-            let base = LinuxImageOptions.baseImage(
-                configured: image,
-                localImages: await DockerRuntime(image: image).localImageNames(
-                    reusing: image, for: cfg.docker?.platform ?? .arm64),
-                fallback: LinuxBaseImage.resolve(configured: cfg.docker?.baseImage))
-            var options = DockerImagePreparer.Options(image: base, target: image)
-            options.platform = cfg.docker?.platform ?? .arm64
-            options.toolchains = cfg.toolchains
-            try await preparer.prepare(options)
+            try await ImageBuildService.rebuild(.docker, config: ConfigLoader.load())
         }
     }
 

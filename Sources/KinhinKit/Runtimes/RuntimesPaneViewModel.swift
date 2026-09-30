@@ -104,54 +104,16 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             hostConfigured: hostConfigured
         )
 
-        // Capacity: partition math identical to the engine's init.
-        var caps: [RuntimeID: Int] = [:]
-        if let rc {
-            let partition = RuntimeCapacity.partition(
-                hostUsableCPU: max(0, host.logicalCores - reserve.cpu),
-                hostUsableMemoryGB: max(0, host.memoryGB - reserve.memoryGB),
-                weights: rc.budget,
-                defaultRuntime: RuntimeID(rawValue: rc.defaultRuntime) ?? .tart,
-                shape: { id in
-                    switch id {
-                    case .appleContainer:
-                        return (parsed.container?.cpus ?? 4, parsed.container?.memoryGB ?? 8)
-                    case .docker:
-                        return (parsed.docker?.cpus ?? 2, parsed.docker?.memoryGB ?? 4)
-                    case .host:
-                        return (1, 1)
-                    default:
-                        return (parsed.vm.cpuCount, parsed.vm.memoryGB)
-                    }
-                }
-            )
-            caps = partition.caps
-            if let dockerConfig = parsed.docker, let partitionCap = caps[.docker] {
-                caps[.docker] = min(partitionCap, dockerConfig.maxSlots)
-            }
-        } else {
+        // Capacity: the engine's own caps for this config (with the pane's
+        // routing and reserve), so the pane never disagrees with the fleet.
+        var effective = parsed
+        effective.runtimes = rc
+        effective.reserve = reserve
+        var caps = RuntimeCapacity.caps(for: effective, host: host)
+        if caps.isEmpty {
             // Single-pool fleet: the engine's cap is the full Capacity.plan
             // on the primary runtime's shape (no partition).
-            let primary: RuntimeID = vm.containerConfigured ? .appleContainer : (vm.dockerConfigured ? .docker : .tart)
-            let (shapeCPU, shapeMem): (Int, Int)
-            switch primary {
-            case .appleContainer:
-                (shapeCPU, shapeMem) = (parsed.container?.cpus ?? 4, parsed.container?.memoryGB ?? 8)
-            case .docker:
-                (shapeCPU, shapeMem) = (parsed.docker?.cpus ?? 2, parsed.docker?.memoryGB ?? 4)
-            default:
-                (shapeCPU, shapeMem) = (parsed.vm.cpuCount, parsed.vm.memoryGB)
-            }
-            caps[primary] =
-                Capacity.plan(
-                    host: host,
-                    vmCPU: shapeCPU,
-                    vmMemoryGB: shapeMem,
-                    reservedCPU: reserve.cpu,
-                    reservedMemoryGB: reserve.memoryGB,
-                    diskPerVMGB: parsed.diskGB ?? 0,
-                    userMax: parsed.maxRunners
-                ).maxConcurrent
+            caps[Capacity.primaryRuntime(of: effective)] = Capacity.plan(for: effective, host: host).maxConcurrent
         }
 
         // Health probes: one per pool, concurrently — plus a full

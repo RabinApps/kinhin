@@ -40,7 +40,7 @@ final class FleetTabTests: MainWindowTestCase {
 
         // The exact same line the menu renders — one renderer, two surfaces.
         let model = window.fleetModel
-        XCTAssertEqual(model.statusLine, AppDelegate.statusLineText(for: status))
+        XCTAssertEqual(model.statusLine, FleetStatusFormatter.summary(status))
         XCTAssertEqual(model.records.map(\.id), ["kinhin-vm-test", "kinhin-vm-idle"], "one row per VM")
         XCTAssertTrue(model.title(for: busy).contains("kinhin-vm-test — busy"))
         XCTAssertTrue(model.detail(for: busy).contains("2 repos"))
