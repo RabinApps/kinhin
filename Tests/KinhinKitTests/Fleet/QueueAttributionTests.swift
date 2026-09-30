@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -116,13 +117,17 @@ final class QueueAttributionTests: XCTestCase {
             credentials: GitHubCredentials(token: "t", scope: "acme"),
             session: URLSession(configuration: config)
         )
-        var runsStatus: String?
+        // The @Sendable stub handler records the query item; Mutex keeps the
+        // hand-off to the test's assertion race-free.
+        let runsStatus = Mutex<String?>(nil)
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
-                runsStatus =
-                    URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
-                    .queryItems?.first(where: { $0.name == "status" })?.value
+                runsStatus.withLock {
+                    $0 =
+                        URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                        .queryItems?.first(where: { $0.name == "status" })?.value
+                }
                 return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
             }
             XCTFail("unexpected path: \(path)")
@@ -131,7 +136,8 @@ final class QueueAttributionTests: XCTestCase {
         defer { StubProtocol.handler = nil }
 
         _ = try await client.runningJobs(matching: ["self-hosted"])
-        XCTAssertEqual(runsStatus, "in_progress", "running-jobs polling must use in_progress, not queued")
+        XCTAssertEqual(
+            runsStatus.withLock { $0 }, "in_progress", "running-jobs polling must use in_progress, not queued")
     }
 
     // MARK: Engine aggregation

@@ -20,13 +20,21 @@ kinhin runtimes route remove <pattern>
                             Delete that route (e.g. `acme/api` or `acme/web@Nightly`)
 kinhin image prepare        Build the runner base image (once); --provision-script <file>
                             bakes your toolchains in; `toolchains:` config entries are baked
-                            automatically and downloads go through a shared host cache (auto-pruned)
+                            automatically and downloads go through a shared host cache (auto-pruned);
+                            starts from top-level `base_image:` when set (a pre-configured tart
+                            image or a local VM name; default macOS base otherwise)
 kinhin image prepare --toolchain <spec> [--stack <name>]
                             Override the config's toolchains for this prepare
 kinhin image prepare --container
                             Build the Linux container image (apple container)
 kinhin image prepare --docker
                             Build the Linux container image (Docker Desktop / OrbStack / colima)
+kinhin image prepare --linux --target <name> [--from <ref>]
+                            Create a Linux tart VM from scratch; --from starts it from a
+                            pre-configured image (bare --from shows the menu) instead of an ISO
+kinhin image digest <registry>/<repo>:<tag>
+                            Print the digest the registry currently serves, so base_image: can
+                            be pinned to ref@sha256:… and every bake gets identical bits
 kinhin toolchains           Managed-toolchain catalog, selections, shared-cache state
 kinhin toolchains prune [--dry-run]
                             Expire stale host-cache entries now

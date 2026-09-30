@@ -153,7 +153,32 @@ final class SetBaseImageTests: XCTestCase {
             "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [self-hosted]\ndocker:\n  image: \"d\"\n"
         )
         XCTAssertThrowsError(try GeneralConfigEditor.setBaseImage("debian:12", for: .appleContainer, at: url))
-        XCTAssertThrowsError(try GeneralConfigEditor.setBaseImage("debian:12", for: .tart, at: url))
+    }
+
+    func testTartBaseImageRoundTripsAndClearsToTheDefault() throws {
+        let url = try file(both)
+        try GeneralConfigEditor.setBaseImage("ghcr.io/cirruslabs/macos-sequoia-base:latest", for: .tart, at: url)
+        let written = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(written.contains("base_image: \"ghcr.io/cirruslabs/macos-sequoia-base:latest\""), written)
+        XCTAssertTrue(written.contains("# keep me"), "the edit must not disturb the rest of the file")
+        let cfg = try ConfigLoader.load(from: url)
+        XCTAssertEqual(cfg.baseImage, "ghcr.io/cirruslabs/macos-sequoia-base:latest")
+        let snapshot = try XCTUnwrap(ConfigStore.snapshot(at: url))
+        XCTAssertEqual(snapshot.baseImage(for: .tart), cfg.baseImage)
+
+        // Clearing removes the key: the default must never be pinned in.
+        try GeneralConfigEditor.setBaseImage(nil, for: .tart, at: url)
+        let cleared = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertFalse(cleared.contains("base_image:"), cleared)
+        XCTAssertNil(try ConfigLoader.load(from: url).baseImage)
+    }
+
+    func testTartBaseImageRejectsHazardousReferencesBeforeWriting() throws {
+        let url = try file(both)
+        XCTAssertThrowsError(
+            try GeneralConfigEditor.setBaseImage("--privileged", for: .tart, at: url))
+        XCTAssertThrowsError(try GeneralConfigEditor.setBaseImage("two words", for: .tart, at: url))
+        XCTAssertNil(try ConfigLoader.load(from: url).baseImage, "a rejected edit must not write")
     }
 }
 

@@ -50,6 +50,7 @@ struct MacToolsView: View {
             ) {
                 model.prepareImage()
             }
+            baseImageRow(value: model.tartBaseImage, runtime: .tart)
             if model.busy || !model.busyLine.text.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     if model.busy { ProgressView().controlSize(.small) }
@@ -125,8 +126,15 @@ struct MacToolsView: View {
         HStack(alignment: .top, spacing: 8) {
             Text("Base image").font(.system(size: 12))
             Spacer(minLength: 0)
-            BaseImagePicker(value: value) { model.saveBaseImage($0, for: runtime) }
-                .fixedSize()
+            BaseImagePicker(
+                value: value,
+                onChange: { model.saveBaseImage($0, for: runtime) },
+                catalog: runtime == .tart ? .tartVM : .linuxContainer,
+                pinDigest: runtime == .tart
+                    ? { reference in await BaseImageChoice.pin(reference, in: .tartVM) }
+                    : nil
+            )
+            .fixedSize()
         }
     }
 

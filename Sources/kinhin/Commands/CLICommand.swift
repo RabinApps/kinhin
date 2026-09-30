@@ -11,6 +11,7 @@ enum CLICommand: Equatable {
     case setupRepair
     case runtimes
     case imagePrepare
+    case imageDigest
     case toolchains
     case start
     case stop
@@ -44,6 +45,8 @@ enum CLICommand: Equatable {
             return .runtimes
         case "image", "image prepare":
             return .imagePrepare
+        case "image digest":
+            return .imageDigest
         case "toolchains":
             return .toolchains
         case "start":

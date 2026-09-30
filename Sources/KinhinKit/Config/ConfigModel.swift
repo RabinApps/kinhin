@@ -40,6 +40,11 @@ public struct KinhinConfig: Sendable, Equatable {
     public var vm: VM
     /// Tart image to clone for each runner, e.g. "tahoe-base" (prepared via `kinhin image prepare`).
     public var image: String
+    /// What `image prepare` starts from: a curated tart reference (see
+    /// `TartBaseImage.curated`), any other registry reference, or a local VM
+    /// name (e.g. one created with `image prepare --linux`). nil = the
+    /// default macOS base.
+    public var baseImage: String? = nil
     /// How long a freshly booted VM may take to join as a registered runner (seconds).
     var vmBootTimeout: Int
     /// Extra scratch disk (GB) attached to each VM. 0 disables the extra
@@ -340,7 +345,7 @@ public struct KinhinConfig: Sendable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case labels, image
+        case labels, image, baseImage = "base_image"
         case minRunners = "min_runners"
         case maxRunners = "max_runners"
         case runnersPerVM = "runners_per_vm"

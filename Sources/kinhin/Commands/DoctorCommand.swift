@@ -159,6 +159,25 @@ enum DoctorCommand {
                 print("  WARNING: a single VM does not fit the host within reserved headroom")
             }
             print("  image:      \(cfg.image)")
+            if let base = cfg.baseImage {
+                // Best-effort list, like the JSON builder: the verdict for a
+                // known reference doesn't depend on tart being reachable.
+                let localVMs = (try? await TartController(configuredPath: cfg.tartPath).list()) ?? []
+                let verdict = SetupStatusComputer.baseImageState(cfg: cfg, localVMs: localVMs)
+                switch verdict.state {
+                case "known":
+                    let pin = TartBaseImage.isDigestPinned(base) ? "pinned" : "pre-configured"
+                    print("  base image: \(base) ✓ (\(pin))")
+                case "local":
+                    print("  base image: \(base) ✓ (local VM)")
+                default:
+                    print("  base image: \(base) NOT USABLE ✗")
+                    print("              \(verdict.fix ?? "")")
+                }
+                if let warning = SetupStatusComputer.baseImageMutabilityNote(cfg.baseImage) {
+                    print("              ⚠ \(warning)")
+                }
+            }
             if let repo = cfg.primaryGitHub?.scope, !repo.isEmpty, !repo.contains("/") {
                 print("  scope:      organization '\(repo)' — runners serve every repo")
                 print(

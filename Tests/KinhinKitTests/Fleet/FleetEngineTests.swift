@@ -59,6 +59,43 @@ final class FleetEngineTests: XCTestCase {
         XCTAssertTrue(tart.cloneCalls.isEmpty)
     }
 
+    func testStartWarnsOnceWhenBaseImageIsNotDigestPinned() async throws {
+        var cfg = makeTestConfig()
+        cfg.baseImage = "ghcr.io/cirruslabs/ubuntu:latest"  // mutable: must warn
+        let engine = makeEngine(config: cfg, tart: FakeTart(), github: FakeGitHub(), ssh: FakeSSH())
+
+        await engine.start()
+        await engine.stop()
+
+        let snapshot = Log.snapshot(limit: 100)
+        let warnings = snapshot.filter {
+            $0.level == "warn" && $0.component == "engine" && $0.message.contains("tag is mutable")
+        }
+        XCTAssertEqual(warnings.count, 1, "exactly one drift warning per start: \(warnings.map(\.message))")
+        XCTAssertTrue(warnings.first?.message.contains("kinhin image digest") ?? false, warnings.first?.message ?? "")
+    }
+
+    func testStartDoesNotWarnForPinnedOrAbsentBaseImage() async throws {
+        // Pinned: silent.
+        var pinned = makeTestConfig()
+        pinned.baseImage = "ghcr.io/cirruslabs/ubuntu:latest@sha256:\(String(repeating: "ab", count: 32))"
+        let pinnedEngine = makeEngine(config: pinned, tart: FakeTart(), github: FakeGitHub(), ssh: FakeSSH())
+        await pinnedEngine.start()
+        await pinnedEngine.stop()
+        let pinnedSnapshot = Log.snapshot(limit: 100)
+        XCTAssertFalse(
+            pinnedSnapshot.contains { $0.level == "warn" && $0.message.contains("tag is mutable") },
+            "a digest-pinned base_image must not warn")
+
+        // Absent (the default): silent too.
+        let defaultEngine = makeEngine(tart: FakeTart(), github: FakeGitHub(), ssh: FakeSSH())
+        await defaultEngine.start()
+        await defaultEngine.stop()
+        XCTAssertFalse(
+            Log.snapshot(limit: 100).contains { $0.level == "warn" && $0.message.contains("tag is mutable") },
+            "no base_image key means nothing to nag about")
+    }
+
     func testJobCompletionDeletesVM() async throws {
         let tart = FakeTart()
         let github = FakeGitHub()

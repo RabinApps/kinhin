@@ -43,6 +43,38 @@ final class TartLinuxVMCreatorTests: XCTestCase {
         XCTAssertTrue(tart.runWithDiskCalls.isEmpty)
     }
 
+    func testFromClonesAPreconfiguredImageWithoutAnInstallStep() async throws {
+        let tart = FakeTart()
+
+        try await TartLinuxVMCreator(tart: tart).run(
+            TartLinuxVMCreator.Options(
+                name: "linux-base", from: "ghcr.io/cirruslabs/ubuntu:latest"))
+
+        XCTAssertEqual(tart.cloneCalls.count, 1)
+        XCTAssertEqual(tart.cloneCalls.first?.source, "ghcr.io/cirruslabs/ubuntu:latest")
+        XCTAssertEqual(tart.cloneCalls.first?.name, "linux-base")
+        // No bare VM, no ISO boot, no registry pull of our own: tart's clone
+        // pulls the image implicitly.
+        XCTAssertTrue(tart.createLinuxCalls.isEmpty)
+        XCTAssertTrue(tart.runWithDiskCalls.isEmpty)
+        XCTAssertTrue(tart.pullCalls.isEmpty)
+        XCTAssertFalse(tart.deleteCalls.contains("linux-base"))
+    }
+
+    func testFromRejectsArgvHazardousReferencesBeforeCloning() async throws {
+        let tart = FakeTart()
+
+        do {
+            try await TartLinuxVMCreator(tart: tart).run(
+                TartLinuxVMCreator.Options(name: "x", from: "--privileged"))
+            XCTFail("expected the hazardous reference to throw")
+        } catch let error as ImageError {
+            guard case .provisioningFailed(let why) = error else { return XCTFail("wrong error: \(error)") }
+            XCTAssertTrue(why.contains("'-'"), why)
+        }
+        XCTAssertTrue(tart.cloneCalls.isEmpty)
+    }
+
     func testNameCollisionFailsBeforeAnythingIsCreated() async throws {
         let tart = FakeTart()
         tart.vms["taken"] = TartVM(name: "taken", source: "old", status: "stopped")

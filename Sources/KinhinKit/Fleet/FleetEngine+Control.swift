@@ -29,6 +29,12 @@ extension FleetEngine {
         if let platform = config.docker?.platform, platform.isEmulated {
             Log.warn("engine", LinuxPlatform.emulationNotice)
         }
+        // One-line reproducibility nudge: base_image is set but not pinned,
+        // so the next prepare may bake different bits than the last one.
+        // The default (no key) is never nagged about.
+        if let drift = TartBaseImage.mutableTagWarning(for: config.baseImage) {
+            Log.warn("engine", "base image \(drift)")
+        }
 
         // Verify each forge can manage its runners BEFORE spawning anything
         // — a forbidden token otherwise surfaces as per-VM registration

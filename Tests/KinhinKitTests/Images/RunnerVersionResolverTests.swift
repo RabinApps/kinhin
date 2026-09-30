@@ -8,9 +8,7 @@ import XCTest
 /// the `latest*` lookups throw `ImageError.malformedVersionFeed` while
 /// `resolve()` keeps degrading every failure to the pinned versions.
 final class RunnerVersionResolverTests: XCTestCase {
-    private func resolverWithStub(_ handler: @escaping (URLRequest) -> (Int, Data, [String: String]))
-        -> RunnerVersionResolver
-    {
+    private func resolverWithStub(_ handler: @escaping StubHandler) -> RunnerVersionResolver {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubProtocol.self]
         StubProtocol.handler = handler

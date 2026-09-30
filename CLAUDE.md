@@ -7,11 +7,28 @@ Single Swift package (Swift 6.4 tools, Swift 6 language mode / strict concurrenc
 ```bash
 swift build
 swift test                        # ~760 XCTest tests, ~2 min; no VMs or network needed
+scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
 swift format lint --strict -r Sources Tests
 swift format format -i -r Sources Tests
 ```
 
 Formatting is configured in `.swift-format` (4 spaces, 120 columns). Run the formatter before committing; CI lints with `--strict`.
+
+### ThreadSanitizer testing (scripts/tsan.sh)
+
+Run `scripts/tsan.sh` when touching shared state, actors/locks, or anything `nonisolated(unsafe)`.
+The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--parallel`:
+
+- **Serial only.** Under TSan, `--parallel` makes the worker bundles collide on the tests' fixed
+  temp paths (e.g. `UpdateCheckTests`' version-named DMG in a shared temp dir): suites fail at
+  random, and the default target can exit 0 while other bundles are still mid-run. Serial is the
+  only stable mode.
+- **Exit code ≠ test result.** TSan aborts the run at exit the moment it holds a report, so a
+  target whose tests all pass still exits 1. Read the script's summary: test failures with no
+  sanitizer reports are a regression; reports mean a race, and the script fails on any report —
+  there is no tolerated-race list. The stubs that swap global behavior across threads
+  (`StubProtocol.handler`) keep their storage behind a `Mutex`, which is what keeps the run
+  clean; give any new test global the same treatment instead of `nonisolated(unsafe)`.
 
 ## Layout
 

@@ -143,6 +143,7 @@ Key fields:
 | `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                               |
 | `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                     |
 | `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                        |
+| `base_image`                               | What `image prepare` starts from: a pre-configured tart image (`ghcr.io/cirruslabs/…`), digest-pinned (`ref@sha256:…` — see `kinhin image digest`), or a local VM name; absent = the default macOS base |
 | `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](docs/toolchains.md#baking-toolchains-into-the-base-image))                         |
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                          |
 | `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                            |
@@ -174,7 +175,14 @@ kinhin setup repair host-agent
 kinhin image prepare        Build the runner base image (once); --provision-script <file>
                              bakes your toolchains in (see docs/toolchains.md); `toolchains:`
                              config entries are baked automatically and downloads
-                             go through a shared host cache (auto-pruned)
+                             go through a shared host cache (auto-pruned); starts
+                             from top-level `base_image:` when set
+kinhin image prepare --linux --target <name> [--from <ref>]
+                             Create a Linux tart VM from scratch; --from starts it from a
+                             pre-configured image (bare --from shows the menu) instead of an ISO
+kinhin image digest <registry>/<repo>:<tag>
+                             Print the digest the registry currently serves, so base_image:
+                             can be pinned to ref@sha256:… and bakes stay reproducible
 kinhin image prepare --toolchain <spec> [--stack <name>]
                              Override the config's toolchains for this prepare
 kinhin toolchains           Managed-toolchain catalog, selections, shared-cache state

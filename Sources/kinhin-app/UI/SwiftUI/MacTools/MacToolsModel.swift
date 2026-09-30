@@ -67,8 +67,9 @@ final class MacToolsModel {
     private(set) var containerInstallVisible = false
     private(set) var dockerInstallVisible = false
     private(set) var containerInstallTitle = "Install…"
-    /// Base image each Linux runtime's image is baked on (nil = default);
-    /// shown while the runtime is enabled.
+    /// Base image each runtime's image is baked on (nil = default); the
+    /// tart value is what `image prepare` starts from.
+    private(set) var tartBaseImage: String?
     private(set) var containerBaseImage: String?
     private(set) var dockerBaseImage: String?
     private(set) var dockerPlatform: LinuxPlatform = .arm64
@@ -181,6 +182,7 @@ final class MacToolsModel {
     /// Re-reads the saved base image for each runtime.
     private func refreshBaseImages() {
         let snapshot = ConfigStore.snapshotOrLog(at: configURL)
+        tartBaseImage = snapshot?.baseImage(for: .tart)
         containerBaseImage = snapshot?.baseImage(for: .appleContainer)
         dockerBaseImage = snapshot?.baseImage(for: .docker)
         dockerPlatform = snapshot?.dockerPlatform ?? .arm64

@@ -115,6 +115,64 @@ extension SetupStatusComputer {
             )
         }
     }
+    /// The base-image verdict shared by the checklist row and doctor's JSON
+    /// section, so the two surfaces can never disagree. Only called for
+    /// configs that set the top-level `base_image:`; absent means the default
+    /// and there is nothing to say about it. `localVMs` is the tart list the
+    /// caller already fetched (empty when tart is unavailable — a known
+    /// reference must not depend on tart being up). States: "known" (a
+    /// pre-configured image, possibly digest-pinned), "local" (a local VM),
+    /// "unknown" (neither — the next prepare would fail). Public because the
+    /// CLI's human doctor prints the same verdict.
+    public static func baseImageState(
+        cfg: KinhinConfig, localVMs: [TartVM]
+    ) -> (state: String, ok: Bool, fix: String?) {
+        let reference = cfg.baseImage ?? ""
+        if TartBaseImage.isKnownSource(reference) {
+            return ("known", true, nil)
+        }
+        if localVMs.contains(where: { $0.name == reference }) {
+            return ("local", true, nil)
+        }
+        // Not curated and not a local VM: prepare would fail mid-clone after
+        // (possibly) a long pull. The fix rewrites the key in config.yaml.
+        return (
+            "unknown", false,
+            "not a pre-configured image and no local VM named '\(reference)' — set base_image to a pre-configured image, or a VM you created"
+        )
+    }
+    /// The reproducibility note for the configured reference, or nil when it
+    /// pins a digest (every bake gets the same bits). Delegates to
+    /// `TartBaseImage.mutableTagWarning` — the same line the fleet-start log
+    /// renders, so the wording cannot drift between surfaces.
+    public static func baseImageMutabilityNote(_ reference: String?) -> String? {
+        TartBaseImage.mutableTagWarning(for: reference)
+    }
+
+    /// The checklist's base-image row. Blocking, like the provision-script
+    /// row: both hard-fail `image prepare` after its multi-GB download, so
+    /// onboarding must not go green with a broken one. (The running fleet is
+    /// untouched — the row is about the *next* prepare.) A mutable tag is
+    /// still ok: it works, it just may drift, so the warning rides in the
+    /// detail rather than the ok flag.
+    static func baseImageCheck(cfg: KinhinConfig, localVMs: [TartVM]) -> SetupCheckResult {
+        let verdict = baseImageState(cfg: cfg, localVMs: localVMs)
+        let reference = cfg.baseImage ?? ""
+        let detail: String
+        switch verdict.state {
+        case "known": detail = "starts from the pre-configured image \(reference)"
+        case "local": detail = "starts from local VM \(reference)"
+        default: detail = "\(reference) — \(verdict.fix ?? "unusable")"
+        }
+        let fullDetail = baseImageMutabilityNote(cfg.baseImage).map { "\(detail) · \($0)" } ?? detail
+        return SetupCheckResult(
+            id: "base-image",
+            title: "Base image",
+            ok: verdict.ok,
+            detail: fullDetail,
+            action: verdict.ok ? nil : "fix_base_image"
+        )
+    }
 
     /// Scenario → evaluation. `.live` probes the real filesystem (and
     /// classifies a parsed file as template vs working); every other case

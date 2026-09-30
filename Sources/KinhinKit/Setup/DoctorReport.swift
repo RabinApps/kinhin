@@ -102,6 +102,35 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let jobSlots: Int
     }
 
+    /// The configured top-level `base_image:` — what `image prepare` starts
+    /// from. Present only when the key is set (absent = the default macOS
+    /// base, nothing to check).
+    public struct TartBaseImageSection: Codable, Equatable, Sendable {
+        /// The configured reference verbatim.
+        public let reference: String
+        /// "known" (pre-configured image) | "local" (local VM) | "unknown"
+        /// (neither — the next prepare would fail mid-clone).
+        public let state: String
+        public let ok: Bool
+        /// Rewriting advice for the "unknown" state, null otherwise.
+        public let fix: String?
+        /// True when the reference pins a digest (`ref@sha256:…`) — bakes
+        /// are reproducible.
+        public let pinned: Bool
+        /// Reproducibility warning for a mutable tag (`:latest` or untagged),
+        /// null when pinned or immutable.
+        public let warning: String?
+
+        public init(reference: String, state: String, ok: Bool, fix: String?, pinned: Bool, warning: String?) {
+            self.reference = reference
+            self.state = state
+            self.ok = ok
+            self.fix = fix
+            self.pinned = pinned
+            self.warning = warning
+        }
+    }
+
     /// Shared toolchain cache state (the mount `image prepare` writes
     /// through and runner VMs/containers bind when `share_cache: true`).
     public struct ToolchainCacheSection: Codable, Equatable, Sendable {
@@ -174,12 +203,15 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     public let ready: Bool
     /// Computed host budget — present only when the config parsed.
     public let capacity: CapacitySection?
+    /// The configured tart `base_image:` — present only when the key is set.
+    public let tartBaseImage: TartBaseImageSection?
 
     public init(
         host: HostResources, clt: CLTSection, tart: TartSection, container: ContainerSection?,
         docker: DockerSection?, dockerAvailability: DockerAvailabilitySection? = nil, hostRuntime: HostSection? = nil,
         toolchainCache: ToolchainCacheSection,
-        auth: AuthStatusReport, checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?
+        auth: AuthStatusReport, checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?,
+        tartBaseImage: TartBaseImageSection? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -193,5 +225,6 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         self.checks = checks
         self.ready = ready
         self.capacity = capacity
+        self.tartBaseImage = tartBaseImage
     }
 }

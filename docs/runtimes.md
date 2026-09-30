@@ -23,6 +23,29 @@ Both Linux runtimes support [managed toolchains and the shared cache](toolchains
 `image prepare --container|--docker` bakes the config's `toolchains:` into the Linux image, and
 `share_cache: true` mounts the host cache into every runner container at `/var/kinhin-cache`.
 
+### Choosing the macOS base image
+
+`image prepare` clones a pre-configured Cirrus Labs macOS image by default and bakes the runner
+agents into it. Set the top-level `base_image:` to start from a different published image instead
+(`ghcr.io/cirruslabs/macos-sequoia-base:latest`, `…/macos-sonoma-xcode:latest`, … — pick one in the
+app's macOS card) or at a local VM you made with `image prepare --linux --target <name>`
+(`--from <ref>` starts that Linux VM from a pre-configured image too). Absent key = the default
+macOS base. `kinhin doctor` and the setup checklist flag a reference that is neither a
+pre-configured image nor a local VM — otherwise a typo here would only surface as a mid-prepare
+clone failure.
+
+For reproducible bakes, pin the reference to a digest: every bake then uses the exact same
+bits, while a `:latest` tag (including the curated defaults) can be republished by the registry
+at any time — doctor and the checklist warn about mutable tags with the command to fix it:
+
+```bash
+kinhin image digest ghcr.io/cirruslabs/macos-sequoia-base:latest
+#   ghcr.io/cirruslabs/macos-sequoia-base:latest@sha256:…
+#   pin it: base_image: "ghcr.io/cirruslabs/macos-sequoia-base:latest@sha256:…"
+```
+
+Bump the pin deliberately (re-run `image digest`, re-prepare) — a pin never moves on its own.
+
 ## Apple `container` (Linux microVMs)
 
 kinhin can run Linux jobs in [apple/container](https://github.com/apple/container) microVMs: one

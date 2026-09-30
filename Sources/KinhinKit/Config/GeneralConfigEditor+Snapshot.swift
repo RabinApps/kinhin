@@ -16,6 +16,8 @@ extension GeneralConfigEditor {
         public var vmMemoryGB: Int
         public var vmEphemeral: Bool
         public var image: String
+        /// What the tart prepare starts from (nil = default macOS base).
+        public var tartBaseImage: String?
         public var reserveCPU: Int
         public var reserveMemoryGB: Int
         public var container: Container?
@@ -29,6 +31,7 @@ extension GeneralConfigEditor {
 
         public func baseImage(for runtime: RuntimeID) -> String? {
             switch runtime {
+            case .tart: return tartBaseImage
             case .appleContainer: return container?.baseImage
             case .docker: return docker?.baseImage
             default: return nil
@@ -104,6 +107,7 @@ extension GeneralConfigEditor {
             vmMemoryGB: vm?.memoryGB ?? d.vm.memoryGB,
             vmEphemeral: vm?.ephemeral ?? d.vm.ephemeral,
             image: partial.image ?? d.image,
+            tartBaseImage: partial.baseImage,
             reserveCPU: reserve?.cpu ?? d.reserve.cpu,
             reserveMemoryGB: reserve?.memoryGB ?? d.reserve.memoryGB,
             container: partial.container.map {

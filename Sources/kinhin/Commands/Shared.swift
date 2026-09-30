@@ -153,7 +153,9 @@ func helpText() -> String {
                                     Build the runner base image (slow, once); the script
                                     bakes your toolchains in after the agents install.
                                     Also bakes `toolchains:` config entries and uses the
-                                    shared host download cache (auto-pruned)
+                                    shared host download cache (auto-pruned). Starts
+                                    from base_image: (a pre-configured tart image or a
+                                    local VM name) instead of the default macOS base
         image prepare --toolchain <spec> [--stack <name>]
                                     Override the config's toolchains for this prepare
         image prepare --container   Build the Linux container image (apple container);
@@ -163,14 +165,20 @@ func helpText() -> String {
                                     OrbStack / colima); bakes `toolchains:` the same way.
                                     --platform linux/amd64 bakes an x86_64 image that runs
                                     under emulation (slower; see docs)
-        image prepare --linux --target <name> [--iso <file>]
+        image prepare --linux --target <name> [--iso <file>] [--from <ref>]
                                     Create a Linux tart VM from scratch (tart create
                                     --linux) instead of cloning a prepared image: the VM
                                     boots with the arm64 ISO attached once, you install the
                                     OS by hand, then `image prepare --source <name>` bakes
-                                    the agents into it
+                                    the agents into it. --from starts from a pre-configured
+                                    image instead (tart.run's VM images; bare --from shows
+                                    the menu)
         toolchains                  Managed-toolchain catalog, selections, and cache state
         toolchains prune [--dry-run]   Expire stale host-cache entries now
+        image digest <registry>/<repo>:<tag>
+                                    Print the digest the registry currently serves, so
+                                    base_image: can be pinned to ref@sha256:… and every
+                                    bake gets identical bits (a :latest tag may drift)
         toolchains helper [--linux]    Print the per-job `kinhin-toolchain` helper baked into images
 
     RUNNING:

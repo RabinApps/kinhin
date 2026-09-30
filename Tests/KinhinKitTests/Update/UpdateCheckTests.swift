@@ -47,19 +47,18 @@ final class UpdateCheckTests: XCTestCase {
     // MARK: Release parsing
 
     func testFetchLatestReleaseParsesDMGAsset() async throws {
+        // Hoisted so the @Sendable stub handler doesn't capture self.
+        let release = releaseJSON(
+            tag: "v0.2.0",
+            assets: [
+                "kinhin-cli-0.2.0-arm64.zip",
+                "kinhin-0.2.0-arm64.dmg",
+                "checksums.txt",
+            ])
         StubProtocol.handler = { request in
             XCTAssertEqual(request.url?.path, "/repos/acme/kinhin/releases/latest")
             XCTAssertTrue(request.value(forHTTPHeaderField: "User-Agent")?.lowercased().contains("kinhin") ?? false)
-            return (
-                200,
-                self.releaseJSON(
-                    tag: "v0.2.0",
-                    assets: [
-                        "kinhin-cli-0.2.0-arm64.zip",
-                        "kinhin-0.2.0-arm64.dmg",
-                        "checksums.txt",
-                    ]), [:]
-            )
+            return (200, release, [:])
         }
         let info = try await makeChecker().fetchLatestRelease()
         XCTAssertEqual(info.tag, "v0.2.0")
@@ -75,9 +74,8 @@ final class UpdateCheckTests: XCTestCase {
     }
 
     func testFallbackAssetMatchWhenExactNameDiffers() async throws {
-        StubProtocol.handler = { _ in
-            (200, self.releaseJSON(tag: "v0.2.0", assets: ["kinhin-nightly-arm64.dmg"]), [:])
-        }
+        let release = releaseJSON(tag: "v0.2.0", assets: ["kinhin-nightly-arm64.dmg"])
+        StubProtocol.handler = { _ in (200, release, [:]) }
         let result = try await makeChecker(version: "0.1.0").check()
         guard case .available(let info) = result else { return XCTFail("expected available, got \(result)") }
         XCTAssertEqual(info.dmgName, "kinhin-nightly-arm64.dmg")
@@ -86,27 +84,24 @@ final class UpdateCheckTests: XCTestCase {
     // MARK: Check outcomes
 
     func testCheckReturnsAvailableWhenRunningOlder() async throws {
-        StubProtocol.handler = { _ in
-            (200, self.releaseJSON(tag: "v0.2.0", assets: ["kinhin-0.2.0-arm64.dmg"]), [:])
-        }
+        let release = releaseJSON(tag: "v0.2.0", assets: ["kinhin-0.2.0-arm64.dmg"])
+        StubProtocol.handler = { _ in (200, release, [:]) }
         let result = try await makeChecker(version: "0.1.0").check()
         guard case .available(let info) = result else { return XCTFail("expected available, got \(result)") }
         XCTAssertEqual(info.version, "0.2.0")
     }
 
     func testCheckUpToDateWhenSameVersion() async throws {
-        StubProtocol.handler = { _ in
-            (200, self.releaseJSON(tag: "v0.1.0", assets: ["kinhin-0.1.0-arm64.dmg"]), [:])
-        }
+        let release = releaseJSON(tag: "v0.1.0", assets: ["kinhin-0.1.0-arm64.dmg"])
+        StubProtocol.handler = { _ in (200, release, [:]) }
         let result = try await makeChecker(version: "0.1.0").check()
         XCTAssertEqual(result, .upToDate)
     }
 
     func testCheckUpToDateWhenRunningAheadOfLatest() async throws {
         // Dev build ahead of the published release must not nag.
-        StubProtocol.handler = { _ in
-            (200, self.releaseJSON(tag: "v0.1.0", assets: ["kinhin-0.1.0-arm64.dmg"]), [:])
-        }
+        let release = releaseJSON(tag: "v0.1.0", assets: ["kinhin-0.1.0-arm64.dmg"])
+        StubProtocol.handler = { _ in (200, release, [:]) }
         let result = try await makeChecker(version: "0.2.0").check()
         XCTAssertEqual(result, .upToDate)
     }
@@ -126,9 +121,8 @@ final class UpdateCheckTests: XCTestCase {
     }
 
     func testReleaseWithoutDMGAssetThrows() async {
-        StubProtocol.handler = { _ in
-            (200, self.releaseJSON(tag: "v0.2.0", assets: ["checksums.txt"]), [:])
-        }
+        let release = releaseJSON(tag: "v0.2.0", assets: ["checksums.txt"])
+        StubProtocol.handler = { _ in (200, release, [:]) }
         do {
             _ = try await makeChecker().check()
             XCTFail("should throw")
@@ -244,9 +238,8 @@ final class UpdateCheckTests: XCTestCase {
     }
 
     func testFetchLatestReleaseCapturesChecksumsAsset() async throws {
-        StubProtocol.handler = { _ in
-            (200, self.releaseJSON(tag: "v0.2.0", assets: ["kinhin-0.2.0-arm64.dmg", "checksums.txt"]), [:])
-        }
+        let release = releaseJSON(tag: "v0.2.0", assets: ["kinhin-0.2.0-arm64.dmg", "checksums.txt"])
+        StubProtocol.handler = { _ in (200, release, [:]) }
         let info = try await makeChecker().fetchLatestRelease()
         XCTAssertEqual(info.checksumsURL?.lastPathComponent, "checksums.txt")
     }

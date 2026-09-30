@@ -27,10 +27,16 @@ public struct TartLinuxVMCreator {
         /// nil boots the empty VM (UEFI shell) — only useful with network or
         /// recovery installs.
         public var isoPath: String?
+        /// A pre-configured tart image to start from instead of an empty VM
+        /// (see `TartBaseImage.curated` — the quick-start's "VM images").
+        /// The published images already have an OS and the admin user, so no
+        /// install step is needed. Takes precedence over `isoPath`.
+        public var from: String?
 
-        public init(name: String, isoPath: String? = nil) {
+        public init(name: String, isoPath: String? = nil, from: String? = nil) {
             self.name = name
             self.isoPath = isoPath
+            self.from = from
         }
     }
 
@@ -52,6 +58,22 @@ public struct TartLinuxVMCreator {
                 throw ImageError.provisioningFailed("install ISO '\(expanded)' does not exist")
             }
             options.isoPath = expanded
+        }
+
+        // Pre-configured start: `tart clone` (which pulls implicitly) puts a
+        // ready-to-use OS on the target name — no install step, no rollback
+        // window beyond the clone itself.
+        if let from = options.from {
+            if let problem = TartBaseImage.problem(with: from) {
+                throw ImageError.provisioningFailed("source image \(problem)")
+            }
+            Log.info("image", "cloning pre-configured image \(from) to '\(options.name)'")
+            try await tart.clone(source: from, to: options.name)
+            Log.info(
+                "image",
+                "'\(options.name)' is ready — bake the runner agents with: kinhin image prepare --source \(options.name)"
+            )
+            return
         }
 
         Log.info("image", "creating Linux VM '\(options.name)' (tart create --linux)")

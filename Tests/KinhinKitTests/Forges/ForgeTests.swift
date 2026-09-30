@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -20,9 +21,9 @@ final class ForgeTests: XCTestCase {
     }
 
     func testGiteaRepoScopeRoutesToRepoEndpoints() async throws {
-        var paths: [String] = []
+        let paths = Mutex<[String]>([])
         StubProtocol.handler = { request in
-            paths.append(request.url?.path ?? "")
+            paths.withLock { $0.append(request.url?.path ?? "") }
             if request.url?.path.hasSuffix("/registration-token") == true {
                 return (200, Data("{\"token\":\"gt-reg\"}".utf8), [:])
             }
@@ -33,34 +34,39 @@ final class ForgeTests: XCTestCase {
         let client = makeGiteaClient(scope: "acme/widgets")
         let token = try await client.fetchRegistrationToken()
         _ = try await client.listRunners()
-        XCTAssertTrue(paths.contains("/api/v1/repos/acme/widgets/actions/runners/registration-token"), "\(paths)")
-        XCTAssertTrue(paths.contains("/api/v1/repos/acme/widgets/actions/runners"), "\(paths)")
+        XCTAssertTrue(
+            paths.withLock { $0 }.contains("/api/v1/repos/acme/widgets/actions/runners/registration-token"),
+            "\(paths.withLock { $0 })")
+        XCTAssertTrue(
+            paths.withLock { $0 }.contains("/api/v1/repos/acme/widgets/actions/runners"), "\(paths.withLock { $0 })")
         XCTAssertEqual(token, "gt-reg")
     }
 
     func testGiteaOrgScopeRoutesToOrgEndpoints() async throws {
-        var paths: [String] = []
+        let paths = Mutex<[String]>([])
         StubProtocol.handler = { request in
-            paths.append(request.url?.path ?? "")
+            paths.withLock { $0.append(request.url?.path ?? "") }
             return (200, Data("{\"token\":\"t\"}".utf8), [:])
         }
         defer { StubProtocol.handler = nil }
 
         let client = makeGiteaClient(scope: "acme")
         _ = try await client.fetchRegistrationToken()
-        XCTAssertTrue(paths.contains("/api/v1/orgs/acme/actions/runners/registration-token"), "\(paths)")
+        XCTAssertTrue(
+            paths.withLock { $0 }.contains("/api/v1/orgs/acme/actions/runners/registration-token"),
+            "\(paths.withLock { $0 })")
     }
 
     func testGiteaAuthHeaderUsesTokenScheme() async throws {
-        var auth: String?
+        let auth = Mutex<String?>(nil)
         StubProtocol.handler = { request in
-            auth = request.value(forHTTPHeaderField: "Authorization")
+            auth.withLock { $0 = request.value(forHTTPHeaderField: "Authorization") }
             return (200, Data("{\"token\":\"t\"}".utf8), [:])
         }
         defer { StubProtocol.handler = nil }
 
         _ = try await makeGiteaClient(scope: "acme").fetchRegistrationToken()
-        XCTAssertEqual(auth, "token gt", "Gitea uses 'token <value>', not Bearer")
+        XCTAssertEqual(auth.withLock { $0 }, "token gt", "Gitea uses 'token <value>', not Bearer")
     }
 
     func testGiteaErrorMapping() async {

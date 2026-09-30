@@ -48,6 +48,9 @@ struct KinhinCLI {
             case .imagePrepare:
                 try await ImageCommand.run(args)
 
+            case .imageDigest:
+                try await ImageCommand.runDigest(args)
+
             case .toolchains:
                 do {
                     if args.dropFirst().first == "prune" {

@@ -232,6 +232,7 @@ public struct SetupStatusComputer: Sendable {
         // 6. Runner image
         var imageOK = false
         var imageDetail = "run after tart is installed"
+        var localTartVMs: [TartVM] = []
         if !tartHealthy {
             imageDetail = health == .missing ? "run after tart is installed" : "could not launch tart"
         } else if let cfg = parsed {
@@ -249,6 +250,7 @@ public struct SetupStatusComputer: Sendable {
                 }
             }
             if let images {
+                localTartVMs = images
                 imageOK = images.contains { $0.name == cfg.image || $0.source == cfg.image }
                 imageDetail = imageOK ? "image '\(cfg.image)' found" : "image '\(cfg.image)' not local yet"
             } else {
@@ -263,6 +265,15 @@ public struct SetupStatusComputer: Sendable {
                 detail: imageDetail,
                 action: imageOK ? nil : "prepare_image"
             ))
+
+        // 6b. Base image — only when the config sets the top-level
+        // `base_image:`. Advisory: an unknown reference leaves today's fleet
+        // untouched and only fails the next prepare (after the pull), so the
+        // row explains the fix instead of blocking onboarding. Reuses the
+        // tart list the image row just fetched — no second probe.
+        if case .parsed(let cfg) = evaluation, cfg.baseImage != nil {
+            checks.append(Self.baseImageCheck(cfg: cfg, localVMs: localTartVMs))
+        }
 
         // 7. Apple-container runtime — rows appear only when the config
         // enables the container runtime, mirroring the gitea-token row.
@@ -302,7 +313,7 @@ public struct SetupStatusComputer: Sendable {
         // the macOS-only rows (Command Line Tools, tart, base image) don't
         // gate readiness — they only matter for macOS jobs.
         let linuxOnly = health == .missing && (parsed?.hasLinuxRuntime ?? false)
-        let macOnlyIDs: Set<String> = ["clt", "tart", "image"]
+        let macOnlyIDs: Set<String> = ["clt", "tart", "image", "base-image"]
         let gating = checks.filter { !(linuxOnly && macOnlyIDs.contains($0.id)) }
         return SetupStatus(ready: gating.allSatisfy(\.ok), checks: checks)
     }

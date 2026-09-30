@@ -29,6 +29,42 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(cfg.vm.cpuCount, 4)
     }
 
+    func testBaseImageParsesAndRoundTrips() throws {
+        let yaml = """
+            \(Self.account)
+            labels: ["x"]
+            base_image: "ghcr.io/cirruslabs/macos-sequoia-base:latest"
+            """
+        let cfg = try ConfigLoader.parse(yaml)
+        XCTAssertEqual(cfg.baseImage, "ghcr.io/cirruslabs/macos-sequoia-base:latest")
+        // A local VM name is valid too (the --linux scratch path).
+        XCTAssertEqual(
+            try ConfigLoader.parse("\(Self.account)\nlabels: [x]\nbase_image: ubuntu-scratch\n").baseImage,
+            "ubuntu-scratch")
+        XCTAssertNil(try ConfigLoader.parse("\(Self.account)\nlabels: [x]\n").baseImage, "absent key = default")
+    }
+
+    func testBaseImageValidation() {
+        XCTAssertThrowsError(try ConfigLoader.parse("\(Self.account)\nlabels: [x]\nbase_image: \"\"\n"))
+        XCTAssertThrowsError(try ConfigLoader.parse("\(Self.account)\nlabels: [x]\nbase_image: \"--privileged\"\n"))
+        XCTAssertThrowsError(try ConfigLoader.parse("\(Self.account)\nlabels: [x]\nbase_image: \"two words\"\n"))
+    }
+
+    func testBaseImageDigestPinsParseAndMalformedOnesAreRejected() throws {
+        let digest = String(repeating: "ab", count: 32)
+        let pinned = try ConfigLoader.parse(
+            "\(Self.account)\nlabels: [x]\nbase_image: \"ghcr.io/cirruslabs/ubuntu:latest@sha256:\(digest)\"\n")
+        XCTAssertEqual(pinned.baseImage, "ghcr.io/cirruslabs/ubuntu:latest@sha256:\(digest)")
+        // A pin that isn't 64 lowercase hex chars is a typo, not a pin.
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                "\(Self.account)\nlabels: [x]\nbase_image: \"ghcr.io/cirruslabs/ubuntu@sha256:short\"\n"))
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                "\(Self.account)\nlabels: [x]\nbase_image: \"ghcr.io/cirruslabs/ubuntu@sha256:\(String(repeating: "AB", count: 32))\"\n"
+            ))
+    }
+
     func testRunnersPerVMParses() throws {
         let yaml = """
             \(Self.account)

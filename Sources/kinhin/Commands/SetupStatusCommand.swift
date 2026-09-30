@@ -30,6 +30,7 @@ enum SetupStatusCommand {
         case "install_container_cli": return "kinhin setup repair container"
         case "install_docker": return "kinhin setup repair docker"
         case "install_host_agent": return "kinhin setup repair host-agent"
+        case "fix_base_image": return "edit base_image: in config.yaml"
         default: return nil
         }
     }

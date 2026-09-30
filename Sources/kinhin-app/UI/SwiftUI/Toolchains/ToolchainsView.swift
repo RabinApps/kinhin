@@ -189,9 +189,14 @@ struct ToolchainsView: View {
                 HStack(alignment: .top, spacing: 8) {
                     Text("Base image").font(.system(size: 12, weight: .semibold))
                     Spacer(minLength: 0)
-                    BaseImagePicker(value: model.baseImage(for: item.runtime)) {
-                        model.saveBaseImage($0, for: item.runtime)
-                    }
+                    BaseImagePicker(
+                        value: model.baseImage(for: item.runtime),
+                        onChange: { model.saveBaseImage($0, for: item.runtime) },
+                        catalog: item.runtime == .tart ? .tartVM : .linuxContainer,
+                        pinDigest: item.runtime == .tart
+                            ? { reference in await BaseImageChoice.pin(reference, in: .tartVM) }
+                            : nil
+                    )
                     .fixedSize()
                 }
             }

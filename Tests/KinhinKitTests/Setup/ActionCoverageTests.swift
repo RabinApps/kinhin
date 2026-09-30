@@ -22,6 +22,7 @@ final class ActionCoverageTests: XCTestCase {
         "enter_account_token",
         "replace_account_token",
         "prepare_image",
+        "fix_base_image",
         "install_container_cli",
         "install_docker",
         "prepare_docker_image",
@@ -102,6 +103,14 @@ final class ActionCoverageTests: XCTestCase {
     private func provisionScriptConfig(path: String) -> KinhinConfig {
         var cfg = fixtureConfig
         cfg.provisionScript = path
+        return cfg
+    }
+
+    /// A config that also sets the top-level `base_image:` to an unknown
+    /// reference (adds the base-image row).
+    private var unknownBaseImageConfig: KinhinConfig {
+        var cfg = fixtureConfig
+        cfg.baseImage = "ghcr.io/acme/vanished:latest"
         return cfg
     }
 
@@ -212,6 +221,13 @@ final class ActionCoverageTests: XCTestCase {
                 computer(
                     cltState: .ok(version: "27.0"), tartHealth: .healthy,
                     configScenario: .loaded(provisionScriptConfig(path: "/nonexistent/kinhin-provision.sh")),
+                    githubTokenStored: true)
+            ),
+            (
+                "base image unknown",
+                computer(
+                    cltState: .ok(version: "27.0"), tartHealth: .healthy,
+                    configScenario: .loaded(unknownBaseImageConfig),
                     githubTokenStored: true)
             ),
         ]

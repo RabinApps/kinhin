@@ -2,6 +2,50 @@ import Foundation
 import KinhinKit
 
 enum ImageCommand {
+    /// The interactive menu over `TartBaseImage`'s pre-configured Linux
+    /// images (bare `--from`). Returns the picked reference.
+    static func pickCuratedLinuxImage() throws -> String {
+        let linux = TartBaseImage.curated.filter { !$0.reference.contains("macos-") }
+        print("Pre-configured tart images (all use admin/admin and Tart's SSH key):")
+        for (index, entry) in linux.enumerated() {
+            print("  \(index + 1). \(entry.title) — \(entry.reference)")
+        }
+        print("Choice [1-\(linux.count)]: ", terminator: "")
+        guard let line = readLine()?.trimmingCharacters(in: .whitespaces), let pick = Int(line),
+            linux.indices.contains(pick - 1)
+        else {
+            fail("pick a number between 1 and \(linux.count)", exit: .usage)
+        }
+        return linux[pick - 1].reference
+    }
+
+    /// `kinhin image digest <reference>` — resolve the digest the registry
+    /// currently serves, so `base_image:` can be pinned to the reproducible
+    /// `ref@sha256:…` form. Public commands only; no config needed.
+    static func runDigest(_ args: [String]) async throws {
+        guard let reference = flag("--ref", in: args) ?? args.first, !reference.isEmpty else {
+            fail("image digest needs a reference: kinhin image digest <registry>/<repo>:<tag>", exit: .usage)
+        }
+        if let problem = TartBaseImage.problem(with: reference) {
+            fail("'\(reference)' is not a usable image reference: \(problem)", exit: .usage)
+        }
+        if TartBaseImage.isDigestPinned(reference) {
+            fail(
+                "'\(reference)' is already digest-pinned — there is nothing to resolve",
+                exit: .usage)
+        }
+        do {
+            let digest = try await RegistryDigestResolver().resolveDigest(reference)
+            print("\(reference)@\(digest)")
+            print("pin it: base_image: \"\(reference)@\(digest)\"")
+        } catch let error as ImageError {
+            guard case .malformedVersionFeed(_, let reason) = error else { fail(error) }
+            fail("could not resolve a digest for \(reference): \(reason)", exit: .runtime)
+        } catch {
+            fail(error)
+        }
+    }
+
     static func run(_ args: [String]) async throws {
         let cfg = loadConfigOrExit()
         if hasFlag("--linux", in: args) {
@@ -15,10 +59,30 @@ enum ImageCommand {
             guard let name = flag("--target", in: args), !name.isEmpty else {
                 fail("--linux needs --target <vm-name>: the name of the base VM you are creating", exit: .usage)
             }
+            if hasFlag("--iso", in: args), hasFlag("--from", in: args) {
+                fail(
+                    "--iso and --from are mutually exclusive: pick a pre-configured image or an install ISO",
+                    exit: .usage)
+            }
             do {
                 let tart = try TartController(configuredPath: cfg.tartPath)
                 let creator = TartLinuxVMCreator(tart: tart)
                 let iso = flag("--iso", in: args)
+                if hasFlag("--from", in: args) {
+                    // `--from` bare = the curated pre-configured menu;
+                    // `--from <ref>` = any tart image reference.
+                    let from: String
+                    if let reference = flag("--from", in: args) {
+                        from = reference
+                    } else {
+                        from = try Self.pickCuratedLinuxImage()
+                    }
+                    try await creator.run(TartLinuxVMCreator.Options(name: name, from: from))
+                    print("Pre-configured image ready: \(name)")
+                    print("Bake the runner agents into it with:")
+                    print("  kinhin image prepare --source \(name)")
+                    return
+                }
                 try await creator.run(TartLinuxVMCreator.Options(name: name, isoPath: iso))
                 if iso != nil {
                     print("Linux VM '\(name)' created and booting with install media.")
@@ -147,7 +211,9 @@ enum ImageCommand {
             let tart = try TartController(configuredPath: cfg.tartPath)
             let preparer = ImagePreparer(tart: tart, ssh: SSHExecutor())
             var options = ImagePreparer.Options()
-            options.source = flag("--source", in: args) ?? options.source
+            options.source =
+                flag("--source", in: args) ?? cfg.baseImage.map(TartBaseImage.resolveSource(preparedName:))
+                ?? options.source
             options.target = flag("--target", in: args) ?? options.target
             options.runnerVersion = flag("--runner-version", in: args) ?? options.runnerVersion
             // The flag wins over the config key; either may be absent (no

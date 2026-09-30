@@ -54,6 +54,7 @@ public enum SetupAction {
         case "prepare_docker_image": return "Prepare Docker Image"
         case "install_host_agent": return "Install Host Runner Agent"
         case "prepare_image": return "Prepare Image"
+        case "fix_base_image": return "Fix Base Image…"
         case "repair_provision_script": return "Fix Provision Script…"
         case "create_toolchain_cache": return "Create Toolchain Cache"
         default: return action

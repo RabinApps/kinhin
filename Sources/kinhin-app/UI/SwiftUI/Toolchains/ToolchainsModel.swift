@@ -344,6 +344,9 @@ final class ToolchainsModel {
         case .tart:
             let tart = try TartController(configuredPath: cfg.tartPath)
             var options = ImagePreparer.Options()
+            if let baseImage = cfg.baseImage {
+                options.source = TartBaseImage.resolveSource(preparedName: baseImage)
+            }
             options.provisionScriptPath = cfg.provisionScript
             options.toolchains = cfg.toolchains
             try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(options)

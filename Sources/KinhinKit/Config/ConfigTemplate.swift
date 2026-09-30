@@ -58,6 +58,12 @@ extension ConfigLoader {
         # Tart image to clone. Prepare it first with: kinhin image prepare
         image: "tahoe-base"
 
+        # Optional: what `image prepare` starts from — a pre-configured tart
+        # image (ghcr.io/cirruslabs/macos-sequoia-base:latest and friends;
+        # pick one in the app) instead of the default macOS base. A local VM
+        # name (e.g. one made with `image prepare --linux`) also works.
+        # base_image: "ghcr.io/cirruslabs/macos-sequoia-base:latest"
+
         # Seconds a freshly booted VM has to register as a runner.
         vm_boot_timeout: 300
 

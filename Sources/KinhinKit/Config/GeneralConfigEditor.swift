@@ -46,6 +46,8 @@ public enum GeneralConfigEditor {
         case vmMemoryGB(Int)
         case vmEphemeral(Bool)
         case image(String)
+        /// Top-level `base_image:`; nil removes the key.
+        case baseImage(String?)
         case reserveCPU(Int)
         case reserveMemoryGB(Int)
         case container(Snapshot.Container?)
@@ -75,6 +77,7 @@ public enum GeneralConfigEditor {
         case .vmMemoryGB: return .under("vm", "memory_gb")
         case .vmEphemeral: return .under("vm", "ephemeral")
         case .image: return .top("image")
+        case .baseImage: return .top("base_image")
         case .reserveCPU: return .under("reserve", "cpu")
         case .reserveMemoryGB: return .under("reserve", "memory_gb")
         case .container, .docker: return .top("unused")  // handled separately
@@ -109,6 +112,7 @@ public enum GeneralConfigEditor {
         case .vmEphemeral(let b): return boolText(b)
         case .autoResume(let b): return boolText(b)
         case .image(let s): return quoted(s)
+        case .baseImage(let s): return quoted(s ?? "")  // nil is handled in replace
         case .container, .docker: return ""  // handled separately
         }
     }
@@ -122,6 +126,16 @@ public enum GeneralConfigEditor {
             return try replaceSectionToggle("container", present: c != nil, in: yaml) { c.map(sectionText) }
         case .docker(let d):
             return try replaceSectionToggle("docker", present: d != nil, in: yaml) { d.map(sectionText) }
+        case .baseImage(nil):
+            // Clearing the tart base image removes the key entirely (the
+            // default must never be pinned into the file).
+            var lines = yaml.components(separatedBy: "\n")
+            if let idx = lines.firstIndex(where: {
+                $0.trimmingCharacters(in: .whitespaces).hasPrefix("base_image:")
+            }) {
+                lines.remove(at: idx)
+            }
+            return lines.joined(separator: "\n")
         default: break
         }
 
@@ -195,13 +209,21 @@ public enum GeneralConfigEditor {
 
     // MARK: Base image
 
-    /// Sets (or, with nil, clears) `base_image:` for the Apple container or
-    /// Docker section, leaving everything else in the file alone. Validated
-    /// like any other edit: nothing is written if the result doesn't parse.
+    /// Sets (or, with nil, clears) what a runtime's prepare starts from: the
+    /// tart `base_image:` key for `.tart`, the section's `base_image:` for
+    /// Apple container or Docker. Everything else in the file is left alone;
+    /// nothing is written when the result doesn't parse.
     @discardableResult
     public static func setBaseImage(_ image: String?, for runtime: RuntimeID, at url: URL) throws -> String {
         guard let snapshot = try ConfigStore.snapshot(at: url) else { throw ConfigEditError.notFound(url.path) }
         switch runtime {
+        case .tart:
+            if let image {
+                if let problem = TartBaseImage.problem(with: image) {
+                    throw ConfigEditError.rejected("base image \(problem)")
+                }
+            }
+            return try apply(.baseImage(image), to: url)
         case .appleContainer:
             guard var container = snapshot.container else {
                 throw ConfigEditError.unsupported("Apple container isn't enabled in config.yaml")
@@ -215,7 +237,7 @@ public enum GeneralConfigEditor {
             docker.baseImage = image
             return try apply(.docker(docker), to: url)
         default:
-            throw ConfigEditError.unsupported("only Apple container and Docker are baked from a base image")
+            throw ConfigEditError.unsupported("only tart, Apple container and Docker bake from a base image")
         }
     }
 

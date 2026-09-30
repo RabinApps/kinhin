@@ -258,6 +258,29 @@ public struct DoctorReportBuilder: Sendable {
         // falling back to all top-level directories with content.
         let cacheSection = Self.toolchainCacheSection(config: parsed)
 
+        // The configured tart base image — the same verdict the checklist's
+        // base-image row renders (shared classifier, so they cannot drift).
+        // The local-VM half of the verdict uses the same tart list the
+        // checklist fetched; the fixture (or the live list) may be nil when
+        // tart is unavailable, which leaves known references green.
+        var tartBaseImageSection: DoctorReport.TartBaseImageSection?
+        if let cfg = parsed, cfg.baseImage != nil {
+            let localVMs: [TartVM]
+            if let tartList {
+                localVMs = tartList
+            } else {
+                // Best-effort probe: the checklist row already reports list
+                // failures, so an unreachable tart just leaves known
+                // references green and unknown ones unknown.
+                localVMs = (try? await TartController(configuredPath: cfg.tartPath).list()) ?? []
+            }
+            let verdict = SetupStatusComputer.baseImageState(cfg: cfg, localVMs: localVMs)
+            tartBaseImageSection = DoctorReport.TartBaseImageSection(
+                reference: cfg.baseImage ?? "", state: verdict.state, ok: verdict.ok, fix: verdict.fix,
+                pinned: TartBaseImage.isDigestPinned(cfg.baseImage ?? ""),
+                warning: SetupStatusComputer.baseImageMutabilityNote(cfg.baseImage))
+        }
+
         // Capacity — the same math the human doctor prints, plus job slots.
         // The disk estimate matches the engine's scaler (explicit disk_gb or
         // the runtime default), so doctor's cap is the cap the fleet enforces.
@@ -296,7 +319,8 @@ public struct DoctorReportBuilder: Sendable {
             auth: authReport,
             checks: status.checks,
             ready: status.ready && authReport.allGood,
-            capacity: capacitySection
+            capacity: capacitySection,
+            tartBaseImage: tartBaseImageSection
         )
     }
 }

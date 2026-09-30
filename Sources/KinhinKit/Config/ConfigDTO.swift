@@ -19,6 +19,9 @@ public struct PartialConfig: Decodable {
     var tokenTTL: Int?
     var vm: PartialVM?
     var image: String?
+    /// Base VM image a prepare starts from (curated tart reference or a
+    /// local VM name); nil = the default macOS base.
+    var baseImage: String?
     var vmBootTimeout: Int?
     var diskGB: Int?
     var tartPath: String?
@@ -177,6 +180,7 @@ public struct PartialConfig: Decodable {
         case tokenTTL = "token_ttl"
         case vm
         case image
+        case baseImage = "base_image"
         case vmBootTimeout = "vm_boot_timeout"
         case diskGB = "disk_gb"
         case tartPath = "tart_path"

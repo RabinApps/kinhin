@@ -343,6 +343,72 @@ final class SetupStatusTests: XCTestCase {
         XCTAssertTrue(detail.contains("/kinhin/provision-"), "detail shows the expanded path: \(detail)")
     }
 
+    // MARK: Base image row — only when the config sets base_image:
+
+    private func configWithBaseImage(_ reference: String?) -> KinhinConfig {
+        var cfg = config()
+        cfg.baseImage = reference
+        return cfg
+    }
+
+    func testBaseImageRowAbsentWithoutConfigKey() async {
+        let computer = SetupStatusComputer(
+            host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+            config: .loaded(configWithBaseImage(nil)), accountTokensStored: ["github": true])
+        let status = await computer.compute()
+        XCTAssertNil(status.checks.first { $0.id == "base-image" }, "no base_image: → no row")
+        XCTAssertTrue(status.ready)
+    }
+
+    func testBaseImageRowGreenForCuratedReferenceAndLocalVM() async {
+        // A curated reference is known without consulting the tart list.
+        let curated = SetupStatusComputer(
+            host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [],
+            config: .loaded(configWithBaseImage("ghcr.io/cirruslabs/macos-sequoia-base:latest")),
+            accountTokensStored: ["github": true])
+        let curatedStatus = await curated.compute()
+        let curatedRow = curatedStatus.checks.first { $0.id == "base-image" }
+        XCTAssertEqual(curatedRow?.ok, true)
+        XCTAssertNil(curatedRow?.action)
+        XCTAssertTrue(curatedRow?.detail.contains("ghcr.io/cirruslabs/macos-sequoia-base:latest") ?? false)
+
+        // A local VM name resolves against the tart list the image row uses.
+        let local = SetupStatusComputer(
+            host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "ubuntu-scratch")],
+            config: .loaded(configWithBaseImage("ubuntu-scratch")), accountTokensStored: ["github": true])
+        let localRow = await local.compute().checks.first { $0.id == "base-image" }
+        XCTAssertEqual(localRow?.ok, true)
+        XCTAssertTrue(localRow?.detail.contains("ubuntu-scratch") ?? false)
+    }
+
+    func testBaseImageRowFlagsAnUnknownReferenceWithTheFix() async {
+        let computer = SetupStatusComputer(
+            host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+            config: .loaded(configWithBaseImage("ghcr.io/acme/vanished:latest")), accountTokensStored: ["github": true])
+        let status = await computer.compute()
+        let row = status.checks.first { $0.id == "base-image" }
+        XCTAssertEqual(row?.ok, false)
+        XCTAssertEqual(row?.action, "fix_base_image")
+        XCTAssertTrue(row?.detail.contains("ghcr.io/acme/vanished:latest") ?? false, row?.detail ?? "")
+        XCTAssertTrue(row?.detail.contains("not a pre-configured image") ?? false, row?.detail ?? "")
+        XCTAssertEqual(SetupAction.title(for: "fix_base_image"), "Fix Base Image…")
+        // Blocking, like the provision-script row: the next prepare would
+        // hard-fail after its multi-GB download. The running fleet is
+        // untouched, but onboarding must not go green with a broken key.
+        XCTAssertFalse(status.ready, "an unknown base_image blocks onboarding, like a broken provision script")
+    }
+
+    func testBaseImageRowSitsRightAfterTheImageRow() async {
+        let computer = SetupStatusComputer(
+            host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
+            config: .loaded(configWithBaseImage("ghcr.io/cirruslabs/macos-sequoia-base:latest")),
+            accountTokensStored: ["github": true])
+        let status = await computer.compute()
+        XCTAssertEqual(
+            status.checks.map(\.id),
+            ["arch", "clt", "tart", "config", "account-token-github", "image", "base-image", "toolchain-cache"])
+    }
+
     // MARK: Shared toolchain cache row
 
     func testToolchainCacheRowAlwaysPresentAndNeverBlocksReady() async {

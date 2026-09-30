@@ -116,6 +116,12 @@ public struct ConfigLoader {
             guard !image.isEmpty else { throw ConfigError.invalid("image must not be empty") }
             cfg.image = image
         }
+        if let baseImage = partial.baseImage {
+            if let problem = TartBaseImage.problem(with: baseImage) {
+                throw ConfigError.invalid("base_image \(problem)")
+            }
+            cfg.baseImage = baseImage
+        }
         if let boot = partial.vmBootTimeout { cfg.vmBootTimeout = boot }
         if let disk = partial.diskGB {
             guard disk >= 0 else { throw ConfigError.invalid("disk_gb must be >= 0") }

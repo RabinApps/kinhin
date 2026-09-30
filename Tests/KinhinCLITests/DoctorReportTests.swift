@@ -159,6 +159,54 @@ final class DoctorReportTests: XCTestCase {
         XCTAssertFalse(without.checks.contains { $0.id == "account-token-gitea" })
     }
 
+    // MARK: - Tart base-image section
+
+    func testTartBaseImageSectionAbsentWithoutConfigKey() async {
+        let report = await builder(stored: [.github: "ghp_x"], config: Self.config()).build()
+        XCTAssertNil(report.tartBaseImage, "no base_image: key → no section")
+    }
+
+    func testTartBaseImageSectionCoversAllThreeVerdicts() async {
+        // Known (curated) reference — green without needing the tart list.
+        var known = Self.config()
+        known.baseImage = "ghcr.io/cirruslabs/macos-sequoia-base:latest"
+        let knownReport = await builder(stored: [.github: "ghp_x"], config: known, tartHealth: .healthy).build()
+        XCTAssertEqual(
+            knownReport.tartBaseImage,
+            DoctorReport.TartBaseImageSection(
+                reference: known.baseImage ?? "", state: "known", ok: true, fix: nil, pinned: false,
+                warning: SetupStatusComputer.baseImageMutabilityNote(known.baseImage)))
+
+        // Local VM — resolves against the injected tart list.
+        var local = Self.config()
+        local.baseImage = "sequoia-scratch"
+        let localBuilder = DoctorReportBuilder(
+            host: host, clt: .ok(version: "26.6"), tartHealth: .healthy,
+            tartList: [TartVM(name: "sequoia-scratch", source: "anywhere", status: "stopped")],
+            config: .loaded(local), authLoad: { _ in "ghp_x" })
+        let localReport = await localBuilder.build()
+        XCTAssertEqual(localReport.tartBaseImage?.state, "local")
+        XCTAssertTrue(localReport.tartBaseImage?.ok ?? false)
+        XCTAssertNil(localReport.tartBaseImage?.fix)
+
+        // Unknown — the fix tells the user exactly what to rewrite.
+        var unknown = Self.config()
+        unknown.baseImage = "ghcr.io/acme/vanished:latest"
+        let unknownReport = await builder(stored: [.github: "ghp_x"], config: unknown, tartHealth: .healthy).build()
+        XCTAssertEqual(unknownReport.tartBaseImage?.state, "unknown")
+        XCTAssertFalse(unknownReport.tartBaseImage?.ok ?? true)
+        XCTAssertTrue(unknownReport.tartBaseImage?.fix?.contains("ghcr.io/acme/vanished:latest") ?? false)
+    }
+
+    func testTartBaseImageJSONRoundTrips() async throws {
+        var cfg = Self.config()
+        cfg.baseImage = "ghcr.io/cirruslabs/macos-sequoia-base:latest"
+        let report = await builder(stored: [.github: "ghp_x"], config: cfg).build()
+        let data = try JSONEncoder().encode(report)
+        let decoded = try JSONDecoder().decode(DoctorReport.self, from: data)
+        XCTAssertEqual(decoded.tartBaseImage, report.tartBaseImage, "the new section is part of the emitted contract")
+    }
+
     // MARK: - ready truth table (the contract's headline field)
 
     func testReadyRequiresBothChecklistAndAuthToPass() async {
