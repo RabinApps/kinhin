@@ -1,10 +1,10 @@
-# Forge support (GitHub, GitLab, Gitea, Forgejo, Buildkite, & the future)
+# Forge support (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, & the future)
 
-Which CI platforms kinhin serves, how to add Gitea, Forgejo, GitLab and Buildkite, and how to serve many accounts from one fleet.
+Which CI platforms kinhin serves, how to add Gitea, Forgejo, GitLab, Buildkite and Azure DevOps, and how to serve many accounts from one fleet.
 
 [← Back to README](../README.md)
 
-kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today five forges ship:
+kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today six forges ship:
 
 | Forge          | Status       | Runner agent                             | Scope shape                              |
 | -------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
@@ -13,6 +13,7 @@ kinhin is built on a **Forge abstraction**: the engine speaks one unified protoc
 | Forgejo        | ✅ supported | gitea-runner (wire-compatible)           | `owner/name` repo or org on any instance |
 | GitLab CI/CD   | ✅ supported | gitlab-runner (GitLab's official agent)  | project or group path (`group/sub/proj`) |
 | Buildkite      | ✅ supported | buildkite-agent (Buildkite's agent)      | `org/cluster` (cluster name or id)       |
+| Azure Pipelines | ✅ supported | Azure Pipelines agent (vsts-agent)      | an agent pool in an organization         |
 
 One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned at spawn to whichever forge has the most pending work, registers there, and is deleted when its job finishes. Token-gating ties platforms to credentials — an agent is baked into the image and a forge attaches only when that platform's token exists.
 
@@ -87,9 +88,28 @@ accounts:
 - Jobs select agents by agent query rules. A scheduled job counts as kinhin demand when the account's labels satisfy every rule. `*` works as a wildcard, and a job with no `queue` rule targets `queue=default`. Jobs the API places in another cluster are ignored. Demand is attributed per pipeline.
 - Image provisioning is token-gated here too: `kinhin image prepare` and the Linux image bakes install buildkite-agent only when a Buildkite account has a stored token. On the host runtime, `kinhin setup repair host-agent` also installs it once a Buildkite account is configured. Its version comes from the agent's GitHub releases (pinned fallback when offline), verified against the release's `SHA256SUMS`.
 
+## Adding Azure DevOps
+
+Azure Pipelines agents join an **agent pool**. The account's `instance` is the organization URL (`https://dev.azure.com/acme`, or an Azure DevOps Server collection URL) and its scope is the pool's name:
+
+```yaml
+accounts:
+  - name: ado # any account name
+    forge: azuredevops
+    instance: "https://dev.azure.com/acme"
+    scope: "Mac Fleet" # the agent pool
+    labels: ["kinhin"] # optional: capabilities pipelines demand
+```
+
+- Add it from the CLI with `kinhin auth add ado --azuredevops --scope "Mac Fleet" --instance https://dev.azure.com/acme [--token T]`. After that, `kinhin auth set --azuredevops` stores the token of the first Azure DevOps account, and `--account NAME` targets any other one. The app's Connect and Add-an-account forms offer Azure DevOps too.
+- Token: a personal access token with only the **Agent Pools (Read & manage)** scope, from a user with the Administrator role on the pool. Azure agents register with this PAT, so **it is copied into every runner instance**. Use a dedicated token with nothing else in it. `kinhin auth status --azuredevops` checks that the pool exists and that the token can manage it.
+- Each runner gets its own copy of the agent (an APFS clone on macOS, so it's instant; a plain copy in containers). It registers with `config.sh --unattended`, reading the PAT from a private file through `VSTS_AGENT_INPUT_TOKEN`. It runs one job (`run.sh --once`) and then removes itself from the pool, and the instance is deleted. In containers the agent runs as root (`AGENT_ALLOW_RUNASROOT=1`).
+- Jobs pick agents by demands, and the account's labels are advertised as agent capabilities. A queued request counts as kinhin demand when its demands include every label: `kinhin` matches a `kinhin` demand, and `xcode=16` matches `xcode -equals 16`. **Without labels, every request in the pool counts**, so give kinhin its own pool, or set a label and add `demands: [kinhin]` to the pipelines it should run. Demand is attributed per pipeline.
+- Image provisioning is token-gated: `kinhin image prepare` and the Linux image bakes install the agent only when an Azure DevOps account has a stored token. The Linux bake also runs the agent's `installdependencies.sh`. On the host runtime, `kinhin setup repair host-agent` installs the agent once an Azure DevOps account is configured. The version comes from the agent's GitHub releases (pinned fallback when offline) and is verified against the SHA-256 table in the release notes.
+
 ## Multiple accounts
 
-Serve as many GitHub orgs/repos, Gitea/Forgejo instances, GitLab projects/groups and Buildkite clusters as you like from one fleet. Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the primary accounts (their tokens keep the original Keychain items — nothing to migrate), and additional entries each carry their own token:
+Serve as many GitHub orgs/repos, Gitea/Forgejo instances, GitLab projects/groups, Buildkite clusters and Azure DevOps pools as you like from one fleet. Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the primary accounts (their tokens keep the original Keychain items — nothing to migrate), and additional entries each carry their own token:
 
 ```yaml
 accounts:
@@ -110,6 +130,6 @@ accounts:
 
 ## More forges are planned
 
-The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo landed as a thin re-brand of the Gitea forge, GitLab as a per-runner adapter (`GitLabForge`), and Buildkite as a cluster-token adapter (`BuildkiteForge`). Azure DevOps and Bitbucket Pipelines are next; Sourcehut is a candidate. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
+The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo landed as a thin re-brand of the Gitea forge, GitLab as a per-runner adapter (`GitLabForge`), Buildkite as a cluster-token adapter (`BuildkiteForge`), and Azure DevOps as a PAT-registered pool adapter (`AzureDevOpsForge`). Bitbucket Pipelines is next; Sourcehut is a candidate. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
 
 Forges decide _who hands kinhin jobs_; [runtimes](runtimes.md) decide _where those jobs execute_.

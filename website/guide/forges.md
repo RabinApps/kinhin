@@ -1,8 +1,8 @@
-# Forge support (GitHub, GitLab, Gitea, Forgejo, Buildkite, & the future)
+# Forge support (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, & the future)
 
 Kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a
 registration token, list/delete runners, report queued demand, track running jobs — and each
-CI platform implements it behind that interface. Today five forges ship:
+CI platform implements it behind that interface. Today six forges ship:
 
 | Forge          | Status       | Runner agent                             | Scope shape                              |
 | -------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
@@ -11,6 +11,7 @@ CI platform implements it behind that interface. Today five forges ship:
 | Forgejo        | ✅ supported | gitea-runner (wire-compatible)           | `owner/name` repo or org on any instance |
 | GitLab CI/CD   | ✅ supported | gitlab-runner (GitLab's official agent)  | project or group path (`group/sub/proj`) |
 | Buildkite      | ✅ supported | buildkite-agent (Buildkite's agent)      | `org/cluster` (cluster name or id)       |
+| Azure Pipelines | ✅ supported | Azure Pipelines agent (vsts-agent)      | an agent pool in an organization         |
 
 One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned
 at spawn to whichever forge has the most pending work, registers there, and is deleted when its
@@ -125,12 +126,39 @@ accounts:
   buildkite-agent once a Buildkite account is set up, verified against the release's
   `SHA256SUMS`.
 
+## Adding Azure DevOps
+
+Azure Pipelines agents join an agent pool. The account's `instance` is the organization URL (or
+an Azure DevOps Server collection URL), and its scope is the pool's name:
+
+```yaml
+accounts:
+  - name: ado
+    forge: azuredevops
+    instance: "https://dev.azure.com/acme"
+    scope: "Mac Fleet" # the agent pool
+    labels: ["kinhin"] # optional: capabilities pipelines demand
+```
+
+- Add it with `kinhin auth add ado --azuredevops --scope "Mac Fleet" --instance URL`, then
+  `kinhin auth set --azuredevops` (the first Azure DevOps account) or `--account NAME`.
+- Token: a PAT with only the **Agent Pools (Read & manage)** scope, from an Administrator of
+  the pool. Agents register with this PAT, so it is copied into every runner instance. Use a
+  dedicated token.
+- Each runner gets its own copy of the agent and registers unattended with the PAT from a private
+  file. It runs one job (`run.sh --once`) and removes itself from the pool.
+- A queued request counts as kinhin demand when its demands include every label (`kinhin`, or
+  `xcode -equals 16` for `xcode=16`). Without labels, every request in the pool counts, so give
+  kinhin its own pool.
+- `kinhin image prepare`, the Linux bakes and `kinhin setup repair host-agent` install the agent
+  once an Azure DevOps account is set up, verified against the release notes' SHA-256 table.
+
 ## Multiple accounts
 
 Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the
 primary accounts (their tokens keep the original Keychain items). To serve more — a second
 GitHub org, another Gitea or Forgejo instance, a GitLab project or group, a Buildkite
-cluster — add more entries;
+cluster, an Azure DevOps pool — add more entries;
 every one has its own scope and its own token:
 
 ```yaml
@@ -160,8 +188,9 @@ accounts:
 
 The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo
 landed as a thin re-brand of the Gitea forge, GitLab as a per-runner adapter
-(`GitLabForge`), and Buildkite as a cluster-token adapter (`BuildkiteForge`). Azure DevOps and
-Bitbucket Pipelines are next; Sourcehut is a candidate. Adding one means implementing
+(`GitLabForge`), Buildkite as a cluster-token adapter (`BuildkiteForge`), and Azure DevOps as a
+PAT-registered pool adapter (`AzureDevOpsForge`). Bitbucket Pipelines is next; Sourcehut is a
+candidate. Adding one means implementing
 the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool,
 checklist, status surfaces, and tests all come for free. See
 `Sources/KinhinKit/Forges/Forge.swift` for the contract.

@@ -24,7 +24,7 @@ Inside the targets, code is organized by domain:
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `KinhinKit/Core/`           | Shell, logging, paths, Keychain token store, error classification, version                                                                    |
 | `KinhinKit/Config/`         | YAML config model + loader, validation, every config editor, capacity math, config store                                                      |
-| `KinhinKit/Forges/`         | One `Forge` protocol; GitHub, Gitea (serves Forgejo too), GitLab and Buildkite clients over a shared `ForgeHTTP` transport; auth status reporting |
+| `KinhinKit/Forges/`         | One `Forge` protocol; GitHub, Gitea (serves Forgejo too), GitLab, Buildkite and Azure DevOps clients over a shared `ForgeHTTP` transport; auth status reporting |
 | `KinhinKit/Runtimes/`       | Runtime protocol, Tart, Apple-container, Docker and Host runtimes, routing pools, capacity partition, daemon-side container manager           |
 | `KinhinKit/Fleet/`          | FleetEngine (engine / reload / credentials / reconcile / lifecycle splits), status model, records, daemon dispatch + RPC client/server        |
 | `KinhinKit/Images/`         | VM and container image preparation, runner bootstrap scripts, toolchain catalog, registry digest pinning                                       |
@@ -48,7 +48,7 @@ Design documents live alongside this file, e.g. [runtime-abstraction-design.md](
 - **`KinhinKitTests`** (engine, mirrored on the source folders):
   - `Core`: shell, SSH executor, Keychain failure reporting, log redaction, error categories
   - `Config`: config parsing + editors (general/labels/runtimes/budget/toolchains/accounts), capacity, reload policy
-  - `Forges`: GitHub/Gitea/GitLab/Buildkite clients over `ForgeHTTP`, demand attribution, registration-token cache, retry/backoff
+  - `Forges`: GitHub/Gitea/GitLab/Buildkite/Azure DevOps clients over `ForgeHTTP`, demand attribution, registration-token cache, retry/backoff
   - `Runtimes`: Tart + Apple-container + Docker semantics, routing pools, health probes, cache mounts
   - `Images`: image pipeline (tart + container), runner bootstrap scripts, toolchain selection and helper scripts, digest pinning
   - `Fleet`: engine lifecycle, autoscaler, queue attribution (queued and running, per repo), token replacement
