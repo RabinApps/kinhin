@@ -96,4 +96,19 @@ extension RunnerBootstrap {
         return verifiedDownloadScript(
             url: url, file: file, expectedDigestCommand: buildkiteAgentDigestCommand(version: version, asset: asset))
     }
+
+    /// The Azure Pipelines agent's release notes carry a table of
+    /// "[vsts-agent-<platform>-<version>.tar.gz](<url>) | <hex>" rows.
+    /// `platform` is e.g. "osx-arm64", "linux-arm64", "linux-x64".
+    static func azureAgentDigestCommand(version: String, platform: String) -> String {
+        let api = "https://api.github.com/repos/microsoft/azure-pipelines-agent/releases/tags/v\(version)"
+        let row = "vsts-agent-\(platform)-\(version).tar.gz) | [0-9a-f]\\{64\\}"
+        return "curl -fsSL \(shellQuote(api)) | grep -o \(shellQuote(row)) | head -1 | awk '{print $NF}'"
+    }
+
+    static func azureAgentDownloadScript(version: String, platform: String, file: String) -> String {
+        let url = "https://download.agent.dev.azure.com/agent/\(version)/vsts-agent-\(platform)-\(version).tar.gz"
+        return verifiedDownloadScript(
+            url: url, file: file, expectedDigestCommand: azureAgentDigestCommand(version: version, platform: platform))
+    }
 }

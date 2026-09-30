@@ -15,7 +15,7 @@ final class ContainerKernelRecoveryTests: XCTestCase {
         shell.responses = [kernelError]
         let options = LinuxImageOptions(
             image: "ubuntu:24.04", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false,
-            hasBuildkiteToken: false)
+            hasBuildkiteToken: false, hasAzureDevOpsToken: false)
         let target = try await ContainerImagePreparer(shell: shell).prepare(
             options, versions: .init(github: "1", gitea: "1"))
         XCTAssertEqual(target, "out")
@@ -31,7 +31,7 @@ final class ContainerKernelRecoveryTests: XCTestCase {
         shell.responses = [ShellResult(exitCode: 1, stdout: "", stderr: "Error: 401 Unauthorized")]
         let options = LinuxImageOptions(
             image: "nope", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false,
-            hasBuildkiteToken: false)
+            hasBuildkiteToken: false, hasAzureDevOpsToken: false)
         do {
             _ = try await ContainerImagePreparer(shell: shell).prepare(
                 options, versions: .init(github: "1", gitea: "1"))

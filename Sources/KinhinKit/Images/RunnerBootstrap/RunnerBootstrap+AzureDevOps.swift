@@ -3,6 +3,45 @@ import Foundation
 // MARK: - Azure Pipelines agent
 
 extension RunnerBootstrap {
+    /// Installs the Azure Pipelines agent into the macOS base image, as the
+    /// template every runner copies.
+    static func azureAgentInstallScript(version: String) -> String {
+        """
+        set -euo pipefail
+
+        # Azure Pipelines agent (each runner clones it; one job per run.sh --once).
+        if [ ! -x "$HOME/azure-agent/config.sh" ]; then
+          mkdir -p "$HOME/azure-agent"
+          cd "$HOME/azure-agent"
+          \(azureAgentDownloadScript(version: version, platform: "osx-arm64", file: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
+          tar xzf agent.tar.gz
+          rm agent.tar.gz
+          echo "azure pipelines agent v\(version) installed"
+        else
+          echo "azure pipelines agent already installed"
+        fi
+        """
+    }
+
+    /// Installs the Azure Pipelines agent and its system dependencies (ICU and
+    /// friends, via the agent's own script) into a Linux image. `platform` is
+    /// "linux-arm64", or "linux-x64" for emulated bakes.
+    static func linuxAzureAgentInstallScript(version: String, platform: String = "linux-arm64") -> String {
+        """
+        set -euo pipefail
+        \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git")]))
+        if [ ! -x /opt/azure-agent/config.sh ]; then
+          mkdir -p /opt/azure-agent
+          cd /opt/azure-agent
+          \(azureAgentDownloadScript(version: version, platform: platform, file: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
+          tar xzf agent.tar.gz
+          rm agent.tar.gz
+          ./bin/installdependencies.sh
+        fi
+        echo "linux azure pipelines agent v\(version) installed"
+        """
+    }
+
     /// How a runtime copies the installed agent into a per-runner directory:
     /// an agent keeps its registration in its own directory, so every runner
     /// needs its own copy.

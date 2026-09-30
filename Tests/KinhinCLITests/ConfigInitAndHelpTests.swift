@@ -74,7 +74,8 @@ final class ConfigInitAndHelpTests: XCTestCase {
         let help = helpText()
         XCTAssertTrue(
             help.contains(
-                "gitlab-runner / buildkite-agent are added only when a GitLab / Buildkite account is configured"),
+                "gitlab-runner / buildkite-agent / the Azure Pipelines agent are added only when a GitLab / Buildkite / Azure DevOps account is configured"
+            ),
             "host-agent help must match HostAgentInstaller's conditional agent installs")
     }
 

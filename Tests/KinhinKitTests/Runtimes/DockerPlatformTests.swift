@@ -112,7 +112,7 @@ final class DockerPlatformTests: XCTestCase {
         let shell = FakeShell()
         var options = DockerImagePreparer.Options(
             image: "ubuntu:24.04", target: "ci", hasGitHubToken: true, hasGiteaToken: true, hasGitLabToken: false,
-            hasBuildkiteToken: false)
+            hasBuildkiteToken: false, hasAzureDevOpsToken: false)
         options.platform = .amd64
         _ = try await DockerImagePreparer(shell: shell).prepare(
             options, versions: .init(github: "2.1.0", gitea: "0.2.0"))
@@ -129,7 +129,7 @@ final class DockerPlatformTests: XCTestCase {
         _ = try await DockerImagePreparer(shell: shell).prepare(
             .init(
                 image: "ubuntu:24.04", target: "ci", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false,
-                hasBuildkiteToken: false),
+                hasBuildkiteToken: false, hasAzureDevOpsToken: false),
             versions: .init(github: "2.1.0", gitea: "0.2.0"))
         let run = try XCTUnwrap(shell.calls.first { $0.contains("run") })
         XCTAssertFalse(run.contains("--platform"), "native bakes add no flag: \(run)")

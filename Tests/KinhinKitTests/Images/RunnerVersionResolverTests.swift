@@ -88,6 +88,15 @@ final class RunnerVersionResolverTests: XCTestCase {
         }
     }
 
+    func testAzureFeedReadsTheAgentRepo() async throws {
+        let resolver = resolverWithStub { request in
+            XCTAssertEqual(request.url?.path, "/repos/microsoft/azure-pipelines-agent/releases/latest")
+            return (200, Data(#"{"tag_name":"v5.279.0"}"#.utf8), [:])
+        }
+        let version = try await resolver.latestAzure()
+        XCTAssertEqual(version, "5.279.0")
+    }
+
     /// The user-facing path is unchanged by the throwing lookups: any failure
     /// (network or malformed payload) still degrades to pinned versions.
     func testResolveDegradesMalformedPayloadsToPinnedVersions() async {

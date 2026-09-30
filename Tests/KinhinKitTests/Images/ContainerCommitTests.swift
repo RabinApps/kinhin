@@ -7,7 +7,7 @@ final class ContainerCommitTests: XCTestCase {
     private func options() -> LinuxImageOptions {
         LinuxImageOptions(
             image: "ubuntu:24.04", target: "out-image", hasGitHubToken: true, hasGiteaToken: false,
-            hasGitLabToken: false, hasBuildkiteToken: false)
+            hasGitLabToken: false, hasBuildkiteToken: false, hasAzureDevOpsToken: false)
     }
 
     func testCommitExportsTheScratchFilesystemThenBuildsFromScratch() async throws {

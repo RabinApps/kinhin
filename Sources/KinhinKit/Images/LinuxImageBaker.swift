@@ -19,6 +19,8 @@ public struct LinuxImageOptions {
     public var hasGitLabToken: Bool?
     /// nil → any Buildkite account has a stored token.
     public var hasBuildkiteToken: Bool?
+    /// nil → any Azure DevOps account has a stored token.
+    public var hasAzureDevOpsToken: Bool?
     /// Architecture of the image being baked. Anything but arm64 (native on
     /// Apple Silicon) is Docker-only and runs under emulation.
     public var platform: LinuxPlatform
@@ -26,7 +28,7 @@ public struct LinuxImageOptions {
     public init(
         image: String, target: String, user: String = "admin", toolchains: KinhinConfig.ToolchainsConfig? = nil,
         toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil,
-        hasGitLabToken: Bool? = nil, hasBuildkiteToken: Bool? = nil,
+        hasGitLabToken: Bool? = nil, hasBuildkiteToken: Bool? = nil, hasAzureDevOpsToken: Bool? = nil,
         platform: LinuxPlatform = .arm64
     ) {
         self.platform = platform
@@ -39,6 +41,7 @@ public struct LinuxImageOptions {
         self.hasGiteaToken = hasGiteaToken
         self.hasGitLabToken = hasGitLabToken
         self.hasBuildkiteToken = hasBuildkiteToken
+        self.hasAzureDevOpsToken = hasAzureDevOpsToken
     }
 }
 
@@ -91,9 +94,10 @@ struct LinuxImageBaker {
             ?? (AccountTokens.anyStored(for: .gitea) || AccountTokens.anyStored(for: .forgejo))
         let hasGitLabToken = try options.hasGitLabToken ?? AccountTokens.anyStored(for: .gitlab)
         let hasBuildkiteToken = try options.hasBuildkiteToken ?? AccountTokens.anyStored(for: .buildkite)
-        guard hasGitHubToken || hasGiteaToken || hasGitLabToken || hasBuildkiteToken else {
+        let hasAzureDevOpsToken = try options.hasAzureDevOpsToken ?? AccountTokens.anyStored(for: .azuredevops)
+        guard hasGitHubToken || hasGiteaToken || hasGitLabToken || hasBuildkiteToken || hasAzureDevOpsToken else {
             throw ImageError.noCredentials(
-                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab / --buildkite)"
+                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab / --account NAME)"
             )
         }
 
@@ -129,6 +133,14 @@ struct LinuxImageBaker {
                     version: versions.buildkite, arch: options.platform.buildkiteAgentArch))
         } else {
             Log.info(tag, "no Buildkite token stored — skipping buildkite-agent install")
+        }
+        if hasAzureDevOpsToken {
+            Log.info(tag, "Azure DevOps token found — baking the Azure Pipelines agent \(versions.azure)")
+            lines.append(
+                RunnerBootstrap.linuxAzureAgentInstallScript(
+                    version: versions.azure, platform: options.platform.azureAgentPlatform))
+        } else {
+            Log.info(tag, "no Azure DevOps token stored — skipping the Azure Pipelines agent install")
         }
         lines.append(
             try RunnerBootstrap.toolchainHelperInstallScript(

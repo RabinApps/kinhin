@@ -185,7 +185,7 @@ final class LinuxToolchainsTests: XCTestCase {
         try await preparer.prepare(
             .init(
                 image: "ubuntu:24.04", target: "kinhin-ci-linux", hasGitHubToken: true, hasGiteaToken: false,
-                hasGitLabToken: false, hasBuildkiteToken: false))
+                hasGitLabToken: false, hasBuildkiteToken: false, hasAzureDevOpsToken: false))
         let runArgv = try XCTUnwrap(shell.calls.first { $0.contains("run") })
         XCTAssertTrue(runArgv.contains("--volume"), "prepare bind-mounts the host cache unconditionally: \(runArgv)")
         XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
@@ -198,7 +198,8 @@ final class LinuxToolchainsTests: XCTestCase {
             .init(
                 image: "ubuntu:24.04", target: "kinhin-ci-linux",
                 toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false
             ))
         // Order: run → ready-probe exec → agent exec → managed exec → build.
         let runIdx = try XCTUnwrap(shell.calls.firstIndex { $0.contains("run") })
@@ -231,7 +232,8 @@ final class LinuxToolchainsTests: XCTestCase {
                 .init(
                     image: "ubuntu:24.04", target: "kinhin-ci-linux",
                     toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
-                    hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false
+                    hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                    hasAzureDevOpsToken: false
                 ))
             XCTFail("expected the bake to fail")
         } catch let error as ImageError {

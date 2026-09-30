@@ -34,6 +34,27 @@ final class AzureRegistrationScriptTests: XCTestCase {
         XCTAssertEqual(script.components(separatedBy: "pat-secret").count, 3)
     }
 
+    /// The digest comes from the release notes' download table; this runs
+    /// the extraction against a sample of it (no network).
+    func testDigestIsReadFromTheReleaseNotesTable() throws {
+        let command = RunnerBootstrap.azureAgentDigestCommand(version: "5.279.0", platform: "osx-arm64")
+        let body =
+            "| macOS x64 | [vsts-agent-osx-x64-5.279.0.tar.gz](https://x/vsts-agent-osx-x64-5.279.0.tar.gz) | "
+            + String(repeating: "a", count: 64) + " |\n"
+            + "| macOS ARM64 | [vsts-agent-osx-arm64-5.279.0.tar.gz](https://x/vsts-agent-osx-arm64-5.279.0.tar.gz) | "
+            + String(repeating: "b", count: 64) + " |\n"
+        let pipeline = try XCTUnwrap(command.range(of: "| grep").map { String(command[$0.lowerBound...]) })
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-c", "printf '%s' \(RunnerBootstrap.shellQuote(body)) " + pipeline]
+        let output = Pipe()
+        process.standardOutput = output
+        try process.run()
+        process.waitUntilExit()
+        let digest = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        XCTAssertEqual(digest.trimmingCharacters(in: .whitespacesAndNewlines), String(repeating: "b", count: 64))
+    }
+
     func testEachRuntimeCopiesTheAgentItsOwnWay() async throws {
         let tart = try await TartRuntime(tart: FakeTart(), bootTimeout: { 30 }).registrationScript(
             forge: forge(), token: "pat-secret", runnerTokens: [:], name: "kinhin-1", runnerCount: 1, route: route,

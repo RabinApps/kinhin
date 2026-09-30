@@ -16,13 +16,13 @@ final class HostAgentInstallerTests: XCTestCase {
         try? FileManager.default.removeItem(at: dir)  // scratch dir; a leftover is harmless
     }
 
-    private func installer(_ shell: FakeShell, arm64: Bool = true, gitlab: Bool = false, buildkite: Bool = false)
-        -> HostAgentInstaller
-    {
+    private func installer(
+        _ shell: FakeShell, arm64: Bool = true, gitlab: Bool = false, buildkite: Bool = false, azure: Bool = false
+    ) -> HostAgentInstaller {
         let versions = self.versions
         return HostAgentInstaller(
             shell: shell, agentDir: dir, arm64: arm64, latestVersions: { versions }, includeGitLab: gitlab,
-            includeBuildkite: buildkite)
+            includeBuildkite: buildkite, includeAzureDevOps: azure)
     }
 
     private func plant(github: Bool = false, gitea: Bool = false) throws {
@@ -73,6 +73,24 @@ final class HostAgentInstallerTests: XCTestCase {
         let path = dir.appendingPathComponent("buildkite-agent").path
         FileManager.default.createFile(atPath: path, contents: Data(), attributes: [.posixPermissions: 0o755])
         XCTAssertTrue(installer(FakeShell(), buildkite: true).isInstalled)
+    }
+
+    func testAzureAgentOnlyWhenAnAzureDevOpsAccountIsConfigured() throws {
+        XCTAssertFalse(installer(FakeShell()).installScript(versions).contains("vsts-agent"))
+        let script = installer(FakeShell(), azure: true).installScript(versions)
+        XCTAssertTrue(
+            script.contains("/agent/\(versions.azure)/vsts-agent-osx-arm64-\(versions.azure).tar.gz"), script)
+        XCTAssertTrue(script.contains("mkdir -p azure-agent"), "the agent is the template runners clone")
+
+        try plant(github: true, gitea: true)
+        XCTAssertTrue(installer(FakeShell()).isInstalled, "no Azure DevOps account: the agent is not required")
+        XCTAssertFalse(installer(FakeShell(), azure: true).isInstalled)
+        let template = dir.appendingPathComponent("azure-agent")
+        try FileManager.default.createDirectory(at: template, withIntermediateDirectories: true)
+        FileManager.default.createFile(
+            atPath: template.appendingPathComponent("config.sh").path, contents: Data(),
+            attributes: [.posixPermissions: 0o755])
+        XCTAssertTrue(installer(FakeShell(), azure: true).isInstalled)
     }
 
     func testSummaryNamesTheAgentsInUse() {

@@ -321,7 +321,8 @@ final class ForgeTests: XCTestCase {
         do {
             _ = try await preparer.run(
                 ImagePreparer.Options(
-                    hasGitHubToken: false, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false))
+                    hasGitHubToken: false, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                    hasAzureDevOpsToken: false))
             XCTFail("prepare must refuse when no platform token exists")
         } catch let error as ImageError {
             guard case .noCredentials = error else { return XCTFail("wrong error: \(error)") }
@@ -336,7 +337,8 @@ final class ForgeTests: XCTestCase {
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         _ = try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false))
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false))
 
         let script = ssh.scripts.joined(separator: "\n")
         XCTAssertTrue(script.contains("actions-runner-osx-arm64"), "GitHub agent baked when PAT exists")
@@ -348,7 +350,8 @@ final class ForgeTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         _ = try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: false, hasGiteaToken: true, hasGitLabToken: false, hasBuildkiteToken: false))
+                hasGitHubToken: false, hasGiteaToken: true, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false))
 
         let script = ssh.scripts.joined(separator: "\n")
         XCTAssertFalse(script.contains("actions-runner-osx-arm64"), "GitHub agent skipped when no PAT")

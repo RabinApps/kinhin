@@ -8,7 +8,8 @@ import Foundation
 /// release feeds instead of hardcoding: GitHub's actions-runner from
 /// github.com/actions/runner/releases, Gitea's runner from
 /// gitea.com/gitea/runner/releases, GitLab's from the gitlab-org/gitlab-runner
-/// project's releases, Buildkite's agent from github.com/buildkite/agent. Falls back to the last-known-good pinned
+/// project's releases, Buildkite's agent from github.com/buildkite/agent, and
+/// the Azure Pipelines agent from github.com/microsoft/azure-pipelines-agent. Falls back to the last-known-good pinned
 /// versions when the feed is unreachable (offline hosts, rate limits), and
 /// degrades to pre-release tags only when nothing stable exists.
 public struct RunnerVersionResolver: Sendable {
@@ -17,22 +18,25 @@ public struct RunnerVersionResolver: Sendable {
         public let gitea: String
         public let gitlab: String
         public let buildkite: String
+        public let azure: String
 
         public init(
             github: String, gitea: String, gitlab: String = RunnerVersionResolver.pinnedGitLab,
-            buildkite: String = RunnerVersionResolver.pinnedBuildkite
+            buildkite: String = RunnerVersionResolver.pinnedBuildkite, azure: String = RunnerVersionResolver.pinnedAzure
         ) {
             self.github = github
             self.gitea = gitea
             self.gitlab = gitlab
             self.buildkite = buildkite
+            self.azure = azure
         }
     }
 
     public static let pinnedGitLab = "19.4.1"
     public static let pinnedBuildkite = "4.0.9"
+    public static let pinnedAzure = "5.279.0"
     static let fallback = Versions(
-        github: "2.325.0", gitea: "3.5.0", gitlab: pinnedGitLab, buildkite: pinnedBuildkite)
+        github: "2.325.0", gitea: "3.5.0", gitlab: pinnedGitLab, buildkite: pinnedBuildkite, azure: pinnedAzure)
 
     /// Release-feed endpoints. Both are string literals, so parsing them
     /// failing is a programming error rather than a runtime condition.
@@ -41,6 +45,7 @@ public struct RunnerVersionResolver: Sendable {
     static let gitlabFeed = feedURL(
         "https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab-runner/releases/permalink/latest")
     static let buildkiteFeed = feedURL("https://api.github.com/repos/buildkite/agent/releases/latest")
+    static let azureFeed = feedURL("https://api.github.com/repos/microsoft/azure-pipelines-agent/releases/latest")
 
     private static func feedURL(_ string: String) -> URL {
         guard let url = URL(string: string) else { preconditionFailure("invalid release feed URL literal: \(string)") }
@@ -70,7 +75,10 @@ public struct RunnerVersionResolver: Sendable {
         async let gitlabTask = resolveLoggingFailures(latestGitLab, fallback: Self.fallback.gitlab, feed: "GitLab")
         async let buildkiteTask = resolveLoggingFailures(
             latestBuildkite, fallback: Self.fallback.buildkite, feed: "Buildkite")
-        return await Versions(github: githubTask, gitea: giteaTask, gitlab: gitlabTask, buildkite: buildkiteTask)
+        async let azureTask = resolveLoggingFailures(
+            latestAzure, fallback: Self.fallback.azure, feed: "Azure Pipelines")
+        return await Versions(
+            github: githubTask, gitea: giteaTask, gitlab: gitlabTask, buildkite: buildkiteTask, azure: azureTask)
     }
 
     /// One feed lookup with its fallback: a thrown error is logged, never
@@ -125,6 +133,16 @@ public struct RunnerVersionResolver: Sendable {
         }
         return try Self.stableTag(
             from: data, feed: "Buildkite", fallback: Self.fallback.buildkite, excludesDashes: true)
+    }
+
+    /// Latest stable Azure Pipelines agent tag, e.g. "v5.279.0" → "5.279.0".
+    /// Same failure behavior as ``latestGitHub()``.
+    func latestAzure() async throws -> String {
+        guard let data = await fetchLogged(url: Self.azureFeed) else {
+            return Self.fallback.azure
+        }
+        return try Self.stableTag(
+            from: data, feed: "Azure Pipelines", fallback: Self.fallback.azure, excludesDashes: true)
     }
 
     /// Decodes a release-feed payload to its stable tag (`v` prefix, dotted

@@ -3,9 +3,9 @@ import Foundation
 /// Installs the runner agents that `HostRuntime` runs directly on the Mac
 /// (the fix behind `kinhin setup repair host-agent` and the checklist's
 /// "Host runner agent" row): GitHub's actions-runner and the Gitea runner
-/// (which also serves Forgejo), plus the GitLab runner and the Buildkite agent
-/// when an account of that forge is configured, so a host route works on
-/// every forge in use.
+/// (which also serves Forgejo), plus the GitLab runner, the Buildkite agent and
+/// the Azure Pipelines agent when an account of that forge is configured, so a
+/// host route works on every forge in use.
 /// Downloads are SHA-256 verified against the vendors' published digests, the
 /// same way `image prepare` verifies them. Agents already present are skipped.
 public struct HostAgentInstaller: Sendable {
@@ -17,19 +17,24 @@ public struct HostAgentInstaller: Sendable {
     public let includeGitLab: Bool
     /// Whether the Buildkite agent is part of the install (and of `isInstalled`).
     public let includeBuildkite: Bool
+    /// Whether the Azure Pipelines agent is part of the install (and of `isInstalled`).
+    public let includeAzureDevOps: Bool
 
     public init(
         shell: ShellRunning = Shell(), agentDir: URL? = nil, arm64: Bool = ResourceProbe().snapshot().arm64,
         latestVersions: (@Sendable () async -> RunnerVersionResolver.Versions)? = nil,
-        includeGitLab: Bool? = nil, includeBuildkite: Bool? = nil
+        includeGitLab: Bool? = nil, includeBuildkite: Bool? = nil, includeAzureDevOps: Bool? = nil
     ) {
         self.shell = shell
         self.agentDir = agentDir ?? HostRuntime.defaultAgentDir
         self.arm64 = arm64
         self.latestVersions = latestVersions ?? { await RunnerVersionResolver().resolve() }
-        let configured = (includeGitLab == nil || includeBuildkite == nil) ? Self.configuredForges() : []
+        let configured =
+            (includeGitLab == nil || includeBuildkite == nil || includeAzureDevOps == nil)
+            ? Self.configuredForges() : []
         self.includeGitLab = includeGitLab ?? configured.contains(.gitlab)
         self.includeBuildkite = includeBuildkite ?? configured.contains(.buildkite)
+        self.includeAzureDevOps = includeAzureDevOps ?? configured.contains(.azuredevops)
     }
 
     /// The forges the on-disk config has accounts for.
@@ -53,10 +58,14 @@ public struct HostAgentInstaller: Sendable {
         FileManager.default.isExecutableFile(atPath: agentDir.appendingPathComponent("buildkite-agent").path)
     }
 
+    var azureAgentInstalled: Bool {
+        FileManager.default.isExecutableFile(atPath: agentDir.appendingPathComponent("azure-agent/config.sh").path)
+    }
+
     /// True when every agent in use is present.
     public var isInstalled: Bool {
         githubAgentInstalled && giteaAgentInstalled && (!includeGitLab || gitlabAgentInstalled)
-            && (!includeBuildkite || buildkiteAgentInstalled)
+            && (!includeBuildkite || buildkiteAgentInstalled) && (!includeAzureDevOps || azureAgentInstalled)
     }
 
     /// The install script for whichever agents are missing.
@@ -94,6 +103,19 @@ public struct HostAgentInstaller: Sendable {
                 rm buildkite-agent.tar.gz
                 """)
         }
+        if includeAzureDevOps, !azureAgentInstalled {
+            // The template each host runner clones (see HostRuntime+AzureDevOps).
+            parts.append(
+                """
+                mkdir -p azure-agent
+                (
+                  cd azure-agent
+                  \(RunnerBootstrap.azureAgentDownloadScript(version: versions.azure, platform: arm64 ? "osx-arm64" : "osx-x64", file: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
+                  tar xzf agent.tar.gz
+                  rm agent.tar.gz
+                )
+                """)
+        }
         return parts.joined(separator: "\n")
     }
 
@@ -122,6 +144,10 @@ public struct HostAgentInstaller: Sendable {
             throw ImageError.hostAgentInstallFailed(
                 "the download finished but buildkite-agent is missing in \(agentDir.path)")
         }
+        if includeAzureDevOps, !azureAgentInstalled {
+            throw ImageError.hostAgentInstallFailed(
+                "the download finished but the Azure Pipelines agent is missing in \(agentDir.path)/azure-agent")
+        }
         Log.info("host", "installed \(installedSummary(versions)) into \(agentDir.path)")
         return versions
     }
@@ -132,6 +158,7 @@ public struct HostAgentInstaller: Sendable {
         var agents = ["actions-runner \(versions.github)", "gitea-runner \(versions.gitea)"]
         if includeGitLab { agents.append("gitlab-runner \(versions.gitlab)") }
         if includeBuildkite { agents.append("buildkite-agent \(versions.buildkite)") }
+        if includeAzureDevOps { agents.append("azure pipelines agent \(versions.azure)") }
         guard let last = agents.popLast() else { return "" }
         return agents.joined(separator: ", ") + " and " + last
     }

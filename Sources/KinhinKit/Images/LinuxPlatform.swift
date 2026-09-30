@@ -20,6 +20,9 @@ public enum LinuxPlatform: String, Sendable, Equatable, CaseIterable {
     /// Name in the Buildkite agent release asset
     /// (`buildkite-agent-linux-<arch>-<version>.tar.gz`).
     public var buildkiteAgentArch: String { self == .arm64 ? "arm64" : "amd64" }
+    /// Platform in the Azure Pipelines agent release asset
+    /// (`vsts-agent-<platform>-<version>.tar.gz`).
+    public var azureAgentPlatform: String { self == .arm64 ? "linux-arm64" : "linux-x64" }
 
     /// The architecture label runners register with, replacing the fleet's
     /// default `arm64` label so jobs never land on the wrong architecture.
