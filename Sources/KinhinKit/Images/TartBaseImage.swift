@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// The tart VM images Cirrus Labs publishes (the quick-start's "VM images"
 /// list) — the pre-configured choices for what `image prepare` starts from
@@ -11,7 +12,11 @@ public enum TartBaseImage {
 
     /// The digest resolver a ``pin(request:)`` uses. Injectable so tests can
     /// stub the registry answer (the default asks the real registry).
-    public nonisolated(unsafe) static var digestResolver: (any DigestResolving)? = nil
+    public static var digestResolver: (any DigestResolving)? {
+        get { digestResolverStorage.withLock { $0 } }
+        set { digestResolverStorage.withLock { $0 = newValue } }
+    }
+    private static let digestResolverStorage = Mutex<(any DigestResolving)?>(nil)
 
     /// Images the install scripts are exercised against, for the pickers:
     /// every macOS series the quick-start lists in its three flavors, plus

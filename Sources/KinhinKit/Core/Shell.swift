@@ -39,7 +39,7 @@ public struct ShellResult: Sendable {
 enum ShellError: LocalizedError {
     case launchFailed(String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case .launchFailed(let why): return "Failed to launch process: \(why)"
         }

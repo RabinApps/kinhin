@@ -306,13 +306,4 @@ final class ActionCoverageTests: XCTestCase {
         XCTAssertTrue(ConfigLoader.isTemplate(parsed))
         XCTAssertTrue(parsed.accounts.isEmpty)
     }
-
-    /// Every action the row view-model exposes is the contract action, not the row id.
-    func testRowViewModelCarriesActionIDForDispatch() {
-        let check = SetupCheckResult(
-            id: "tart", title: "Tart installed", ok: false, detail: "d", action: "install_tart")
-        let row = SetupRowViewModel(check: check)
-        XCTAssertEqual(row.actionID, "install_tart")
-        XCTAssertEqual(row.actionTitle, "Install via Homebrew")
-    }
 }

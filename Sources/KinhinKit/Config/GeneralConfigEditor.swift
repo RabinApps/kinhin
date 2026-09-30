@@ -122,7 +122,13 @@ public enum GeneralConfigEditor {
         default: break
         }
 
-        guard let root = try? Yams.compose(yaml: yaml), root.mapping != nil else {
+        let root: Node?
+        do {
+            root = try Yams.compose(yaml: yaml)
+        } catch {
+            throw ConfigEditError.yamlParse(error.localizedDescription)
+        }
+        guard let root, root.mapping != nil else {
             throw ConfigEditError.yamlParse("top level must be a mapping")
         }
         let path = keyPath(for: field)

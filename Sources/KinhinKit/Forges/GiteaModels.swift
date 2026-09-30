@@ -47,7 +47,7 @@ enum GiteaError: LocalizedError, Equatable {
     case decoding(String)
     case invalidInstance(String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case .unauthorized:
             return

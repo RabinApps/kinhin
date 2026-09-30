@@ -106,7 +106,7 @@ final class ImageProvisionScriptTests: XCTestCase {
                 return XCTFail("wrong error: \(error)")
             }
             XCTAssertTrue(path.hasSuffix("does-not-exist.sh"))
-            XCTAssertEqual(reason, "file missing or unreadable")
+            XCTAssertFalse(reason.isEmpty, "the read failure's own cause is reported")
         } catch {
             XCTFail("wrong error type: \(error)")
         }

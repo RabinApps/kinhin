@@ -274,8 +274,6 @@ extension FleetEngine {
         Log.info(id, "VM deleted")
     }
 
-    func runTelemetryIfPossible(_ id: String) async {}
-
     func pauseAllVMs() async {
         let tasks = lifecycleTasks.withLock { tasks -> [Task<Void, Never>] in
             defer { tasks.removeAll() }

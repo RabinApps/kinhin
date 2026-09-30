@@ -56,7 +56,7 @@ extension FleetEngine {
                 if verify {
                     let verification = await OrgPermissionProbe.verify(github: client, scope: account.scope)
                     guard verification.ok else {
-                        throw AccountAttachError.unverified(verification.message)
+                        throw EngineError.accountUnverified(verification.message)
                     }
                 }
                 forge = GitHubForge(
@@ -64,7 +64,7 @@ extension FleetEngine {
                     account: account.name)
             case .gitea, .forgejo:
                 guard let instance = account.instance else {
-                    throw AccountAttachError.unverified("no instance URL configured")
+                    throw EngineError.accountUnverified("no instance URL configured")
                 }
                 forge = try await GiteaForge.make(
                     forge: account.forge,
@@ -114,16 +114,6 @@ extension FleetEngine {
                 guard case .github(_, let scope) = forge.credentials else { return false }
                 return !scope.contains("/")
             }
-        }
-    }
-}
-
-enum AccountAttachError: LocalizedError {
-    case unverified(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .unverified(let reason): return reason
         }
     }
 }

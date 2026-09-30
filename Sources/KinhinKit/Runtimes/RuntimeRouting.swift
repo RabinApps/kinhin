@@ -7,11 +7,11 @@ import Foundation
 /// (`runtimes:` section when present, or the legacy single-fleet defaults).
 struct RuntimePool: Sendable, Equatable {
     /// The execution runtime backing this pool.
-    public let runtime: RuntimeID
+    let runtime: RuntimeID
     /// Labels the pool's runners register with (fleet labels + runtime marker).
-    public let labels: [String]
+    let labels: [String]
 
-    public init(runtime: RuntimeID, labels: [String]) {
+    init(runtime: RuntimeID, labels: [String]) {
         self.runtime = runtime
         self.labels = labels
     }
@@ -66,11 +66,11 @@ struct RuntimePool: Sendable, Equatable {
 /// 4. The default runtime for unmatched jobs.
 enum RuntimeRouter {
     struct Decision: Sendable, Equatable {
-        public let pool: RuntimePool
+        let pool: RuntimePool
         /// How the pool was chosen (for logs and tests).
-        public let via: String
+        let via: String
 
-        public init(pool: RuntimePool, via: String) {
+        init(pool: RuntimePool, via: String) {
             self.pool = pool
             self.via = via
         }
@@ -155,11 +155,11 @@ enum RuntimeRouter {
 /// The engine-facing routing model: pools by runtime id plus the config
 /// routes, with demand bucketing and spawn selection.
 struct RuntimeConfigModel: Sendable {
-    public let routes: [KinhinConfig.RuntimeConfig.Route]
-    public let pools: [RuntimeID: RuntimePool]
-    public let defaultRuntime: RuntimeID
+    let routes: [KinhinConfig.RuntimeConfig.Route]
+    let pools: [RuntimeID: RuntimePool]
+    let defaultRuntime: RuntimeID
 
-    public init(
+    init(
         config: KinhinConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil,
         containerConfigured: Bool = false, dockerConfigured: Bool = false, dockerPlatform: LinuxPlatform = .arm64,
         hostConfigured: Bool = false
@@ -233,12 +233,12 @@ struct RuntimeConfigModel: Sendable {
 enum RuntimeCapacity {
     struct Partition: Sendable, Equatable {
         /// Per-runtime caps (in VMs/containers of that runtime's shape).
-        public let caps: [RuntimeID: Int]
+        let caps: [RuntimeID: Int]
         /// Human summary for status/doctor lines.
-        public let summary: String
+        let summary: String
     }
 
-    public static func partition(
+    static func partition(
         hostUsableCPU: Int,
         hostUsableMemoryGB: Int,
         weights: [String: Double],

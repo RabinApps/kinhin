@@ -79,6 +79,8 @@ enum RunCommands {
                 return
             }
             print("daemon: not running")
+            // Capacity and orphans are extras on a "not running" answer: a
+            // broken config or missing tart just leaves them out.
             if FileManager.default.fileExists(atPath: Paths.config.path),
                 let cfg = try? ConfigLoader.load()
             {
@@ -120,7 +122,11 @@ enum RunCommands {
                 print("\u{1B}[2J\u{1B}[H")
                 print("daemon not running…")
             }
-            try? await Task.sleep(for: .seconds(2))
+            do {
+                try await Task.sleep(for: .seconds(2))
+            } catch {
+                return  // cancelled: stop watching
+            }
         }
     }
 

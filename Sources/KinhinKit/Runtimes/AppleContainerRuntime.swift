@@ -146,7 +146,7 @@ enum RuntimeWatchError: LocalizedError {
     case registrationFailed(vm: String, stderr: String)
     case registrationTimeout(vm: String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case .registrationFailed(let vm, let stderr):
             return "runner registration failed in \(vm): \(stderr.prefix(300))"

@@ -23,38 +23,38 @@ public enum RPCMethod: String, Codable, Sendable {
 
 /// Payload for `replace_token`: swaps the daemon's PAT without a restart.
 struct TokenReplaceRequest: Codable, Sendable, Equatable {
-    public let pat: String
-    public init(pat: String) { self.pat = pat }
+    let pat: String
+    init(pat: String) { self.pat = pat }
 }
 
 /// Payload for `replace_gitea_token`: swaps the daemon's Gitea access token.
 struct GiteaTokenReplaceRequest: Codable, Sendable, Equatable {
-    public let token: String
-    public init(token: String) { self.token = token }
+    let token: String
+    init(token: String) { self.token = token }
 }
 
 /// Payload for `replace_forgejo_token`: swaps the daemon's Forgejo access token.
 struct ForgejoTokenReplaceRequest: Codable, Sendable, Equatable {
-    public let token: String
-    public init(token: String) { self.token = token }
+    let token: String
+    init(token: String) { self.token = token }
 }
 
 /// Payload for `replace_account_token`: swaps one account's token.
 struct AccountTokenReplaceRequest: Codable, Sendable, Equatable {
-    public let account: String
-    public let token: String
-    public init(account: String, token: String) {
+    let account: String
+    let token: String
+    init(account: String, token: String) {
         self.account = account
         self.token = token
     }
 }
 
 struct RPCRequest: Codable, Sendable, Equatable {
-    public let id: Int
-    public let method: RPCMethod
-    public let payload: Data?
+    let id: Int
+    let method: RPCMethod
+    let payload: Data?
 
-    public init(id: Int, method: RPCMethod, payload: Data? = nil) {
+    init(id: Int, method: RPCMethod, payload: Data? = nil) {
         self.id = id
         self.method = method
         self.payload = payload

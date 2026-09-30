@@ -62,7 +62,7 @@ enum ContainerManagerError: LocalizedError, Equatable {
     case invalidName(String)
     case commandFailed(what: String, stderr: String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case .toolMissing(let tool):
             return "\(tool.title) is not installed (\(tool.binaryName) was not found)."
@@ -177,14 +177,16 @@ public struct ContainerManager: Sendable {
 
     // MARK: Parsing (internal for tests)
 
-    /// One JSON object per line (`--format '{{json .}}'`).
+    /// One JSON object per line (`--format '{{json .}}'`). Lines that aren't
+    /// objects (CLI warnings mixed into stdout) are skipped.
     static func jsonLines(_ text: String) -> [[String: Any]] {
         text.split(whereSeparator: \.isNewline).compactMap {
             (try? JSONSerialization.jsonObject(with: Data($0.utf8))) as? [String: Any]
         }
     }
 
-    /// A JSON array of objects, tolerating an empty/blank document.
+    /// A JSON array of objects, tolerating an empty/blank document (a
+    /// malformed one reads as no entries, like an empty list).
     static func jsonArray(_ text: String) -> [[String: Any]] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,

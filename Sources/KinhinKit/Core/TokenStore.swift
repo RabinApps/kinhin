@@ -25,7 +25,11 @@ public enum KeychainTokenStore {
     /// Tests point this at a throwaway service so they never read, overwrite,
     /// or delete the developer's real token. While set, the legacy-service
     /// migration is off too (it would touch the real legacy item).
-    nonisolated(unsafe) static var serviceOverride: String?
+    static var serviceOverride: String? {
+        get { serviceOverrideStorage.withLock { $0 } }
+        set { serviceOverrideStorage.withLock { $0 = newValue } }
+    }
+    private static let serviceOverrideStorage = Mutex<String?>(nil)
     static var service: String { serviceOverride ?? Paths.keychainService }
 
     /// Keychain service name used by the pre-rename build ("Orchard").
@@ -177,13 +181,13 @@ final class RegistrationTokenCache: Sendable {
     private let ttl: TimeInterval
     private let refreshMargin: TimeInterval
 
-    public init(ttl: TimeInterval = 50 * 60, refreshMargin: TimeInterval = 5 * 60) {
+    init(ttl: TimeInterval = 50 * 60, refreshMargin: TimeInterval = 5 * 60) {
         self.ttl = ttl
         self.refreshMargin = refreshMargin
     }
 
     /// Returns the cached token while fresh; otherwise invokes `fetch`.
-    public func token(fetch: () async throws -> String) async throws -> String {
+    func token(fetch: () async throws -> String) async throws -> String {
         let now = Date()
         if let current = entry.withLock({ $0 }),
             now < current.expiresAt.addingTimeInterval(-refreshMargin)
@@ -196,7 +200,7 @@ final class RegistrationTokenCache: Sendable {
         return fresh
     }
 
-    public func invalidate() {
+    func invalidate() {
         entry.withLock { $0 = nil }
     }
 }

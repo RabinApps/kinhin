@@ -112,9 +112,8 @@ extension AppDelegate {
         await refresh()
     }
 
-    /// Runs a confirmation alert; overridable in tests via `confirmOverride`.
+    /// Runs a confirmation alert.
     func confirmDestructive(title: String, message: String, button: String) -> Bool {
-        if let confirmOverride { return confirmOverride }
-        return AlertKit.confirm(title: title, message: message, confirmTitle: button, destructive: true)
+        AlertKit.confirm(title: title, message: message, confirmTitle: button, destructive: true)
     }
 }

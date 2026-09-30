@@ -249,8 +249,11 @@ public struct ImagePreparer {
     static func resolveProvisionScript(_ path: String?) throws -> (path: String, content: String)? {
         guard let raw = path?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
         let expanded = expandingTilde(in: raw)
-        guard let content = try? String(contentsOfFile: expanded, encoding: .utf8) else {
-            throw ImageError.provisionScriptUnreadable(path: expanded, reason: "file missing or unreadable")
+        let content: String
+        do {
+            content = try String(contentsOfFile: expanded, encoding: .utf8)
+        } catch {
+            throw ImageError.provisionScriptUnreadable(path: expanded, reason: error.localizedDescription)
         }
         guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ImageError.provisionScriptUnreadable(path: expanded, reason: "script is empty")

@@ -13,13 +13,13 @@ import Synchronization
 /// demand when its tags include every one of the account's labels, the same
 /// rule GitHub's `runs-on:` matching uses.
 struct GitLabForge: Forge {
-    public let id: ForgeID = .gitlab
-    public let name = "gitlab"
-    public let account: String
-    public let credentials: ForgeCredentials
-    public let labels: [String]
-    public let registration: ForgeRegistration = .perRunner
-    public let exitSemantics: ForgeExitSemantics = .deregisters
+    let id: ForgeID = .gitlab
+    let name = "gitlab"
+    let account: String
+    let credentials: ForgeCredentials
+    let labels: [String]
+    let registration: ForgeRegistration = .perRunner
+    let exitSemantics: ForgeExitSemantics = .deregisters
     let client: GitLabClient
     let gitlabScope: GitLabScope
     let snapshot: GitLabRunnerSnapshot
@@ -49,7 +49,7 @@ struct GitLabForge: Forge {
     }
 
     /// Group scopes aggregate several projects, so they attribute by project.
-    public var attributesByRepo: Bool { gitlabScope.isGroup }
+    var attributesByRepo: Bool { gitlabScope.isGroup }
 
     func registrationURL() -> String {
         var instance = client.credentials.instance
@@ -78,7 +78,7 @@ struct GitLabForge: Forge {
 
     /// The scope's runners, named by description. Every instance's watch
     /// polls this each second, so the list is shared for a few seconds.
-    public func runners() async throws -> [ForgeRunner] {
+    func runners() async throws -> [ForgeRunner] {
         let runners = try await snapshot.runners { try await client.listRunners(in: gitlabScope) }
         let busy = snapshot.busyRunnerNames
         return runners.compactMap { runner in

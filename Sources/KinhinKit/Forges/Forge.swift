@@ -171,9 +171,3 @@ public struct ForgeJob: Sendable, Equatable {
         self.labels = labels
     }
 }
-
-/// The forge a VM is currently serving.
-enum VMPlatform: String, Codable, Sendable {
-    case github
-    case gitea
-}

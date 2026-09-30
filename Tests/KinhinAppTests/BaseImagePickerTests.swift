@@ -67,12 +67,12 @@ final class BaseImagePickerTests: XCTestCase {
     // MARK: the tart VM catalog
 
     /// A resolver that answers with a fixed digest and records its inputs.
-    private final class FakeResolver: DigestResolving, @unchecked Sendable {
+    private final class FakeResolver: DigestResolving {
         let digest: String
         private let asked = Mutex<[String]>([])
-        private let thrown: (any Error)?
+        private let thrown: (any Error & Sendable)?
 
-        init(digest: String = "sha256:\(String(repeating: "ab", count: 32))", thrown: (any Error)? = nil) {
+        init(digest: String = "sha256:\(String(repeating: "ab", count: 32))", thrown: (any Error & Sendable)? = nil) {
             self.digest = digest
             self.thrown = thrown
         }

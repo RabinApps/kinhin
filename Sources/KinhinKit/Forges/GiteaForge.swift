@@ -16,11 +16,11 @@ import Foundation
 struct GiteaForge: Forge {
     let id: ForgeID
     var name: String { id.rawValue }
-    public let account: String
-    public let credentials: ForgeCredentials
-    public let labels: [String]
-    public let registration: ForgeRegistration = .sharedLongLived
-    public let exitSemantics: ForgeExitSemantics = .idleGrace
+    let account: String
+    let credentials: ForgeCredentials
+    let labels: [String]
+    let registration: ForgeRegistration = .sharedLongLived
+    let exitSemantics: ForgeExitSemantics = .idleGrace
     let client: GiteaClient
     /// Demand floor: when the task-count endpoint reports 0 but the instance
     /// has busy runners, wait on the floor instead of scaling to zero.
@@ -28,7 +28,7 @@ struct GiteaForge: Forge {
     /// Long-lived registration token captured at construction.
     let registrationToken: String
 
-    public init(
+    init(
         credentials: ForgeCredentials, labels: [String], client: GiteaClient, demandFloor: Int = 0,
         registrationToken: String, account: String? = nil
     ) {
@@ -43,7 +43,7 @@ struct GiteaForge: Forge {
 
     /// Builds the forge from credentials, resolving the registration token
     /// up front (the same call the permission probe uses — fail fast here).
-    public static func make(
+    static func make(
         forge: ForgeID = .gitea, credentials: GiteaCredentials, labels: [String], demandFloor: Int = 0,
         account: String? = nil
     ) async throws -> GiteaForge {
@@ -76,7 +76,7 @@ struct GiteaForge: Forge {
         registrationToken
     }
 
-    public func runners() async throws -> [ForgeRunner] {
+    func runners() async throws -> [ForgeRunner] {
         try await client.listRunners().map { runner in
             ForgeRunner(id: runner.id, name: runner.name, busy: runner.status == "busy")
         }

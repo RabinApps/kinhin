@@ -223,20 +223,20 @@ public struct TartController: TartControlling {
 /// Docker or Apple container. Every call fails clearly; nothing routes macOS
 /// work to it because the engine's primary runtime is the Linux one.
 struct UnavailableTart: TartControlling {
-    public init() {}
+    init() {}
     private var missing: TartError { .missingBinary(path: "PATH") }
-    public func list() async throws -> [TartVM] { [] }
+    func list() async throws -> [TartVM] { [] }
     func clone(source: String, to name: String) async throws { throw missing }
-    public func run(name: String, mounts: [String]) async throws { throw missing }
-    public func ip(of name: String, timeout: TimeInterval) async throws -> String { throw missing }
+    func run(name: String, mounts: [String]) async throws { throw missing }
+    func ip(of name: String, timeout: TimeInterval) async throws -> String { throw missing }
     func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
         -> ShellResult
     { throw missing }
-    public func stop(name: String) async throws { throw missing }
-    public func delete(name: String) async throws { throw missing }
+    func stop(name: String) async throws { throw missing }
+    func delete(name: String) async throws { throw missing }
     func pull(image: String) async throws { throw missing }
-    public func createLinux(name: String) async throws { throw missing }
-    public func runWithDisk(name: String, isoPath: String) async throws { throw missing }
+    func createLinux(name: String) async throws { throw missing }
+    func runWithDisk(name: String, isoPath: String) async throws { throw missing }
 }
 
 extension KinhinConfig {

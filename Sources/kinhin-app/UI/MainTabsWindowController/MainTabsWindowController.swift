@@ -85,9 +85,6 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     }()
     var prefs: UserDefaults = .standard
 
-    /// Latest fleet status, so a reopened window renders live data instantly.
-    var lastStatus: FleetStatus?
-
     convenience init() {
         self.init(defaults: .standard)
     }

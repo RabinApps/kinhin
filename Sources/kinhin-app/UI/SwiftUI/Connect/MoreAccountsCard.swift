@@ -4,7 +4,7 @@ import SwiftUI
 /// "More accounts": every account the forge cards above don't own (see
 /// `ForgeConnectionModel.ownsAccount`), each with its own token, scope and
 /// (where applicable) server.
-struct AccountsSection: View {
+struct MoreAccountsCard: View {
     @Bindable var model: AccountsModel
 
     var body: some View {

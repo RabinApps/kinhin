@@ -93,26 +93,10 @@ public struct FleetStatus: Codable, Sendable, Equatable {
 /// actor wrapper so concurrent status reads are safe.
 actor FleetStatusBox {
     private var status: FleetStatus
-    public init(_ status: FleetStatus = FleetStatus()) {
+    init(_ status: FleetStatus = FleetStatus()) {
         self.status = status
     }
-    public func get() -> FleetStatus { status }
-    public func set(_ s: FleetStatus) { status = s }
+    func get() -> FleetStatus { status }
+    func set(_ s: FleetStatus) { status = s }
     func modify(_ body: (inout FleetStatus) -> Void) { body(&status) }
-}
-
-/// Builds GitHub API clients for the engine. Injectable in tests; the
-/// production instance rebuilds clients when the user replaces their PAT so
-/// the swap takes effect without restarting the engine.
-public struct GitHubClientFactory: Sendable {
-    public var make: @Sendable (GitHubCredentials) -> GitHubServing
-
-    public init(make: @escaping @Sendable (GitHubCredentials) -> GitHubServing) {
-        self.make = make
-    }
-
-    /// Production factory: real GitHubClient instances.
-    public static var live: GitHubClientFactory {
-        GitHubClientFactory { GitHubClient(credentials: $0) }
-    }
 }

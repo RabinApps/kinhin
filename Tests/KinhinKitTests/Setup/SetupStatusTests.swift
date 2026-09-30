@@ -472,8 +472,6 @@ final class SetupStatusTests: XCTestCase {
     }
 }
 
-/// Tiny fixture helpers for the provision-script row tests.
-enum ProvisionScriptFixtures {}
 /// Tiny convenience so scenario tests read cleanly.
 enum SetupCheckHelper {
     static func make(

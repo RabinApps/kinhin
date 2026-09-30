@@ -268,9 +268,9 @@ public struct ToolchainStack: Sendable, Equatable {
 
 /// A Homebrew install target.
 struct BrewFormula: Sendable, Equatable, Hashable {
-    public let name: String
+    let name: String
     let isCask: Bool
-    public init(name: String, isCask: Bool) {
+    init(name: String, isCask: Bool) {
         self.name = name
         self.isCask = isCask
     }

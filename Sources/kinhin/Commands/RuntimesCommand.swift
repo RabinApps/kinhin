@@ -29,11 +29,16 @@ enum RuntimesCommand {
             return
         }
 
-        guard let yaml = try? String(contentsOf: Paths.config, encoding: .utf8) else {
+        guard FileManager.default.fileExists(atPath: Paths.config.path) else {
             fail("no config at \(Paths.config.path) — run: kinhin config init", exit: .config)
         }
-        guard let parsed = try? ConfigLoader.parse(yaml) else {
-            fail("config.yaml doesn't parse — fix it, or run: kinhin doctor", exit: .config)
+        let yaml: String
+        let parsed: KinhinConfig
+        do {
+            yaml = try String(contentsOf: Paths.config, encoding: .utf8)
+            parsed = try ConfigLoader.parse(yaml)
+        } catch {
+            fail("config.yaml can't be used — \(error.localizedDescription)", exit: .config)
         }
         let host = ResourceProbe().snapshot()
 
@@ -83,8 +88,14 @@ enum RuntimesCommand {
                 "workflow routes look like owner/repo@Workflow Name — the '@' cannot be first or last")
         }
 
-        guard let yaml = try? String(contentsOf: configURL, encoding: .utf8) else {
+        guard FileManager.default.fileExists(atPath: configURL.path) else {
             throw RouteError.usage("no config at \(configURL.path) — run: kinhin config init")
+        }
+        let yaml: String
+        do {
+            yaml = try String(contentsOf: configURL, encoding: .utf8)
+        } catch {
+            throw RouteError.usage("can't read \(configURL.path) — \(error.localizedDescription)")
         }
         let existing: KinhinConfig.RuntimeConfig?
         do {

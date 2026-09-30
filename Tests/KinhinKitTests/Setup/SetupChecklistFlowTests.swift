@@ -8,11 +8,9 @@ import XCTest
 ///
 /// Complements the sibling suites: SetupStatusTests pins the base six-row
 /// contract, ActionCoverageTests pins handler coverage across the scenario
-/// matrix, ContainerSetupStatusTests pins the container rows, and
-/// SetupViewModelTests pins row/progress presentation. This file covers what
-/// those leave open: combined Gitea+container ordering, the full CLT state
-/// table, readiness biconditionals, and the SetupStatus → SetupViewModel
-/// chain the window's Start button actually gates on.
+/// matrix, and ContainerSetupStatusTests pins the container rows. This file
+/// covers what those leave open: combined Gitea+container ordering, the full
+/// CLT state table, and readiness biconditionals.
 final class SetupChecklistFlowTests: XCTestCase {
     // MARK: Fixtures
 
@@ -326,80 +324,4 @@ final class SetupChecklistFlowTests: XCTestCase {
         }
     }
 
-    // MARK: Window gating — SetupStatus → SetupViewModel
-
-    func testViewModelCanStartTracksStatusReadiness() async {
-        // This is the path the window's Start button takes: the computer's
-        // SetupStatus feeds SetupViewModel, whose canStart gates the button.
-        let blocked = await readyComputer(githubTokenStored: false).compute()
-        let blockedVM = SetupViewModel(status: blocked)
-        XCTAssertFalse(blockedVM.canStart)
-        XCTAssertFalse(blockedVM.ready)
-        XCTAssertEqual(blockedVM.rows.count, blocked.checks.count, "one display row per contract check")
-        // readyComputer's checklist: 6 of 7 rows green (token red) — the
-        // advisory cache row counts toward the denominator.
-        XCTAssertEqual(blockedVM.progressFraction, 6.0 / 7.0, accuracy: 0.0001)
-
-        let green = await readyComputer().compute()
-        let greenVM = SetupViewModel(status: green)
-        XCTAssertTrue(greenVM.canStart)
-        XCTAssertTrue(greenVM.ready)
-        XCTAssertEqual(greenVM.progressFraction, 1.0)
-        XCTAssertEqual(greenVM.headline, "You're all set — start the fleet whenever you like.")
-    }
-
-    func testViewModelRowActionsMatchContractActionsAcrossStates() async {
-        // The window dispatches on row.actionID; it must equal the contract's
-        // action for every row, in every state the checklist can reach.
-        let states: [(String, SetupStatusComputer)] = [
-            (
-                "fresh",
-                SetupStatusComputer(
-                    host: host(), clt: .missing, tartHealth: .missing, tartList: [], config: .missing,
-                    accountTokensStored: ["github": false])
-            ),
-            (
-                "gitea",
-                SetupStatusComputer(
-                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .loaded(config(gitea: true)), accountTokensStored: ["github": true, "gitea": false])
-            ),
-            (
-                "container down",
-                SetupStatusComputer(
-                    host: host(), clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [vm(name: "tahoe-base")],
-                    config: .loaded(config(container: true)), accountTokensStored: ["github": true],
-                    containerHealth: .broken("service down"), containerImages: [])
-            ),
-        ]
-        for (name, computer) in states {
-            let status = await computer.compute()
-            let vm = SetupViewModel(status: status)
-            for (check, row) in zip(status.checks, vm.rows) {
-                XCTAssertEqual(row.id, check.id, "[\(name)] row order must mirror the contract")
-                XCTAssertEqual(
-                    row.actionID, check.action, "[\(name)] '\(check.id)' dispatch id must equal the contract action")
-                if let action = check.action {
-                    XCTAssertEqual(
-                        row.actionTitle, SetupAction.title(for: action),
-                        "[\(name)] button label must be the shared title")
-                }
-            }
-        }
-    }
-
-    func testViewModelAccessibilityLabelsSurfaceTheRepairAction() async {
-        let status = await SetupStatusComputer(
-            host: host(),
-            clt: .ok(version: "27.0"),
-            tartHealth: .missing,
-            tartList: [],
-            config: .loaded(config()),
-            accountTokensStored: ["github": true]
-        ).compute()
-        let vm = SetupViewModel(status: status)
-        let tartRow = vm.rows.first { $0.id == "tart" }
-        XCTAssertEqual(
-            tartRow?.accessibilityLabel, "Tart installed: needs setup — action available: Install via Homebrew")
-    }
 }

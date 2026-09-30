@@ -42,7 +42,7 @@ enum UpdateCheckError: LocalizedError, Equatable {
     case noChecksum(String)
     case checksumMismatch(String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case .notFound(let repo):
             return "No releases found for \(repo) — has a v* tag been pushed?"

@@ -115,8 +115,12 @@ public struct RunnerVersionResolver: Sendable {
         throws -> String
     {
         struct Payload: Decodable { let tag_name: String }
-        guard let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
-            throw ImageError.malformedVersionFeed(feed: feed, reason: "payload is not JSON with a tag_name string")
+        let payload: Payload
+        do {
+            payload = try JSONDecoder().decode(Payload.self, from: data)
+        } catch {
+            throw ImageError.malformedVersionFeed(
+                feed: feed, reason: "payload is not JSON with a tag_name string (\(error.localizedDescription))")
         }
         let tag = payload.tag_name
         guard tag.hasPrefix("v"), tag.dropFirst().contains("."), !(excludesDashes && tag.contains("-")) else {

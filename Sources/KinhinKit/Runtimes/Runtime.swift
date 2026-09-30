@@ -131,7 +131,7 @@ extension Runtime {
 /// The original runtime: Tart macOS VMs. Wraps the exact calls the engine
 /// made directly before the refactor — behavior-preserving by construction.
 struct TartRuntime: Runtime {
-    public let id: RuntimeID = .tart
+    let id: RuntimeID = .tart
     let tart: TartControlling
     let ssh: SSHExecuting
     let bootTimeout: @Sendable () -> Int
@@ -146,7 +146,7 @@ struct TartRuntime: Runtime {
         return ToolchainCatalog.selection(from: config)
     }
 
-    public init(
+    init(
         tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, ssh: SSHExecuting = SSHExecutor(),
         toolchainsConfig: @escaping @Sendable () -> KinhinConfig.ToolchainsConfig? = { nil }
     ) {
@@ -156,7 +156,7 @@ struct TartRuntime: Runtime {
         self.toolchainsConfig = toolchainsConfig
     }
 
-    public func health() async -> RuntimeHealth {
+    func health() async -> RuntimeHealth {
         let probe = TartHealthProbe()
         let health = await probe.check()
         switch health {
@@ -172,7 +172,7 @@ struct TartRuntime: Runtime {
         }
     }
 
-    public func provision(id: String, route: RepoRoute) async throws {
+    func provision(id: String, route: RepoRoute) async throws {
         // A failed list must not read as "no VMs": cloning over an existing
         // one would fail later with a far less useful error.
         let existing = try await tart.list()

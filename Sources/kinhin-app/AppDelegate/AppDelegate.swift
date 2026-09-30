@@ -32,10 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Tracks the main window's visibility so the activation policy can be
     /// re-evaluated when it opens and closes.
     var isMainWindowVisible = false
-    /// Tests set this to skip the modal delete-VM confirmation.
-    var confirmOverride: Bool?
 
-    // Engine is either owned here (in-process mode) or reached via RPC.
     /// Who runs the fleet: nil until setup is complete.
     var backend: FleetBackend?
     /// The in-process engine, when this app runs the fleet itself.
@@ -62,11 +59,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Paths.ensureSupportDirectories()
         Log.setLogFile(directory: Paths.logsDirectory)
-        // A crash in the setup path must never be silent: surface the reason
-        // in a visible window before anything can go wrong.
-        NSSetUncaughtExceptionHandler { exception in
-            kinhinPresentCrashAlert(reason: exception.reason ?? exception.name.rawValue)
-        }
         installMainMenu()
         let mode = AppPreferences.launchMode
         if mode.showsStatusItem {

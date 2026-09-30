@@ -300,14 +300,12 @@ public enum Daemon {
         case missingToken
         case alreadyRunning
         case lockFailed(String)
-        case configProblem(String)
 
         public var errorDescription: String? {
             switch self {
             case .missingToken: return "no GitHub token stored — run `kinhin auth`"
             case .alreadyRunning: return "a daemon is already running"
             case .lockFailed(let why): return "could not take the daemon lock: \(why)"
-            case .configProblem(let why): return "config problem: \(why)"
             }
         }
     }

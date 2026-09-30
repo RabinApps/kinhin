@@ -16,7 +16,12 @@ extension AppDelegate {
         guard !isConfigPushScheduled else { return }
         isConfigPushScheduled = true
         Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1))
+            do {
+                try await Task.sleep(for: .seconds(1))  // debounce a save burst
+            } catch {
+                self?.isConfigPushScheduled = false  // cancelled: nothing to push
+                return
+            }
             guard let self else { return }
             while self.pendingConfigEdits {
                 self.pendingConfigEdits = false

@@ -5,16 +5,16 @@ import Foundation
 /// Wraps the existing GitHubServing client in the unified Forge protocol.
 /// No GitHub behavior changes.
 struct GitHubForge: Forge {
-    public let id: ForgeID = .github
-    public let name = "github"
-    public let account: String
-    public let credentials: ForgeCredentials
-    public let labels: [String]
-    public let registration: ForgeRegistration = .sharedShortLived
-    public let exitSemantics: ForgeExitSemantics = .deregisters
+    let id: ForgeID = .github
+    let name = "github"
+    let account: String
+    let credentials: ForgeCredentials
+    let labels: [String]
+    let registration: ForgeRegistration = .sharedShortLived
+    let exitSemantics: ForgeExitSemantics = .deregisters
     let client: GitHubServing
 
-    public init(credentials: ForgeCredentials, labels: [String], client: GitHubServing, account: String = "github") {
+    init(credentials: ForgeCredentials, labels: [String], client: GitHubServing, account: String = "github") {
         self.credentials = credentials
         self.labels = labels
         self.client = client
@@ -22,7 +22,7 @@ struct GitHubForge: Forge {
     }
 
     /// Build from a GitHubCredentials (the legacy single-forge path).
-    public init(credentials: GitHubCredentials, labels: [String]) {
+    init(credentials: GitHubCredentials, labels: [String]) {
         self.init(
             credentials: .github(token: credentials.token, scope: credentials.scope), labels: labels,
             client: GitHubClient(credentials: credentials))
@@ -39,7 +39,7 @@ struct GitHubForge: Forge {
         try await client.fetchRegistrationToken().token
     }
 
-    public func runners() async throws -> [ForgeRunner] {
+    func runners() async throws -> [ForgeRunner] {
         try await client.listRunners().map { ForgeRunner(id: $0.id, name: $0.name, busy: $0.busy) }
     }
 

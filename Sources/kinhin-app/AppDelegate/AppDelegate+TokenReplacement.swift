@@ -3,19 +3,6 @@ import KinhinKit
 
 @MainActor
 extension AppDelegate {
-    /// Opens the Setup tab, where tokens are entered (menu item title and
-    /// selector are unchanged).
-    @objc func replaceTokenClicked() {
-        openTokenSettings(focusing: .github)
-    }
-
-    /// Shared opener for the token menu item and any "add a token" prompt.
-    func openTokenSettings(focusing forge: ForgeID) {
-        openMainWindow()
-        mainController?.showSetup()
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
     /// Swap a stored provider token at runtime: save to the Keychain, then
     /// hand the new token to whichever process owns the engine (in-process
     /// engine, or the daemon over RPC) so the swap takes effect without a

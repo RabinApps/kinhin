@@ -115,7 +115,7 @@ enum GitLabError: LocalizedError, Equatable {
     case insufficientScopes([String])
     case unsupportedVersion(String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case .unauthorized:
             return "GitLab rejected the access token (401): expired, revoked, or wrong instance. "

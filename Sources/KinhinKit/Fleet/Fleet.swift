@@ -66,9 +66,16 @@ public final class FleetStore: Sendable {
         self.url = directory.appendingPathComponent("fleet.json")
         let loaded: [VMRecord] = {
             // A missing or corrupt fleet.json reads as "no fleet" — restart
-            // reconciliation then rebuilds state from the live forges.
-            guard let data = try? Data(contentsOf: directory.appendingPathComponent("fleet.json")) else { return [] }
-            return (try? JSONDecoder().decode([VMRecord].self, from: data)) ?? []
+            // recovery then adopts the live instances again. A corrupt one is
+            // logged: its records (job/repo attribution) are lost.
+            let file = directory.appendingPathComponent("fleet.json")
+            guard FileManager.default.fileExists(atPath: file.path) else { return [] }
+            do {
+                return try JSONDecoder().decode([VMRecord].self, from: Data(contentsOf: file))
+            } catch {
+                Log.warn("store", "could not read \(file.path) (\(error.localizedDescription)); starting empty")
+                return []
+            }
         }()
         self.mutex = Mutex(loaded)
     }
@@ -133,12 +140,12 @@ enum Autoscaler {
 
     /// Total concurrent job slots the fleet offers: every VM (bounded by both
     /// config and host capacity) serves `runnersPerVM` jobs at once.
-    public static func jobCapacity(maxRunners: Int, capacityCap: Int, runnersPerVM: Int) -> Int {
+    static func jobCapacity(maxRunners: Int, capacityCap: Int, runnersPerVM: Int) -> Int {
         min(maxRunners, capacityCap) * max(1, runnersPerVM)
     }
 
     /// Records that count toward "a runner exists" (active phases only).
-    public static func activeCount(_ records: [VMRecord]) -> Int {
+    static func activeCount(_ records: [VMRecord]) -> Int {
         records.count { $0.phase.isActive }
     }
 }

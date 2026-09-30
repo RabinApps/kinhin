@@ -16,7 +16,6 @@ extension MainTabsWindowController {
     /// Re-renders the Fleet tab from a fresh status. Safe to call before the
     /// tab exists or the first refresh.
     func render(status: FleetStatus?) {
-        lastStatus = status
         fleetModel.status = status
     }
 

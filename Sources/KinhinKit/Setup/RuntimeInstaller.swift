@@ -83,7 +83,7 @@ enum RuntimeInstallerError: LocalizedError, Equatable {
     case unsupportedHost(String)
     case unknownMethod(method: String, tool: InstallableTool, valid: [String])
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case .brewMissing:
             return "Homebrew isn't installed. Install it from https://brew.sh, or download the tool by hand."

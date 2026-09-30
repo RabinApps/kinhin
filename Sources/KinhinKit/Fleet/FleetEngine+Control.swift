@@ -155,7 +155,6 @@ extension FleetEngine {
     /// demand still exists; the user should pause first to hold the fleet down.
     public func deleteVM(id: String) async {
         Log.info("engine", "manual delete of \(id)")
-        await runTelemetryIfPossible(id)
         await deleteVMRecord(id: id, reason: "manual delete")
     }
 }

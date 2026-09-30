@@ -7,7 +7,7 @@ import Synchronization
 /// the protocol trivially simple and robust.
 enum RPCServer {
     /// Serve requests forever on the given socket path.
-    public static func serve(
+    static func serve(
         socketURL: URL, handler: @escaping @Sendable (RPCRequest) async -> RPCResponse
     ) async throws {
         // A stale socket from a previous run may or may not exist; bind()

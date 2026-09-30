@@ -1,4 +1,5 @@
 import CryptoKit
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -178,7 +179,7 @@ final class UpdateCheckTests: XCTestCase {
             checksums: "\(sha256Hex(payload))  kinhin-0.2.0-arm64.dmg\n0000  install.sh\n")
         // The download closure runs off the main actor; the reports are a
         // smoke check only (progress may not fire for tiny payloads).
-        nonisolated(unsafe) var progressReports: [Double] = []
+        let progressReports = ProgressReports()
         let url = try await makeChecker().downloadDMG(makeInfo()) { progressReports.append($0) }
         defer { try? FileManager.default.removeItem(at: url) }
 
@@ -186,7 +187,7 @@ final class UpdateCheckTests: XCTestCase {
         // Ground truth for Gatekeeper: the com.apple.quarantine xattr must be absent.
         let quarantineSize = getxattr(url.path, "com.apple.quarantine", nil, 0, 0, 0)
         XCTAssertEqual(quarantineSize, -1, "downloads must not carry the quarantine attribute")
-        _ = progressReports  // progress may or may not fire for tiny payloads
+        _ = progressReports.values  // progress may or may not fire for tiny payloads
     }
 
     func testDownloadRejectsChecksumMismatchAndDeletesFile() async {
@@ -243,4 +244,11 @@ final class UpdateCheckTests: XCTestCase {
         let info = try await makeChecker().fetchLatestRelease()
         XCTAssertEqual(info.checksumsURL?.lastPathComponent, "checksums.txt")
     }
+}
+
+/// Progress callbacks arrive off the test's thread: keep them behind a lock.
+private final class ProgressReports: Sendable {
+    private let storage = Mutex<[Double]>([])
+    var values: [Double] { storage.withLock { $0 } }
+    func append(_ value: Double) { storage.withLock { $0.append(value) } }
 }
