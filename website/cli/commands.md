@@ -4,7 +4,7 @@
 kinhin config init          Write the starter config
 kinhin auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
 kinhin auth set --gitea     Store/replace the Gitea access token
-kinhin auth add NAME --github|--gitea|--forgejo|--gitlab --scope S [--instance URL] [--token X]   Add another account (any forge) to config.yaml
+kinhin auth add NAME --github|--gitlab|--gitea|--forgejo|--buildkite --scope S [--instance URL] [--token X]   Add another account (any forge) to config.yaml
 kinhin auth set --account NAME   Store/replace that account's token (also: status/clear --account NAME)
 kinhin auth list            Every account and whether its token is stored
 kinhin auth remove NAME     Remove an account and its token

@@ -1,8 +1,8 @@
-# Forge support (GitHub, Gitea, Forgejo, GitLab, & the future)
+# Forge support (GitHub, GitLab, Gitea, Forgejo, Buildkite, & the future)
 
 Kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a
 registration token, list/delete runners, report queued demand, track running jobs — and each
-CI platform implements it behind that interface. Today four forges ship:
+CI platform implements it behind that interface. Today five forges ship:
 
 | Forge          | Status       | Runner agent                             | Scope shape                              |
 | -------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
@@ -10,6 +10,7 @@ CI platform implements it behind that interface. Today four forges ship:
 | Gitea Actions  | ✅ supported | gitea-runner (formerly act_runner)       | `owner/name` repo or org on any instance |
 | Forgejo        | ✅ supported | gitea-runner (wire-compatible)           | `owner/name` repo or org on any instance |
 | GitLab CI/CD   | ✅ supported | gitlab-runner (GitLab's official agent)  | project or group path (`group/sub/proj`) |
+| Buildkite      | ✅ supported | buildkite-agent (Buildkite's agent)      | `org/cluster` (cluster name or id)       |
 
 One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned
 at spawn to whichever forge has the most pending work, registers there, and is deleted when its
@@ -95,11 +96,41 @@ accounts:
   gitlab-runner once a GitLab account is configured. Its version comes from GitLab's release
   feed, with a pinned fallback.
 
+## Adding Buildkite
+
+Buildkite is hosted only, so an account has no `instance`. Its scope is the organization slug
+and the cluster the agents join:
+
+```yaml
+accounts:
+  - name: ci # any account name; "buildkite" is not reserved
+    forge: buildkite
+    scope: "acme/Mac Fleet" # org slug / cluster name (or id)
+    labels: ["queue=kinhin"] # agent tags, key=value; this is the default
+```
+
+- Add it with `kinhin auth add ci --buildkite --scope acme/default`, then store its token with
+  `kinhin auth set --buildkite` (the first Buildkite account) or `--account NAME`. The app's
+  Connect and Add-an-account forms offer Buildkite too.
+- Token: a REST API access token with the `read_agents`, `write_agents`, `read_builds`,
+  `read_clusters` and `write_clusters` scopes.
+- When the account attaches, kinhin creates a cluster agent token named `kinhin: <account>`,
+  replacing its previous one. The cluster needs a queue matching the `queue=` tag (default
+  `kinhin`).
+- Each agent runs one job (`--disconnect-after-job`); once it disconnects, its instance is
+  deleted.
+- A scheduled job counts as kinhin demand when the account's labels satisfy all of its agent
+  query rules (`*` is a wildcard; no `queue` rule means `queue=default`).
+- `kinhin image prepare`, the Linux bakes and `kinhin setup repair host-agent` install
+  buildkite-agent once a Buildkite account is set up, verified against the release's
+  `SHA256SUMS`.
+
 ## Multiple accounts
 
 Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the
 primary accounts (their tokens keep the original Keychain items). To serve more — a second
-GitHub org, another Gitea or Forgejo instance, a GitLab project or group — add more entries;
+GitHub org, another Gitea or Forgejo instance, a GitLab project or group, a Buildkite
+cluster — add more entries;
 every one has its own scope and its own token:
 
 ```yaml
@@ -128,8 +159,9 @@ accounts:
 ## More forges are planned
 
 The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo
-landed as a thin re-brand of the Gitea forge, and GitLab as a per-runner adapter
-(`GitLabForge`). Sourcehut, Buildkite, and others are candidates. Adding one means implementing
+landed as a thin re-brand of the Gitea forge, GitLab as a per-runner adapter
+(`GitLabForge`), and Buildkite as a cluster-token adapter (`BuildkiteForge`). Azure DevOps and
+Bitbucket Pipelines are next; Sourcehut is a candidate. Adding one means implementing
 the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool,
 checklist, status surfaces, and tests all come for free. See
 `Sources/KinhinKit/Forges/Forge.swift` for the contract.

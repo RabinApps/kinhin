@@ -1,10 +1,10 @@
-# Forge support (GitHub, Gitea, Forgejo, GitLab, & the future)
+# Forge support (GitHub, GitLab, Gitea, Forgejo, Buildkite, & the future)
 
-Which CI platforms kinhin serves, how to add Gitea, Forgejo and GitLab, and how to serve many accounts from one fleet.
+Which CI platforms kinhin serves, how to add Gitea, Forgejo, GitLab and Buildkite, and how to serve many accounts from one fleet.
 
 [← Back to README](../README.md)
 
-kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today four forges ship:
+kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today five forges ship:
 
 | Forge          | Status       | Runner agent                             | Scope shape                              |
 | -------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
@@ -12,6 +12,7 @@ kinhin is built on a **Forge abstraction**: the engine speaks one unified protoc
 | Gitea Actions  | ✅ supported | gitea-runner (formerly act_runner)       | `owner/name` repo or org on any instance |
 | Forgejo        | ✅ supported | gitea-runner (wire-compatible)           | `owner/name` repo or org on any instance |
 | GitLab CI/CD   | ✅ supported | gitlab-runner (GitLab's official agent)  | project or group path (`group/sub/proj`) |
+| Buildkite      | ✅ supported | buildkite-agent (Buildkite's agent)      | `org/cluster` (cluster name or id)       |
 
 One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned at spawn to whichever forge has the most pending work, registers there, and is deleted when its job finishes. Token-gating ties platforms to credentials — an agent is baked into the image and a forge attaches only when that platform's token exists.
 
@@ -67,9 +68,28 @@ accounts:
 - Jobs select runners by tags. A pending job counts as kinhin demand when its tags include every one of the account's labels. Group scopes attribute demand per project.
 - Image provisioning is token-gated here too: `kinhin image prepare` bakes gitlab-runner only when a GitLab account has a stored token. On the host runtime, `kinhin setup repair host-agent` also installs gitlab-runner once a GitLab account is configured. Its version comes from GitLab's release feed, with a pinned fallback.
 
+## Adding Buildkite
+
+Buildkite is hosted only, so an account has no `instance`. Its scope is the organization slug and the cluster the agents join; every Buildkite account lives in `accounts:`:
+
+```yaml
+accounts:
+  - name: ci # any account name; "buildkite" is not reserved
+    forge: buildkite
+    scope: "acme/Mac Fleet" # org slug / cluster name (or id)
+    labels: ["queue=kinhin"] # agent tags, key=value; this is the default
+```
+
+- Add it from the CLI with `kinhin auth add ci --buildkite --scope acme/default [--token T]`. After that, `kinhin auth set --buildkite` stores or replaces the token of the first Buildkite account, and `--account NAME` targets any other one. The app's Connect and Add-an-account forms offer Buildkite too.
+- Token: a REST API access token for the organization with the `read_agents`, `write_agents`, `read_builds`, `read_clusters` and `write_clusters` scopes (create it at buildkite.com/user/api-access-tokens). `kinhin auth status --buildkite` checks the scopes and that the cluster exists.
+- Registration: when the account attaches, kinhin creates a cluster agent token named `kinhin: <account>` and revokes the account's previous one. Agents that are already connected keep running. The cluster must have a queue matching the `queue=` tag (the default is `kinhin`).
+- Each agent runs one job (`buildkite-agent start --disconnect-after-job`) with the agent token in a private file. Buildkite only lists connected agents, so a finished agent drops out of the list and its instance is deleted. On the host runtime, an agent stopped mid-job by scale-down or engine stop is terminated along with its instance.
+- Jobs select agents by agent query rules. A scheduled job counts as kinhin demand when the account's labels satisfy every rule. `*` works as a wildcard, and a job with no `queue` rule targets `queue=default`. Jobs the API places in another cluster are ignored. Demand is attributed per pipeline.
+- Image provisioning is token-gated here too: `kinhin image prepare` and the Linux image bakes install buildkite-agent only when a Buildkite account has a stored token. On the host runtime, `kinhin setup repair host-agent` also installs it once a Buildkite account is configured. Its version comes from the agent's GitHub releases (pinned fallback when offline), verified against the release's `SHA256SUMS`.
+
 ## Multiple accounts
 
-Serve as many GitHub orgs/repos, Gitea/Forgejo instances, and GitLab projects/groups as you like from one fleet. Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the primary accounts (their tokens keep the original Keychain items — nothing to migrate), and additional entries each carry their own token:
+Serve as many GitHub orgs/repos, Gitea/Forgejo instances, GitLab projects/groups and Buildkite clusters as you like from one fleet. Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the primary accounts (their tokens keep the original Keychain items — nothing to migrate), and additional entries each carry their own token:
 
 ```yaml
 accounts:
@@ -90,6 +110,6 @@ accounts:
 
 ## More forges are planned
 
-The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo landed as a thin re-brand of the Gitea forge, and GitLab as a per-runner adapter (`GitLabForge`). Sourcehut, Buildkite, and others are candidates. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
+The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo landed as a thin re-brand of the Gitea forge, GitLab as a per-runner adapter (`GitLabForge`), and Buildkite as a cluster-token adapter (`BuildkiteForge`). Azure DevOps and Bitbucket Pipelines are next; Sourcehut is a candidate. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
 
 Forges decide _who hands kinhin jobs_; [runtimes](runtimes.md) decide _where those jobs execute_.
