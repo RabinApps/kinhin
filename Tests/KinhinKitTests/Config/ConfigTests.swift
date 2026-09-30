@@ -164,7 +164,7 @@ final class ConfigTests: XCTestCase {
         }
     }
 
-    // MARK: org scope (many repos, one fleet)
+    // MARK: - org scope (many repos, one fleet)
 
     func testOrgScopeParses() throws {
         let cfg = try ConfigLoader.parse(Self.orgAccount)

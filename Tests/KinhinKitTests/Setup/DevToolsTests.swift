@@ -1,33 +1,29 @@
 import XCTest
 
 @testable import KinhinKit
+@testable import KinhinTestSupport
 
 /// Covers the Command Line Tools probe: shell-output parsing, version
 /// comparison, and the full state matrix. The shell is stubbed, so no test
 /// touches the real machine.
 final class DevToolsTests: XCTestCase {
-    // MARK: Stub shell
+    // MARK: - Stub shell
 
-    /// Answers the probe's `/bin/bash -c <command>` calls from scripted
-    /// responses keyed by a substring of the command line.
-    private struct ScriptedShell: ShellRunning {
-        var receipt: ShellResult
-        var selected: ShellResult
-        var productVersion: String
-
-        func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
-            let command = argv.count >= 3 ? argv[2] : ""
-            if command.contains("pkg-info=com.apple.pkg.CLTools_Executables") {
-                return receipt
-            }
-            if command.contains("xcode-select") {
-                return selected
-            }
-            if command.contains("sw_vers") {
-                return ShellResult(exitCode: 0, stdout: productVersion + "\n", stderr: "")
-            }
-            return ShellResult(exitCode: 1, stdout: "", stderr: "unexpected command: \(command)")
-        }
+    /// Builds a FakeShell whose argv-matched answers cover the probe's
+    /// `/bin/bash -c <command>` calls (keyed by a substring of the command).
+    private func scriptedShell(
+        receipt: ShellResult, selected: ShellResult, productVersion: String
+    ) -> FakeShell {
+        let shell = FakeShell()
+        shell.scriptedResponses = [
+            ScriptedResponse(
+                whenContains: "pkg-info=com.apple.pkg.CLTools_Executables", receipt),
+            ScriptedResponse(whenContains: "xcode-select", selected),
+            ScriptedResponse(
+                whenContains: "sw_vers",
+                ShellResult(exitCode: 0, stdout: productVersion + "\n", stderr: "")),
+        ]
+        return shell
     }
 
     private func receipt(_ version: String) -> ShellResult {
@@ -44,7 +40,7 @@ final class DevToolsTests: XCTestCase {
         productVersion: String = "27.0"
     ) -> CLTProbe {
         CLTProbe(
-            shell: ScriptedShell(
+            shell: scriptedShell(
                 receipt: receiptResult ?? receipt("27.0.0.0.0"),
                 selected: selectedResult
                     ?? ShellResult(exitCode: 0, stdout: "/Library/Developer/CommandLineTools\n", stderr: ""),
@@ -53,7 +49,7 @@ final class DevToolsTests: XCTestCase {
         )
     }
 
-    // MARK: Version math
+    // MARK: - Version math
 
     func testDisplayVersionStripsBuildSuffix() {
         XCTAssertEqual(CLTProbe.displayVersion("26.6.0.0.1781586589"), "26.6.0")
@@ -70,7 +66,7 @@ final class DevToolsTests: XCTestCase {
         XCTAssertFalse(CLTProbe.isVersion("a.b", atLeast: "1.0"))
     }
 
-    // MARK: State matrix
+    // MARK: - State matrix
 
     func testUpToDateCLTIsOK() async {
         let state = await makeProbe(
@@ -116,7 +112,7 @@ final class DevToolsTests: XCTestCase {
         XCTAssertEqual(state, .missing)
     }
 
-    // MARK: Repair constants
+    // MARK: - Repair constants
 
     func testRepairCommandUsesSudoXcodeSelectPath() {
         XCTAssertTrue(CLTRepair.commandLine.contains("sudo xcode-select --install"))
@@ -124,7 +120,7 @@ final class DevToolsTests: XCTestCase {
         XCTAssertFalse(CLTRepair.fallbackHint.isEmpty)
     }
 
-    // MARK: Checklist integration
+    // MARK: - Checklist integration
 
     func testCLTOutdatedBlocksTartInstallInChecklist() async {
         // The exact scenario that bit on a real machine: CLT outdated while

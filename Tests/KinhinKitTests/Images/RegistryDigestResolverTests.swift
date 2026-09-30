@@ -81,7 +81,7 @@ final class RegistryDigestResolverTests: XCTestCase {
         }
     }
 
-    // MARK: Reference parsing
+    // MARK: - Reference parsing
 
     func testReferenceParsing() throws {
         let tagged = try RegistryDigestResolver.parse("ghcr.io/cirruslabs/ubuntu:24.04")

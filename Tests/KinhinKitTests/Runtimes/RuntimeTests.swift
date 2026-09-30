@@ -8,7 +8,7 @@ import XCTest
 /// Behavior must be identical to the pre-refactor engine — these tests pin
 /// that.
 final class RuntimeTests: XCTestCase {
-    // MARK: TartRuntime behavior
+    // MARK: - TartRuntime behavior
 
     func testProvisionClonesAndBoots() async throws {
         let tart = FakeTart()
@@ -62,7 +62,7 @@ final class RuntimeTests: XCTestCase {
         _ = health.isReady
     }
 
-    // MARK: Engine integration
+    // MARK: - Engine integration
 
     func testEngineStampsRuntimeOnSpawnedRecords() async throws {
         let github = FakeGitHub()

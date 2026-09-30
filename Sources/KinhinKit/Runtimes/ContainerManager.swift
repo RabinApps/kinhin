@@ -91,13 +91,13 @@ public struct ContainerManager: Sendable {
         self.binary = binary ?? Paths.findExecutable(named: tool.binaryName)
     }
 
-    // MARK: Validation
+    // MARK: - Validation
 
     static func isValidName(_ name: String) -> Bool {
         name.range(of: "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$", options: .regularExpression) != nil
     }
 
-    // MARK: Reading
+    // MARK: - Reading
 
     public func containers() async throws -> [ManagedContainer] {
         switch tool {
@@ -122,7 +122,7 @@ public struct ContainerManager: Sendable {
         }
     }
 
-    // MARK: Creating & deleting
+    // MARK: - Creating & deleting
 
     /// Deletes a container; `force` also stops it first if it is running.
     public func deleteContainer(id: String, force: Bool) async throws {
@@ -163,7 +163,7 @@ public struct ContainerManager: Sendable {
         _ = try await run(["volume", verb, name], what: "deleting volume '\(name)'")
     }
 
-    // MARK: Plumbing
+    // MARK: - Plumbing
 
     private func run(_ args: [String], what: String) async throws -> String {
         guard let binary else { throw ContainerManagerError.toolMissing(tool) }
@@ -175,7 +175,7 @@ public struct ContainerManager: Sendable {
         return result.stdout
     }
 
-    // MARK: Parsing (internal for tests)
+    // MARK: - Parsing (internal for tests)
 
     /// One JSON object per line (`--format '{{json .}}'`). Lines that aren't
     /// objects (CLI warnings mixed into stdout) are skipped.

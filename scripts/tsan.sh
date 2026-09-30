@@ -20,9 +20,20 @@ cd "$(dirname "$0")/.."
 LOG=".build/tsan.log"
 mkdir -p .build
 
+# Strip a literal `--` so `scripts/tsan.sh -- --filter Foo` forwards the
+# filter to swift test instead of passing the separator through as an argv
+# element (swift test would reject it). Build the array unquoted-left so an
+# empty result stays unset-safe under `set -u` (bash 3.2 treats an empty
+# "${args[@]}" as unbound).
+args=()
+for arg in "$@"; do
+    [[ $arg == "--" ]] || args+=("$arg")
+done
+args=("${args[@]:-}")
+
 echo "==> swift test --sanitize thread (serial; expect a few minutes)"
 set +e
-swift test --sanitize thread "$@" 2>&1 | tee "$LOG"
+swift test --sanitize thread "${args[@]}" 2>&1 | tee "$LOG"
 status=${PIPESTATUS[0]}
 set -e
 

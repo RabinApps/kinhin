@@ -5,7 +5,7 @@ import XCTest
 /// Locks the setup-status contract: `kinhin setup-status` and the menu bar
 /// setup window must always agree, because both consume SetupStatusComputer.
 final class SetupStatusTests: XCTestCase {
-    // MARK: Fixtures
+    // MARK: - Fixtures
 
     private func host(arm64: Bool = true) -> HostResources {
         HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: arm64)
@@ -35,7 +35,7 @@ final class SetupStatusTests: XCTestCase {
         return url.path
     }
 
-    // MARK: Contract
+    // MARK: - Contract
 
     func testCheckIDsAndActionsAreStable() async {
         let computer = SetupStatusComputer(
@@ -106,7 +106,7 @@ final class SetupStatusTests: XCTestCase {
         }
     }
 
-    // MARK: Scenario matrix
+    // MARK: - Scenario matrix
 
     func testKilledOnLaunchProducesRollbackRow() async {
         let computer = SetupStatusComputer(
@@ -237,7 +237,7 @@ final class SetupStatusTests: XCTestCase {
         XCTAssertTrue(status.checks.first { $0.id == "account-token-github" }?.detail.contains("Keychain") ?? false)
     }
 
-    // MARK: Provision script row — only when the config declares one
+    // MARK: - Provision script row — only when the config declares one
 
     private func configWithProvisionScript(_ path: String?) -> KinhinConfig {
         var cfg = config()
@@ -343,7 +343,7 @@ final class SetupStatusTests: XCTestCase {
         XCTAssertTrue(detail.contains("/kinhin/provision-"), "detail shows the expanded path: \(detail)")
     }
 
-    // MARK: Base image row — only when the config sets base_image:
+    // MARK: - Base image row — only when the config sets base_image:
 
     private func configWithBaseImage(_ reference: String?) -> KinhinConfig {
         var cfg = config()
@@ -409,7 +409,7 @@ final class SetupStatusTests: XCTestCase {
             ["arch", "clt", "tart", "config", "account-token-github", "image", "base-image", "toolchain-cache"])
     }
 
-    // MARK: Shared toolchain cache row
+    // MARK: - Shared toolchain cache row
 
     func testToolchainCacheRowAlwaysPresentAndNeverBlocksReady() async {
         // Unusable + share_cache on: the only red detail — but advisory, so

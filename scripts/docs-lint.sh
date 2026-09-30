@@ -1,18 +1,13 @@
 #!/bin/bash
-# Docs lint: two checks, both failing with file/line annotations.
+# Docs lint: stale strings, failing with file/line annotations.
 #
-# 1. Stale strings: the markdown docs must not mention strings that no
-#    longer exist in the app. Every drift bug we fixed by hand (the
-#    "Runtimes…" pane that never shipped, the lowercase support-directory
-#    casing, a moved Forge.swift path) is a pattern below, with a note on
-#    what replaced it — so the next rename only needs one new table row.
-#    Scans every git-tracked .md file (README, docs/, website/), which by
-#    construction excludes generated output like website/.vitepress/dist.
-# 2. Orchard allowlist: Sources/, Tests/, and docs/ must not grow new
-#    mentions of the pre-rename name, in any file type. See the allowlist
-#    section below for the files that carry the legacy strings on purpose
-#    (the migration machinery, the upgrader greeting, and the tests that
-#    pin that behavior).
+# The markdown docs must not mention strings that no longer exist in the
+# app. Every drift bug we fixed by hand (the "Runtimes…" pane that never
+# shipped, the lowercase support-directory casing, a moved Forge.swift path,
+# the removed top-level gitea:/forgejo:/repo: keys) is a pattern below, with
+# a note on what replaced it — so the next rename only needs one new table
+# row. Scans every git-tracked .md file (README, docs/, website/), which by
+# construction excludes generated output like website/.vitepress/dist.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -28,6 +23,11 @@ patterns=(
     "orchard-container|the Linux-pool opt-in marker is "kinhin-container" (RuntimeRouting.swift)"
     "guide/migrating|the migrating-from-Orchard page was removed — upgrading is automatic, so the site has no migration guide"
     "Migrating from Orchard|the migrating-from-Orchard page was removed — upgrading is automatic, so the site has no migration guide"
+    "compat-sunset|the Orchard compat-sunset plan is retired — the compat layer is gone"
+    "Orchard compat|the Orchard compat-sunset plan is retired — the compat layer is gone"
+    "\nrepo:|the top-level repo: key is gone — declare the forge as an accounts: entry"
+    "\ngitea:|the top-level gitea: key is gone — declare the forge as an accounts: entry"
+    "\nforgejo:|the top-level forgejo: key is gone — declare the forge as an accounts: entry"
 )
 
 # macOS ships bash 3.2: no mapfile. A plain loop also survives spaces
@@ -60,60 +60,7 @@ for entry in "${patterns[@]}"; do
     fi
 done
 
-# ---------------------------------------------------------------------------
-# Orchard allowlist. Sources/, Tests/, and docs/ must not grow new mentions
-# of the pre-rename name, in any file type. The files below carry the legacy
-# strings on purpose — the migration has to know where the old data lives
-# (support directory, Keychain service, LaunchAgent label, VM-name prefix,
-# update-repo env var), the config template greets upgraders, and the four
-# test files pin that behavior. Anything else is drift: add a path here
-# only for a deliberate compat surface or a test of one.
-# ---------------------------------------------------------------------------
-orchardAllowlist=(
-    "Sources/KinhinKit/Config/ConfigTemplate.swift"
-    "Sources/KinhinKit/Core/Paths.swift"
-    "Sources/KinhinKit/Core/TokenStore.swift"
-    "Sources/KinhinKit/Fleet/Daemon.swift"
-    "Sources/KinhinKit/Fleet/FleetReconcile.swift"
-    "Sources/kinhin-app/UpdatePreferences.swift"
-    "Tests/KinhinKitTests/Core/ErrorHandlingTests.swift"
-    "Tests/KinhinKitTests/Fleet/StoreAndLogTests.swift"
-    "Tests/KinhinAppTests/UpdateMenuTests.swift"
-    "Tests/KinhinCLITests/ConfigInitAndHelpTests.swift"
-    "docs/compat-sunset.md"
-)
-
-orchardFiles=()
-while IFS= read -r f; do
-    orchardFiles+=("$f")
-done < <(git ls-files Sources Tests docs)
-if [[ ${#orchardFiles[@]} -eq 0 ]]; then
-    echo "docs lint: no Sources/, Tests/ or docs/ files found for the orchard sweep" >&2
-    exit 1
-fi
-
-for f in "${orchardFiles[@]}"; do
-    # Skip paths deleted in the worktree (git still tracks them).
-    [[ -f $f ]] || continue
-    allowed=false
-    for exempt in "${orchardAllowlist[@]}"; do
-        if [[ $f == "$exempt" ]]; then allowed=true; break; fi
-    done
-    if [[ $allowed == false ]]; then
-        if hits=$(grep -inHI -- "orchard" "$f"); then
-            status=1
-            while IFS= read -r hit; do
-                hitFile="${hit%%:*}"
-                rest="${hit#*:}"
-                hitLine="${rest%%:*}"
-                echo "::error file=${hitFile},line=${hitLine}::pre-rename \"orchard\" outside the migration allowlist — add the path to orchardAllowlist in scripts/docs-lint.sh only for a deliberate compat surface"
-                echo "  ${hit}"
-            done <<< "$hits"
-        fi
-    fi
-done
-
 if [[ $status -eq 0 ]]; then
-    echo "docs lint: clean (${#files[@]} md files, ${#patterns[@]} patterns; orchard sweep over ${#orchardFiles[@]} files with ${#orchardAllowlist[@]} allowlisted)"
+    echo "docs lint: clean (${#files[@]} md files, ${#patterns[@]} patterns)"
 fi
 exit "$status"

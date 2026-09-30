@@ -67,7 +67,7 @@ enum BaseImageChoice {
         return .success(stored(reference))
     }
 
-    // MARK: Catalog-generic variants (the view uses these)
+    // MARK: - Catalog-generic variants (the view uses these)
 
     static func title(at index: Int, in catalog: Catalog) -> String {
         let entries = catalog.entries

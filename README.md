@@ -83,7 +83,7 @@ brew install openai/tools/tart
 # 2. Create a starter config
 kinhin config init
 #    edit ~/Library/Application Support/Kinhin/config.yaml
-#    -> set repo: "your-org/your-repo" and the labels jobs will request
+#    -> set the accounts: entry (name/forge/scope) and the labels jobs will request
 
 # 3. Store a GitHub PAT (repo scope) — it goes in your Keychain, not a file
 kinhin auth set
@@ -211,8 +211,7 @@ kinhin logs [-n N]          Recent log lines
 | [Forge support](docs/forges.md)                                  | GitHub, Gitea, Forgejo, GitLab, multiple accounts, future forges            |
 | [Runtimes & routing](docs/runtimes.md)                           | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing   |
 | [Architecture](docs/architecture.md)                             | Package targets, source layout, tests, CI                                   |
-| [Runtime abstraction design](docs/runtime-abstraction-design.md) | Design document for the Runtime layer                                       |
-| [Orchard compat sunset](docs/compat-sunset.md)                   | Retirement plan for the pre-rename compat layer                             |
+| [Runtime abstraction design](docs/runtime-abstraction-design.md) | Historical design document for the shipped Runtime layer                    |
 
 ## Troubleshooting
 

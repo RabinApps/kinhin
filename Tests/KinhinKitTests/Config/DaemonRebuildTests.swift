@@ -339,7 +339,8 @@ final class DaemonRebuildTests: XCTestCase {
     /// instead of stamping its result and re-phasing the record.
     func testDetachedLifecycleBlockedInRuntimeCallWritesNothing() async throws {
         let store = makeTestStore()
-        let tart = BlockingTart()
+        let tart = FakeTart()
+        tart.blockIP()
         tart.vms["kinhin-live"] = TartVM(name: "kinhin-live", source: "tahoe-base", status: "running")
         store.upsert(VMRecord(id: "kinhin-live", phase: .ready))
         let engine = makeEngine(makeTestConfig(), store: store, tart: tart, drainTimeout: .milliseconds(200))
@@ -369,78 +370,4 @@ final class DaemonRebuildTests: XCTestCase {
         XCTAssertEqual(after?.updatedAt, updatedAtBefore, "no updateRecord write may land after detach")
         XCTAssertFalse(engine.lifecycleTasks.withLock { $0["kinhin-live"] != nil }, "the straggler exited")
     }
-}
-
-/// A tart double whose `ip(of:)` parks until told otherwise — models a
-/// shell command that ignores cancellation and ends only on its own
-/// timeout. Everything else mirrors `FakeTart` semantics.
-final class BlockingTart: TartControlling, Sendable {
-    private struct State: Sendable {
-        var parkedContinuations: [CheckedContinuation<String, Error>] = []
-        var vms: [String: TartVM] = [:]
-    }
-
-    private let state = Mutex(State())
-
-    var isBlockedInIP: Bool {
-        !state.withLock { $0.parkedContinuations.isEmpty }
-    }
-
-    var vms: [String: TartVM] {
-        get { state.withLock { $0.vms } }
-        set { state.withLock { $0.vms = newValue } }
-    }
-
-    func releaseIP(_ ip: String) {
-        let parked = state.withLock { state -> [CheckedContinuation<String, Error>] in
-            let parked = state.parkedContinuations
-            state.parkedContinuations.removeAll()
-            return parked
-        }
-        for continuation in parked { continuation.resume(returning: ip) }
-    }
-
-    func list() async throws -> [TartVM] {
-        Array(state.withLock { $0.vms.values })
-    }
-
-    func clone(source: String, to name: String) async throws {
-        state.withLock { $0.vms[name] = TartVM(name: name, source: source, status: "running") }
-    }
-
-    func run(name: String, mounts: [String]) async throws {
-        state.withLock { state in
-            if let vm = state.vms[name] {
-                state.vms[name] = TartVM(
-                    name: vm.name, source: vm.source, status: "running", cpu: vm.cpu, memoryMB: vm.memoryMB,
-                    diskGB: vm.diskGB)
-            }
-        }
-    }
-
-    func ip(of name: String, timeout: TimeInterval) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            state.withLock { $0.parkedContinuations.append(continuation) }
-        }
-    }
-
-    func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
-        -> ShellResult
-    {
-        ShellResult(exitCode: 0, stdout: "", stderr: "")
-    }
-
-    func stop(name: String) async throws {}
-
-    func delete(name: String) async throws {
-        _ = state.withLock { $0.vms.removeValue(forKey: name) }
-    }
-
-    func pull(image: String) async throws {}
-
-    func createLinux(name: String) async throws {
-        state.withLock { $0.vms[name] = TartVM(name: name, source: "", status: "stopped") }
-    }
-
-    func runWithDisk(name: String, isoPath: String) async throws {}
 }

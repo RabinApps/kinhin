@@ -11,7 +11,7 @@ final class DockerPlatformTests: XCTestCase {
     private let base =
         "accounts:\n  - name: github\n    forge: github\n    scope: \"acme/widgets\"\nlabels: [self-hosted, macos, arm64]\n"
 
-    // MARK: Config
+    // MARK: - Config
 
     func testPlatformDefaultsToArm64() throws {
         let cfg = try ConfigLoader.parse(base + "docker:\n  image: ci\n")
@@ -63,7 +63,7 @@ final class DockerPlatformTests: XCTestCase {
         XCTAssertFalse(text.contains("platform"), "arm64 is the default and is not written: \(text)")
     }
 
-    // MARK: Runtime
+    // MARK: - Runtime
 
     func testProvisionPinsTheConfiguredPlatform() async throws {
         for platform in LinuxPlatform.allCases {
@@ -90,7 +90,7 @@ final class DockerPlatformTests: XCTestCase {
             "only Docker pools are affected")
     }
 
-    // MARK: Agent scripts
+    // MARK: - Agent scripts
 
     func testAgentScriptsDefaultToArm64AndFollowTheArchitecture() {
         let github = RunnerBootstrap.linuxGitHubAgentInstallScript(runnerVersion: "2.1.0")
@@ -106,7 +106,7 @@ final class DockerPlatformTests: XCTestCase {
                 .contains("-linux-amd64.xz"))
     }
 
-    // MARK: Bake
+    // MARK: - Bake
 
     func testAmd64BakePinsThePlatformAndInstallsX64Agents() async throws {
         let shell = FakeShell()
@@ -153,7 +153,7 @@ final class DockerPlatformTests: XCTestCase {
         XCTAssertEqual(names, ["ubuntu:24.04"])
     }
 
-    // MARK: Checklist + disclosure
+    // MARK: - Checklist + disclosure
 
     private func checklist(platform: LinuxPlatform, imageArch: String?) async -> SetupCheckResult? {
         var cfg = KinhinConfig.default

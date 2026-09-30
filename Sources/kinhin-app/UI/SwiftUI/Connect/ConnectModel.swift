@@ -18,7 +18,7 @@ final class ConnectModel: ConfigFormModel {
 
     let accounts = AccountsModel()
 
-    // MARK: Injectable seams (forwarded to every card)
+    // MARK: - Injectable seams (forwarded to every card)
 
     /// Persists a token (and live-swaps it into a running engine). Defaults
     /// to a plain Keychain save; the app injects the live-swap version.
@@ -53,7 +53,7 @@ final class ConnectModel: ConfigFormModel {
         didSet { accounts.onChanged = onChanged }
     }
 
-    // MARK: Selection
+    // MARK: - Selection
 
     /// The forges whose cards are shown.
     private(set) var selected: Set<ForgeID> = []
@@ -115,7 +115,7 @@ final class ConnectModel: ConfigFormModel {
                     github: GitHubClient(credentials: GitHubCredentials(token: resolved, scope: scope)), scope: scope)
             }
 
-    // MARK: Selector
+    // MARK: - Selector
 
     func isSelected(_ forge: ForgeID) -> Bool { selected.contains(forge) }
 
@@ -183,7 +183,7 @@ final class ConnectModel: ConfigFormModel {
         setSelected(false, for: forge)
     }
 
-    // MARK: Loading
+    // MARK: - Loading
 
     /// Re-reads config + Keychain and refreshes the selection and every card.
     func reload() {
@@ -236,7 +236,7 @@ final class ConnectModel: ConfigFormModel {
         }
     }
 
-    // MARK: Test hooks
+    // MARK: - Test hooks
 
     /// Marks tokens stored without touching the Keychain (tests).
     func markTokensStoredForTesting(_ stored: Set<ForgeID>) {

@@ -1,4 +1,3 @@
-import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -104,30 +103,11 @@ final class TartLinuxVMCreatorTests: XCTestCase {
     }
 
     func testBootFailureRollsBackTheCreatedVM() async throws {
-        // A tart double whose runWithDisk always fails: the creator must
-        // delete the freshly created VM instead of stranding it. (A real ISO
-        // path is required: validation runs before the VM is created.)
-        final class FailingBoot: TartControlling, Sendable {
-            private let state = Mutex((created: [String](), deleted: [String]()))
-            var created: [String] { state.withLock { $0.created } }
-            var deleted: [String] { state.withLock { $0.deleted } }
-            func list() async throws -> [TartVM] { [] }
-            func clone(source: String, to name: String) async throws {}
-            func run(name: String, mounts: [String]) async throws {}
-            func run(name: String) async throws {}
-            func ip(of name: String, timeout: TimeInterval) async throws -> String { "" }
-            func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
-                -> ShellResult
-            { ShellResult(exitCode: 1, stdout: "", stderr: "boot failed") }
-            func stop(name: String) async throws {}
-            func delete(name: String) async throws { state.withLock { $0.deleted.append(name) } }
-            func pull(image: String) async throws {}
-            func createLinux(name: String) async throws { state.withLock { $0.created.append(name) } }
-            func runWithDisk(name: String, isoPath: String) async throws {
-                throw TartError.commandFailed(what: "run --disk", stderr: "boot failed")
-            }
-        }
-        let tart = FailingBoot()
+        // A tart whose runWithDisk fails: the creator must delete the freshly
+        // created VM instead of stranding it. (A real ISO path is required:
+        // validation runs before the VM is created.)
+        let tart = FakeTart()
+        tart.failNext("runWithDisk", stderr: "boot failed")
         let iso = try makeISO()
         defer { try? FileManager.default.removeItem(atPath: iso) }
 
@@ -137,7 +117,7 @@ final class TartLinuxVMCreatorTests: XCTestCase {
             XCTFail("expected the boot failure to throw")
         } catch {}
 
-        XCTAssertEqual(tart.created, ["doomed"])
-        XCTAssertEqual(tart.deleted, ["doomed"], "the unusable VM must be deleted, never stranded")
+        XCTAssertEqual(tart.createLinuxCalls, ["doomed"])
+        XCTAssertEqual(tart.deleteCalls, ["doomed"], "the unusable VM must be deleted, never stranded")
     }
 }

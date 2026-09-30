@@ -134,7 +134,7 @@ The work is split into phases. Every phase ends with `swift build`, `swift test`
 - **Docs**
   - Rewrite the stale rows in `docs/architecture.md`: Core/Fleet/Forges/Setup contents, a `ViewModels/` folder that doesn't exist, missing Cache/Intents/GitLab/SwiftUI folders, and the test count, which is ~1290, not 760. Update the count in CLAUDE.md too.
   - `docs/forges.md`, `website/guide/forges.md`, `README.md:86`, `website/guide/quick-start.md:44` and `scripts/install.sh:167` still teach the `gitea:`/`forgejo:`/`repo:` keys, which the parser now rejects. Rewrite them for `accounts:`, and add those patterns to `scripts/docs-lint.sh`.
-  - Mark `docs/runtime-abstraction-design.md` as shipped/historical, and remove the stale `docs/compat-sunset.md` row and the orchard allowlist.
+  - Mark `docs/runtime-abstraction-design.md` as shipped/historical (done). The retired design page was dropped along with its README row.
 - **Build/CI**
   - Fix the deployment-target mismatch: `build-app.sh` uses 14.0 but the package says 15.
   - In `ci.yml`, add `swift build -c release --product kinhin-app --product kinhin`, a nightly/`workflow_dispatch` TSan job, and `concurrency: cancel-in-progress`.

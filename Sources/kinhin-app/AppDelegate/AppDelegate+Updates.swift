@@ -3,7 +3,7 @@ import KinhinKit
 
 @MainActor
 extension AppDelegate {
-    // MARK: Update checking
+    // MARK: - Update checking
 
     @objc func checkForUpdates() {
         guard updateCheckTask == nil else { return }  // one at a time

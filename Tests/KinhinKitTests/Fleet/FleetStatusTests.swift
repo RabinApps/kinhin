@@ -33,7 +33,7 @@ final class FleetStatusTests: XCTestCase {
         XCTAssertNil(running.autoResumeCadence)
     }
 
-    // MARK: queue age
+    // MARK: - queue age
 
     func testQueueAgeCountsSinceTheLastAnsweredPoll() {
         var status = FleetStatus()

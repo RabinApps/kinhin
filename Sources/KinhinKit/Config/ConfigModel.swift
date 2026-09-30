@@ -77,7 +77,7 @@ public struct KinhinConfig: Sendable, Equatable {
     /// each with its own Keychain token. See `allAccounts` for the full set.
     public var accounts: [AccountConfig] = []
 
-    // MARK: Forge views (derived from `accounts`)
+    // MARK: - Forge views (derived from `accounts`)
 
     /// The primary GitHub account: the entry named "github" when present,
     /// else the first `forge: github` entry. The engine attaches it as the

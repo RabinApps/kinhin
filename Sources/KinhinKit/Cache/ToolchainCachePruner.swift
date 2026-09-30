@@ -167,7 +167,7 @@ public struct ToolchainCachePruner {
         return total
     }
 
-    // MARK: Internals
+    // MARK: - Internals
 
     /// Recursively collects regenerable leaf units under `root`. Grace
     /// window: leaves touched within the last hour are skipped entirely —

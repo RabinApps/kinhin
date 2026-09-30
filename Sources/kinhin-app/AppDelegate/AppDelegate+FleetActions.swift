@@ -5,7 +5,7 @@ import KinhinKit
 
 @MainActor
 extension AppDelegate {
-    // MARK: Actions
+    // MARK: - Actions
 
     @objc func startFleet() {
         Task {
@@ -39,7 +39,7 @@ extension AppDelegate {
             mainController?.fleetModel.endPendingAction()
         }
         pendingFleetAction = action
-        guard let backend else { throw FleetAccessError.notSetUp }
+        guard let backend else { throw EngineError.fleetNotSetUp }
         // Throw, don't alert: the menu wrappers alert, and an App Intent
         // must fail in Shortcuts rather than report success.
         if action == .start { try await backend.start() } else { try await backend.stop() }
@@ -65,18 +65,18 @@ extension AppDelegate {
         }
     }
 
-    // MARK: Throwing fleet access (menu actions and App Intents)
+    // MARK: - Throwing fleet access (menu actions and App Intents)
 
     /// Pauses or resumes the fleet through whichever backend is live.
     /// Throws when there is none (setup incomplete) or the daemon fails.
     func setFleetPaused(_ paused: Bool) async throws {
-        guard let backend else { throw FleetAccessError.notSetUp }
+        guard let backend else { throw EngineError.fleetNotSetUp }
         try await backend.setPaused(paused)
     }
 
     /// Current fleet status from the in-process engine or the daemon.
     func fleetStatus() async throws -> FleetStatus {
-        guard let backend else { throw FleetAccessError.notSetUp }
+        guard let backend else { throw EngineError.fleetNotSetUp }
         return try await backend.status()
     }
 
@@ -107,7 +107,7 @@ extension AppDelegate {
     /// since intents can't present alerts). Throws when no backend is set up
     /// — the menu path alerts, the intent path lands in the dialog.
     func performVMDelete(id: String) async throws {
-        guard let backend else { throw FleetAccessError.notSetUp }
+        guard let backend else { throw EngineError.fleetNotSetUp }
         try await backend.deleteVM(id: id)
         await refresh()
     }

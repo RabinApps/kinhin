@@ -9,7 +9,7 @@ import XCTest
 /// work too: in-progress jobs are mapped back to VMs via runner_name and
 /// stamped on the VM record through its lifecycle.
 final class QueueAttributionTests: XCTestCase {
-    // MARK: Client parsing
+    // MARK: - Client parsing
 
     func testClientExtractsRepositoryFromRunsResponse() async throws {
         let config = URLSessionConfiguration.ephemeral
@@ -140,7 +140,7 @@ final class QueueAttributionTests: XCTestCase {
             runsStatus.withLock { $0 }, "in_progress", "running-jobs polling must use in_progress, not queued")
     }
 
-    // MARK: Engine aggregation
+    // MARK: - Engine aggregation
 
     func makeEngine(scope: String, github: FakeGitHub) -> FleetEngine {
         var cfg = makeTestConfig()
@@ -210,7 +210,7 @@ final class QueueAttributionTests: XCTestCase {
         XCTAssertEqual(decoded.autoResume, true)
     }
 
-    // MARK: Running-job attribution (engine)
+    // MARK: - Running-job attribution (engine)
 
     func testRunningJobStampsVMRecordInOrgScope() async throws {
         let github = FakeGitHub()
@@ -318,7 +318,7 @@ final class QueueAttributionTests: XCTestCase {
         XCTAssertEqual(decoded.runningByRepo, status.runningByRepo)
     }
 
-    // MARK: Helpers
+    // MARK: - Helpers
 
     func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)

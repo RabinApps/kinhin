@@ -19,7 +19,7 @@ protocol FleetIntentBridge: Sendable {
 struct AppFleetIntentBridge: FleetIntentBridge {
     private var delegate: AppDelegate {
         get throws {
-            guard let delegate = NSApp.delegate as? AppDelegate else { throw FleetAccessError.notSetUp }
+            guard let delegate = NSApp.delegate as? AppDelegate else { throw EngineError.fleetNotSetUp }
             return delegate
         }
     }

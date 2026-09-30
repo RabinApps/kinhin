@@ -7,50 +7,9 @@ import XCTest
 /// `auth add|list|remove` and `--account` flows, driven through an injected
 /// `AuthEnvironment` (no Keychain, network, or daemon).
 final class AuthAccountsCommandTests: XCTestCase {
-    private struct AuthFailure: Error { let message: String }
-    private struct AuthExit: Error { let code: Int }
-
-    private struct Snapshot: Sendable {
-        var savedAccounts: [(token: String, forge: ForgeID, name: String)] = []
-        var deletedAccounts: [(ForgeID, String)] = []
-        var notified: [(account: String, token: String)] = []
-        var checkedGitHub: [GitHubCredentials] = []
-        var checkedGitea: [GiteaCredentials] = []
-        var checkedGitLab: [GitLabCredentials] = []
-    }
-
-    /// Recording double; all state is Mutex-guarded so its closures are
-    /// `@Sendable` (AuthEnvironment requires Sendable closure fields).
-    private final class Recorder: Sendable {
-        private let state = Mutex(Snapshot())
-        var savedAccounts: [(token: String, forge: ForgeID, name: String)] { state.withLock { $0.savedAccounts } }
-        var deletedAccounts: [(ForgeID, String)] { state.withLock { $0.deletedAccounts } }
-        var notified: [(account: String, token: String)] { state.withLock { $0.notified } }
-        var checkedGitHub: [GitHubCredentials] { state.withLock { $0.checkedGitHub } }
-        var checkedGitea: [GiteaCredentials] { state.withLock { $0.checkedGitea } }
-        var checkedGitLab: [GitLabCredentials] { state.withLock { $0.checkedGitLab } }
-
-        func recordCheckGitHub(_ credentials: GitHubCredentials) {
-            state.withLock { $0.checkedGitHub.append(credentials) }
-        }
-        func recordCheckGitea(_ credentials: GiteaCredentials) {
-            state.withLock { $0.checkedGitea.append(credentials) }
-        }
-        func recordCheckGitLab(_ credentials: GitLabCredentials) {
-            state.withLock { $0.checkedGitLab.append(credentials) }
-        }
-        func recordSaveAccount(_ token: String, _ forge: ForgeID, _ name: String) {
-            state.withLock { $0.savedAccounts.append((token, forge, name)) }
-        }
-        func recordDeleteAccount(_ forge: ForgeID, _ name: String) {
-            state.withLock { $0.deletedAccounts.append((forge, name)) }
-        }
-        func recordNotify(_ account: String, _ token: String) {
-            state.withLock { $0.notified.append((account, token)) }
-        }
-    }
-
-    private var configURL: URL!
+    var configURL: URL!
+    /// Scratch config parsed once per environment build (reset by `environment`).
+    var frozen: KinhinConfig?
 
     override func setUp() {
         super.setUp()
@@ -64,52 +23,33 @@ final class AuthAccountsCommandTests: XCTestCase {
         super.tearDown()
     }
 
+    /// Thin wrapper so the call sites keep their shape; the body lives in
+    /// the shared `AuthTestSupport` harness.
     private func environment(
-        _ recorder: Recorder, stored: [String: String] = [:], readToken: String? = nil
+        _ recorder: AuthRecorder, stored: [String: String] = [:], readToken: String? = nil
     ) -> AuthEnvironment {
-        let config = (try? ConfigLoader.load(from: configURL)) ?? KinhinConfig.default
-        let frozen = config
-        let capturedURL: URL = configURL
-        var env = AuthEnvironment(
-            save: { _, _ in XCTFail("legacy save must not be used for a named account") },
-            load: { _ in nil },
-            delete: { _ in XCTFail("legacy delete must not be used for a named account") },
-            readToken: { readToken },
-            checkGitHub: { recorder.recordCheckGitHub($0) },
-            checkGitea: { recorder.recordCheckGitea($0) },
-            loadConfig: { frozen },
-            notifyDaemon: { _, _ in XCTFail("legacy notify must not be used for a named account") },
-            fail: { throw AuthFailure(message: $0) },
-            exit: { throw AuthExit(code: $0) }
-        )
-        env.checkGitLab = { recorder.recordCheckGitLab($0) }
-        env.saveAccount = { token, forge, name in recorder.recordSaveAccount(token, forge, name) }
-        env.loadAccount = { _, name in stored[name] }
-        env.deleteAccount = { recorder.recordDeleteAccount($0, $1) }
-        env.notifyDaemonAccount = { recorder.recordNotify($0, $1) }
-        env.configURL = capturedURL
-        env.jsonConfig = .some(frozen)
-        return env
+        frozen = nil  // re-read the scratch config each time
+        return makeAccountsEnvironment(recorder, stored: stored, readToken: readToken)
     }
 
-    private func addWork(_ recorder: Recorder) async throws {
+    private func addWork(_ recorder: AuthRecorder) async throws {
         try await AuthCommand.run(
             ["auth", "add", "work", "--github", "--scope", "bigco"], environment: environment(recorder))
     }
 
     func testAddWritesConfigAndAcceptsAToken() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         try await AuthCommand.run(
             ["auth", "add", "work", "--github", "--scope", "bigco", "--token", "ghp_x"],
             environment: environment(recorder))
         XCTAssertEqual(try ConfigLoader.load(from: configURL).accounts.map(\.name), ["work"])
         XCTAssertEqual(recorder.savedAccounts.count, 1)
         XCTAssertEqual(recorder.savedAccounts.first?.name, "work")
-        XCTAssertEqual(recorder.notified.first?.account, "work")
+        XCTAssertEqual(recorder.notifiedAccounts.first?.account, "work")
     }
 
     func testAddRequiresExactlyOneForgeAndAScope() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         for args in [
             ["auth", "add", "x", "--scope", "s"], ["auth", "add", "x", "--github", "--gitea", "--scope", "s"],
             ["auth", "add", "x", "--github"], ["auth", "add"],
@@ -117,7 +57,7 @@ final class AuthAccountsCommandTests: XCTestCase {
             do {
                 try await AuthCommand.run(args, environment: environment(recorder))
                 XCTFail("expected failure for \(args)")
-            } catch is AuthFailure {}
+            } catch is AuthTestSupport.AuthFailure {}
         }
     }
 
@@ -125,35 +65,35 @@ final class AuthAccountsCommandTests: XCTestCase {
         let before = try String(contentsOf: configURL, encoding: .utf8)
         do {
             try await AuthCommand.run(
-                ["auth", "add", "home", "--gitea", "--scope", "me"], environment: environment(Recorder()))
+                ["auth", "add", "home", "--gitea", "--scope", "me"], environment: environment(AuthRecorder()))
             XCTFail("a gitea account needs --instance")
-        } catch is AuthFailure {}
+        } catch is AuthTestSupport.AuthFailure {}
         XCTAssertEqual(try String(contentsOf: configURL, encoding: .utf8), before)
     }
 
     func testSetForANamedAccountUsesItsOwnKeychainItem() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         try await addWork(recorder)
         try await AuthCommand.run(
             ["auth", "set", "--account", "work", "--token", "ghp_new"], environment: environment(recorder))
         XCTAssertEqual(recorder.savedAccounts.first?.token, "ghp_new")
         XCTAssertEqual(recorder.savedAccounts.first?.forge, .github)
         XCTAssertEqual(recorder.savedAccounts.first?.name, "work")
-        XCTAssertEqual(recorder.notified.first?.account, "work")
+        XCTAssertEqual(recorder.notifiedAccounts.first?.account, "work")
     }
 
     func testSetForAnUnknownAccountPointsAtAdd() async throws {
         do {
             try await AuthCommand.run(
-                ["auth", "set", "--account", "ghost", "--token", "x"], environment: environment(Recorder()))
+                ["auth", "set", "--account", "ghost", "--token", "x"], environment: environment(AuthRecorder()))
             XCTFail("expected failure")
-        } catch let error as AuthFailure {
+        } catch let error as AuthTestSupport.AuthFailure {
             XCTAssertTrue(error.message.contains("kinhin auth add ghost"), error.message)
         }
     }
 
     func testStatusChecksTheAccountsScope() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         try await addWork(recorder)
         try await AuthCommand.run(
             ["auth", "status", "--account", "work"], environment: environment(recorder, stored: ["work": "ghp_abcd"]))
@@ -162,18 +102,18 @@ final class AuthAccountsCommandTests: XCTestCase {
     }
 
     func testStatusWithoutATokenExitsNonZero() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         try await addWork(recorder)
         do {
             try await AuthCommand.run(["auth", "status", "--account", "work"], environment: environment(recorder))
             XCTFail("expected exit")
-        } catch let exit as AuthExit {
+        } catch let exit as AuthTestSupport.AuthExit {
             XCTAssertEqual(exit.code, 1)
         }
     }
 
     func testClearDeletesOnlyThatAccountsToken() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         try await addWork(recorder)
         try await AuthCommand.run(["auth", "clear", "--account", "work"], environment: environment(recorder))
         XCTAssertEqual(recorder.deletedAccounts.count, 1)
@@ -181,7 +121,7 @@ final class AuthAccountsCommandTests: XCTestCase {
     }
 
     func testRemoveDropsConfigEntryAndToken() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         try await addWork(recorder)
         try await AuthCommand.run(["auth", "remove", "work"], environment: environment(recorder))
         XCTAssertTrue(try ConfigLoader.load(from: configURL).accounts.isEmpty)
@@ -191,14 +131,14 @@ final class AuthAccountsCommandTests: XCTestCase {
     func testRemoveRefusesLegacyAndUnknownAccounts() async throws {
         for name in ["github", "ghost"] {
             do {
-                try await AuthCommand.run(["auth", "remove", name], environment: environment(Recorder()))
+                try await AuthCommand.run(["auth", "remove", name], environment: environment(AuthRecorder()))
                 XCTFail("expected failure for \(name)")
-            } catch is AuthFailure {}
+            } catch is AuthTestSupport.AuthFailure {}
         }
     }
 
     func testStatusJSONListsAccounts() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         try await addWork(recorder)
         let (report, _) = try AuthCommand.emitStatusJSON(
             environment: environment(recorder, stored: ["work": "ghp_abcd"]))
@@ -207,10 +147,10 @@ final class AuthAccountsCommandTests: XCTestCase {
         XCTAssertEqual(report.accounts.first?.prefix, "ghp_")
     }
 
-    // MARK: GitLab
+    // MARK: - GitLab
 
     func testGitLabAccountRoundTrip() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         try await AuthCommand.run(
             ["auth", "add", "gitlab", "--gitlab", "--scope", "acme/platform/api"], environment: environment(recorder))
         let account = try XCTUnwrap(try ConfigLoader.load(from: configURL).accounts.first)
@@ -223,7 +163,7 @@ final class AuthAccountsCommandTests: XCTestCase {
             ["auth", "set", "--gitlab", "--token", "glpat-x"], environment: environment(recorder))
         XCTAssertEqual(recorder.savedAccounts.last?.forge, .gitlab)
         XCTAssertEqual(recorder.savedAccounts.last?.name, "gitlab")
-        XCTAssertEqual(recorder.notified.last?.account, "gitlab")
+        XCTAssertEqual(recorder.notifiedAccounts.last?.account, "gitlab")
 
         try await AuthCommand.run(
             ["auth", "status", "--gitlab"], environment: environment(recorder, stored: ["gitlab": "glpat-x"]))
@@ -235,9 +175,9 @@ final class AuthAccountsCommandTests: XCTestCase {
     func testGitLabFlagWithoutAnAccountPointsAtAdd() async throws {
         do {
             try await AuthCommand.run(
-                ["auth", "set", "--gitlab", "--token", "x"], environment: environment(Recorder()))
+                ["auth", "set", "--gitlab", "--token", "x"], environment: environment(AuthRecorder()))
             XCTFail("expected failure")
-        } catch let error as AuthFailure {
+        } catch let error as AuthTestSupport.AuthFailure {
             XCTAssertTrue(error.message.contains("auth add NAME --gitlab"), error.message)
         }
     }

@@ -78,7 +78,7 @@ final class RuntimesRouteCommandTests: XCTestCase {
         try await RuntimesCommand.route(tail, configURL: configURL, notifyDaemon: false)
     }
 
-    // MARK: add
+    // MARK: - add
 
     func testAddCreatesSectionWhenAbsentAndPersistsRoute() async throws {
         try installConfig(baseConfig)
@@ -210,7 +210,7 @@ final class RuntimesRouteCommandTests: XCTestCase {
         XCTAssertEqual(rc.routes.first?.consent, true, "the editor must round-trip consent, not drop it")
     }
 
-    // MARK: remove
+    // MARK: - remove
 
     func testRemoveDeletesOnlyTheTargetRoute() async throws {
         try installConfig(
@@ -250,7 +250,7 @@ final class RuntimesRouteCommandTests: XCTestCase {
         XCTAssertEqual(try onDiskText(), original)
     }
 
-    // MARK: routing table
+    // MARK: - routing table
 
     func testParseRoutesRuntimesHead() {
         XCTAssertEqual(CLICommand.parse(["runtimes"]), .runtimes)
@@ -272,7 +272,7 @@ final class RuntimesRouteCommandTests: XCTestCase {
         XCTAssertNil(RuntimesCommand.routeTail(["runtimes", "router"]), "prefix must not match")
     }
 
-    // MARK: argument handling
+    // MARK: - argument handling
 
     func testUsageErrorsThrowWithoutTouchingDisk() async throws {
         try installConfig(baseConfig)

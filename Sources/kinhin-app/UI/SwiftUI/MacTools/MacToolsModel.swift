@@ -43,7 +43,7 @@ final class MacToolsModel: ConfigFormModel {
         }
     }
 
-    // MARK: Display state
+    // MARK: - Display state
 
     private(set) var tartLine = Line(text: "Checking…")
     private(set) var tartInstallVisible = false
@@ -78,7 +78,7 @@ final class MacToolsModel: ConfigFormModel {
     /// (a fresh install leaves it stopped).
     private var containerServiceNeedsStart = false
 
-    // MARK: Injectable seams
+    // MARK: - Injectable seams
 
     @ObservationIgnored var installShell: ShellRunning = Shell()
     /// Whether a tool is installed afterwards (real PATH lookup by default).
@@ -91,7 +91,7 @@ final class MacToolsModel: ConfigFormModel {
         AlertKit.present(error: error, title: "\(tool.title) can't run on this Mac")
     }
 
-    // MARK: State
+    // MARK: - State
 
     func reload() {
         // A broken config.yaml is said here, not rendered as the defaults
@@ -221,7 +221,7 @@ final class MacToolsModel: ConfigFormModel {
         }
     }
 
-    // MARK: Actions
+    // MARK: - Actions
 
     /// Runs a long action with the busy spinner/line managed around it
     /// (internal: the install-sheet extension starts installs through it).
@@ -336,7 +336,7 @@ final class MacToolsModel: ConfigFormModel {
         busyLine.text += "\nYou can also run this in Terminal: \(command)"
     }
 
-    // MARK: Test hooks
+    // MARK: - Test hooks
 
     func setTartReadyForTesting(_ ready: Bool) { setTartReady(ready) }
     func setContainerForTesting(_ on: Bool) { setContainer(on) }

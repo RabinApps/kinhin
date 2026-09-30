@@ -3,7 +3,7 @@ import XCTest
 @testable import KinhinKit
 
 final class FleetStatusFormatterTests: XCTestCase {
-    // MARK: engine line
+    // MARK: - engine line
 
     func testStoppedEngine() {
         let text = FleetStatusFormatter.report(FleetStatus())
@@ -44,7 +44,7 @@ final class FleetStatusFormatterTests: XCTestCase {
             text.contains("auto-resume: on — re-checks the queue every 20s and resumes once it's empty"), text)
     }
 
-    // MARK: queue age
+    // MARK: - queue age
 
     func testQueueAgeShowsFreshnessAndStaleness() {
         var status = FleetStatus()
@@ -67,7 +67,7 @@ final class FleetStatusFormatterTests: XCTestCase {
             FleetStatusFormatter.report(FleetStatus()).contains("queue age:"), "untracked freshness prints nothing")
     }
 
-    // MARK: counters
+    // MARK: - counters
 
     func testCountersAndJobSlotsLine() {
         var status = FleetStatus()
@@ -107,7 +107,7 @@ final class FleetStatusFormatterTests: XCTestCase {
         XCTAssertTrue(text.contains("running by repo: alpha/one ×1"), text)
     }
 
-    // MARK: last error
+    // MARK: - last error
 
     func testLastErrorLine() {
         var status = FleetStatus()
@@ -115,7 +115,7 @@ final class FleetStatusFormatterTests: XCTestCase {
         XCTAssertTrue(FleetStatusFormatter.report(status).contains("last error: github unreachable"))
     }
 
-    // MARK: VM listing
+    // MARK: - VM listing
 
     func testNoVMsLine() {
         XCTAssertTrue(FleetStatusFormatter.report(FleetStatus()).contains("no VMs"))
@@ -167,7 +167,7 @@ final class FleetStatusFormatterTests: XCTestCase {
         XCTAssertTrue(text.contains("error=boot timeout"))
     }
 
-    // MARK: helpers
+    // MARK: - helpers
 
     private func makeRecord(phase: VMPhase) -> VMRecord {
         var record = VMRecord(id: "kinhin-\(phase.rawValue)-test", phase: phase)

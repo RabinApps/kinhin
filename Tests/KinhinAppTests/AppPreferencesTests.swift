@@ -19,7 +19,7 @@ final class AppPreferencesTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: launch mode
+    // MARK: - launch mode
 
     func testDefaultLaunchModeIsMainWindowAndMenuBar() {
         XCTAssertEqual(
@@ -58,7 +58,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(Set(labels).count, LaunchMode.allCases.count)
     }
 
-    // MARK: launch at login
+    // MARK: - launch at login
 
     func testLaunchAtLoginRoundTripsAndDefaultsToOff() {
         XCTAssertFalse(AppPreferences.launchAtLogin(in: suite))
@@ -68,7 +68,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertFalse(AppPreferences.launchAtLogin(in: suite))
     }
 
-    // MARK: auto-start fleet
+    // MARK: - auto-start fleet
 
     func testAutoStartFleetRoundTripsAndDefaultsToOff() {
         XCTAssertFalse(AppPreferences.autoStartFleet(in: suite), "an upgrade must not start the fleet by itself")

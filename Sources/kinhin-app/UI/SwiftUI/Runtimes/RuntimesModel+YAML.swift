@@ -6,7 +6,7 @@ import KinhinKit
 // `isYAMLEditorOpen` is true.
 
 extension RuntimesModel {
-    // MARK: Actions
+    // MARK: - Actions
 
     /// Edit YAML… pressed: load the file's exact bytes into the sheet. A file
     /// that cannot be read is presented instead of opening an empty editor.

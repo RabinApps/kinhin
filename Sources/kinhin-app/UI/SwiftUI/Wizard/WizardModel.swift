@@ -78,7 +78,7 @@ final class WizardModel {
         toolchains.configURL = Paths.config
     }
 
-    // MARK: Derived
+    // MARK: - Derived
 
     var header: String { "Step \(step.rawValue + 1) of \(Step.allCases.count) — \(step.title)" }
     var skipTitle: String { step == .start ? "Finish later" : "Skip for now" }
@@ -104,7 +104,7 @@ final class WizardModel {
         return missing
     }
 
-    // MARK: Navigation
+    // MARK: - Navigation
 
     func show(_ newStep: Step) {
         step = newStep
@@ -145,7 +145,7 @@ final class WizardModel {
         if step == .start { onFinishLater?() } else { next() }
     }
 
-    // MARK: Summary
+    // MARK: - Summary
 
     func refreshSummary() {
         var accounts: [AccountConfig]

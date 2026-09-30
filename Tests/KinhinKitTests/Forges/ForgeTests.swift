@@ -9,7 +9,7 @@ import XCTest
 /// token-gated image provisioning rule (an agent is baked only when that
 /// platform's token exists).
 final class ForgeTests: XCTestCase {
-    // MARK: Gitea client routing
+    // MARK: - Gitea client routing
 
     private func makeGiteaClient(scope: String) -> GiteaClient {
         let config = URLSessionConfiguration.ephemeral
@@ -89,7 +89,7 @@ final class ForgeTests: XCTestCase {
         XCTAssertNoThrow(try GiteaCredentials.validate(instance: "http://192.168.8.8:3000"))
     }
 
-    // MARK: GitHub forge mapping
+    // MARK: - GitHub forge mapping
 
     func testGitHubForgeMapsUnifiedSurface() async throws {
         let github = FakeGitHub()
@@ -107,7 +107,7 @@ final class ForgeTests: XCTestCase {
         XCTAssertEqual(forge.registrationURL(), "https://github.com/acme/widgets")
     }
 
-    // MARK: Demand merging & assignment
+    // MARK: - Demand merging & assignment
 
     func testMergeQueueByRepoAcrossForges() {
         let githubJobs = [ForgeJob(name: "a", runnerName: nil, repository: "acme/ios-app")]
@@ -154,7 +154,7 @@ final class ForgeTests: XCTestCase {
         )
     }
 
-    // MARK: Gitea demand attribution
+    // MARK: - Gitea demand attribution
 
     /// A GiteaForge whose client rides StubProtocol (make() builds its own
     /// session, which would escape the stub and hit the network).
@@ -261,7 +261,7 @@ final class ForgeTests: XCTestCase {
         XCTAssertEqual(running.compactMap(\.runnerName), ["kinhin-a"], "only busy runners attribute")
     }
 
-    // MARK: Gitea bootstrap script
+    // MARK: - Gitea bootstrap script
 
     func testGiteaRegistrationScriptSingleRunner() {
         let script = RunnerBootstrap.giteaRegistrationScript(
@@ -294,7 +294,7 @@ final class ForgeTests: XCTestCase {
                 "https://gitea.com/gitea/runner/releases/download/v3.5.0/gitea-runner-3.5.0-darwin-arm64.xz"))
     }
 
-    // MARK: Token-gated image provisioning
+    // MARK: - Token-gated image provisioning
 
     func testImagePrepareFailsWithoutAnyPlatformToken() async {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: FakeSSH())
@@ -332,7 +332,7 @@ final class ForgeTests: XCTestCase {
         XCTAssertTrue(script.contains("gitea.com/gitea/runner/releases"), "gitea runner baked when token exists")
     }
 
-    // MARK: Config gitea account
+    // MARK: - Config gitea account
 
     func testConfigParsesGiteaAccount() throws {
         let yaml = """
@@ -391,7 +391,7 @@ final class ForgeTests: XCTestCase {
         XCTAssertNil(cfg.gitea)
     }
 
-    // MARK: Version resolver
+    // MARK: - Version resolver
 
     func testVersionResolverFallsBackWhenOffline() async {
         let config = URLSessionConfiguration.ephemeral
@@ -426,7 +426,7 @@ final class ForgeTests: XCTestCase {
         XCTAssertEqual(versions.gitlab, "19.5.0")
     }
 
-    // MARK: Shared behavior
+    // MARK: - Shared behavior
 
     func testScopeAttributionFollowsTheScopeShape() {
         let org = GitHubForge(credentials: GitHubCredentials(token: "t", scope: "acme"), labels: [])

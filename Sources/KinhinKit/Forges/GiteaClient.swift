@@ -60,7 +60,7 @@ public struct GiteaClient: Sendable {
         self.session = ForgeHTTP.session(session)
     }
 
-    // MARK: Endpoints
+    // MARK: - Endpoints
 
     /// Mint a runner registration token for the scope. The same call doubles
     /// as the permission probe (free, idempotent, registers nothing).
@@ -193,7 +193,7 @@ public struct GiteaClient: Sendable {
         }
     }
 
-    // MARK: Task queue (attribution)
+    // MARK: - Task queue (attribution)
 
     /// The scope's task queue with per-task attribution. Requests up to 50
     /// entries (the same cap the count endpoint polls); entries the instance
@@ -219,7 +219,7 @@ public struct GiteaClient: Sendable {
         }
     }
 
-    // MARK: Plumbing
+    // MARK: - Plumbing
 
     /// Sends with retry on transient failures (network errors, 5xx), matching
     /// the GitHub client's resilience to blips.

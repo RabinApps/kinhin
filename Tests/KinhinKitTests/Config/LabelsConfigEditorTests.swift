@@ -31,7 +31,7 @@ final class LabelsConfigEditorTests: XCTestCase {
         return url
     }
 
-    // MARK: Reading
+    // MARK: - Reading
 
     func testReadsBothScopes() throws {
         XCTAssertEqual(try LabelsConfigEditor.labels(in: baseConfig, scope: .fleet), ["self-hosted", "macos", "arm64"])
@@ -53,7 +53,7 @@ final class LabelsConfigEditorTests: XCTestCase {
         XCTAssertEqual(try LabelsConfigEditor.labels(in: yaml, scope: .container), ["gpu", "kinhin-extra"])
     }
 
-    // MARK: Fleet scope
+    // MARK: - Fleet scope
 
     func testApplyFleetLabelsReplacesInPlaceAndPreservesComments() throws {
         let url = try tempConfig(baseConfig)
@@ -94,7 +94,7 @@ final class LabelsConfigEditorTests: XCTestCase {
             ["self-hosted", "macos", "arm64"])
     }
 
-    // MARK: Container scope
+    // MARK: - Container scope
 
     func testApplyContainerLabelsInsertsIntoContainerBlock() throws {
         let url = try tempConfig(baseConfig)
@@ -140,7 +140,7 @@ final class LabelsConfigEditorTests: XCTestCase {
         }
     }
 
-    // MARK: Routing safety
+    // MARK: - Routing safety
 
     func testContainerMarkerLabelSurvivesArbitraryEdits() throws {
         // The kinhin-container marker is what makes per-job routing safe;
@@ -162,7 +162,7 @@ final class LabelsConfigEditorTests: XCTestCase {
         XCTAssertEqual(containerPool?.labels.filter { $0 == "kinhin-container" }.count, 1)
     }
 
-    // MARK: Validation gating
+    // MARK: - Validation gating
 
     func testInvalidGlobalConfigStillBlocksWrite() throws {
         // A wrong-typed value makes the file invalid regardless of labels.
@@ -173,7 +173,7 @@ final class LabelsConfigEditorTests: XCTestCase {
         XCTAssertThrowsError(try LabelsConfigEditor.apply(["self-hosted"], scope: .fleet, to: url))
     }
 
-    // MARK: Flow-style round-trip
+    // MARK: - Flow-style round-trip
 
     func testFleetLabelsInFlowStyleAreReplacedCleanly() throws {
         // The starter template uses flow style: labels: ["a", "b"]. The

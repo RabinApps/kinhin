@@ -1,7 +1,7 @@
 import Foundation
 
 extension ConfigLoader {
-    // MARK: Toolchains section
+    // MARK: - Toolchains section
 
     /// Validates and resolves the `toolchains:` section. Beyond the usual
     /// shape checks (non-empty entries, no duplicates per list, non-negative

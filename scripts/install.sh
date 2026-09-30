@@ -164,7 +164,7 @@ esac
 echo
 echo "==> Installed kinhin${TAG:+ $TAG} to $INSTALL_DIR/kinhin.app"
 echo "    Next steps:"
-echo "      kinhin config init    # then set repo + labels in the config"
+echo "      kinhin config init    # then set accounts: + labels in the config"
 echo "      kinhin auth set       # GitHub PAT (stored in Keychain)"
 echo "      kinhin doctor         # prerequisites + capacity check"
 echo "      kinhin image prepare  # once; downloads the macOS base image"

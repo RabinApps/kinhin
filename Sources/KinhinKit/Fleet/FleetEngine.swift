@@ -38,7 +38,7 @@ public final class FleetEngine: Sendable {
     let statusBox: FleetStatusBox
     let capacity: Capacity.Plan
 
-    // MARK: Collaborators (fixed for the engine's lifetime)
+    // MARK: - Collaborators (fixed for the engine's lifetime)
 
     /// Builds the GitHub client for an account's credentials.
     let githubFactory: GitHubClientFactory
@@ -50,7 +50,7 @@ public final class FleetEngine: Sendable {
     /// tasks before handing the fleet over anyway.
     let lifecycleDrainTimeout: Duration
 
-    // MARK: Mutable state
+    // MARK: - Mutable state
 
     /// Attached forges, per-account registration-token caches and the
     /// detached-forge retry schedule.

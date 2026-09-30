@@ -118,7 +118,7 @@ final class GitHubClientTests: XCTestCase {
         XCTAssertTrue(runners[0].busy)
     }
 
-    // MARK: org scope (one fleet, many repos)
+    // MARK: - org scope (one fleet, many repos)
 
     func makeOrgClient() -> GitHubClient {
         let config = URLSessionConfiguration.ephemeral
@@ -155,7 +155,7 @@ final class GitHubClientTests: XCTestCase {
         XCTAssertEqual(makeOrgClient().configureURL, "https://github.com/organizations/acme")
     }
 
-    // MARK: fine-grained org fallback (org runs 404 → per-repo reads)
+    // MARK: - fine-grained org fallback (org runs 404 → per-repo reads)
 
     func testOrgRunsNotFoundFallsBackToPerRepoRuns() async throws {
         let orgRunsCalls = Mutex(0)

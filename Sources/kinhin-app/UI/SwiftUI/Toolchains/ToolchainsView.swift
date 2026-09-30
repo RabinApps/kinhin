@@ -39,7 +39,7 @@ struct ToolchainsView: View {
         }
     }
 
-    // MARK: Tool cards
+    // MARK: - Tool cards
 
     private var toolGroups: [(title: String, entries: [ToolchainEntry])] {
         ToolchainCategory.allCases.map { category in
@@ -114,7 +114,7 @@ struct ToolchainsView: View {
         }
     }
 
-    // MARK: Extras
+    // MARK: - Extras
 
     private var extrasCard: some View {
         FormCard(title: "Other", subtitle: "Anything not in the lists above. Comma-separated.") {
@@ -151,7 +151,7 @@ struct ToolchainsView: View {
         }
     }
 
-    // MARK: Images
+    // MARK: - Images
 
     /// One row per runtime that is actually set up, saying what its image
     /// will contain and offering a rebuild.
@@ -203,7 +203,7 @@ struct ToolchainsView: View {
         }
     }
 
-    // MARK: Footer
+    // MARK: - Footer
 
     private var footer: some View {
         HStack(spacing: 8) {

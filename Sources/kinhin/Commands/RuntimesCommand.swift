@@ -58,7 +58,7 @@ enum RuntimesCommand {
         if vm.pools.isEmpty { exit(CLIExit.general.rawValue) }
     }
 
-    // MARK: Route editing
+    // MARK: - Route editing
 
     /// The arguments after `runtimes route` when `args` is the route-editing
     /// form, else nil (bare `runtimes` / `runtimes --json …`). Exposed for
@@ -173,7 +173,7 @@ enum RuntimesCommand {
         static func usage(_ message: String) -> RouteError { RouteError(message: message) }
     }
 
-    // MARK: Text output
+    // MARK: - Text output
 
     static func printText(_ vm: RuntimesPaneViewModel, repo: String, budget: [String: Double]) {
         print("kinhin runtimes — scope: \(repo) (\(vm.routingConfigured ? "routed" : "single-pool") fleet)")
@@ -229,7 +229,7 @@ enum RuntimesCommand {
         print("Unmatched jobs → \(vm.defaultRuntime.rawValue)")
     }
 
-    // MARK: JSON output
+    // MARK: - JSON output
 
     struct PoolJSON: Codable {
         let runtime: String

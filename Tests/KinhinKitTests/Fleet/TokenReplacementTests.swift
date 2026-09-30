@@ -8,7 +8,7 @@ import XCTest
 /// credential swap (new API client + invalidated registration-token cache),
 /// and the daemon RPC that carries the swap across process boundaries.
 final class TokenReplacementTests: XCTestCase {
-    // MARK: Keychain
+    // MARK: - Keychain
 
     /// A throwaway Keychain service: this test must never touch the
     /// developer's real token (it used to delete it on every run).
@@ -36,7 +36,7 @@ final class TokenReplacementTests: XCTestCase {
         XCTAssertEqual(try KeychainTokenStore.load(), "ghp_second", "auth set must replace, not duplicate or fail")
     }
 
-    // MARK: Engine credential swap
+    // MARK: - Engine credential swap
 
     /// Factory observing every credential handed to it.
     private final class RecordingFactory: Sendable {
@@ -174,7 +174,7 @@ final class TokenReplacementTests: XCTestCase {
             github.registrationTokenCalls, 2, "post-swap registration must re-mint, not reuse the cached token")
     }
 
-    // MARK: Daemon RPC
+    // MARK: - Daemon RPC
 
     func testDaemonReplaceTokenRoundTrip() async throws {
         let recording = RecordingFactory()
@@ -205,7 +205,7 @@ final class TokenReplacementTests: XCTestCase {
         XCTAssertEqual(decoded.pat, "p")
     }
 
-    // MARK: Setup checklist contract
+    // MARK: - Setup checklist contract
 
     func testStoredTokenStillOffersReplaceAction() async {
         let computer = SetupCheckHelper.make(

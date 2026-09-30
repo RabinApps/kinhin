@@ -50,7 +50,7 @@ extension ForgeConnectionModel {
         lastWrittenInstance.isEmpty ? nil : lastWrittenInstance
     }
 
-    // MARK: Deselect
+    // MARK: - Deselect
 
     /// Whether this card has anything on disk (config entry or token) that
     /// deselecting would remove — used to skip the confirmation for a forge
@@ -80,7 +80,7 @@ extension ForgeConnectionModel {
         onChanged?()
     }
 
-    // MARK: Test hooks
+    // MARK: - Test hooks
 
     func show(_ line: Line) { status = line }
 

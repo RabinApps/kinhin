@@ -5,7 +5,7 @@ import KinhinKit
 
 @MainActor
 extension AppDelegate {
-    // MARK: Application menu (menu bar while the app has a window)
+    // MARK: - Application menu (menu bar while the app has a window)
 
     /// The standard macOS menu bar: app menu (Settings…, Quit), Edit (so
     /// copy/paste work in every field), and Window. Installed once; the
@@ -59,7 +59,7 @@ extension AppDelegate {
         NSApp.mainMenu = main
     }
 
-    // MARK: Menu state
+    // MARK: - Menu state
 
     /// Start/Stop/Pause/Resume only enable when they would do something.
     /// While a start/stop is in flight the fleet controls all disable — the

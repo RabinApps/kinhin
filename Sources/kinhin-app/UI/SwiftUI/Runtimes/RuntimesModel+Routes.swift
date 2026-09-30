@@ -6,7 +6,7 @@ import KinhinKit
 // `routeOffer` is non-nil.
 
 extension RuntimesModel {
-    // MARK: Sheet state
+    // MARK: - Sheet state
 
     /// The open Add Route sheet's inputs: which runtimes a new route may
     /// target (tart always, configured Linux runtimes, and host, which needs
@@ -16,7 +16,7 @@ extension RuntimesModel {
         var id: [RuntimeID] { runtimes }
     }
 
-    // MARK: Pure helpers (shared with tests)
+    // MARK: - Pure helpers (shared with tests)
 
     /// The Add Route sheet's checkbox text (replaces RuntimesSheets.hostConsentTitle).
     static let hostConsentTitle = "Host only: run this repo's code directly on my Mac, unisolated"
@@ -63,7 +63,7 @@ extension RuntimesModel {
         return ids
     }
 
-    // MARK: Actions
+    // MARK: - Actions
 
     /// Add Route… pressed: build the offer for the sheet, or explain why
     /// there is nothing to offer yet. Never a silent no-op.

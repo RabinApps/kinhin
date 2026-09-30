@@ -18,7 +18,7 @@ final class StatusRenderingTests: XCTestCase {
         originalItems = menu.items
     }
 
-    // MARK: status-bar title
+    // MARK: - status-bar title
 
     func testTitleForStoppedFleet() {
         XCTAssertEqual(delegate.statusTitle(for: FleetStatus()), "○")
@@ -49,7 +49,7 @@ final class StatusRenderingTests: XCTestCase {
         XCTAssertEqual(delegate.statusTitle(for: status), "○ 2")
     }
 
-    // MARK: status line
+    // MARK: - status line
 
     func testLineForStoppedFleet() {
         XCTAssertTrue(delegate.statusLine(for: FleetStatus()).hasPrefix("Stopped — queue 0 · desired 0 · cap 0"))
@@ -145,7 +145,7 @@ final class StatusRenderingTests: XCTestCase {
         XCTAssertFalse(delegate.statusLine(for: status).contains("↳"))
     }
 
-    // MARK: apply(status:) wiring
+    // MARK: - apply(status:) wiring
 
     func testApplyUpdatesTitleAndStatusLineItem() {
         var status = FleetStatus()
@@ -172,7 +172,7 @@ final class StatusRenderingTests: XCTestCase {
         XCTAssertNil(delegate.lastStatus)
     }
 
-    // MARK: pending start/stop (in-flight command)
+    // MARK: - pending start/stop (in-flight command)
 
     func testPendingActionOverridesTitleAndStatusLine() {
         var status = FleetStatus()
@@ -217,7 +217,7 @@ final class StatusRenderingTests: XCTestCase {
         XCTAssertFalse(delegate.validateMenuItem(start!), "a running fleet still disables Start")
     }
 
-    // MARK: VM section rebuild
+    // MARK: - VM section rebuild
 
     func testVMSectionListsEachRecordWithDetails() {
         var busy = record(phase: .busy)
@@ -275,7 +275,7 @@ final class StatusRenderingTests: XCTestCase {
         XCTAssertEqual(Array(menu.items[..<before]), originalItems)
     }
 
-    // MARK: helpers
+    // MARK: - helpers
 
     private func record(phase: VMPhase) -> VMRecord {
         var record = VMRecord(id: "kinhin-\(phase.rawValue)-test", phase: phase)

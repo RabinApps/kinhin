@@ -1,4 +1,3 @@
-import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -11,95 +10,19 @@ import XCTest
 final class AuthCommandTests: XCTestCase {
     // MARK: - Recording doubles
 
-    private struct AuthFailure: Error { let message: String }
-    private struct AuthExit: Error { let code: Int }
-    private struct SaveError: Error {}
-    private struct CheckError: Error {}
-
-    private struct Snapshot: Sendable {
-        var events: [String] = []
-        var saved: [(token: String, forge: ForgeID)] = []
-        var deleted: [ForgeID] = []
-        var notified: [(token: String, forge: ForgeID)] = []
-        var checkedGitHub: [GitHubCredentials] = []
-        var checkedGitea: [GiteaCredentials] = []
-    }
-
-    /// Recording double; all state is Mutex-guarded so its closures are
-    /// `@Sendable` (AuthEnvironment requires Sendable closure fields).
-    private final class Recorder: Sendable {
-        private let state = Mutex(Snapshot())
-        var events: [String] { state.withLock { $0.events } }
-        var saved: [(token: String, forge: ForgeID)] { state.withLock { $0.saved } }
-        var deleted: [ForgeID] { state.withLock { $0.deleted } }
-        var notified: [(token: String, forge: ForgeID)] { state.withLock { $0.notified } }
-        var checkedGitHub: [GitHubCredentials] { state.withLock { $0.checkedGitHub } }
-        var checkedGitea: [GiteaCredentials] { state.withLock { $0.checkedGitea } }
-
-        func append(_ keyPath: WritableKeyPath<Snapshot, [String]>, _ value: String) {
-            state.withLock { $0[keyPath: keyPath] = $0[keyPath: keyPath] + [value] }
-        }
-        func recordSave(_ token: String, _ forge: ForgeID) {
-            state.withLock {
-                $0.saved.append((token, forge)); $0.events.append("save:\(forge.rawValue)")
-            }
-        }
-        func recordDelete(_ forge: ForgeID) {
-            state.withLock {
-                $0.deleted.append(forge); $0.events.append("delete:\(forge.rawValue)")
-            }
-        }
-        func recordNotify(_ token: String, _ forge: ForgeID) {
-            state.withLock {
-                $0.notified.append((token, forge)); $0.events.append("notify:\(forge.rawValue)")
-            }
-        }
-        func recordCheck(_ forge: ForgeID, _ credentials: GitHubCredentials) {
-            state.withLock {
-                $0.checkedGitHub.append(credentials); $0.events.append("check:github")
-            }
-        }
-        func recordCheck(_ forge: ForgeID, _ credentials: GiteaCredentials) {
-            state.withLock {
-                $0.checkedGitea.append(credentials); $0.events.append("check:gitea")
-            }
-        }
-    }
-
+    // The error types, the recorder, and the environment builder are shared
+    // with AuthAccountsCommandTests (see AuthTestSupport.swift).
     private func makeEnvironment(
         stored: [ForgeID: String] = [:],
         config: KinhinConfig,
         readToken: (@Sendable () -> String?)? = nil,
         checkError: Error? = nil,
         saveError: Error? = nil,
-        _ recorder: Recorder
+        _ recorder: AuthRecorder
     ) -> AuthEnvironment {
-        let frozen = config
-        return AuthEnvironment(
-            save: { token, forge in
-                if let saveError { throw saveError }
-                recorder.recordSave(token, forge)
-            },
-            load: { stored[$0] },
-            delete: { forge in
-                recorder.recordDelete(forge)
-            },
-            readToken: readToken ?? { nil },
-            checkGitHub: { credentials in
-                recorder.recordCheck(.github, credentials)
-                if let checkError { throw checkError }
-            },
-            checkGitea: { credentials in
-                recorder.recordCheck(.gitea, credentials)
-                if let checkError { throw checkError }
-            },
-            loadConfig: { frozen },
-            notifyDaemon: { token, forge in
-                recorder.recordNotify(token, forge)
-            },
-            fail: { throw AuthFailure(message: $0) },
-            exit: { throw AuthExit(code: $0) }
-        )
+        makeRecorderEnvironment(
+            stored: stored, config: config, readToken: readToken, checkError: checkError,
+            saveError: saveError, recorder: recorder)
     }
 
     private func workingConfig(gitea: Bool = false) -> KinhinConfig {
@@ -123,7 +46,7 @@ final class AuthCommandTests: XCTestCase {
         do {
             try await AuthCommand.run(args, environment: environment)
             XCTFail("expected fail() for \(args)", file: file, line: line)
-        } catch let error as AuthFailure {
+        } catch let error as AuthTestSupport.AuthFailure {
             XCTAssertEqual(error.message, expected, file: file, line: line)
         } catch {
             XCTFail("expected AuthFailure, got \(error)", file: file, line: line)
@@ -139,7 +62,7 @@ final class AuthCommandTests: XCTestCase {
         do {
             try await AuthCommand.run(args, environment: environment)
             XCTFail("expected exit(1) for \(args)", file: file, line: line)
-        } catch let error as AuthExit {
+        } catch let error as AuthTestSupport.AuthExit {
             XCTAssertEqual(error.code, 1, file: file, line: line)
         } catch {
             XCTFail("expected AuthExit, got \(error)", file: file, line: line)
@@ -149,7 +72,7 @@ final class AuthCommandTests: XCTestCase {
     // MARK: - set (explicit --token)
 
     func testSetExplicitTokenSavesAndNotifiesGitHub() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(), recorder)
 
         try await AuthCommand.run(["auth", "set", "--token", "ghp_abc123"], environment: env)
@@ -162,7 +85,7 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testSetExplicitGiteaTokenSavesAndNotifiesGitea() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(gitea: true), recorder)
 
         try await AuthCommand.run(["auth", "set", "--gitea", "--token", "gt_secret"], environment: env)
@@ -175,7 +98,7 @@ final class AuthCommandTests: XCTestCase {
 
     func testGiteaFlagIsPositionIndependent() async throws {
         // --gitea is scanned from the whole arg list, not just the head.
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(gitea: true), recorder)
 
         try await AuthCommand.run(["auth", "set", "--token", "gt_1", "--gitea"], environment: env)
@@ -184,7 +107,7 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testSaveThenNotifyHappensInOrder() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(), recorder)
 
         try await AuthCommand.run(["auth", "set", "--token", "t"], environment: env)
@@ -195,7 +118,7 @@ final class AuthCommandTests: XCTestCase {
     // MARK: - set (hidden input)
 
     func testSetReadsHiddenInputAndTrimsIt() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(
             config: workingConfig(),
             readToken: { "  ghp_pasted \n" },
@@ -210,7 +133,7 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testSetWithBlankInputFailsWithoutSaving() async {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(), readToken: { "   " }, recorder)
 
         await expectFailure(["auth", "set"], message: "no token entered", environment: env)
@@ -220,7 +143,7 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testSetWithClosedInputFails() async {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(), readToken: { nil }, recorder)
 
         await expectFailure(["auth", "set"], message: "no token entered", environment: env)
@@ -231,13 +154,13 @@ final class AuthCommandTests: XCTestCase {
     // MARK: - set (failure propagation)
 
     func testSaveFailurePropagatesAndSkipsNotification() async {
-        let recorder = Recorder()
-        let env = makeEnvironment(config: workingConfig(), saveError: SaveError(), recorder)
+        let recorder = AuthRecorder()
+        let env = makeEnvironment(config: workingConfig(), saveError: AuthTestSupport.SaveError(), recorder)
 
         do {
             try await AuthCommand.run(["auth", "set", "--token", "t"], environment: env)
             XCTFail("expected the save error to propagate")
-        } catch is SaveError {
+        } catch is AuthTestSupport.SaveError {
             // propagated untouched — the CLI's top-level handler prints it
         } catch {
             XCTFail("unexpected error \(error)")
@@ -249,7 +172,7 @@ final class AuthCommandTests: XCTestCase {
     // MARK: - status (GitHub)
 
     func testStatusWithoutStoredTokenExits1() async {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(), recorder)
 
         await expectExit1(["auth", "status"], environment: env)
@@ -258,7 +181,7 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testStatusProbesWithStoredTokenAndConfiguredScope() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(
             stored: [.github: "ghp_live"],
             config: workingConfig(),
@@ -273,11 +196,11 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testStatusCheckFailureExits1() async {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(
             stored: [.github: "ghp_dead"],
             config: workingConfig(),
-            checkError: CheckError(),
+            checkError: AuthTestSupport.CheckError(),
             recorder
         )
 
@@ -288,7 +211,7 @@ final class AuthCommandTests: XCTestCase {
     // MARK: - status (Gitea)
 
     func testGiteaStatusWithoutStoredTokenExits1() async {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(gitea: true), recorder)
 
         await expectExit1(["auth", "status", "--gitea"], environment: env)
@@ -297,7 +220,7 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testGiteaStatusWithoutGiteaConfigSectionFails() async {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(stored: [.gitea: "gt_live"], config: workingConfig(), recorder)
 
         await expectFailure(
@@ -309,7 +232,7 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testGiteaStatusProbesWithStoredTokenInstanceAndScope() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(
             stored: [.gitea: "gt_live"],
             config: workingConfig(gitea: true),
@@ -326,7 +249,7 @@ final class AuthCommandTests: XCTestCase {
 
     /// --forgejo checks the Forgejo account, never the Gitea one.
     func testForgejoStatusProbesTheForgejoAccount() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         var cfg = workingConfig(gitea: true)
         cfg.accounts.append(
             AccountConfig(name: "forgejo", forge: .forgejo, scope: "team/app", instance: "https://codeberg.example"))
@@ -341,11 +264,11 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testGiteaStatusCheckFailureExits1() async {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(
             stored: [.gitea: "gt_dead"],
             config: workingConfig(gitea: true),
-            checkError: CheckError(),
+            checkError: AuthTestSupport.CheckError(),
             recorder
         )
 
@@ -355,7 +278,7 @@ final class AuthCommandTests: XCTestCase {
     // MARK: - clear
 
     func testClearDeletesGitHubToken() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(stored: [.github: "t"], config: workingConfig(), recorder)
 
         try await AuthCommand.run(["auth", "clear"], environment: env)
@@ -365,7 +288,7 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testClearGiteaDeletesGiteaToken() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(), recorder)
 
         try await AuthCommand.run(["auth", "clear", "--gitea"], environment: env)
@@ -376,7 +299,7 @@ final class AuthCommandTests: XCTestCase {
     // MARK: - subcommand parsing quirks
 
     func testBareAuthBehavesLikeSet() async throws {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(), readToken: { "tok" }, recorder)
 
         try await AuthCommand.run(["auth"], environment: env)
@@ -385,7 +308,7 @@ final class AuthCommandTests: XCTestCase {
     }
 
     func testUnknownSubcommandFails() async {
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(), recorder)
 
         await expectFailure(
@@ -399,7 +322,7 @@ final class AuthCommandTests: XCTestCase {
         // Historical quirk pinned: only the head token selects the
         // subcommand, so `kinhin auth --token X` (no "set") is an unknown
         // subcommand, not a set. The flag must follow "set".
-        let recorder = Recorder()
+        let recorder = AuthRecorder()
         let env = makeEnvironment(config: workingConfig(), recorder)
 
         await expectFailure(

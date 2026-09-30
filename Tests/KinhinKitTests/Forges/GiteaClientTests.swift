@@ -57,7 +57,7 @@ final class GiteaClientTests: XCTestCase {
         }
     }
 
-    // MARK: Task queue (attribution)
+    // MARK: - Task queue (attribution)
 
     func testQueuedTasksParsesAttribution() async throws {
         StubProtocol.handler = { request in

@@ -41,7 +41,7 @@ Open-Anyway dance only applies to old releases or locally built copies.
 # 1. Create a starter config
 kinhin config init
 #    edit ~/Library/Application Support/Kinhin/config.yaml
-#    -> set repo: "your-org/your-repo" and the labels jobs will request
+#    -> set the accounts: entry (name/forge/scope) and the labels jobs will request
 
 # 2. Store a GitHub PAT (repo scope) — it goes in your Keychain, not a file
 kinhin auth set

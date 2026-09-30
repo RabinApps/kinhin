@@ -39,17 +39,17 @@ final class FleetIntentTests: XCTestCase {
 
     func testErrorsPropagate() async {
         let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
-        bridge.error = FleetAccessError.notSetUp
+        bridge.error = EngineError.fleetNotSetUp
         FleetIntentEnvironment.bridge = bridge
         do {
             _ = try await FleetStatusIntent().perform()
             XCTFail("expected throw")
         } catch {
-            XCTAssertTrue(error is FleetAccessError)
+            XCTAssertTrue(error is EngineError)
         }
     }
 
-    // MARK: Start/Stop intents
+    // MARK: - Start/Stop intents
 
     func testStartRunsOnlyWhenStopped() async throws {
         let bridge = FakeFleetIntentBridge(FleetStatus(running: false))
@@ -96,7 +96,7 @@ final class FleetIntentTests: XCTestCase {
         XCTAssertTrue(text.hasPrefix("Stopped."), "got: \(text)")
     }
 
-    // MARK: Delete VM intent
+    // MARK: - Delete VM intent
 
     private func statusWithVM(_ id: String) -> FleetStatus {
         FleetStatus(running: true, records: [VMRecord(id: id, phase: .busy)])
@@ -188,7 +188,7 @@ final class FleetIntentTests: XCTestCase {
 
     func testFailedPauseAbortsTheDelete() async {
         let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
-        bridge.pauseError = FleetAccessError.notSetUp
+        bridge.pauseError = EngineError.fleetNotSetUp
         FleetIntentEnvironment.bridge = bridge
         do {
             _ = try await DeleteVMAction.run(id: "vm-1", pauseFirst: true)
@@ -211,18 +211,18 @@ final class FleetIntentTests: XCTestCase {
 
     func testDeleteErrorsPropagate() async {
         let bridge = FakeFleetIntentBridge(statusWithVM("vm-1"))
-        bridge.error = FleetAccessError.notSetUp
+        bridge.error = EngineError.fleetNotSetUp
         FleetIntentEnvironment.bridge = bridge
         do {
             _ = try await DeleteVMAction.run(id: "vm-1")
             XCTFail("expected throw")
         } catch {
-            XCTAssertTrue(error is FleetAccessError)
+            XCTAssertTrue(error is EngineError)
             XCTAssertTrue(bridge.deleteCalls.isEmpty)
         }
     }
 
-    // MARK: Diagnose VM intent
+    // MARK: - Diagnose VM intent
 
     private func statusWithStalledVM() -> FleetStatus {
         var record = VMRecord(id: "vm-1", phase: .failed)
@@ -247,17 +247,17 @@ final class FleetIntentTests: XCTestCase {
 
     func testDiagnoseErrorsPropagate() async {
         let bridge = FakeFleetIntentBridge(statusWithStalledVM())
-        bridge.error = FleetAccessError.notSetUp
+        bridge.error = EngineError.fleetNotSetUp
         FleetIntentEnvironment.bridge = bridge
         do {
             _ = try await DiagnoseVMAction.run(id: "vm-1")
             XCTFail("expected throw")
         } catch {
-            XCTAssertTrue(error is FleetAccessError)
+            XCTAssertTrue(error is EngineError)
         }
     }
 
-    // MARK: Auto-resume intents
+    // MARK: - Auto-resume intents
 
     func testEnableAutoResumeRunsOnceAndIsIdempotent() async throws {
         let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
@@ -289,13 +289,13 @@ final class FleetIntentTests: XCTestCase {
 
     func testAutoResumeErrorsPropagate() async {
         let bridge = FakeFleetIntentBridge(FleetStatus(running: true))
-        bridge.error = FleetAccessError.notSetUp
+        bridge.error = EngineError.fleetNotSetUp
         FleetIntentEnvironment.bridge = bridge
         do {
             _ = try await SetAutoResumeAction.run(on: true)
             XCTFail("expected throw")
         } catch {
-            XCTAssertTrue(error is FleetAccessError)
+            XCTAssertTrue(error is EngineError)
             XCTAssertTrue(bridge.autoResumeCalls.isEmpty)
         }
     }

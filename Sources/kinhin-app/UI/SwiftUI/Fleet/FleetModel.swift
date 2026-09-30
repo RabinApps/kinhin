@@ -73,7 +73,7 @@ final class FleetModel {
         if paused { onResume() } else { onPause() }
     }
 
-    // MARK: Row text
+    // MARK: - Row text
 
     func title(for record: VMRecord) -> String { "• \(record.id) — \(record.phase.rawValue)" }
 

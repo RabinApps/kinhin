@@ -55,7 +55,7 @@ final class TartBaseImageTests: XCTestCase {
         XCTAssertFalse(TartBaseImage.isKnownSource("ubuntu-scratch"))
     }
 
-    // MARK: digest pinning
+    // MARK: - digest pinning
 
     private static let digest = "sha256:\(String(repeating: "ab", count: 32))"
 

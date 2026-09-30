@@ -31,7 +31,7 @@ public struct RegistryDigestResolver: DigestResolving, Sendable {
         }
     }
 
-    // MARK: Reference parsing
+    // MARK: - Reference parsing
 
     struct Reference {
         let host: String
@@ -69,7 +69,7 @@ public struct RegistryDigestResolver: DigestResolving, Sendable {
             tag: tag)
     }
 
-    // MARK: Resolution
+    // MARK: - Resolution
 
     /// The `sha256:…` digest the registry currently serves for `reference`.
     /// Throws `ImageError.malformedVersionFeed` for an unreachable registry

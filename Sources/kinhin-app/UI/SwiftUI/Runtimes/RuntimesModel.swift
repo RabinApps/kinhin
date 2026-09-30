@@ -16,7 +16,7 @@ import Observation
 final class RuntimesModel: ConfigFormModel {
     typealias Line = StatusLine
 
-    // MARK: Injectable seams (kept from the AppKit pane)
+    // MARK: - Injectable seams (kept from the AppKit pane)
 
     /// The config file this pane reads and edits (tests point it at a scratch file).
     @ObservationIgnored var configURL: URL = Paths.config
@@ -30,7 +30,7 @@ final class RuntimesModel: ConfigFormModel {
     /// assertions are exact instead of machine-dependent).
     @ObservationIgnored var hostSnapshot: () -> HostResources = { ResourceProbe().snapshot() }
 
-    // MARK: Read state
+    // MARK: - Read state
 
     private(set) var viewModel: RuntimesPaneViewModel?
     private(set) var repo = ""
@@ -49,7 +49,7 @@ final class RuntimesModel: ConfigFormModel {
         let isDefault: Bool
     }
 
-    // MARK: Editing state
+    // MARK: - Editing state
 
     /// The routing section currently on disk (baseline for every edit).
     @ObservationIgnored var currentRuntimeConfig: KinhinConfig.RuntimeConfig?
@@ -62,7 +62,7 @@ final class RuntimesModel: ConfigFormModel {
     var remainderNote = ""
     var starvedRoutes: [String] = []
 
-    // MARK: Label fields
+    // MARK: - Label fields
 
     /// What the label fields show. Settable by the view while the user
     /// types; committed through `commitLabels` on Enter or focus loss.
@@ -71,7 +71,7 @@ final class RuntimesModel: ConfigFormModel {
     var labelsStatus = Line(text: "")
     var showsContainerLabels: Bool { viewModel?.containerConfigured == true }
 
-    // MARK: Loading
+    // MARK: - Loading
 
     /// Two-pass load: cards render immediately (health marked "checking…"),
     /// then live probe results flip the chips in place — the pane never
@@ -145,7 +145,7 @@ final class RuntimesModel: ConfigFormModel {
         refreshBudgetPreviews(budget: currentRuntimeConfig?.budget ?? [:])
     }
 
-    // MARK: Pool display
+    // MARK: - Pool display
 
     /// The "On this Mac" rows: what's installed vs not, and whether the
     /// config actually uses it.
@@ -232,7 +232,7 @@ final class RuntimesModel: ConfigFormModel {
         currentRuntimeConfig?.budget[runtime.rawValue] ?? 0
     }
 
-    // MARK: Sheets (Add Route / Edit YAML)
+    // MARK: - Sheets (Add Route / Edit YAML)
 
     // Settable from the sheet-lifecycle extensions (RuntimesModel+Routes,
     // RuntimesModel+YAML); the views only read them or bind for presentation.
@@ -248,13 +248,13 @@ final class RuntimesModel: ConfigFormModel {
     /// The config's exact on-disk bytes, captured when the YAML editor opened.
     var yamlAtOpen = ""
 
-    // MARK: Errors
+    // MARK: - Errors
 
     func presentError(_ error: Error) {
         AlertKit.present(error: error, title: "Couldn't update the routing config")
     }
 
-    // MARK: Display helpers (shared with tests)
+    // MARK: - Display helpers (shared with tests)
 
     /// "On this Mac" row title: what's installed vs not, and whether the
     /// config actually uses it.

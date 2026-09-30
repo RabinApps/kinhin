@@ -32,7 +32,7 @@ final class AppSectionModel {
         autoStartFleet = AppPreferences.autoStartFleet(in: prefs)
     }
 
-    // MARK: Launch
+    // MARK: - Launch
 
     /// Applies a launch mode, persists it and tells the app.
     func setLaunchMode(_ mode: LaunchMode) {
@@ -53,7 +53,7 @@ final class AppSectionModel {
         AppPreferences.setAutoStartFleet(enabled, in: prefs)
     }
 
-    // MARK: Updates
+    // MARK: - Updates
 
     /// What the update card says, and whether its button can be pressed.
     var updateText: String {

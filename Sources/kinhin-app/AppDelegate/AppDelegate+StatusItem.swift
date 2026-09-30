@@ -5,7 +5,7 @@ import KinhinKit
 
 @MainActor
 extension AppDelegate {
-    // MARK: Status item & menu
+    // MARK: - Status item & menu
 
     func installStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -87,7 +87,7 @@ extension AppDelegate {
         menu?.items.first { $0.identifier?.rawValue == "statusLine" }
     }
 
-    // MARK: Status rendering (pure, unit-tested)
+    // MARK: - Status rendering (pure, unit-tested)
 
     /// The status-bar title for a fleet state: plain circle when idle or
     /// stopped, ⏸ when paused, and an active-VM count when busy.

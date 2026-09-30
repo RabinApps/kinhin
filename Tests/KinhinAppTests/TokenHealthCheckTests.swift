@@ -8,7 +8,7 @@ import XCTest
 /// against the forge API and reports a user-readable verdict. Pure logic —
 /// no AppKit state is exercised here.
 final class TokenHealthCheckTests: XCTestCase {
-    // MARK: Token health check
+    // MARK: - Token health check
 
     private func giteaClient() -> GiteaClient {
         // Real client pointed at an unroutable instance: the failure path

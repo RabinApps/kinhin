@@ -10,7 +10,7 @@ final class ErrorHandlingTests: XCTestCase {
         var errorDescription: String? { "boom" }
     }
 
-    // MARK: bestEffort
+    // MARK: - bestEffort
 
     func testBestEffortSwallowsButLogsFailure() async {
         let marker = "best-effort-\(UUID().uuidString)"
@@ -24,7 +24,7 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertFalse(Log.snapshot(limit: 50).contains { $0.message.contains(marker) })
     }
 
-    // MARK: withTransientRetry
+    // MARK: - withTransientRetry
 
     func testRetryRecoversFromTransientFailure() async throws {
         var calls = 0
@@ -72,7 +72,7 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertFalse(GiteaClient.isTransient(GiteaError.notFound("x")))
     }
 
-    // MARK: Tart runtime
+    // MARK: - Tart runtime
 
     func testTartProvisionSurfacesListFailureInsteadOfCloningBlind() async {
         let tart = FakeTart()
@@ -108,7 +108,7 @@ final class ErrorHandlingTests: XCTestCase {
         } catch {}
     }
 
-    // MARK: Config edit errors
+    // MARK: - Config edit errors
 
     func testConfigEditErrorMessages() {
         XCTAssertEqual(ConfigEditError.notFound("/x").errorDescription, "config not found at /x")
@@ -116,7 +116,7 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertTrue(ConfigEditError.rejected("bad").errorDescription?.hasPrefix("config validation failed") == true)
     }
 
-    // MARK: Paths
+    // MARK: - Paths
 
     func testSupportDirectoriesResolveWithoutTrapping() {
         XCTAssertEqual(Paths.appSupport.lastPathComponent, "Kinhin")

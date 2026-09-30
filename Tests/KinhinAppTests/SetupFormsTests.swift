@@ -302,7 +302,7 @@ final class SetupFormsTests: XCTestCase {
         XCTAssertTrue(model.busyLine.text.contains("config.yaml can't be read"), model.busyLine.text)
     }
 
-    // MARK: Install flow
+    // MARK: - Install flow
 
     private func installModel(
         shell: FakeShell, brew: String? = "/opt/homebrew/bin/brew",

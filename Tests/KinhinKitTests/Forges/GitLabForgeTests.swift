@@ -27,7 +27,7 @@ final class GitLabForgeTests: XCTestCase {
             labels: labels, client: client, scope: scope, runnerListTTL: 0)
     }
 
-    // MARK: Forge surface
+    // MARK: - Forge surface
 
     func testIdentityAndBehavior() {
         let forge = makeForge(server: FakeGitLabServer())
@@ -83,7 +83,7 @@ final class GitLabForgeTests: XCTestCase {
         XCTAssertEqual(runner?.online, true)
     }
 
-    // MARK: Engine round trip
+    // MARK: - Engine round trip
 
     func testEngineRunsAGitLabInstanceUntilItsRunnerDeletesItself() async throws {
         let server = FakeGitLabServer()

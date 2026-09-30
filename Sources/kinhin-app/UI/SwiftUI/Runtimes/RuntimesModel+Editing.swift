@@ -69,7 +69,7 @@ extension RuntimesModel {
     func commit(budget: [String: Double], defaultRuntime: String, refreshPane: Bool = true) {
         guard var rc = currentRuntimeConfig else { return }
         if let problem = BudgetEditor.validate(budget) {
-            presentError(NSError(domain: "kinhin", code: 2, userInfo: [NSLocalizedDescriptionKey: problem]))
+            presentError(ConfigEditError.validation(problem))
             reload()  // snap sliders back to the on-disk truth
             return
         }
@@ -86,7 +86,7 @@ extension RuntimesModel {
         }
     }
 
-    // MARK: Labels
+    // MARK: - Labels
 
     func refreshLabelFields() {
         let yaml = ConfigStore.textOrLog(at: configURL)

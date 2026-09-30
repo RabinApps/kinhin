@@ -37,7 +37,7 @@ final class FleetEdgeTests: XCTestCase {
         XCTFail("condition not met within \(timeout)s")
     }
 
-    // MARK: Disk-pressure guard
+    // MARK: - Disk-pressure guard
 
     func testDiskPressureHoldsSpawnsAndSurfacesLastError() async throws {
         let tart = FakeTart()
@@ -108,7 +108,7 @@ final class FleetEdgeTests: XCTestCase {
         }
     }
 
-    // MARK: Auto-resume while paused
+    // MARK: - Auto-resume while paused
 
     func testAutoResumeReleasesOnlyWhenTheQueueDrains() async throws {
         let tart = FakeTart()

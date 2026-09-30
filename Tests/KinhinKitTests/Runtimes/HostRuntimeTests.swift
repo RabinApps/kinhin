@@ -14,7 +14,7 @@ final class HostRuntimeTests: XCTestCase {
         return (HostRuntime(shell: shell, agentDir: dir), shell, dir)
     }
 
-    // MARK: Config validation (the consent gate)
+    // MARK: - Config validation (the consent gate)
 
     func testHostRouteWithoutConsentIsRejected() {
         XCTAssertThrowsError(
@@ -101,7 +101,7 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertFalse(cfg.hostRoutesConfigured)
     }
 
-    // MARK: Health
+    // MARK: - Health
 
     func testHealthMissingWhenAgentAbsent() async {
         let (runtime, _, _) = makeRuntime()
@@ -126,7 +126,7 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertTrue(fix.contains("kinhin setup repair host-agent"))
     }
 
-    // MARK: Provision / teardown lifecycle
+    // MARK: - Provision / teardown lifecycle
 
     func testProvisionCreatesWorkDirAndTeardownScrubsIt() async throws {
         let (runtime, _, _) = makeRuntime()
@@ -153,7 +153,7 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertNil(ip, "exec transport needs no address")
     }
 
-    // MARK: Registration script
+    // MARK: - Registration script
 
     private func giteaForge(family: ForgeID = .gitea, labels: [String] = ["macos:host"]) -> GiteaForge {
         let config = URLSessionConfiguration.ephemeral
@@ -294,7 +294,7 @@ final class HostRuntimeTests: XCTestCase {
             id: "kinhin-host1", route: RepoRoute(repo: "acme", image: "img", ephemeral: true, bootTimeout: 5))
     }
 
-    // MARK: Pool labels
+    // MARK: - Pool labels
 
     func testHostPoolRegistersWithExclusiveMarker() {
         let labels = RuntimePool.labelsFor(.host, fleetLabels: ["self-hosted"])
@@ -318,7 +318,7 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertEqual(fallback.pool.runtime, .tart)
     }
 
-    // MARK: Capacity
+    // MARK: - Capacity
 
     func testHostSlotsParticipateInTheBudgetPartition() {
         let partition = RuntimeCapacity.partition(

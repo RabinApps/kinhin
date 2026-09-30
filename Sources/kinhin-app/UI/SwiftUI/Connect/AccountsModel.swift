@@ -18,7 +18,7 @@ final class AccountsModel: ConfigFormModel {
         var id: String { account.name }
     }
 
-    // MARK: Injectable seams
+    // MARK: - Injectable seams
 
     /// The config file this section edits (tests point it at a scratch file).
     var configURL: URL = Paths.config
@@ -42,7 +42,7 @@ final class AccountsModel: ConfigFormModel {
     /// Fired after any successful token or config change.
     @ObservationIgnored var onChanged: (() -> Void)?
 
-    // MARK: State
+    // MARK: - State
 
     private(set) var rows: [Row] = []
     /// Pasted-token text per account name.
@@ -58,7 +58,7 @@ final class AccountsModel: ConfigFormModel {
 
     private static let storedText = "Token stored in your Keychain ✓ — paste a new one only to replace it."
 
-    // MARK: Forge-specific add-form text
+    // MARK: - Forge-specific add-form text
 
     /// The scope field's prompt: GitLab scopes nest.
     func scopePlaceholder(for forge: ForgeID) -> String {
@@ -94,7 +94,7 @@ final class AccountsModel: ConfigFormModel {
         }
     }
 
-    // MARK: Loading
+    // MARK: - Loading
 
     /// Re-reads the accounts list and Keychain state (Keychain reads run off
     /// the main thread; they can block on a system prompt).
@@ -141,7 +141,7 @@ final class AccountsModel: ConfigFormModel {
         tokenTexts = tokenTexts.filter { name, _ in accounts.contains { $0.name == name } }
     }
 
-    // MARK: Add / remove
+    // MARK: - Add / remove
 
     /// Adds the account described by the "new account" fields to config.yaml.
     func addAccount() {
@@ -187,7 +187,7 @@ final class AccountsModel: ConfigFormModel {
         onChanged?()
     }
 
-    // MARK: Token
+    // MARK: - Token
 
     /// Verifies the pasted token for the account, then stores it.
     func connect(_ name: String) {
@@ -228,14 +228,14 @@ final class AccountsModel: ConfigFormModel {
         change(&rows[index])
     }
 
-    // MARK: Live verification
+    // MARK: - Live verification
 
     static func liveVerify(_ account: AccountConfig, token: String) async -> StatusLine {
         let report = await TokenHealthCheck.account(account, token: token)
         return StatusLine(text: report.message, style: report.ok ? .ok : .error)
     }
 
-    // MARK: Test hooks
+    // MARK: - Test hooks
 
     func setTokenTextForTesting(_ name: String, _ text: String) { tokenTexts[name] = text }
 }

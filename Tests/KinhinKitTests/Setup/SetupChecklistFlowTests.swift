@@ -12,7 +12,7 @@ import XCTest
 /// covers what those leave open: combined Gitea+container ordering, the full
 /// CLT state table, and readiness biconditionals.
 final class SetupChecklistFlowTests: XCTestCase {
-    // MARK: Fixtures
+    // MARK: - Fixtures
 
     private func host(arm64: Bool = true) -> HostResources {
         HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: arm64)
@@ -64,7 +64,7 @@ final class SetupChecklistFlowTests: XCTestCase {
         )
     }
 
-    // MARK: Check computation — CLT state → row + action
+    // MARK: - Check computation — CLT state → row + action
 
     func testCLTStatesMapToOkFlagAndFixAction() async {
         let states: [(String, CLTState, Bool, String?)] = [
@@ -107,7 +107,7 @@ final class SetupChecklistFlowTests: XCTestCase {
         XCTAssertTrue(row?.detail.contains("26.9") ?? false)
     }
 
-    // MARK: Check computation — Gitea row appears only when configured
+    // MARK: - Check computation — Gitea row appears only when configured
 
     func testGiteaRowAbsentWhenForgeNotConfigured() async {
         let status = await readyComputer().compute()
@@ -128,7 +128,7 @@ final class SetupChecklistFlowTests: XCTestCase {
         XCTAssertTrue(stored.ready, "a stored Gitea token satisfies the row")
     }
 
-    // MARK: Ordering — optional rows keep a deterministic position
+    // MARK: - Ordering — optional rows keep a deterministic position
 
     func testGiteaRowSitsBetweenTokenAndImage() async {
         let status = await readyComputer(gitea: true).compute()
@@ -168,7 +168,7 @@ final class SetupChecklistFlowTests: XCTestCase {
             ["arch", "clt", "tart-rollback", "config", "account-token-github", "image", "toolchain-cache"])
     }
 
-    // MARK: Readiness — ready is exactly "every check ok"
+    // MARK: - Readiness — ready is exactly "every check ok"
 
     func testReadinessMirrorsEveryCheckSatisfied() async {
         // Probe the biconditional both ways: any single red row blocks ready,
@@ -224,7 +224,7 @@ final class SetupChecklistFlowTests: XCTestCase {
         XCTAssertTrue(green.checks.allSatisfy(\.ok))
     }
 
-    // MARK: Check state → repair action, full table
+    // MARK: - Check state → repair action, full table
 
     func testEveryFailingRowOffersExactlyOneRepairAction() async {
         // The window shows at most one fix button per row; each failing row

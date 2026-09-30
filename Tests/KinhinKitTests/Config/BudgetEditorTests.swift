@@ -11,7 +11,7 @@ final class BudgetEditorTests: XCTestCase {
     private let host = HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 200, arm64: true)
     private let reserve = KinhinConfig.Reserve(cpu: 2, memoryGB: 4, diskGB: 10)
 
-    // MARK: setShare
+    // MARK: - setShare
 
     func testSetShareGivesDefaultTheRemainder() {
         let result = BudgetEditor.setShare(
@@ -61,7 +61,7 @@ final class BudgetEditorTests: XCTestCase {
         XCTAssertEqual(result["tart"] ?? 0, 0.66, accuracy: 0.0001)
     }
 
-    // MARK: addRuntime
+    // MARK: - addRuntime
 
     func testAddRuntimeTakesEvenSliceFromExistingNonDefaults() {
         let result = BudgetEditor.addRuntime(
@@ -82,7 +82,7 @@ final class BudgetEditorTests: XCTestCase {
         XCTAssertEqual(result, current)
     }
 
-    // MARK: displayShares
+    // MARK: - displayShares
 
     func testDisplaySharesFillsDefaultRemainder() {
         let shares = BudgetEditor.displayShares(current: ["appleContainer": 0.4], defaultRuntime: .tart)
@@ -95,7 +95,7 @@ final class BudgetEditorTests: XCTestCase {
         XCTAssertEqual(shares["tart"] ?? 0, 1.0, accuracy: 0.0001)
     }
 
-    // MARK: validate
+    // MARK: - validate
 
     func testValidateRejectsOutOfSumAndRange() {
         XCTAssertNil(BudgetEditor.validate(["tart": 0.6, "appleContainer": 0.4]))
@@ -105,7 +105,7 @@ final class BudgetEditorTests: XCTestCase {
         XCTAssertNotNil(BudgetEditor.validate(["tart": 1.5]))
     }
 
-    // MARK: starvedRoutes
+    // MARK: - starvedRoutes
 
     func testStarvedRoutesFlagsZeroCapRuntimesWithRoutes() {
         let routes = [
@@ -183,7 +183,7 @@ final class BudgetEditorTests: XCTestCase {
         XCTAssertTrue(warnings.isEmpty)
     }
 
-    // MARK: previewCaps
+    // MARK: - previewCaps
 
     /// A config with the given shapes (and this suite's reserve).
     private func previewConfig(container: (Int, Int)? = nil, docker: (Int, Int, Int)? = nil) -> KinhinConfig {
@@ -240,7 +240,7 @@ final class BudgetEditorTests: XCTestCase {
         XCTAssertEqual(preview, RuntimeCapacity.caps(for: cfg, host: host), "preview must equal the engine's caps")
     }
 
-    // MARK: Round-trip through the validated config editor
+    // MARK: - Round-trip through the validated config editor
 
     func testBudgetRoundTripThroughConfigEditor() throws {
         let base = """

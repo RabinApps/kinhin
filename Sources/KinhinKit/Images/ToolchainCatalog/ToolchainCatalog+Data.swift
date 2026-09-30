@@ -1,7 +1,7 @@
 import Foundation
 
 extension ToolchainCatalog {
-    // MARK: Tools
+    // MARK: - Tools
 
     /// `mise` is the cross-platform installer (macOS and Linux); prefer it for
     /// new entries. Homebrew entries need a `linuxInstaller` to reach Linux
@@ -228,7 +228,7 @@ extension ToolchainCatalog {
             category: .cloud),
     ]
 
-    // MARK: Stacks
+    // MARK: - Stacks
 
     public static let stacks: [ToolchainStack] = [
         ToolchainStack(

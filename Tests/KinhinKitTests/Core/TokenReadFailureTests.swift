@@ -23,7 +23,7 @@ final class TokenReadFailureTests: XCTestCase {
             """)
     }
 
-    // MARK: Store
+    // MARK: - Store
 
     func testUnreadableErrorNamesTheAccountAndTheReason() {
         let error = KeychainTokenStore.TokenError.unreadable(account: "github-pat", reason: "User canceled (-128)")
@@ -32,7 +32,7 @@ final class TokenReadFailureTests: XCTestCase {
             "couldn't read the github-pat token from the Keychain: User canceled (-128)")
     }
 
-    // MARK: Engine token
+    // MARK: - Engine token
 
     func testEngineTokenPropagatesAKeychainFailure() {
         XCTAssertThrowsError(
@@ -53,7 +53,7 @@ final class TokenReadFailureTests: XCTestCase {
             try AccountTokens.anyStored(for: .github, config: githubConfig(), load: { _, _ in throw KeychainDown() }))
     }
 
-    // MARK: Reports
+    // MARK: - Reports
 
     func testAuthReportShowsTheKeychainErrorNotNoToken() throws {
         let cfg = try configWithAccount()
@@ -81,7 +81,7 @@ final class TokenReadFailureTests: XCTestCase {
         XCTAssertTrue(gitea.detail.contains("Keychain error"), gitea.detail)
     }
 
-    // MARK: Checklist
+    // MARK: - Checklist
 
     private func checklist(failures: [String: String]) async -> SetupStatus {
         await SetupStatusComputer(
@@ -111,7 +111,7 @@ final class TokenReadFailureTests: XCTestCase {
         XCTAssertFalse(row.detail.contains("Keychain error"))
     }
 
-    // MARK: Token health check
+    // MARK: - Token health check
 
     func testTokenHealthCheckReportsAKeychainFailure() async {
         let report = await TokenHealthCheck.check(
@@ -121,7 +121,7 @@ final class TokenReadFailureTests: XCTestCase {
         XCTAssertFalse(report.message.contains("No token stored"), report.message)
     }
 
-    // MARK: Engine
+    // MARK: - Engine
 
     private func makeEngine() -> FleetEngine {
         FleetEngine(

@@ -50,7 +50,7 @@ final class CapacityTests: XCTestCase {
         XCTAssertEqual(plan.maxConcurrent, 2)
     }
 
-    // MARK: Effective per-VM disk estimate (scaler / doctor parity)
+    // MARK: - Effective per-VM disk estimate (scaler / doctor parity)
 
     func testEffectiveDiskDefaultsPerRuntime() {
         XCTAssertEqual(ResourceProbe.effectiveDiskPerVMGB(diskGB: nil, runtime: "tart"), 50)

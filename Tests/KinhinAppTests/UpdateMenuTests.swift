@@ -39,7 +39,7 @@ final class UpdateMenuTests: XCTestCase {
         )
     }
 
-    // MARK: menu states
+    // MARK: - menu states
 
     func testNoPendingUpdateHidesUpdateItem() {
         delegate.pendingUpdate = nil
@@ -71,7 +71,7 @@ final class UpdateMenuTests: XCTestCase {
         XCTAssertEqual(versionItem?.title, "  kinhin \(kinhinVersion.current)")
     }
 
-    // MARK: repo selection policy
+    // MARK: - repo selection policy
 
     func testEnvOverrideWinsWhenWellFormed() {
         XCTAssertEqual(
@@ -106,7 +106,7 @@ final class UpdateMenuTests: XCTestCase {
         )
     }
 
-    // MARK: last-check persistence
+    // MARK: - last-check persistence
 
     func testLastCheckRoundTripInScratchDefaults() {
         let suiteName = "kinhin-tests.lastcheck-\(UUID().uuidString)"

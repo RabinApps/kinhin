@@ -5,7 +5,7 @@ import KinhinKit
 
 @MainActor
 extension AppDelegate {
-    // MARK: Main window & tabs
+    // MARK: - Main window & tabs
 
     /// Opens (or focuses) the main window and makes kinhin a regular app
     /// while it is visible.

@@ -83,7 +83,7 @@ final class ForgejoConfigTests: XCTestCase {
             "a Forgejo token alone makes the config usable (Forgejo-only fleet)")
     }
 
-    // MARK: The forge adapter
+    // MARK: - The forge adapter
 
     private func makeStubbedForgejoForge() -> GiteaForge {
         let config = URLSessionConfiguration.ephemeral

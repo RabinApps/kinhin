@@ -73,7 +73,7 @@ struct RuntimesView: View {
         }
     }
 
-    // MARK: Sections
+    // MARK: - Sections
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -143,7 +143,7 @@ struct RuntimesView: View {
         .formSurface(cornerRadius: 8)
     }
 
-    // MARK: Budget
+    // MARK: - Budget
 
     private var budgetCard: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -205,7 +205,7 @@ struct RuntimesView: View {
         .formSurface(cornerRadius: 8)
     }
 
-    // MARK: Labels
+    // MARK: - Labels
 
     private var labelsCard: some View {
         VStack(alignment: .leading, spacing: 6) {

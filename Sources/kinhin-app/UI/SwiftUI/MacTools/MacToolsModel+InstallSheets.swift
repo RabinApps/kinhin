@@ -7,7 +7,7 @@ import KinhinKit
 // / `MissingBrewSheet` while `installOffer` / `missingBrewOffer` are non-nil.
 
 extension MacToolsModel {
-    // MARK: Sheet state
+    // MARK: - Sheet state
 
     /// The open install-confirmation sheet's inputs: what will run and the
     /// methods to choose from (the list is the host's supported options).
@@ -26,7 +26,7 @@ extension MacToolsModel {
         var manualURL: URL? { options.first?.manualURL }
     }
 
-    // MARK: Confirmation actions
+    // MARK: - Confirmation actions
 
     /// Install pressed in the sheet: close it, then run the chosen option.
     func confirmInstall(_ option: InstallOption) {
@@ -49,7 +49,7 @@ extension MacToolsModel {
         installOffer = nil
     }
 
-    // MARK: Missing-Homebrew actions
+    // MARK: - Missing-Homebrew actions
 
     /// Get Homebrew pressed: open brew.sh and close the sheet.
     func openBrewSite() {
@@ -72,7 +72,7 @@ extension MacToolsModel {
         missingBrewOffer = nil
     }
 
-    // MARK: The install itself
+    // MARK: - The install itself
 
     /// Confirm → install → re-check. On failure, tell the user how to do it
     /// by hand (the busy line carries the exact command).

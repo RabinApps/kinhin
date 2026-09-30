@@ -183,7 +183,7 @@ final class FleetEngineTests: XCTestCase {
         XCTAssertEqual(status.desired, 2)
     }
 
-    // MARK: Many-to-one (runners_per_vm)
+    // MARK: - Many-to-one (runners_per_vm)
 
     /// rpv=2, queue of 4 → 2 VMs; each VM registers 2 runners; the VM dies
     /// only when BOTH runners deregister.
@@ -292,7 +292,7 @@ final class FleetEngineTests: XCTestCase {
         XCTAssertEqual(fake.deletedRunnerIDs.count, 1, "the lifecycle's own delete must deregister its runner")
     }
 
-    // MARK: Helpers
+    // MARK: - Helpers
 
     func waitUntil(timeout: TimeInterval, _ condition: @escaping () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(timeout)

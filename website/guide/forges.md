@@ -18,17 +18,19 @@ job finishes.
 ## Adding Gitea
 
 Store a Gitea access token with runner-management rights on the scope, then declare the forge
-in `config.yaml`:
+as an `accounts:` entry in `config.yaml`:
 
 ```yaml
-gitea:
-  instance: "https://gitea.example.com"
-  scope: "owner/name" # or an org name
-  labels: ["macos:host"] # jobs opt in via runs-on: macos:host
+accounts:
+  - name: gitea # the primary Gitea account keeps its original Keychain item
+    forge: gitea
+    instance: "https://gitea.example.com"
+    scope: "owner/name" # or an org name
+    labels: ["macos:host"] # jobs opt in via runs-on: macos:host
 ```
 
-- Token: `kinhin auth set --gitea`. Both tokens live in the Keychain; replace either live
-  without restarting.
+- Token: `kinhin auth set --gitea`. Tokens live in the Keychain; replace one live without
+  restarting.
 - Image provisioning is **token-gated**: `kinhin image prepare` bakes the GitHub agent only if
   a GitHub PAT is stored, and the gitea-runner binary only if a Gitea token is stored.
 - Gitea VMs are ephemeral like GitHub's: gitea-runner has no `--ephemeral`, so kinhin watches
@@ -41,16 +43,19 @@ gitea:
 ## Adding Forgejo
 
 Forgejo is Gitea's upstream and is wire-compatible: the same `/api/v1` endpoints, the same
-task queue, the same gitea-runner binary. Declare it alongside (or instead of) `gitea:`:
+task queue, the same gitea-runner binary. Declare it as an `accounts:` entry, alongside (or
+instead of) the Gitea one:
 
 ```yaml
-forgejo:
-  instance: "https://code.example.com"
-  scope: "acme/api" # or an org name
-  labels: ["macos:host"]
+accounts:
+  - name: forgejo # the primary Forgejo account keeps its original Keychain item
+    forge: forgejo
+    instance: "https://code.example.com"
+    scope: "acme/api" # or an org name
+    labels: ["macos:host"]
 ```
 
-- Token: `kinhin auth set --forgejo` (or a `forge: forgejo` entry in `accounts:`).
+- Token: `kinhin auth set --forgejo`.
 - `kinhin image prepare` bakes the gitea-runner binary when either a Gitea or a Forgejo token
   is stored — the same binary serves both platforms.
 - All Gitea semantics apply unchanged: long-lived registration tokens, idle-grace ephemeral
@@ -92,9 +97,10 @@ accounts:
 
 ## Multiple accounts
 
-`repo:`, `gitea:`, and `forgejo:` are the built-in accounts, named `github`, `gitea`, and
-`forgejo`. To serve more — a second GitHub org, another Gitea or Forgejo instance, a GitLab
-project or group — add an `accounts:` list; every entry has its own scope and its own token:
+Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the
+primary accounts (their tokens keep the original Keychain items). To serve more — a second
+GitHub org, another Gitea or Forgejo instance, a GitLab project or group — add more entries;
+every one has its own scope and its own token:
 
 ```yaml
 accounts:
@@ -115,7 +121,8 @@ accounts:
 - One account failing (bad token, unreachable server) is detached with the reason shown in the
   status line and retried with backoff; the others keep serving.
 - New VMs go to the account with the most unmet demand, and register with that account's token.
-- `repo:` is optional when every account is listed under `accounts:`.
+- A top-level `repo:`, `gitea:`, or `forgejo:` key is rejected by the parser — declare every
+  forge in `accounts:`.
 - Older builds ignore `accounts:`, so avoid sharing one config file with a build that predates it.
 
 ## More forges are planned

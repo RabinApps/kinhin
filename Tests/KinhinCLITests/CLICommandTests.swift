@@ -3,7 +3,7 @@ import XCTest
 @testable import kinhin
 
 final class CLICommandTests: XCTestCase {
-    // MARK: routing table
+    // MARK: - routing table
 
     func testCommandRouting() {
         XCTAssertEqual(CLICommand.parse(["config"]), .configInit)
@@ -54,7 +54,7 @@ final class CLICommandTests: XCTestCase {
         XCTAssertNil(CLICommand.parse(["CONFIG"]))  // dispatch is case-sensitive
     }
 
-    // MARK: starter-config auto-create exemptions
+    // MARK: - starter-config auto-create exemptions
 
     func testNoOpCommandsAreExemptFromAutoCreate() {
         XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.help))
@@ -78,7 +78,7 @@ final class CLICommandTests: XCTestCase {
         XCTAssertTrue(CLICommand.shouldAutoCreateConfig(nil))
     }
 
-    // MARK: tiny flag parser
+    // MARK: - tiny flag parser
 
     func testFlagParsing() {
         XCTAssertEqual(flag("-n", in: ["logs", "-n", "10"]), "10")

@@ -5,7 +5,7 @@ import SwiftUI
 // The Advanced tab and its sections.
 @MainActor
 extension MainTabsWindowController {
-    // MARK: Advanced tab
+    // MARK: - Advanced tab
 
     func buildAdvancedTab() -> NSView {
         let tab = NSView()

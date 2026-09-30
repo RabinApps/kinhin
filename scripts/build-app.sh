@@ -77,7 +77,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSUIElement</key>
     <true/>
     <key>LSMinimumSystemVersion</key>
-    <string>14.0</string>
+    <string>15.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
@@ -106,8 +106,8 @@ xcrun appintentsmetadataprocessor \
     --sdk-root "$(xcrun --show-sdk-path)" \
     --xcode-version "$(xcodebuild -version | awk '/Build version/ {print $3}')" \
     --platform-family macOS \
-    --deployment-target 14.0 \
-    --target-triple arm64-apple-macos14.0 \
+    --deployment-target 15.0 \
+    --target-triple arm64-apple-macos15.0 \
     --source-file-list "$META_TMP/sources.txt" \
     --swift-const-vals-list "$META_TMP/constvalues.txt"
 

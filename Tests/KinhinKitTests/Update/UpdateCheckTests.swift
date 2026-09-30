@@ -30,7 +30,7 @@ final class UpdateCheckTests: XCTestCase {
             """.utf8)
     }
 
-    // MARK: Version comparison
+    // MARK: - Version comparison
 
     func testVersionComparison() {
         XCTAssertTrue(isVersion("0.1.0", olderThan: "0.2.0"))
@@ -45,7 +45,7 @@ final class UpdateCheckTests: XCTestCase {
         XCTAssertFalse(isVersion("0.2.0", olderThan: "0.1.0"))
     }
 
-    // MARK: Release parsing
+    // MARK: - Release parsing
 
     func testFetchLatestReleaseParsesDMGAsset() async throws {
         // Hoisted so the @Sendable stub handler doesn't capture self.
@@ -82,7 +82,7 @@ final class UpdateCheckTests: XCTestCase {
         XCTAssertEqual(info.dmgName, "kinhin-nightly-arm64.dmg")
     }
 
-    // MARK: Check outcomes
+    // MARK: - Check outcomes
 
     func testCheckReturnsAvailableWhenRunningOlder() async throws {
         let release = releaseJSON(tag: "v0.2.0", assets: ["kinhin-0.2.0-arm64.dmg"])
@@ -107,7 +107,7 @@ final class UpdateCheckTests: XCTestCase {
         XCTAssertEqual(result, .upToDate)
     }
 
-    // MARK: Error paths
+    // MARK: - Error paths
 
     func testMissingReleaseThrowsNotFound() async {
         StubProtocol.handler = { _ in (404, Data("{}".utf8), [:]) }
@@ -145,7 +145,7 @@ final class UpdateCheckTests: XCTestCase {
         }
     }
 
-    // MARK: Download
+    // MARK: - Download
 
     private func sha256Hex(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()

@@ -30,7 +30,7 @@ final class HostRuntime: Runtime {
         Paths.appSupport.appendingPathComponent("host-runner", isDirectory: true)
     }
 
-    // MARK: Runtime protocol
+    // MARK: - Runtime protocol
 
     func health() async -> RuntimeHealth {
         guard HostAgentInstaller(shell: shell, agentDir: agentDir).isInstalled else {
@@ -129,7 +129,7 @@ final class HostRuntime: Runtime {
         }
     }
 
-    // MARK: Helpers
+    // MARK: - Helpers
 
     /// Per-instance scratch dir, scrubbed at teardown.
     func workDirectory(for id: String) -> URL {

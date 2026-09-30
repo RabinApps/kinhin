@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 6 * * *" # nightly: also runs the ThreadSanitizer job
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -20,13 +27,35 @@ jobs:
       - name: Build
         run: swift build
 
+      - name: Build release products
+        # Release-only code paths (KinhinTestSupport is testable-only) and the
+        # signed-app pipeline both compile from these; catch breakage here
+        # instead of at release time.
+        run: swift build -c release --product kinhin-app --product kinhin
+
       - name: Run tests
         run: swift test
+
+      - name: Docs lint (stale strings)
+        run: bash scripts/docs-lint.sh
+
+  tsan:
+    # ThreadSanitizer pass over shared state: serial (~5–10 min), so it runs
+    # on demand and nightly rather than on every push.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, macos, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tests under ThreadSanitizer (serial)
+        # The script exits nonzero on any sanitizer report; a failing exit
+        # with "No ThreadSanitizer reports" means a test regression.
+        run: scripts/tsan.sh
 
   docs-lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Docs lint (stale strings + orchard allowlist)
+      - name: Docs lint (stale strings)
         run: bash scripts/docs-lint.sh

@@ -37,7 +37,7 @@ final class ContainersModel {
     /// none is (so the "isn't installed" message still has a tool to name).
     var selectableTools: [ContainerTool] { installed.isEmpty ? ContainerTool.allCases : installed }
 
-    // MARK: Loading
+    // MARK: - Loading
 
     /// Drops tools that aren't installed and picks a usable default.
     private func applyToolAvailability() {
@@ -83,7 +83,7 @@ final class ContainersModel {
         }
     }
 
-    // MARK: Actions
+    // MARK: - Actions
 
     func lifecycle(for item: ManagedContainer) -> [Lifecycle] {
         item.isRunning ? [.stop, .restart] : [.start]

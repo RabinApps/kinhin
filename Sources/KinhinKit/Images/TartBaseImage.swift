@@ -128,7 +128,7 @@ public enum TartBaseImage {
         return nil
     }
 
-    // MARK: Digest pinning
+    // MARK: - Digest pinning
 
     /// One resolve-and-pin request: the unpinned reference to resolve, and
     /// whether the registry should be asked at all.

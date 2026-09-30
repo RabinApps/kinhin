@@ -40,7 +40,7 @@ final class BaseImagePickerTests: XCTestCase {
         try ConfigLoader.load(from: configURL).baseImageForTesting(runtime)
     }
 
-    // MARK: the choices
+    // MARK: - the choices
 
     func testDefaultIsUbuntuAndCuratedValuesMapToTheirEntries() {
         XCTAssertEqual(BaseImageChoice.title(at: BaseImageChoice.index(of: nil)), "Ubuntu 24.04 (default)")
@@ -64,7 +64,7 @@ final class BaseImagePickerTests: XCTestCase {
         XCTAssertEqual(try BaseImageChoice.validate("  debian:bookworm-slim ").get(), "debian:bookworm-slim")
     }
 
-    // MARK: the tart VM catalog
+    // MARK: - the tart VM catalog
 
     /// A resolver that answers with a fixed digest and records its inputs.
     private final class FakeResolver: DigestResolving {
@@ -164,7 +164,7 @@ final class BaseImagePickerTests: XCTestCase {
         XCTAssertNil(try saved(.tart), "the default clears the key")
     }
 
-    // MARK: Toolchains page
+    // MARK: - Toolchains page
 
     func testToolchainsPageOffersAPickerForEachLinuxRuntimeAndSavesIt() throws {
         let model = ToolchainsModel()
@@ -193,7 +193,7 @@ final class BaseImagePickerTests: XCTestCase {
         XCTAssertNil(model.baseImage(for: .docker), "the page shows what is actually saved")
     }
 
-    // MARK: Mac tools form
+    // MARK: - Mac tools form
 
     func testMacToolsFormShowsThePickerOnlyWhileTheRuntimeIsEnabled() throws {
         let model = MacToolsModel()

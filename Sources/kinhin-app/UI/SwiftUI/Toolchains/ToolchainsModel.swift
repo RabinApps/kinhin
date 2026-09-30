@@ -59,7 +59,7 @@ final class ToolchainsModel: ConfigFormModel {
         try await ImageBuildService.rebuild(runtime, config: cfg)
     }
 
-    // MARK: Selection
+    // MARK: - Selection
 
     private(set) var baseline = ToolchainsSelection()
     /// The selection being edited; only **Apply** writes it.
@@ -74,7 +74,7 @@ final class ToolchainsModel: ConfigFormModel {
     var brewText = ""
     var specsText = ""
 
-    // MARK: Display state
+    // MARK: - Display state
 
     private(set) var status = Line(text: "")
     private(set) var busy = false
@@ -86,7 +86,7 @@ final class ToolchainsModel: ConfigFormModel {
         resetFieldTexts()
     }
 
-    // MARK: Derived
+    // MARK: - Derived
 
     var hasPendingChanges: Bool { working != baseline }
     var problems: [String] { ToolchainsConfigEditor.requirementProblems(working) }
@@ -122,7 +122,7 @@ final class ToolchainsModel: ConfigFormModel {
 
     func baseImage(for runtime: RuntimeID) -> String? { baseImageValues[runtime] }
 
-    // MARK: Loading
+    // MARK: - Loading
 
     /// Says why the config could not be loaded, instead of a blank grid.
     func showLoadError(_ error: Error) {
@@ -207,7 +207,7 @@ final class ToolchainsModel: ConfigFormModel {
         }
     }
 
-    // MARK: Editing (working copy only; Apply writes)
+    // MARK: - Editing (working copy only; Apply writes)
 
     func setTool(_ id: String, on: Bool) {
         working.tools[id] = on ? ToolchainsConfigEditor.normalizedVersion(toolText[id] ?? "", for: id) : nil
@@ -258,7 +258,7 @@ final class ToolchainsModel: ConfigFormModel {
         text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
-    // MARK: State
+    // MARK: - State
 
     func refreshState() {
         let pending = hasPendingChanges
@@ -305,7 +305,7 @@ final class ToolchainsModel: ConfigFormModel {
         }
     }
 
-    // MARK: Rebuild
+    // MARK: - Rebuild
 
     @discardableResult
     func startRebuild(_ runtime: RuntimeID) -> Task<Void, Never>? {
@@ -345,7 +345,7 @@ final class ToolchainsModel: ConfigFormModel {
         }
     }
 
-    // MARK: Test hooks
+    // MARK: - Test hooks
 
     func toggleToolForTesting(_ id: String, version: String = "", on: Bool = true) {
         working.tools[id] = on ? version : nil

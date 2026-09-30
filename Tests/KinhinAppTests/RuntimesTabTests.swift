@@ -13,7 +13,7 @@ final class RuntimesTabTests: XCTestCase {
         model = RuntimesModel()
     }
 
-    // MARK: availability titles
+    // MARK: - availability titles
 
     func testAvailabilityTitleDistinguishesInstalledFromNotInstalled() {
         XCTAssertEqual(
@@ -50,7 +50,7 @@ final class RuntimesTabTests: XCTestCase {
         XCTAssertEqual(RuntimesModel.healthChip(nil, probing: false).text, "")
     }
 
-    // MARK: view model availability sweep (KinhinKit)
+    // MARK: - view model availability sweep (KinhinKit)
 
     func testAvailabilityCoversAllRuntimesEvenUnconfigured() async {
         // Minimal config: no container:, no docker: — those runtimes must
@@ -81,7 +81,7 @@ final class RuntimesTabTests: XCTestCase {
         }
     }
 
-    // MARK: config editor (KinhinKit)
+    // MARK: - config editor (KinhinKit)
 
     private func tempConfig(_ text: String) -> URL {
         let url = FileManager.default.temporaryDirectory
@@ -147,7 +147,7 @@ final class RuntimesTabTests: XCTestCase {
         XCTAssertThrowsError(try ConfigEditor.save(validConfig, to: url))
     }
 
-    // MARK: the model against a real scratch config
+    // MARK: - the model against a real scratch config
 
     private func loadedModel(_ yaml: String) async -> RuntimesModel {
         let url = tempConfig(yaml)

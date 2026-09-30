@@ -5,7 +5,7 @@ import SwiftUI
 // The Setup tab: guided wizard until first-run setup completes, then editable forms.
 @MainActor
 extension MainTabsWindowController {
-    // MARK: Setup tab
+    // MARK: - Setup tab
 
     /// While first-run setup is incomplete the window opens on the Setup tab,
     /// which shows the guided wizard.

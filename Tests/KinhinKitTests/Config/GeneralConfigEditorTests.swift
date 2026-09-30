@@ -43,7 +43,7 @@ final class GeneralConfigEditorTests: XCTestCase {
         # Optional section below
         """
 
-    // MARK: Snapshot
+    // MARK: - Snapshot
 
     func testSnapshotReadsAllGeneralKeys() throws {
         let snap = try GeneralConfigEditor.snapshot(from: Self.sample)
@@ -84,7 +84,7 @@ final class GeneralConfigEditorTests: XCTestCase {
         }
     }
 
-    // MARK: Targeted surgery
+    // MARK: - Targeted surgery
 
     func testScalarEditPreservesCommentsAndNeighbors() throws {
         try write(Self.sample)
@@ -146,7 +146,7 @@ final class GeneralConfigEditorTests: XCTestCase {
         XCTAssertEqual(try GeneralConfigEditor.snapshot(from: updated).vmCPU, 8)
     }
 
-    // MARK: Section toggles
+    // MARK: - Section toggles
 
     func testAccountsAddAndRemovePreserveTheRest() throws {
         try write(Self.sample)
@@ -188,7 +188,7 @@ final class GeneralConfigEditorTests: XCTestCase {
         XCTAssertEqual(try GeneralConfigEditor.snapshot(from: updated).docker?.image, "b")
     }
 
-    // MARK: Validation gate
+    // MARK: - Validation gate
 
     func testInvalidEditNeverWrites() throws {
         try write(Self.sample)

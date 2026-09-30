@@ -107,7 +107,7 @@ public struct GitHubClient: GitHubServing {
         self.session = ForgeHTTP.session(session)
     }
 
-    // MARK: Plumbing
+    // MARK: - Plumbing
 
     func request(method: String, path: String, body: Data? = nil) throws -> URLRequest {
         let segments = credentials.scope.split(separator: "/")
@@ -191,7 +191,7 @@ public struct GitHubClient: GitHubServing {
         throw lastError
     }
 
-    // MARK: API
+    // MARK: - API
 
     public func fetchRegistrationToken() async throws -> RegistrationToken {
         let req = try request(method: "POST", path: "\(credentials.actionsBase)/runners/registration-token")

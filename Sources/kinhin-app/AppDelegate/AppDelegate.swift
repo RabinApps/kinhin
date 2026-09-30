@@ -94,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateDownloadTask?.cancel()
     }
 
-    // MARK: Activation policy (normal app vs menu bar app)
+    // MARK: - Activation policy (normal app vs menu bar app)
 
     /// Syncs the process persona with the current surfaces: a visible main
     /// window (or a launch mode that is defined by the window) makes kinhin
@@ -111,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: Engine wiring
+    // MARK: - Engine wiring
 
     func bootstrapEngine(reopenSetupOnFailure: Bool = true) {
         // First-run convenience: materialize the starter config (never
@@ -177,7 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: Refresh
+    // MARK: - Refresh
 
     func refresh() async {
         // Polled every few seconds (daemon calls run off the main thread): an

@@ -17,7 +17,7 @@ final class GitLabClientTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: URLs and headers
+    // MARK: - URLs and headers
 
     func testURLsEncodeNestedPathsAndKeepRelativeRoots() throws {
         let client = makeClient(scope: "grp/sub/proj", instance: "https://example.com/gitlab/")
@@ -47,7 +47,7 @@ final class GitLabClientTests: XCTestCase {
         XCTAssertEqual(version, "17.4.1-ee")
     }
 
-    // MARK: Scope resolution
+    // MARK: - Scope resolution
 
     func testResolvesAProject() async throws {
         StubProtocol.handler = { request in
@@ -79,7 +79,7 @@ final class GitLabClientTests: XCTestCase {
         }
     }
 
-    // MARK: Runners
+    // MARK: - Runners
 
     func testCreateRunnerPostsTypeScopeAndTags() async throws {
         StubProtocol.handler = { request in
@@ -114,7 +114,7 @@ final class GitLabClientTests: XCTestCase {
         XCTAssertEqual(runners.map(\.hasContacted), [true, false])
     }
 
-    // MARK: Jobs
+    // MARK: - Jobs
 
     func testGroupJobsFanOutOverRecentProjectsAndSkipUnreadableOnes() async throws {
         StubProtocol.handler = { request in
@@ -161,7 +161,7 @@ final class GitLabClientTests: XCTestCase {
         XCTAssertEqual(jobs.first?.project, "acme/api")
     }
 
-    // MARK: Errors
+    // MARK: - Errors
 
     func testErrorMapping() async {
         for (status, expected) in [(401, GitLabError.unauthorized), (404, .notFound("/version"))] {

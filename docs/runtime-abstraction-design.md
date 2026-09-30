@@ -1,6 +1,6 @@
 # Runtime Abstraction — Design Document
 
-**Status:** Approved design · **Prerequisite:** Forge abstraction (shipped) · **Composes with:** Forge (a job is a _(forge, repo, runtime)_ triple)
+**Status:** Shipped — historical design document, kept for reference. The `Runtime` protocol, the routing config, the Docker and Host runtimes, and the per-runtime capacity partition all landed (see [runtimes.md](runtimes.md) for the user-facing behavior). **Prerequisite:** Forge abstraction (shipped) · **Composes with:** Forge (a job is a _(forge, repo, runtime)_ triple)
 
 ---
 

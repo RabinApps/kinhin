@@ -37,7 +37,7 @@ public struct GitLabClient: Sendable {
         self.session = ForgeHTTP.session(session)
     }
 
-    // MARK: Scope
+    // MARK: - Scope
 
     /// Resolves the configured path to a project or, failing that, a group.
     /// Doubles as the permission probe: it fails fast on a bad token or path.
@@ -78,7 +78,7 @@ public struct GitLabClient: Sendable {
         return refs.sorted { $0.fullName.localizedCaseInsensitiveCompare($1.fullName) == .orderedAscending }
     }
 
-    // MARK: Runners
+    // MARK: - Runners
 
     /// Creates one runner in the scope and returns its authentication token.
     /// `run_untagged` is off: the runner only takes jobs whose tags it has.
@@ -117,7 +117,7 @@ public struct GitLabClient: Sendable {
         _ = try await send("DELETE", "/runners/\(id)")
     }
 
-    // MARK: Jobs
+    // MARK: - Jobs
 
     enum JobStatus: String { case pending, running }
 
@@ -195,7 +195,7 @@ public struct GitLabClient: Sendable {
         }
     }
 
-    // MARK: Token and instance
+    // MARK: - Token and instance
 
     /// The scopes of the token in use (`GET /personal_access_tokens/self`;
     /// group and project access tokens answer too).
@@ -214,7 +214,7 @@ public struct GitLabClient: Sendable {
         return version.version
     }
 
-    // MARK: Plumbing
+    // MARK: - Plumbing
 
     /// `grp/sub/proj` → `grp%2Fsub%2Fproj`, the id form GitLab accepts.
     static func encodePathSegment(_ path: String) -> String {

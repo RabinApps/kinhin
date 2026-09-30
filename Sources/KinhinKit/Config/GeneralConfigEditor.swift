@@ -14,7 +14,7 @@ import Yams
 /// The app's Config tab and onboarding wizard edit through this — never by
 /// re-serializing the whole document (Yams would drop the user's comments).
 public enum GeneralConfigEditor {
-    // MARK: Writing
+    // MARK: - Writing
 
     /// Apply one field edit to the file on disk. Field keys are stable API
     /// for the UI; unknown keys are a programming error (unsupported).
@@ -43,7 +43,7 @@ public enum GeneralConfigEditor {
         case docker(Snapshot.Docker?)
     }
 
-    // MARK: Key model
+    // MARK: - Key model
 
     /// A scalar key at the top level or inside `vm:` / `reserve:`.
     private struct KeyPath {
@@ -193,7 +193,7 @@ public enum GeneralConfigEditor {
         return lines.joined(separator: "\n")
     }
 
-    // MARK: Base image
+    // MARK: - Base image
 
     /// Sets (or, with nil, clears) what a runtime's prepare starts from: the
     /// tart `base_image:` key for `.tart`, the section's `base_image:` for
@@ -227,7 +227,7 @@ public enum GeneralConfigEditor {
         }
     }
 
-    // MARK: Docker platform
+    // MARK: - Docker platform
 
     /// Sets `docker.platform:` (arm64 is the default and is written out only
     /// when explicitly chosen away from it, so existing files stay tidy).

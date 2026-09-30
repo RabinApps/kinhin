@@ -10,7 +10,7 @@ import XCTest
 /// the user lets go. The host snapshot is pinned, so cap assertions are exact.
 @MainActor
 final class RuntimesBudgetTests: XCTestCase {
-    // MARK: Fixtures
+    // MARK: - Fixtures
 
     /// Pinned host: 12 cores, 64 GB; reserve 2/4 → usable 10 CPU / 60 GB.
     private let host = HostResources(logicalCores: 12, memoryGB: 64, freeDiskGB: 200, arm64: true)
@@ -78,7 +78,7 @@ final class RuntimesBudgetTests: XCTestCase {
         return (try? String(contentsOf: configURL, encoding: .utf8)) ?? ""
     }
 
-    // MARK: Debounce
+    // MARK: - Debounce
 
     func testSliderTickUpdatesPreviewsImmediatelyButWritesNothing() async throws {
         let model = await loadedModel()
@@ -115,7 +115,7 @@ final class RuntimesBudgetTests: XCTestCase {
         XCTAssertFalse(yaml.contains("appleContainer: 0.2"), "the stale pending write must be cancelled: \(yaml)")
     }
 
-    // MARK: Cap previews at edge splits
+    // MARK: - Cap previews at edge splits
 
     func testPreviewsAtEdgeSplits() async throws {
         let model = await loadedModel()
@@ -163,7 +163,7 @@ final class RuntimesBudgetTests: XCTestCase {
         XCTAssertEqual(model.capPreviews[.tart], 2, "previews reflect the on-disk truth after the snap")
     }
 
-    // MARK: Percent labels
+    // MARK: - Percent labels
 
     func testPercentTextPrefersTheLiveTickOverTheDiskShare() async throws {
         let model = await loadedModel()
@@ -172,7 +172,7 @@ final class RuntimesBudgetTests: XCTestCase {
         XCTAssertEqual(model.percentText(for: .tart), "70%", "the default's percent is the live remainder")
     }
 
-    // MARK: Starved-route warning
+    // MARK: - Starved-route warning
 
     func testStarvedRouteWarningTextNamesTheRuntimeAndRouteCount() async throws {
         let routed = """

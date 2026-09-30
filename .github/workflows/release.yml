@@ -17,6 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Run tests
+        # Never publish from a red tree: CI should have caught this already,
+        # but the tag may point at a commit older than the last green run.
+        run: swift test
+
       - name: Derive version from tag
         id: ver
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"

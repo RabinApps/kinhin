@@ -7,7 +7,7 @@ import XCTest
 /// scope) and the engine's start gate that blocks a doomed fleet before it
 /// spawns anything.
 final class OrgPermissionTests: XCTestCase {
-    // MARK: Probe
+    // MARK: - Probe
 
     func testVerifyPassesWhenTokenMintSucceeds() async {
         let report = await OrgPermissionProbe.verify(github: FakeGitHub(), scope: "acme")
@@ -102,7 +102,7 @@ final class OrgPermissionTests: XCTestCase {
         XCTAssertFalse(report.message.contains("lacks runner-management"), "repo scope 404s should not leak org advice")
     }
 
-    // MARK: Engine start gate
+    // MARK: - Engine start gate
 
     func makeEngine(github: FakeGitHub, tart: FakeTart = FakeTart()) -> FleetEngine {
         FleetEngine(

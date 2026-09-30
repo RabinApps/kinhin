@@ -43,7 +43,7 @@ final class ConnectModelTests: XCTestCase {
         try AccountsConfigEditor.accounts(at: url)
     }
 
-    // MARK: Selector
+    // MARK: - Selector
 
     func testFreshInstallStartsWithNothingSelectedAndNoCards() {
         let model = makeModel()
@@ -84,7 +84,7 @@ final class ConnectModelTests: XCTestCase {
         XCTAssertEqual(visible, [.github, .forgejo])
     }
 
-    // MARK: Deselect
+    // MARK: - Deselect
 
     func testDeselectingAConfiguredForgeAsksForConfirmation() async throws {
         try AccountsConfigEditor.add(
@@ -195,7 +195,7 @@ final class ConnectModelTests: XCTestCase {
             "the error is visible on the card: \(model.card(for: .gitea)?.status.text ?? "")")
     }
 
-    // MARK: isConnected
+    // MARK: - isConnected
 
     func testIsConnectedWithAGitLabOnlySetup() async throws {
         try AccountsConfigEditor.add(
@@ -222,7 +222,7 @@ final class ConnectModelTests: XCTestCase {
         XCTAssertTrue(model.isConnected, "saved account + stored token counts as connected")
     }
 
-    // MARK: Card behavior (through ForgeConnectionModel)
+    // MARK: - Card behavior (through ForgeConnectionModel)
 
     func testGitLabCardCommitsScopeAndOptionalInstanceToTheAccountsSection() async throws {
         let model = makeModel(reload: false)

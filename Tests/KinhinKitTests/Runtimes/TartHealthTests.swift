@@ -2,51 +2,9 @@ import Synchronization
 import XCTest
 
 @testable import KinhinKit
+@testable import KinhinTestSupport
 
 final class TartHealthTests: XCTestCase {
-    // MARK: Fake shell
-
-    /// Scriptable ShellRunning: answers `tart --version` and `log show` probes
-    /// from configurable results, recording what it was asked to run.
-    final class ScriptedShell: ShellRunning, Sendable {
-        private struct State: Sendable {
-            var versionResult: ShellResult?
-            var versionThrows = false
-            var logResult: ShellResult?
-            var runArgv: [[String]] = []
-        }
-
-        private let state = Mutex(State())
-
-        var versionResult: ShellResult? {
-            get { state.withLock { $0.versionResult } }
-            set { state.withLock { $0.versionResult = newValue } }
-        }
-        var versionThrows: Bool {
-            get { state.withLock { $0.versionThrows } }
-            set { state.withLock { $0.versionThrows = newValue } }
-        }
-        var logResult: ShellResult? {
-            get { state.withLock { $0.logResult } }
-            set { state.withLock { $0.logResult = newValue } }
-        }
-        var runArgv: [[String]] { state.withLock { $0.runArgv } }
-
-        func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
-            state.withLock { $0.runArgv.append(argv) }
-            if versionThrows, argv.count >= 2, argv[1] == "--version" {
-                throw ShellError.launchFailed("permission denied")
-            }
-            if argv.count >= 2, argv[1] == "--version" {
-                return versionResult ?? ShellResult(exitCode: 0, stdout: "tart version 2.32.1", stderr: "")
-            }
-            if argv.count >= 2, argv[1] == "show" {
-                return logResult ?? ShellResult(exitCode: 0, stdout: "", stderr: "")
-            }
-            return ShellResult(exitCode: 0, stdout: "", stderr: "")
-        }
-    }
-
     // A real empty executable file so Paths.findExecutable succeeds and the
     // probe proceeds to the scripted shell.
     private var stubBinaryPath: String!
@@ -67,12 +25,36 @@ final class TartHealthTests: XCTestCase {
         ShellResult(exitCode: code, stdout: stdout, stderr: stderr)
     }
 
+    private func shell(
+        version: ShellResult? = nil, versionThrows: Bool = false, log: ShellResult? = nil
+    ) -> FakeShell {
+        let shell = FakeShell()
+        if versionThrows {
+            // The probe catches launch failures itself, so model the throw
+            // with the shared throw hook on a version-shaped argv match.
+            shell.scriptedResponses = [
+                ScriptedResponse(whenContainsThrowing: "--version", reason: "permission denied")
+            ]
+        } else {
+            shell.scriptedResponses = [
+                ScriptedResponse(
+                    whenContainsAll: [stubBinaryPath, "--version"],
+                    version ?? result(0, stdout: "tart version 2.32.1"))
+            ]
+        }
+        if let log {
+            shell.scriptedResponses.append(ScriptedResponse(whenContains: "show", log))
+        }
+        return shell
+    }
+
     // MARK: Classification
 
     func testHealthyVersionOutput() async {
-        let shell = ScriptedShell()
-        shell.versionResult = result(0, stdout: "tart version 2.33.0\n")
-        let health = await TartHealthProbe(shell: shell, configuredPath: stubBinaryPath).check()
+        let health = await TartHealthProbe(
+            shell: shell(version: result(0, stdout: "tart version 2.33.0\n")), configuredPath: stubBinaryPath
+        )
+        .check()
         XCTAssertEqual(health, .healthy)
     }
 
@@ -83,32 +65,30 @@ final class TartHealthTests: XCTestCase {
     }
 
     func testKilledOnLaunchExit137() async {
-        let shell = ScriptedShell()
-        shell.versionResult = result(137)
-        let health = await TartHealthProbe(shell: shell, configuredPath: stubBinaryPath).check()
+        let health = await TartHealthProbe(shell: shell(version: result(137)), configuredPath: stubBinaryPath).check()
         XCTAssertEqual(health, .killedOnLaunch)
     }
 
     func testKilledOnLaunchRawSignal9() async {
-        let shell = ScriptedShell()
-        shell.versionResult = result(9)
-        let health = await TartHealthProbe(shell: shell, configuredPath: stubBinaryPath).check()
+        let health = await TartHealthProbe(shell: shell(version: result(9)), configuredPath: stubBinaryPath).check()
         XCTAssertEqual(health, .killedOnLaunch)
     }
 
     func testKilledOnLaunchViaAMFILogEvenWithPlainExitCode() async {
-        let shell = ScriptedShell()
-        shell.versionResult = result(1, stderr: "Abort trap")
-        shell.logResult = result(0, stdout: "AMFI: Code Signature Invalid: killing tart (platform 13)")
-        let health = await TartHealthProbe(shell: shell, configuredPath: stubBinaryPath).check()
+        let health = await TartHealthProbe(
+            shell: shell(
+                version: result(1, stderr: "Abort trap"),
+                log: result(0, stdout: "AMFI: Code Signature Invalid: killing tart (platform 13)")
+            ), configuredPath: stubBinaryPath
+        ).check()
         XCTAssertEqual(health, .killedOnLaunch)
     }
 
     func testBrokenWithStderr() async {
-        let shell = ScriptedShell()
-        shell.versionResult = result(1, stderr: "dyld: Library not loaded")
-        shell.logResult = result(0, stdout: "")
-        let health = await TartHealthProbe(shell: shell, configuredPath: stubBinaryPath).check()
+        let health = await TartHealthProbe(
+            shell: shell(version: result(1, stderr: "dyld: Library not loaded"), log: result(0)),
+            configuredPath: stubBinaryPath
+        ).check()
         guard case .broken(let reason) = health else {
             return XCTFail("expected .broken, got \(health)")
         }
@@ -116,10 +96,9 @@ final class TartHealthTests: XCTestCase {
     }
 
     func testUnverifiableLaunchFallsBackToKilledOnLaunch() async {
-        let shell = ScriptedShell()
-        shell.versionThrows = true
-        shell.logResult = nil
-        let health = await TartHealthProbe(shell: shell, configuredPath: stubBinaryPath).check()
+        let health = await TartHealthProbe(
+            shell: shell(versionThrows: true, log: nil), configuredPath: stubBinaryPath
+        ).check()
         XCTAssertEqual(health, .killedOnLaunch)
     }
 

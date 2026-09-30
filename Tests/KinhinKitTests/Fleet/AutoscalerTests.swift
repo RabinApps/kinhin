@@ -38,7 +38,7 @@ final class AutoscalerTests: XCTestCase {
         XCTAssertEqual(Autoscaler.activeCount(records), 3)
     }
 
-    // MARK: Many-to-one (runners_per_vm)
+    // MARK: - Many-to-one (runners_per_vm)
 
     /// rpv=1 must reproduce the classic one-VM-per-job behavior exactly.
     func testRunnersPerVMOneMatchesLegacyBehavior() {

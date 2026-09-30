@@ -39,7 +39,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         return ""
     }
 
-    // MARK: Pipeline shape
+    // MARK: - Pipeline shape
 
     func testProvisionScriptRunsAsSecondSSHExecAfterAgents() async throws {
         let content = """
@@ -89,7 +89,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         XCTAssertFalse(ssh.scripts[0].contains("kinhin-provision.sh"))
     }
 
-    // MARK: Early validation (before the multi-GB pull)
+    // MARK: - Early validation (before the multi-GB pull)
 
     func testMissingProvisionScriptFailsBeforeAnyTartWork() async {
         let tart = FakeTart()
@@ -136,7 +136,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         XCTAssertTrue(tart.pullCalls.isEmpty)
     }
 
-    // MARK: Failure isolation
+    // MARK: - Failure isolation
 
     func testFailingProvisionScriptAbortsBeforeTargetIsReplaced() async throws {
         let tart = FakeTart()
@@ -165,7 +165,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         XCTAssertFalse(tart.cloneCalls.contains { $0.name == "tahoe-base" })
     }
 
-    // MARK: Helpers
+    // MARK: - Helpers
 
     func testWrapperScriptDecodesRunsAndCleansUp() throws {
         let content = "echo baked"
@@ -192,7 +192,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         XCTAssertNil(try? ImagePreparer.resolveProvisionScript("   "))
     }
 
-    // MARK: Config key
+    // MARK: - Config key
 
     func testConfigParsesProvisionScript() throws {
         let cfg = try ConfigLoader.parse(

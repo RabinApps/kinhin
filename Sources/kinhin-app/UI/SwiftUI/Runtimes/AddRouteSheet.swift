@@ -66,7 +66,7 @@ struct AddRouteSheet: View {
         .frame(width: 360, alignment: .leading)
     }
 
-    // MARK: Form contract (pinned by tests without presenting the sheet)
+    // MARK: - Form contract (pinned by tests without presenting the sheet)
 
     static let patternPlaceholder = "acme/api  or  acme/api@Workflow Name"
 

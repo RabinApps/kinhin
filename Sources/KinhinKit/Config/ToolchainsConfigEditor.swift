@@ -45,7 +45,7 @@ private extension Array {
 /// (comments elsewhere preserved), validating the whole file through the
 /// engine's own parser before anything is written.
 public enum ToolchainsConfigEditor {
-    // MARK: Reading
+    // MARK: - Reading
 
     public static func selection(from yaml: String) throws -> ToolchainsSelection {
         let cfg = try ConfigLoader.parse(yaml)
@@ -73,7 +73,7 @@ public enum ToolchainsConfigEditor {
         return out
     }
 
-    // MARK: Writing
+    // MARK: - Writing
 
     /// A version as it belongs after `id@` in a spec. Version fields have shown
     /// the whole default spec ("node@22") and a "—" for entries that take no
@@ -165,7 +165,7 @@ public enum ToolchainsConfigEditor {
         try ConfigFileEdit.apply(to: url) { try replace(selection, in: $0) }
     }
 
-    // MARK: What lands where
+    // MARK: - What lands where
 
     /// For one target platform: which selected entries get installed and which
     /// are skipped because that platform can't run them.

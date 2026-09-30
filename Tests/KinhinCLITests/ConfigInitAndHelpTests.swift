@@ -18,7 +18,7 @@ final class ConfigInitAndHelpTests: XCTestCase {
 
     private var configURL: URL { scratch.appendingPathComponent("config.yaml") }
 
-    // MARK: config init
+    // MARK: - config init
 
     func testConfigInitWritesTemplateWhenMissing() throws {
         try ConfigCommands.configInit([], configURL: configURL)
@@ -49,7 +49,7 @@ final class ConfigInitAndHelpTests: XCTestCase {
         XCTAssertTrue(cfg.accounts.isEmpty, "--force must replace the file with the template")
     }
 
-    // MARK: help text
+    // MARK: - help text
 
     func testHelpTextMentionsEveryCommandFamily() {
         let help = helpText()

@@ -129,7 +129,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    // MARK: UI construction
+    // MARK: - UI construction
 
     func buildUI(in container: NSView) {
         container.wantsLayer = true
@@ -161,7 +161,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         // are only pinned once they share the container's hierarchy.
     }
 
-    // MARK: Tab switching
+    // MARK: - Tab switching
 
     var selectedTab: MainTab = .fleet
 
@@ -247,7 +247,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         selectTab(tabs[index])
     }
 
-    // MARK: NSWindowDelegate
+    // MARK: - NSWindowDelegate
 
     func windowWillClose(_ notification: Notification) {
         delegate?.mainTabsWindowWillClose()

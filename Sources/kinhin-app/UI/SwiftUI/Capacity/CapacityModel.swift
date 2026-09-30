@@ -48,7 +48,7 @@ final class CapacityModel: ConfigFormModel {
             style: .warn)
     }
 
-    // MARK: Loading
+    // MARK: - Loading
 
     func reload() {
         loads += 1
@@ -68,7 +68,7 @@ final class CapacityModel: ConfigFormModel {
         }
     }
 
-    // MARK: Editing
+    // MARK: - Editing
 
     /// Sets a numeric control (clamped to its range) and stages the edit when
     /// the value changed.

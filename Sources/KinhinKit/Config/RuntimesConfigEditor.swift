@@ -10,7 +10,7 @@ import Yams
 /// Safety: `apply` refuses to write unless the *entire* updated file parses
 /// through `ConfigLoader.parse`, so a bad edit can never land on disk.
 public enum RuntimesConfigEditor {
-    // MARK: Reading
+    // MARK: - Reading
 
     /// The runtimes section as YAML text, or nil when the file has none.
     public static func section(from yaml: String) throws -> String? {
@@ -33,7 +33,7 @@ public enum RuntimesConfigEditor {
         )
     }
 
-    // MARK: Writing
+    // MARK: - Writing
 
     /// Serialize the section with stable ordering (the pane's canonical form).
     static func sectionText(_ rc: KinhinConfig.RuntimeConfig) -> String {

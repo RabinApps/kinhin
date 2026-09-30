@@ -55,7 +55,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
         self.availability = availability
     }
 
-    // MARK: Loading
+    // MARK: - Loading
 
     /// Build the read model from config text. With `loadHealth: true`, each
     /// pool's runtime is probed (concurrently) and the result attached to

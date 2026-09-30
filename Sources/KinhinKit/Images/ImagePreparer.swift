@@ -242,7 +242,7 @@ public struct ImagePreparer {
         Log.info("image", "prepared image '\(options.target)' is ready")
     }
 
-    // MARK: User provision script
+    // MARK: - User provision script
 
     /// Validates and reads the user provision script before any slow work:
     /// `~`/`~/` expands, the file must exist, be readable, and be non-empty.

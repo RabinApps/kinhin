@@ -41,7 +41,7 @@ final class ForgeConnectionModel: ConfigFormModel {
     /// The config file this card edits (shared with the owning ConnectModel).
     var configURL: URL = Paths.config
 
-    // MARK: Injectable seams (wired by ConnectModel)
+    // MARK: - Injectable seams (wired by ConnectModel)
 
     /// Persists a token (and live-swaps it into a running engine).
     @ObservationIgnored var saveToken: (String) async throws -> Void = { _ in }
@@ -60,7 +60,7 @@ final class ForgeConnectionModel: ConfigFormModel {
     /// Fired after any successful token or config change.
     @ObservationIgnored var onChanged: (() -> Void)?
 
-    // MARK: Form state
+    // MARK: - Form state
 
     var tokenText = ""
     var instance = ""
@@ -78,7 +78,7 @@ final class ForgeConnectionModel: ConfigFormModel {
         self.forge = forge
     }
 
-    // MARK: Display
+    // MARK: - Display
 
     /// Self-hosted forges and GitLab show a server field; GitHub tokens work
     /// without one.
@@ -116,7 +116,7 @@ final class ForgeConnectionModel: ConfigFormModel {
         return forge == .gitlab ? "group/subgroup or group/project" : "owner/name, or an org name"
     }
 
-    // MARK: Loading
+    // MARK: - Loading
 
     /// Re-reads config + Keychain (off the main thread — a Keychain read can
     /// block on a system prompt) and refreshes the card.
@@ -189,7 +189,7 @@ final class ForgeConnectionModel: ConfigFormModel {
         }
     }
 
-    // MARK: Connect
+    // MARK: - Connect
 
     func connect() {
         let typed = tokenText.trimmingCharacters(in: .whitespacesAndNewlines)
