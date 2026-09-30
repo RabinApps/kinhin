@@ -83,12 +83,13 @@ struct GitLabForge: Forge {
         let busy = snapshot.busyRunnerNames
         return runners.compactMap { runner in
             guard let name = runner.description else { return nil }
-            return ForgeRunner(id: runner.id, name: name, busy: busy.contains(name), online: runner.hasContacted)
+            return ForgeRunner(
+                id: String(runner.id), name: name, busy: busy.contains(name), online: runner.hasContacted)
         }
     }
 
-    func deleteRunner(id: Int) async throws {
-        try await client.deleteRunner(id: id)
+    func deleteRunner(id: String) async throws {
+        try await client.deleteRunner(id: try numericRunnerID(id))
         snapshot.invalidate()
     }
 

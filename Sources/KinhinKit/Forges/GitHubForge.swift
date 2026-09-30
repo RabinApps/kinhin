@@ -40,11 +40,11 @@ struct GitHubForge: Forge {
     }
 
     func runners() async throws -> [ForgeRunner] {
-        try await client.listRunners().map { ForgeRunner(id: $0.id, name: $0.name, busy: $0.busy) }
+        try await client.listRunners().map { ForgeRunner(id: String($0.id), name: $0.name, busy: $0.busy) }
     }
 
-    func deleteRunner(id: Int) async throws {
-        try await client.deleteRunner(id: id)
+    func deleteRunner(id: String) async throws {
+        try await client.deleteRunner(id: try numericRunnerID(id))
     }
 
     func queuedJobs() async throws -> [ForgeJob] {

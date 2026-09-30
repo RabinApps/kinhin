@@ -78,12 +78,12 @@ struct GiteaForge: Forge {
 
     func runners() async throws -> [ForgeRunner] {
         try await client.listRunners().map { runner in
-            ForgeRunner(id: runner.id, name: runner.name, busy: runner.status == "busy")
+            ForgeRunner(id: String(runner.id), name: runner.name, busy: runner.status == "busy")
         }
     }
 
-    func deleteRunner(id: Int) async throws {
-        try await client.deleteRunner(id: id)
+    func deleteRunner(id: String) async throws {
+        try await client.deleteRunner(id: try numericRunnerID(id))
     }
 
     func queuedJobs() async throws -> [ForgeJob] {

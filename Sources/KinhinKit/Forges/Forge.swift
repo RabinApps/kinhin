@@ -114,7 +114,7 @@ public protocol Forge: Sendable {
     func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String]
     /// This scope's runners (name/id/status/busy), unified shape.
     func runners() async throws -> [ForgeRunner]
-    func deleteRunner(id: Int) async throws
+    func deleteRunner(id: String) async throws
     /// Jobs waiting for a runner (per-repo attribution when the API gives it).
     func queuedJobs() async throws -> [ForgeJob]
     /// Jobs currently executing (runner_name keyed), for running attribution.
@@ -134,6 +134,13 @@ extension Forge {
 
     public var rateLimit: ForgeRateLimit? { nil }
 
+    /// The API id of a runner on a forge that numbers them (GitHub, the Gitea
+    /// family, GitLab); `ForgeRunner.id` carries it as a string.
+    func numericRunnerID(_ id: String) throws -> Int {
+        guard let number = Int(id) else { throw EngineError.invalidRunnerID(forge: self.id, id: id) }
+        return number
+    }
+
     /// Shared-token forges: every runner uses the one token.
     public func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String] {
         let token = try await mintRegistrationToken()
@@ -143,7 +150,9 @@ extension Forge {
 
 /// Forge-agnostic runner snapshot.
 public struct ForgeRunner: Sendable, Equatable {
-    public let id: Int
+    /// The forge's own runner id: a number on GitHub, the Gitea family and
+    /// GitLab (see `Forge.numericRunnerID`), a UUID elsewhere.
+    public let id: String
     public let name: String
     public let busy: Bool
     /// False while the runner exists on the forge but its agent has never
@@ -151,7 +160,7 @@ public struct ForgeRunner: Sendable, Equatable {
     /// ephemeral watch only counts a runner as registered once it is online.
     public let online: Bool
 
-    public init(id: Int, name: String, busy: Bool, online: Bool = true) {
+    public init(id: String, name: String, busy: Bool, online: Bool = true) {
         self.id = id
         self.name = name
         self.busy = busy

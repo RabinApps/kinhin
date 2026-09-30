@@ -100,11 +100,31 @@ final class ForgeTests: XCTestCase {
             credentials: .github(token: "t", scope: "acme/widgets"), labels: ["kinhin"], client: github)
 
         let runners = try await forge.runners()
-        XCTAssertEqual(runners, [ForgeRunner(id: runners.first?.id ?? 0, name: "kinhin-1", busy: true)])
+        XCTAssertEqual(runners, [ForgeRunner(id: runners.first?.id ?? "", name: "kinhin-1", busy: true)])
         let queued = try await forge.queuedJobs()
         XCTAssertEqual(queued.count, 2)
         XCTAssertEqual(queued.first?.repository, "acme/ios-app")
         XCTAssertEqual(forge.registrationURL(), "https://github.com/acme/widgets")
+    }
+
+    func testNumericForgeDeletesRunnersByStringID() async throws {
+        let github = FakeGitHub()
+        github.register(name: "kinhin-1")
+        let forge = GitHubForge(
+            credentials: .github(token: "t", scope: "acme/widgets"), labels: ["kinhin"], client: github)
+
+        let runners = try await forge.runners()
+        let id = try XCTUnwrap(runners.first?.id)
+        try await forge.deleteRunner(id: id)
+        XCTAssertEqual(github.deletedRunnerIDs.map(String.init), [id])
+
+        do {
+            try await forge.deleteRunner(id: "not-a-number")
+            XCTFail("a non-numeric id must not reach the GitHub API")
+        } catch EngineError.invalidRunnerID(let forgeID, let badID) {
+            XCTAssertEqual(forgeID, .github)
+            XCTAssertEqual(badID, "not-a-number")
+        }
     }
 
     // MARK: - Demand merging & assignment

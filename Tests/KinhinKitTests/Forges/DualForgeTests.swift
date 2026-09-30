@@ -16,7 +16,7 @@ final class DualForgeTests: XCTestCase {
         func registrationURL() -> String { "https://git.example.com" }
         func mintRegistrationToken() async throws -> String { "rt" }
         func runners() async throws -> [ForgeRunner] { [] }
-        func deleteRunner(id: Int) async throws {}
+        func deleteRunner(id: String) async throws {}
         func queuedJobs() async throws -> [ForgeJob] { [] }
         func runningJobs() async throws -> [ForgeJob] { [] }
     }
