@@ -66,6 +66,7 @@ final class AccountsModel: ConfigFormModel {
         case .gitlab: return "group/subgroup or group/project"
         case .buildkite: return "org-slug/cluster"
         case .azuredevops: return "agent pool name"
+        case .bitbucket: return "workspace, or workspace/repo-slug"
         case .github, .gitea, .forgejo: return "owner/name, or an org"
         }
     }
@@ -74,7 +75,7 @@ final class AccountsModel: ConfigFormModel {
     /// (GitHub and Buildkite are hosted only; GitLab defaults to gitlab.com).
     func instancePlaceholder(for forge: ForgeID) -> String? {
         switch forge {
-        case .github, .buildkite: return nil
+        case .github, .buildkite, .bitbucket: return nil
         case .gitea, .forgejo: return "https://gitea.example.com"
         case .gitlab: return "https://gitlab.com (optional)"
         case .azuredevops: return "https://dev.azure.com/your-org"
@@ -102,6 +103,8 @@ final class AccountsModel: ConfigFormModel {
             return TokenRequirements.buildkite(scope: scope)
         case .azuredevops:
             return TokenRequirements.azureDevOps(scope: scope, instance: filled.isEmpty ? nil : filled)
+        case .bitbucket:
+            return TokenRequirements.bitbucket(scope: scope)
         }
     }
 

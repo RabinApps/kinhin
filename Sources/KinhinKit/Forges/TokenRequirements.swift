@@ -170,6 +170,32 @@ public struct TokenRequirements: Equatable, Sendable {
         )
     }
 
+    /// Bitbucket Cloud: a workspace access token (workspace scope) or a
+    /// repository access token (`workspace/repo` scope). App passwords lack
+    /// the runner scopes.
+    public static func bitbucket(scope: String) -> TokenRequirements {
+        let scope = scope.trimmingCharacters(in: .whitespaces)
+        let isRepo = scope.contains("/")
+        let target = scope.isEmpty ? "the workspace to serve" : scope
+        return TokenRequirements(
+            title: "Bitbucket token permissions" + (scope.isEmpty ? "" : " for '\(scope)'"),
+            options: [
+                Option(
+                    kind: isRepo ? "Repository access token" : "Workspace access token",
+                    url: isRepo
+                        ? "https://bitbucket.org/\(target)/settings/access_tokens"
+                        : "https://bitbucket.org/\(target.isEmpty ? "<workspace>" : target)/settings/access-tokens",
+                    permissions: [
+                        isRepo
+                            ? "Scopes: runner:write, runner:read, pipeline:read (repository tokens)"
+                            : "Scopes: runner (or runner:write + runner:read), pipeline (or pipeline:read)"
+                    ])
+            ],
+            note:
+                "App passwords do not cover runners — use a workspace or repository access token. kinhin creates one runner per instance and captures its OAuth secret at creation."
+        )
+    }
+
     /// Multi-line text for the CLI and log lines.
     public var plainText: String {
         var lines = ["\(title):"]

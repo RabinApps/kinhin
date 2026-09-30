@@ -94,6 +94,12 @@ extension FleetEngine {
                     labels: account.labels ?? BuildkiteForge.defaultLabels,
                     account: account.name
                 )
+            case .bitbucket:
+                forge = try await BitbucketForge.make(
+                    credentials: BitbucketCredentials(token: token, scope: account.scope),
+                    labels: account.labels ?? [],
+                    account: account.name
+                )
             }
             forgeState.withLock { $0.byPlatform[account.name] = forge }
             registrationCache(for: account.name).invalidate()

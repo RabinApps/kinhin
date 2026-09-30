@@ -111,6 +111,26 @@ public enum TokenHealthCheck {
         }
     }
 
+    /// Check a Bitbucket account: the token is accepted, and the scope's
+    /// workspace (and repository, when set) exist and can see runners.
+    public static func bitbucket(
+        token: String, scope: String,
+        client bitbucket: BitbucketClient? = nil
+    ) async -> Report {
+        let client = bitbucket ?? BitbucketClient(credentials: BitbucketCredentials(token: token, scope: scope))
+        do {
+            try await client.verifyScope()
+            let runners = try await client.listRunners(scope: BitbucketScope(credentials: client.credentials))
+            return Report(
+                ok: true,
+                message: "Token works against \(BitbucketScope(credentials: client.credentials).description) "
+                    + "(\(runners.count) runner(s))")
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            return Report(ok: false, message: "Token check failed: \(message)")
+        }
+    }
+
     /// Forge-dispatching convenience for the settings form: resolves the
     /// stored token (via `keychainToken`) and the config scope, and returns
     /// an actionable "not checkable" report when a prerequisite is missing
@@ -163,6 +183,11 @@ public enum TokenHealthCheck {
                     ok: false, message: "No Azure DevOps account in config.yaml — add one to check the token.")
             }
             return await Self.azureDevOps(token: token, scope: account.scope, instance: instance)
+        case .bitbucket:
+            guard let account = config?.accounts.first(where: { $0.forge == .bitbucket }) else {
+                return Report(ok: false, message: "No Bitbucket account in config.yaml — add one to check the token.")
+            }
+            return await Self.bitbucket(token: token, scope: account.scope)
         }
     }
 
@@ -187,6 +212,8 @@ public enum TokenHealthCheck {
                 return Report(ok: false, message: "This account has no organization URL in config.yaml.")
             }
             return await azureDevOps(token: token, scope: account.scope, instance: instance)
+        case .bitbucket:
+            return await bitbucket(token: token, scope: account.scope)
         }
     }
 
@@ -211,6 +238,8 @@ public enum TokenHealthCheck {
             return try await AzureDevOpsClient(
                 credentials: AzureDevOpsCredentials(token: token, scope: "", instance: instance ?? "")
             ).listPools()
+        case .bitbucket:
+            return try await BitbucketClient(credentials: BitbucketCredentials(token: token, scope: "")).listScopes()
         }
     }
 }

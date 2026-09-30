@@ -260,6 +260,16 @@ struct TartRuntime: Runtime {
                     runnerNames: FleetEngine.runnerNames(for: name, count: runnerCount),
                     capabilities: AzureDevOpsForge.capabilityEnvironment(forge.labels),
                     template: "\"$HOME/azure-agent\"", baseDir: "\"$HOME/azure-agents\"", copy: .apfsClone)
+        case .bitbucket:
+            return cachePrefix
+                + RunnerBootstrap.bitbucketRegistrationScript(
+                    runners: try RunnerBootstrap.bitbucketRunners(
+                        name: name, runnerCount: runnerCount, tokens: runnerTokens),
+                    workspace: forge.scope,
+                    runtime: "macos",
+                    labels: forge.labels,
+                    runnerCommand: "\"$HOME/bitbucket-runner/runner.sh\"",
+                    baseDir: "\"$HOME/bitbucket-runners\"")
         }
     }
 

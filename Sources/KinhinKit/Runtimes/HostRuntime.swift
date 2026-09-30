@@ -98,6 +98,9 @@ final class HostRuntime: Runtime {
                 forge: forge, token: token, name: name, runnerCount: runnerCount, labels: labels)
         case .azuredevops:
             return azureRegistrationScript(forge: forge, token: token, name: name, runnerCount: runnerCount)
+        case .bitbucket:
+            return try bitbucketRegistrationScript(
+                forge: forge, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount)
         }
         let workDir = workDirectory(for: name)
         let base = RunnerBootstrap.registrationScript(
@@ -131,6 +134,7 @@ final class HostRuntime: Runtime {
         await stopGitLabRunners(id: id)
         await stopBuildkiteAgents(id: id)
         await stopAzureAgents(id: id)
+        await stopBitbucketRunners(id: id)
         await bestEffortAsync(id, "removing host work directory") {
             if FileManager.default.fileExists(atPath: workDir.path) {
                 try FileManager.default.removeItem(at: workDir)

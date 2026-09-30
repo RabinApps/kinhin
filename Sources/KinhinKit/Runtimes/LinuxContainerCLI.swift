@@ -115,6 +115,16 @@ struct LinuxContainerCLI: Sendable {
                     capabilities: AzureDevOpsForge.capabilityEnvironment(forge.labels),
                     template: "/opt/azure-agent", baseDir: "/opt/azure-agents", copy: .archive,
                     extraEnvironment: ["AGENT_ALLOW_RUNASROOT=1"])
+        case .bitbucket:
+            return cachePrefix
+                + RunnerBootstrap.bitbucketRegistrationScript(
+                    runners: try RunnerBootstrap.bitbucketRunners(
+                        name: name, runnerCount: runnerCount, tokens: runnerTokens),
+                    workspace: forge.scope,
+                    runtime: "linux-shell",
+                    labels: forge.labels,
+                    runnerCommand: "/opt/bitbucket-runner/runner.sh",
+                    baseDir: "/opt/bitbucket-runners")
         }
     }
 

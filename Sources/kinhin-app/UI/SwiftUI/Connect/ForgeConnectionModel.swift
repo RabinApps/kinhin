@@ -80,12 +80,12 @@ final class ForgeConnectionModel: ConfigFormModel {
 
     // MARK: - Display
 
-    /// Self-hosted forges and GitLab show a server field; GitHub and
-    /// Buildkite are hosted only.
-    var showsInstance: Bool { forge != .github && forge != .buildkite }
+    /// Self-hosted forges and GitLab show a server field; GitHub, Buildkite
+    /// and Bitbucket are hosted only.
+    var showsInstance: Bool { forge != .github && forge != .buildkite && forge != .bitbucket }
     var instancePlaceholder: String {
         switch forge {
-        case .github, .buildkite: return ""
+        case .github, .buildkite, .bitbucket: return ""
         case .gitea, .forgejo: return "https://gitea.example.com"
         case .gitlab: return "https://gitlab.com (optional)"
         case .azuredevops: return "https://dev.azure.com/your-org"
@@ -96,6 +96,7 @@ final class ForgeConnectionModel: ConfigFormModel {
         case .gitlab: return "Group or project"
         case .buildkite: return "Organization and cluster"
         case .azuredevops: return "Agent pool"
+        case .bitbucket: return "Workspace or workspace/repo"
         case .github, .gitea, .forgejo: return "Repository or org"
         }
     }
@@ -119,6 +120,8 @@ final class ForgeConnectionModel: ConfigFormModel {
         case .azuredevops:
             return TokenRequirements.azureDevOps(
                 scope: trimmedScope, instance: instance.trimmingCharacters(in: .whitespaces))
+        case .bitbucket:
+            return TokenRequirements.bitbucket(scope: trimmedScope)
         }
     }
 
@@ -128,6 +131,7 @@ final class ForgeConnectionModel: ConfigFormModel {
         case .gitlab: return "group/subgroup or group/project"
         case .buildkite: return "org-slug/cluster"
         case .azuredevops: return "agent pool name"
+        case .bitbucket: return "workspace, or workspace/repo-slug"
         case .github, .gitea, .forgejo: return "owner/name, or an org name"
         }
     }
@@ -268,6 +272,11 @@ final class ForgeConnectionModel: ConfigFormModel {
             let scopeValue = scope.trimmingCharacters(in: .whitespaces)
             guard !scopeValue.isEmpty, let instance = instanceIfAny else { return }
             let report = await TokenHealthCheck.azureDevOps(token: token, scope: scopeValue, instance: instance)
+            status = Line(text: report.message, style: report.ok ? .ok : .error)
+        case .bitbucket:
+            let scopeValue = scope.trimmingCharacters(in: .whitespaces)
+            guard !scopeValue.isEmpty else { return }
+            let report = await TokenHealthCheck.bitbucket(token: token, scope: scopeValue)
             status = Line(text: report.message, style: report.ok ? .ok : .error)
         case .gitea, .forgejo:
             break

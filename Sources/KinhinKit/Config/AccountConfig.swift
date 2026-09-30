@@ -49,13 +49,15 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     }
 
     /// A scope the forge accepts: GitLab paths nest (`group/sub/project`),
-    /// Buildkite takes `org/cluster`, Azure DevOps an agent pool name, the
-    /// others `owner/name` or a bare org.
+    /// Buildkite takes `org/cluster`, Azure DevOps an agent pool name,
+    /// Bitbucket a workspace or `workspace/repo`, the others `owner/name` or
+    /// a bare org.
     static func isValidScope(_ scope: String, forge: ForgeID) -> Bool {
         switch forge {
         case .gitlab: return GitLabCredentials.isValidScope(scope)
         case .buildkite: return BuildkiteCredentials.isValidScope(scope)
         case .azuredevops: return AzureDevOpsCredentials.isValidScope(scope)
+        case .bitbucket: return BitbucketCredentials.isValidScope(scope)
         case .github, .gitea, .forgejo: return isValidScope(scope)
         }
     }

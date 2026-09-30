@@ -183,9 +183,12 @@ final class BitbucketClientTests: XCTestCase {
             return (404, Data(), [:])
         }
         let scope = BitbucketScope(credentials: BitbucketCredentials(token: "t", scope: "acme/api-server"))
-        let steps = try await makeClient().steps(scope: scope, repos: ["acme/api-server"])
-        XCTAssertEqual(steps.map(\.uuid), ["{s1}", "{s2}"])
-        XCTAssertEqual(steps.map(\.stateName), ["PENDING", "IN_PROGRESS"])
+        let jobs = try await makeClient().activeJobs(scope: scope, repos: ["acme/api-server"])
+        XCTAssertEqual(jobs.map(\.name), ["{s1}", "{s2}"], "a step without a name falls back to its uuid")
+        XCTAssertEqual(jobs.map(\.stateName), ["PENDING", "IN_PROGRESS"])
+        XCTAssertEqual(jobs.map(\.repository), ["acme/api-server", "acme/api-server"])
+        XCTAssertEqual(jobs.map(\.isQueued), [true, false])
+        XCTAssertEqual(jobs.map(\.isRunning), [false, true])
     }
 
     func testWorkspaceScopePollsOnlyTheReposItIsGiven() async throws {
@@ -195,7 +198,7 @@ final class BitbucketClientTests: XCTestCase {
             requested.withLock { $0.append(path) }
             return path.hasSuffix("/pipelines/") ? Self.json(#"{"values": [], "next": null}"#) : (404, Data(), [:])
         }
-        _ = try await makeClient().steps(scope: .workspace("acme"), repos: ["acme/one", "acme/two"])
+        _ = try await makeClient().activeJobs(scope: .workspace("acme"), repos: ["acme/one", "acme/two"])
         XCTAssertEqual(
             requested.withLock { $0 }.filter { $0.hasSuffix("/pipelines/") },
             ["/2.0/repositories/acme/one/pipelines/", "/2.0/repositories/acme/two/pipelines/"])

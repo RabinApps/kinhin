@@ -11,7 +11,7 @@ extension ForgeConnectionModel {
         guard tokenStored, !scopeValue.isEmpty else { return }
         do {
             switch forge {
-            case .github, .gitea, .forgejo, .gitlab, .buildkite, .azuredevops:
+            case .github, .gitea, .forgejo, .gitlab, .buildkite, .azuredevops, .bitbucket:
                 let instanceValue = instanceIfAny
                 guard scopeValue != lastWrittenScope || instanceValue != lastWrittenInstanceIfAny else { return }
                 var account = AccountConfig(name: accountName, forge: forge, scope: scopeValue)

@@ -100,12 +100,12 @@ public struct BitbucketClient: Sendable {
 
     // MARK: - Jobs
 
-    /// Steps of the scope's active pipelines, each carrying the `runs-on`
-    /// labels it asked for. Only pipelines still pending or in progress are
-    /// followed to their steps (they lead the newest-first list, so one page
-    /// per repo suffices). Workspace scopes poll the recently active repos
-    /// the caller passes; repository scopes poll their one repo.
-    func steps(scope: BitbucketScope, repos: [String]) async throws -> [BitbucketStep] {
+    /// Steps of the scope's active pipelines, each attributed to its
+    /// repository. Only pipelines still pending or in progress are followed
+    /// to their steps (they lead the newest-first list, so one page per repo
+    /// suffices). Workspace scopes poll the recently active repos the caller
+    /// passes; repository scopes poll their one repo.
+    func activeJobs(scope: BitbucketScope, repos: [String]) async throws -> [BitbucketJob] {
         let targets: [(repo: String, path: String)]
         switch scope {
         case .workspace:
@@ -120,10 +120,46 @@ public struct BitbucketClient: Sendable {
             for pipeline in pipelines where pipeline.stateName == "PENDING" || pipeline.stateName == "IN_PROGRESS" {
                 let pipelineSteps: [BitbucketStep] = try await paged(
                     "\(target.path)\(pipeline.uuid)/steps", [], what: "steps")
-                steps.append(contentsOf: pipelineSteps)
+                steps.append(
+                    contentsOf: pipelineSteps.map { step in
+                        var step = step
+                        step.repository = target.repo
+                        return step
+                    })
             }
         }
-        return steps
+        return steps.map(BitbucketJob.init)
+    }
+
+    /// The workspace's repositories by last activity (newest first), for the
+    /// "poll recently active repos only" demand strategy: one page (100)
+    /// bounds the read.
+    func activeRepositories(scope: BitbucketScope) async throws -> [String] {
+        let repos: [BitbucketRepoRef] = try await paged(
+            "\(scope.pipelinesPath)", [URLQueryItem(name: "sort", value: "-updated_on")],
+            what: "repositories", pageLimit: 1)
+        return repos.map(\.fullName)
+    }
+
+    // MARK: - UUIDs
+
+    /// The workspace's UUID, as the agent start command's `--accountUuid`
+    /// expects it (`{…}` braces included).
+    func workspaceUUID(scope: BitbucketScope) async throws -> String {
+        let (data, _) = try await send("GET", scope.workspacePath)
+        struct Workspace: Decodable { let uuid: String }
+        let workspace: Workspace = try decode(data, "workspace")
+        return workspace.uuid
+    }
+
+    /// The repository's UUID (for `--repositoryUuid`), nil on workspace
+    /// scopes.
+    func repositoryUUID(scope: BitbucketScope) async throws -> String? {
+        guard let path = scope.repositoryPath else { return nil }
+        let (data, _) = try await send("GET", path)
+        struct Repo: Decodable { let uuid: String }
+        let repo: Repo = try decode(data, "repository")
+        return repo.uuid
     }
 
     // MARK: - Plumbing

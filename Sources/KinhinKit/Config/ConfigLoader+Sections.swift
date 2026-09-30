@@ -47,6 +47,10 @@ extension ConfigLoader {
                         "account '\(name)': scope must be 'org-slug/cluster' (the cluster's name or id)")
                 case .azuredevops:
                     throw ConfigError.invalid("account '\(name)': scope must be the agent pool's name")
+                case .bitbucket:
+                    throw ConfigError.invalid(
+                        "account '\(name)': scope must be a workspace slug, or 'workspace/repo-slug' for one repository"
+                    )
                 case .github, .gitea, .forgejo:
                     throw ConfigError.invalid("account '\(name)': scope must be 'owner/name' or an org name")
                 }
@@ -120,6 +124,25 @@ extension ConfigLoader {
                 }
                 result.append(
                     AccountConfig(name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels))
+            case .bitbucket:
+                if entry.instance != nil {
+                    throw ConfigError.invalid("account '\(name)': Bitbucket is hosted only; remove instance")
+                }
+                if let labels = entry.labels {
+                    guard !labels.isEmpty else {
+                        throw ConfigError.invalid("account '\(name)': labels must be non-empty when present")
+                    }
+                    // The runner's own `self.hosted` and platform markers are
+                    // added at registration; the account's labels are the
+                    // extra `runs-on:` selectors.
+                    let reserved: Set<String> = ["self.hosted", "macos", "linux.shell"]
+                    guard labels.allSatisfy({ !reserved.contains($0) }) else {
+                        throw ConfigError.invalid(
+                            "account '\(name)': labels are extra runs-on selectors; 'self.hosted', 'macos' and "
+                                + "'linux.shell' are added automatically")
+                    }
+                }
+                result.append(AccountConfig(name: name, forge: forge, scope: scope, labels: entry.labels))
             }
         }
         return result

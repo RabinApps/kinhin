@@ -64,6 +64,13 @@ enum BitbucketScope: Equatable, Sendable {
         }
     }
 
+    private var workspace: String {
+        switch self {
+        case .workspace(let name): return name
+        case .repository(let workspace, _): return workspace
+        }
+    }
+
     /// The runners endpoint base, `<workspace>` substituted.
     var runnerPath: String {
         switch self {
@@ -74,13 +81,25 @@ enum BitbucketScope: Equatable, Sendable {
         }
     }
 
-    /// The pipelines endpoint base, `<workspace>` substituted.
+    /// The pipelines endpoint base, `<workspace>` substituted. Workspace
+    /// scopes combine it with a repo on the caller's side.
     var pipelinesPath: String {
         switch self {
         case .workspace(let name):
             return "/2.0/repositories/\(name)"
         case .repository(let workspace, let slug):
             return "/2.0/repositories/\(workspace)/\(slug)"
+        }
+    }
+
+    /// The workspace's own endpoint (its UUID lives here).
+    var workspacePath: String { "/2.0/workspaces/\(workspace)" }
+
+    /// The repository's endpoint (its UUID lives in the payload).
+    var repositoryPath: String? {
+        switch self {
+        case .workspace: return nil
+        case .repository(let workspace, let slug): return "/2.0/repositories/\(workspace)/\(slug)"
         }
     }
 
@@ -181,21 +200,24 @@ struct BitbucketPipeline: Decodable, Sendable, Equatable {
             .decodeIfPresent(String.self, forKey: .name) ?? ""
     }
 }
-
-/// A step of a pipeline, with the `runs-on` labels it asked for. Steps that
-/// run on Atlassian's infrastructure carry no `runs_on` and never match a
-/// self-hosted runner.
+/// A step of a pipeline, with the `runs-on` labels it asked for. The public
+/// API does not expose `runs_on` yet (the runner itself matches on the forge
+/// side), so it decodes empty; `repository` is not part of the payload — the
+/// client fills it with the repository it read the step from.
 struct BitbucketStep: Decodable, Sendable, Equatable {
     let uuid: String
     let name: String?
     let stateName: String
     let runsOn: [String]
+    /// "workspace/repo" the step's pipeline belongs to (set by the client).
+    var repository: String?
 
-    init(uuid: String, name: String? = nil, stateName: String, runsOn: [String] = []) {
+    init(uuid: String, name: String? = nil, stateName: String, runsOn: [String] = [], repository: String? = nil) {
         self.uuid = uuid
         self.name = name
         self.stateName = stateName
         self.runsOn = runsOn
+        self.repository = repository
     }
 
     enum CodingKeys: String, CodingKey {
@@ -215,27 +237,46 @@ struct BitbucketStep: Decodable, Sendable, Equatable {
             try container.nestedContainer(keyedBy: StateKeys.self, forKey: .state)
             .decodeIfPresent(String.self, forKey: .name) ?? ""
         runsOn = try container.decodeIfPresent([String].self, forKey: .runsOn) ?? []
+        repository = nil
     }
 
-    var isWaitingForRunner: Bool { stateName == "PENDING" }
+    var isQueued: Bool { stateName == "PENDING" }
     var isRunning: Bool { stateName == "IN_PROGRESS" }
 }
 
 /// A step waiting for or running on a self-hosted runner, attributed to its
-/// repository.
+/// repository. Which runner took a step is not public, so running jobs carry
+/// no runner name; the runners' busy state comes from the running steps
+/// instead (see `BitbucketForge`).
 public struct BitbucketJob: Sendable, Equatable {
     public let name: String
-    /// The `runs-on` labels the step asked for (the routing signal).
+    /// The `runs-on` labels the step asked for (empty: the API does not
+    /// expose them).
     public let runsOn: [String]
+    public let stateName: String
     /// "workspace/repo" the pipeline belongs to.
     public let repository: String
-    public let isRunning: Bool
 
-    init(step: BitbucketStep, repository: String, isRunning: Bool) {
+    init(step: BitbucketStep) {
         self.name = step.name ?? step.uuid
         self.runsOn = step.runsOn
-        self.repository = repository
-        self.isRunning = isRunning
+        self.stateName = step.stateName
+        self.repository = step.repository ?? ""
+    }
+
+    var isQueued: Bool { stateName == "PENDING" }
+    var isRunning: Bool { stateName == "IN_PROGRESS" }
+}
+
+/// A repository of the workspace with its last-activity timestamp, for the
+/// "recently active repos first" demand poll.
+struct BitbucketRepoRef: Decodable, Sendable, Equatable {
+    let fullName: String
+    let updatedOn: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case fullName = "full_name"
+        case updatedOn = "updated_on"
     }
 }
 

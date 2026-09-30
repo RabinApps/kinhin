@@ -17,6 +17,9 @@ public enum ForgeID: String, Codable, Sendable, CaseIterable {
     /// Azure Pipelines (Azure DevOps Services or Server); the instance is the
     /// organization URL and the scope an agent pool.
     case azuredevops
+    /// Bitbucket Cloud Pipelines self-hosted runners; the scope is a
+    /// workspace, or `workspace/repo` to serve one repository.
+    case bitbucket
 
     /// The product name for UI and messages ("GitHub", "GitLab", …).
     public var displayName: String {
@@ -27,6 +30,7 @@ public enum ForgeID: String, Codable, Sendable, CaseIterable {
         case .gitlab: return "GitLab"
         case .buildkite: return "Buildkite"
         case .azuredevops: return "Azure DevOps"
+        case .bitbucket: return "Bitbucket"
         }
     }
 }

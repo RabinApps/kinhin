@@ -32,6 +32,10 @@ struct AuthEnvironment: Sendable {
             token: credentials.token, scope: credentials.scope, instance: credentials.instance)
         guard report.ok else { throw CLIError(report.message) }
     }
+    var checkBitbucket: @Sendable (BitbucketCredentials) async throws -> Void = { credentials in
+        let report = await TokenHealthCheck.bitbucket(token: credentials.token, scope: credentials.scope)
+        guard report.ok else { throw CLIError(report.message) }
+    }
     var loadConfig: @Sendable () -> KinhinConfig
     /// Best-effort live-swap notification to a running daemon.
     var notifyDaemon: @Sendable (String, ForgeID) -> Void
@@ -128,6 +132,8 @@ enum AuthCommand {
         case .azuredevops:
             let account = config?.accounts.first { $0.forge == .azuredevops }
             return TokenRequirements.azureDevOps(scope: account?.scope ?? "", instance: account?.instance)
+        case .bitbucket:
+            return TokenRequirements.bitbucket(scope: config?.accounts.first { $0.forge == .bitbucket }?.scope ?? "")
         }
     }
 
@@ -169,6 +175,7 @@ enum AuthCommand {
             case .gitlab: expected = "a GitLab project or group path, e.g. group/project"
             case .buildkite: expected = "org-slug/cluster, the cluster's name or id"
             case .azuredevops: expected = "the agent pool's name, with --instance https://dev.azure.com/ORG"
+            case .bitbucket: expected = "a workspace slug, or workspace/repo-slug for one repository"
             case .github, .gitea, .forgejo: expected = "an org name, or owner/name for one repository"
             }
             try environment.fail("--scope is required (\(expected))")
@@ -271,6 +278,7 @@ enum AuthCommand {
             case .gitlab: kind = "GitLab access token"
             case .buildkite: kind = "Buildkite API access token"
             case .azuredevops: kind = "Azure DevOps personal access token"
+            case .bitbucket: kind = "Bitbucket access token"
             }
             return named.map { "\(kind) for account '\($0.name)'" } ?? kind
         }
@@ -395,6 +403,8 @@ enum AuthCommand {
             case .azuredevops:
                 try await environment.checkAzureDevOps(
                     AzureDevOpsCredentials(token: token, scope: account.scope, instance: account.instance ?? ""))
+            case .bitbucket:
+                try await environment.checkBitbucket(BitbucketCredentials(token: token, scope: account.scope))
             }
             print("token works against \(against)")
         } catch {
