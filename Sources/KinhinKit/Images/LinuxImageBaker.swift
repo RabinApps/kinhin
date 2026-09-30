@@ -21,6 +21,8 @@ public struct LinuxImageOptions {
     public var hasBuildkiteToken: Bool?
     /// nil → any Azure DevOps account has a stored token.
     public var hasAzureDevOpsToken: Bool?
+    /// nil → any Bitbucket account has a stored token.
+    public var hasBitbucketToken: Bool?
     /// Architecture of the image being baked. Anything but arm64 (native on
     /// Apple Silicon) is Docker-only and runs under emulation.
     public var platform: LinuxPlatform
@@ -29,7 +31,7 @@ public struct LinuxImageOptions {
         image: String, target: String, user: String = "admin", toolchains: KinhinConfig.ToolchainsConfig? = nil,
         toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil,
         hasGitLabToken: Bool? = nil, hasBuildkiteToken: Bool? = nil, hasAzureDevOpsToken: Bool? = nil,
-        platform: LinuxPlatform = .arm64
+        hasBitbucketToken: Bool? = nil, platform: LinuxPlatform = .arm64
     ) {
         self.platform = platform
         self.image = image
@@ -42,6 +44,7 @@ public struct LinuxImageOptions {
         self.hasGitLabToken = hasGitLabToken
         self.hasBuildkiteToken = hasBuildkiteToken
         self.hasAzureDevOpsToken = hasAzureDevOpsToken
+        self.hasBitbucketToken = hasBitbucketToken
     }
 }
 
@@ -95,7 +98,11 @@ struct LinuxImageBaker {
         let hasGitLabToken = try options.hasGitLabToken ?? AccountTokens.anyStored(for: .gitlab)
         let hasBuildkiteToken = try options.hasBuildkiteToken ?? AccountTokens.anyStored(for: .buildkite)
         let hasAzureDevOpsToken = try options.hasAzureDevOpsToken ?? AccountTokens.anyStored(for: .azuredevops)
-        guard hasGitHubToken || hasGiteaToken || hasGitLabToken || hasBuildkiteToken || hasAzureDevOpsToken else {
+        let hasBitbucketToken = try options.hasBitbucketToken ?? AccountTokens.anyStored(for: .bitbucket)
+        guard
+            hasGitHubToken || hasGiteaToken || hasGitLabToken || hasBuildkiteToken || hasAzureDevOpsToken
+                || hasBitbucketToken
+        else {
             throw ImageError.noCredentials(
                 "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab / --account NAME)"
             )
@@ -141,6 +148,14 @@ struct LinuxImageBaker {
                     version: versions.azure, platform: options.platform.azureAgentPlatform))
         } else {
             Log.info(tag, "no Azure DevOps token stored — skipping the Azure Pipelines agent install")
+        }
+        if hasBitbucketToken {
+            Log.info(tag, "Bitbucket token found — baking the Bitbucket runner \(versions.bitbucket)")
+            lines.append(
+                RunnerBootstrap.linuxBitbucketRunnerInstallScript(
+                    version: versions.bitbucket, jdkVersion: versions.bitbucketJDK))
+        } else {
+            Log.info(tag, "no Bitbucket token stored — skipping the Bitbucket runner install")
         }
         lines.append(
             try RunnerBootstrap.toolchainHelperInstallScript(

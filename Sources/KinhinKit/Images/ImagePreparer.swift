@@ -35,6 +35,8 @@ public struct ImagePreparer {
         public var hasBuildkiteToken: Bool?
         /// nil → any Azure DevOps account has a stored token.
         public var hasAzureDevOpsToken: Bool?
+        /// nil → any Bitbucket account has a stored token.
+        public var hasBitbucketToken: Bool?
         /// Host path to a user script baked into the image after the runner
         /// agents are installed (toolchains etc.). nil = no user script.
         public var provisionScriptPath: String?
@@ -53,7 +55,8 @@ public struct ImagePreparer {
             runnerVersion: String = ImagePreparer.defaultRunnerVersion,
             giteaRunnerVersion: String = ImagePreparer.defaultGiteaRunnerVersion, user: String = "admin",
             hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil, hasGitLabToken: Bool? = nil,
-            hasBuildkiteToken: Bool? = nil, hasAzureDevOpsToken: Bool? = nil, provisionScriptPath: String? = nil,
+            hasBuildkiteToken: Bool? = nil, hasAzureDevOpsToken: Bool? = nil, hasBitbucketToken: Bool? = nil,
+            provisionScriptPath: String? = nil,
             provisionTimeout: TimeInterval = 1800, toolchains: KinhinConfig.ToolchainsConfig? = nil,
             toolchainTimeout: TimeInterval = 1800
         ) {
@@ -67,6 +70,7 @@ public struct ImagePreparer {
             self.hasGitLabToken = hasGitLabToken
             self.hasBuildkiteToken = hasBuildkiteToken
             self.hasAzureDevOpsToken = hasAzureDevOpsToken
+            self.hasBitbucketToken = hasBitbucketToken
             self.provisionScriptPath = provisionScriptPath
             self.provisionTimeout = provisionTimeout
             self.toolchains = toolchains
@@ -113,7 +117,11 @@ public struct ImagePreparer {
         let hasGitLabToken = try options.hasGitLabToken ?? AccountTokens.anyStored(for: .gitlab)
         let hasBuildkiteToken = try options.hasBuildkiteToken ?? AccountTokens.anyStored(for: .buildkite)
         let hasAzureDevOpsToken = try options.hasAzureDevOpsToken ?? AccountTokens.anyStored(for: .azuredevops)
-        guard hasGitHubToken || hasGiteaToken || hasGitLabToken || hasBuildkiteToken || hasAzureDevOpsToken else {
+        let hasBitbucketToken = try options.hasBitbucketToken ?? AccountTokens.anyStored(for: .bitbucket)
+        guard
+            hasGitHubToken || hasGiteaToken || hasGitLabToken || hasBuildkiteToken || hasAzureDevOpsToken
+                || hasBitbucketToken
+        else {
             throw ImageError.noCredentials(
                 "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab / --account NAME)"
             )
@@ -156,6 +164,14 @@ public struct ImagePreparer {
             scripts.append(RunnerBootstrap.azureAgentInstallScript(version: versions.azure))
         } else {
             Log.info("image", "no Azure DevOps token stored — skipping the Azure Pipelines agent install")
+        }
+        if hasBitbucketToken {
+            Log.info("image", "Bitbucket token found — baking the Bitbucket runner \(versions.bitbucket)")
+            scripts.append(
+                RunnerBootstrap.bitbucketRunnerInstallScript(
+                    version: versions.bitbucket, jdkVersion: versions.bitbucketJDK, jdkPlatform: "mac-aarch64"))
+        } else {
+            Log.info("image", "no Bitbucket token stored — skipping the Bitbucket runner install")
         }
         scripts.append(
             try RunnerBootstrap.toolchainHelperInstallScript(platform: .macOS, mountPath: ToolchainCacheMount.guestPath)

@@ -19,22 +19,26 @@ public struct HostAgentInstaller: Sendable {
     public let includeBuildkite: Bool
     /// Whether the Azure Pipelines agent is part of the install (and of `isInstalled`).
     public let includeAzureDevOps: Bool
+    /// Whether the Bitbucket runner is part of the install (and of `isInstalled`).
+    public let includeBitbucket: Bool
 
     public init(
         shell: ShellRunning = Shell(), agentDir: URL? = nil, arm64: Bool = ResourceProbe().snapshot().arm64,
         latestVersions: (@Sendable () async -> RunnerVersionResolver.Versions)? = nil,
-        includeGitLab: Bool? = nil, includeBuildkite: Bool? = nil, includeAzureDevOps: Bool? = nil
+        includeGitLab: Bool? = nil, includeBuildkite: Bool? = nil, includeAzureDevOps: Bool? = nil,
+        includeBitbucket: Bool? = nil
     ) {
         self.shell = shell
         self.agentDir = agentDir ?? HostRuntime.defaultAgentDir
         self.arm64 = arm64
         self.latestVersions = latestVersions ?? { await RunnerVersionResolver().resolve() }
         let configured =
-            (includeGitLab == nil || includeBuildkite == nil || includeAzureDevOps == nil)
+            (includeGitLab == nil || includeBuildkite == nil || includeAzureDevOps == nil || includeBitbucket == nil)
             ? Self.configuredForges() : []
         self.includeGitLab = includeGitLab ?? configured.contains(.gitlab)
         self.includeBuildkite = includeBuildkite ?? configured.contains(.buildkite)
         self.includeAzureDevOps = includeAzureDevOps ?? configured.contains(.azuredevops)
+        self.includeBitbucket = includeBitbucket ?? configured.contains(.bitbucket)
     }
 
     /// The forges the on-disk config has accounts for.
@@ -62,10 +66,15 @@ public struct HostAgentInstaller: Sendable {
         FileManager.default.isExecutableFile(atPath: agentDir.appendingPathComponent("azure-agent/config.sh").path)
     }
 
+    var bitbucketRunnerInstalled: Bool {
+        FileManager.default.isExecutableFile(atPath: agentDir.appendingPathComponent("bitbucket-runner/runner.sh").path)
+    }
+
     /// True when every agent in use is present.
     public var isInstalled: Bool {
         githubAgentInstalled && giteaAgentInstalled && (!includeGitLab || gitlabAgentInstalled)
             && (!includeBuildkite || buildkiteAgentInstalled) && (!includeAzureDevOps || azureAgentInstalled)
+            && (!includeBitbucket || bitbucketRunnerInstalled)
     }
 
     /// The install script for whichever agents are missing.
@@ -116,6 +125,15 @@ public struct HostAgentInstaller: Sendable {
                 )
                 """)
         }
+        if includeBitbucket, !bitbucketRunnerInstalled {
+            // The macOS runner (package + bundled JDK) each host runner uses.
+            parts.append(
+                RunnerBootstrap.bitbucketRunnerInstallScript(
+                    version: versions.bitbucket, jdkVersion: versions.bitbucketJDK,
+                    jdkPlatform: arm64 ? "mac-aarch64" : "mac-x64"
+                )
+                .replacingOccurrences(of: "$HOME", with: agentDir.path))
+        }
         return parts.joined(separator: "\n")
     }
 
@@ -148,6 +166,10 @@ public struct HostAgentInstaller: Sendable {
             throw ImageError.hostAgentInstallFailed(
                 "the download finished but the Azure Pipelines agent is missing in \(agentDir.path)/azure-agent")
         }
+        if includeBitbucket, !bitbucketRunnerInstalled {
+            throw ImageError.hostAgentInstallFailed(
+                "the download finished but the Bitbucket runner is missing in \(agentDir.path)/bitbucket-runner")
+        }
         Log.info("host", "installed \(installedSummary(versions)) into \(agentDir.path)")
         return versions
     }
@@ -159,6 +181,7 @@ public struct HostAgentInstaller: Sendable {
         if includeGitLab { agents.append("gitlab-runner \(versions.gitlab)") }
         if includeBuildkite { agents.append("buildkite-agent \(versions.buildkite)") }
         if includeAzureDevOps { agents.append("azure pipelines agent \(versions.azure)") }
+        if includeBitbucket { agents.append("bitbucket runner \(versions.bitbucket)") }
         guard let last = agents.popLast() else { return "" }
         return agents.joined(separator: ", ") + " and " + last
     }

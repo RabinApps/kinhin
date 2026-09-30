@@ -19,24 +19,47 @@ public struct RunnerVersionResolver: Sendable {
         public let gitlab: String
         public let buildkite: String
         public let azure: String
+        /// The Bitbucket runner *package* version (Atlassian's own scheme,
+        /// unrelated to the GitHub-hosted feeds).
+        public let bitbucket: String
+        /// The Temurin JDK release the Bitbucket runner needs (25).
+        public let bitbucketJDK: String
 
         public init(
             github: String, gitea: String, gitlab: String = RunnerVersionResolver.pinnedGitLab,
-            buildkite: String = RunnerVersionResolver.pinnedBuildkite, azure: String = RunnerVersionResolver.pinnedAzure
+            buildkite: String = RunnerVersionResolver.pinnedBuildkite,
+            azure: String = RunnerVersionResolver.pinnedAzure,
+            bitbucket: String = RunnerVersionResolver.pinnedBitbucket,
+            bitbucketJDK: String = RunnerVersionResolver.pinnedBitbucketJDK
         ) {
             self.github = github
             self.gitea = gitea
             self.gitlab = gitlab
             self.buildkite = buildkite
             self.azure = azure
+            self.bitbucket = bitbucket
+            self.bitbucketJDK = bitbucketJDK
         }
     }
 
     public static let pinnedGitLab = "19.4.1"
     public static let pinnedBuildkite = "4.0.9"
     public static let pinnedAzure = "5.279.0"
+    /// The runner package comes from Atlassian's download server, which
+    /// publishes no checksums and no machine-readable latest-version feed
+    /// (the changelog is prose), so the version is pinned and updated
+    /// deliberately.
+    public static let pinnedBitbucket = "6.0.8"
+    /// Temurin JDK 25 is the runner's documented requirement (v6 runners).
+    public static let pinnedBitbucketJDK = "25.0.4.1+1"
+    /// SHA-256 of `atlassian-bitbucket-pipelines-runner-<version>.tar.gz`
+    /// per pinned version (verified locally against the vendor download).
+    public static let pinnedBitbucketRunnerDigests = [
+        "6.0.8": "2628a0787492fe3bd9ca7d3d26a32c11dfc92f3c28c8270381e7c4726e2edd26"
+    ]
     static let fallback = Versions(
-        github: "2.325.0", gitea: "3.5.0", gitlab: pinnedGitLab, buildkite: pinnedBuildkite, azure: pinnedAzure)
+        github: "2.325.0", gitea: "3.5.0", gitlab: pinnedGitLab, buildkite: pinnedBuildkite, azure: pinnedAzure,
+        bitbucket: pinnedBitbucket, bitbucketJDK: pinnedBitbucketJDK)
 
     /// Release-feed endpoints. Both are string literals, so parsing them
     /// failing is a programming error rather than a runtime condition.
