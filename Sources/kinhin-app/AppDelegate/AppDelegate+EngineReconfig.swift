@@ -56,7 +56,7 @@ extension AppDelegate {
             }
         } else if let client {
             do {
-                _ = try client.reloadConfig()
+                try await client.perform { try $0.reloadConfig() }
                 Log.info("app", "daemon notified: config reloaded (restarted if the change required it)")
             } catch {
                 Log.warn("app", "daemon reload failed: \(error.localizedDescription)")

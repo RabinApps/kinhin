@@ -208,15 +208,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let engine {
             status = await engine.status()
         } else if let client {
-            // Polled every few seconds: an unreachable daemon simply reads as
-            // "not running" in the status item, so a failure here is expected.
-            // A undecodable payload reads the same way (status stays nil).
-            if let response = try? client.send(method: .status),
-                response.ok, let payload = response.payload,
-                let decoded = try? JSONDecoder().decode(FleetStatus.self, from: payload)
-            {
-                status = decoded
-            }
+            // Polled every few seconds, off the main thread: an unreachable
+            // or wedged daemon simply reads as "not running" in the status
+            // item, so a failure here is expected (status stays nil).
+            status = try? await client.perform { try $0.status() }
         }
         apply(status: status)
     }

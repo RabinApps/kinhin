@@ -7,7 +7,9 @@ import Synchronization
 /// the protocol trivially simple and robust.
 enum RPCServer {
     /// Serve requests forever on the given socket path.
-    public static func serve(socketURL: URL, handler: @escaping @Sendable (RPCRequest) async -> RPCResponse) throws {
+    public static func serve(
+        socketURL: URL, handler: @escaping @Sendable (RPCRequest) async -> RPCResponse
+    ) async throws {
         // A stale socket from a previous run may or may not exist; bind()
         // below reports any real problem if removal fails and the path is
         // still occupied.
@@ -44,8 +46,9 @@ enum RPCServer {
         signal(SIGPIPE, SIG_IGN)
 
         let socketPath = socketURL.path
-        // One blocking accept thread; each connection is handled on its own
-        // task, so a slow reader never stalls the next accept.
+        // One blocking accept thread; each connection reads its request on
+        // its own thread (bounded by `readTimeout`), so a slow or silent
+        // client never stalls the next accept or a cooperative-pool thread.
         let acceptThread = Thread {
             while true {
                 var len = socklen_t(MemoryLayout<sockaddr_un>.size)
@@ -63,22 +66,30 @@ enum RPCServer {
                     break
                 }
                 let clientFD = accepted
-                Task {
+                let connection = Thread {
                     RPCServer.handleConnection(fd: clientFD, handler: handler)
                 }
+                connection.name = "kinhin.rpc.connection"
+                connection.start()
             }
         }
         acceptThread.name = "kinhin.rpc.accept"
         acceptThread.start()
 
         // Park this call forever — serving runs on the accept thread and the
-        // per-connection tasks. Returning would release the daemon lock.
-        dispatchMain()
+        // per-connection threads. Returning would release the daemon lock.
+        while true {
+            try await Task.sleep(for: .seconds(3600))
+        }
     }
 
     /// How long a request may run before the client is answered with a
     /// timeout error (the client's own default deadline is shorter).
     static let handlerTimeout: Duration = .seconds(120)
+
+    /// How long a connection may take to send its request line. A client
+    /// that connects and never writes is dropped after this.
+    static let readTimeout: TimeInterval = 5
 
     /// Reads one request and answers it asynchronously. The descriptor is
     /// closed exactly once, by whichever of the handler or the timeout
@@ -87,10 +98,12 @@ enum RPCServer {
     static func handleConnection(
         fd: Int32,
         timeout: Duration = handlerTimeout,
+        readTimeout: TimeInterval = readTimeout,
         handler: @escaping @Sendable (RPCRequest) async -> RPCResponse
     ) {
         let reply = ConnectionReply(fd: fd)
-        guard let lineData = readLine(from: reply.file) else {
+        setReceiveTimeout(fd, readTimeout)
+        guard let lineData = readLine(fd: fd) else {
             reply.close()
             return
         }
@@ -151,14 +164,27 @@ enum RPCServer {
         return data
     }
 
-    static func readLine(from handle: FileHandle) -> Data? {
+    /// Reads up to the first newline. Nil when the peer sent nothing, the
+    /// read failed, or it timed out (`SO_RCVTIMEO`) — a raw `read` instead of
+    /// `FileHandle.availableData`, which raises on a timed-out read.
+    static func readLine(fd: Int32) -> Data? {
         var buffer = Data()
+        var chunk = [UInt8](repeating: 0, count: 4096)
         while true {
-            let chunk = handle.availableData
-            if chunk.isEmpty { return buffer.isEmpty ? nil : buffer }
-            buffer.append(chunk)
+            let count = chunk.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress, $0.count) }
+            if count < 0, errno == EINTR { continue }
+            if count < 0 { return nil }
+            if count == 0 { return buffer.isEmpty ? nil : buffer }
+            buffer.append(contentsOf: chunk[0..<count])
             if buffer.last == 0x0A { return buffer }
             if buffer.count > 1_000_000 { return nil }  // sanity cap
+        }
+    }
+
+    static func setReceiveTimeout(_ fd: Int32, _ seconds: TimeInterval) {
+        var value = timeval(tv_sec: Int(seconds), tv_usec: Int32((seconds - seconds.rounded(.down)) * 1_000_000))
+        if setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &value, socklen_t(MemoryLayout<timeval>.size)) != 0 {
+            Log.warn("rpc", "could not set a read timeout on a connection (errno \(errno))")
         }
     }
 }

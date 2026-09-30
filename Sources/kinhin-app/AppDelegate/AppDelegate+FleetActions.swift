@@ -44,7 +44,8 @@ extension AppDelegate {
         } else if let client {
             // Throw, don't alert: the menu wrappers alert, and an App Intent
             // must fail in Shortcuts rather than report success.
-            try client.command(action == .start ? .start : .stop)
+            let method: RPCMethod = action == .start ? .start : .stop
+            try await client.perform { try $0.command(method) }
         } else {
             throw FleetAccessError.notSetUp
         }
@@ -78,7 +79,7 @@ extension AppDelegate {
         if let engine {
             await engine.setPaused(paused)
         } else if let client {
-            try client.command(paused ? .pause : .resume)
+            try await client.perform { try $0.command(paused ? .pause : .resume) }
         } else {
             throw FleetAccessError.notSetUp
         }
@@ -90,11 +91,7 @@ extension AppDelegate {
             return await engine.status()
         }
         guard let client else { throw FleetAccessError.notSetUp }
-        let response = try client.send(method: .status)
-        guard response.ok, let payload = response.payload else {
-            throw RPCError.rejected(response.error ?? "no status payload")
-        }
-        return try JSONDecoder().decode(FleetStatus.self, from: payload)
+        return try await client.perform { try $0.status() }
     }
 
     @objc func deleteVM(_ sender: NSMenuItem) {
@@ -128,7 +125,7 @@ extension AppDelegate {
             await engine.deleteVM(id: id)
         } else if let client {
             let payload = try JSONEncoder().encode(Daemon.VMDeleteRequest(id: id))
-            try client.command(.deleteVM, payload: payload)
+            try await client.perform { try $0.command(.deleteVM, payload: payload) }
         } else {
             throw FleetAccessError.notSetUp
         }

@@ -28,7 +28,7 @@ extension AppDelegate {
                 await engine.replaceCredentials(pat: token)
                 Log.info("app", "replaced GitHub token (in-process engine)")
             } else if let client {
-                try client.replaceToken(pat: token)
+                try await client.perform { try $0.replaceToken(pat: token) }
                 Log.info("app", "replaced GitHub token (daemon notified)")
             } else {
                 Log.info("app", "replaced GitHub token (no engine running yet)")
@@ -43,7 +43,7 @@ extension AppDelegate {
                 await engine.replaceToken(account: accountName, token: token)
                 Log.info("app", "replaced \(forge.rawValue) token (in-process engine)")
             } else if let client {
-                try client.replaceAccountToken(account: accountName, token: token)
+                try await client.perform { try $0.replaceAccountToken(account: accountName, token: token) }
                 Log.info("app", "replaced \(forge.rawValue) token (daemon notified)")
             } else {
                 Log.info("app", "replaced \(forge.rawValue) token (no engine running yet)")
@@ -65,7 +65,8 @@ extension AppDelegate {
             await engine.replaceToken(account: account.name, token: token)
             Log.info("app", "replaced token for account '\(account.name)' (in-process engine)")
         } else if let client {
-            try client.replaceAccountToken(account: account.name, token: token)
+            let name = account.name
+            try await client.perform { try $0.replaceAccountToken(account: name, token: token) }
             Log.info("app", "replaced token for account '\(account.name)' (daemon notified)")
         } else {
             Log.info("app", "stored token for account '\(account.name)' (no engine running yet)")

@@ -60,11 +60,12 @@ enum RunCommands {
             print(String(decoding: try encoder.encode(document), as: UTF8.self))
         }
         if RPCClient.isDaemonAlive() {
-            let response = try RPCClient().send(method: .status)
-            guard response.ok, let payload = response.payload else {
-                fail(response.error ?? "daemon returned no payload", exit: .runtime)
+            let status: FleetStatus
+            do {
+                status = try RPCClient().status()
+            } catch {
+                fail(error.localizedDescription, exit: .runtime)
             }
-            let status = try JSONDecoder().decode(FleetStatus.self, from: payload)
             // Machine output only: prose before the JSON line would make the
             // document unparseable (same convention as doctor/setup-status).
             if args.contains("--json") {
@@ -118,10 +119,8 @@ enum RunCommands {
     static func watch(_ args: [String]) async {
         while true {
             // Reuse the status command's rendering.
-            if RPCClient.isDaemonAlive(), let response = try? RPCClient().send(method: .status),
-                response.ok, let payload = response.payload,
-                let status = try? JSONDecoder().decode(FleetStatus.self, from: payload)
-            {
+            // A dead or failing daemon reads as "not running" on this refresh.
+            if RPCClient.isDaemonAlive(), let status = try? RPCClient().status() {
                 print("\u{1B}[2J\u{1B}[H")  // clear screen
                 print(renderStatus(status))
                 print("(refreshing every 2s — Ctrl-C to exit)")

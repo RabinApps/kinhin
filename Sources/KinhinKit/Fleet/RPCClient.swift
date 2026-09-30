@@ -11,72 +11,66 @@ public struct RPCClient: Sendable {
     }
 
     /// An unreachable or misbehaving daemon simply reads as "not alive";
-    /// callers only branch on the boolean.
+    /// callers only branch on the boolean. The ping gets a short deadline:
+    /// a wedged daemon must not stall app launch or a CLI command.
     public static func isDaemonAlive(socketURL: URL = RPCPaths.socket) -> Bool {
         guard FileManager.default.fileExists(atPath: socketURL.path) else { return false }
-        return (try? RPCClient(socketURL: socketURL).ping()) != nil
+        do {
+            return try RPCClient(socketURL: socketURL).send(method: .ping, timeout: 2).ok
+        } catch {
+            return false
+        }
     }
 
+    /// Runs blocking client calls on a dedicated thread and resumes the
+    /// caller with the result, so an async caller (the app's main actor, the
+    /// cooperative pool) never waits on the socket itself:
+    /// `try await client.perform { try $0.status() }`.
     @discardableResult
-    func ping() throws -> Bool {
-        let response = try send(method: .ping)
-        return response.ok
+    public func perform<T: Sendable>(_ body: @escaping @Sendable (RPCClient) throws -> T) async throws -> T {
+        let client = self
+        return try await withCheckedThrowingContinuation { continuation in
+            let thread = Thread {
+                continuation.resume(with: Result { try body(client) })
+            }
+            thread.name = "kinhin.rpc.client"
+            thread.start()
+        }
+    }
+
+    /// The daemon's fleet status.
+    public func status() throws -> FleetStatus {
+        let response = try command(.status)
+        guard let payload = response.payload else { throw RPCError.rejected("daemon returned no status payload") }
+        return try JSONDecoder().decode(FleetStatus.self, from: payload)
     }
 
     /// Ask the daemon to swap its PAT (it must already be in the Keychain).
-    @discardableResult
-    public func replaceToken(pat: String) throws -> Bool {
-        let payload = try JSONEncoder().encode(TokenReplaceRequest(pat: pat))
-        let response = try send(method: .replaceToken, payload: payload)
-        guard response.ok else {
-            throw RPCError.rejected(response.error ?? "unknown error")
-        }
-        return true
+    public func replaceToken(pat: String) throws {
+        try command(.replaceToken, payload: JSONEncoder().encode(TokenReplaceRequest(pat: pat)))
     }
 
     /// Ask the daemon to swap its Gitea access token.
-    @discardableResult
-    public func replaceGiteaToken(_ token: String) throws -> Bool {
-        let payload = try JSONEncoder().encode(GiteaTokenReplaceRequest(token: token))
-        let response = try send(method: .replaceGiteaToken, payload: payload)
-        guard response.ok else {
-            throw RPCError.rejected(response.error ?? "unknown error")
-        }
-        return true
+    public func replaceGiteaToken(_ token: String) throws {
+        try command(.replaceGiteaToken, payload: JSONEncoder().encode(GiteaTokenReplaceRequest(token: token)))
     }
 
     /// Ask the daemon to swap its Forgejo access token.
-    @discardableResult
-    public func replaceForgejoToken(_ token: String) throws -> Bool {
-        let payload = try JSONEncoder().encode(ForgejoTokenReplaceRequest(token: token))
-        let response = try send(method: .replaceForgejoToken, payload: payload)
-        guard response.ok else {
-            throw RPCError.rejected(response.error ?? "unknown error")
-        }
-        return true
+    public func replaceForgejoToken(_ token: String) throws {
+        try command(.replaceForgejoToken, payload: JSONEncoder().encode(ForgejoTokenReplaceRequest(token: token)))
     }
 
     /// Ask the daemon to swap one account's token (already in the Keychain).
-    @discardableResult
-    public func replaceAccountToken(account: String, token: String) throws -> Bool {
-        let payload = try JSONEncoder().encode(AccountTokenReplaceRequest(account: account, token: token))
-        let response = try send(method: .replaceAccountToken, payload: payload)
-        guard response.ok else {
-            throw RPCError.rejected(response.error ?? "unknown error")
-        }
-        return true
+    public func replaceAccountToken(account: String, token: String) throws {
+        try command(
+            .replaceAccountToken,
+            payload: JSONEncoder().encode(AccountTokenReplaceRequest(account: account, token: token)))
     }
 
-    /// Ask the daemon to reload the routing config from disk (runtimes
-    /// section changed). The file is the source of truth — it was already
-    /// validated before being written.
-    @discardableResult
-    public func reloadConfig() throws -> Bool {
-        let response = try send(method: .reloadConfig)
-        guard response.ok else {
-            throw RPCError.rejected(response.error ?? "unknown error")
-        }
-        return true
+    /// Ask the daemon to reload config.yaml. The file is the source of
+    /// truth — it was already validated before being written.
+    public func reloadConfig() throws {
+        try command(.reloadConfig)
     }
 
     /// Like `send`, but a response the daemon rejected (`ok == false`) throws

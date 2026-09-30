@@ -107,7 +107,7 @@ final class RPCClientErrorTests: XCTestCase {
         }
 
         let client = RPCClient(socketURL: socketURL)
-        XCTAssertTrue(try client.ping(), "ping over a live server connection must succeed")
+        XCTAssertTrue(try client.send(method: .ping).ok, "ping over a live server connection must succeed")
         close(listener)
     }
 

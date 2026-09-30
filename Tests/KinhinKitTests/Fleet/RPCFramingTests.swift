@@ -38,6 +38,38 @@ final class RPCFramingTests: XCTestCase {
         XCTAssertEqual(pong["pong"], true)
     }
 
+    /// A client that connects and never sends a line is dropped after the
+    /// read timeout instead of holding its connection thread forever.
+    func testSilentClientIsDroppedAfterTheReadTimeout() throws {
+        var fds: [Int32] = [0, 0]
+        XCTAssertEqual(socketpair(AF_UNIX, SOCK_STREAM, 0, &fds), 0)
+        defer { close(fds[0]) }
+
+        let started = Date()
+        RPCServer.handleConnection(fd: fds[1], readTimeout: 0.2) { request in
+            XCTFail("no request was sent")
+            return RPCResponse(id: request.id, ok: true)
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(started), 3, "the read must give up at its deadline")
+        var byte: UInt8 = 0
+        XCTAssertEqual(read(fds[0], &byte, 1), 0, "the server closes the silent connection")
+    }
+
+    /// `perform` runs the blocking socket call off the caller's thread, so
+    /// the app's main actor never waits on a wedged daemon.
+    @MainActor
+    func testPerformRunsOffTheMainThread() async throws {
+        let client = RPCClient(socketURL: URL(fileURLWithPath: "/nonexistent/kinhin.sock"))
+        let onMain = try await client.perform { _ in Thread.isMainThread }
+        XCTAssertFalse(onMain)
+        do {
+            try await client.perform { try $0.command(.ping) }
+            XCTFail("a missing socket must throw through perform")
+        } catch let error as RPCError {
+            guard case .connectionFailed = error else { return XCTFail("\(error)") }
+        }
+    }
+
     func testResponseLineIsNewlineFramedJSON() throws {
         let data = RPCServer.responseLine(RPCResponse(id: 9, ok: false, error: "boom"))
         XCTAssertEqual(data.last, 0x0A)

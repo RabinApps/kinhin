@@ -148,7 +148,7 @@ enum RuntimesCommand {
         // A live daemon picks the new route table up without a restart.
         guard notifyDaemon, RPCClient.isDaemonAlive() else { return }
         do {
-            _ = try RPCClient().reloadConfig()
+            try RPCClient().reloadConfig()
             print("  daemon notified — routing reloaded")
         } catch {
             print("  warning: daemon did not accept the reload — \(error.localizedDescription)")

@@ -73,7 +73,7 @@ public enum Daemon {
         }
 
         Log.info("daemon", "serving RPC on \(RPCPaths.socket.path)")
-        try RPCServer.serve(socketURL: RPCPaths.socket) { request in
+        try await RPCServer.serve(socketURL: RPCPaths.socket) { request in
             await Self.handle(request, engineRef: engineRef)
         }
     }
