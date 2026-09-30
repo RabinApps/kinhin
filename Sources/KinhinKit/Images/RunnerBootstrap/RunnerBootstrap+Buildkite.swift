@@ -3,6 +3,44 @@ import Foundation
 // MARK: - Buildkite agent
 
 extension RunnerBootstrap {
+    /// Installs the Buildkite agent binary into the macOS base image.
+    static func buildkiteAgentInstallScript(version: String) -> String {
+        """
+        set -euo pipefail
+
+        # Buildkite agent (one job per agent: --disconnect-after-job).
+        if [ ! -x "$HOME/buildkite-agent/buildkite-agent" ]; then
+          mkdir -p "$HOME/buildkite-agent"
+          cd "$HOME/buildkite-agent"
+          \(buildkiteAgentDownloadScript(version: version, platform: "darwin-arm64", file: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
+          tar xzf agent.tar.gz ./buildkite-agent
+          rm agent.tar.gz
+          ./buildkite-agent --version
+          echo "buildkite agent v\(version) installed"
+        else
+          echo "buildkite agent already installed"
+        fi
+        """
+    }
+
+    /// Installs the Buildkite agent binary into a Linux image (`arch` is
+    /// "arm64", or "amd64" for emulated bakes).
+    static func linuxBuildkiteAgentInstallScript(version: String, arch: String = "arm64") -> String {
+        """
+        set -euo pipefail
+        \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git")]))
+        if [ ! -x /opt/buildkite-agent/buildkite-agent ]; then
+          mkdir -p /opt/buildkite-agent
+          cd /opt/buildkite-agent
+          \(buildkiteAgentDownloadScript(version: version, platform: "linux-\(arch)", file: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
+          tar xzf agent.tar.gz ./buildkite-agent
+          rm agent.tar.gz
+          ./buildkite-agent --version
+        fi
+        echo "linux buildkite-agent v\(version) installed"
+        """
+    }
+
     /// Starts one single-job Buildkite agent per runner name. The cluster
     /// agent token is written to a private file (never on a command line) and
     /// handed to `buildkite-agent start` through `BUILDKITE_AGENT_TOKEN`. With

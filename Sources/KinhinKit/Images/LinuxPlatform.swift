@@ -17,6 +17,9 @@ public enum LinuxPlatform: String, Sendable, Equatable, CaseIterable {
     public var giteaRunnerArch: String { self == .arm64 ? "arm64" : "amd64" }
     /// gitlab-runner binary suffix ("linux-arm64" / "linux-amd64").
     public var gitlabRunnerArch: String { self == .arm64 ? "arm64" : "amd64" }
+    /// Name in the Buildkite agent release asset
+    /// (`buildkite-agent-linux-<arch>-<version>.tar.gz`).
+    public var buildkiteAgentArch: String { self == .arm64 ? "arm64" : "amd64" }
 
     /// The architecture label runners register with, replacing the fleet's
     /// default `arm64` label so jobs never land on the wrong architecture.

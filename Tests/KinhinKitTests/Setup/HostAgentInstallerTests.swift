@@ -16,10 +16,13 @@ final class HostAgentInstallerTests: XCTestCase {
         try? FileManager.default.removeItem(at: dir)  // scratch dir; a leftover is harmless
     }
 
-    private func installer(_ shell: FakeShell, arm64: Bool = true, gitlab: Bool = false) -> HostAgentInstaller {
+    private func installer(_ shell: FakeShell, arm64: Bool = true, gitlab: Bool = false, buildkite: Bool = false)
+        -> HostAgentInstaller
+    {
         let versions = self.versions
         return HostAgentInstaller(
-            shell: shell, agentDir: dir, arm64: arm64, latestVersions: { versions }, includeGitLab: gitlab)
+            shell: shell, agentDir: dir, arm64: arm64, latestVersions: { versions }, includeGitLab: gitlab,
+            includeBuildkite: buildkite)
     }
 
     private func plant(github: Bool = false, gitea: Bool = false) throws {
@@ -54,6 +57,32 @@ final class HostAgentInstallerTests: XCTestCase {
         let path = dir.appendingPathComponent("gitlab-runner").path
         FileManager.default.createFile(atPath: path, contents: Data(), attributes: [.posixPermissions: 0o755])
         XCTAssertTrue(installer(FakeShell(), gitlab: true).isInstalled)
+    }
+
+    func testBuildkiteAgentOnlyWhenABuildkiteAccountIsConfigured() throws {
+        XCTAssertFalse(installer(FakeShell()).installScript(versions).contains("buildkite-agent"))
+        let script = installer(FakeShell(), buildkite: true).installScript(versions)
+        XCTAssertTrue(
+            script.contains("/v\(versions.buildkite)/buildkite-agent-darwin-arm64-\(versions.buildkite).tar.gz"), script
+        )
+        XCTAssertTrue(script.contains("buildkite-agent-\(versions.buildkite).SHA256SUMS"), "digest-verified")
+
+        try plant(github: true, gitea: true)
+        XCTAssertTrue(installer(FakeShell()).isInstalled, "no Buildkite account: the agent is not required")
+        XCTAssertFalse(installer(FakeShell(), buildkite: true).isInstalled)
+        let path = dir.appendingPathComponent("buildkite-agent").path
+        FileManager.default.createFile(atPath: path, contents: Data(), attributes: [.posixPermissions: 0o755])
+        XCTAssertTrue(installer(FakeShell(), buildkite: true).isInstalled)
+    }
+
+    func testSummaryNamesTheAgentsInUse() {
+        XCTAssertEqual(
+            installer(FakeShell()).installedSummary(versions),
+            "actions-runner \(versions.github) and gitea-runner \(versions.gitea)")
+        XCTAssertEqual(
+            installer(FakeShell(), gitlab: true, buildkite: true).installedSummary(versions),
+            "actions-runner \(versions.github), gitea-runner \(versions.gitea), gitlab-runner \(versions.gitlab)"
+                + " and buildkite-agent \(versions.buildkite)")
     }
 
     func testScriptSkipsAgentsAlreadyInstalled() throws {

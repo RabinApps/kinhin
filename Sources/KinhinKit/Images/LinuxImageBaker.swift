@@ -17,6 +17,8 @@ public struct LinuxImageOptions {
     public var hasGiteaToken: Bool?
     /// nil → any GitLab account has a stored token.
     public var hasGitLabToken: Bool?
+    /// nil → any Buildkite account has a stored token.
+    public var hasBuildkiteToken: Bool?
     /// Architecture of the image being baked. Anything but arm64 (native on
     /// Apple Silicon) is Docker-only and runs under emulation.
     public var platform: LinuxPlatform
@@ -24,7 +26,7 @@ public struct LinuxImageOptions {
     public init(
         image: String, target: String, user: String = "admin", toolchains: KinhinConfig.ToolchainsConfig? = nil,
         toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil,
-        hasGitLabToken: Bool? = nil,
+        hasGitLabToken: Bool? = nil, hasBuildkiteToken: Bool? = nil,
         platform: LinuxPlatform = .arm64
     ) {
         self.platform = platform
@@ -36,6 +38,7 @@ public struct LinuxImageOptions {
         self.hasGitHubToken = hasGitHubToken
         self.hasGiteaToken = hasGiteaToken
         self.hasGitLabToken = hasGitLabToken
+        self.hasBuildkiteToken = hasBuildkiteToken
     }
 }
 
@@ -87,9 +90,11 @@ struct LinuxImageBaker {
             try options.hasGiteaToken
             ?? (AccountTokens.anyStored(for: .gitea) || AccountTokens.anyStored(for: .forgejo))
         let hasGitLabToken = try options.hasGitLabToken ?? AccountTokens.anyStored(for: .gitlab)
-        guard hasGitHubToken || hasGiteaToken || hasGitLabToken else {
+        let hasBuildkiteToken = try options.hasBuildkiteToken ?? AccountTokens.anyStored(for: .buildkite)
+        guard hasGitHubToken || hasGiteaToken || hasGitLabToken || hasBuildkiteToken else {
             throw ImageError.noCredentials(
-                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab)")
+                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab / --buildkite)"
+            )
         }
 
         var lines: [String] = []
@@ -116,6 +121,14 @@ struct LinuxImageBaker {
                     version: versions.gitlab, arch: options.platform.gitlabRunnerArch))
         } else {
             Log.info(tag, "no GitLab token stored — skipping gitlab-runner install")
+        }
+        if hasBuildkiteToken {
+            Log.info(tag, "Buildkite token found — baking buildkite-agent \(versions.buildkite)")
+            lines.append(
+                RunnerBootstrap.linuxBuildkiteAgentInstallScript(
+                    version: versions.buildkite, arch: options.platform.buildkiteAgentArch))
+        } else {
+            Log.info(tag, "no Buildkite token stored — skipping buildkite-agent install")
         }
         lines.append(
             try RunnerBootstrap.toolchainHelperInstallScript(

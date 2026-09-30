@@ -80,4 +80,20 @@ extension RunnerBootstrap {
             url: url, file: file,
             expectedDigestCommand: gitlabRunnerDigestCommand(version: version, platform: platform))
     }
+
+    /// Buildkite publishes one `buildkite-agent-<version>.SHA256SUMS` per
+    /// release, one "<hex>  <asset>" line per archive.
+    static func buildkiteAgentDigestCommand(version: String, asset: String) -> String {
+        let sums =
+            "https://github.com/buildkite/agent/releases/download/v\(version)/buildkite-agent-\(version).SHA256SUMS"
+        return "curl -fsSL \(shellQuote(sums)) | awk -v a=\(shellQuote(asset)) '$2 == a { print $1 }' | head -1"
+    }
+
+    /// `platform` is e.g. "darwin-arm64", "linux-amd64".
+    static func buildkiteAgentDownloadScript(version: String, platform: String, file: String) -> String {
+        let asset = "buildkite-agent-\(platform)-\(version).tar.gz"
+        let url = "https://github.com/buildkite/agent/releases/download/v\(version)/\(asset)"
+        return verifiedDownloadScript(
+            url: url, file: file, expectedDigestCommand: buildkiteAgentDigestCommand(version: version, asset: asset))
+    }
 }

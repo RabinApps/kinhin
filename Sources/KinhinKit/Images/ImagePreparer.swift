@@ -31,6 +31,8 @@ public struct ImagePreparer {
         public var hasGiteaToken: Bool?
         /// nil → any GitLab account has a stored token.
         public var hasGitLabToken: Bool?
+        /// nil → any Buildkite account has a stored token.
+        public var hasBuildkiteToken: Bool?
         /// Host path to a user script baked into the image after the runner
         /// agents are installed (toolchains etc.). nil = no user script.
         public var provisionScriptPath: String?
@@ -49,7 +51,7 @@ public struct ImagePreparer {
             runnerVersion: String = ImagePreparer.defaultRunnerVersion,
             giteaRunnerVersion: String = ImagePreparer.defaultGiteaRunnerVersion, user: String = "admin",
             hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil, hasGitLabToken: Bool? = nil,
-            provisionScriptPath: String? = nil,
+            hasBuildkiteToken: Bool? = nil, provisionScriptPath: String? = nil,
             provisionTimeout: TimeInterval = 1800, toolchains: KinhinConfig.ToolchainsConfig? = nil,
             toolchainTimeout: TimeInterval = 1800
         ) {
@@ -61,6 +63,7 @@ public struct ImagePreparer {
             self.hasGitHubToken = hasGitHubToken
             self.hasGiteaToken = hasGiteaToken
             self.hasGitLabToken = hasGitLabToken
+            self.hasBuildkiteToken = hasBuildkiteToken
             self.provisionScriptPath = provisionScriptPath
             self.provisionTimeout = provisionTimeout
             self.toolchains = toolchains
@@ -105,9 +108,11 @@ public struct ImagePreparer {
             try options.hasGiteaToken
             ?? (AccountTokens.anyStored(for: .gitea) || AccountTokens.anyStored(for: .forgejo))
         let hasGitLabToken = try options.hasGitLabToken ?? AccountTokens.anyStored(for: .gitlab)
-        guard hasGitHubToken || hasGiteaToken || hasGitLabToken else {
+        let hasBuildkiteToken = try options.hasBuildkiteToken ?? AccountTokens.anyStored(for: .buildkite)
+        guard hasGitHubToken || hasGiteaToken || hasGitLabToken || hasBuildkiteToken else {
             throw ImageError.noCredentials(
-                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab)")
+                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab / --buildkite)"
+            )
         }
 
         // Validate the user provision script up front: a broken path must
@@ -135,6 +140,12 @@ public struct ImagePreparer {
             scripts.append(RunnerBootstrap.gitlabRunnerInstallScript(version: versions.gitlab))
         } else {
             Log.info("image", "no GitLab token stored — skipping gitlab-runner install")
+        }
+        if hasBuildkiteToken {
+            Log.info("image", "Buildkite token found — baking buildkite-agent \(versions.buildkite)")
+            scripts.append(RunnerBootstrap.buildkiteAgentInstallScript(version: versions.buildkite))
+        } else {
+            Log.info("image", "no Buildkite token stored — skipping buildkite-agent install")
         }
         scripts.append(
             try RunnerBootstrap.toolchainHelperInstallScript(platform: .macOS, mountPath: ToolchainCacheMount.guestPath)

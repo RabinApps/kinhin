@@ -8,7 +8,7 @@ import Foundation
 /// release feeds instead of hardcoding: GitHub's actions-runner from
 /// github.com/actions/runner/releases, Gitea's runner from
 /// gitea.com/gitea/runner/releases, GitLab's from the gitlab-org/gitlab-runner
-/// project's releases. Falls back to the last-known-good pinned
+/// project's releases, Buildkite's agent from github.com/buildkite/agent. Falls back to the last-known-good pinned
 /// versions when the feed is unreachable (offline hosts, rate limits), and
 /// degrades to pre-release tags only when nothing stable exists.
 public struct RunnerVersionResolver: Sendable {
@@ -16,16 +16,23 @@ public struct RunnerVersionResolver: Sendable {
         public let github: String
         public let gitea: String
         public let gitlab: String
+        public let buildkite: String
 
-        public init(github: String, gitea: String, gitlab: String = RunnerVersionResolver.pinnedGitLab) {
+        public init(
+            github: String, gitea: String, gitlab: String = RunnerVersionResolver.pinnedGitLab,
+            buildkite: String = RunnerVersionResolver.pinnedBuildkite
+        ) {
             self.github = github
             self.gitea = gitea
             self.gitlab = gitlab
+            self.buildkite = buildkite
         }
     }
 
     public static let pinnedGitLab = "19.4.1"
-    static let fallback = Versions(github: "2.325.0", gitea: "3.5.0", gitlab: pinnedGitLab)
+    public static let pinnedBuildkite = "4.0.9"
+    static let fallback = Versions(
+        github: "2.325.0", gitea: "3.5.0", gitlab: pinnedGitLab, buildkite: pinnedBuildkite)
 
     /// Release-feed endpoints. Both are string literals, so parsing them
     /// failing is a programming error rather than a runtime condition.
@@ -33,6 +40,7 @@ public struct RunnerVersionResolver: Sendable {
     static let giteaFeed = feedURL("https://gitea.com/api/v1/repos/gitea/runner/releases/latest")
     static let gitlabFeed = feedURL(
         "https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab-runner/releases/permalink/latest")
+    static let buildkiteFeed = feedURL("https://api.github.com/repos/buildkite/agent/releases/latest")
 
     private static func feedURL(_ string: String) -> URL {
         guard let url = URL(string: string) else { preconditionFailure("invalid release feed URL literal: \(string)") }
@@ -60,7 +68,9 @@ public struct RunnerVersionResolver: Sendable {
         async let githubTask = resolveLoggingFailures(latestGitHub, fallback: Self.fallback.github, feed: "GitHub")
         async let giteaTask = resolveLoggingFailures(latestGitea, fallback: Self.fallback.gitea, feed: "Gitea")
         async let gitlabTask = resolveLoggingFailures(latestGitLab, fallback: Self.fallback.gitlab, feed: "GitLab")
-        return await Versions(github: githubTask, gitea: giteaTask, gitlab: gitlabTask)
+        async let buildkiteTask = resolveLoggingFailures(
+            latestBuildkite, fallback: Self.fallback.buildkite, feed: "Buildkite")
+        return await Versions(github: githubTask, gitea: giteaTask, gitlab: gitlabTask, buildkite: buildkiteTask)
     }
 
     /// One feed lookup with its fallback: a thrown error is logged, never
@@ -104,6 +114,17 @@ public struct RunnerVersionResolver: Sendable {
             return Self.fallback.gitlab
         }
         return try Self.stableTag(from: data, feed: "GitLab", fallback: Self.fallback.gitlab, excludesDashes: true)
+    }
+
+    /// Latest stable Buildkite agent tag, e.g. "v4.0.9" → "4.0.9" (betas,
+    /// "v4.1.0-beta.1", are skipped). Same failure behavior as
+    /// ``latestGitHub()``.
+    func latestBuildkite() async throws -> String {
+        guard let data = await fetchLogged(url: Self.buildkiteFeed) else {
+            return Self.fallback.buildkite
+        }
+        return try Self.stableTag(
+            from: data, feed: "Buildkite", fallback: Self.fallback.buildkite, excludesDashes: true)
     }
 
     /// Decodes a release-feed payload to its stable tag (`v` prefix, dotted

@@ -24,7 +24,8 @@ final class ImagePreparerTests: XCTestCase {
         let tart = FakeTart()
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
-        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
+        var options = ImagePreparer.Options(
+            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false)
         options.source = "ghcr.io/cirruslabs/macos-tahoe-base:latest"
         options.target = "tahoe-base"
 
@@ -41,13 +42,27 @@ final class ImagePreparerTests: XCTestCase {
         XCTAssertEqual(tart.vms[options.target]?.source, scratch)
     }
 
+    func testABuildkiteTokenAloneBakesOnlyTheBuildkiteAgent() async throws {
+        let ssh = FakeSSH()
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: false, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: true))
+
+        let baked = ssh.scripts.joined(separator: "\n")
+        XCTAssertTrue(baked.contains("buildkite-agent-darwin-arm64-"), "the agent is baked")
+        XCTAssertTrue(baked.contains("tar xzf agent.tar.gz ./buildkite-agent"))
+        XCTAssertFalse(baked.contains("actions-runner-osx"), "no GitHub token: no actions-runner")
+    }
+
     func testImagePrepareSkipsTheRegistryPullForALocalSourceVM() async throws {
         // A locally created VM (tart create --linux, then OS-installed) is not
         // a registry reference — pulling it would fail. Names without a slash
         // are treated as local and used as-is.
         let tart = FakeTart()
         let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
-        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
+        var options = ImagePreparer.Options(
+            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false)
         options.source = "ubuntu-scratch"
         options.target = "ubuntu-base"
 
@@ -62,7 +77,8 @@ final class ImagePreparerTests: XCTestCase {
         let tart = FakeTart()
         tart.vms["tahoe-base"] = TartVM(name: "tahoe-base", source: "old-source", status: "stopped")
         let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
-        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
+        var options = ImagePreparer.Options(
+            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false)
         options.target = "tahoe-base"
 
         try await preparer.run(options)
@@ -79,7 +95,8 @@ final class ImagePreparerTests: XCTestCase {
         let ssh = FakeSSH()
         ssh.failWith = "sudo: a password is required"
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
-        var options = ImagePreparer.Options(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
+        var options = ImagePreparer.Options(
+            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false)
         options.target = "tahoe-base"
 
         do {

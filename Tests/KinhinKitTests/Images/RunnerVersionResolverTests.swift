@@ -70,6 +70,24 @@ final class RunnerVersionResolverTests: XCTestCase {
         }
     }
 
+    /// Buildkite's feed shares GitHub's API host; its betas are not stable.
+    func testBuildkiteFeedReadsTheAgentRepoAndSkipsBetas() async throws {
+        let stable = resolverWithStub { request in
+            XCTAssertEqual(request.url?.path, "/repos/buildkite/agent/releases/latest")
+            return (200, Data(#"{"tag_name":"v4.0.9"}"#.utf8), [:])
+        }
+        let version = try await stable.latestBuildkite()
+        XCTAssertEqual(version, "4.0.9")
+
+        let beta = resolverWithStub { _ in (200, Data(#"{"tag_name":"v4.1.0-beta.1"}"#.utf8), [:]) }
+        await XCTAssertThrowsErrorAsync(try await beta.latestBuildkite(), "beta tag") { error in
+            guard case ImageError.malformedVersionFeed(let feed, _) = error else {
+                return XCTFail("expected ImageError.malformedVersionFeed, got \(error)")
+            }
+            XCTAssertEqual(feed, "Buildkite")
+        }
+    }
+
     /// The user-facing path is unchanged by the throwing lookups: any failure
     /// (network or malformed payload) still degrades to pinned versions.
     func testResolveDegradesMalformedPayloadsToPinnedVersions() async {

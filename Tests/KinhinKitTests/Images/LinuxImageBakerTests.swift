@@ -6,7 +6,8 @@ import XCTest
 final class LinuxImageBakerTests: XCTestCase {
     private func options() -> LinuxImageOptions {
         LinuxImageOptions(
-            image: "missing-base", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
+            image: "missing-base", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false,
+            hasBuildkiteToken: false)
     }
 
     func testFailsImmediatelyWithTheCLIsReasonWhenTheScratchContainerWontStart() async {

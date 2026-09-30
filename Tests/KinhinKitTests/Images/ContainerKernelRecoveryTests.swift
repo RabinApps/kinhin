@@ -14,7 +14,8 @@ final class ContainerKernelRecoveryTests: XCTestCase {
         // install and every later call succeed.
         shell.responses = [kernelError]
         let options = LinuxImageOptions(
-            image: "ubuntu:24.04", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
+            image: "ubuntu:24.04", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false,
+            hasBuildkiteToken: false)
         let target = try await ContainerImagePreparer(shell: shell).prepare(
             options, versions: .init(github: "1", gitea: "1"))
         XCTAssertEqual(target, "out")
@@ -29,7 +30,8 @@ final class ContainerKernelRecoveryTests: XCTestCase {
         let shell = FakeShell()
         shell.responses = [ShellResult(exitCode: 1, stdout: "", stderr: "Error: 401 Unauthorized")]
         let options = LinuxImageOptions(
-            image: "nope", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false)
+            image: "nope", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false,
+            hasBuildkiteToken: false)
         do {
             _ = try await ContainerImagePreparer(shell: shell).prepare(
                 options, versions: .init(github: "1", gitea: "1"))

@@ -143,7 +143,7 @@ final class ToolchainHelperScriptTests: XCTestCase {
     func testVMPrepareBakesTheHelperWithTheAgents() async throws {
         let ssh = FakeSSH()
         try await ImagePreparer(tart: FakeTart(), ssh: ssh).run(
-            .init(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false))
+            .init(hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false))
         let agents = try XCTUnwrap(ssh.scripts.first)
         XCTAssertTrue(agents.contains("sudo tee \(RunnerBootstrap.toolchainHelperPath)"), agents)
     }
@@ -153,7 +153,7 @@ final class ToolchainHelperScriptTests: XCTestCase {
         try await ContainerImagePreparer(shell: shell).prepare(
             .init(
                 image: "ubuntu:24.04", target: "kinhin-ci-linux", hasGitHubToken: true, hasGiteaToken: false,
-                hasGitLabToken: false))
+                hasGitLabToken: false, hasBuildkiteToken: false))
         let agents = try XCTUnwrap(shell.calls.first { $0.contains("exec") && $0.contains("/bin/bash") })
         XCTAssertTrue(agents.joined(separator: " ").contains("| tee \(RunnerBootstrap.toolchainHelperPath)"))
     }

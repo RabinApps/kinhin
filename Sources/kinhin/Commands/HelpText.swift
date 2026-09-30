@@ -24,7 +24,7 @@ func helpText() -> String {
         doctor [--json]             Check prerequisites and print the computed capacity (--json: merged machine-readable diagnostics document)
         setup-status [--json]       First-run checklist (pass --json for machine output)
         setup repair host-agent     Install the GitHub + Gitea runner agents for host runs (unisolated, on this Mac);
-                                    gitlab-runner is added only when a GitLab account is configured
+                                    gitlab-runner / buildkite-agent are added only when a GitLab / Buildkite account is configured
         setup repair docker [--method desktop|orbstack|colima]
                                     Install Docker (default: the first method this Mac supports)
         setup repair container      Install Apple container and its system service (Apple silicon, macOS 26+)

@@ -70,11 +70,12 @@ final class ConfigInitAndHelpTests: XCTestCase {
         }
     }
 
-    func testHelpTextSaysTheGitLabAgentInstallIsConditional() {
+    func testHelpTextSaysTheGitLabAndBuildkiteAgentInstallsAreConditional() {
         let help = helpText()
         XCTAssertTrue(
-            help.contains("gitlab-runner is added only when a GitLab account is configured"),
-            "host-agent help must match HostAgentInstaller's conditional gitlab-runner install")
+            help.contains(
+                "gitlab-runner / buildkite-agent are added only when a GitLab / Buildkite account is configured"),
+            "host-agent help must match HostAgentInstaller's conditional agent installs")
     }
 
     func testHelpTextMentionsProvisionScriptHook() {

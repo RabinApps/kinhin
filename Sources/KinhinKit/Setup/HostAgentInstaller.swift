@@ -3,8 +3,9 @@ import Foundation
 /// Installs the runner agents that `HostRuntime` runs directly on the Mac
 /// (the fix behind `kinhin setup repair host-agent` and the checklist's
 /// "Host runner agent" row): GitHub's actions-runner and the Gitea runner
-/// (which also serves Forgejo), plus the GitLab runner when a GitLab account
-/// is configured, so a host route works on every forge in use.
+/// (which also serves Forgejo), plus the GitLab runner and the Buildkite agent
+/// when an account of that forge is configured, so a host route works on
+/// every forge in use.
 /// Downloads are SHA-256 verified against the vendors' published digests, the
 /// same way `image prepare` verifies them. Agents already present are skipped.
 public struct HostAgentInstaller: Sendable {
@@ -14,22 +15,26 @@ public struct HostAgentInstaller: Sendable {
     let latestVersions: @Sendable () async -> RunnerVersionResolver.Versions
     /// Whether the GitLab agent is part of the install (and of `isInstalled`).
     public let includeGitLab: Bool
+    /// Whether the Buildkite agent is part of the install (and of `isInstalled`).
+    public let includeBuildkite: Bool
 
     public init(
         shell: ShellRunning = Shell(), agentDir: URL? = nil, arm64: Bool = ResourceProbe().snapshot().arm64,
         latestVersions: (@Sendable () async -> RunnerVersionResolver.Versions)? = nil,
-        includeGitLab: Bool? = nil
+        includeGitLab: Bool? = nil, includeBuildkite: Bool? = nil
     ) {
         self.shell = shell
         self.agentDir = agentDir ?? HostRuntime.defaultAgentDir
         self.arm64 = arm64
         self.latestVersions = latestVersions ?? { await RunnerVersionResolver().resolve() }
-        self.includeGitLab = includeGitLab ?? Self.gitlabConfigured()
+        let configured = (includeGitLab == nil || includeBuildkite == nil) ? Self.configuredForges() : []
+        self.includeGitLab = includeGitLab ?? configured.contains(.gitlab)
+        self.includeBuildkite = includeBuildkite ?? configured.contains(.buildkite)
     }
 
-    /// True when the on-disk config has a GitLab account.
-    static func gitlabConfigured() -> Bool {
-        AccountTokens.loadedConfig()?.accounts.contains { $0.forge == .gitlab } ?? false
+    /// The forges the on-disk config has accounts for.
+    static func configuredForges() -> Set<ForgeID> {
+        Set(AccountTokens.loadedConfig()?.accounts.map(\.forge) ?? [])
     }
 
     var githubAgentInstalled: Bool {
@@ -44,9 +49,14 @@ public struct HostAgentInstaller: Sendable {
         FileManager.default.isExecutableFile(atPath: agentDir.appendingPathComponent("gitlab-runner").path)
     }
 
+    var buildkiteAgentInstalled: Bool {
+        FileManager.default.isExecutableFile(atPath: agentDir.appendingPathComponent("buildkite-agent").path)
+    }
+
     /// True when every agent in use is present.
     public var isInstalled: Bool {
         githubAgentInstalled && giteaAgentInstalled && (!includeGitLab || gitlabAgentInstalled)
+            && (!includeBuildkite || buildkiteAgentInstalled)
     }
 
     /// The install script for whichever agents are missing.
@@ -76,6 +86,14 @@ public struct HostAgentInstaller: Sendable {
                 chmod +x gitlab-runner
                 """)
         }
+        if includeBuildkite, !buildkiteAgentInstalled {
+            parts.append(
+                """
+                \(RunnerBootstrap.buildkiteAgentDownloadScript(version: versions.buildkite, platform: arm64 ? "darwin-arm64" : "darwin-amd64", file: "buildkite-agent.tar.gz"))
+                tar xzf buildkite-agent.tar.gz ./buildkite-agent
+                rm buildkite-agent.tar.gz
+                """)
+        }
         return parts.joined(separator: "\n")
     }
 
@@ -100,10 +118,21 @@ public struct HostAgentInstaller: Sendable {
             throw ImageError.hostAgentInstallFailed(
                 "the download finished but gitlab-runner is missing in \(agentDir.path)")
         }
-        Log.info(
-            "host",
-            "installed actions-runner \(versions.github), gitea-runner \(versions.gitea)"
-                + (includeGitLab ? " and gitlab-runner \(versions.gitlab)" : "") + " into \(agentDir.path)")
+        if includeBuildkite, !buildkiteAgentInstalled {
+            throw ImageError.hostAgentInstallFailed(
+                "the download finished but buildkite-agent is missing in \(agentDir.path)")
+        }
+        Log.info("host", "installed \(installedSummary(versions)) into \(agentDir.path)")
         return versions
+    }
+
+    /// "actions-runner 2.x, gitea-runner 3.x and buildkite-agent 4.x": the
+    /// agents this installer covers, for log and CLI lines.
+    public func installedSummary(_ versions: RunnerVersionResolver.Versions) -> String {
+        var agents = ["actions-runner \(versions.github)", "gitea-runner \(versions.gitea)"]
+        if includeGitLab { agents.append("gitlab-runner \(versions.gitlab)") }
+        if includeBuildkite { agents.append("buildkite-agent \(versions.buildkite)") }
+        guard let last = agents.popLast() else { return "" }
+        return agents.joined(separator: ", ") + " and " + last
     }
 }
