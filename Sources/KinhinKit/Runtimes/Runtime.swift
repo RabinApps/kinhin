@@ -265,9 +265,7 @@ struct TartRuntime: Runtime {
                 + RunnerBootstrap.bitbucketRegistrationScript(
                     runners: try RunnerBootstrap.bitbucketRunners(
                         name: name, runnerCount: runnerCount, tokens: runnerTokens),
-                    workspace: forge.scope,
                     runtime: "macos",
-                    labels: forge.labels,
                     runnerCommand: "\"$HOME/bitbucket-runner/runner.sh\"",
                     baseDir: "\"$HOME/bitbucket-runners\"")
         }

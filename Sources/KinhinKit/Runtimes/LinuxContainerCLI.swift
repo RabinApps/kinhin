@@ -120,9 +120,7 @@ struct LinuxContainerCLI: Sendable {
                 + RunnerBootstrap.bitbucketRegistrationScript(
                     runners: try RunnerBootstrap.bitbucketRunners(
                         name: name, runnerCount: runnerCount, tokens: runnerTokens),
-                    workspace: forge.scope,
                     runtime: "linux-shell",
-                    labels: forge.labels,
                     runnerCommand: "/opt/bitbucket-runner/runner.sh",
                     baseDir: "/opt/bitbucket-runners")
         }

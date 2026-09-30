@@ -114,13 +114,14 @@ struct BitbucketForge: Forge {
     }
 
     /// How a runner's per-runner credential bundle is assembled: everything
-    /// the agent start command needs — workspace UUID (`--accountUuid`),
+    /// the runner start command needs — workspace UUID (`--accountUuid`),
+    /// repository UUID (`--repositoryUuid`, empty on workspace scopes),
     /// runner UUID (`--runnerUuid`), OAuth client id and OAuth client secret
-    /// (which exists only in the create response). `uuid|id|secret`, joined
-    /// with `|` (a character UUIDs and OAuth ids do not contain).
+    /// (which exists only in the create response). Joined with `|`, a
+    /// character UUIDs and OAuth ids do not contain.
     func credentialBundle(runner: BitbucketRunner) -> String? {
         guard let oauth = runner.oauthClient, let secret = oauth.secret, !secret.isEmpty else { return nil }
-        return [workspaceUUID, runner.uuid, oauth.id, secret].joined(separator: "|")
+        return [workspaceUUID, repositoryUUID ?? "", runner.uuid, oauth.id, secret].joined(separator: "|")
     }
 
     /// Workspace scopes serve every repository, so they attribute by repo.

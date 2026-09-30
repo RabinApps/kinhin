@@ -13,9 +13,7 @@ extension HostRuntime {
         RunnerBootstrap.bitbucketRegistrationScript(
             runners: try RunnerBootstrap.bitbucketRunners(
                 name: name, runnerCount: runnerCount, tokens: runnerTokens),
-            workspace: forge.scope,
             runtime: "macos",
-            labels: forge.labels,
             runnerCommand: RunnerBootstrap.shellQuote(
                 agentDir.appendingPathComponent("bitbucket-runner/runner.sh").path),
             baseDir: RunnerBootstrap.shellQuote(workDirectory(for: name).path))

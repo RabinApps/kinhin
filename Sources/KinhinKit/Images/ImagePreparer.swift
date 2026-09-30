@@ -169,7 +169,7 @@ public struct ImagePreparer {
             Log.info("image", "Bitbucket token found — baking the Bitbucket runner \(versions.bitbucket)")
             scripts.append(
                 RunnerBootstrap.bitbucketRunnerInstallScript(
-                    version: versions.bitbucket, jdkVersion: versions.bitbucketJDK, jdkPlatform: "mac-aarch64"))
+                    version: versions.bitbucket, jdkVersion: versions.bitbucketJDK, jdkPlatform: "aarch64_mac"))
         } else {
             Log.info("image", "no Bitbucket token stored — skipping the Bitbucket runner install")
         }

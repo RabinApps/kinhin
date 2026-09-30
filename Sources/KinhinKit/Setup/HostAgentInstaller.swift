@@ -130,7 +130,7 @@ public struct HostAgentInstaller: Sendable {
             parts.append(
                 RunnerBootstrap.bitbucketRunnerInstallScript(
                     version: versions.bitbucket, jdkVersion: versions.bitbucketJDK,
-                    jdkPlatform: arm64 ? "mac-aarch64" : "mac-x64"
+                    jdkPlatform: arm64 ? "aarch64_mac" : "x64_mac"
                 )
                 .replacingOccurrences(of: "$HOME", with: agentDir.path))
         }

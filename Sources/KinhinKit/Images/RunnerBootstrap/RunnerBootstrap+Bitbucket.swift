@@ -12,9 +12,12 @@ extension RunnerBootstrap {
     /// against Temurin's per-release SHA-256 (see `temurinJDKDigestCommand`).
     /// Downloads the package for `platform` ("macos" needs no variant; Linux
     /// is also a single universal archive) plus the Temurin 25 JDK for
-    /// `jdkPlatform` ("mac-aarch64", "linux-x64", "linux-aarch64"), and
+    /// `jdkPlatform` (Temurin's arch_os: "aarch64_mac", "x64_mac",
+    /// "aarch64_linux", "x64_linux"), and
     /// writes the `runner.sh` wrapper the registration scripts exec: it puts
     /// the JDK on PATH, then execs the package's `bin/start.sh`.
+    /// `jdkPlatform` is Temurin's arch_os segment ("aarch64_mac",
+    /// "x64_mac", "aarch64_linux", "x64_linux").
     static func bitbucketRunnerInstallScript(version: String, jdkVersion: String, jdkPlatform: String) -> String {
         """
         set -euo pipefail
@@ -53,9 +56,10 @@ extension RunnerBootstrap {
     }
 
     /// The Linux variant: installs into `/opt/bitbucket-runner` (the
-    /// container bake), same package and JDK layout.
+    /// container bake), same package and JDK layout. `jdkPlatform` is the
+    /// Temurin arch_os segment ("aarch64_linux", "x64_linux").
     static func linuxBitbucketRunnerInstallScript(
-        version: String, jdkVersion: String, jdkPlatform: String = "linux-aarch64"
+        version: String, jdkVersion: String, jdkPlatform: String = "aarch64_linux"
     ) -> String {
         """
         set -euo pipefail
@@ -95,23 +99,21 @@ extension RunnerBootstrap {
     /// expands it there; the VM (or container) is single-tenant and
     /// ephemeral.
     ///
-    /// The runner's `--labels` come from the registered labels
-    /// (`self.hosted`, the platform marker, the account's labels); its
-    /// `--workspace` is the account's scope slug. The runner stays
-    /// connected across steps (Bitbucket's runner protocol has no
-    /// single-job mode); the engine's idle-grace watch deletes the instance
-    /// once its runners have been idle, and teardown kills the process
-    /// recorded in `runner.pid`. `baseDir` is a shell word (already quoted,
-    /// or `/opt/…`); each runner lives in `baseDir/<name>` with its work
-    /// directory, credentials, log and pid. `runnerCommand` is the shell
-    /// word of the installed `runner.sh` wrapper; `runtime` is the
+    /// The runner's routing was decided at creation: its labels
+    /// (`self.hosted`, the platform marker, the account's labels) live on
+    /// the forge-side runner, so `start.sh` needs no label arguments. The
+    /// runner stays connected across steps (Bitbucket's runner protocol has
+    /// no single-job mode); the engine's idle-grace watch deletes the
+    /// instance once its runners have been idle, and teardown kills the
+    /// process recorded in `runner.pid`. `baseDir` is a shell word (already
+    /// quoted, or `/opt/…`); each runner lives in `baseDir/<name>` with its
+    /// work directory, credentials, log and pid. `runnerCommand` is the
+    /// shell word of the installed `runner.sh` wrapper; `runtime` is the
     /// `--runtime` value Bitbucket's dialog prints (`macos` or
     /// `linux-shell`).
     static func bitbucketRegistrationScript(
-        runners: [(name: String, bundle: String)], workspace: String, runtime: String,
-        labels: [String], runnerCommand: String, baseDir: String
+        runners: [(name: String, bundle: String)], runtime: String, runnerCommand: String, baseDir: String
     ) -> String {
-        let labelList = labels.joined(separator: ",")
         var blocks = ""
         for (index, runner) in runners.enumerated() {
             let dir = "\(baseDir)/\(shellQuote(runner.name))"
@@ -121,15 +123,14 @@ extension RunnerBootstrap {
                 cd \(dir)
                 (umask 077 && printf '%s' \(shellQuote(runner.bundle)) > credentials)
                 nohup /bin/bash -c '
-                  IFS="|" read -r WORKSPACE_UUID RUNNER_UUID OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET < "$1"
+                  IFS="|" read -r WORKSPACE_UUID REPOSITORY_UUID RUNNER_UUID OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET < "$1"
                   exec "$2" \\
                     --accountUuid "$WORKSPACE_UUID" --runnerUuid "$RUNNER_UUID" \\
                     --OAuthClientId "$OAUTH_CLIENT_ID" \\
                     --OAuthClientSecret "$OAUTH_CLIENT_SECRET" \\
-                    --workingDirectory "$PWD/work" --runtime "$3" --labels "$4" \\
-                    --workspace "$5"
-                ' bash \(dir)/credentials \(shellQuote(runnerCommand)) \\
-                  \(shellQuote(runtime)) \(shellQuote(labelList)) \(shellQuote(workspace)) \\
+                    --workingDirectory "$PWD/work" --runtime "$3" $REPOSITORY_UUID_FLAG
+                ' bash \(dir)/credentials \(shellQuote(runnerCommand)) \
+                  \(shellQuote(runtime)) \
                   > runner.log 2>&1 < /dev/null &
                 echo $! > runner.pid
 
@@ -179,7 +180,8 @@ extension RunnerBootstrap {
         return "curl -fsSL \(shellQuote(sidecar)) | awk '{print $1}' | head -1"
     }
 
-    /// `platform` is e.g. "mac-aarch64", "linux-x64", "linux-aarch64";
+    /// `platform` is Temurin's arch_os segment, e.g. "aarch64_mac",
+    /// "x64_mac", "aarch64_linux";
     /// the asset name follows Temurin's scheme
     /// (`OpenJDK<jdk>U-jdk_<platform>_hotspot_<version>.tar.gz`).
     static func temurinJDKDownloadScript(version: String, platform: String, file: String) -> String {
