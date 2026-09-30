@@ -12,6 +12,10 @@ final class DiagnosticsModel {
         let title: String
         let detail: String
         let ok: Bool
+        /// Advisory caveat rendered under the detail (the drift warning);
+        /// the dot still reflects `ok`, which stays true for a usable
+        /// but non-reproducible base image.
+        var warning: String? = nil
         var id: String { title }
     }
 
@@ -50,6 +54,15 @@ final class DiagnosticsModel {
             tartDetail += "\nFix: \(report.tart.repairCommands[0])"
         }
         rows.append(Row(title: "Tart (macOS VMs)", detail: tartDetail, ok: report.tart.ok))
+
+        // The configured `base_image:` — only worth a row when the same
+        // warning the fleet-start log prints applies (a mutable tag bakes
+        // differently every time). Pinned or absent → no row.
+        if let base = report.tartBaseImage, let warning = base.warning {
+            var detail = "\(base.reference) — \(base.fix ?? "")"
+            if detail.hasSuffix(" — ") { detail = String(detail.dropLast(3)) }
+            rows.append(Row(title: "Base image (macOS VMs)", detail: detail, ok: base.ok, warning: warning))
+        }
 
         // Containers (only when configured)
         if let container = report.container {
@@ -147,6 +160,13 @@ private struct DiagnosticsRow: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
+                if let warning = row.warning {
+                    Text("⚠ \(warning)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(StatusStyle.warn.color)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 0)
         }
