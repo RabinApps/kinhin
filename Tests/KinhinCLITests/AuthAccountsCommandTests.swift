@@ -181,4 +181,24 @@ final class AuthAccountsCommandTests: XCTestCase {
             XCTAssertTrue(error.message.contains("auth add NAME --gitlab"), error.message)
         }
     }
+
+    func testBuildkiteAccountRoundTrip() async throws {
+        let recorder = AuthRecorder()
+        try await AuthCommand.run(
+            ["auth", "add", "ci", "--buildkite", "--scope", "acme/Mac Fleet"], environment: environment(recorder))
+        let account = try XCTUnwrap(try ConfigLoader.load(from: configURL).accounts.first)
+        XCTAssertEqual(account.forge, .buildkite)
+        XCTAssertEqual(account.scope, "acme/Mac Fleet")
+
+        // --buildkite targets the first Buildkite account's own Keychain item.
+        try await AuthCommand.run(
+            ["auth", "set", "--buildkite", "--token", "bkua_x"], environment: environment(recorder))
+        XCTAssertEqual(recorder.savedAccounts.last?.forge, .buildkite)
+        XCTAssertEqual(recorder.savedAccounts.last?.name, "ci")
+
+        try await AuthCommand.run(
+            ["auth", "status", "--buildkite"], environment: environment(recorder, stored: ["ci": "bkua_x"]))
+        XCTAssertEqual(recorder.checkedBuildkite.first?.scope, "acme/Mac Fleet")
+        XCTAssertTrue(recorder.checkedGitHub.isEmpty, "a Buildkite account is never checked against GitHub")
+    }
 }

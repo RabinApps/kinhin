@@ -79,6 +79,12 @@ extension FleetEngine {
                     labels: account.labels ?? config.labels,
                     account: account.name
                 )
+            case .buildkite:
+                forge = try await BuildkiteForge.make(
+                    credentials: BuildkiteCredentials(token: token, scope: account.scope),
+                    labels: account.labels ?? BuildkiteForge.defaultLabels,
+                    account: account.name
+                )
             }
             forgeState.withLock { $0.byPlatform[account.name] = forge }
             registrationCache(for: account.name).invalidate()

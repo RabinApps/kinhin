@@ -60,16 +60,20 @@ final class AccountsModel: ConfigFormModel {
 
     // MARK: - Forge-specific add-form text
 
-    /// The scope field's prompt: GitLab scopes nest.
+    /// The scope field's prompt: GitLab scopes nest; Buildkite names a cluster.
     func scopePlaceholder(for forge: ForgeID) -> String {
-        forge == .gitlab ? "group/subgroup or group/project" : "owner/name, or an org"
+        switch forge {
+        case .gitlab: return "group/subgroup or group/project"
+        case .buildkite: return "org-slug/cluster"
+        case .github, .gitea, .forgejo: return "owner/name, or an org"
+        }
     }
 
     /// The instance field's prompt, or nil when the forge has no field
-    /// (GitHub tokens work without one; GitLab defaults to gitlab.com).
+    /// (GitHub and Buildkite are hosted only; GitLab defaults to gitlab.com).
     func instancePlaceholder(for forge: ForgeID) -> String? {
         switch forge {
-        case .github: return nil
+        case .github, .buildkite: return nil
         case .gitea, .forgejo: return "https://gitea.example.com"
         case .gitlab: return "https://gitlab.com (optional)"
         }
@@ -91,6 +95,8 @@ final class AccountsModel: ConfigFormModel {
             return TokenRequirements.gitea(scope: scope, instance: filled.isEmpty ? nil : filled)
         case .gitlab:
             return TokenRequirements.gitlab(scope: scope, instance: filled.isEmpty ? nil : filled)
+        case .buildkite:
+            return TokenRequirements.buildkite(scope: scope)
         }
     }
 

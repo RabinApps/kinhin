@@ -127,6 +127,25 @@ public struct TokenRequirements: Equatable, Sendable {
             note: "Creating runners needs Maintainer on a project or Owner on a group, and GitLab 16.0 or later.")
     }
 
+    /// Buildkite: an API access token (hosted only) for the organization in
+    /// `scope` (`org/cluster`).
+    public static func buildkite(scope: String) -> TokenRequirements {
+        let organization = scope.split(separator: "/", maxSplits: 1).first.map(String.init) ?? ""
+        return TokenRequirements(
+            title: "Buildkite token permissions" + (organization.isEmpty ? "" : " for '\(organization)'"),
+            options: [
+                Option(
+                    kind: "API access token", url: "https://buildkite.com/user/api-access-tokens",
+                    permissions: [
+                        "Organization access: \(organization.isEmpty ? "the organization to serve" : organization)",
+                        "REST API scopes: " + BuildkiteCredentials.requiredScopes.joined(separator: ", "),
+                    ])
+            ],
+            note:
+                "kinhin creates a cluster agent token (\"kinhin: <account>\") for its agents and replaces it on each start."
+        )
+    }
+
     /// Multi-line text for the CLI and log lines.
     public var plainText: String {
         var lines = ["\(title):"]

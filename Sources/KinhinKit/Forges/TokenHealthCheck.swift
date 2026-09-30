@@ -75,6 +75,24 @@ public enum TokenHealthCheck {
         }
     }
 
+    /// Check a Buildkite account: the API token has the scopes kinhin uses
+    /// and the `org/cluster` scope names a cluster it can see.
+    public static func buildkite(
+        token: String, scope: String,
+        client buildkite: BuildkiteClient? = nil
+    ) async -> Report {
+        let client = buildkite ?? BuildkiteClient(credentials: BuildkiteCredentials(token: token, scope: scope))
+        do {
+            try await client.verifyScopes()
+            let cluster = try await client.resolveCluster()
+            return Report(
+                ok: true, message: "Token works against cluster \(cluster.name) of \(client.credentials.organization)")
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            return Report(ok: false, message: "Token check failed: \(message)")
+        }
+    }
+
     /// Forge-dispatching convenience for the settings form: resolves the
     /// stored token (via `keychainToken`) and the config scope, and returns
     /// an actionable "not checkable" report when a prerequisite is missing
@@ -114,6 +132,11 @@ public enum TokenHealthCheck {
                 return Report(ok: false, message: "No GitLab account in config.yaml — add one to check the token.")
             }
             return await Self.gitlab(token: token, scope: account.scope, instance: account.instance)
+        case .buildkite:
+            guard let account = config?.accounts.first(where: { $0.forge == .buildkite }) else {
+                return Report(ok: false, message: "No Buildkite account in config.yaml — add one to check the token.")
+            }
+            return await Self.buildkite(token: token, scope: account.scope)
         }
     }
 
@@ -131,6 +154,8 @@ public enum TokenHealthCheck {
             return await gitea(token: token, scope: account.scope, instance: instance)
         case .gitlab:
             return await gitlab(token: token, scope: account.scope, instance: account.instance)
+        case .buildkite:
+            return await buildkite(token: token, scope: account.scope)
         }
     }
 
@@ -149,6 +174,8 @@ public enum TokenHealthCheck {
             return try await GitLabClient(
                 credentials: GitLabCredentials(token: token, scope: "", instance: instance)
             ).listRepositories()
+        case .buildkite:
+            return try await BuildkiteClient(credentials: BuildkiteCredentials(token: token, scope: "")).listScopes()
         }
     }
 }

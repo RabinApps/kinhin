@@ -80,18 +80,22 @@ final class ForgeConnectionModel: ConfigFormModel {
 
     // MARK: - Display
 
-    /// Self-hosted forges and GitLab show a server field; GitHub tokens work
-    /// without one.
-    var showsInstance: Bool { forge != .github }
+    /// Self-hosted forges and GitLab show a server field; GitHub and
+    /// Buildkite are hosted only.
+    var showsInstance: Bool { forge != .github && forge != .buildkite }
     var instancePlaceholder: String {
         switch forge {
-        case .github: return ""
+        case .github, .buildkite: return ""
         case .gitea, .forgejo: return "https://gitea.example.com"
         case .gitlab: return "https://gitlab.com (optional)"
         }
     }
     var scopeLabel: String {
-        forge == .gitlab ? "Group or project" : "Repository or org"
+        switch forge {
+        case .gitlab: return "Group or project"
+        case .buildkite: return "Organization and cluster"
+        case .github, .gitea, .forgejo: return "Repository or org"
+        }
     }
     var scopeEnabled: Bool { tokenStored }
     var buttonTitle: String { tokenStored ? "Replace" : "Connect" }
@@ -108,12 +112,18 @@ final class ForgeConnectionModel: ConfigFormModel {
         case .gitlab:
             return TokenRequirements.gitlab(
                 scope: trimmedScope, instance: instance.trimmingCharacters(in: .whitespaces))
+        case .buildkite:
+            return TokenRequirements.buildkite(scope: trimmedScope)
         }
     }
 
     static func scopePlaceholder(enabled: Bool, forge: ForgeID) -> String {
         guard enabled else { return "Connect first to choose a repository" }
-        return forge == .gitlab ? "group/subgroup or group/project" : "owner/name, or an org name"
+        switch forge {
+        case .gitlab: return "group/subgroup or group/project"
+        case .buildkite: return "org-slug/cluster"
+        case .github, .gitea, .forgejo: return "owner/name, or an org name"
+        }
     }
 
     // MARK: - Loading
@@ -231,7 +241,8 @@ final class ForgeConnectionModel: ConfigFormModel {
     }
 
     /// GitHub probes runner-management permission; GitLab checks version,
-    /// scopes and scope resolution; Gitea-family has no token model to probe.
+    /// scopes and scope resolution; Buildkite checks scopes and the cluster;
+    /// Gitea-family has no token model to probe.
     private func verifyAfterConnect(with token: String) async {
         switch forge {
         case .github:
@@ -241,6 +252,11 @@ final class ForgeConnectionModel: ConfigFormModel {
             guard !scopeValue.isEmpty else { return }
             let report = await TokenHealthCheck.gitlab(
                 token: token, scope: scopeValue, instance: instanceIfAny)
+            status = Line(text: report.message, style: report.ok ? .ok : .error)
+        case .buildkite:
+            let scopeValue = scope.trimmingCharacters(in: .whitespaces)
+            guard !scopeValue.isEmpty else { return }
+            let report = await TokenHealthCheck.buildkite(token: token, scope: scopeValue)
             status = Line(text: report.message, style: report.ok ? .ok : .error)
         case .gitea, .forgejo:
             break

@@ -23,6 +23,10 @@ struct AuthEnvironment: Sendable {
             token: credentials.token, scope: credentials.scope, instance: credentials.instance)
         guard report.ok else { throw CLIError(report.message) }
     }
+    var checkBuildkite: @Sendable (BuildkiteCredentials) async throws -> Void = { credentials in
+        let report = await TokenHealthCheck.buildkite(token: credentials.token, scope: credentials.scope)
+        guard report.ok else { throw CLIError(report.message) }
+    }
     var loadConfig: @Sendable () -> KinhinConfig
     /// Best-effort live-swap notification to a running daemon.
     var notifyDaemon: @Sendable (String, ForgeID) -> Void
@@ -114,6 +118,8 @@ enum AuthCommand {
         case .gitlab:
             let account = config?.accounts.first { $0.forge == .gitlab }
             return TokenRequirements.gitlab(scope: account?.scope ?? "", instance: account?.instance)
+        case .buildkite:
+            return TokenRequirements.buildkite(scope: config?.accounts.first { $0.forge == .buildkite }?.scope ?? "")
         }
     }
 
@@ -127,28 +133,36 @@ enum AuthCommand {
             }
     }
 
-    /// The forge chosen by `--github`/`--gitea`/`--forgejo`/`--gitlab`; nil
-    /// when none or several are given.
+    /// The forge chosen by `--github`/`--gitlab`/`--gitea`/… ; nil when none
+    /// or several are given.
     static func forgeFlag(in args: [String]) -> ForgeID? {
         let chosen = ForgeID.allCases.filter { args.contains("--\($0.rawValue)") }
         return chosen.count == 1 ? chosen.first : nil
     }
 
-    /// `auth add NAME --github|--gitea|--forgejo|--gitlab --scope S [--instance URL] [--token T]`.
+    /// Every forge flag, for usage lines: `--github|--gitlab|…`.
+    static var forgeFlagList: String {
+        ForgeID.allCases.map { "--\($0.rawValue)" }.joined(separator: "|")
+    }
+
+    /// `auth add NAME --github|--gitlab|… --scope S [--instance URL] [--token T]`.
     private static func add(_ args: [String], environment: AuthEnvironment) throws {
         guard let name = args.dropFirst(2).first, !name.hasPrefix("--") else {
             try environment.fail(
-                "usage: kinhin auth add NAME --github|--gitea|--forgejo|--gitlab --scope SCOPE [--instance URL] [--token T]"
+                "usage: kinhin auth add NAME \(forgeFlagList) --scope SCOPE [--instance URL] [--token T]"
             )
         }
         guard let forge = forgeFlag(in: args) else {
-            try environment.fail("choose exactly one of --github, --gitea, --forgejo or --gitlab")
+            try environment.fail("choose exactly one of \(forgeFlagList.replacingOccurrences(of: "|", with: ", "))")
         }
         guard let scope = flag("--scope", in: args) else {
-            try environment.fail(
-                forge == .gitlab
-                    ? "--scope is required (a GitLab project or group path, e.g. group/project)"
-                    : "--scope is required (an org name, or owner/name for one repository)")
+            let expected: String
+            switch forge {
+            case .gitlab: expected = "a GitLab project or group path, e.g. group/project"
+            case .buildkite: expected = "org-slug/cluster, the cluster's name or id"
+            case .github, .gitea, .forgejo: expected = "an org name, or owner/name for one repository"
+            }
+            try environment.fail("--scope is required (\(expected))")
         }
         let account = AccountConfig(name: name, forge: forge, scope: scope, instance: flag("--instance", in: args))
         do {
@@ -246,6 +260,7 @@ enum AuthCommand {
             case .gitea: kind = "Gitea access token"
             case .forgejo: kind = "Forgejo access token"
             case .gitlab: kind = "GitLab access token"
+            case .buildkite: kind = "Buildkite API access token"
             }
             return named.map { "\(kind) for account '\($0.name)'" } ?? kind
         }
@@ -259,23 +274,32 @@ enum AuthCommand {
         var target = Target(
             forge: args.contains("--forgejo") ? .forgejo : (args.contains("--gitea") ? .gitea : .github))
         var accountFlag = flag("--account", in: args)
-        if accountFlag == nil, args.contains("--gitlab") {
-            guard let gitlab = environment.lookupConfig?.accounts.first(where: { $0.forge == .gitlab }) else {
+        // Forges without a primary account (GitLab, Buildkite): the flag
+        // means the forge's first account.
+        let accountOnly = ForgeID.allCases.filter { !AccountConfig.reservedNames.contains($0.rawValue) }
+        if accountFlag == nil, let forge = accountOnly.first(where: { args.contains("--\($0.rawValue)") }) {
+            guard let first = environment.lookupConfig?.accounts.first(where: { $0.forge == forge }) else {
                 try environment.fail(
-                    "no GitLab account in config — add one first: kinhin auth add NAME --gitlab --scope group/project")
+                    "no \(forge.displayName) account in config — add one first: kinhin auth add NAME --\(forge.rawValue) --scope SCOPE"
+                )
             }
-            accountFlag = gitlab.name
+            accountFlag = first.name
         }
         if let accountName = accountFlag {
             guard let resolved = resolveAccount(accountName, config: environment.lookupConfig) else {
                 try environment.fail(
-                    "no account '\(accountName)' in config — add it first: kinhin auth add \(accountName) --github|--gitea|--forgejo|--gitlab --scope SCOPE"
+                    "no account '\(accountName)' in config — add it first: kinhin auth add \(accountName) \(forgeFlagList) --scope SCOPE"
                 )
             }
             target.forge = resolved.forge
             // The conventional names keep their original Keychain items and
-            // RPCs; GitLab has none, so every GitLab account is a named one.
-            if resolved.name != resolved.forge.rawValue || resolved.forge == .gitlab { target.named = resolved }
+            // RPCs; GitLab and Buildkite have none, so all their accounts are
+            // named ones.
+            if resolved.name != resolved.forge.rawValue
+                || !AccountConfig.reservedNames.contains(resolved.forge.rawValue)
+            {
+                target.named = resolved
+            }
         }
         return target
     }
@@ -356,6 +380,8 @@ enum AuthCommand {
             case .gitlab:
                 try await environment.checkGitLab(
                     GitLabCredentials(token: token, scope: account.scope, instance: account.instance))
+            case .buildkite:
+                try await environment.checkBuildkite(BuildkiteCredentials(token: token, scope: account.scope))
             }
             print("token works against \(against)")
         } catch {

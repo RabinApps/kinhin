@@ -34,6 +34,7 @@ final class AuthRecorder: Sendable {
         var checkedGitHub: [GitHubCredentials] = []
         var checkedGitea: [GiteaCredentials] = []
         var checkedGitLab: [GitLabCredentials] = []
+        var checkedBuildkite: [BuildkiteCredentials] = []
     }
 
     private let state = Mutex(Snapshot())
@@ -48,6 +49,7 @@ final class AuthRecorder: Sendable {
     var checkedGitHub: [GitHubCredentials] { state.withLock { $0.checkedGitHub } }
     var checkedGitea: [GiteaCredentials] { state.withLock { $0.checkedGitea } }
     var checkedGitLab: [GitLabCredentials] { state.withLock { $0.checkedGitLab } }
+    var checkedBuildkite: [BuildkiteCredentials] { state.withLock { $0.checkedBuildkite } }
 
     private func append(_ keyPath: WritableKeyPath<Snapshot, [String]>, _ value: String) {
         state.withLock { $0[keyPath: keyPath] = $0[keyPath: keyPath] + [value] }
@@ -93,6 +95,10 @@ final class AuthRecorder: Sendable {
 
     func recordCheckGitLab(_ credentials: GitLabCredentials) {
         state.withLock { $0.checkedGitLab.append(credentials) }
+    }
+
+    func recordCheckBuildkite(_ credentials: BuildkiteCredentials) {
+        state.withLock { $0.checkedBuildkite.append(credentials) }
     }
 }
 
@@ -161,6 +167,7 @@ extension AuthAccountsCommandTests {
             exit: { throw AuthTestSupport.AuthExit(code: $0) }
         )
         env.checkGitLab = { recorder.recordCheckGitLab($0) }
+        env.checkBuildkite = { recorder.recordCheckBuildkite($0) }
         env.saveAccount = { token, forge, name in recorder.recordSaveAccount(token, forge, name) }
         env.loadAccount = { _, name in stored[name] }
         env.deleteAccount = { recorder.recordDeleteAccount($0, $1) }

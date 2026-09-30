@@ -72,7 +72,8 @@ final class HostRuntime: Runtime {
     }
 
     /// The registration script for the forge (GitHub here; Gitea-family in
-    /// `HostRuntime+Gitea`, GitLab in `HostRuntime+GitLab`), run from the
+    /// `HostRuntime+Gitea`, GitLab in `HostRuntime+GitLab`, Buildkite in
+    /// `HostRuntime+Buildkite`), run from the
     /// agent directory with the
     /// work directory redirected into the instance's scrubbed dir. Labels:
     /// the pool's labels (already merged with `kinhin-host` at pool build).
@@ -91,6 +92,9 @@ final class HostRuntime: Runtime {
         case .gitlab:
             return try gitlabRegistrationScript(
                 forge: forge, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount)
+        case .buildkite:
+            return buildkiteRegistrationScript(
+                forge: forge, token: token, name: name, runnerCount: runnerCount, labels: labels)
         }
         let workDir = workDirectory(for: name)
         let base = RunnerBootstrap.registrationScript(
@@ -122,6 +126,7 @@ final class HostRuntime: Runtime {
         let workDir = workDirectory(for: id)
         await stopGiteaDaemons(id: id)
         await stopGitLabRunners(id: id)
+        await stopBuildkiteAgents(id: id)
         await bestEffortAsync(id, "removing host work directory") {
             if FileManager.default.fileExists(atPath: workDir.path) {
                 try FileManager.default.removeItem(at: workDir)

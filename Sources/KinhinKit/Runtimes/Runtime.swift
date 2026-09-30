@@ -243,6 +243,16 @@ struct TartRuntime: Runtime {
                     binary: "\"$HOME/gitlab-runner/gitlab-runner\"",
                     baseDir: "\"$HOME/gitlab-runner\""
                 )
+        case .buildkite:
+            return cachePrefix
+                + RunnerBootstrap.buildkiteRegistrationScript(
+                    token: token,
+                    tags: RunnerBootstrap.buildkiteTags(accountLabels: forge.labels, poolLabels: labels),
+                    runnerNames: FleetEngine.runnerNames(for: name, count: runnerCount),
+                    ephemeral: route.ephemeral,
+                    binary: "\"$HOME/buildkite-agent/buildkite-agent\"",
+                    baseDir: "\"$HOME/buildkite-agent\""
+                )
         }
     }
 

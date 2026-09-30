@@ -12,6 +12,8 @@ public enum ForgeID: String, Codable, Sendable, CaseIterable {
     /// Gitea's upstream (wire-compatible: the same client, endpoints, and
     /// runner binary serve it — see `GiteaForge`).
     case forgejo
+    /// buildkite.com (hosted only); the scope is `org/cluster`.
+    case buildkite
 
     /// The product name for UI and messages ("GitHub", "GitLab", …).
     public var displayName: String {
@@ -20,6 +22,7 @@ public enum ForgeID: String, Codable, Sendable, CaseIterable {
         case .gitea: return "Gitea"
         case .forgejo: return "Forgejo"
         case .gitlab: return "GitLab"
+        case .buildkite: return "Buildkite"
         }
     }
 }

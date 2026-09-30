@@ -97,6 +97,15 @@ struct LinuxContainerCLI: Sendable {
                         name: name, runnerCount: runnerCount, tokens: runnerTokens),
                     binary: "/opt/gitlab-runner/gitlab-runner",
                     baseDir: "/opt/gitlab-runner")
+        case .buildkite:
+            return cachePrefix
+                + RunnerBootstrap.buildkiteRegistrationScript(
+                    token: token,
+                    tags: RunnerBootstrap.buildkiteTags(accountLabels: forge.labels, poolLabels: labels),
+                    runnerNames: FleetEngine.runnerNames(for: name, count: runnerCount),
+                    ephemeral: route.ephemeral,
+                    binary: "/opt/buildkite-agent/buildkite-agent",
+                    baseDir: "/opt/buildkite-agent")
         }
     }
 

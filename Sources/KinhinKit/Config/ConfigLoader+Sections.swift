@@ -38,10 +38,16 @@ extension ConfigLoader {
                 throw ConfigError.invalid("account '\(name)': forge must be one of \(known)")
             }
             guard let scope = entry.scope, AccountConfig.isValidScope(scope, forge: forge) else {
-                throw ConfigError.invalid(
-                    forge == .gitlab
-                        ? "account '\(name)': scope must be a GitLab project or group path (e.g. 'group/project')"
-                        : "account '\(name)': scope must be 'owner/name' or an org name")
+                switch forge {
+                case .gitlab:
+                    throw ConfigError.invalid(
+                        "account '\(name)': scope must be a GitLab project or group path (e.g. 'group/project')")
+                case .buildkite:
+                    throw ConfigError.invalid(
+                        "account '\(name)': scope must be 'org-slug/cluster' (the cluster's name or id)")
+                case .github, .gitea, .forgejo:
+                    throw ConfigError.invalid("account '\(name)': scope must be 'owner/name' or an org name")
+                }
             }
             switch forge {
             case .github:
@@ -80,6 +86,17 @@ extension ConfigLoader {
                 result.append(
                     AccountConfig(
                         name: name, forge: forge, scope: scope, instance: entry.instance, labels: entry.labels))
+            case .buildkite:
+                if entry.instance != nil {
+                    throw ConfigError.invalid("account '\(name)': Buildkite is hosted only; remove instance")
+                }
+                if let labels = entry.labels {
+                    guard !labels.isEmpty, labels.allSatisfy({ BuildkiteForge.split($0) != nil }) else {
+                        throw ConfigError.invalid(
+                            "account '\(name)': labels must be agent tags like 'queue=kinhin' (key=value)")
+                    }
+                }
+                result.append(AccountConfig(name: name, forge: forge, scope: scope, labels: entry.labels))
             }
         }
         return result

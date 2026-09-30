@@ -4,6 +4,6 @@ import XCTest
 
 final class WizardModelTests: XCTestCase {
     func testForgeNamesListEveryForgeInOfferOrder() {
-        XCTAssertEqual(WizardModel.forgeNames, "GitHub, GitLab, Gitea or Forgejo")
+        XCTAssertEqual(WizardModel.forgeNames, "GitHub, GitLab, Gitea, Forgejo or Buildkite")
     }
 }
