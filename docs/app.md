@@ -15,9 +15,30 @@ Everything kinhin does happens in a single main window. A segmented control swit
 
 | Tab          | Contents                                                                                                                                                                                                                                                                                |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fleet**    | Live status, Start/Stop/Pause, the VM list, and buttons for Logs and Diagnostics.                                                                                                                                                                                                       |
-| **Setup**    | Connect GitHub (and optionally Gitea), pick the repo or org, get this Mac ready, then choose your toolchains. First run is a 4-step wizard.                                                                                                                                             |
+| **Fleet**    | Live status, Start/Stop/Pause, the VM list, and buttons for Logs and Diagnostics. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason) rather than sending you back to Setup.                                                         |
+| **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps and Bitbucket — select every one to serve), pick the repo or org, get this Mac ready, then choose your toolchains. First run is a 4-step wizard.                                                  |
 | **Advanced** | **Accounts** (forges and this Mac), **Capacity** (VM counts and sizes, with Apply), **Routing** (runtimes, budget, labels), **Containers** (containers and volumes), **Toolchains** (bake tools into images), **App** (launch options, updates, config file).                           |
+
+### This Mac: macOS and Linux jobs
+
+The **This Mac** card (Setup step 2, and Advanced → Accounts) has two parts. **macOS jobs** runs workflows in tart
+virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple container** and **Docker**:
+
+- **Tart (Linux VM)** serves Linux jobs from full tart VMs. Its checkbox stays off until tart is installed (use the
+  **Install…** button beside it). Turning it on sets the tart base image to a Linux image (Ubuntu by default; Debian
+  and Fedora are in the picker) and the macOS base-image picker is replaced by a note. Turning it off returns tart to
+  the macOS default. A tart fleet serves one OS at a time, and your fleet `labels:` must match: if they still include
+  `macos`, the card warns you to remove it (and add `linux` if your jobs ask for it). See
+  [Tart Linux VMs](runtimes.md#tart-linux-vms).
+- **Apple container** and **Docker** each have their own base-image picker (Docker also picks an architecture).
+
+Additional accounts (another org, a second server) are not part of first-run setup; add them under
+**Advanced → Accounts → More accounts…**, which opens by itself when extra accounts already exist.
+
+## Quitting
+
+With the in-process engine, quitting kinhin waits (up to 30 seconds) for the engine to stop and tear its VMs down
+before the app exits. When a background daemon runs the fleet, quitting the app leaves it running.
 
 ## Launch mode and login item
 

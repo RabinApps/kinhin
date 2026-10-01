@@ -68,8 +68,10 @@ that up on an existing image.
 ## Tart Linux VMs
 
 Tart clones Linux VMs as happily as macOS ones, and kinhin can serve Linux jobs from a full Tart
-VM when you want VM-grade isolation for Linux work without a container runtime. Two ways to get
-a Linux base VM:
+VM when you want VM-grade isolation for Linux work without a container runtime. In the app, the
+**Tart (Linux VM)** checkbox under **This Mac → Linux jobs** sets the tart `base_image` to a Linux
+image for you (it needs tart installed); a tart fleet serves one OS at a time, so remove `macos`
+from `labels:` when you turn it on. Two ways to get a Linux base VM:
 
 - **From a pre-configured image** — `kinhin image prepare --linux --target <name> --from` shows
   the curated menu (`ghcr.io/cirruslabs/ubuntu:latest`, `ghcr.io/cirruslabs/debian:latest`, … —

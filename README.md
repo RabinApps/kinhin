@@ -242,6 +242,11 @@ kinhin logs [-n N]          Recent log lines
 formatting) are in [CLAUDE.md](CLAUDE.md); the package layout is in
 [docs/architecture.md](docs/architecture.md).
 
+To run the debug app, use `scripts/dev-run.sh` rather than the bare binary: it signs the build with a stable
+identity (your first Apple Development certificate, or `CODESIGN_IDENTITY`) so the Keychain's **Always Allow**
+answer survives rebuilds instead of prompting after every one. Extra arguments go to the app, e.g.
+`scripts/dev-run.sh -kinhin.autoStartFleet NO` overrides the auto-start preference for that run only.
+
 ## License
 
 Copyright © 2026 Rabin Apps, LLC. Licensed under the [Apache License 2.0](LICENSE).
