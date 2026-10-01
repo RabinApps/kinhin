@@ -5,7 +5,7 @@ enum ImageCommand {
     /// The interactive menu over `TartBaseImage`'s pre-configured Linux
     /// images (bare `--from`). Returns the picked reference.
     static func pickCuratedLinuxImage() throws -> String {
-        let linux = TartBaseImage.curated.filter { !$0.reference.contains("macos-") }
+        let linux = TartBaseImage.curatedLinux
         print("Pre-configured tart images (all use admin/admin and Tart's SSH key):")
         for (index, entry) in linux.enumerated() {
             print("  \(index + 1). \(entry.title) — \(entry.reference)")

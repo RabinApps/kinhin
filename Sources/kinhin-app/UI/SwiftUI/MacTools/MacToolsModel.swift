@@ -47,6 +47,8 @@ final class MacToolsModel: ConfigFormModel {
 
     private(set) var tartLine = Line(text: "Checking…")
     private(set) var tartInstallVisible = false
+    /// tart is installed on this Mac (the Linux row's checkbox needs it).
+    private(set) var tartInstalled = false
     private(set) var imageLine = Line(text: "")
     private(set) var imageButtonVisible = false
     /// A long-running action (install, prepare image) is in flight.
@@ -137,6 +139,7 @@ final class MacToolsModel: ConfigFormModel {
         tartLine = Line(
             text: tartInstalled ? "installed ✓" : "not installed", style: tartInstalled ? .secondary : .warn)
         tartInstallVisible = !tartInstalled
+        self.tartInstalled = tartInstalled
         if containerInstalled { checkContainerService() }
         guard tartInstalled else {
             imageLine = Line(text: "needs tart first")
@@ -222,6 +225,16 @@ final class MacToolsModel: ConfigFormModel {
             busyLine = .notSaved(error)
             refreshBaseImages()
         }
+    }
+
+    /// Tart serves Linux jobs when its base image is a Linux one.
+    var tartLinuxOn: Bool { TartBaseImage.isLinux(tartBaseImage) }
+
+    /// The "Tart (Linux VM)" checkbox: on starts from the default Linux
+    /// image; off drops the key, returning tart to the macOS default.
+    func setTartLinux(_ on: Bool) {
+        guard tartInstalled || !on else { return }
+        saveBaseImage(on ? TartBaseImage.defaultLinuxReference : nil, for: .tart)
     }
 
     func saveBaseImage(_ value: String?, for runtime: RuntimeID) {
@@ -355,4 +368,5 @@ final class MacToolsModel: ConfigFormModel {
     func setTartReadyForTesting(_ ready: Bool) { setTartReady(ready) }
     func setContainerForTesting(_ on: Bool) { setContainer(on) }
     func setDockerForTesting(_ on: Bool) { setDocker(on) }
+    func setTartInstalledForTesting(_ installed: Bool) { tartInstalled = installed }
 }

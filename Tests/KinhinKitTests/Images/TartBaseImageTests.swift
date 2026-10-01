@@ -114,4 +114,17 @@ final class TartBaseImageTests: XCTestCase {
         XCTAssertEqual(
             TartBaseImage.problem(with: "ghcr.io/cirruslabs/ubuntu:latest@sha256:tooshort")?.contains("sha256"), true)
     }
+
+    func testLinuxClassificationCoversCuratedLinuxImagesIncludingPins() {
+        XCTAssertFalse(TartBaseImage.curatedLinux.isEmpty)
+        for entry in TartBaseImage.curatedLinux {
+            XCTAssertTrue(TartBaseImage.isLinux(entry.reference), entry.reference)
+            let pinned = "\(entry.reference)@sha256:\(String(repeating: "ab", count: 32))"
+            XCTAssertTrue(TartBaseImage.isLinux(pinned), "a pin keeps the classification")
+        }
+        XCTAssertFalse(TartBaseImage.isLinux(TartBaseImage.defaultReference))
+        XCTAssertFalse(TartBaseImage.isLinux(nil))
+        XCTAssertFalse(TartBaseImage.isLinux("my-local-vm"), "a custom name can't be classified")
+        XCTAssertTrue(TartBaseImage.isLinux(TartBaseImage.defaultLinuxReference))
+    }
 }

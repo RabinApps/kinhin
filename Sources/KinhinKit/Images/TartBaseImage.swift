@@ -38,6 +38,23 @@ public enum TartBaseImage {
         ("Fedora (latest)", "ghcr.io/cirruslabs/fedora:latest"),
     ]
 
+    /// The Linux entries of ``curated`` (Debian/Ubuntu-based bakes plus Fedora).
+    public static var curatedLinux: [(title: String, reference: String)] {
+        curated.filter { !$0.reference.contains("macos-") }
+    }
+
+    /// What turning on "Tart (Linux VM)" starts from.
+    public static let defaultLinuxReference = "ghcr.io/cirruslabs/ubuntu:latest"
+
+    /// Whether `reference` (possibly digest-pinned) is one of the curated
+    /// Linux images. Custom or local-VM names read as not Linux — kinhin
+    /// can't tell what a name the user chose contains.
+    public static func isLinux(_ reference: String?) -> Bool {
+        guard let reference else { return false }
+        let base = pinnedDigestSuffix(reference)
+        return curatedLinux.contains { $0.reference == base }
+    }
+
     /// Why `reference` can't be used as a tart source, or nil when it's
     /// acceptable. It ends up in a `tart clone`/`tart pull` argv, so anything
     /// that could be read as an option or that splits into several arguments

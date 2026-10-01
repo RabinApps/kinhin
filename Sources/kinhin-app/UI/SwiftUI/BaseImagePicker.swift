@@ -11,19 +11,27 @@ enum BaseImageChoice {
     enum Catalog {
         case linuxContainer
         case tartVM
+        /// Linux guests under tart: every entry is an explicit choice (there
+        /// is no "unset" default — unset means the macOS image).
+        case tartLinux
 
         var entries: [(title: String, reference: String)] {
             switch self {
             case .linuxContainer: return LinuxBaseImage.curated
             case .tartVM: return TartBaseImage.curated
+            case .tartLinux: return TartBaseImage.curatedLinux
             }
         }
+
+        /// Whether choosing the default stores no key at all.
+        var defaultStoresNothing: Bool { self != .tartLinux }
 
         /// The reference nil resolves to (stored as no key at all).
         var defaultReference: String {
             switch self {
             case .linuxContainer: return LinuxBaseImage.defaultReference
             case .tartVM: return TartBaseImage.defaultReference
+            case .tartLinux: return TartBaseImage.defaultLinuxReference
             }
         }
 
@@ -31,7 +39,7 @@ enum BaseImageChoice {
         func problem(with reference: String) -> String? {
             switch self {
             case .linuxContainer: return LinuxBaseImage.problem(with: reference)
-            case .tartVM: return TartBaseImage.problem(with: reference)
+            case .tartVM, .tartLinux: return TartBaseImage.problem(with: reference)
             }
         }
     }
@@ -73,7 +81,8 @@ enum BaseImageChoice {
         let entries = catalog.entries
         guard entries.indices.contains(index) else { return "Other…" }
         let entry = entries[index]
-        return entry.reference == catalog.defaultReference ? "\(entry.title) (default)" : entry.title
+        let isDefault = catalog.defaultStoresNothing && entry.reference == catalog.defaultReference
+        return isDefault ? "\(entry.title) (default)" : entry.title
     }
 
     static func index(of value: String?, in catalog: Catalog) -> Int {
@@ -82,7 +91,7 @@ enum BaseImageChoice {
     }
 
     static func stored(_ reference: String, in catalog: Catalog) -> String? {
-        reference == catalog.defaultReference ? nil : reference
+        catalog.defaultStoresNothing && reference == catalog.defaultReference ? nil : reference
     }
 
     static func validate(_ text: String, in catalog: Catalog) -> Result<String?, ProblemText> {
@@ -111,7 +120,7 @@ enum BaseImageChoice {
         _ reference: String, in catalog: Catalog,
         resolver: any DigestResolving = RegistryDigestResolver()
     ) async -> Result<PinOutcome, ProblemText> {
-        guard catalog == .tartVM else {
+        guard catalog == .tartVM || catalog == .tartLinux else {
             return .failure(ProblemText(text: "Pinning applies to tart VM images only."))
         }
         guard case .success(.some(let unpinned)) = validate(reference, in: catalog) else {

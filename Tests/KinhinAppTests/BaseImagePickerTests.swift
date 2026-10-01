@@ -164,6 +164,42 @@ final class BaseImagePickerTests: XCTestCase {
         XCTAssertNil(try saved(.tart), "the default clears the key")
     }
 
+    // MARK: - Tart (Linux VM)
+
+    func testTartLinuxCatalogStoresEveryChoiceExplicitly() {
+        let catalog = BaseImageChoice.Catalog.tartLinux
+        XCTAssertTrue(catalog.entries.allSatisfy { !$0.reference.contains("macos-") }, "Linux images only")
+        XCTAssertEqual(
+            BaseImageChoice.stored(TartBaseImage.defaultLinuxReference, in: catalog),
+            TartBaseImage.defaultLinuxReference, "unset would mean the macOS image, so Ubuntu must be stored")
+        XCTAssertFalse(BaseImageChoice.title(at: 0, in: catalog).contains("(default)"))
+    }
+
+    func testTartLinuxCheckboxWritesAndClearsTheBaseImage() throws {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        model.setTartInstalledForTesting(true)
+
+        model.setTartLinux(true)
+        XCTAssertEqual(try saved(.tart), TartBaseImage.defaultLinuxReference)
+        XCTAssertTrue(model.tartLinuxOn)
+
+        model.setTartLinux(false)
+        XCTAssertNil(try saved(.tart), "off returns tart to the macOS default")
+        XCTAssertFalse(model.tartLinuxOn)
+    }
+
+    func testTartLinuxCheckboxNeedsTartInstalled() throws {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        model.setTartInstalledForTesting(false)
+        model.setTartLinux(true)
+        XCTAssertNil(try saved(.tart), "nothing is written while tart is missing")
+        XCTAssertFalse(model.tartLinuxOn)
+    }
+
     // MARK: - Toolchains page
 
     func testToolchainsPageOffersAPickerForEachLinuxRuntimeAndSavesIt() throws {

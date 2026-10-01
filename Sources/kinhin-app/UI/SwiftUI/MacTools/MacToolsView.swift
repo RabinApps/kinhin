@@ -50,7 +50,11 @@ struct MacToolsView: View {
             ) {
                 model.prepareImage()
             }
-            baseImageRow(value: model.tartBaseImage, runtime: .tart)
+            if model.tartLinuxOn {
+                HintText("tart is serving Linux jobs — its base image is chosen under Linux jobs below.")
+            } else {
+                baseImageRow(value: model.tartBaseImage, runtime: .tart)
+            }
             if model.busy || !model.busyLine.text.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     if model.busy { ProgressView().controlSize(.small) }
@@ -66,6 +70,10 @@ struct MacToolsView: View {
             title: "Linux jobs (optional)",
             subtitle: "Turn one on to run Linux workflows. Without tart, this is all you need."
         ) {
+            tartLinuxRow
+            if model.tartLinuxOn {
+                baseImageRow(value: model.tartBaseImage, runtime: .tart, catalog: .tartLinux)
+            }
             runtimeRow(
                 "Apple container", on: model.containerOn, toggleID: "mac-container-toggle",
                 setOn: { model.setContainer($0) }, line: model.containerLine,
@@ -122,16 +130,41 @@ struct MacToolsView: View {
         }
     }
 
-    private func baseImageRow(value: String?, runtime: RuntimeID) -> some View {
+    /// Tart first: a full Linux VM per job. Needs tart installed, so the
+    /// checkbox stays off until it is (the Install… button is right here).
+    private var tartLinuxRow: some View {
+        HStack(spacing: 8) {
+            Toggle(
+                "Tart (Linux VM)",
+                isOn: Binding(
+                    get: { model.tartLinuxOn },
+                    set: { newValue in MainActor.assumeIsolated { model.setTartLinux(newValue) } }
+                )
+            )
+            .toggleStyle(.checkbox)
+            .font(.system(size: 12))
+            .disabled(!model.tartInstalled)
+            .accessibilityIdentifier("mac-tart-linux-toggle")
+            StatusText(text: model.tartLine.text, style: model.tartLine.style)
+            Spacer(minLength: 0)
+            if model.tartInstallVisible {
+                smallButton("Install…", id: "mac-install-tart-linux") { model.installTart() }
+            }
+        }
+    }
+
+    private func baseImageRow(value: String?, runtime: RuntimeID, catalog: BaseImageChoice.Catalog? = nil)
+        -> some View
+    {
         HStack(alignment: .top, spacing: 8) {
             Text("Base image").font(.system(size: 12))
             Spacer(minLength: 0)
             BaseImagePicker(
                 value: value,
                 onChange: { model.saveBaseImage($0, for: runtime) },
-                catalog: runtime == .tart ? .tartVM : .linuxContainer,
+                catalog: catalog ?? (runtime == .tart ? .tartVM : .linuxContainer),
                 pinDigest: runtime == .tart
-                    ? { reference in await BaseImageChoice.pin(reference, in: .tartVM) }
+                    ? { reference in await BaseImageChoice.pin(reference, in: catalog ?? .tartVM) }
                     : nil
             )
             .fixedSize()
