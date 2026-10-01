@@ -174,4 +174,17 @@ final class FleetStatusFormatterTests: XCTestCase {
         record.createdAt = Date()
         return record
     }
+
+    func testRateLimitNoteAppearsOnlyWhileSlowedAndNotYetReset() {
+        var status = FleetStatus(running: true)
+        XCTAssertNil(FleetStatusFormatter.rateLimitNote(status))
+        status.pollSlowdown = "rateLimitLow"
+        status.rateLimitResetAt = Date().addingTimeInterval(600)
+        let note = FleetStatusFormatter.rateLimitNote(status)
+        XCTAssertTrue(note?.contains("polling is slowed until it resets at") == true, "\(String(describing: note))")
+        XCTAssertTrue(FleetStatusFormatter.summary(status).contains("⚠"))
+        XCTAssertTrue(FleetStatusFormatter.report(status).contains("rate limit:"))
+        status.rateLimitResetAt = Date().addingTimeInterval(-5)
+        XCTAssertNil(FleetStatusFormatter.rateLimitNote(status), "a passed reset is no longer news")
+    }
 }

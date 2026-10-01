@@ -104,9 +104,9 @@ extension FleetEngine {
             }
             let paused = runState.withLock { $0.paused }
             let attached = forgeState.withLock { Array($0.byPlatform.values) }
+            let tightestBudget = PollCadence.tightest(attached.compactMap(\.rateLimit))
             let next = cadence.next(
-                base: config.pollInterval, idle: idle, paused: paused,
-                budget: PollCadence.tightest(attached.compactMap(\.rateLimit)))
+                base: config.pollInterval, idle: idle, paused: paused, budget: tightestBudget)
             if next.slowdown != slowdown {
                 Log.info(
                     "engine",
@@ -117,6 +117,7 @@ extension FleetEngine {
             await statusBox.modify {
                 $0.currentPollInterval = next.seconds
                 $0.pollSlowdown = next.slowdown?.rawValue
+                $0.rateLimitResetAt = next.slowdown == nil ? nil : tightestBudget?.resetAt
             }
             do {
                 try await waitForNextPass(seconds: next.seconds)

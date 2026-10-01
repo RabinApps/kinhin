@@ -18,6 +18,9 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     /// Why `currentPollInterval` exceeds `pollInterval` ("idle", "API budget
     /// low"); nil when it does not.
     public var pollSlowdown: String?
+    /// When the tightest forge API budget resets, set while polling is slowed
+    /// because that budget is running low; nil otherwise.
+    public var rateLimitResetAt: Date?
     /// When the queue was last observed (a forge answered a demand fetch):
     /// the freshness of the queue numbers, distinct from `updatedAt` which
     /// every reconcile pass touches. Nil when never polled or from a daemon

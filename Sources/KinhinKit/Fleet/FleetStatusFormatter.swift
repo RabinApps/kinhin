@@ -54,6 +54,7 @@ public enum FleetStatusFormatter {
             line += "\n  ⏳ auto-resume: \(status.autoResumeCadence ?? "releases when the queue is empty")"
         }
         if let age = queueAge(status) { line += "\n  ⏱ queue age: \(age)" }
+        if let note = rateLimitNote(status) { line += "\n  ⚠ \(note)" }
         if let byRepo = status.queueByRepo, status.queueDepth > 0, !byRepo.isEmpty {
             line += "\n  ↳ \(repoBreakdown(byRepo, limit: 2))"
         }
@@ -74,6 +75,7 @@ public enum FleetStatusFormatter {
             lines.append("auto-resume: on — \(release)")
         }
         if let age = queueAge(status) { lines.append("queue age:  \(age)") }
+        if let note = rateLimitNote(status) { lines.append("rate limit: \(note)") }
         lines.append(
             "repo:      (see config)   queue: \(status.queueDepth)   desired: \(status.desired)   capacity cap: \(status.capacityCap)"
         )
@@ -103,5 +105,12 @@ public enum FleetStatusFormatter {
             }
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// Why polling is slower than configured, with when the forge budget comes back.
+    static func rateLimitNote(_ status: FleetStatus, now: Date = Date()) -> String? {
+        guard status.pollSlowdown != nil, let reset = status.rateLimitResetAt, reset > now else { return nil }
+        let time = reset.formatted(date: .omitted, time: .shortened)
+        return "forge API budget is running low; polling is slowed until it resets at \(time)"
     }
 }
