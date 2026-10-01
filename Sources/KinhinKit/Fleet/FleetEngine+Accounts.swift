@@ -47,10 +47,7 @@ extension FleetEngine {
     /// Build and register the forge for one account.
     @discardableResult
     func attach(account: AccountConfig, token: String, verify: Bool) async -> Bool {
-        if account.allowInsecureHTTP == true, let instance = account.instance,
-            let url = URL(string: instance), url.scheme?.lowercased() == "http",
-            !ForgeHTTP.isLoopback(host: url.host ?? "")
-        {
+        if account.allowInsecureHTTP == true, account.sendsTokenOverPlainHTTP, let instance = account.instance {
             Log.warn(
                 "engine",
                 "account '\(account.name)' talks to \(instance) over plain http (allow_insecure_http): its access token travels in cleartext"

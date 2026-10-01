@@ -176,6 +176,41 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         }
     }
 
+    /// Isolation and transport settings that decide how far a hostile job
+    /// can reach: Softnet, plain-http accounts, the shared toolchain cache.
+    /// Advisories (`warnings`) never make the report not-ready; only a
+    /// Softnet setting the fleet cannot honour does (`ok` false).
+    public struct SecuritySection: Codable, Equatable, Sendable {
+        /// `tart_softnet: true` in the config.
+        public let softnetEnabled: Bool
+        /// Whether the `softnet` binary was found.
+        public let softnetInstalled: Bool
+        /// False only when Softnet is enabled but not installed: the fleet
+        /// refuses to start rather than boot VMs on the shared network.
+        public let ok: Bool
+        /// Repair command for the not-ok state, null otherwise.
+        public let fix: String?
+        /// Accounts that opted in to a non-loopback `http://` instance.
+        public let insecureHTTPAccounts: [String]
+        /// `toolchains.share_cache` is on: the cache is writable by every job.
+        public let sharedCacheWritable: Bool
+        /// Human-readable advisories, ready to print.
+        public let warnings: [String]
+
+        public init(
+            softnetEnabled: Bool, softnetInstalled: Bool, ok: Bool, fix: String?, insecureHTTPAccounts: [String],
+            sharedCacheWritable: Bool, warnings: [String]
+        ) {
+            self.softnetEnabled = softnetEnabled
+            self.softnetInstalled = softnetInstalled
+            self.ok = ok
+            self.fix = fix
+            self.insecureHTTPAccounts = insecureHTTPAccounts
+            self.sharedCacheWritable = sharedCacheWritable
+            self.warnings = warnings
+        }
+    }
+
     /// Host snapshot (cores, memory, free disk, arm64).
     public let host: HostResources
     /// Command Line Tools state + repair command.
@@ -205,13 +240,15 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     public let capacity: CapacitySection?
     /// The configured tart `base_image:` — present only when the key is set.
     public let tartBaseImage: TartBaseImageSection?
+    /// Isolation/transport posture — present only when the config parsed.
+    public let security: SecuritySection?
 
     public init(
         host: HostResources, clt: CLTSection, tart: TartSection, container: ContainerSection?,
         docker: DockerSection?, dockerAvailability: DockerAvailabilitySection? = nil, hostRuntime: HostSection? = nil,
         toolchainCache: ToolchainCacheSection,
         auth: AuthStatusReport, checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?,
-        tartBaseImage: TartBaseImageSection? = nil
+        tartBaseImage: TartBaseImageSection? = nil, security: SecuritySection? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -226,5 +263,6 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         self.ready = ready
         self.capacity = capacity
         self.tartBaseImage = tartBaseImage
+        self.security = security
     }
 }

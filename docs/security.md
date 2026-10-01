@@ -18,6 +18,10 @@ Every job runs in a fresh VM or container that is deleted afterwards, but VMs ru
 | Agent Pools-only Azure DevOps PAT          | Azure agents register with the PAT, so it reaches every runner instance ([forges](forges.md)).                                                            |
 | No `runtime: host` for those repositories  | Host mode runs jobs directly on your Mac.                                                                                                                 |
 
+## Check your settings with doctor
+
+`kinhin doctor` (and the app's Diagnostics tab) reports the isolation posture: whether `tart_softnet` is on and `softnet` is installed, which accounts send a token over plain http, and whether `toolchains.share_cache` is on. Advisories are warnings and never make the report not-ready; the one hard failure is `tart_softnet: true` without `softnet` installed, because the fleet refuses to start in that state. `kinhin doctor --json` carries the same data under `security` (`softnetEnabled`, `softnetInstalled`, `ok`, `fix`, `insecureHTTPAccounts`, `sharedCacheWritable`, `warnings`).
+
 ## What kinhin enforces
 
 - **Guest SSH is key-only.** `image prepare` writes `/etc/ssh/sshd_config.d/000-kinhin-hardening.conf` (no password or keyboard-interactive login) and fails the bake if sshd doesn't honour it. kinhin connects with Tart's key.

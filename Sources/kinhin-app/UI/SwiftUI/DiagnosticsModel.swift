@@ -100,6 +100,22 @@ final class DiagnosticsModel {
                     ok: capacity.fits))
         }
 
+        if let security = report.security {
+            let detail: String
+            if security.softnetEnabled {
+                detail =
+                    security.softnetInstalled
+                    ? "Softnet on — runner VMs are isolated from each other and the LAN"
+                    : "Softnet is on but not installed — \(security.fix ?? "install softnet"). The fleet will not start."
+            } else {
+                detail = "Softnet off — runner VMs share one network"
+            }
+            rows.append(
+                Row(
+                    title: "Isolation & transport", detail: detail, ok: security.ok,
+                    warning: security.warnings.isEmpty ? nil : security.warnings.joined(separator: "\n")))
+        }
+
         let cache = report.toolchainCache
         var cacheDetail = "\(ByteCountFormatter.string(fromByteCount: cache.totalBytes, countStyle: .file)) cached"
         if cache.warning { cacheDetail += " — shared with runners but empty (run image prepare)" }

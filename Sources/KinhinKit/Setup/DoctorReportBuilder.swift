@@ -25,6 +25,8 @@ public struct DoctorReportBuilder: Sendable {
     let dockerInstalled: Bool?
     /// macOS version the host requirements are judged against (fixture).
     let osVersion: OperatingSystemVersion?
+    /// Whether the `softnet` binary is installed (fixture). nil looks it up on PATH.
+    let softnetInstalled: Bool?
 
     public init(
         host: HostResources? = nil,
@@ -42,7 +44,8 @@ public struct DoctorReportBuilder: Sendable {
         dockerImages: [String]? = nil,
         hostHealth: RuntimeHealth? = nil,
         dockerInstalled: Bool? = nil,
-        osVersion: OperatingSystemVersion? = nil
+        osVersion: OperatingSystemVersion? = nil,
+        softnetInstalled: Bool? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -58,6 +61,7 @@ public struct DoctorReportBuilder: Sendable {
         self.hostHealth = hostHealth
         self.dockerInstalled = dockerInstalled
         self.osVersion = osVersion
+        self.softnetInstalled = softnetInstalled
     }
 
     public func build() async -> DoctorReport {
@@ -295,6 +299,9 @@ public struct DoctorReportBuilder: Sendable {
             )
         }
 
+        let security = Self.securitySection(
+            config: parsed, softnetInstalled: softnetInstalled, tartHealthy: Self.tartSection(from: resolvedTart).ok)
+
         return DoctorReport(
             host: resolvedHost,
             clt: Self.cltSection(from: resolvedCLT),
@@ -306,9 +313,10 @@ public struct DoctorReportBuilder: Sendable {
             toolchainCache: cacheSection,
             auth: authReport,
             checks: status.checks,
-            ready: status.ready && authReport.allGood,
+            ready: status.ready && authReport.allGood && (security?.ok ?? true),
             capacity: capacitySection,
-            tartBaseImage: tartBaseImageSection
+            tartBaseImage: tartBaseImageSection,
+            security: security
         )
     }
 }

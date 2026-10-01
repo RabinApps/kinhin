@@ -97,6 +97,25 @@ extension DoctorReport {
                 lines.append("  WARNING: a single VM does not fit the host within reserved headroom")
             }
         }
+        if let security {
+            if security.softnetEnabled {
+                row(
+                    "softnet",
+                    security.softnetInstalled
+                        ? "on ✓ (runner VMs are isolated from each other and the LAN)"
+                        : "ON but softnet is NOT INSTALLED ✗ — \(security.fix ?? "install softnet"); the fleet will not start"
+                )
+            } else {
+                row("softnet", "off (runner VMs share one network)")
+            }
+            if security.warnings.isEmpty {
+                row("security", "no advisories ✓")
+            } else {
+                for (index, warning) in security.warnings.enumerated() {
+                    if index == 0 { row("security", "⚠ \(warning)") } else { more("⚠ \(warning)") }
+                }
+            }
+        }
         if let base = tartBaseImage {
             switch base.state {
             case "known": row("base image", "\(base.reference) ✓ (\(base.pinned ? "pinned" : "pre-configured"))")

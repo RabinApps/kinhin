@@ -37,6 +37,13 @@ public struct AccountConfig: Sendable, Equatable, Codable {
         self.allowInsecureHTTP = allowInsecureHTTP
     }
 
+    /// True when this account's instance is a plain `http://` URL to a host
+    /// other than loopback, so its access token crosses the network in cleartext.
+    public var sendsTokenOverPlainHTTP: Bool {
+        guard let instance, let url = URL(string: instance), url.scheme?.lowercased() == "http" else { return false }
+        return !ForgeHTTP.isLoopback(host: url.host ?? "")
+    }
+
     enum CodingKeys: String, CodingKey {
         case name, forge, scope, instance, labels
         case allowInsecureHTTP = "allow_insecure_http"

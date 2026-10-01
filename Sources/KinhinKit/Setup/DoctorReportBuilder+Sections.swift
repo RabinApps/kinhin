@@ -82,6 +82,40 @@ extension DoctorReportBuilder {
         return total
     }
 
+    /// The isolation and transport posture of the config: whether runner VMs
+    /// are Softnet-isolated, which accounts send a token over plain http,
+    /// and whether the shared cache is writable by every job.
+    public static func securitySection(
+        config: KinhinConfig?, softnetInstalled: Bool? = nil, tartHealthy: Bool = true
+    ) -> DoctorReport.SecuritySection? {
+        guard let config else { return nil }
+        let enabled = config.tartSoftnet == true
+        let installed = softnetInstalled ?? (Paths.findExecutable(named: "softnet", override: nil) != nil)
+        var warnings: [String] = []
+        var fix: String?
+        if enabled, !installed {
+            fix = "brew install cirruslabs/cli/softnet (then follow Tart's Softnet setup)"
+        } else if !enabled, tartHealthy {
+            warnings.append(
+                "runner VMs share one virtual network (tart_softnet is off): a job can reach other runner VMs and your LAN. Fine for trusted code; for outside PRs set tart_softnet: true (docs/security.md)"
+            )
+        }
+        let insecure = config.accounts.filter(\.sendsTokenOverPlainHTTP).map(\.name)
+        for name in insecure {
+            warnings.append(
+                "account '\(name)' sends its access token over plain http (allow_insecure_http): use https if you can")
+        }
+        let sharedCache = config.toolchains?.shareCache ?? false
+        if sharedCache {
+            warnings.append(
+                "toolchains.share_cache is on: the cache is writable by every job and holds binaries other jobs run. Keep it off for untrusted PRs (docs/security.md)"
+            )
+        }
+        return DoctorReport.SecuritySection(
+            softnetEnabled: enabled, softnetInstalled: installed, ok: fix == nil, fix: fix,
+            insecureHTTPAccounts: insecure, sharedCacheWritable: sharedCache, warnings: warnings)
+    }
+
     /// Maps CLTState to the JSON section, carrying the shared repair lines.
     static func cltSection(from state: CLTState) -> DoctorReport.CLTSection {
         switch state {
