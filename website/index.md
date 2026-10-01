@@ -2,13 +2,16 @@
 layout: home
 
 hero:
-  name: 'kinhin ○'
-  text: 'The mindful CI'
+  name: "kinhin ○"
+  text: "The mindful CI"
   tagline: Autoscaling CI runners that live on your Mac — ephemeral, resource-aware, and gone when the job is done. macOS jobs run on Tart VMs; Linux jobs on apple/container microVMs, Docker containers, or Tart Linux VMs.
   actions:
     - theme: brand
       text: Get started
       link: /guide/quick-start
+    - theme: alt
+      text: Why does this exist?
+      link: /guide/why-kinhin
     - theme: alt
       text: CLI reference
       link: /cli/commands
