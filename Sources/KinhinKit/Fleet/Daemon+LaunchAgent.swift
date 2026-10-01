@@ -7,8 +7,19 @@ extension Daemon {
             .appendingPathComponent("LaunchAgents/\(plistName)")
     }
 
+    /// Escapes the five XML special characters for text inside a plist
+    /// `<string>`: a path containing `&` or `<` would otherwise break the file.
+    static func xmlEscaped(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&apos;")
+    }
+
     /// Write the LaunchAgent plist pointing at the given kinhin binary.
     public static func installAgent(binaryPath: String) throws {
+        let logs = Paths.logsDirectory
         let plist = """
             <?xml version="1.0" encoding="UTF-8"?>
             <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -18,7 +29,7 @@ extension Daemon {
                 <string>com.kinhin.daemon</string>
                 <key>ProgramArguments</key>
                 <array>
-                    <string>\(binaryPath)</string>
+                    <string>\(xmlEscaped(binaryPath))</string>
                     <string>daemon</string>
                 </array>
                 <key>RunAtLoad</key>
@@ -26,9 +37,9 @@ extension Daemon {
                 <key>KeepAlive</key>
                 <true/>
                 <key>StandardOutPath</key>
-                <string>\(Paths.logsDirectory.appendingPathComponent("daemon.out.log").path)</string>
+                <string>\(xmlEscaped(logs.appendingPathComponent("daemon.out.log").path))</string>
                 <key>StandardErrorPath</key>
-                <string>\(Paths.logsDirectory.appendingPathComponent("daemon.err.log").path)</string>
+                <string>\(xmlEscaped(logs.appendingPathComponent("daemon.err.log").path))</string>
             </dict>
             </plist>
             """

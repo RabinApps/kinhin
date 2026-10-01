@@ -97,7 +97,7 @@ public enum Log {
         fileTarget.withLock { target in
             guard target.file == nil else { return }
             do {
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                try Paths.createPrivateDirectory(directory)
                 target.file = try RotatingLogFile(url: directory.appendingPathComponent("kinhin.log"))
                 target.reportedFailure = false
             } catch {

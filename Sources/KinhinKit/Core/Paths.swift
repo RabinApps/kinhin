@@ -2,6 +2,19 @@ import Foundation
 
 /// Filesystem locations for kinhin's support files and binary discovery.
 public enum Paths {
+    /// Creates `url` (and missing parents) with the final directory readable
+    /// only by the owner. Logs and fleet state hold VM ids, addresses and
+    /// repository names that other local users have no business reading.
+    static func createPrivateDirectory(_ url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    }
+
+    /// Restricts an existing file to its owner (0600).
+    static func restrictToOwner(_ url: URL) throws {
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+
     /// The user's `~/Library/<name>` directory. `FileManager` returns it for
     /// every user domain; the home-relative path is only a defensive fallback.
     static func userLibrarySubdirectory(_ directory: FileManager.SearchPathDirectory, fallback: String) -> URL {

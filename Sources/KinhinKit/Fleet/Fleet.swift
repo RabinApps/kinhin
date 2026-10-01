@@ -119,6 +119,7 @@ public final class FleetStore: Sendable {
         // Failure is logged so a full disk does not go unnoticed.
         bestEffort("engine", "persisting \(records.count) VM record(s)") {
             try data.write(to: url, options: .atomic)
+            try Paths.restrictToOwner(url)
         }
     }
 }

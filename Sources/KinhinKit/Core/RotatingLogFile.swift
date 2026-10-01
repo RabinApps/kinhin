@@ -39,7 +39,9 @@ final class RotatingLogFile {
     private func open() throws {
         let fm = FileManager.default
         if !fm.fileExists(atPath: url.path) {
-            guard fm.createFile(atPath: url.path, contents: nil) else { throw CocoaError(.fileWriteNoPermission) }
+            guard fm.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) else {
+                throw CocoaError(.fileWriteNoPermission)
+            }
         }
         let opened = try FileHandle(forWritingTo: url)
         size = try opened.seekToEnd()

@@ -65,12 +65,18 @@ public enum KeychainTokenStore {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account(for: forge, name: name),
         ]
-        let attributes: [String: Any] = [kSecValueData as String: data]
+        // Re-stating the accessibility class on update moves items stored by
+        // older builds (plain AfterFirstUnlock, included in backups) to the
+        // this-device-only class.
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
         let update = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         if update == errSecItemNotFound {
             var add = query
             add[kSecValueData as String] = data
-            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             let status = SecItemAdd(add as CFDictionary, nil)
             guard status == errSecSuccess else { throw TokenError.unhandled(status) }
         } else if update != errSecSuccess {
