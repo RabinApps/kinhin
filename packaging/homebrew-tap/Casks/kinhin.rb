@@ -10,7 +10,6 @@ cask "kinhin" do
   homepage "https://github.com/RabinApps/kinhin"
   license "Apache-2.0"
 
-  # The app is unsigned; Homebrew will verify the sha256 above instead.
   app "kinhin.app"
 
   zap trash: [
