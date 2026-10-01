@@ -25,6 +25,7 @@ export default defineConfig({
           { text: 'Forge support', link: '/guide/forges' },
           { text: 'Security', link: '/guide/security' },
           { text: 'Troubleshooting', link: '/guide/troubleshooting' },
+          { text: 'Debugging races (TSan)', link: '/guide/debugging-races' },
         ],
       },
       {

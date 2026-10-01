@@ -240,7 +240,8 @@ kinhin logs [-n N]          Recent log lines
 
 `swift build` and `swift test` need no VMs or network. Conventions (layout, style, error handling,
 formatting) are in [CLAUDE.md](CLAUDE.md); the package layout is in
-[docs/architecture.md](docs/architecture.md).
+[docs/architecture.md](docs/architecture.md). If you touch shared state or concurrency, also run `scripts/tsan.sh`
+([how to read it](docs/architecture.md#debugging-races-with-threadsanitizer)).
 
 To run the debug app, use `scripts/dev-run.sh` rather than the bare binary: it signs the build with a stable
 identity (your first Apple Development certificate, or `CODESIGN_IDENTITY`) so the Keychain's **Always Allow**
