@@ -80,14 +80,26 @@ final class FleetController {
         defer { pendingFleetAction = nil }
         pendingFleetAction = action
         guard let service else { throw EngineError.fleetNotSetUp }
-        if action == .start { try await service.start() } else { try await service.stop() }
+        do {
+            if action == .start { try await service.start() } else { try await service.stop() }
+        } catch {
+            // A failed command may still have changed things; don't leave the
+            // last poll's picture on screen.
+            await refresh()
+            throw error
+        }
         await refresh()
     }
 
     /// Pauses or resumes the fleet through whichever backend is live.
     func setPaused(_ paused: Bool) async throws {
         guard let service else { throw EngineError.fleetNotSetUp }
-        try await service.setPaused(paused)
+        do {
+            try await service.setPaused(paused)
+        } catch {
+            await refresh()
+            throw error
+        }
         await refresh()
     }
 
@@ -101,7 +113,12 @@ final class FleetController {
     /// UX (menu shows an alert; the App Intent relies on Shortcuts' confirm).
     func deleteVM(id: String) async throws {
         guard let service else { throw EngineError.fleetNotSetUp }
-        try await service.deleteVM(id: id)
+        do {
+            try await service.deleteVM(id: id)
+        } catch {
+            await refresh()
+            throw error
+        }
         await refresh()
     }
 

@@ -200,6 +200,32 @@ final class BaseImagePickerTests: XCTestCase {
         XCTAssertFalse(model.tartLinuxOn)
     }
 
+    func testTartLinuxCheckboxReportsAConfigThatCannotBeWritten() throws {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        model.setTartInstalledForTesting(true)
+        try "- just\n- a list\n".write(to: configURL, atomically: true, encoding: .utf8)
+
+        model.setTartLinux(true)
+
+        XCTAssertEqual(model.busyLine.style, .error, "the failure is on the status line, not silent")
+        XCTAssertFalse(model.tartLinuxOn, "the checkbox doesn't claim a write that didn't happen")
+    }
+
+    func testMacOSAndCustomBaseImagesAreNotTartLinux() throws {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        model.setTartInstalledForTesting(true)
+        model.saveBaseImage("ghcr.io/cirruslabs/macos-sequoia-base:latest", for: .tart)
+        XCTAssertFalse(model.tartLinuxOn)
+        model.saveBaseImage("my-local-vm", for: .tart)
+        XCTAssertFalse(model.tartLinuxOn, "a name kinhin can't classify isn't claimed as Linux")
+        model.saveBaseImage("ghcr.io/cirruslabs/debian:latest", for: .tart)
+        XCTAssertTrue(model.tartLinuxOn)
+    }
+
     // MARK: - Toolchains page
 
     func testToolchainsPageOffersAPickerForEachLinuxRuntimeAndSavesIt() throws {

@@ -1,0 +1,175 @@
+import XCTest
+
+@testable import KinhinKit
+@testable import kinhin_app
+
+/// Navigation rules behind the main window: tab order, the Setup tab's
+/// lifetime, lazy section building, and the sheets.
+@MainActor
+final class MainTabsModelTests: XCTestCase {
+    private var fleet: FleetController!
+    private var models: WindowModels!
+    private var tabs: MainTabsModel!
+    private var suiteName: String!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        suiteName = "kinhin-tests.tabs-\(UUID().uuidString)"
+        fleet = FleetController()
+        models = WindowModels(
+            fleet: fleet, updates: UpdateController(defaults: UserDefaults(suiteName: suiteName)!),
+            prefs: UserDefaults(suiteName: suiteName)!)
+        models.tokenProbe = { _ in false }  // never touch the Keychain
+        tabs = MainTabsModel(fleet: fleet, models: models)
+    }
+
+    override func tearDown() async throws {
+        UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
+        tabs = nil
+        models = nil
+        fleet = nil
+        try await super.tearDown()
+    }
+
+    // MARK: - Tabs
+
+    func testStartsOnFleetWithoutBuildingAnySection() {
+        XCTAssertEqual(tabs.selectedTab, .fleet)
+        XCTAssertNil(models.connectModel)
+        XCTAssertNil(models.capacityModel)
+        XCTAssertNil(models.wizardModel)
+    }
+
+    func testSetupTabFollowsFleetControllerSetupState() {
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced])
+        fleet.setupIncomplete = true
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .setup, .advanced])
+        tabs.setupIncomplete = false
+        XCTAssertFalse(fleet.setupIncomplete, "the model writes through to the controller")
+    }
+
+    func testSelectedSetupTabReadsAsFleetOnceSetupCompletes() {
+        fleet.setupIncomplete = true
+        tabs.select(.setup)
+        XCTAssertEqual(tabs.selectedTab, .setup)
+        fleet.setupIncomplete = false  // e.g. the delegate finished bootstrapping
+        XCTAssertEqual(tabs.selectedTab, .fleet, "a vanished tab can't stay selected")
+    }
+
+    func testSelectingSetupAfterOnboardingLandsOnAccounts() {
+        tabs.select(.setup)
+        XCTAssertEqual(tabs.selectedTab, .advanced)
+        XCTAssertEqual(tabs.advancedSection, .accounts)
+        XCTAssertNil(models.wizardModel)
+    }
+
+    func testShowSetupRebuildsTheWizardEachTime() throws {
+        fleet.setupIncomplete = true
+        tabs.showSetup()
+        let first = try XCTUnwrap(models.wizardModel)
+        tabs.select(.fleet)
+        tabs.select(.setup)
+        XCTAssertTrue(models.wizardModel === first, "the tab bar keeps the wizard's state")
+        tabs.showSetup()
+        XCTAssertFalse(models.wizardModel === first, "the menu's Setup… starts a fresh wizard")
+    }
+
+    func testWizardFinishHandsOffToTheAppAndRemovesTheTab() throws {
+        fleet.setupIncomplete = true
+        var finished = 0
+        tabs.onSetupFinished = { finished += 1 }
+        tabs.showSetup()
+        try XCTUnwrap(models.wizardModel).onFinished?()
+
+        XCTAssertEqual(finished, 1)
+        XCTAssertEqual(tabs.selectedTab, .fleet)
+        XCTAssertFalse(fleet.setupIncomplete)
+        XCTAssertNil(models.wizardModel)
+    }
+
+    func testFinishLaterKeepsTheSetupTab() throws {
+        fleet.setupIncomplete = true
+        tabs.showSetup()
+        try XCTUnwrap(models.wizardModel).onFinishLater?()
+        XCTAssertEqual(tabs.selectedTab, .fleet)
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .setup, .advanced])
+        XCTAssertNotNil(models.wizardModel)
+    }
+
+    func testApplySetupInProgressOnlyActsDuringOnboarding() {
+        tabs.applySetupInProgress()
+        XCTAssertEqual(tabs.selectedTab, .fleet)
+        fleet.setupIncomplete = true
+        tabs.applySetupInProgress()
+        XCTAssertEqual(tabs.selectedTab, .setup)
+    }
+
+    func testFleetTabButtonForSetupOpensTheWizard() {
+        fleet.setupIncomplete = true
+        models.fleetModel.onNeedsSetup()
+        XCTAssertEqual(tabs.selectedTab, .setup)
+    }
+
+    // MARK: - Advanced sections
+
+    func testFirstVisitBuildsTheCurrentSectionAndLaterSwitchesDontReload() {
+        tabs.select(.advanced)
+        XCTAssertNotNil(models.connectModel, "Accounts is the first section")
+        tabs.showAdvanced(.capacity)
+        XCTAssertEqual(models.capacityModel?.loads, 1, "built and loaded once")
+        tabs.select(.fleet)
+        tabs.select(.advanced)
+        tabs.showAdvanced(.capacity)
+        XCTAssertEqual(models.capacityModel?.loads, 1, "Capacity is never reloaded: unapplied edits would be lost")
+    }
+
+    func testDataBackedSectionsReloadEveryTimeTheyAreShown() {
+        tabs.showAdvanced(.routing)
+        let afterFirst = models.runtimesModel?.loads ?? 0
+        tabs.showAdvanced(.containers)
+        tabs.showAdvanced(.routing)
+        XCTAssertGreaterThan(models.runtimesModel?.loads ?? 0, afterFirst)
+    }
+
+    func testRefreshVisibleTabNeverProbesOutsideAdvanced() {
+        tabs.refreshVisibleTab()
+        XCTAssertNil(models.connectModel, "the Fleet tab refresh builds nothing")
+        tabs.showAdvanced(.capacity)
+        let loads = models.capacityModel?.loads
+        tabs.refreshVisibleTab()
+        XCTAssertGreaterThan(models.capacityModel?.loads ?? 0, loads ?? 0, "an explicit refresh reloads")
+        tabs.select(.fleet)
+        let settled = models.capacityModel?.loads
+        tabs.refreshVisibleTab()
+        XCTAssertEqual(models.capacityModel?.loads, settled, "no reload while another tab is showing")
+    }
+
+    // MARK: - Sheets
+
+    func testLogsAndDiagnosticsSheetsPresentAndDismiss() throws {
+        let diagnostics = models.ensureDiagnosticsModel()
+        // A fixture builder: never run the live doctor probe.
+        let fixture = DoctorReportBuilder(
+            host: HostResources(logicalCores: 8, memoryGB: 16, freeDiskGB: 100, arm64: true),
+            clt: .ok(version: "26.0"), tartHealth: .healthy, tartList: [], config: .missing,
+            authLoad: { _ in nil }, accountLoad: { _, _ in nil })
+        diagnostics.loadReport = { await fixture.build() }
+        tabs.present(.logs)
+        XCTAssertEqual(tabs.sheet, .logs)
+        XCTAssertNotNil(models.logsModel)
+        tabs.dismissSheet()
+        XCTAssertNil(tabs.sheet)
+
+        tabs.present(.diagnostics)
+        XCTAssertEqual(tabs.sheet, .diagnostics)
+        tabs.dismissSheet()
+        XCTAssertNil(tabs.sheet)
+    }
+
+    func testSheetModelsAreReusedAcrossPresentations() {
+        let logs = models.ensureLogsModel()
+        XCTAssertTrue(models.ensureLogsModel() === logs)
+        let diagnostics = models.ensureDiagnosticsModel()
+        XCTAssertTrue(models.ensureDiagnosticsModel() === diagnostics)
+    }
+}

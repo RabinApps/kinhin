@@ -2,6 +2,15 @@ import AppKit
 import KinhinKit
 import Observation
 
+/// What `UpdateController` needs from the updater; `UpdateChecker` is the
+/// production conformance, tests substitute a fake (no network).
+protocol UpdateChecking: Sendable {
+    func check() async throws -> UpdateCheckResult
+    func downloadDMG(_ info: UpdateInfo, progress: (@Sendable (Double) -> Void)?) async throws -> URL
+}
+
+extension UpdateChecker: UpdateChecking {}
+
 /// Update checking and download state: what the Settings → App update card
 /// shows and whether the status-bar menu offers a newer release. The app
 /// delegate re-renders the menu from this object; the card binds to it.
@@ -9,14 +18,21 @@ import Observation
 @Observable
 final class UpdateController {
     /// Drives the Settings → App update card.
-    var updateCardState: UpdateCardState = .idle(lastChecked: UpdatePreferences.lastCheck)
+    var updateCardState: UpdateCardState
     var pendingUpdate: UpdateInfo?
     private(set) var lastUpdateCheck: Date?
 
     @ObservationIgnored private var checkTask: Task<Void, Never>?
     @ObservationIgnored private var downloadTask: Task<Void, Never>?
     @ObservationIgnored private var scheduleTask: Task<Void, Never>?
-    @ObservationIgnored var makeChecker: () -> UpdateChecker = { UpdateChecker(repo: UpdatePreferences.repo) }
+    @ObservationIgnored var makeChecker: () -> any UpdateChecking = { UpdateChecker(repo: UpdatePreferences.repo) }
+    /// Where the 24h throttle stamp lives (tests inject a scratch suite).
+    @ObservationIgnored let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        updateCardState = .idle(lastChecked: UpdatePreferences.lastCheck(in: defaults))
+    }
     @ObservationIgnored var open: (URL) -> Void = { NSWorkspace.shared.open($0) }
 
     // MARK: - Scheduling
@@ -24,7 +40,7 @@ final class UpdateController {
     /// Checks at launch (at most once a day), then hourly (same throttle).
     func startScheduledChecks() {
         guard scheduleTask == nil else { return }
-        if Date().timeIntervalSince(UpdatePreferences.lastCheck) >= UpdatePreferences.interval {
+        if Date().timeIntervalSince(UpdatePreferences.lastCheck(in: defaults)) >= UpdatePreferences.interval {
             checkForUpdates()
         }
         scheduleTask = Task { [weak self] in
@@ -76,7 +92,7 @@ final class UpdateController {
             let result = try await makeChecker().check()
             let now = Date()
             lastUpdateCheck = now
-            UpdatePreferences.lastCheck = now
+            UpdatePreferences.setLastCheck(now, in: defaults)
             switch result {
             case .upToDate:
                 updateCardState = .upToDate(lastChecked: now)
@@ -105,7 +121,7 @@ final class UpdateController {
         defer { downloadTask = nil }
         do {
             updateCardState = .downloading(name: info.dmgName)
-            let url = try await makeChecker().downloadDMG(info)
+            let url = try await makeChecker().downloadDMG(info, progress: nil)
             Log.info("app", "update downloaded to \(url.path)")
             open(url)
             updateCardState = .available(version: info.version)

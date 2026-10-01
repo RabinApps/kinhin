@@ -484,6 +484,34 @@ final class DoctorReportTests: XCTestCase {
         XCTAssertTrue(text.contains("org perms:  cannot verify — no token stored"), text)
     }
 
+    func testOrgScopeKeychainFailureIsReportedNotHidden() async {
+        struct KeychainDown: LocalizedError { var errorDescription: String? { "Keychain is locked" } }
+        let builder = DoctorReportBuilder(
+            host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
+            config: .loaded(Self.config(repo: "acme")),
+            authLoad: { _ in nil }, accountLoad: { _, _ in throw KeychainDown() })
+        let text = await builder.buildPlainText()
+        XCTAssertTrue(text.contains("org perms:  cannot verify — Keychain is locked"), text)
+    }
+
+    func testUnparseableOrTemplateConfigStillGetsThePathLine() async {
+        for scenario in [ConfigScenario.invalid, .template] {
+            let text = await DoctorReportBuilder(
+                host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [], config: scenario,
+                authLoad: { _ in nil }, accountLoad: { _, _ in nil }
+            ).buildPlainText()
+            XCTAssertTrue(text.contains("  config:     \(Paths.config.path)"), "\(scenario): \(text)")
+            XCTAssertFalse(text.contains("  image:"), "no config-specific lines without a parsed config")
+        }
+    }
+
+    func testShareCacheNoteOnlyAppearsWhenItIsOff() async {
+        var cfg = Self.config()
+        cfg.toolchains = KinhinConfig.ToolchainsConfig(shareCache: true)
+        let text = await builder(config: cfg).buildPlainText()
+        XCTAssertFalse(text.contains("share_cache is off"), text)
+    }
+
     func testJSONDocumentIsUnchangedByTheTextOnlyLines() async throws {
         let (_, data) = try await DoctorCommand.emitJSON(builder: builder(config: Self.config()))
         let json = String(decoding: data, as: UTF8.self)

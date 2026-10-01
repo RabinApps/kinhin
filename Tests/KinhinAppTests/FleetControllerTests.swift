@@ -132,4 +132,103 @@ final class FleetControllerTests: XCTestCase {
         await waitUntil("second pass") { flushes >= 2 && !fleet.isConfigPushScheduled }
         XCTAssertEqual(flushes, 2)
     }
+
+    // MARK: - Failure paths
+
+    func testFailedCommandStillRefreshesTheStatus() async {
+        fake.status = FleetStatus(running: true)
+        fake.commandError = RPCError.timeout
+        do {
+            try await fleet.perform(.stop)
+            XCTFail("a failing backend must throw")
+        } catch {
+            XCTAssertEqual(fleet.status?.running, true, "the failed command is followed by a fresh poll")
+        }
+    }
+
+    func testFailedPauseAndDeleteThrowAndRefresh() async {
+        fake.commandError = RPCError.timeout
+        do {
+            try await fleet.setPaused(true)
+            XCTFail("pause must throw")
+        } catch {
+            XCTAssertNotNil(fleet.status)
+        }
+        fleet.status = nil
+        do {
+            try await fleet.deleteVM(id: "vm-1")
+            XCTFail("delete must throw")
+        } catch {
+            XCTAssertNotNil(fleet.status)
+        }
+    }
+
+    func testEntryPointsThrowNotSetUpWithoutAService() async {
+        fleet.service = nil
+        func expectNotSetUp(_ body: () async throws -> Void, _ name: String) async {
+            do {
+                try await body()
+                XCTFail("\(name) must throw without a backend")
+            } catch EngineError.fleetNotSetUp {
+            } catch {
+                XCTFail("\(name): \(error)")
+            }
+        }
+        await expectNotSetUp({ try await self.fleet.setPaused(true) }, "setPaused")
+        await expectNotSetUp({ try await self.fleet.deleteVM(id: "x") }, "deleteVM")
+        await expectNotSetUp({ _ = try await self.fleet.fetchStatus() }, "fetchStatus")
+    }
+
+    func testRefreshWithoutAServiceLeavesStatusNil() async {
+        fleet.service = nil
+        await fleet.refresh()
+        XCTAssertNil(fleet.status)
+    }
+
+    // MARK: - Token rotation
+
+    func testRotateHandsTheTokenToTheBackendAndRefreshes() async throws {
+        try await fleet.rotate(.forge(.github), token: "ghp_new")
+        XCTAssertTrue(fake.calls.contains { $0.hasPrefix("rotate(") })
+        XCTAssertNotNil(fleet.status, "a rotation is followed by a poll")
+    }
+
+    func testRotateBeforeAnyBackendOnlyStoresTheToken() async throws {
+        fleet.service = nil
+        try await fleet.rotate(.forge(.github), token: "ghp_new")
+        XCTAssertTrue(fake.calls.isEmpty)
+    }
+
+    func testRotateFailureReachesTheCaller() async {
+        fake.commandError = RPCError.timeout
+        do {
+            try await fleet.rotate(.forge(.github), token: "ghp_new")
+            XCTFail("a failed rotation must throw so the form shows it")
+        } catch {
+            XCTAssertTrue(error is RPCError)
+        }
+    }
+
+    // MARK: - Polling lifecycle
+
+    func testStartPollingTwiceKeepsOnePollLoop() async {
+        fleet.startPolling(every: .milliseconds(20))
+        fleet.startPolling(every: .milliseconds(20))
+        try? await Task.sleep(for: .milliseconds(200))
+        fleet.stopPolling()
+        try? await Task.sleep(for: .milliseconds(50))
+        let polls = fake.calls.filter { $0 == "status" }.count
+        // One loop at 20ms is ~10 polls in 200ms; two would be ~20.
+        XCTAssertLessThan(polls, 16, "a second start must not add another loop (\(polls) polls)")
+    }
+
+    func testPollingCanRestartAfterAStop() async {
+        fleet.startPolling(every: .milliseconds(10))
+        await waitUntil("first poll") { fleet.status != nil }
+        fleet.stopPolling()
+        try? await Task.sleep(for: .milliseconds(50))
+        fleet.status = nil
+        fleet.startPolling(every: .milliseconds(10))
+        await waitUntil("polls again") { fleet.status != nil }
+    }
 }
