@@ -18,8 +18,6 @@ public struct SSHExecutor: SSHExecuting {
     public func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
         -> ShellResult
     {
-        let b64 = Data(script.utf8).base64EncodedString()
-        let remote = "echo \(b64) | base64 --decode | bash -s"
         var argv = [
             "ssh",
             "-o", "StrictHostKeyChecking=no",
@@ -32,8 +30,10 @@ public struct SSHExecutor: SSHExecuting {
         if let tartKey = Self.tartHostKey() {
             argv += ["-i", tartKey]
         }
-        argv += ["\(user)@\(ip)", remote]
-        return try await shell.run(argv, cwd: nil, timeout: timeout)
+        // The script (it carries registration tokens) goes over stdin, not the
+        // command line, so it never shows up in the host's process list.
+        argv += ["\(user)@\(ip)", "bash -s"]
+        return try await shell.run(argv, input: Data(script.utf8), cwd: nil, timeout: timeout)
     }
 
     static func tartHostKey() -> String? {

@@ -52,9 +52,19 @@ enum ShellError: LocalizedError {
 /// not sit out the command's own timeout.
 public protocol ShellRunning: Sendable {
     func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult
+
+    /// Like `run`, with `input` written to the child's stdin (then closed).
+    /// For scripts that carry secrets: unlike an argv element, stdin is not
+    /// listed by `ps`. The default refuses, so a conformer that cannot feed
+    /// stdin fails loudly instead of silently dropping the script.
+    func run(_ argv: [String], input: Data, cwd: URL?, timeout: TimeInterval) async throws -> ShellResult
 }
 
 public extension ShellRunning {
+    func run(_ argv: [String], input: Data, cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+        throw ShellError.launchFailed("this shell runner cannot feed stdin")
+    }
+
     func run(_ argv: [String]) async throws -> ShellResult {
         try await run(argv, cwd: nil, timeout: 120)
     }
@@ -71,6 +81,22 @@ public struct Shell: ShellRunning {
     public init() {}
 
     public func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+        try await execute(argv, input: nil, cwd: cwd, timeout: timeout)
+    }
+
+    public func run(_ argv: [String], input: Data, cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+        try await execute(argv, input: input, cwd: cwd, timeout: timeout)
+    }
+
+    /// A child that exits without reading its stdin must not kill us with
+    /// SIGPIPE when we write the input; ignored once, process-wide.
+    private static let ignoreSIGPIPE: Void = {
+        signal(SIGPIPE, SIG_IGN)
+    }()
+
+    private func execute(_ argv: [String], input: Data?, cwd: URL?, timeout: TimeInterval) async throws
+        -> ShellResult
+    {
         guard let first = argv.first else {
             throw ShellError.launchFailed("empty argv")
         }
@@ -85,8 +111,11 @@ public struct Shell: ShellRunning {
         let errPipe = Pipe()
         process.standardOutput = outPipe
         process.standardError = errPipe
-        // Detach stdin: subprocesses must never wait on us.
-        process.standardInput = FileHandle.nullDevice
+        // Detach stdin unless there is input to deliver: subprocesses must
+        // never wait on us.
+        let inPipe = input == nil ? nil : Pipe()
+        process.standardInput = inPipe ?? FileHandle.nullDevice
+        if input != nil { _ = Self.ignoreSIGPIPE }
 
         // Accumulate concurrently so large outputs cannot deadlock the pipes.
         let outData = DataAccumulator()
@@ -102,6 +131,16 @@ public struct Shell: ShellRunning {
             try process.run()
         } catch {
             throw ShellError.launchFailed("\(first): \(error.localizedDescription)")
+        }
+        if let input, let inPipe {
+            // Off the caller's task: a script larger than the pipe buffer
+            // blocks until the child reads, and must not stall the wait below.
+            let writer = inPipe.fileHandleForWriting
+            Task.detached {
+                // EPIPE just means the child stopped reading (it exited early).
+                try? writer.write(contentsOf: input)
+                try? writer.close()
+            }
         }
 
         // Timeout watchdog: a detached task sleeps out the timeout, then

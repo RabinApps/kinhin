@@ -137,4 +137,10 @@ final class FakeShell: ShellRunning, Sendable {
         // released by design; a test setting knobs between calls cannot
         // observe the difference.
     }
+
+    /// Stdin is recorded as a trailing `<stdin>`, text pair on the argv, so
+    /// `calls` shows both the command and the script it was fed.
+    func run(_ argv: [String], input: Data, cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+        try await run(argv + ["<stdin>", String(decoding: input, as: UTF8.self)], cwd: cwd, timeout: timeout)
+    }
 }

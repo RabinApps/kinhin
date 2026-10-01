@@ -57,7 +57,7 @@ final class HostRuntime: Runtime {
     func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws
         -> ShellResult
     {
-        try await shell.run(["/bin/bash", "-c", script], cwd: agentDir, timeout: timeout)
+        try await shell.run(["/bin/bash", "-s"], input: Data(script.utf8), cwd: agentDir, timeout: timeout)
     }
 
     func existingInstanceIDs() async throws -> [String] {

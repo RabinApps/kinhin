@@ -99,8 +99,9 @@ final class AppleContainerRuntimeTests: XCTestCase {
         XCTAssertTrue(argv.contains("exec"))
         XCTAssertTrue(argv.contains("kinhin-abc"))
         XCTAssertTrue(argv.contains("/bin/bash"))
-        XCTAssertTrue(argv.contains("-lc"))
-        XCTAssertTrue(argv.contains("echo hi"))
+        XCTAssertTrue(argv.contains("-i"), "the script is read from stdin")
+        XCTAssertEqual(Array(argv.suffix(2)), ["<stdin>", "echo hi"], "delivered over stdin, not argv")
+        XCTAssertFalse(argv.dropLast(2).contains("echo hi"))
     }
 
     // MARK: - Bootstrap script selection
@@ -398,6 +399,12 @@ final class ContainerFakingShell: ShellRunning, Sendable {
 
     func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
         state.withLock { $0.handle(argv) }
+    }
+
+    /// Stdin is recorded as a trailing `<stdin>`, text pair so tests can still
+    /// inspect the script an exec delivered.
+    func run(_ argv: [String], input: Data, cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+        state.withLock { $0.handle(argv + ["<stdin>", String(decoding: input, as: UTF8.self)]) }
     }
 
     func argvSnapshot() -> [[String]] {

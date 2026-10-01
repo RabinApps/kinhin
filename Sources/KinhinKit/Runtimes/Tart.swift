@@ -161,10 +161,7 @@ public struct TartController: TartControlling {
     public func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
         -> ShellResult
     {
-        // Write the script to a temp file and pipe it over stdin-free SSH:
-        // we base64 the script into the command line to avoid quoting issues.
-        let b64 = Data(script.utf8).base64EncodedString()
-        let remote = "echo \(b64) | base64 --decode | bash -s"
+        // The script goes over stdin so it never appears in the process list.
         let argv = [
             "ssh",
             "-o", "StrictHostKeyChecking=no",
@@ -172,9 +169,9 @@ public struct TartController: TartControlling {
             "-o", "LogLevel=ERROR",
             "-o", "ConnectTimeout=10",
             "\(user)@\(ip)",
-            remote,
+            "bash -s",
         ]
-        let res = try await shell.run(argv, cwd: nil, timeout: timeout)
+        let res = try await shell.run(argv, input: Data(script.utf8), cwd: nil, timeout: timeout)
         return res
     }
 

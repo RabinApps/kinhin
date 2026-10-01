@@ -100,7 +100,9 @@ final class DockerRuntimeTests: XCTestCase {
             binPath: bin
         )
         _ = try await runtime.cli.exec("kinhin-abc", "echo hi")
-        XCTAssertEqual(shell.calls.first, [bin, "exec", "kinhin-abc", "/bin/bash", "-lc", "echo hi"])
+        XCTAssertEqual(
+            shell.calls.first, [bin, "exec", "-i", "kinhin-abc", "/bin/bash", "-ls", "<stdin>", "echo hi"],
+            "the script goes over stdin so tokens stay out of the docker CLI's argv")
     }
 
     func testRegistrationScriptUsesLinuxFlavors() async throws {

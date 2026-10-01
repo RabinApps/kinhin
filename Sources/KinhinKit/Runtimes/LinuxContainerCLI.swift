@@ -129,7 +129,10 @@ struct LinuxContainerCLI: Sendable {
     /// Runs a script inside the running container (`exec`), which surfaces
     /// the script's exit status directly — the exec analogue of SSH.
     func exec(_ id: String, _ script: String, timeout: TimeInterval = 600) async throws -> ShellResult {
-        try await run([bin, "exec", id, "/bin/bash", "-lc", script], timeout: timeout)
+        // `-i` + a login shell reading stdin: the script (registration tokens
+        // included) stays out of the docker/container CLI's argv.
+        try await shell.run(
+            [bin, "exec", "-i", id, "/bin/bash", "-ls"], input: Data(script.utf8), cwd: nil, timeout: timeout)
     }
 
     /// Polls until the container is running so `exec` can proceed.
