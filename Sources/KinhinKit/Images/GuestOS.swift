@@ -53,6 +53,8 @@ public enum GuestOS: String, Sendable {
                 # ship admin/admin + Tart's key) and there is no power management
                 # to defeat.
 
+                \(RunnerBootstrap.sshHardeningScript())
+
                 \(RunnerBootstrap.tartLinuxCacheMountScript())
 
                 echo "base image prepared (linux guest)"

@@ -132,6 +132,8 @@ extension RunnerBootstrap {
         # Make sure Remote Login (SSH) is on.
         sudo systemsetup -setremotelogin on 2>/dev/null || true
 
+        \(sshHardeningScript())
+
         echo "base image prepared"
         """
     }
