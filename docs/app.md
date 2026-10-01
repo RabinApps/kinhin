@@ -57,8 +57,7 @@ regular app with a Dock icon; in menu-bar-only mode it stays an accessory app ex
 
 > **Notarized releases.** Official releases are Developer ID signed and notarized — no
 > right-click → **Open** needed. Locally built copies are ad-hoc signed: clear Gatekeeper with
-> `xattr -cr /Applications/kinhin.app`. (Homebrew's cask verifies the sha256, so
-> `brew install --cask kinhin` is the smoothest path; see [Install](install.md#homebrew).)
+> `xattr -cr /Applications/kinhin.app`.
 
 ## Siri, Shortcuts & Spotlight
 

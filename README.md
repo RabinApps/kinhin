@@ -41,8 +41,7 @@ Your Mac stays usable: host CPU, memory, and disk headroom are always reserved.
   per job, with a shared download cache (see [Toolchains](docs/toolchains.md)).
 - **App, menu bar, or headless** — a main window, a classic tray app, or a LaunchAgent daemon;
   same engine, same config (see [The kinhin app](docs/app.md)).
-- **One-line install** — `curl … | bash` from GitHub Releases, with daily update checks; a
-  Homebrew tap is optional.
+- **One-line install** — `curl … | bash` from GitHub Releases, with daily update checks.
 
 ## Requirements
 
@@ -69,7 +68,7 @@ The script sha256-verifies the release DMG, copies **kinhin.app** to /Applicatio
 the `kinhin` CLI into your bin dir — the first writable of /opt/homebrew/bin, /usr/local/bin, and
 ~/.local/bin. Releases are Developer ID signed and notarized. Remove
 everything with `bash scripts/install.sh --uninstall` (config and your Keychain PAT are kept).
-Pinned versions, air-gapped installs, update checks, and Homebrew are covered in
+Pinned versions, air-gapped installs, and update checks are covered in
 [docs/install.md](docs/install.md).
 
 ## Quick start (CLI)
@@ -207,7 +206,7 @@ kinhin logs [-n N]          Recent log lines
 
 | Doc                                                              | Covers                                                                      |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| [Install](docs/install.md)                                       | Install script, air-gapped installs, update checks, Homebrew tap            |
+| [Install](docs/install.md)                                       | Install script, air-gapped installs, update checks                          |
 | [Security](docs/security.md)                                     | Threat model, hardening for untrusted PRs, what kinhin enforces             |
 | [The kinhin app](docs/app.md)                                    | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together     |
 | [How scaling works](docs/scaling.md)                             | Capacity cap, the scaling loop, `runners_per_vm`, recovery                  |
