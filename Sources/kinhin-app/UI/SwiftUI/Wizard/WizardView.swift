@@ -41,7 +41,7 @@ struct WizardView: View {
     private var content: some View {
         switch model.step {
         case .connect:
-            ScrollView { ConnectView(model: model.connect).padding(.bottom, 8) }
+            ScrollView { ConnectView(model: model.connect, showsMoreAccounts: false).padding(.bottom, 8) }
         case .mac:
             ScrollView { MacToolsView(model: model.mac).padding(.bottom, 8) }
         case .toolchains:

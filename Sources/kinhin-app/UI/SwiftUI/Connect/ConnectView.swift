@@ -7,6 +7,8 @@ import SwiftUI
 /// token-requirements hint.
 struct ConnectView: View {
     @Bindable var model: ConnectModel
+    /// First-run setup hides "More accounts"; Advanced → Accounts shows it.
+    var showsMoreAccounts = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -17,7 +19,7 @@ struct ConnectView: View {
                         .transition(.opacity)
                 }
             }
-            MoreAccountsCard(model: model.accounts)
+            if showsMoreAccounts { MoreAccountsCard(model: model.accounts) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(.default, value: model.selected)
@@ -42,7 +44,7 @@ struct ConnectView: View {
     private var selector: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Where does your code live?").font(.system(size: 12, weight: .semibold))
-            HStack(spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                 ForEach(ConnectModel.allForges, id: \.self) { forge in
                     chip(forge)
                 }
@@ -60,8 +62,13 @@ struct ConnectView: View {
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 11, weight: .semibold))
                 ForgeIconView(forge: forge, size: 12)
-                Text(forge.displayName).font(.system(size: 12, weight: .semibold))
+                Text(forge.displayName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 0)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(on ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.05))

@@ -6,18 +6,29 @@ import SwiftUI
 /// (where applicable) server.
 struct MoreAccountsCard: View {
     @Bindable var model: AccountsModel
+    /// Collapsed until asked for; opens by itself when extra accounts exist.
+    @State private var expanded: Bool?
 
     var body: some View {
-        FormCard(
-            title: "More accounts",
-            subtitle:
-                "Serve additional accounts (another org, a second server, a GitLab group) with their own tokens."
+        DisclosureGroup(
+            isExpanded: Binding(
+                get: { expanded ?? !model.rows.isEmpty },
+                set: { expanded = $0 })
         ) {
-            ForEach(model.rows) { row in
-                accountRow(row)
-                Divider()
+            FormCard(
+                title: "More accounts",
+                subtitle:
+                    "Serve additional accounts (another org, a second server, a GitLab group) with their own tokens."
+            ) {
+                ForEach(model.rows) { row in
+                    accountRow(row)
+                    Divider()
+                }
+                addForm
             }
-            addForm
+            .padding(.top, 6)
+        } label: {
+            Text("More accounts…").font(.system(size: 12, weight: .semibold))
         }
     }
 
@@ -55,31 +66,9 @@ struct MoreAccountsCard: View {
     private var addForm: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Add an account").font(.system(size: 12, weight: .semibold))
-            HStack(spacing: 8) {
-                Picker("", selection: $model.newForge) {
-                    ForEach(model.forgeOptions, id: \.self) { forge in
-                        Label {
-                            Text(forge.displayName)
-                        } icon: {
-                            ForgeIcon.image(for: forge)
-                        }.tag(forge)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 110)
-                .accessibilityIdentifier("account-new-forge")
-                TextField("", text: $model.newName, prompt: Text(verbatim: "name, e.g. work"))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 130)
-                    .accessibilityIdentifier("account-new-name")
-                    .accessibilityLabel("New account name")
-                TextField(
-                    "", text: $model.newScope, prompt: Text(verbatim: model.scopePlaceholder(for: model.newForge))
-                )
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 170)
-                .accessibilityIdentifier("account-new-scope")
-                .accessibilityLabel("New account repository or organization")
+            ViewThatFits(in: .horizontal) {
+                newAccountFields(layout: HStackLayout(spacing: 8))
+                newAccountFields(layout: VStackLayout(alignment: .leading, spacing: 6))
             }
             if let instancePlaceholder = model.instancePlaceholder(for: model.newForge) {
                 TextField("", text: $model.newInstance, prompt: Text(verbatim: instancePlaceholder))
@@ -98,6 +87,36 @@ struct MoreAccountsCard: View {
                     StatusText(text: model.addStatus.text, style: model.addStatus.style)
                 }
             }
+        }
+    }
+
+    /// The forge / name / scope row: one line when it fits, stacked otherwise.
+    private func newAccountFields<L: Layout>(layout: L) -> some View {
+        layout {
+            Picker("", selection: $model.newForge) {
+                ForEach(model.forgeOptions, id: \.self) { forge in
+                    Label {
+                        Text(forge.displayName)
+                    } icon: {
+                        ForgeIcon.image(for: forge)
+                    }.tag(forge)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 110)
+            .accessibilityIdentifier("account-new-forge")
+            TextField("", text: $model.newName, prompt: Text(verbatim: "name, e.g. work"))
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 130)
+                .accessibilityIdentifier("account-new-name")
+                .accessibilityLabel("New account name")
+            TextField(
+                "", text: $model.newScope, prompt: Text(verbatim: model.scopePlaceholder(for: model.newForge))
+            )
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 170)
+            .accessibilityIdentifier("account-new-scope")
+            .accessibilityLabel("New account repository or organization")
         }
     }
 
