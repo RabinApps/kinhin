@@ -29,6 +29,15 @@ final class FleetController {
     @ObservationIgnored var configPushDelay: Duration = .seconds(1)
     /// Test seam: replaces the engine/daemon reload the debounce flushes into.
     @ObservationIgnored var configFlushOverride: (() async -> Void)?
+    /// The config file edits are read from (tests point this at a scratch file).
+    @ObservationIgnored var configURL: URL = Paths.config
+    /// How a rebuilt in-process engine gets its forge token and is built;
+    /// production defaults hit the Keychain and the real runtimes.
+    @ObservationIgnored var engineToken: (KinhinConfig) throws -> String? = { try ConfigLoader.engineToken(for: $0) }
+    @ObservationIgnored var makeEngine: (KinhinConfig, String) throws -> FleetEngine = {
+        try FleetEngine.production(config: $0, token: $1)
+    }
+    @ObservationIgnored var hostSnapshot: () -> HostResources = { ResourceProbe().snapshot() }
     @ObservationIgnored private var pollTask: Task<Void, Never>?
 
     /// The production backend, when `service` is one.

@@ -37,11 +37,11 @@ extension FleetController {
     /// file is missing or the edited result fails validation (nothing is
     /// written in that case).
     func setAutoResumePolicy(_ on: Bool) async throws {
-        try GeneralConfigEditor.apply(.autoResume(on), to: Paths.config)
+        try GeneralConfigEditor.apply(.autoResume(on), to: configURL)
         pushConfigToEngine()
     }
 
-    private func applyConfigToEngine() async {
+    func applyConfigToEngine() async {
         if let configFlushOverride {
             await configFlushOverride()
             return
@@ -49,7 +49,7 @@ extension FleetController {
         if let engine {
             let cfg: KinhinConfig
             do {
-                cfg = try ConfigLoader.load()
+                cfg = try ConfigLoader.load(from: configURL)
             } catch {
                 Log.warn(
                     "app",
@@ -60,7 +60,7 @@ extension FleetController {
             if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
                 await rebuildInProcessEngine(from: engine, config: cfg)
             } else {
-                engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
+                engine.applyReloaded(config: cfg, host: hostSnapshot())
                 Log.info("app", "routing reloaded into in-process engine")
             }
         } else if case .daemon(let client)? = backend {
@@ -82,7 +82,7 @@ extension FleetController {
     private func rebuildInProcessEngine(from old: FleetEngine, config cfg: KinhinConfig) async {
         let enginePAT: String?
         do {
-            enginePAT = try ConfigLoader.engineToken(for: cfg)
+            enginePAT = try engineToken(cfg)
         } catch {
             Log.error(
                 "app",
@@ -98,7 +98,7 @@ extension FleetController {
             return
         }
         do {
-            let replacement = try FleetEngine.production(config: cfg, token: pat)
+            let replacement = try makeEngine(cfg, pat)
             let previous = await old.status()
             let wasRunning = previous.running
             let wasPaused = previous.paused
