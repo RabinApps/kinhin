@@ -213,6 +213,37 @@ final class BaseImagePickerTests: XCTestCase {
         XCTAssertFalse(model.tartLinuxOn, "the checkbox doesn't claim a write that didn't happen")
     }
 
+    func testTartLinuxWarnsWhileTheFleetStillAdvertisesMacOS() throws {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        model.setTartInstalledForTesting(true)
+        XCTAssertNil(model.tartLinuxLabelWarning, "no warning while tart serves macOS")
+
+        try """
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
+        labels: [self-hosted, macos, arm64]
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+        model.reload()
+        model.setTartInstalledForTesting(true)  // reload re-probes the real host
+        model.setTartLinux(true)
+        XCTAssertNotNil(model.tartLinuxLabelWarning)
+
+        try """
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
+        labels: [self-hosted, linux, arm64]
+        base_image: "ghcr.io/cirruslabs/ubuntu:latest"
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+        model.reload()
+        XCTAssertNil(model.tartLinuxLabelWarning, "fixed labels clear the warning")
+    }
+
     func testMacOSAndCustomBaseImagesAreNotTartLinux() throws {
         let model = MacToolsModel()
         model.configURL = configURL

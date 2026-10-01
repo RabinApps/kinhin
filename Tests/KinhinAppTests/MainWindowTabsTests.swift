@@ -34,6 +34,12 @@ final class MainWindowTabsTests: MainWindowTestCase {
             "without the menu bar, closing the window is quitting the app")
     }
 
+    func testClosingTheWindowTellsTheDelegateEvenWithASheetUp() {
+        tabs.present(.logs)
+        window.windowWillClose(Notification(name: NSWindow.willCloseNotification))
+        XCTAssertEqual(delegate.closeCalls, 1, "the app re-evaluates its activation policy and quit-on-close")
+    }
+
     // MARK: - Tab structure
 
     func testTabsAndAdvancedSectionsInDisplayOrder() {

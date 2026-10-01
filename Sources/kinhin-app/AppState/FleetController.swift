@@ -21,8 +21,20 @@ final class FleetController {
     /// Set while first-run onboarding is up (or no usable config exists).
     var setupIncomplete = false
 
-    /// Who runs the fleet: nil until setup is complete.
-    @ObservationIgnored var service: (any FleetServing)?
+    /// Why the last poll failed (daemon down, RPC timeout); nil while polls
+    /// succeed. Distinguishes "can't reach the fleet" from "setup unfinished".
+    private(set) var unreachableReason: String?
+
+    /// Who runs the fleet: nil until setup is complete. Replacing it bumps
+    /// `serviceGeneration`, so a poll that was in flight against the old one
+    /// can't publish its answer.
+    @ObservationIgnored var service: (any FleetServing)? {
+        didSet { serviceGeneration &+= 1 }
+    }
+    @ObservationIgnored private var serviceGeneration = 0
+    /// A start/stop is executing (distinct from the UI-visible pending flag,
+    /// which the Fleet button sets a tick earlier).
+    @ObservationIgnored private var commandInFlight = false
     /// Config-edit push (debounced): a burst of edits flushes once.
     @ObservationIgnored var pendingConfigEdits = false
     @ObservationIgnored var isConfigPushScheduled = false
@@ -72,11 +84,50 @@ final class FleetController {
         pollTask = nil
     }
 
+    /// Quit-time teardown: stop polling and stop the in-process engine (which
+    /// tears its VMs down), waiting up to `timeout`. A running daemon owns its
+    /// own fleet and is left alone.
+    func shutdown(timeout: Duration = .seconds(30)) async {
+        stopPolling()
+        guard let engine else { return }
+        let finished = await runWithTimeout(timeout) { await engine.stop() }
+        if !finished {
+            Log.warn("app", "engine did not stop within \(timeout) — quitting anyway; the next launch adopts survivors")
+        }
+    }
+
     func refresh() async {
-        // Polled every few seconds (daemon calls run off the main thread): an
-        // unreachable or wedged daemon simply reads as "not running" in the
-        // status item, so a failure here is expected (status stays nil).
-        status = try? await service?.status()
+        guard let polled = service else {
+            status = nil
+            unreachableReason = nil
+            return
+        }
+        let generation = serviceGeneration
+        do {
+            let fresh = try await polled.status()
+            guard generation == serviceGeneration else { return }  // the backend was swapped mid-poll
+            status = fresh
+            unreachableReason = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            // Polled every few seconds (daemon calls run off the main thread):
+            // an unreachable or wedged daemon is expected, so it is kept as a
+            // reason the UI shows ("not responding"), not an error dialog.
+            guard generation == serviceGeneration else { return }
+            // Log the transition only: the poll repeats every few seconds.
+            if unreachableReason == nil { Log.warn("app", "fleet poll failed: \(error.localizedDescription)") }
+            status = nil
+            unreachableReason = error.localizedDescription
+        }
+    }
+
+    /// The status line shared by the menu and the Fleet tab.
+    var statusLine: String {
+        if let status { return FleetStatusFormatter.summary(status) }
+        if service == nil { return FleetStatusFormatter.summary(nil) }  // setup unfinished
+        if let unreachableReason { return "Fleet not responding — \(unreachableReason)" }
+        return "Checking the fleet…"
     }
 
     // MARK: - Actions
@@ -86,7 +137,12 @@ final class FleetController {
     /// backend is available — the menu wrappers alert, and an App Intent
     /// must fail in Shortcuts rather than report success.
     func perform(_ action: FleetAction) async throws {
-        defer { pendingFleetAction = nil }
+        guard !commandInFlight else { throw EngineError.fleetBusy }
+        commandInFlight = true
+        defer {
+            commandInFlight = false
+            pendingFleetAction = nil
+        }
         pendingFleetAction = action
         guard let service else { throw EngineError.fleetNotSetUp }
         do {

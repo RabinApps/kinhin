@@ -18,6 +18,12 @@ final class FakeFleetServing: FleetServing {
     }
 
     private let state: Mutex<State>
+    /// Whether `status()` also waits on the gate (a poll held mid-flight).
+    private let statusGate = Mutex(false)
+    var gatesStatus: Bool {
+        get { statusGate.withLock { $0 } }
+        set { statusGate.withLock { $0 = newValue } }
+    }
 
     init(_ status: FleetStatus = FleetStatus()) {
         state = Mutex(State(status: status))
@@ -74,8 +80,9 @@ final class FakeFleetServing: FleetServing {
     }
 
     func status() async throws -> FleetStatus {
-        try state.withLock { state in
-            state.calls.append("status")
+        state.withLock { $0.calls.append("status") }
+        if gatesStatus { await waitForGate() }
+        return try state.withLock { state in
             if let error = state.statusError { throw error }
             return state.status
         }

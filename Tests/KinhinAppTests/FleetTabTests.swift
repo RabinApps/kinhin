@@ -11,6 +11,7 @@ final class FleetTabTests: MainWindowTestCase {
     // MARK: - Fleet tab rendering
 
     func testRenderShowsNeedsSetupBeforeFirstStatus() {
+        fleet.service = nil  // nothing configured yet
         fleet.status = nil
         XCTAssertEqual(models.fleetModel.statusLine, "Needs setup — open the Setup tab")
     }
@@ -117,6 +118,17 @@ final class FleetTabTests: MainWindowTestCase {
         failed.error = "boot timed out"
         fleet.status = FleetStatus(records: [failed])
         XCTAssertTrue(models.fleetModel.detail(for: failed).contains("⚠︎ boot timed out"))
+    }
+
+    func testConfiguredFleetThatCannotBeReachedIsNotReportedAsNeedingSetup() async {
+        fake.statusError = RPCError.timeout
+        await fleet.refresh()
+        XCTAssertTrue(models.fleetModel.statusLine.hasPrefix("Fleet not responding"), models.fleetModel.statusLine)
+        XCTAssertFalse(models.fleetModel.statusLine.contains("Setup"))
+    }
+
+    func testConfiguredFleetBeforeTheFirstPollSaysItIsChecking() {
+        XCTAssertEqual(models.fleetModel.statusLine, "Checking the fleet…")
     }
 
     // MARK: - Buttons drive the controller

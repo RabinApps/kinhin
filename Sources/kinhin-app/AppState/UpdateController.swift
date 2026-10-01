@@ -33,7 +33,7 @@ final class UpdateController {
         self.defaults = defaults
         updateCardState = .idle(lastChecked: UpdatePreferences.lastCheck(in: defaults))
     }
-    @ObservationIgnored var open: (URL) -> Void = { NSWorkspace.shared.open($0) }
+    @ObservationIgnored var open: (URL) -> Bool = { NSWorkspace.shared.open($0) }
 
     // MARK: - Scheduling
 
@@ -123,7 +123,11 @@ final class UpdateController {
             updateCardState = .downloading(name: info.dmgName)
             let url = try await makeChecker().downloadDMG(info, progress: nil)
             Log.info("app", "update downloaded to \(url.path)")
-            open(url)
+            guard open(url) else {
+                Log.error("app", "could not open the downloaded update at \(url.path)")
+                updateCardState = .failed("Downloaded the update but couldn't open it — find it at \(url.path)")
+                return
+            }
             updateCardState = .available(version: info.version)
         } catch is CancellationError {
             updateCardState = .available(version: info.version)

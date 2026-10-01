@@ -10,6 +10,7 @@ final class UpdateControllerTests: XCTestCase {
     private var updates: UpdateController!
     private var fake: FakeUpdateChecker!
     private var opened: [URL] = []
+    private var openSucceeds = true
 
     override func setUp() async throws {
         try await super.setUp()
@@ -18,7 +19,10 @@ final class UpdateControllerTests: XCTestCase {
         fake = FakeUpdateChecker()
         updates = UpdateController(defaults: defaults)
         updates.makeChecker = { [fake] in fake! }
-        updates.open = { [unowned self] in opened.append($0) }
+        updates.open = { [unowned self] in
+            opened.append($0)
+            return openSucceeds
+        }
     }
 
     override func tearDown() async throws {
@@ -124,6 +128,15 @@ final class UpdateControllerTests: XCTestCase {
 
         XCTAssertEqual(opened, [URL(fileURLWithPath: "/tmp/kinhin-test.dmg")])
         XCTAssertEqual(updates.updateCardState, .available(version: "9.9.9"), "the update stays offered")
+    }
+
+    func testAFinderOpenFailureIsShownWithTheFilePath() async {
+        updates.pendingUpdate = info()
+        openSucceeds = false
+        updates.checkOrDownload()
+        await waitUntil("settles") { settled() && !fake.downloads.isEmpty }
+        guard case .failed(let message) = updates.updateCardState else { return XCTFail("\(updates.updateCardState)") }
+        XCTAssertTrue(message.contains("/tmp/kinhin-test.dmg"), message)
     }
 
     func testFailedDownloadShowsTheReasonAndOpensNothing() async {

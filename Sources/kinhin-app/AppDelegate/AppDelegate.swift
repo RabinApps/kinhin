@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Tracks the main window's visibility so the activation policy can be
     /// re-evaluated when it opens and closes.
     var isMainWindowVisible = false
+    /// A quit is waiting for the engine to stop (a second quit just waits too).
+    private var isShuttingDown = false
 
     var setupIncomplete: Bool {
         get { fleet.setupIncomplete }
@@ -49,10 +51,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyActivationPolicy()
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        fleet.stopPolling()
-        Task { await fleet.engine?.stop() }
+    /// Quitting with an in-process engine waits for it to stop (tearing its
+    /// VMs down) before the process exits; a daemon owns its own fleet, so
+    /// there is nothing to wait for.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         updates.cancelAll()
+        guard fleet.engine != nil else {
+            fleet.stopPolling()
+            return .terminateNow
+        }
+        guard !isShuttingDown else { return .terminateLater }
+        isShuttingDown = true
+        Task {
+            await fleet.shutdown()
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     // MARK: - Activation policy (normal app vs menu bar app)
@@ -128,12 +142,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Starts the in-process fleet at launch when the user asked for it. A
     /// running daemon owns its own lifecycle, and an incomplete setup has no
     /// engine, so neither is touched.
-    func autoStartFleetIfEnabled() {
-        guard AppPreferences.autoStartFleet, let engine = fleet.engine else { return }
+    func autoStartFleetIfEnabled(enabled: Bool = AppPreferences.autoStartFleet) {
+        guard enabled, fleet.engine != nil else { return }
         Log.info("app", "auto-starting the fleet (Settings → App)")
+        // Through `perform`, so the status item shows "Starting…" and a
+        // failure is logged instead of vanishing.
         Task {
-            await engine.start()
-            await fleet.refresh()
+            do {
+                try await fleet.perform(.start)
+            } catch {
+                Log.error("app", "auto-start failed: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -158,6 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func renderControllerState() {
         _ = fleet.status
         _ = fleet.pendingFleetAction
+        _ = fleet.unreachableReason
         _ = updates.pendingUpdate
         _ = updates.updateCardState
         renderFleetState()

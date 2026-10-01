@@ -9,6 +9,8 @@ public enum EngineError: LocalizedError, Sendable {
     /// The app's fleet entry points (menu actions, App Intents) ran before
     /// any backend was reachable — no in-process engine and no daemon.
     case fleetNotSetUp
+    /// A start/stop was requested while another one is still running.
+    case fleetBusy
     /// A runner id that isn't in the forge's id format (the engine only
     /// passes ids that came from the same forge's `runners()`).
     case invalidRunnerID(forge: ForgeID, id: String)
@@ -24,6 +26,8 @@ public enum EngineError: LocalizedError, Sendable {
             return reason
         case .fleetNotSetUp:
             return "kinhin isn't set up yet. Open kinhin to finish setup."
+        case .fleetBusy:
+            return "The fleet is already starting or stopping. Try again in a moment."
         case .invalidRunnerID(let forge, let id):
             return "'\(id)' is not a \(forge.displayName) runner id"
         case .unknownVM(let id):

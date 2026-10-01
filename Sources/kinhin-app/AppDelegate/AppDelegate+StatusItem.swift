@@ -139,7 +139,7 @@ extension AppDelegate {
     /// otherwise the shared state line.
     func statusLineText(pending: FleetAction?, status: FleetStatus?) -> String {
         if let pending { return pending == .start ? "Starting…" : "Stopping…" }
-        guard let status else { return FleetStatusFormatter.summary(nil) }
+        guard let status else { return fleet.statusLine }
         return statusLine(for: status)
     }
 

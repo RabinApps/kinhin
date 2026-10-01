@@ -231,4 +231,57 @@ final class FleetControllerTests: XCTestCase {
         fleet.startPolling(every: .milliseconds(10))
         await waitUntil("polls again") { fleet.status != nil }
     }
+
+    // MARK: - Reachability and ordering
+
+    func testUnreachableReasonTracksPollFailuresAndRecovery() async {
+        XCTAssertNil(fleet.unreachableReason)
+        fake.statusError = RPCError.timeout
+        await fleet.refresh()
+        XCTAssertNotNil(fleet.unreachableReason)
+        XCTAssertTrue(fleet.statusLine.hasPrefix("Fleet not responding"))
+
+        fake.statusError = nil
+        await fleet.refresh()
+        XCTAssertNil(fleet.unreachableReason, "recovery clears it")
+        XCTAssertNotNil(fleet.status)
+    }
+
+    func testNoServiceMeansNeedsSetupNotUnreachable() async {
+        fleet.service = nil
+        await fleet.refresh()
+        XCTAssertNil(fleet.unreachableReason)
+        XCTAssertEqual(fleet.statusLine, "Needs setup — open the Setup tab")
+    }
+
+    func testPollThatFinishesAfterTheBackendWasSwappedIsDiscarded() async {
+        fake.status = FleetStatus(running: true)
+        fake.gated = true
+        fake.gatesStatus = true
+        let poll = Task { await fleet.refresh() }
+        await waitUntil("poll reached the old backend") { fake.calls.contains("status") }
+
+        fleet.service = FakeFleetServing(FleetStatus(paused: true))  // e.g. an engine rebuild
+        fake.releaseGate()
+        await poll.value
+
+        XCTAssertNil(fleet.status, "the old backend's answer must not be published")
+    }
+
+    func testSecondCommandWhileOneRunsIsRejectedAsBusy() async throws {
+        fake.gated = true
+        let first = Task { try await fleet.perform(.start) }
+        await waitUntil("first reaches the backend") { fake.calls.contains("start") }
+        do {
+            try await fleet.perform(.stop)
+            XCTFail("an overlapping command must be refused")
+        } catch EngineError.fleetBusy {
+        } catch {
+            XCTFail("\(error)")
+        }
+        XCTAssertEqual(fleet.pendingFleetAction, .start, "the running command's state is untouched")
+        fake.releaseGate()
+        try await first.value
+        XCTAssertNil(fleet.pendingFleetAction)
+    }
 }

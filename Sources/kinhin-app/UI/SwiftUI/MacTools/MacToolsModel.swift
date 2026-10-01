@@ -72,6 +72,8 @@ final class MacToolsModel: ConfigFormModel {
     /// Base image each runtime's image is baked on (nil = default); the
     /// tart value is what `image prepare` starts from.
     private(set) var tartBaseImage: String?
+    /// The fleet's `labels:` as saved (what runners advertise to the forge).
+    private(set) var fleetLabels: [String] = []
     private(set) var containerBaseImage: String?
     private(set) var dockerBaseImage: String?
     private(set) var dockerPlatform: LinuxPlatform = .arm64
@@ -211,6 +213,7 @@ final class MacToolsModel: ConfigFormModel {
 
     private func refreshBaseImages(from snapshot: GeneralConfigEditor.Snapshot?) {
         tartBaseImage = snapshot?.baseImage(for: .tart)
+        fleetLabels = snapshot?.labels ?? []
         containerBaseImage = snapshot?.baseImage(for: .appleContainer)
         dockerBaseImage = snapshot?.baseImage(for: .docker)
         dockerPlatform = snapshot?.dockerPlatform ?? .arm64
@@ -229,6 +232,14 @@ final class MacToolsModel: ConfigFormModel {
 
     /// Tart serves Linux jobs when its base image is a Linux one.
     var tartLinuxOn: Bool { TartBaseImage.isLinux(tartBaseImage) }
+
+    /// Set while tart serves Linux but the fleet still advertises `macos`:
+    /// macOS jobs would be routed to a Linux VM and fail there.
+    var tartLinuxLabelWarning: String? {
+        guard tartLinuxOn, fleetLabels.contains(where: { $0.lowercased() == "macos" }) else { return nil }
+        return "Your fleet labels include “macos”, so macOS jobs would be sent to this Linux VM. In config.yaml, "
+            + "remove “macos” from labels (add “linux” if jobs ask for it)."
+    }
 
     /// The "Tart (Linux VM)" checkbox: on starts from the default Linux
     /// image; off drops the key, returning tart to the macOS default.

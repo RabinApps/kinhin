@@ -51,6 +51,7 @@ extension FleetController {
     /// The pending flag is set before the task starts, so a second click in
     /// the same tick already reads as busy.
     private func run(_ action: FleetAction, failureTitle: String) {
+        guard pendingFleetAction == nil else { return }  // a command is already running
         pendingFleetAction = action
         Task {
             do {

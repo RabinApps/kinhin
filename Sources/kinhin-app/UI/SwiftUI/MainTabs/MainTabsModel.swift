@@ -101,7 +101,8 @@ final class MainTabsModel {
             showAdvanced(.accounts)
             return
         }
-        _ = makeWizard()
+        // Keep a wizard that is already up: re-opening Setup must not discard
+        // what was typed into it (select builds one when none exists).
         select(.setup)
         Log.info("app", "guided setup shown")
     }

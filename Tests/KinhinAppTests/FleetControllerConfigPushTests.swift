@@ -1,3 +1,4 @@
+import AppKit
 import Synchronization
 import XCTest
 
@@ -216,6 +217,60 @@ final class FleetControllerConfigPushTests: XCTestCase {
         await fleet.applyConfigToEngine()
         XCTAssertNil(fleet.service)
         XCTAssertEqual(buildCount, 0)
+    }
+
+    // MARK: - Shutdown and auto-start
+
+    func testShutdownStopsARunningInProcessEngineAndPolling() async throws {
+        let engine = try install { config in self.makeEngine(config) }
+        await engine.start()
+        fleet.startPolling(every: .milliseconds(20))
+
+        await fleet.shutdown(timeout: .seconds(10))
+
+        let status = await engine.status()
+        XCTAssertFalse(status.running, "quitting stops the in-process engine")
+    }
+
+    func testShutdownLeavesADaemonFleetAlone() async {
+        let fake = FakeFleetServing(FleetStatus(running: true))
+        fleet.service = fake
+        await fleet.shutdown(timeout: .seconds(1))
+        XCTAssertFalse(fake.calls.contains("stop"), "the daemon owns its own lifecycle")
+    }
+
+    func testAutoStartRunsThroughPerformSoTheStatusItemShowsStarting() async throws {
+        let engine = try install { config in self.makeEngine(config) }
+        let delegate = AppDelegate()
+        delegate.fleet.service = FleetBackend.inProcess(engine)
+
+        delegate.autoStartFleetIfEnabled(enabled: true)
+        XCTAssertNotNil(delegate.fleet.engine)
+        let deadline = ContinuousClock.now + .seconds(5)
+        while delegate.fleet.status?.running != true, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(delegate.fleet.status?.running, true)
+        XCTAssertNil(delegate.fleet.pendingFleetAction)
+        await engine.stop()
+    }
+
+    func testAutoStartDoesNothingWhenDisabledOrDaemonOwned() async {
+        let delegate = AppDelegate()
+        let fake = FakeFleetServing()
+        delegate.fleet.service = fake
+        delegate.autoStartFleetIfEnabled(enabled: true)  // not an in-process engine
+        delegate.autoStartFleetIfEnabled(enabled: false)
+        try? await Task.sleep(for: .milliseconds(50))
+        XCTAssertFalse(fake.calls.contains("start"))
+    }
+
+    func testQuitWithoutAnInProcessEngineTerminatesImmediately() {
+        let delegate = AppDelegate()
+        XCTAssertEqual(delegate.applicationShouldTerminate(NSApplication.shared), .terminateNow)
+        delegate.fleet.service = FakeFleetServing()
+        XCTAssertEqual(
+            delegate.applicationShouldTerminate(NSApplication.shared), .terminateNow, "daemon fleets aren't ours")
     }
 
     // MARK: - Auto-resume policy

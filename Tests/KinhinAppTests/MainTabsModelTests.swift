@@ -63,7 +63,7 @@ final class MainTabsModelTests: XCTestCase {
         XCTAssertNil(models.wizardModel)
     }
 
-    func testShowSetupRebuildsTheWizardEachTime() throws {
+    func testShowSetupKeepsAWizardThatIsAlreadyUp() throws {
         fleet.setupIncomplete = true
         tabs.showSetup()
         let first = try XCTUnwrap(models.wizardModel)
@@ -71,7 +71,7 @@ final class MainTabsModelTests: XCTestCase {
         tabs.select(.setup)
         XCTAssertTrue(models.wizardModel === first, "the tab bar keeps the wizard's state")
         tabs.showSetup()
-        XCTAssertFalse(models.wizardModel === first, "the menu's Setup… starts a fresh wizard")
+        XCTAssertTrue(models.wizardModel === first, "the menu's Setup… must not discard typed input")
     }
 
     func testWizardFinishHandsOffToTheAppAndRemovesTheTab() throws {

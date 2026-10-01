@@ -73,6 +73,11 @@ struct MacToolsView: View {
             tartLinuxRow
             if model.tartLinuxOn {
                 baseImageRow(value: model.tartBaseImage, runtime: .tart, catalog: .tartLinux)
+                if let warning = model.tartLinuxLabelWarning {
+                    HintText(warning)
+                        .foregroundStyle(StatusStyle.warn.color)
+                        .accessibilityIdentifier("mac-tart-linux-label-warning")
+                }
             }
             runtimeRow(
                 "Apple container", on: model.containerOn, toggleID: "mac-container-toggle",

@@ -28,7 +28,7 @@ final class FleetModel {
     var pendingAction: FleetAction? { controller.pendingFleetAction }
     var isBusy: Bool { pendingAction != nil }
 
-    var statusLine: String { FleetStatusFormatter.summary(status) }
+    var statusLine: String { controller.statusLine }
     var running: Bool { status?.running ?? false }
     var paused: Bool { status?.paused ?? false }
     /// Non-nil while the fleet is paused with auto-resume on: shown on the
