@@ -58,15 +58,18 @@ final class ImageProvisionScriptTests: XCTestCase {
 
         try await preparer.run(options)
 
-        XCTAssertEqual(ssh.scripts.count, 2, "agent install first, user script second")
-        XCTAssertTrue(ssh.scripts[0].contains("actions-runner-osx-arm64"), "first exec bakes the GitHub agent")
-        XCTAssertTrue(ssh.scripts[1].contains("bash /tmp/kinhin-provision.sh"), "second exec runs the user script")
+        // Probe (guest OS), agent install, user script.
+        XCTAssertEqual(ssh.scripts.count, 3, "guest probe, agent install, user script second")
+        XCTAssertTrue(ssh.scripts[0].contains("uname -s"), "first exec detects the guest OS")
+        XCTAssertTrue(ssh.scripts[1].contains("actions-runner-osx-arm64"), "second exec bakes the GitHub agent")
+        XCTAssertTrue(ssh.scripts[2].contains("bash /tmp/kinhin-provision.sh"), "third exec runs the user script")
         // The user script travels base64-embedded and must decode back exactly.
-        let decoded = try embeddedPayload(in: ssh.scripts[1])
+        let decoded = try embeddedPayload(in: ssh.scripts[2])
         XCTAssertEqual(decoded, content, "script content must reach the VM verbatim")
         // The user script gets its own (longer) timeout budget.
-        XCTAssertEqual(ssh.timeouts[0], 900, "agent install keeps its 900 s budget")
-        XCTAssertEqual(ssh.timeouts[1], 1800, "provision script defaults to a 1800 s budget")
+        XCTAssertEqual(ssh.timeouts[0], 60, "the guest probe is quick")
+        XCTAssertEqual(ssh.timeouts[1], 900, "agent install keeps its 900 s budget")
+        XCTAssertEqual(ssh.timeouts[2], 1800, "provision script defaults to a 1800 s budget")
     }
 
     func testProvisionTimeoutOptionIsHonored() async throws {
@@ -80,7 +83,7 @@ final class ImageProvisionScriptTests: XCTestCase {
 
         try await preparer.run(options)
 
-        XCTAssertEqual(ssh.timeouts[1], 60)
+        XCTAssertEqual(ssh.timeouts[2], 60)
     }
 
     func testNoProvisionScriptMeansSingleExec() async throws {
@@ -91,8 +94,8 @@ final class ImageProvisionScriptTests: XCTestCase {
                 hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
                 hasAzureDevOpsToken: false))
 
-        XCTAssertEqual(ssh.scripts.count, 1, "no user script → exactly the agent install exec")
-        XCTAssertFalse(ssh.scripts[0].contains("kinhin-provision.sh"))
+        XCTAssertEqual(ssh.scripts.count, 2, "guest probe + agent install")
+        XCTAssertFalse(ssh.scripts[1].contains("kinhin-provision.sh"))
     }
 
     // MARK: - Early validation (before the multi-GB pull)
@@ -152,7 +155,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         let tart = FakeTart()
         tart.vms["tahoe-base"] = TartVM(name: "tahoe-base", source: "old-source", status: "stopped")
         let ssh = FakeSSH()
-        ssh.failOnCall = 1  // the second exec: the user provision script
+        ssh.failOnCall = 2  // the third exec: the user provision script (0 is the guest probe)
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         var options = ImagePreparer.Options(
             hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,

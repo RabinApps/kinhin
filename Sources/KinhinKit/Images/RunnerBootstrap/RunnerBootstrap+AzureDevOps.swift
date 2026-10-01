@@ -50,11 +50,26 @@ extension RunnerBootstrap {
         case apfsClone
         /// Plain archive copy (Linux).
         case archive
+        /// Guest-adaptive (tart VMs can be macOS or Linux guests): try the
+        /// APFS clone and fall back to a plain copy when the guest rejects
+        /// it. The fallback wipes the target first — a failed `cp` may have
+        /// left a partial directory behind.
+        case vmGuest
 
-        var command: String {
+        /// The shell that copies `template` to `dir` (both shell words).
+        func copyLine(template: String, dir: String) -> String {
             switch self {
-            case .apfsClone: return "cp -cR"
-            case .archive: return "cp -a"
+            case .apfsClone:
+                return "cp -cR \(template) \(dir)"
+            case .archive:
+                return "cp -a \(template) \(dir)"
+            case .vmGuest:
+                return """
+                    if ! cp -cR \(template) \(dir) 2>/dev/null; then
+                      rm -rf \(dir)
+                      cp -a \(template) \(dir)
+                    fi
+                    """
             }
         }
     }
@@ -82,7 +97,7 @@ extension RunnerBootstrap {
                 # Azure Pipelines agent \(index + 1) of \(runnerNames.count)
                 mkdir -p \(baseDir)
                 rm -rf \(dir)
-                \(copy.command) \(template) \(dir)
+                \(copy.copyLine(template: template, dir: dir))
                 cd \(dir)
                 (umask 077 && printf '%s' \(shellQuote(token)) > .pat)
                 nohup /bin/bash -c '

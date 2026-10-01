@@ -50,9 +50,18 @@ extension RunnerBootstrap {
     /// a mise bootstrap (Linux base images don't ship it), `mise use --global`
     /// pins, npm globals, and verify-gated completion. Cache exports point at
     /// the container-side bind mount when present.
-    static func linuxManagedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?)
+    /// - Parameters:
+    ///   - runsAsRoot: The Linux container bake runs as root (plain apt, no
+    ///     sudo); a tart Linux VM guest runs an admin user and goes through
+    ///     passwordless sudo for apt and /usr/local/bin.
+    static func linuxManagedToolchainsInstallScript(
+        selection: ManagedToolchainSelection, mountPath: String?, runsAsRoot: Bool = true
+    )
         -> String
     {
+        // Root (containers) runs everything directly; a tart VM's admin user
+        // elevates with passwordless sudo.
+        let s = runsAsRoot ? "" : "sudo "
         var lines: [String] = [
             "set -euo pipefail",
             linuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")]),
@@ -66,12 +75,12 @@ extension RunnerBootstrap {
             let packages = selection.aptPackages.joined(separator: " ")
             lines.append(
                 """
-                # apt packages (guarded so re-runs no-op; containers run as root)
+                # apt packages (guarded so re-runs no-op)
                 export DEBIAN_FRONTEND=noninteractive
                 for p in \(packages); do
                   if ! dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'install ok installed'; then
-                    apt-get update -qq
-                    apt-get install -y --no-install-recommends "$p"
+                    \(s)apt-get update -qq
+                    \(s)apt-get install -y --no-install-recommends "$p"
                   fi
                 done
                 """)
@@ -87,7 +96,9 @@ extension RunnerBootstrap {
                 export PATH="$HOME/.local/share/mise/shims:$PATH"
                 # persist it: runners start from a login shell, so job steps only see
                 # the pinned tools if the shims are on PATH there too
-                printf '%s\\n' 'export PATH="$HOME/.local/share/mise/shims:$PATH"' > /etc/profile.d/kinhin-mise.sh
+                \(s)tee /etc/profile.d/kinhin-mise.sh > /dev/null <<'MISE_PATH'
+                export PATH="$HOME/.local/share/mise/shims:$PATH"
+                MISE_PATH
                 """)
             let specs = selection.miseSpecs.joined(separator: " ")
             lines.append(
@@ -104,7 +115,7 @@ extension RunnerBootstrap {
                 lines.append(
                     """
                     if ! npm ls -g --depth=0 \(package.name) >/dev/null 2>&1; then
-                      npm install -g \(spec)
+                      \(s)npm install -g \(spec)
                     fi
                     """)
             }
@@ -117,7 +128,7 @@ extension RunnerBootstrap {
                 # Ruby gems (system install; guarded so re-runs no-op)
                 for g in \(gems); do
                   if ! gem list -i "^$g$" >/dev/null 2>&1; then
-                    gem install "$g"
+                    \(s)gem install "$g"
                   fi
                 done
                 """)

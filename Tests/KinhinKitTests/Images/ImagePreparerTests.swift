@@ -107,6 +107,129 @@ final class ImagePreparerTests: XCTestCase {
         XCTAssertEqual(tart.vms["tahoe-base"]?.source, scratch, "target now sources from the fresh scratch clone")
     }
 
+    // MARK: - Linux guests (tart Linux VMs)
+
+    /// `image prepare --source <linux-vm>` detects the guest via `uname -s`
+    /// and bakes the Linux agent binaries in the same $HOME layout.
+    func testALinuxGuestBakesTheLinuxAgentBinaries() async throws {
+        let ssh = FakeSSH()
+        ssh.setStdout("Linux", forCall: 0)  // the guest-OS probe
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: true, hasGiteaToken: true, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false))
+
+        // First exec is the probe; second is the agent bake.
+        XCTAssertEqual(ssh.scripts[0], "uname -s", "the probe is the first exec")
+        let baked = ssh.scripts[1]
+        XCTAssertTrue(baked.contains("actions-runner-linux-arm64-"), "Linux actions-runner binary")
+        XCTAssertTrue(baked.contains("$HOME/actions-runner"), "same layout the registration script uses")
+        XCTAssertTrue(baked.contains("gitea-runner-\(RunnerVersionResolver.fallback.gitea)-linux-arm64"), "Linux gitea-runner")
+        XCTAssertFalse(baked.contains("osx-arm64"), "no macOS binaries on a Linux guest")
+        XCTAssertFalse(baked.contains("darwin-arm64"), "no macOS binaries on a Linux guest")
+        XCTAssertFalse(baked.contains("pmset"), "no macOS tweaks on a Linux guest")
+        XCTAssertTrue(baked.contains("apt-get"), "prerequisites install through apt")
+    }
+
+    func testALinuxGuestBakesTheLinuxBitbucketRunner() async throws {
+        let ssh = FakeSSH()
+        ssh.setStdout("Linux", forCall: 0)
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: false, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false, hasBitbucketToken: true))
+
+        let baked = ssh.scripts[1]
+        XCTAssertTrue(baked.contains("$HOME/bitbucket-runner"), "macOS-style layout: registration needs no change")
+        XCTAssertTrue(baked.contains("aarch64_linux"), "Temurin JDK for aarch64 Linux")
+        XCTAssertFalse(baked.contains("aarch64_mac"))
+    }
+
+    func testALinuxGuestBakesTheLinuxToolchainHelper() async throws {
+        let ssh = FakeSSH()
+        ssh.setStdout("Linux", forCall: 0)
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false))
+
+        let baked = ssh.scripts[1]
+        XCTAssertTrue(baked.contains("/usr/local/bin/kinhin-toolchain"), "the helper is baked")
+        XCTAssertTrue(
+            baked.range(of: #"sudo mkdir -p /usr/local/bin"#) != nil,
+            "a tart Linux guest is an admin user, not root")
+        XCTAssertFalse(baked.contains("/Volumes/My Shared Files"), "no macOS virtiofs path on Linux")
+    }
+
+    func testALinuxGuestBakesLinuxManagedToolchains() async throws {
+        let ssh = FakeSSH()
+        ssh.setStdout("Linux", forCall: 0)
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        var options = ImagePreparer.Options(
+            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+            hasAzureDevOpsToken: false)
+        options.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], brew: ["wget"])
+
+        try await preparer.run(options)
+
+        // Execs: probe, agents, managed toolchains.
+        XCTAssertEqual(ssh.scripts.count, 3)
+        let managed = ssh.scripts[2]
+        XCTAssertTrue(managed.contains("mise use --global node@22"), managed)
+        XCTAssertTrue(managed.contains("sudo apt-get"), "a tart Linux guest elevates through sudo")
+        XCTAssertFalse(managed.contains("brew install"), "brew formulas never install on a Linux guest")
+    }
+
+    func testAnUnrecognizedGuestOSFailsTheBake() async throws {
+        let tart = FakeTart()
+        let ssh = FakeSSH()
+        ssh.setStdout("FreeBSD", forCall: 0)
+        let preparer = ImagePreparer(tart: tart, ssh: ssh)
+        do {
+            try await preparer.run(
+                ImagePreparer.Options(
+                    hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                    hasAzureDevOpsToken: false))
+            XCTFail("expected the unrecognized guest to fail the bake")
+        } catch let error as ImageError {
+            guard case .provisioningFailed(let why) = error else {
+                return XCTFail("wrong error: \(error)")
+            }
+            XCTAssertTrue(why.contains("FreeBSD"), why)
+        }
+        // Nothing was committed.
+        XCTAssertFalse(tart.cloneCalls.contains { $0.name == "tahoe-base" })
+    }
+
+    func testAGuestOSOverrideSkipsTheProbe() async throws {
+        let ssh = FakeSSH()
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false, guestOS: .linux))
+
+        XCTAssertEqual(ssh.scripts.count, 2, "no probe exec when the guest OS is overridden")
+        XCTAssertTrue(ssh.scripts[0].contains("actions-runner-linux-arm64-"), "Linux agents baked directly")
+    }
+
+    func testAMacOSGuestKeepsTheClassicBake() async throws {
+        let ssh = FakeSSH()
+        ssh.setStdout("Darwin", forCall: 0)
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false))
+
+        XCTAssertEqual(ssh.scripts[0], "uname -s")
+        XCTAssertTrue(ssh.scripts[1].contains("actions-runner-osx-arm64-"), "macOS guest → macOS binaries")
+        XCTAssertTrue(ssh.scripts[1].contains("pmset"), "and the classic base tweaks")
+    }
+
     func testImagePrepareProvisioningFailureLeavesTargetUntouched() async throws {
         let tart = FakeTart()
         let ssh = FakeSSH()

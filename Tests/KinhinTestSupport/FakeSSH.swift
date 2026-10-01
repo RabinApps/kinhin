@@ -14,6 +14,10 @@ final class FakeSSH: SSHExecuting, Sendable {
         /// call index fails — lets tests fail a later step (e.g. the user
         /// provision script) while earlier steps succeed.
         var failOnCall: Int?
+        /// stdout returned per exec, by zero-based call index; other calls
+        /// answer the default ("runner started"). The image bake's first
+        /// exec is the `uname -s` guest probe ("Linux"/"Darwin").
+        var stdoutByCall: [Int: String] = [:]
     }
 
     private let state = Mutex(State())
@@ -35,19 +39,38 @@ final class FakeSSH: SSHExecuting, Sendable {
         set { state.withLock { $0.failOnCall = newValue } }
     }
 
+    /// Sets the stdout the exec at `call` (zero-based) returns. The image
+    /// bake's first exec is the `uname -s` guest-OS probe.
+    func setStdout(_ text: String, forCall call: Int) {
+        state.withLock { $0.stdoutByCall[call] = text }
+    }
+
     func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
-        let failing = state.withLock { state -> String? in
-            let callIndex = state.scripts.count
+        let callIndex = state.withLock { state -> Int in
+            let index = state.scripts.count
             state.scripts.append(script)
             state.timeouts.append(timeout)
+            return index
+        }
+        let failing = state.withLock { state -> String? in
             if let idx = state.failOnCall, idx == callIndex {
                 return state.failWith ?? "injected failure"
             }
             return state.failWith
         }
+        let stdout = state.withLock { state in
+            // The image bake's first exec is the `uname -s` guest probe
+            // (GuestOS.probeScript); answer "Darwin" so VM tests keep their
+            // macOS-bake shape. (Linux-guest tests override it via
+            // setStdout(_:forCall:).)
+            if script.trimmingCharacters(in: .whitespacesAndNewlines) == "uname -s" {
+                return state.stdoutByCall[callIndex] ?? "Darwin"
+            }
+            return state.stdoutByCall[callIndex] ?? "runner started"
+        }
         if let failing {
             return ShellResult(exitCode: 1, stdout: "", stderr: failing)
         }
-        return ShellResult(exitCode: 0, stdout: "runner started", stderr: "")
+        return ShellResult(exitCode: 0, stdout: stdout, stderr: "")
     }
 }

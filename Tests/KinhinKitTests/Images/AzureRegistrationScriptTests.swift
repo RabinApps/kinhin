@@ -34,6 +34,19 @@ final class AzureRegistrationScriptTests: XCTestCase {
         XCTAssertEqual(script.components(separatedBy: "pat-secret").count, 3)
     }
 
+    /// Tart VMs can be macOS or Linux guests: the copy tries the APFS clone
+    /// and falls back to a plain copy (wiping the partial target first).
+    func testTheVMCopyFallsBackFromAPFSToAPlainCopy() {
+        let script = RunnerBootstrap.azureRegistrationScript(
+            organization: "https://dev.azure.com/acme", token: "pat-secret", pool: "Mac Fleet",
+            runnerNames: ["kinhin-1"], capabilities: ["kinhin=true"],
+            template: "\"$HOME/azure-agent\"", baseDir: "\"$HOME/azure-agents\"", copy: .vmGuest)
+        XCTAssertTrue(script.contains(#"if ! cp -cR "$HOME/azure-agent" "$HOME/azure-agents"/'kinhin-1'"#), script)
+        XCTAssertTrue(
+            script.contains("rm -rf \"$HOME/azure-agents\"/'kinhin-1'"), "a partial clone is wiped before the fallback")
+        XCTAssertTrue(script.contains(#"cp -a "$HOME/azure-agent" "$HOME/azure-agents"/'kinhin-1'"#), script)
+    }
+
     /// The digest comes from the release notes' download table; this runs
     /// the extraction against a sample of it (no network).
     func testDigestIsReadFromTheReleaseNotesTable() throws {
@@ -60,6 +73,7 @@ final class AzureRegistrationScriptTests: XCTestCase {
             forge: forge(), token: "pat-secret", runnerTokens: [:], name: "kinhin-1", runnerCount: 1, route: route,
             labels: nil)
         XCTAssertTrue(tart.contains("cp -cR \"$HOME/azure-agent\""), tart)
+        XCTAssertTrue(tart.contains("cp -a"), "a Linux guest gets the fallback copy", )
 
         let docker = try await DockerRuntime(shell: FakeShell(), image: "img", cpus: 2, memoryGB: 4)
             .registrationScript(

@@ -304,9 +304,12 @@ extension RunnerBootstrap {
     /// Writes the `kinhin-toolchain` helper into an image. Gzipped, then
     /// base64-embedded: the script lands verbatim with no shell-escaping, and
     /// stays far below Linux's 128 KB single-argument limit (the container
-    /// bake passes the whole script to `bash -lc`). macOS guests need sudo
-    /// for /usr/local/bin; Linux runner containers run as root.
-    static func toolchainHelperInstallScript(platform: ToolchainPlatform, mountPath: String) throws -> String {
+    /// bake passes the whole script to `bash -lc`). /usr/local/bin needs
+    /// root: macOS guests and tart Linux VMs (admin user) go through sudo;
+    /// Linux runner containers run as root and skip it.
+    static func toolchainHelperInstallScript(
+        platform: ToolchainPlatform, mountPath: String, sudo: Bool? = nil
+    ) throws -> String {
         let helper = toolchainHelperScript(platform: platform, mountPath: mountPath)
         let encoded: String
         do {
@@ -314,12 +317,13 @@ extension RunnerBootstrap {
         } catch {
             throw ImageError.provisioningFailed("could not compress the kinhin-toolchain helper: \(error)")
         }
-        let sudo = platform == .macOS ? "sudo " : ""
+        let needsSudo = sudo ?? (platform == .macOS)
+        let sudoPrefix = needsSudo ? "sudo " : ""
         return """
             # kinhin-toolchain: per-job installs (`kinhin-toolchain install node@22 pnpm`)
-            \(sudo)mkdir -p \(dirnameOfHelper)
-            echo \(encoded) | base64 --decode | gzip -dc | \(sudo)tee \(toolchainHelperPath) >/dev/null
-            \(sudo)chmod 755 \(toolchainHelperPath)
+            \(sudoPrefix)mkdir -p \(dirnameOfHelper)
+            echo \(encoded) | base64 --decode | gzip -dc | \(sudoPrefix)tee \(toolchainHelperPath) >/dev/null
+            \(sudoPrefix)chmod 755 \(toolchainHelperPath)
             """
     }
 

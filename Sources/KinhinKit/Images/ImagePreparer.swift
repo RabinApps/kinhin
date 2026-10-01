@@ -49,6 +49,10 @@ public struct ImagePreparer {
         public var toolchains: KinhinConfig.ToolchainsConfig?
         /// Timeout for the managed toolchain install's SSH exec (seconds).
         var toolchainTimeout: TimeInterval
+        /// Guest OS override for the bake (nil = detect via `uname -s` in the
+        /// scratch VM). A Linux guest gets the Linux agent binaries and the
+        /// Linux toolchain path; macOS keeps the classic bake.
+        public var guestOS: GuestOS?
 
         public init(
             source: String = ImagePreparer.defaultSource, target: String = ImagePreparer.defaultTarget,
@@ -58,7 +62,7 @@ public struct ImagePreparer {
             hasBuildkiteToken: Bool? = nil, hasAzureDevOpsToken: Bool? = nil, hasBitbucketToken: Bool? = nil,
             provisionScriptPath: String? = nil,
             provisionTimeout: TimeInterval = 1800, toolchains: KinhinConfig.ToolchainsConfig? = nil,
-            toolchainTimeout: TimeInterval = 1800
+            toolchainTimeout: TimeInterval = 1800, guestOS: GuestOS? = nil
         ) {
             self.source = source
             self.target = target
@@ -75,6 +79,7 @@ public struct ImagePreparer {
             self.provisionTimeout = provisionTimeout
             self.toolchains = toolchains
             self.toolchainTimeout = toolchainTimeout
+            self.guestOS = guestOS
         }
 
         /// The options a config asks for: its `base_image:` (else the
@@ -134,50 +139,6 @@ public struct ImagePreparer {
             Log.info("image", "user provision script will be baked: \(provisionScript.path)")
         }
 
-        var scripts: [String] = [RunnerBootstrap.prepareScript()]
-        if hasGitHubToken {
-            Log.info("image", "GitHub PAT found — baking actions-runner \(versions.github)")
-            scripts.append(RunnerBootstrap.installScript(runnerVersion: versions.github))
-        } else {
-            Log.info("image", "no GitHub PAT stored — skipping actions-runner install")
-        }
-        if hasGiteaToken {
-            Log.info("image", "Gitea token found — baking gitea-runner \(versions.gitea)")
-            scripts.append(RunnerBootstrap.giteaRunnerInstallScript(version: versions.gitea))
-        } else {
-            Log.info("image", "no Gitea token stored — skipping gitea-runner install")
-        }
-        if hasGitLabToken {
-            Log.info("image", "GitLab token found — baking gitlab-runner \(versions.gitlab)")
-            scripts.append(RunnerBootstrap.gitlabRunnerInstallScript(version: versions.gitlab))
-        } else {
-            Log.info("image", "no GitLab token stored — skipping gitlab-runner install")
-        }
-        if hasBuildkiteToken {
-            Log.info("image", "Buildkite token found — baking buildkite-agent \(versions.buildkite)")
-            scripts.append(RunnerBootstrap.buildkiteAgentInstallScript(version: versions.buildkite))
-        } else {
-            Log.info("image", "no Buildkite token stored — skipping buildkite-agent install")
-        }
-        if hasAzureDevOpsToken {
-            Log.info("image", "Azure DevOps token found — baking the Azure Pipelines agent \(versions.azure)")
-            scripts.append(RunnerBootstrap.azureAgentInstallScript(version: versions.azure))
-        } else {
-            Log.info("image", "no Azure DevOps token stored — skipping the Azure Pipelines agent install")
-        }
-        if hasBitbucketToken {
-            Log.info("image", "Bitbucket token found — baking the Bitbucket runner \(versions.bitbucket)")
-            scripts.append(
-                RunnerBootstrap.bitbucketRunnerInstallScript(
-                    version: versions.bitbucket, jdkVersion: versions.bitbucketJDK, jdkPlatform: "aarch64_mac"))
-        } else {
-            Log.info("image", "no Bitbucket token stored — skipping the Bitbucket runner install")
-        }
-        scripts.append(
-            try RunnerBootstrap.toolchainHelperInstallScript(platform: .macOS, mountPath: ToolchainCacheMount.guestPath)
-        )
-        let script = scripts.joined(separator: "\n\n")
-
         Log.info("image", "ensuring base image \(options.source) is present (this can download gigabytes once)")
         // A locally-created VM (tart create --linux, then OS-installed by
         // hand) is already on disk — `tart pull` would fail on a non-registry
@@ -211,6 +172,93 @@ public struct ImagePreparer {
         Log.info("image", "booting scratch VM (host toolchain cache shared via virtiofs)")
         try await tart.run(name: tmp, mounts: cacheMounts)
         let ip = try await tart.ip(of: tmp, timeout: 300)
+
+        // Detect the guest OS (unless overridden) so a tart Linux base VM
+        // gets the Linux agent binaries and the Linux toolchain path. The
+        // probe is the first SSH exec: it needs the booted scratch VM.
+        let guestOS: GuestOS
+        if let override = options.guestOS {
+            guestOS = override
+        } else {
+            guestOS = try await Self.detectGuestOS(vm: tmp, user: options.user, ip: ip, ssh: ssh)
+        }
+        switch guestOS {
+        case .macOS:
+            Log.info("image", "macOS guest detected — baking the macOS agents")
+        case .linux:
+            Log.info("image", "Linux guest detected — baking the Linux agent binaries")
+        }
+
+        var scripts: [String] = [guestOS.prepareScript()]
+        if hasGitHubToken {
+            Log.info("image", "GitHub PAT found — baking actions-runner \(versions.github)")
+            switch guestOS {
+            case .macOS: scripts.append(RunnerBootstrap.installScript(runnerVersion: versions.github))
+            case .linux:
+                scripts.append(RunnerBootstrap.tartLinuxGitHubAgentInstallScript(runnerVersion: versions.github))
+            }
+        } else {
+            Log.info("image", "no GitHub PAT stored — skipping actions-runner install")
+        }
+        if hasGiteaToken {
+            Log.info("image", "Gitea token found — baking gitea-runner \(versions.gitea)")
+            switch guestOS {
+            case .macOS: scripts.append(RunnerBootstrap.giteaRunnerInstallScript(version: versions.gitea))
+            case .linux: scripts.append(RunnerBootstrap.tartLinuxGiteaRunnerInstallScript(version: versions.gitea))
+            }
+        } else {
+            Log.info("image", "no Gitea token stored — skipping gitea-runner install")
+        }
+        if hasGitLabToken {
+            Log.info("image", "GitLab token found — baking gitlab-runner \(versions.gitlab)")
+            switch guestOS {
+            case .macOS: scripts.append(RunnerBootstrap.gitlabRunnerInstallScript(version: versions.gitlab))
+            case .linux: scripts.append(RunnerBootstrap.tartLinuxGitLabRunnerInstallScript(version: versions.gitlab))
+            }
+        } else {
+            Log.info("image", "no GitLab token stored — skipping gitlab-runner install")
+        }
+        if hasBuildkiteToken {
+            Log.info("image", "Buildkite token found — baking buildkite-agent \(versions.buildkite)")
+            switch guestOS {
+            case .macOS: scripts.append(RunnerBootstrap.buildkiteAgentInstallScript(version: versions.buildkite))
+            case .linux: scripts.append(RunnerBootstrap.tartLinuxBuildkiteAgentInstallScript(version: versions.buildkite))
+            }
+        } else {
+            Log.info("image", "no Buildkite token stored — skipping buildkite-agent install")
+        }
+        if hasAzureDevOpsToken {
+            Log.info("image", "Azure DevOps token found — baking the Azure Pipelines agent \(versions.azure)")
+            switch guestOS {
+            case .macOS: scripts.append(RunnerBootstrap.azureAgentInstallScript(version: versions.azure))
+            case .linux: scripts.append(RunnerBootstrap.tartLinuxAzureAgentInstallScript(version: versions.azure))
+            }
+        } else {
+            Log.info("image", "no Azure DevOps token stored — skipping the Azure Pipelines agent install")
+        }
+        if hasBitbucketToken {
+            Log.info("image", "Bitbucket token found — baking the Bitbucket runner \(versions.bitbucket)")
+            switch guestOS {
+            case .macOS:
+                scripts.append(
+                    RunnerBootstrap.bitbucketRunnerInstallScript(
+                        version: versions.bitbucket, jdkVersion: versions.bitbucketJDK, jdkPlatform: "aarch64_mac"))
+            case .linux:
+                scripts.append(
+                    RunnerBootstrap.tartLinuxBitbucketRunnerInstallScript(
+                        version: versions.bitbucket, jdkVersion: versions.bitbucketJDK))
+            }
+        } else {
+            Log.info("image", "no Bitbucket token stored — skipping the Bitbucket runner install")
+        }
+        scripts.append(
+            try RunnerBootstrap.toolchainHelperInstallScript(
+                platform: guestOS.toolchainPlatform, mountPath: guestOS.toolchainMountPath,
+                // Containers bake as root; both VM guests run as an admin user.
+                sudo: guestOS == .linux ? true : nil)
+        )
+        let script = scripts.joined(separator: "\n\n")
+
         Log.info("image", "scratch VM at \(ip); injecting runner agent + tweaks")
 
         let result = try await ssh.exec(vm: tmp, user: options.user, ip: ip, script: script, timeout: 900)
@@ -224,13 +272,21 @@ public struct ImagePreparer {
         // so the previous target image stays intact. The user provision
         // script still runs afterwards and can layer/override on top.
         if let toolchains = options.toolchains {
-            let selection = ToolchainCatalog.selection(from: toolchains, mountPath: ToolchainCacheMount.guestPath)
-            let managed = RunnerBootstrap.managedToolchainsInstallScript(
-                selection: selection, mountPath: ToolchainCacheMount.guestPath)
-            Log.info(
-                "image",
-                "installing managed toolchains (\(selection.miseSpecs.count) mise spec(s), \(selection.brewFormulas.count) brew formula(s), \(selection.npmPackages.count) npm global(s))"
-            )
+            let selection = ToolchainCatalog.selection(
+                from: toolchains, platform: guestOS.toolchainPlatform, mountPath: guestOS.toolchainMountPath)
+            let managed = guestOS.managedToolchainsScript(selection: selection, mountPath: guestOS.toolchainMountPath)
+            switch guestOS {
+            case .macOS:
+                Log.info(
+                    "image",
+                    "installing managed toolchains (\(selection.miseSpecs.count) mise spec(s), \(selection.brewFormulas.count) brew formula(s), \(selection.npmPackages.count) npm global(s))"
+                )
+            case .linux:
+                Log.info(
+                    "image",
+                    "installing managed toolchains (\(selection.miseSpecs.count) mise spec(s), \(selection.aptPackages.count) apt package(s), \(selection.npmPackages.count) npm global(s); \(selection.skippedEntries.count) macOS-only entr(y/ies) skipped)"
+                )
+            }
             let provisioned = try await ssh.exec(
                 vm: tmp, user: options.user, ip: ip, script: managed, timeout: options.toolchainTimeout)
             guard provisioned.succeeded else {
@@ -277,6 +333,26 @@ public struct ImagePreparer {
         }
         try await tart.clone(source: tmp, to: options.target)
         Log.info("image", "prepared image '\(options.target)' is ready")
+    }
+
+    // MARK: - Guest OS detection
+
+    /// Runs `uname -s` in the booted scratch VM. Darwin → macOS, anything
+    /// else → Linux. An unrecognized answer is an error: guessing here would
+    /// bake the wrong agent binaries into the image.
+    static func detectGuestOS(vm: String, user: String, ip: String, ssh: SSHExecuting) async throws -> GuestOS {
+        let result = try await ssh.exec(
+            vm: vm, user: user, ip: ip, script: GuestOS.probeScript, timeout: 60)
+        guard result.succeeded else {
+            throw ImageError.provisioningFailed(
+                "could not detect the guest OS (`uname -s` failed): \(result.failureExcerpt)")
+        }
+        guard let os = GuestOS.parse(unameOutput: result.stdout) else {
+            throw ImageError.provisioningFailed(
+                "unrecognized `uname -s` output: \"\(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))\" "
+                    + "— cannot decide between macOS and Linux agents")
+        }
+        return os
     }
 
     // MARK: - User provision script

@@ -259,13 +259,15 @@ struct TartRuntime: Runtime {
                     organization: forge.registrationURL(), token: token, pool: forge.scope,
                     runnerNames: FleetEngine.runnerNames(for: name, count: runnerCount),
                     capabilities: AzureDevOpsForge.capabilityEnvironment(forge.labels),
-                    template: "\"$HOME/azure-agent\"", baseDir: "\"$HOME/azure-agents\"", copy: .apfsClone)
+                    template: "\"$HOME/azure-agent\"", baseDir: "\"$HOME/azure-agents\"", copy: .vmGuest)
         case .bitbucket:
+            // A tart base VM may be a macOS or a Linux guest; `auto` lets the
+            // guest resolve its own --runtime (Darwin → macos, else linux-shell).
             return cachePrefix
                 + RunnerBootstrap.bitbucketRegistrationScript(
                     runners: try RunnerBootstrap.bitbucketRunners(
                         name: name, runnerCount: runnerCount, tokens: runnerTokens),
-                    runtime: "macos",
+                    runtime: "auto",
                     runnerCommand: "\"$HOME/bitbucket-runner/runner.sh\"",
                     baseDir: "\"$HOME/bitbucket-runners\"")
         }

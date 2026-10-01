@@ -110,10 +110,17 @@ extension RunnerBootstrap {
     /// work directory, credentials, log and pid. `runnerCommand` is the
     /// shell word of the installed `runner.sh` wrapper; `runtime` is the
     /// `--runtime` value Bitbucket's dialog prints (`macos` or
-    /// `linux-shell`).
+    /// `linux-shell`) — or `auto`, resolved by the guest itself
+    /// (Darwin → `macos`, anything else → `linux-shell`), so a tart base
+    /// VM works whichever OS its guest runs.
     static func bitbucketRegistrationScript(
         runners: [(name: String, bundle: String)], runtime: String, runnerCommand: String, baseDir: String
     ) -> String {
+        // `auto` defers to the guest: a tart base VM may be macOS or Linux.
+        let runtimeLine =
+            runtime == "auto"
+            ? "case \"$(uname -s)\" in Darwin) KINHIN_RUNTIME=macos ;; *) KINHIN_RUNTIME=linux-shell ;; esac"
+            : "KINHIN_RUNTIME=\(shellQuote(runtime))"
         var blocks = ""
         for (index, runner) in runners.enumerated() {
             let dir = "\(baseDir)/\(shellQuote(runner.name))"
@@ -124,13 +131,13 @@ extension RunnerBootstrap {
                 (umask 077 && printf '%s' \(shellQuote(runner.bundle)) > credentials)
                 nohup /bin/bash -c '
                   IFS="|" read -r WORKSPACE_UUID REPOSITORY_UUID RUNNER_UUID OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET < "$1"
+                  \(runtimeLine)
                   exec "$2" \\
                     --accountUuid "$WORKSPACE_UUID" --runnerUuid "$RUNNER_UUID" \\
                     --OAuthClientId "$OAUTH_CLIENT_ID" \\
                     --OAuthClientSecret "$OAUTH_CLIENT_SECRET" \\
-                    --workingDirectory "$PWD/work" --runtime "$3" $REPOSITORY_UUID_FLAG
+                    --workingDirectory "$PWD/work" --runtime "$KINHIN_RUNTIME" $REPOSITORY_UUID_FLAG
                 ' bash \(dir)/credentials \(shellQuote(runnerCommand)) \
-                  \(shellQuote(runtime)) \
                   > runner.log 2>&1 < /dev/null &
                 echo $! > runner.pid
 
