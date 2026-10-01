@@ -129,7 +129,7 @@ public struct ToolchainCachePruner {
             let freed = leaf.size
             if !dryRun {
                 do {
-                    try fileManager.removeItem(at: leaf.url)
+                    try removeWithoutFollowingLinks(leaf.url, isDirectory: false)
                 } catch {
                     Log.warn("cache", "could not prune \(leaf.url.path): \(error.localizedDescription)")
                     continue
@@ -221,8 +221,49 @@ public struct ToolchainCachePruner {
             // An unlistable directory reads as non-empty, so it is kept.
             let contents = (try? fileManager.contentsOfDirectory(atPath: dir.path)) ?? ["keep"]
             if contents.isEmpty {
-                bestEffort("cache", "removing empty directory \(dir.path)") { try fileManager.removeItem(at: dir) }
+                bestEffort("cache", "removing empty directory \(dir.path)") {
+                    try removeWithoutFollowingLinks(dir, isDirectory: true)
+                }
             }
+        }
+    }
+
+    // MARK: - Symlink-safe removal
+
+    /// The cache is writable from guest VMs when `share_cache` is on, so a job can
+    /// swap a directory in the tree for a symlink after the walk and before the
+    /// delete. `removeItem` would then follow it and delete a host file. This walks
+    /// from the cache root one component at a time with `O_NOFOLLOW` and unlinks
+    /// the final entry relative to its parent descriptor, so a link anywhere on the
+    /// path makes the removal fail instead of escaping the cache.
+    func removeWithoutFollowingLinks(_ url: URL, isDirectory: Bool) throws {
+        // The enumerator may report either the root as given or its resolved form
+        // (/var vs /private/var); both name the same trusted root.
+        // (`resolvingSymlinksInPath` strips /private, so ask realpath for the real form.)
+        let resolvedRoot = realpath(cacheRoot.path, nil).map { pointer -> String in
+            defer { free(pointer) }
+            return String(cString: pointer)
+        }
+        let prefixes = ([cacheRoot.path] + [resolvedRoot].compactMap { $0 }).map { $0 + "/" }
+        guard let prefix = prefixes.first(where: { url.path.hasPrefix($0) }) else {
+            throw CocoaError(.fileWriteInvalidFileName)
+        }
+        let components = url.path.dropFirst(prefix.count).split(separator: "/").map(String.init)
+        guard let last = components.last, !components.contains(".."), !components.contains(".") else {
+            throw CocoaError(.fileWriteInvalidFileName)
+        }
+        // The root is the user's own directory (it may itself be a link); everything below it is not trusted.
+        var directory = open(cacheRoot.path, O_RDONLY | O_DIRECTORY)
+        guard directory >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        defer { close(directory) }
+        for component in components.dropLast() {
+            let next = openat(directory, component, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard next >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            close(directory)
+            directory = next
+        }
+        guard unlinkat(directory, last, isDirectory ? AT_REMOVEDIR : 0) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
     }
 }

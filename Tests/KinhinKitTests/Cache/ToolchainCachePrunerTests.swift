@@ -111,4 +111,42 @@ final class ToolchainCachePrunerTests: XCTestCase {
         let policy = ToolchainCachePolicy(from: partial)
         XCTAssertEqual(policy, ToolchainCachePolicy(autoPrune: false, maxAgeDays: 7, maxGB: 0))
     }
+
+    // MARK: - Symlink safety
+
+    func testRemovalNeverFollowsADirectorySwappedForASymlink() throws {
+        let fm = FileManager.default
+        let base = fm.temporaryDirectory.appendingPathComponent("kn-prune-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: base) }
+        let cache = base.appendingPathComponent("cache")
+        let outside = base.appendingPathComponent("outside")
+        try fm.createDirectory(at: cache.appendingPathComponent("npm"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: outside, withIntermediateDirectories: true)
+        let victim = outside.appendingPathComponent("precious.txt")
+        try Data("keep".utf8).write(to: victim)
+        // What a guest does between the walk and the delete: npm/ becomes a link out of the cache.
+        try fm.removeItem(at: cache.appendingPathComponent("npm"))
+        try fm.createSymbolicLink(at: cache.appendingPathComponent("npm"), withDestinationURL: outside)
+
+        let pruner = ToolchainCachePruner(cacheRoot: cache)
+        XCTAssertThrowsError(
+            try pruner.removeWithoutFollowingLinks(
+                cache.appendingPathComponent("npm/precious.txt"), isDirectory: false))
+        XCTAssertTrue(fm.fileExists(atPath: victim.path), "a file outside the cache must survive")
+    }
+
+    func testRemovalDeletesARegularFileInsideTheCache() throws {
+        let fm = FileManager.default
+        let cache = fm.temporaryDirectory.appendingPathComponent("kn-prune-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: cache) }
+        let dir = cache.appendingPathComponent("go/mod")
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("x.zip")
+        try Data("x".utf8).write(to: file)
+        let pruner = ToolchainCachePruner(cacheRoot: cache)
+        try pruner.removeWithoutFollowingLinks(file, isDirectory: false)
+        XCTAssertFalse(fm.fileExists(atPath: file.path))
+        try pruner.removeWithoutFollowingLinks(dir, isDirectory: true)
+        XCTAssertFalse(fm.fileExists(atPath: dir.path))
+    }
 }
