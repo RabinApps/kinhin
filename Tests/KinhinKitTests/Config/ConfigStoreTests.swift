@@ -49,8 +49,7 @@ final class ConfigStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.maxRunners, 3)
     }
 
-    func testLoggingVariantsNeverThrowAndReadBrokenConfigAsEmpty() throws {
-        XCTAssertNil(ConfigStore.snapshotOrLog(at: try write("- list\n")))
+    func testTextOrLogNeverThrows() throws {
         XCTAssertEqual(ConfigStore.textOrLog(at: dir), "")
     }
 }

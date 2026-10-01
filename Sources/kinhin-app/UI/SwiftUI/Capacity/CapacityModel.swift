@@ -153,7 +153,11 @@ final class CapacityModel: ConfigFormModel {
             clearPending()
             result = StatusLine(text: "Applied ✓", style: .ok)
         }
-        if let snap = ConfigStore.snapshotOrLog(at: configURL) { baseline = snap }
+        do {
+            if let snap = try ConfigStore.snapshot(at: configURL) { baseline = snap }
+        } catch {
+            result = .unreadableConfig(error)
+        }
         if wroteAny { onChanged?() }
     }
 }

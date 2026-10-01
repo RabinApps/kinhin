@@ -108,7 +108,7 @@ final class MacToolsModel: ConfigFormModel {
         }
         containerOn = snapshot?.container != nil
         dockerOn = snapshot?.docker != nil
-        refreshBaseImages()
+        refreshBaseImages(from: snapshot)
         let containerInstalled = Paths.findExecutable(named: "container") != nil
         let dockerInstalled = Paths.findExecutable(named: "docker") != nil
         recomputeReadiness()
@@ -190,9 +190,23 @@ final class MacToolsModel: ConfigFormModel {
         if changed { onReadinessChanged?() }
     }
 
+    /// Reads the config for a passive refresh; a broken file is said on the
+    /// status line and reads as nothing saved, never as silent defaults.
+    private func currentSnapshot() -> GeneralConfigEditor.Snapshot? {
+        do {
+            return try ConfigStore.snapshot(at: configURL)
+        } catch {
+            busyLine = .unreadableConfig(error)
+            return nil
+        }
+    }
+
     /// Re-reads the saved base image for each runtime.
     private func refreshBaseImages() {
-        let snapshot = ConfigStore.snapshotOrLog(at: configURL)
+        refreshBaseImages(from: currentSnapshot())
+    }
+
+    private func refreshBaseImages(from snapshot: GeneralConfigEditor.Snapshot?) {
         tartBaseImage = snapshot?.baseImage(for: .tart)
         containerBaseImage = snapshot?.baseImage(for: .appleContainer)
         dockerBaseImage = snapshot?.baseImage(for: .docker)
@@ -301,7 +315,7 @@ final class MacToolsModel: ConfigFormModel {
     }
 
     func setContainer(_ on: Bool) {
-        let snap = ConfigStore.snapshotOrLog(at: configURL)
+        let snap = currentSnapshot()
         containerOn = on
         write(
             .container(on ? (snap?.container ?? .init(image: "kinhin-ci-linux", cpus: 4, memoryGB: 8)) : nil),
@@ -309,7 +323,7 @@ final class MacToolsModel: ConfigFormModel {
     }
 
     func setDocker(_ on: Bool) {
-        let snap = ConfigStore.snapshotOrLog(at: configURL)
+        let snap = currentSnapshot()
         dockerOn = on
         write(
             .docker(on ? (snap?.docker ?? .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4, maxSlots: 8)) : nil),

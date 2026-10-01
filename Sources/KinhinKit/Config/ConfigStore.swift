@@ -34,16 +34,4 @@ public enum ConfigStore {
         guard !yaml.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         return try GeneralConfigEditor.snapshot(from: yaml)
     }
-
-    /// `snapshot(at:)` for passive renders (forms, summaries) that have no
-    /// place to show an error: a broken config is logged and reads as
-    /// "nothing configured", never silently.
-    public static func snapshotOrLog(at url: URL = Paths.config) -> GeneralConfigEditor.Snapshot? {
-        do {
-            return try snapshot(at: url)
-        } catch {
-            Log.warn("config", "could not read \(url.lastPathComponent): \(error.localizedDescription)")
-            return nil
-        }
-    }
 }

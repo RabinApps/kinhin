@@ -301,7 +301,12 @@ final class ToolchainsModel: ConfigFormModel {
             onChanged?()
         } catch {
             AlertKit.present(error: error, title: "Couldn't save the base image")
-            baseImageValues[runtime] = ConfigStore.snapshotOrLog(at: configURL)?.baseImage(for: runtime)
+            do {
+                baseImageValues[runtime] = try ConfigStore.snapshot(at: configURL)?.baseImage(for: runtime)
+            } catch {
+                baseImageValues[runtime] = nil
+                status = .unreadableConfig(error)
+            }
         }
     }
 
