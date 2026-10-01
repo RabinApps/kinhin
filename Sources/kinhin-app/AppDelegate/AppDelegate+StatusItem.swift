@@ -149,8 +149,28 @@ extension AppDelegate {
         let pending = fleet.pendingFleetAction
         applyFleetControlVisibility(to: menu, status: status)
         statusItem?.button?.title = statusItemTitle(pending: pending, status: status)
-        statusLineItem?.title = statusLineText(pending: pending, status: status)
+        renderStatusLines(statusLineText(pending: pending, status: status))
         rebuildVMSection(status: status)
+    }
+
+    /// An NSMenuItem title is a single line (newlines collapse to spaces), so the
+    /// status text goes in as one disabled row per line: the first in the status
+    /// item itself, the rest as rows right below it. Idempotent: earlier rows are
+    /// removed first.
+    func renderStatusLines(_ text: String) {
+        guard let menu, let first = statusLineItem, let index = menu.items.firstIndex(of: first) else { return }
+        while index + 1 < menu.items.count, menu.items[index + 1].identifier?.rawValue == "statusLineExtra" {
+            menu.removeItem(at: index + 1)
+        }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: true)
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+        first.title = lines.first ?? text
+        for (offset, line) in lines.dropFirst().enumerated() {
+            let item = NSMenuItem(title: line, action: nil, keyEquivalent: "")
+            item.identifier = NSUserInterfaceItemIdentifier("statusLineExtra")
+            item.isEnabled = false
+            menu.insertItem(item, at: index + 1 + offset)
+        }
     }
 
     /// Rebuilds the dynamic VM rows between the "VMs" header and the trailing

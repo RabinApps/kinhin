@@ -285,7 +285,7 @@ extension KinhinConfig {
             // requested, booting without softnet would silently run VMs on the
             // shared network.
             if softnet, Paths.findExecutable(named: "softnet", override: nil) == nil {
-                throw TartError.missingBinary(path: "softnet (tart_softnet: true; brew install cirruslabs/cli/softnet)")
+                throw TartError.missingBinary(path: "softnet (tart_softnet: true; brew install openai/tools/softnet)")
             }
             return try TartController(configuredPath: tartPath, softnet: softnet)
         }

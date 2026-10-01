@@ -38,7 +38,15 @@ extension RunnerBootstrap {
     static func managedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?)
         -> String
     {
-        var lines: [String] = ["set -euo pipefail"]
+        var lines: [String] = [
+            "set -euo pipefail",
+            // ssh starts a bare shell that skips the guest's login profile, so brew and
+            // mise are not on PATH: put them there, shims first, like ~/.zprofile does.
+            """
+            export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/share/mise/shims:$PATH"
+            export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
+            """,
+        ]
 
         if let mountPath {
             lines.append(Self.cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: mountPath))

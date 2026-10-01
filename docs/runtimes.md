@@ -11,12 +11,12 @@ Mac — and how one fleet routes each job between them.
 Every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the
 agent, and tears down. Four backends ship:
 
-| Runtime             | Runs            | Isolation                                    |
-| ------------------- | --------------- | -------------------------------------------- |
-| **Tart**            | macOS jobs (Linux jobs on a Linux base — see [below](#tart-linux-vms)) | One VM per runner (linked clone) |
-| **apple/container** | Linux jobs      | One lightweight microVM per runner container |
-| **Docker**          | Linux jobs      | Containers in your provider's shared VM      |
-| **Host**            | Jobs on the Mac | None — opt-in, trusted repos only            |
+| Runtime             | Runs                                                                   | Isolation                                    |
+| ------------------- | ---------------------------------------------------------------------- | -------------------------------------------- |
+| **Tart**            | macOS jobs (Linux jobs on a Linux base — see [below](#tart-linux-vms)) | One VM per runner (linked clone)             |
+| **apple/container** | Linux jobs                                                             | One lightweight microVM per runner container |
+| **Docker**          | Linux jobs                                                             | Containers in your provider's shared VM      |
+| **Host**            | Jobs on the Mac                                                        | None — opt-in, trusted repos only            |
 
 The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the
 protocol, so new backends slot in without touching lifecycle code.
@@ -60,7 +60,7 @@ tart_softnet: true # boots runner VMs with `tart run --net-softnet`
 
 Each VM can then reach the internet but not its neighbours or the local network. It needs the
 `softnet` binary and its one-time privilege setup — install it with
-`brew install cirruslabs/cli/softnet` and follow Tart's Softnet instructions. kinhin refuses to
+`brew install openai/tools/softnet` and follow Tart's Softnet instructions. kinhin refuses to
 start with `tart_softnet: true` when `softnet` isn't installed, rather than silently booting VMs
 on the shared network. Baked images also disable SSH password login (`image prepare` writes
 `/etc/ssh/sshd_config.d/000-kinhin-hardening.conf`), so a VM that can reach another still can't
@@ -85,7 +85,7 @@ from `labels:` when you turn it on. Two ways to get a Linux base VM:
   disk; you install the OS by hand in the VM window (create an `admin` user and let Tart's SSH
   key in). A failed boot rolls the half-created VM back.
 
-Either way, the VM ends up on disk under its `<name>` — then 
+Either way, the VM ends up on disk under its `<name>` — then
 `kinhin image prepare --source <name>` runs the usual agent bake against it (the registry pull is skipped for local names), and
 pointing `base_image: <name>` at it makes every runner VM a clone of it. The bake injects the
 same token-gated agents and managed toolchains as on macOS, picking the right ones for the guest.

@@ -28,6 +28,23 @@ final class AppDelegateRenderingTests: XCTestCase {
         }
     }
 
+    /// A menu item title is one line, so a multi-line status becomes one disabled row per line.
+    func testMultiLineStatusRendersOneRowPerLine() {
+        delegate.renderStatusLines("Running — queue 0\n  ⏱ queue age: 6s old\n  ⚠ forge API budget is low")
+        let first = try? XCTUnwrap(item("statusLine"))
+        XCTAssertEqual(first?.title, "Running — queue 0")
+        let extras = menu.items.filter { $0.identifier?.rawValue == "statusLineExtra" }
+        XCTAssertEqual(extras.map(\.title), ["⏱ queue age: 6s old", "⚠ forge API budget is low"])
+        XCTAssertTrue(extras.allSatisfy { !$0.isEnabled })
+        let index = menu.items.firstIndex { $0.identifier?.rawValue == "statusLine" } ?? -1
+        XCTAssertEqual(menu.items[index + 1].identifier?.rawValue, "statusLineExtra", "rows sit right below the status")
+
+        // Rendering again replaces the rows instead of piling up.
+        delegate.renderStatusLines("Stopped — queue 0")
+        XCTAssertTrue(menu.items.filter { $0.identifier?.rawValue == "statusLineExtra" }.isEmpty)
+        XCTAssertEqual(item("statusLine")?.title, "Stopped — queue 0")
+    }
+
     func testStatusChangesReRenderTheMenuAndKeepObserving() async {
         var status = FleetStatus()
         status.running = true

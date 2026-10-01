@@ -94,7 +94,7 @@ extension DoctorReportBuilder {
         var warnings: [String] = []
         var fix: String?
         if enabled, !installed {
-            fix = "brew install cirruslabs/cli/softnet (then follow Tart's Softnet setup)"
+            fix = "brew install openai/tools/softnet (then follow Tart's Softnet setup)"
         } else if !enabled, tartHealthy {
             warnings.append(
                 "runner VMs share one virtual network (tart_softnet is off): a job can reach other runner VMs and your LAN. Fine for trusted code; for outside PRs set tart_softnet: true (docs/security.md)"

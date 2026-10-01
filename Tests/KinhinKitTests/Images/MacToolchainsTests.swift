@@ -50,8 +50,26 @@ final class MacToolchainsTests: XCTestCase {
             """)
         let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains))
         let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: nil)
-        XCTAssertFalse(script.contains("export "), "no mount → no cache exports (defaults apply)")
+        let exports = script.split(separator: "\n").filter { $0.hasPrefix("export ") }
+        XCTAssertTrue(
+            exports.allSatisfy { $0.contains("PATH=") || $0.contains("HOMEBREW_") },
+            "no mount → no cache exports (defaults apply); only the PATH/Homebrew setup remains")
         XCTAssertTrue(script.contains("mise use --global 'node@22'"))
+    }
+
+    /// ssh starts a bare shell (no login profile), so the script must put brew and
+    /// mise on PATH itself, before the first use of either.
+    func testManagedScriptPutsHomebrewAndMiseOnPathFirst() throws {
+        let cfg = try self.toolchainsConfig(
+            """
+              specs: ["node@22"]
+            """)
+        let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains))
+        let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: nil)
+        let path = try XCTUnwrap(script.range(of: "export PATH=\"/opt/homebrew/bin"))
+        let mise = try XCTUnwrap(script.range(of: "mise use --global"))
+        XCTAssertLessThan(path.lowerBound, mise.lowerBound)
+        XCTAssertTrue(script.contains(".local/share/mise/shims"))
     }
 
     func testCacheEnvExportsAreGuardedOnMountPresence() {

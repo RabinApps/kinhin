@@ -52,7 +52,7 @@ final class DoctorSecuritySectionTests: XCTestCase {
         let section = try XCTUnwrap(
             DoctorReportBuilder.securitySection(config: config(softnet: true), softnetInstalled: false))
         XCTAssertFalse(section.ok)
-        XCTAssertTrue(try XCTUnwrap(section.fix).contains("brew install cirruslabs/cli/softnet"))
+        XCTAssertTrue(try XCTUnwrap(section.fix).contains("brew install openai/tools/softnet"))
     }
 
     func testInsecureHTTPAccountsAndSharedCacheAreListed() throws {

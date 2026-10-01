@@ -43,10 +43,10 @@ final class DiagnosticsSecurityRowTests: XCTestCase {
     func testSoftnetEnabledButMissingIsAFailure() throws {
         let row = try XCTUnwrap(
             try row(
-                #", "security": {"softnetEnabled": true, "softnetInstalled": false, "ok": false, "fix": "brew install cirruslabs/cli/softnet", "insecureHTTPAccounts": [], "sharedCacheWritable": false, "warnings": []}"#
+                #", "security": {"softnetEnabled": true, "softnetInstalled": false, "ok": false, "fix": "brew install openai/tools/softnet", "insecureHTTPAccounts": [], "sharedCacheWritable": false, "warnings": []}"#
             ))
         XCTAssertFalse(row.ok)
-        XCTAssertTrue(row.detail.contains("brew install cirruslabs/cli/softnet"))
+        XCTAssertTrue(row.detail.contains("brew install openai/tools/softnet"))
         XCTAssertNil(row.warning)
     }
 }
