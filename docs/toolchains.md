@@ -186,6 +186,13 @@ installs — `npm ci`, `pnpm install`, `mise install`, `fvm install`, `dotnet re
 This is best-effort and off by default: the tools tolerate concurrent VM writers (worst
 case a duplicate download), but it does share cache state across ephemeral jobs.
 
+> **Security: don't enable it for untrusted code.** The cache is mounted writable, and it holds
+> things other jobs _execute_ — Cargo's `bin/`, fvm's Flutter SDKs, Playwright and Cypress
+> browsers, Gradle init scripts. A job from a fork PR can plant a binary there that a later job
+> from a different repository runs, and the next `image prepare` can bake it into the base
+> image. Leave `share_cache` off (the default) on a fleet that runs outside contributors' PRs,
+> or restrict that fleet to repositories whose code you trust.
+
 ### Linux runtimes
 
 Both Linux runtimes ([Apple `container` and Docker](runtimes.md)) are covered too:

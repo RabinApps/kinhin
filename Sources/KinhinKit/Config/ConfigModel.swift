@@ -53,6 +53,11 @@ public struct KinhinConfig: Sendable, Equatable {
     public var diskGB: Int?
     /// Optional tart binary path override.
     public var tartPath: String?
+    /// Boot runner VMs with `tart run --net-softnet`: each VM can reach the
+    /// internet but not the other runner VMs or the local network. Needs the
+    /// `softnet` binary (see docs/runtimes.md). Nil/false = Tart's default
+    /// shared network, where VMs can reach each other.
+    public var tartSoftnet: Bool?
     /// Reserve headroom on the host so your Mac stays responsive.
     public var reserve: Reserve
     /// Apple-container runtime settings (nil → feature off; VMs always used).
@@ -355,6 +360,7 @@ public struct KinhinConfig: Sendable, Equatable {
         case vm
         case diskGB = "disk_gb"
         case tartPath = "tart_path"
+        case tartSoftnet = "tart_softnet"
         case reserve
         case container
         case docker

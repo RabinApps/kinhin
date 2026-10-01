@@ -78,6 +78,8 @@ extension ConfigLoader {
         # Optional overrides:
         # disk_gb: 0           # extra scratch disk per VM (0 = none)
         # tart_path: /opt/homebrew/bin/tart
+        # tart_softnet: true   # isolate runner VMs from each other and the LAN (needs softnet; see docs/runtimes.md)
+        # Running PRs from outside contributors? Also keep toolchains.share_cache off (docs/toolchains.md).
         # token_ttl: 3000      # seconds to cache the runner registration token
 
         # Optional: bake your own toolchains into the base image. The script

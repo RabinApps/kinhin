@@ -128,6 +128,7 @@ public struct ConfigLoader {
             cfg.diskGB = disk
         }
         if let tartPath = partial.tartPath { cfg.tartPath = tartPath }
+        if let softnet = partial.tartSoftnet { cfg.tartSoftnet = softnet }
         if let provision = partial.provisionScript {
             guard !provision.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw ConfigError.invalid(

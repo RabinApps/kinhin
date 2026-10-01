@@ -69,13 +69,24 @@ public extension TartControlling {
 public struct TartController: TartControlling {
     let binary: String
     let shell: ShellRunning
+    /// Boot VMs with `--net-softnet` (isolated from each other and the LAN).
+    let softnet: Bool
 
-    public init(configuredPath: String? = nil, shell: ShellRunning = Shell()) throws {
+    public init(configuredPath: String? = nil, shell: ShellRunning = Shell(), softnet: Bool = false) throws {
         guard let found = Paths.findExecutable(named: "tart", override: configuredPath) else {
             throw TartError.missingBinary(path: configuredPath ?? "PATH")
         }
         self.binary = found
         self.shell = shell
+        self.softnet = softnet
+    }
+
+    /// The `tart run` argument list; separate from `run` so it can be tested
+    /// without launching a VM.
+    static func runArguments(name: String, mounts: [String], softnet: Bool) -> [String] {
+        // virtiofs shares: guests auto-mount under "/Volumes/My Shared Files".
+        let mountArgs = mounts.flatMap { ["--virtiofs", $0] }
+        return ["run", "--no-graphics"] + (softnet ? ["--net-softnet"] : []) + mountArgs + [name]
     }
 
     public static func isInstalled(configuredPath: String? = nil) -> Bool {
@@ -120,9 +131,7 @@ public struct TartController: TartControlling {
         // `tart run` blocks while the VM runs; launch it detached and return.
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
-        // virtiofs shares: guests auto-mount under "/Volumes/My Shared Files".
-        let mountArgs = mounts.flatMap { ["--virtiofs", $0] }
-        process.arguments = ["run", "--no-graphics"] + mountArgs + [name]
+        process.arguments = Self.runArguments(name: name, mounts: mounts, softnet: softnet)
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice
@@ -252,7 +261,14 @@ extension KinhinConfig {
     /// "tart not found" error.
     public func makeTartControlling() throws -> TartControlling {
         if TartController.isInstalled(configuredPath: tartPath) {
-            return try TartController(configuredPath: tartPath)
+            let softnet = tartSoftnet == true
+            // Fail at start-up rather than at the first job: with isolation
+            // requested, booting without softnet would silently run VMs on the
+            // shared network.
+            if softnet, Paths.findExecutable(named: "softnet", override: nil) == nil {
+                throw TartError.missingBinary(path: "softnet (tart_softnet: true; brew install cirruslabs/cli/softnet)")
+            }
+            return try TartController(configuredPath: tartPath, softnet: softnet)
         }
         if hasLinuxRuntime { return UnavailableTart() }
         throw TartError.missingBinary(path: tartPath ?? "PATH")

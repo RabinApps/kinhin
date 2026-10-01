@@ -46,6 +46,25 @@ kinhin image digest ghcr.io/cirruslabs/macos-sequoia-base:latest
 
 Bump the pin deliberately (re-run `image digest`, re-prepare) — a pin never moves on its own.
 
+### Isolating runner VMs from each other
+
+By default Tart puts every VM on one shared virtual network, so a job in one runner VM can reach
+the other runner VMs and anything else on your LAN. If jobs can include code you don't fully
+trust (fork PRs, outside contributors), turn on Softnet isolation:
+
+```yaml
+tart_softnet: true # boots runner VMs with `tart run --net-softnet`
+```
+
+Each VM can then reach the internet but not its neighbours or the local network. It needs the
+`softnet` binary and its one-time privilege setup — install it with
+`brew install cirruslabs/cli/softnet` and follow Tart's Softnet instructions. kinhin refuses to
+start with `tart_softnet: true` when `softnet` isn't installed, rather than silently booting VMs
+on the shared network. Baked images also disable SSH password login (`image prepare` writes
+`/etc/ssh/sshd_config.d/000-kinhin-hardening.conf`), so a VM that can reach another still can't
+log in with the base image's default `admin` password; re-run `kinhin image prepare` to pick
+that up on an existing image.
+
 ## Tart Linux VMs
 
 Tart clones Linux VMs as happily as macOS ones, and kinhin can serve Linux jobs from a full Tart

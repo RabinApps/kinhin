@@ -25,6 +25,7 @@ public struct PartialConfig: Decodable {
     var vmBootTimeout: Int?
     var diskGB: Int?
     var tartPath: String?
+    var tartSoftnet: Bool?
     var reserve: PartialReserve?
     var container: PartialContainer?
     var docker: PartialDocker?
@@ -190,6 +191,7 @@ public struct PartialConfig: Decodable {
         case vmBootTimeout = "vm_boot_timeout"
         case diskGB = "disk_gb"
         case tartPath = "tart_path"
+        case tartSoftnet = "tart_softnet"
         case reserve
         case gitea
         case forgejo
