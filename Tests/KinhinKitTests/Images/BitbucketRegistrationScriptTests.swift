@@ -40,12 +40,23 @@ final class BitbucketRegistrationScriptTests: XCTestCase {
             script.contains(#"--OAuthClientId "$OAUTH_CLIENT_ID""#), script)
         XCTAssertTrue(
             script.contains(#"--OAuthClientSecret "$OAUTH_CLIENT_SECRET""#), script)
-        XCTAssertTrue(script.contains(#"--workingDirectory "$PWD/work" --runtime "$3""#), script)
+        XCTAssertTrue(script.contains(#"--workingDirectory "$PWD/work" --runtime "$KINHIN_RUNTIME""#), script)
+        XCTAssertTrue(script.contains("KINHIN_RUNTIME='macos'"), "an explicit runtime is passed through")
         XCTAssertTrue(script.contains(#""$HOME/bitbucket-runner/runner.sh""#), script)
         XCTAssertTrue(script.contains(#""$HOME/bitbucket-runners"/'kinhin-1-r1'"#), script)
         XCTAssertTrue(script.contains("runner.pid"), "teardown can stop the recorded process")
         // The secrets only travel through the per-runner private files.
         XCTAssertFalse(script.contains("--labels"), "labels were decided at runner creation")
+    }
+
+    /// A tart base VM may be a macOS or a Linux guest: `auto` lets the guest pick.
+    func testAutoRuntimeIsResolvedByTheGuest() {
+        let script = RunnerBootstrap.bitbucketRegistrationScript(
+            runners: [("kinhin-1-r1", "{ws}||{r1}|cli-1|sec-1")], runtime: "auto",
+            runnerCommand: #""$HOME/bitbucket-runner/runner.sh""#, baseDir: #""$HOME/bitbucket-runners""#)
+        XCTAssertTrue(
+            script.contains("Darwin) KINHIN_RUNTIME=macos ;; *) KINHIN_RUNTIME=linux-shell ;; esac"), script)
+        XCTAssertFalse(script.contains("KINHIN_RUNTIME='auto'"))
     }
 
     func testEachRuntimeUsesItsOwnRunnerPaths() async throws {

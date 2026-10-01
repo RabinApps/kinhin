@@ -10,7 +10,8 @@ final class LinuxMisePathTests: XCTestCase {
         let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: selection, mountPath: nil)
         XCTAssertTrue(script.contains("/etc/profile.d/kinhin-mise.sh"))
         // The line must produce a valid profile snippet: run just that line against a temp file.
-        let line = try XCTUnwrap(script.split(separator: "\n").first { $0.contains("> /etc/profile.d/kinhin-mise.sh") })
+        let line = try XCTUnwrap(
+            script.split(separator: "\n").first { $0.contains("tee /etc/profile.d/kinhin-mise.sh") })
         let target = FileManager.default.temporaryDirectory.appendingPathComponent(
             "kinhin-mise-\(UUID().uuidString).sh")
         defer { try? FileManager.default.removeItem(at: target) }

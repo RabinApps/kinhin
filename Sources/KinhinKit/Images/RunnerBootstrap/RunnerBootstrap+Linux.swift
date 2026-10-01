@@ -64,7 +64,10 @@ extension RunnerBootstrap {
         let s = runsAsRoot ? "" : "sudo "
         var lines: [String] = [
             "set -euo pipefail",
-            linuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")]),
+            // A VM guest's admin user needs sudo for apt; containers run as root.
+            runsAsRoot
+                ? linuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")])
+                : tartLinuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")]),
         ]
 
         if let mountPath {
@@ -96,9 +99,7 @@ extension RunnerBootstrap {
                 export PATH="$HOME/.local/share/mise/shims:$PATH"
                 # persist it: runners start from a login shell, so job steps only see
                 # the pinned tools if the shims are on PATH there too
-                \(s)tee /etc/profile.d/kinhin-mise.sh > /dev/null <<'MISE_PATH'
-                export PATH="$HOME/.local/share/mise/shims:$PATH"
-                MISE_PATH
+                printf '%s\\n' 'export PATH="$HOME/.local/share/mise/shims:$PATH"' | \(s)tee /etc/profile.d/kinhin-mise.sh > /dev/null
                 """)
             let specs = selection.miseSpecs.joined(separator: " ")
             lines.append(

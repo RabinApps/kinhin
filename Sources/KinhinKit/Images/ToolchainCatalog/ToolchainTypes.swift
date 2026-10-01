@@ -20,6 +20,10 @@ public enum ToolchainCacheMount {
     /// (apple/container bind mounts). Chosen to be writable by root, which
     /// is the default user in runner containers.
     public static let linuxGuestPath = "/var/kinhin-cache"
+    /// Where a tart Linux guest mounts the virtiofs automount tag (Linux
+    /// guests do not auto-mount like macOS ones); `linuxGuestPath` is then a
+    /// symlink to the cache directory inside it.
+    static let linuxVirtiofsRoot = "/mnt/shared"
 
     /// The `-v/--volume` spec for binding the host cache into a Linux
     /// container (`container run -v <host>:<guest>` — the syntax documented

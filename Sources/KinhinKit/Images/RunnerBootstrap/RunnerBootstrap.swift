@@ -1,6 +1,6 @@
 import Foundation
 
-/// Scripts injected into VMs over SSH to turn them into GitHub/GitLab/Gitea/BitBucket/Azure, Actions runners.
+/// Scripts injected into VMs over SSH to turn them into GitHub, Gitea, GitLab, Buildkite, Azure DevOps and Bitbucket runners.
 enum RunnerBootstrap {
     /// POSIX single-quote escaping for values interpolated into the scripts
     /// below (config-supplied URLs, names and labels, and the token). A value

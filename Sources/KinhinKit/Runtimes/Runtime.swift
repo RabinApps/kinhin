@@ -211,8 +211,9 @@ struct TartRuntime: Runtime {
         // mounted host share so per-job installs reuse warm downloads. The
         // env prefix is prepended to whichever registration script the forge
         // produces; exports are guarded no-ops when the share is absent.
-        let cachePrefix = RunnerBootstrap.cachePrefix(
-            mounted: route.cacheMount, selection: cachedToolchainSelection, mountPath: ToolchainCacheMount.guestPath)
+        // The base VM may be macOS or Linux, so the guest picks its own cache root.
+        let cachePrefix = RunnerBootstrap.tartCachePrefix(
+            mounted: route.cacheMount, selection: cachedToolchainSelection)
         switch forge.credentials.forge {
         case .github:
             return cachePrefix

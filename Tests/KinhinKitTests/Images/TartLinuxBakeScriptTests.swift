@@ -50,7 +50,10 @@ final class TartLinuxBakeScriptTests: XCTestCase {
             ("GitLab", RunnerBootstrap.tartLinuxGitLabRunnerInstallScript(version: "19.4.1")),
             ("Buildkite", RunnerBootstrap.tartLinuxBuildkiteAgentInstallScript(version: "3.100.0")),
             ("Azure", RunnerBootstrap.tartLinuxAzureAgentInstallScript(version: "5.279.0")),
-            ("Bitbucket", RunnerBootstrap.tartLinuxBitbucketRunnerInstallScript(version: "6.0.8", jdkVersion: "25.0.4.1+1")),
+            (
+                "Bitbucket",
+                RunnerBootstrap.tartLinuxBitbucketRunnerInstallScript(version: "6.0.8", jdkVersion: "25.0.4.1+1")
+            ),
         ]
         for (label, script) in scripts {
             XCTAssertTrue(script.contains("sha256sum") || script.contains("shasum"), "\(label) must verify digests")
@@ -77,7 +80,10 @@ final class TartLinuxBakeScriptTests: XCTestCase {
             ("GitLab", RunnerBootstrap.tartLinuxGitLabRunnerInstallScript(version: "19.4.1")),
             ("Buildkite", RunnerBootstrap.tartLinuxBuildkiteAgentInstallScript(version: "3.100.0")),
             ("Azure", RunnerBootstrap.tartLinuxAzureAgentInstallScript(version: "5.279.0")),
-            ("Bitbucket", RunnerBootstrap.tartLinuxBitbucketRunnerInstallScript(version: "6.0.8", jdkVersion: "25.0.4.1+1")),
+            (
+                "Bitbucket",
+                RunnerBootstrap.tartLinuxBitbucketRunnerInstallScript(version: "6.0.8", jdkVersion: "25.0.4.1+1")
+            ),
             ("prepare (linux)", GuestOS.linux.prepareScript()),
         ]
         for (label, script) in scripts {

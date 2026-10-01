@@ -15,8 +15,9 @@ public enum GuestOS: String, Sendable {
     }
 
     /// The guest-side path of the shared toolchain cache for this OS:
-    /// macOS guests see the virtiofs share, Linux guests (a future tart
-    /// virtiofs share) the container-style mount path.
+    /// macOS guests see the virtiofs share auto-mounted; Linux guests get it
+    /// mounted by `RunnerBootstrap.tartLinuxCacheMountScript()` and linked at
+    /// the container-style path.
     var toolchainMountPath: String {
         self == .macOS ? ToolchainCacheMount.guestPath : ToolchainCacheMount.linuxGuestPath
     }
@@ -47,10 +48,12 @@ public enum GuestOS: String, Sendable {
             return """
                 set -euo pipefail
 
-                # Linux guest: the macOS tweaks (pmset sleep disable, Remote Login)
+                # Linux guest: the macOS tweaks (sleep disable, Remote Login)
                 # do not apply — the base image already has SSH (the curated images
                 # ship admin/admin + Tart's key) and there is no power management
                 # to defeat.
+
+                \(RunnerBootstrap.tartLinuxCacheMountScript())
 
                 echo "base image prepared (linux guest)"
                 """

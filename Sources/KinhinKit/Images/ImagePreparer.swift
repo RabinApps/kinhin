@@ -222,7 +222,8 @@ public struct ImagePreparer {
             Log.info("image", "Buildkite token found — baking buildkite-agent \(versions.buildkite)")
             switch guestOS {
             case .macOS: scripts.append(RunnerBootstrap.buildkiteAgentInstallScript(version: versions.buildkite))
-            case .linux: scripts.append(RunnerBootstrap.tartLinuxBuildkiteAgentInstallScript(version: versions.buildkite))
+            case .linux:
+                scripts.append(RunnerBootstrap.tartLinuxBuildkiteAgentInstallScript(version: versions.buildkite))
             }
         } else {
             Log.info("image", "no Buildkite token stored — skipping buildkite-agent install")

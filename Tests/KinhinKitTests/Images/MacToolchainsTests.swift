@@ -157,6 +157,8 @@ final class MacToolchainsTests: XCTestCase {
         let script = try await runtime.registrationScript(
             forge: forge, token: "tok", name: "vm", runnerCount: 1, route: route, labels: nil)
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE"), "registration script exports cache envs")
+        XCTAssertTrue(script.contains("uname -s"), "the guest picks its own cache root (macOS or Linux base VM)")
+        XCTAssertTrue(script.contains("mount -t virtiofs"), "Linux guests mount the share by hand")
         XCTAssertTrue(script.contains("config.sh --url"), "registration script itself still present")
         XCTAssertTrue(
             script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "config.sh --url")!.lowerBound,

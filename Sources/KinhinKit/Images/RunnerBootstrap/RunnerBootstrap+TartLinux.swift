@@ -38,6 +38,53 @@ extension RunnerBootstrap {
             ]).joined(separator: "\n")
     }
 
+    /// Mounts tart's virtiofs shares in a Linux guest and exposes the shared
+    /// toolchain cache at `ToolchainCacheMount.linuxGuestPath`. macOS guests
+    /// auto-mount shares under `/Volumes/My Shared Files`; Linux guests do not,
+    /// so the `com.apple.virtio-fs.automount` tag is mounted by hand and the
+    /// cache directory symlinked to the container-style path the shared
+    /// toolchain scripts use. Best-effort and idempotent: when the VM was
+    /// booted without the share, or the mount is refused, it prints a note and
+    /// carries on (the cache is an optimization, never a requirement).
+    static func tartLinuxCacheMountScript() -> String {
+        let root = ToolchainCacheMount.linuxVirtiofsRoot
+        let share = "\(root)/\(ToolchainCacheMount.guestDirectoryName)"
+        let link = ToolchainCacheMount.linuxGuestPath
+        return """
+            # shared toolchain cache (tart virtiofs; Linux guests mount it by hand)
+            SUDO=""
+            if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+              SUDO="sudo"
+            fi
+            if ! mountpoint -q \(root) 2>/dev/null; then
+              $SUDO mkdir -p \(root)
+              $SUDO mount -t virtiofs com.apple.virtio-fs.automount \(root) 2>/dev/null \
+                || echo "note: virtiofs share not available; continuing without the shared toolchain cache"
+            fi
+            if [ -d \(root)/\(ToolchainCacheMount.guestDirectoryName) ] && [ ! -e \(link) ]; then
+              $SUDO ln -s \(share) \(link)
+            fi
+            """
+    }
+
+    /// The cache env prefix for a tart runner VM, whose guest OS the runtime
+    /// does not know: the guest resolves its own cache root (`uname -s`),
+    /// mounting the virtiofs share first on Linux. Empty when the cache is
+    /// not shared or no ecosystem is selected, like `cachePrefix`.
+    static func tartCachePrefix(mounted: Bool, selection: ManagedToolchainSelection?) -> String {
+        guard mounted, let selection, !selection.cacheEnvs.isEmpty else { return "" }
+        return """
+            if [ "$(uname -s)" = "Linux" ]; then
+            \(tartLinuxCacheMountScript())
+              KINHIN_CACHE_ROOT=\(ToolchainCacheMount.linuxGuestPath)
+            else
+              KINHIN_CACHE_ROOT="\(ToolchainCacheMount.guestPath)"
+            fi
+
+            """
+                + cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: "$KINHIN_CACHE_ROOT") + "\n\n"
+    }
+
     /// Installs the GitHub Actions runner agent (Linux binary) into a tart
     /// Linux base image, one agent directory per concurrent runner — the
     /// same `$HOME` layout as the macOS bake, so registration needs no

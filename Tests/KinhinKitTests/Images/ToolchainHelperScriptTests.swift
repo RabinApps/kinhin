@@ -146,7 +146,8 @@ final class ToolchainHelperScriptTests: XCTestCase {
             .init(
                 hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
                 hasAzureDevOpsToken: false))
-        let agents = try XCTUnwrap(ssh.scripts.first)
+        // scripts[0] is the `uname -s` guest probe.
+        let agents = ssh.scripts[1]
         XCTAssertTrue(agents.contains("sudo tee \(RunnerBootstrap.toolchainHelperPath)"), agents)
     }
 

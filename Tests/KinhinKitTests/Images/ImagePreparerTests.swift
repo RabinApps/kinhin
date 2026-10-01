@@ -125,7 +125,8 @@ final class ImagePreparerTests: XCTestCase {
         let baked = ssh.scripts[1]
         XCTAssertTrue(baked.contains("actions-runner-linux-arm64-"), "Linux actions-runner binary")
         XCTAssertTrue(baked.contains("$HOME/actions-runner"), "same layout the registration script uses")
-        XCTAssertTrue(baked.contains("gitea-runner-\(RunnerVersionResolver.fallback.gitea)-linux-arm64"), "Linux gitea-runner")
+        // The agent versions resolve from the live release feeds, so match the platform suffix only.
+        XCTAssertTrue(baked.contains("-linux-arm64.xz"), "Linux gitea-runner")
         XCTAssertFalse(baked.contains("osx-arm64"), "no macOS binaries on a Linux guest")
         XCTAssertFalse(baked.contains("darwin-arm64"), "no macOS binaries on a Linux guest")
         XCTAssertFalse(baked.contains("pmset"), "no macOS tweaks on a Linux guest")
@@ -179,7 +180,8 @@ final class ImagePreparerTests: XCTestCase {
         XCTAssertEqual(ssh.scripts.count, 3)
         let managed = ssh.scripts[2]
         XCTAssertTrue(managed.contains("mise use --global node@22"), managed)
-        XCTAssertTrue(managed.contains("sudo apt-get"), "a tart Linux guest elevates through sudo")
+        XCTAssertTrue(managed.contains("$SUDO apt-get"), "a tart Linux guest elevates through sudo")
+        XCTAssertTrue(managed.contains("| sudo tee /etc/profile.d/kinhin-mise.sh"), "profile.d needs root")
         XCTAssertFalse(managed.contains("brew install"), "brew formulas never install on a Linux guest")
     }
 
@@ -204,6 +206,30 @@ final class ImagePreparerTests: XCTestCase {
         XCTAssertFalse(tart.cloneCalls.contains { $0.name == "tahoe-base" })
     }
 
+    func testALinuxGuestMountsTheSharedCacheBeforeTheBake() async throws {
+        let ssh = FakeSSH()
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false, guestOS: .linux))
+
+        let baked = ssh.scripts[0]
+        let mount = try XCTUnwrap(baked.range(of: "mount -t virtiofs")).lowerBound
+        let agent = try XCTUnwrap(baked.range(of: "actions-runner-linux-arm64-")).lowerBound
+        XCTAssertLessThan(mount, agent, "the cache is mounted before anything downloads")
+    }
+
+    func testAMacOSGuestDoesNotMountVirtiofsByHand() async throws {
+        let ssh = FakeSSH()
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false, guestOS: .macOS))
+        XCTAssertFalse(ssh.scripts[0].contains("mount -t virtiofs"))
+    }
+
     func testAGuestOSOverrideSkipsTheProbe() async throws {
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
@@ -212,7 +238,7 @@ final class ImagePreparerTests: XCTestCase {
                 hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
                 hasAzureDevOpsToken: false, guestOS: .linux))
 
-        XCTAssertEqual(ssh.scripts.count, 2, "no probe exec when the guest OS is overridden")
+        XCTAssertEqual(ssh.scripts.count, 1, "no probe exec when the guest OS is overridden: just the bake")
         XCTAssertTrue(ssh.scripts[0].contains("actions-runner-linux-arm64-"), "Linux agents baked directly")
     }
 
