@@ -4,7 +4,8 @@ import Observation
 
 /// State and actions behind Advanced → App: launch behavior, update check and
 /// the config/log files. Preferences persist through `AppPreferences`; the
-/// window controller wires the callbacks to its delegate.
+/// update card reads `UpdateController`; the window controller wires the
+/// callbacks to its delegate.
 @MainActor
 @Observable
 final class AppSectionModel {
@@ -20,13 +21,15 @@ final class AppSectionModel {
     private(set) var launchMode: LaunchMode
     private(set) var launchAtLogin: Bool
     private(set) var autoStartFleet: Bool
-    var updateState: UpdateCardState = .idle(lastChecked: nil)
+    @ObservationIgnored let updates: UpdateController
+    var updateState: UpdateCardState { updates.updateCardState }
 
     /// The login item only works from the installed kinhin.app.
     var showsLoginHint: Bool { !LaunchAtLoginService.isBundled }
 
-    init(prefs: UserDefaults) {
+    init(prefs: UserDefaults, updates: UpdateController) {
         self.prefs = prefs
+        self.updates = updates
         launchMode = AppPreferences.launchMode(in: prefs)
         launchAtLogin = AppPreferences.launchAtLogin(in: prefs)
         autoStartFleet = AppPreferences.autoStartFleet(in: prefs)

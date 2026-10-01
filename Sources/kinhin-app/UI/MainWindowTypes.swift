@@ -85,8 +85,6 @@ protocol MainTabsWindowDelegate: AnyObject {
     func deleteVM(id: String)
     func openLogsFolder()
     func checkForUpdatesNow()
-    /// What the Settings → App update card should show right now.
-    var updateCardState: UpdateCardState { get }
     func launchModeChanged(_ mode: LaunchMode)
     func launchAtLoginChanged(_ enabled: Bool)
     func mainTabsWindowWillClose()

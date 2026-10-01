@@ -29,7 +29,6 @@ final class RecordingTabsDelegate: MainTabsWindowDelegate {
     func deleteVM(id: String) { deletedVMIDs.append(id) }
     func openLogsFolder() { logsCalls += 1 }
     func checkForUpdatesNow() { updateCalls += 1 }
-    var updateCardState: UpdateCardState = .idle(lastChecked: nil)
     func launchModeChanged(_ mode: LaunchMode) { changedModes.append(mode) }
     func launchAtLoginChanged(_ enabled: Bool) { loginToggles.append(enabled) }
     func mainTabsWindowWillClose() { closeCalls += 1 }
@@ -43,6 +42,8 @@ final class RecordingTabsDelegate: MainTabsWindowDelegate {
 class MainWindowTestCase: XCTestCase {
     var delegate: RecordingTabsDelegate!
     var window: MainTabsWindowController!
+    var fleet: FleetController!
+    var updates: UpdateController!
     var suite: UserDefaults!
     var suiteName: String!
     var scratchConfig: URL!
@@ -56,7 +57,9 @@ class MainWindowTestCase: XCTestCase {
             "kinhin-mainwindow-\(UUID().uuidString).yaml")
         try? "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n".write(
             to: scratchConfig, atomically: true, encoding: .utf8)
-        window = MainTabsWindowController(defaults: suite)
+        fleet = FleetController()
+        updates = UpdateController()
+        window = MainTabsWindowController(defaults: suite, fleet: fleet, updates: updates)
         window.delegate = delegate
     }
 
@@ -64,6 +67,8 @@ class MainWindowTestCase: XCTestCase {
         try? FileManager.default.removeItem(at: scratchConfig)
         suite.removePersistentDomain(forName: suiteName)
         window = nil
+        fleet = nil
+        updates = nil
         delegate = nil
         suite = nil
         suiteName = nil

@@ -1,5 +1,6 @@
 import AppKit
 import KinhinKit
+import Observation
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -10,50 +11,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // for the tab buttons to work.
     var mainController: MainTabsWindowController?
 
-    /// Latest fleet status from the refresh poll — the Fleet tab renders it
-    /// on open so it never shows stale "Loading…" content.
-    var lastStatus: FleetStatus?
+    /// Fleet state, polling, pending actions and config push (see AppState/).
+    let fleet = FleetController()
+    /// Update-check and download state.
+    let updates = UpdateController()
 
-    /// A fleet start/stop command is in flight (menu item, Fleet tab, or App
-    /// Intent). The status item shows "Starting…"/"Stopping…", and the
-    /// Start/Stop menu items disable until the command and its status
-    /// refresh complete.
-    var pendingFleetAction: FleetAction? {
-        didSet {
-            guard pendingFleetAction != oldValue else { return }
-            apply(status: lastStatus)
-            mainController?.fleetModel.setPending(pendingFleetAction)
-        }
-    }
-
-    /// Set while first-run onboarding is up (or no usable config exists) —
-    /// the Setup tab then covers the window at launch.
-    var setupIncomplete = false
     /// Tracks the main window's visibility so the activation policy can be
     /// re-evaluated when it opens and closes.
     var isMainWindowVisible = false
 
-    /// Who runs the fleet: nil until setup is complete.
-    var backend: FleetBackend?
-    /// The in-process engine, when this app runs the fleet itself.
-    var engine: FleetEngine? { backend?.engine }
-    /// Config-edit push (debounced): a burst of edits flushes once.
-    var pendingConfigEdits = false
-    var isConfigPushScheduled = false
-    private var pollTimer: Timer?
-    private var updateTimer: Timer?
-
-    // Update check state
-    var lastUpdateCheck: Date?
-    var pendingUpdate: UpdateInfo?
-    /// Drives the Settings → App update card; every change is pushed to the window.
-    var updateCardState: UpdateCardState = .idle(lastChecked: UpdatePreferences.lastCheck) {
-        didSet { mainController?.renderUpdate(state: updateCardState) }
-    }
-    var updateDownloadTask: Task<Void, Never>?
-    var updateCheckTask: Task<Void, Never>?
-    var updateChecker: UpdateChecker {
-        UpdateChecker(repo: UpdatePreferences.repo)
+    var setupIncomplete: Bool {
+        get { fleet.setupIncomplete }
+        set { fleet.setupIncomplete = newValue }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -64,21 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if mode.showsStatusItem {
             installStatusItem()
         }
+        FleetIntentEnvironment.bridge = AppFleetIntentBridge(controller: fleet)
         bootstrapEngine()
         autoStartFleetIfEnabled()
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
-            Task { await self?.refresh() }
-        }
-        Task { await refresh() }
-        // Once per day (or on first launch), at most.
-        if Date().timeIntervalSince(UpdatePreferences.lastCheck) >= UpdatePreferences.interval {
-            checkForUpdates()
-        }
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 3600.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.checkForUpdates()
-            }
-        }
+        fleet.startPolling()
+        // Once per day (or on first launch), at most; then hourly.
+        updates.startScheduledChecks()
+        observeControllers()
         // Launch-mode surface selection: the main window opens unless the user
         // chose menu-bar-only or onboarding already took the stage (the
         // window's Setup tab is the launch surface until setup completes).
@@ -89,9 +50,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        Task { await engine?.stop() }
-        updateCheckTask?.cancel()
-        updateDownloadTask?.cancel()
+        fleet.stopPolling()
+        Task { await fleet.engine?.stop() }
+        updates.cancelAll()
     }
 
     // MARK: - Activation policy (normal app vs menu bar app)
@@ -122,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // Attach to daemon when one is running; otherwise run the engine in-process.
         if RPCClient.isDaemonAlive() {
-            backend = .daemon(RPCClient())
+            fleet.backend = .daemon(RPCClient())
             setupIncomplete = false
             Log.info("app", "attaching to running daemon")
         } else if FileManager.default.fileExists(atPath: Paths.config.path),
@@ -139,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cfg.canRunOnThisHost()
         {
             do {
-                backend = .inProcess(try FleetEngine.production(config: cfg, token: pat))
+                fleet.backend = .inProcess(try FleetEngine.production(config: cfg, token: pat))
                 setupIncomplete = false
                 Log.info("app", "no daemon; running engine in-process (not started yet)")
             } catch {
@@ -169,21 +130,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// running daemon owns its own lifecycle, and an incomplete setup has no
     /// engine, so neither is touched.
     func autoStartFleetIfEnabled() {
-        guard AppPreferences.autoStartFleet, let engine else { return }
+        guard AppPreferences.autoStartFleet, let engine = fleet.engine else { return }
         Log.info("app", "auto-starting the fleet (Settings → App)")
         Task {
             await engine.start()
-            await refresh()
+            await fleet.refresh()
         }
     }
 
-    // MARK: - Refresh
+    // MARK: - Rendering
 
-    func refresh() async {
-        // Polled every few seconds (daemon calls run off the main thread): an
-        // unreachable or wedged daemon simply reads as "not running" in the
-        // status item, so a failure here is expected (status stays nil).
-        let status = try? await backend?.status()
-        apply(status: status)
+    /// Re-renders the menu-bar surfaces whenever the controllers change.
+    /// AppKit menus aren't observable, so this is the one render path: it
+    /// reads the controller state inside `withObservationTracking` and
+    /// re-arms itself after every change.
+    func observeControllers() {
+        withObservationTracking {
+            renderControllerState()
+        } onChange: { [weak self] in
+            // onChange fires before the mutation lands; hop so the re-read
+            // sees the new value.
+            Task { @MainActor [weak self] in self?.observeControllers() }
+        }
+    }
+
+    /// Reads every observed property up front (before any early return), so
+    /// the tracking never goes empty while the status item is absent.
+    func renderControllerState() {
+        _ = fleet.status
+        _ = fleet.pendingFleetAction
+        _ = updates.pendingUpdate
+        _ = updates.updateCardState
+        renderFleetState()
+        refreshUpdateItems()
     }
 }

@@ -51,7 +51,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
 
     /// State behind the Fleet tab, wired to the delegate and the sheets.
     lazy var fleetModel: FleetModel = {
-        let model = FleetModel()
+        let model = FleetModel(controller: fleet)
         model.onStart = { [weak self] in self?.delegate?.startFleet() }
         model.onStop = { [weak self] in self?.delegate?.stopFleet() }
         model.onPause = { [weak self] in self?.delegate?.pauseFleet() }
@@ -76,7 +76,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     /// State behind the App section. Prefs live in `.standard` for the real
     /// app; tests inject a scratch suite through `init(defaults:)`.
     lazy var appModel: AppSectionModel = {
-        let model = AppSectionModel(prefs: prefs)
+        let model = AppSectionModel(prefs: prefs, updates: updates)
         model.onLaunchModeChanged = { [weak self] in self?.delegate?.launchModeChanged($0) }
         model.onLaunchAtLoginChanged = { [weak self] in self?.delegate?.launchAtLoginChanged($0) }
         model.onCheckForUpdates = { [weak self] in self?.delegate?.checkForUpdatesNow() }
@@ -85,11 +85,24 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     }()
     var prefs: UserDefaults = .standard
 
-    convenience init() {
-        self.init(defaults: .standard)
+    /// The shared fleet and update state this window renders.
+    let fleet: FleetController
+    let updates: UpdateController
+
+    init(window: NSWindow, fleet: FleetController, updates: UpdateController) {
+        self.fleet = fleet
+        self.updates = updates
+        super.init(window: window)
     }
 
-    convenience init(defaults: UserDefaults) {
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    convenience init(
+        defaults: UserDefaults = .standard,
+        fleet: FleetController = FleetController(),
+        updates: UpdateController = UpdateController()
+    ) {
         let size = NSSize(width: 620, height: 600)
         let container = NSView(frame: NSRect(origin: .zero, size: size))
         let window = NSWindow(
@@ -105,7 +118,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         window.contentView = container
         window.center()
         window.minSize = NSSize(width: 620, height: 480)
-        self.init(window: window)
+        self.init(window: window, fleet: fleet, updates: updates)
         prefs = defaults
         window.delegate = self
         buildUI(in: container)
@@ -113,7 +126,6 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         // hierarchy before constraints pin them to the container).
         rebuildTabBar()
         selectTab(.fleet, notify: false)
-        render(status: nil)
     }
 
     /// Whether a token is stored for a forge. The real Keychain by default;

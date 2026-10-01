@@ -11,25 +11,25 @@ final class FleetActionsTests: XCTestCase {
     private func delegateWithDeadDaemon() -> AppDelegate {
         let delegate = AppDelegate()
         let socket = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-no-daemon-\(UUID()).sock")
-        delegate.backend = .daemon(RPCClient(socketURL: socket))
+        delegate.fleet.backend = .daemon(RPCClient(socketURL: socket))
         return delegate
     }
 
     func testStartThrowsWhenTheDaemonIsUnreachable() async {
         let delegate = delegateWithDeadDaemon()
         do {
-            try await delegate.performFleetAction(.start)
+            try await delegate.fleet.perform(.start)
             XCTFail("an unreachable daemon must fail the start")
         } catch {
             XCTAssertTrue(error is RPCError, "\(error)")
         }
-        XCTAssertNil(delegate.pendingFleetAction, "the pending state clears even on failure")
+        XCTAssertNil(delegate.fleet.pendingFleetAction, "the pending state clears even on failure")
     }
 
     func testDeleteThrowsWhenTheDaemonIsUnreachable() async {
         let delegate = delegateWithDeadDaemon()
         do {
-            try await delegate.performVMDelete(id: "kinhin-1")
+            try await delegate.fleet.deleteVM(id: "kinhin-1")
             XCTFail("an unreachable daemon must fail the delete")
         } catch {
             XCTAssertTrue(error is RPCError, "\(error)")

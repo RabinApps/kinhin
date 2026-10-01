@@ -1,10 +1,10 @@
-import AppKit
+import Foundation
 import KinhinKit
 
 // Pushing config edits to a running engine (live reload or rebuild).
 
 @MainActor
-extension AppDelegate {
+extension FleetController {
     /// Config writes (Runtimes pane, Config tab) reach whoever owns the
     /// engine so the running fleet picks up the change. Routing-only edits
     /// apply live; anything else (scope, bounds, VM shape, images, forge
@@ -15,9 +15,9 @@ extension AppDelegate {
         pendingConfigEdits = true
         guard !isConfigPushScheduled else { return }
         isConfigPushScheduled = true
-        Task { [weak self] in
+        Task { [weak self, delay = configPushDelay] in
             do {
-                try await Task.sleep(for: .seconds(1))  // debounce a save burst
+                try await Task.sleep(for: delay)  // debounce a save burst
             } catch {
                 self?.isConfigPushScheduled = false  // cancelled: nothing to push
                 return
@@ -42,6 +42,10 @@ extension AppDelegate {
     }
 
     private func applyConfigToEngine() async {
+        if let configFlushOverride {
+            await configFlushOverride()
+            return
+        }
         if let engine {
             let cfg: KinhinConfig
             do {
@@ -59,7 +63,7 @@ extension AppDelegate {
                 engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
                 Log.info("app", "routing reloaded into in-process engine")
             }
-        } else if case .daemon(let client) = backend {
+        } else if case .daemon(let client)? = backend {
             do {
                 try await client.perform { try $0.reloadConfig() }
                 Log.info("app", "daemon notified: config reloaded (restarted if the change required it)")
@@ -113,7 +117,7 @@ extension AppDelegate {
                 return
             }
             await old.detachKeepingInstances()
-            backend = .inProcess(replacement)
+            service = FleetBackend.inProcess(replacement)
             Log.info(
                 "app",
                 "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))")

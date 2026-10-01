@@ -59,7 +59,7 @@ extension AppDelegate {
             item.target = self
             item.identifier = NSUserInterfaceItemIdentifier(id)
         }
-        applyFleetControlVisibility(to: m, status: lastStatus)
+        applyFleetControlVisibility(to: m, status: fleet.status)
 
         m.addItem(.separator())
         // Hidden until a background check finds a newer release; manual checks
@@ -143,14 +143,14 @@ extension AppDelegate {
         return statusLine(for: status)
     }
 
-    func apply(status: FleetStatus?) {
-        lastStatus = status
+    /// Renders the status item and menu from the fleet controller's state.
+    func renderFleetState() {
+        let status = fleet.status
+        let pending = fleet.pendingFleetAction
         applyFleetControlVisibility(to: menu, status: status)
-        statusItem?.button?.title = statusItemTitle(pending: pendingFleetAction, status: status)
-        statusLineItem?.title = statusLineText(pending: pendingFleetAction, status: status)
-
+        statusItem?.button?.title = statusItemTitle(pending: pending, status: status)
+        statusLineItem?.title = statusLineText(pending: pending, status: status)
         rebuildVMSection(status: status)
-        mainController?.render(status: status)
     }
 
     /// Rebuilds the dynamic VM rows between the "VMs" header and the trailing

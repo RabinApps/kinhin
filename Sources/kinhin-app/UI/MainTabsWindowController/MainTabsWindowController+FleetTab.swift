@@ -2,8 +2,8 @@ import AppKit
 import KinhinKit
 import SwiftUI
 
-// The Fleet tab (see `FleetView`): the window controller feeds it statuses and
-// routes its buttons to the delegate and the sheets.
+// The Fleet tab (see `FleetView`): `FleetModel` reads the shared
+// `FleetController`; the window controller routes its buttons to the delegate and the sheets.
 @MainActor
 extension MainTabsWindowController {
     func buildFleetTab() -> NSView {
@@ -11,12 +11,6 @@ extension MainTabsWindowController {
         // Fills whatever it is pinned into.
         host.sizingOptions = []
         return host
-    }
-
-    /// Re-renders the Fleet tab from a fresh status. Safe to call before the
-    /// tab exists or the first refresh.
-    func render(status: FleetStatus?) {
-        fleetModel.status = status
     }
 
     @objc func logsClicked() { delegate?.openLogsFolder() }

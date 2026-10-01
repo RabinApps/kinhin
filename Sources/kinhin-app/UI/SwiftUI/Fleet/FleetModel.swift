@@ -2,9 +2,9 @@ import Foundation
 import KinhinKit
 import Observation
 
-/// State behind the Fleet tab: the latest fleet status and the actions its
-/// buttons trigger. The window controller feeds it statuses and wires the
-/// callbacks to its delegate.
+/// State behind the Fleet tab: reads the latest fleet status and the in-flight
+/// action from `FleetController` (the single source of truth) and routes its
+/// buttons to the window's callbacks.
 @MainActor
 @Observable
 final class FleetModel {
@@ -16,16 +16,19 @@ final class FleetModel {
     @ObservationIgnored var onShowLogs: () -> Void = {}
     @ObservationIgnored var onShowDiagnostics: () -> Void = {}
 
-    /// Nil until the first poll (or when setup isn't finished).
-    var status: FleetStatus?
+    @ObservationIgnored let controller: FleetController
 
-    /// A start/stop command in flight: its button shows a progress indicator
-    /// and the fleet controls disable until the command and its status
-    /// refresh complete (`endPendingAction`).
-    private(set) var pendingAction: FleetAction?
-    /// The app delegate mirrors its own pending state here (menu items and
-    /// App Intents can begin a fleet action too, with no button click).
-    func setPending(_ action: FleetAction?) { pendingAction = action }
+    init(controller: FleetController) {
+        self.controller = controller
+    }
+
+    /// Nil until the first poll (or when setup isn't finished).
+    var status: FleetStatus? { controller.status }
+
+    /// A start/stop command in flight (from a button, the menu, or an App
+    /// Intent): its button shows a progress indicator and the fleet controls
+    /// disable until the command and its status refresh complete.
+    var pendingAction: FleetAction? { controller.pendingFleetAction }
     var isBusy: Bool { pendingAction != nil }
 
     var statusLine: String { FleetStatusFormatter.summary(status) }
@@ -52,20 +55,14 @@ final class FleetModel {
     /// the state-level backstop).
     func startClicked() {
         guard !isBusy else { return }
-        pendingAction = .start
+        controller.pendingFleetAction = .start
         onStart()
     }
 
     func stopClicked() {
         guard !isBusy else { return }
-        pendingAction = .stop
+        controller.pendingFleetAction = .stop
         onStop()
-    }
-
-    /// Called by the action owner (the app delegate) when the command and its
-    /// status refresh are done — success, failure, or not-set-up alike.
-    func endPendingAction() {
-        pendingAction = nil
     }
 
     func togglePause() {

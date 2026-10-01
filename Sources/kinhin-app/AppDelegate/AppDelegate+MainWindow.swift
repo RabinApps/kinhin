@@ -11,10 +11,10 @@ extension AppDelegate {
     /// while it is visible.
     @objc func openMainWindow() {
         if mainController == nil {
-            let controller = MainTabsWindowController()
+            let controller = MainTabsWindowController(fleet: fleet, updates: updates)
             controller.delegate = self
             controller.runtimesEdited = { [weak self] in
-                self?.pushConfigToEngine()
+                self?.fleet.pushConfigToEngine()
             }
             controller.tokenSaved = { [weak self] forge, token in
                 try await self?.notifyTokenReplaced(forge: forge, token: token)
@@ -31,7 +31,6 @@ extension AppDelegate {
         applyActivationPolicy()
         mainController?.showWindow(nil)
         mainController?.window?.makeKeyAndOrderFront(nil)
-        mainController?.render(status: lastStatus)
         mainController?.applySetupInProgress()
         mainController?.refreshVisibleTab()
         NSApp.activate(ignoringOtherApps: true)

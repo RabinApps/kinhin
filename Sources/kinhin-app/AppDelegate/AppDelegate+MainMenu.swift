@@ -66,14 +66,14 @@ extension AppDelegate {
     /// command already runs; a second one would double-drive it.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         guard let id = item.identifier?.rawValue else { return true }
-        if pendingFleetAction != nil {
+        if fleet.pendingFleetAction != nil {
             switch id {
             case "startFleet", "stopFleet", "pauseFleet", "resumeFleet": return false
             default: break
             }
         }
-        let running = lastStatus?.running ?? false
-        let paused = lastStatus?.paused ?? false
+        let running = fleet.status?.running ?? false
+        let paused = fleet.status?.paused ?? false
         switch id {
         case "startFleet": return !running
         case "stopFleet": return running

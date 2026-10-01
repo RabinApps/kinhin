@@ -8,11 +8,16 @@ extension AppDelegate {
     // MARK: - Actions
 
     @objc func startFleet() {
+        // Nothing configured yet: Setup is the answer, not an alert. The
+        // Fleet tab's button already marked the action pending, so clear it.
+        guard fleet.service != nil else {
+            fleet.pendingFleetAction = nil
+            openSetupTab()
+            return
+        }
         Task {
-            // Nothing configured yet: Setup is the answer, not an alert.
-            guard backend != nil else { openSetupTab(); return }
             do {
-                try await performFleetAction(.start)
+                try await fleet.perform(.start)
             } catch {
                 AlertKit.present(error: error, title: "Couldn't start the fleet")
             }
@@ -22,28 +27,11 @@ extension AppDelegate {
     @objc func stopFleet() {
         Task {
             do {
-                try await performFleetAction(.stop)
+                try await fleet.perform(.stop)
             } catch {
                 AlertKit.present(error: error, title: "Couldn't stop the fleet")
             }
         }
-    }
-
-    /// Runs a start/stop with the pending-state bookkeeping shared by every
-    /// entry point (menu item, Fleet tab button, App Intent). Throws when no
-    /// backend is available — the @objc wrappers surface that per their own
-    /// UX, and intents propagate it into the Shortcuts dialog.
-    func performFleetAction(_ action: FleetAction) async throws {
-        defer {
-            pendingFleetAction = nil
-            mainController?.fleetModel.endPendingAction()
-        }
-        pendingFleetAction = action
-        guard let backend else { throw EngineError.fleetNotSetUp }
-        // Throw, don't alert: the menu wrappers alert, and an App Intent
-        // must fail in Shortcuts rather than report success.
-        if action == .start { try await backend.start() } else { try await backend.stop() }
-        await refresh()
     }
 
     @objc func pauseFleet() {
@@ -57,27 +45,11 @@ extension AppDelegate {
     private func setPausedFromMenu(_ paused: Bool, failureTitle: String) {
         Task {
             do {
-                try await setFleetPaused(paused)
+                try await fleet.setPaused(paused)
             } catch {
                 AlertKit.present(error: error, title: failureTitle)
             }
-            await refresh()
         }
-    }
-
-    // MARK: - Throwing fleet access (menu actions and App Intents)
-
-    /// Pauses or resumes the fleet through whichever backend is live.
-    /// Throws when there is none (setup incomplete) or the daemon fails.
-    func setFleetPaused(_ paused: Bool) async throws {
-        guard let backend else { throw EngineError.fleetNotSetUp }
-        try await backend.setPaused(paused)
-    }
-
-    /// Current fleet status from the in-process engine or the daemon.
-    func fleetStatus() async throws -> FleetStatus {
-        guard let backend else { throw EngineError.fleetNotSetUp }
-        return try await backend.status()
     }
 
     @objc func deleteVM(_ sender: NSMenuItem) {
@@ -94,22 +66,11 @@ extension AppDelegate {
         else { return }
         Task {
             do {
-                try await performVMDelete(id: id)
+                try await fleet.deleteVM(id: id)
             } catch {
                 AlertKit.present(error: error, title: "Couldn't delete \(id)")
             }
         }
-    }
-
-    /// Runs the delete through whichever backend is live, without asking
-    /// first. Entry points confirm in their own UX (menu shows NSAlert; the
-    /// App Intent relies on Shortcuts' explicit pick and its confirm toggle,
-    /// since intents can't present alerts). Throws when no backend is set up
-    /// — the menu path alerts, the intent path lands in the dialog.
-    func performVMDelete(id: String) async throws {
-        guard let backend else { throw EngineError.fleetNotSetUp }
-        try await backend.deleteVM(id: id)
-        await refresh()
     }
 
     /// Runs a confirmation alert.

@@ -11,7 +11,7 @@ final class FleetTabTests: MainWindowTestCase {
     // MARK: - Fleet tab rendering
 
     func testRenderShowsNeedsSetupBeforeFirstStatus() {
-        window.render(status: nil)
+        fleet.status = nil
         XCTAssertEqual(window.fleetModel.statusLine, "Needs setup — open the Setup tab")
         XCTAssertTrue(window.tabViews[.fleet] is NSHostingView<FleetView>)
     }
@@ -36,7 +36,7 @@ final class FleetTabTests: MainWindowTestCase {
             }(),
         ]
 
-        window.render(status: status)
+        fleet.status = status
 
         // The exact same line the menu renders — one renderer, two surfaces.
         let model = window.fleetModel
@@ -50,19 +50,19 @@ final class FleetTabTests: MainWindowTestCase {
     }
 
     func testRenderIdleFleetShowsNoVMsAndNoJobs() {
-        window.render(status: FleetStatus())
+        fleet.status = FleetStatus()
         XCTAssertTrue(window.fleetModel.records.isEmpty)
         XCTAssertTrue(window.fleetModel.working.isEmpty)
     }
 
     func testRenderTogglesPauseButtonTitle() {
-        window.render(status: FleetStatus())
+        fleet.status = FleetStatus()
         XCTAssertEqual(window.fleetModel.pauseTitle, "Pause")
 
         var status = FleetStatus()
         status.running = true
         status.paused = true
-        window.render(status: status)
+        fleet.status = status
         XCTAssertEqual(window.fleetModel.pauseTitle, "Resume")
     }
 
@@ -70,11 +70,11 @@ final class FleetTabTests: MainWindowTestCase {
         var status = FleetStatus()
         status.running = true
         status.paused = true
-        window.render(status: status)
+        fleet.status = status
         XCTAssertNil(window.fleetModel.pausedAutoResumeNote, "policy off: no note")
 
         status.autoResume = true
-        window.render(status: status)
+        fleet.status = status
         XCTAssertEqual(
             window.fleetModel.pausedAutoResumeNote,
             "Auto-resume is on — the fleet releases itself when the queue is empty.")
@@ -86,7 +86,7 @@ final class FleetTabTests: MainWindowTestCase {
         status.paused = true
         status.autoResume = true
         status.pollInterval = 15
-        window.render(status: status)
+        fleet.status = status
         XCTAssertEqual(
             window.fleetModel.pausedAutoResumeNote,
             "Auto-resume is on — the engine re-checks the queue every 15s and resumes once it's empty.")
@@ -100,13 +100,13 @@ final class FleetTabTests: MainWindowTestCase {
         status.pollInterval = 20
         status.queueDepth = 3
         status.queuePolledAt = Date().addingTimeInterval(-2)
-        window.render(status: status)
+        fleet.status = status
         let line = window.fleetModel.statusLine
         XCTAssertTrue(line.contains("\n  ⏱ queue age: "), "the tab carries the same freshness line: \(line)")
         XCTAssertFalse(line.contains("stale"), "fresh within the cadence: \(line)")
 
         status.queuePolledAt = Date().addingTimeInterval(-9_999)
-        window.render(status: status)
+        fleet.status = status
         XCTAssertTrue(
             window.fleetModel.statusLine.contains("s old (stale — a forge poll failed or the engine is stopped)"),
             "an outage must not read as fresh: \(window.fleetModel.statusLine)")
@@ -116,7 +116,7 @@ final class FleetTabTests: MainWindowTestCase {
         var failed = VMRecord(id: "kinhin-vm-err", phase: .failed)
         failed.createdAt = Date()
         failed.error = "boot timed out"
-        window.render(status: FleetStatus(records: [failed]))
+        fleet.status = FleetStatus(records: [failed])
         XCTAssertTrue(window.fleetModel.detail(for: failed).contains("⚠︎ boot timed out"))
     }
 
@@ -138,16 +138,15 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertEqual(delegate.startCalls, 1, "the click still dispatches")
 
         // The action owner clears it when the command and refresh are done.
-        window.fleetModel.endPendingAction()
+        fleet.pendingFleetAction = nil
         XCTAssertNil(window.fleetModel.pendingAction)
         XCTAssertFalse(window.fleetModel.isBusy)
     }
 
     func testStopClickMarksPendingAndIgnoresDoubleClicks() {
-        window.render(
-            status: {
-                var s = FleetStatus(); s.running = true; return s
-            }())
+        fleet.status = {
+            var s = FleetStatus(); s.running = true; return s
+        }()
         window.fleetModel.stopClicked()
         XCTAssertEqual(window.fleetModel.pendingAction, .stop)
         XCTAssertEqual(delegate.stopCalls, 1)
@@ -159,30 +158,30 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertEqual(delegate.stopCalls, 1)
         XCTAssertEqual(delegate.startCalls, 0)
 
-        window.fleetModel.endPendingAction()
+        fleet.pendingFleetAction = nil
         XCTAssertNil(window.fleetModel.pendingAction)
     }
 
     func testPauseToggleIsIgnoredWhileBusy() {
-        window.render(status: FleetStatus())  // not paused, not busy
+        fleet.status = FleetStatus()  // not paused, not busy
         window.fleetModel.startClicked()
         window.fleetModel.togglePause()
         XCTAssertEqual(delegate.pauseCalls, 0, "no pause/resume during a start/stop")
         XCTAssertEqual(delegate.resumeCalls, 0)
-        window.fleetModel.endPendingAction()
+        fleet.pendingFleetAction = nil
         window.fleetModel.togglePause()
         XCTAssertEqual(delegate.pauseCalls, 1)
     }
 
     func testPauseButtonDispatchesBasedOnRenderedState() {
-        window.render(status: FleetStatus())  // not paused
+        fleet.status = FleetStatus()  // not paused
         window.fleetModel.togglePause()
         XCTAssertEqual(delegate.pauseCalls, 1)
         XCTAssertEqual(delegate.resumeCalls, 0)
 
         var status = FleetStatus()
         status.paused = true
-        window.render(status: status)
+        fleet.status = status
         window.fleetModel.togglePause()
         XCTAssertEqual(delegate.pauseCalls, 1)
         XCTAssertEqual(delegate.resumeCalls, 1)
@@ -197,29 +196,29 @@ final class FleetTabTests: MainWindowTestCase {
     func testUpdateCardRendersEachState() {
         window.showAdvanced(.app)
         let model = window.appModel
-        window.renderUpdate(state: .checking)
+        updates.updateCardState = .checking
         XCTAssertFalse(model.updateButtonEnabled)
         XCTAssertTrue(model.updateText.contains("checking…"))
 
-        window.renderUpdate(state: .available(version: "9.9.9"))
+        updates.updateCardState = .available(version: "9.9.9")
         XCTAssertEqual(model.updateButtonTitle, "Download…")
         XCTAssertTrue(model.updateText.contains("Update available — kinhin 9.9.9"))
 
-        window.renderUpdate(state: .upToDate(lastChecked: nil))
+        updates.updateCardState = .upToDate(lastChecked: nil)
         XCTAssertTrue(model.updateText.contains("is up to date"))
         XCTAssertTrue(model.updateButtonEnabled)
 
-        window.renderUpdate(state: .failed("offline"))
+        updates.updateCardState = .failed("offline")
         XCTAssertTrue(model.updateText.contains("Update check failed: offline"))
     }
 
     func testFleetButtonsShowOnlyApplicableActions() {
-        window.render(status: FleetStatus())  // stopped
+        fleet.status = FleetStatus()  // stopped
         XCTAssertFalse(window.fleetModel.running, "stopped shows Start only")
 
         var status = FleetStatus()
         status.running = true
-        window.render(status: status)
+        fleet.status = status
         XCTAssertTrue(window.fleetModel.running, "running shows Stop and Pause")
     }
 
@@ -242,7 +241,7 @@ final class FleetTabTests: MainWindowTestCase {
     func testDeleteButtonCarriesTheVMID() {
         var record = VMRecord(id: "kinhin-vm-del", phase: .ready)
         record.createdAt = Date()
-        window.render(status: FleetStatus(records: [record]))
+        fleet.status = FleetStatus(records: [record])
         window.fleetModel.onDeleteVM("kinhin-vm-del")
         XCTAssertEqual(delegate.deletedVMIDs, ["kinhin-vm-del"])
     }

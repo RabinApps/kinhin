@@ -1,8 +1,8 @@
-import AppKit
+import Foundation
 import KinhinKit
 
 /// What the App Intents need from the running app. The production default
-/// forwards to `AppDelegate`; tests substitute a fake.
+/// forwards to `FleetController`; tests substitute a fake.
 @MainActor
 protocol FleetIntentBridge: Sendable {
     func status() async throws -> FleetStatus
@@ -17,25 +17,33 @@ protocol FleetIntentBridge: Sendable {
 
 @MainActor
 struct AppFleetIntentBridge: FleetIntentBridge {
-    private var delegate: AppDelegate {
+    /// Nil until the app delegate installs the live controller; intents then
+    /// fail with "not set up" instead of reaching for a global.
+    let controller: FleetController?
+
+    init(controller: FleetController? = nil) {
+        self.controller = controller
+    }
+
+    private var fleet: FleetController {
         get throws {
-            guard let delegate = NSApp.delegate as? AppDelegate else { throw EngineError.fleetNotSetUp }
-            return delegate
+            guard let controller else { throw EngineError.fleetNotSetUp }
+            return controller
         }
     }
 
-    func status() async throws -> FleetStatus { try await delegate.fleetStatus() }
+    func status() async throws -> FleetStatus { try await fleet.fetchStatus() }
 
-    /// Routed through the delegate's pending-state bookkeeping, so a command
+    /// Routed through the controller's pending-state bookkeeping, so a command
     /// begun from Shortcuts disables the menu items and flips the status item
     /// exactly like one begun in the app.
-    func startFleet() async throws { try await delegate.performFleetAction(.start) }
+    func startFleet() async throws { try await fleet.perform(.start) }
 
-    func stopFleet() async throws { try await delegate.performFleetAction(.stop) }
+    func stopFleet() async throws { try await fleet.perform(.stop) }
 
-    func setPaused(_ paused: Bool) async throws { try await delegate.setFleetPaused(paused) }
+    func setPaused(_ paused: Bool) async throws { try await fleet.setPaused(paused) }
 
-    func deleteVM(id: String) async throws { try await delegate.performVMDelete(id: id) }
+    func deleteVM(id: String) async throws { try await fleet.deleteVM(id: id) }
 
     func autoResumeEnabled() async throws -> Bool {
         guard let snapshot = try ConfigStore.snapshot(at: Paths.config) else {
@@ -44,9 +52,9 @@ struct AppFleetIntentBridge: FleetIntentBridge {
         return snapshot.autoResume
     }
 
-    /// Routed through the delegate so the same editor + engine push as the
+    /// Routed through the controller so the same editor + engine push as the
     /// Capacity tab's Apply runs (including the not-set-up check).
-    func setAutoResume(_ on: Bool) async throws { try await delegate.setAutoResumePolicy(on) }
+    func setAutoResume(_ on: Bool) async throws { try await fleet.setAutoResumePolicy(on) }
 
     func doctor() async -> DoctorReport { await DoctorReportBuilder().build() }
 }

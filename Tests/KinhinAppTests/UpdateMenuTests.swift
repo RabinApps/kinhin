@@ -42,7 +42,7 @@ final class UpdateMenuTests: XCTestCase {
     // MARK: - menu states
 
     func testNoPendingUpdateHidesUpdateItem() {
-        delegate.pendingUpdate = nil
+        delegate.updates.pendingUpdate = nil
         delegate.refreshUpdateItems()
 
         XCTAssertEqual(updateItem?.isHidden, true)
@@ -51,7 +51,7 @@ final class UpdateMenuTests: XCTestCase {
     }
 
     func testPendingUpdateShowsDownloadPromotion() {
-        delegate.pendingUpdate = makeInfo()
+        delegate.updates.pendingUpdate = makeInfo()
         delegate.refreshUpdateItems()
 
         XCTAssertEqual(updateItem?.title, "Update available — kinhin 9.9.9…")
@@ -61,10 +61,23 @@ final class UpdateMenuTests: XCTestCase {
         XCTAssertEqual(versionItem?.isEnabled, false)
     }
 
-    func testPendingUpdateClearsBackToHiddenState() {
-        delegate.pendingUpdate = makeInfo()
+    func testDownloadingShowsProgressItemUntilFinished() {
+        delegate.updates.pendingUpdate = makeInfo()
+        delegate.updates.updateCardState = .downloading(name: "kinhin-9.9.9-arm64.dmg")
         delegate.refreshUpdateItems()
-        delegate.pendingUpdate = nil
+        XCTAssertEqual(updateItem?.title, "Downloading kinhin-9.9.9-arm64.dmg…")
+        XCTAssertEqual(updateItem?.isEnabled, false)
+
+        delegate.updates.updateCardState = .available(version: "9.9.9")
+        delegate.refreshUpdateItems()
+        XCTAssertEqual(updateItem?.title, "Update available — kinhin 9.9.9…")
+        XCTAssertEqual(updateItem?.isEnabled, true)
+    }
+
+    func testPendingUpdateClearsBackToHiddenState() {
+        delegate.updates.pendingUpdate = makeInfo()
+        delegate.refreshUpdateItems()
+        delegate.updates.pendingUpdate = nil
         delegate.refreshUpdateItems()
 
         XCTAssertEqual(updateItem?.isHidden, true)
