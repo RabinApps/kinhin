@@ -5,9 +5,15 @@
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
-    "preview": "vitepress preview"
+    "preview": "vitepress preview",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2",
     "vitepress": "^1.5.0"
+  },
+  "overrides": {
+    "vite": "^6.4.3"
   }
 }

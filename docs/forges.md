@@ -2,7 +2,7 @@
 
 Which CI platforms kinhin serves, how to add Gitea, Forgejo, GitLab, Buildkite, Azure DevOps and Bitbucket, and how to serve many accounts from one fleet.
 
-[← Back to README](../README.md)
+[← Back to README](../README.md) · [Per-forge API reference](forges/README.md) (endpoints, versions, audit)
 
 kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today seven forges ship (see [what has been tested](#what-has-been-tested)):
 

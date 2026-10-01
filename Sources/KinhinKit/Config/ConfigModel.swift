@@ -268,7 +268,7 @@ public struct KinhinConfig: Sendable, Equatable {
         /// (fractions of the usable CPU+RAM budget; the remainder, if any,
         /// goes to the default runtime).
         public var budget: [String: Double]
-        /// Repo or `RabinApps/repo@workflow` → runtime. Repo routes take
+        /// Repo or `owner/repo@workflow` → runtime. Repo routes take
         /// precedence over workflow routes; first matching route wins.
         public var routes: [Route]
 

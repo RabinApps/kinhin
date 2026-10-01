@@ -234,6 +234,7 @@ kinhin logs [-n N]          Recent log lines
 | [How scaling works](docs/scaling.md)                             | Capacity cap, the scaling loop, `runners_per_vm`, recovery                  |
 | [Toolchains & the shared cache](docs/toolchains.md)              | Provision scripts, managed toolchains, per-job installs, the download cache |
 | [Forge support](docs/forges.md)                                  | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, multiple accounts |
+| [Forge API reference](docs/forges/README.md)                     | Per-forge endpoints, auth, API versions and an audit against each forge's docs |
 | [Runtimes & routing](docs/runtimes.md)                           | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing   |
 | [Architecture](docs/architecture.md)                             | Package targets, source layout, tests, CI                                   |
 

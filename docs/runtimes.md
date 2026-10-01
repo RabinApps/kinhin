@@ -19,8 +19,7 @@ agent, and tears down. Four backends ship:
 | **Host**            | Jobs on the Mac | None — opt-in, trusted repos only            |
 
 The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the
-protocol, so new backends slot in without touching lifecycle code. The design is written up in
-[runtime-abstraction-design.md](runtime-abstraction-design.md).
+protocol, so new backends slot in without touching lifecycle code.
 
 Both Linux runtimes support [managed toolchains and the shared cache](toolchains.md#linux-runtimes):
 `image prepare --container|--docker` bakes the config's `toolchains:` into the Linux image, and
@@ -86,8 +85,8 @@ from `labels:` when you turn it on. Two ways to get a Linux base VM:
   disk; you install the OS by hand in the VM window (create an `admin` user and let Tart's SSH
   key in). A failed boot rolls the half-created VM back.
 
-Either way, the VM ends up on disk under its `<name>` — then `kinhin image prepare --source
-<name>` runs the usual agent bake against it (the registry pull is skipped for local names), and
+Either way, the VM ends up on disk under its `<name>` — then 
+`kinhin image prepare --source <name>` runs the usual agent bake against it (the registry pull is skipped for local names), and
 pointing `base_image: <name>` at it makes every runner VM a clone of it. The bake injects the
 same token-gated agents and managed toolchains as on macOS, picking the right ones for the guest.
 The bake detects the guest OS (`uname -s` in the scratch VM) and installs `linux-arm64` agent

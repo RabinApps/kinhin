@@ -1,0 +1,56 @@
+# Forge API reference
+
+What kinhin assumes about each forge's API, checked against the forge's own documentation.
+
+[← Back to README](../../README.md) · [Setup guide](../forges.md)
+
+[Forge support](../forges.md) tells you how to set a forge up. These pages record what kinhin sends, which endpoints it calls, and how that compares with each forge's current API docs or published spec. Each page ends with audit findings and a "Verified" date. Re-run the audit when a forge ships a new API version, and update the date.
+
+| Forge | Page | API versioning | Self-hosted | Live-tested |
+|---|---|---|---|---|
+| GitHub | [github.md](github.md) | `X-GitHub-Api-Version` header (`2022-11-28`, `2026-03-10`) | Not supported (GHES uses `/api/v3`) | Yes |
+| Gitea | [gitea.md](gitea.md) | By server release | Yes (`instance`) | No |
+| Forgejo | [gitea.md](gitea.md) | By server release | Yes (`instance`) | No |
+| GitLab | [gitlab.md](gitlab.md) | `/api/v4`, features by server release | Yes (`instance`) | No |
+| Buildkite | [buildkite.md](buildkite.md) | `/v2` | n/a (SaaS control plane) | No |
+| Azure DevOps | [azuredevops.md](azuredevops.md) | `api-version` query parameter (kinhin sends `7.0`) | Yes (Server) | No |
+| Bitbucket Cloud | [bitbucket.md](bitbucket.md) | `/2.0` | Cloud only | No |
+
+## How each forge is used
+
+| | Registration | Exit | Demand source | Label filter |
+|---|---|---|---|---|
+| GitHub | Shared token, 1 h | Deregisters | Workflow runs, then jobs | `labels ⊆ job.labels` |
+| Gitea, Forgejo | Shared token, long-lived | Idle grace | `/actions/tasks` | None |
+| GitLab | One runner per VM | Deregisters | `/projects/{id}/jobs` per project | `labels ⊆ tag_list` |
+| Buildkite | Cluster agent token | Deregisters | Org builds | Agent query rules |
+| Azure DevOps | PAT | Deregisters | Pool job requests | Demands |
+| Bitbucket | One runner per VM | Idle grace | Steps of active pipelines | `labels ⊆ runs_on` (or empty) |
+
+## Audit summary (2026-10-01)
+
+Highest-impact findings, most severe first. Details and evidence are in each page.
+
+1. **Gitea 1.26 and later: registration-token method.** The spec only has `POST`; kinhin sends `GET`. Forgejo only has `GET`. See [gitea.md](gitea.md#audit-findings).
+2. **Gitea and Forgejo demand detection does not match the published specs.** The task-list response key, the unsupported `status` parameter and the missing `runner_name` are all differences from the spec. Better endpoints exist on newer releases. Needs a check against a live server before any change.
+3. **Gitea and Forgejo runner list and delete** are missing on Gitea before 1.24 and on every released Forgejo checked (through v14).
+4. **GitHub org scope relies on an undocumented endpoint** (`/orgs/{org}/actions/runs`), with a fallback for 404.
+5. **Azure DevOps demand relies on an undocumented path** (`pools/{id}/jobrequests`) and is pinned to `api-version=7.0`, which Azure DevOps Server 2020 and older reject.
+6. **GitHub has no GHES support and does not use JIT runner config.**
+7. **Buildkite and Bitbucket**: no mismatches with the docs or spec; minor efficiency notes only.
+
+## Where versions matter (input for a version setting)
+
+| Forge | What would vary with a selected version |
+|---|---|
+| GitHub | `X-GitHub-Api-Version` value (no behavior difference for kinhin's endpoints today); base path `/api/v3` for GHES |
+| Gitea | Registration-token HTTP method, runner list and delete availability, demand endpoint (`/actions/jobs` from 1.25) |
+| Forgejo | Registration-token method (GET), demand endpoint (`/actions/runners/jobs?labels=` from 11), runner list and delete (trunk only) |
+| GitLab | Minimum 16.0; runner API availability |
+| Azure DevOps | `api-version` (5.0 to 7.x depending on Server release) |
+| Buildkite, Bitbucket | None |
+
+## Conventions
+
+- "Verified" means checked against the forge's documentation or published OpenAPI or swagger spec on the stated date. Specs show what a server documents, not how it behaves at runtime.
+- Code references are `file:line` and drift as the code changes; the endpoint tables name the function so the line can be re-found.

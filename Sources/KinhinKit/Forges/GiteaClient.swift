@@ -26,7 +26,7 @@ public struct GiteaCredentials: Sendable {
 
     var isOrgScope: Bool { !scope.contains("/") }
 
-    public var RabinApps: String { String(scope.split(separator: "/").first ?? "") }
+    public var owner: String { String(scope.split(separator: "/").first ?? "") }
 
     /// Base for the actions sub-API of this scope.
     var actionsBase: String {

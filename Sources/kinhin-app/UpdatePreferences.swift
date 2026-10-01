@@ -4,7 +4,7 @@ import KinhinKit
 /// App-side update policy: which repo to check, how often, and the last-check
 /// stamp (UserDefaults, so the 24h throttle survives relaunches).
 enum UpdatePreferences {
-    /// The GitHub repo releases are published to. Fill in RabinApps, or override
+    /// The GitHub repo releases are published to. Fill in the owner, or override
     /// for forks/local testing via the KINHIN_UPDATE_REPO environment variable.
     /// Developer ID builds ignore the override (see `repo`) and also only
     /// install DMGs signed by their own Team ID (`UpdateChecker.signing`).

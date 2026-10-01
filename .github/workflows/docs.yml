@@ -3,7 +3,7 @@ name: Docs
 on:
   push:
     branches: [main]
-    paths: ["website/**"]
+    paths: ["website/**", "docs/**"]
   workflow_dispatch:
 
 # One-time manual step (required before the first deploy):
@@ -32,6 +32,10 @@ jobs:
       - name: Install dependencies
         working-directory: website
         run: npm ci
+
+      - name: Typecheck config
+        working-directory: website
+        run: npm run typecheck
 
       - name: Build site
         working-directory: website

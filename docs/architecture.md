@@ -24,7 +24,7 @@ Inside the targets, code is organized by domain:
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `KinhinKit/Core/`           | Shell, logging, paths, Keychain token store, error classification, version                                                                    |
 | `KinhinKit/Config/`         | YAML config model + loader, validation, every config editor, capacity math, config store                                                      |
-| `KinhinKit/Forges/`         | One `Forge` protocol; GitHub, Gitea (serves Forgejo too), GitLab, Buildkite, Azure DevOps and Bitbucket clients over a shared `ForgeHTTP` transport; auth status reporting |
+| `KinhinKit/Forges/`         | One `Forge` protocol; GitHub, Gitea (serves Forgejo too), GitLab, Buildkite, Azure DevOps and Bitbucket clients over a shared `ForgeHTTP` transport; auth status reporting (per-forge API reference: [docs/forges/](forges/README.md)) |
 | `KinhinKit/Runtimes/`       | Runtime protocol, Tart, Apple-container, Docker and Host runtimes, routing pools, capacity partition, daemon-side container manager           |
 | `KinhinKit/Fleet/`          | FleetEngine (engine / reload / credentials / reconcile / lifecycle splits), status model, records, daemon dispatch + RPC client/server        |
 | `KinhinKit/Images/`         | VM and container image preparation (tart macOS and Linux, container), runner bootstrap scripts, toolchain catalog, registry digest pinning     |

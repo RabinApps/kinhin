@@ -13,3 +13,4 @@ bad.sha256
 /*.png
 # Local dev tokens for scripts/dev-run.sh --env-tokens
 .env.dev
+**/.vitepress/cache/

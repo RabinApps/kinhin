@@ -15,11 +15,11 @@ public struct GitHubCredentials: Sendable {
     /// True when the scope is an organization, not a single repository.
     var isOrgScope: Bool { !scope.contains("/") }
 
-    /// The owner segment of the scope ("RabinApps" in "owner/name").
+    /// The owner segment of the scope ("acme" in "acme/api").
     public var owner: String { String(scope.split(separator: "/").first ?? "") }
 
     /// URL passed to the runner's `config.sh --url`. Org-level runners
-    /// register at /organizations/<org>, repo-level at /<RabinApps>/<repo>.
+    /// register at /organizations/<org>, repo-level at /<owner>/<repo>.
     var configureURL: String {
         isOrgScope
             ? "https://github.com/organizations/\(scope)"
