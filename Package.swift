@@ -16,6 +16,15 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.1.0"),
     ],
     targets: [
+        // `swift package --disable-sandbox dev`: runs scripts/dev-run.sh.
+        .plugin(
+            name: "Dev",
+            capability: .command(
+                intent: .custom(verb: "dev", description: "Build, sign and run the debug menu bar app"),
+                permissions: []
+            ),
+            path: "Plugins/Dev"
+        ),
         // Shared engine library (no UI).
         .target(
             name: "KinhinKit",

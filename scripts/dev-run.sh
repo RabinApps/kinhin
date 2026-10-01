@@ -50,9 +50,16 @@ if [ -z "$IDENTITY" ] && [ "$ENV_TOKENS" = 0 ]; then
     echo "No 'Apple Development' signing identity found; running unsigned (Keychain will prompt after every rebuild)." >&2
 fi
 
-echo "==> swift build --product kinhin-app"
-swift build --product kinhin-app
-BIN="$(swift build --show-bin-path --product kinhin-app)/kinhin-app"
+# KINHIN_APP_BIN=<path>: the caller already built the app (the `swift package dev`
+# plugin does; any `swift build` run from inside it would wait on the package
+# lock the plugin holds), so skip the build and use that binary.
+if [ -n "${KINHIN_APP_BIN:-}" ]; then
+    BIN="$KINHIN_APP_BIN"
+else
+    echo "==> swift build --product kinhin-app"
+    swift build --product kinhin-app
+    BIN="$(swift build --show-bin-path --product kinhin-app)/kinhin-app"
+fi
 
 if [ -n "$IDENTITY" ]; then
     echo "==> codesign ($IDENTITY)"

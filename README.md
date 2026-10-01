@@ -247,6 +247,9 @@ identity (your first Apple Development certificate, or `CODESIGN_IDENTITY`) so t
 answer survives rebuilds instead of prompting after every one. Extra arguments go to the app, e.g.
 `scripts/dev-run.sh -kinhin.autoStartFleet NO` overrides the auto-start preference for that run only.
 
+From the repo root, `swift package --disable-sandbox dev` does the same (the sandbox must be off because it signs and
+launches the app); arguments pass through, e.g. `swift package --disable-sandbox dev --env-tokens`.
+
 To skip the Keychain entirely in a debug build, run `scripts/dev-run.sh --env-tokens`: forge tokens are then read
 from environment variables (`KINHIN_TOKEN_GITHUB`, `KINHIN_TOKEN_GITEA`, …, and `KINHIN_TOKEN_<ACCOUNT>` for named
 accounts, upper-cased with non-alphanumerics as `_`), loaded from a git-ignored `.env.dev` (copy
