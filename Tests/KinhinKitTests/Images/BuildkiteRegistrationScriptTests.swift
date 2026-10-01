@@ -24,6 +24,7 @@ final class BuildkiteRegistrationScriptTests: XCTestCase {
         XCTAssertTrue(script.contains("'kinhin-1-r2' 'queue=kinhin,os=macos'"))
         XCTAssertTrue(script.contains("umask 077"))
         XCTAssertTrue(script.contains(#"BUILDKITE_AGENT_TOKEN="$(cat token)""#))
+        XCTAssertTrue(script.contains("rm -f token"), "the token file is deleted once the agent has read it")
         // The token only reaches the agents through their private files.
         XCTAssertEqual(script.components(separatedBy: "bkct-secret").count, 3)
         XCTAssertTrue(script.contains("echo \"2 buildkite agent(s) started\""))

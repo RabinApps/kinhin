@@ -42,8 +42,9 @@ extension RunnerBootstrap {
     }
 
     /// Starts one single-job Buildkite agent per runner name. The cluster
-    /// agent token is written to a private file (never on a command line) and
-    /// handed to `buildkite-agent start` through `BUILDKITE_AGENT_TOKEN`. With
+    /// agent token is written to a private file (never on a command line), read
+    /// and deleted by the agent's shell, and handed to `buildkite-agent start`
+    /// through `BUILDKITE_AGENT_TOKEN`, so job steps never find it on disk. With
     /// `--disconnect-after-job` the agent leaves after its one job, which
     /// drops it from the connected-agent list: the "deregistered" signal the
     /// engine's ephemeral watch waits for. A non-ephemeral pool (`ephemeral:
@@ -67,6 +68,7 @@ extension RunnerBootstrap {
                 (umask 077 && printf '%s' \(shellQuote(token)) > token)
                 nohup /bin/bash -c '
                   BUILDKITE_AGENT_TOKEN="$(cat token)"
+                  rm -f token
                   export BUILDKITE_AGENT_TOKEN
                   exec "$0" start --name "$1" --tags "$2"\(lifetime) \\
                     --build-path "$PWD/builds" --plugins-path "$PWD/plugins"

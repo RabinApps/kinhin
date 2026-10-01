@@ -114,8 +114,6 @@ enum RPCServer {
         }
     }
 
-  
-
     /// True when the peer of a unix-socket connection runs as our own user.
     static func peerIsCurrentUser(_ fd: Int32) -> Bool {
         var uid: uid_t = 0

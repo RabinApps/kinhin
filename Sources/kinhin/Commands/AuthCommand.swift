@@ -88,7 +88,7 @@ struct AuthEnvironment: Sendable {
         save: { try KeychainTokenStore.save($0, forge: $1) },
         load: { try KeychainTokenStore.load(forge: $0) },
         delete: { KeychainTokenStore.delete(forge: $0) },
-        readToken: { String(data: FileHandle.standardInput.availableData, encoding: .utf8) },
+        readToken: { readSecretLine() },
         checkGitHub: { credentials in _ = try await GitHubClient(credentials: credentials).listRunners() },
         checkGitea: { credentials in _ = try await GiteaClient(credentials: credentials).fetchRegistrationToken() },
         loadConfig: { loadConfigOrExit() },
@@ -188,6 +188,7 @@ enum AuthCommand {
         }
         print("account '\(name)' added to config (\(forge.rawValue): \(scope))")
         if let token = flag("--token", in: args) {
+            warnTokenOnCommandLine()
             try environment.saveAccount(token, forge, name)
             environment.notifyDaemonAccount(name, token)
             print("token stored in Keychain")
@@ -322,11 +323,20 @@ enum AuthCommand {
         return target
     }
 
+    /// A token passed as an argument lands in shell history and is visible in
+    /// the process list; say so, and point at the hidden prompt / piped stdin.
+    private static func warnTokenOnCommandLine() {
+        warn(
+            "--token puts the token in your shell history and process list; run `kinhin auth set` and paste it at the prompt (or pipe it on stdin) instead"
+        )
+    }
+
     /// `auth set`: store the token (from --token or stdin) and hand it to a
     /// running daemon.
     private static func setToken(_ args: [String], target: Target, environment: AuthEnvironment) throws {
         let token: String
         if let explicit = flag("--token", in: args) {
+            warnTokenOnCommandLine()
             token = explicit
         } else {
             // Say what the token needs before asking for it, so it is
@@ -426,4 +436,25 @@ enum AuthCommand {
         }
         print("\(target.label) removed")
     }
+}
+
+/// Reads one line from stdin. On a terminal the echo is switched off while
+/// typing (the prompt promises hidden input) and restored afterwards; piped
+/// input is read as-is.
+func readSecretLine() -> String? {
+    let fd = STDIN_FILENO
+    var original = termios()
+    let isTerminal = isatty(fd) == 1 && tcgetattr(fd, &original) == 0
+    if isTerminal {
+        var silent = original
+        silent.c_lflag &= ~tcflag_t(ECHO)
+        tcsetattr(fd, TCSANOW, &silent)
+    }
+    defer {
+        if isTerminal {
+            tcsetattr(fd, TCSANOW, &original)
+            print("")  // the Enter keypress was not echoed
+        }
+    }
+    return readLine(strippingNewline: true)
 }

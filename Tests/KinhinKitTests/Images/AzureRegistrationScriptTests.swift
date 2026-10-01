@@ -27,9 +27,14 @@ final class AzureRegistrationScriptTests: XCTestCase {
         XCTAssertTrue(script.contains("./run.sh --once"))
         XCTAssertTrue(script.contains("./config.sh remove --unattended --auth pat"), "the agent deregisters itself")
         XCTAssertTrue(script.contains("'kinhin-1-r1' 'kinhin=true'"), "labels are advertised as capabilities")
-        XCTAssertTrue(script.contains(#"for kv in "$@"; do export "$kv"; done"#))
+        // $1-$3 are url/pool/name; the environment starts at $4 (a `shift` here would blank the former).
+        XCTAssertTrue(script.contains(#"for kv in "${@:4}"; do export "$kv"; done"#))
+        XCTAssertFalse(script.contains("shift"))
         XCTAssertTrue(script.contains("'https://dev.azure.com/acme' 'Mac Fleet' 'kinhin-1-r2'"))
-        XCTAssertTrue(script.contains(#"VSTS_AGENT_INPUT_TOKEN="$(cat .pat)""#))
+        XCTAssertTrue(script.contains(#"tok="$(cat .pat)""#))
+        XCTAssertTrue(script.contains("rm -f .pat"), "the PAT file is gone before the job runs")
+        XCTAssertFalse(
+            script.contains("export VSTS_AGENT_INPUT_TOKEN"), "the PAT is not inherited by run.sh and its jobs")
         XCTAssertTrue(script.contains("umask 077"))
         // The PAT only reaches the agents through their private files.
         XCTAssertEqual(script.components(separatedBy: "pat-secret").count, 3)

@@ -11,6 +11,12 @@ enum LogRedactor {
             // GitHub token families: ghp_, gho_, ghu_, ghs_, ghr_ and fine-grained PATs.
             (#"\bgh[pousr]_[A-Za-z0-9]{20,}"#, mask),
             (#"\bgithub_pat_[A-Za-z0-9_]{20,}"#, mask),
+            // GitLab personal/runner tokens, Bitbucket (Atlassian) tokens, Buildkite API tokens.
+            (#"\bgl(?:pat|rt|cbt|ptt|oas)-[A-Za-z0-9_-]{10,}"#, mask),
+            (#"\bAT(?:CTT|ATT)[A-Za-z0-9_=.-]{20,}"#, mask),
+            (#"\bbkua_[A-Za-z0-9]{20,}"#, mask),
+            // GitLab's header-style credential.
+            (#"(?i)(private-token:?\s*)[^\s'"]+"#, "$1" + mask),
             // Authorization headers (token/Bearer/Basic schemes).
             (#"(?i)(authorization:?\s*(?:token|bearer|basic)\s+)[^\s'"]+"#, "$1" + mask),
             // Runner registration / CLI flags: --token abc, --token 'abc', --token=abc.

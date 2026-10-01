@@ -18,6 +18,15 @@ final class LogRedactorTests: XCTestCase {
             secret: "github_pat_11ABCDEFG0abcdefghijkl_mnopqrstuvwxyz1234")
     }
 
+    func testRedactsGitLabBitbucketAndBuildkiteTokens() {
+        assertRedacts("runner glrt-abcdefghij0123456789 registered", secret: "glrt-abcdefghij0123456789")
+        assertRedacts("token glpat-abcdef_ghij-0123456789", secret: "glpat-abcdef_ghij-0123456789")
+        assertRedacts(
+            "got ATCTT3xFfGN0abcdefghijklmnopqrstuvwxyz=12AB", secret: "ATCTT3xFfGN0abcdefghijklmnopqrstuvwxyz=12AB")
+        assertRedacts("api bkua_abcdefghijklmnopqrstuvwx used", secret: "bkua_abcdefghijklmnopqrstuvwx")
+        assertRedacts("PRIVATE-TOKEN: hunter2hunter2", secret: "hunter2hunter2")
+    }
+
     func testRedactsAuthorizationHeaders() {
         assertRedacts("Authorization: token s3cr3tvalue123", secret: "s3cr3tvalue123")
         assertRedacts("authorization: Bearer abc.def.ghi", secret: "abc.def.ghi")

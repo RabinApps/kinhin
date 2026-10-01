@@ -76,9 +76,10 @@ extension RunnerBootstrap {
 
     /// Starts one single-job Azure Pipelines agent per runner name. Each runner
     /// copies the installed agent (`template`) into `baseDir/<name>`, writes
-    /// the PAT to a private file, and in the background registers
-    /// (`config.sh --unattended`, the token read from `VSTS_AGENT_INPUT_TOKEN`,
-    /// never a command line), runs one job (`run.sh --once`), and removes
+    /// the PAT to a private file, and in the background reads and deletes that
+    /// file, registers (`config.sh --unattended`, the token handed over in
+    /// `VSTS_AGENT_INPUT_TOKEN` for that one command only, never a command
+    /// line), runs one job (`run.sh --once`), and removes
     /// itself from the pool: the "deregistered" signal the engine's ephemeral
     /// watch waits for. `capabilities` (`name=value`) are exported so the agent
     /// advertises them; `extraEnvironment` is for the runtime (e.g. allowing
@@ -105,14 +106,13 @@ extension RunnerBootstrap {
                 cd \(dir)
                 (umask 077 && printf '%s' \(shellQuote(token)) > .pat)
                 nohup /bin/bash -c '
-                  shift 3
-                  for kv in "$@"; do export "$kv"; done
-                  VSTS_AGENT_INPUT_TOKEN="$(cat .pat)"
-                  export VSTS_AGENT_INPUT_TOKEN
-                  ./config.sh --unattended --url "$1" --auth pat --pool "$2" --agent "$3" \\
+                  for kv in "${@:4}"; do export "$kv"; done
+                  tok="$(cat .pat)"
+                  rm -f .pat
+                  VSTS_AGENT_INPUT_TOKEN="$tok" ./config.sh --unattended --url "$1" --auth pat --pool "$2" --agent "$3" \\
                     --replace --acceptTeeEula --work "$PWD/_work" || exit 1
                   ./run.sh --once || true
-                  ./config.sh remove --unattended --auth pat
+                  VSTS_AGENT_INPUT_TOKEN="$tok" ./config.sh remove --unattended --auth pat
                 ' azure-agent \(shellQuote(organization)) \(shellQuote(pool)) \(shellQuote(runner)) \(environment) \\
                   > agent.log 2>&1 < /dev/null &
                 echo $! > agent.pid
