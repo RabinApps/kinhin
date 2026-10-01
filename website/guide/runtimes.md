@@ -5,7 +5,7 @@ agent, and tears down. Three backends ship:
 
 | Runtime                | Runs       | Isolation                                                        |
 | ---------------------- | ---------- | ---------------------------------------------------------------- |
-| **Tart**               | macOS jobs | full macOS VM per job (linked clone of a prepared base image)     |
+| **Tart**               | macOS jobs (Linux jobs on a Linux base) | full VM per job (linked clone of a prepared base image) |
 | **apple/container**    | Linux jobs | one lightweight microVM per runner container, no Docker daemon    |
 | **Docker**             | Linux jobs | one container per job slot in your provider's shared Linux VM     |
 
@@ -34,6 +34,20 @@ Routing precedence: **workflow route → repo route → `runs-on:` label → def
 runners always register with a `kinhin-container` label (plus optional `container.labels`),
 so any job can opt into the Linux pool with `runs-on: [kinhin-container]` without touching
 config.
+
+## Tart Linux VMs
+
+Tart clones Linux VMs as happily as macOS ones. `kinhin image prepare --linux --target <name>`
+creates a Linux base VM two ways: `--from` clones a pre-configured image (the curated
+`ghcr.io/cirruslabs/ubuntu` / `debian` / `fedora` images ship `admin`/`admin` and Tart's SSH
+key, so no OS install is needed), and `--iso <arm64.iso>` attaches install media for a
+hand-installed OS instead. Then `kinhin image prepare --source <name>` bakes the runner agents
+(the registry pull is skipped for local VM names) and `base_image: <name>` makes every runner
+VM a clone of it.
+
+One caveat: some agent downloads in the tart bake are pinned to their macOS binaries, so verify
+the agents your forges need run on your guest OS — the Linux runtimes below bake Linux binaries
+and are the supported path for Linux jobs today.
 
 ## apple/container for Linux jobs
 

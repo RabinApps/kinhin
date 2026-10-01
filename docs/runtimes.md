@@ -10,7 +10,7 @@ agent, and tears down. Four backends ship:
 
 | Runtime             | Runs            | Isolation                                    |
 | ------------------- | --------------- | -------------------------------------------- |
-| **Tart**            | macOS jobs      | One VM per runner (linked clone)             |
+| **Tart**            | macOS jobs (Linux jobs on a Linux base — see [below](#tart-linux-vms)) | One VM per runner (linked clone) |
 | **apple/container** | Linux jobs      | One lightweight microVM per runner container |
 | **Docker**          | Linux jobs      | Containers in your provider's shared VM      |
 | **Host**            | Jobs on the Mac | None — opt-in, trusted repos only            |
@@ -45,6 +45,30 @@ kinhin image digest ghcr.io/cirruslabs/macos-sequoia-base:latest
 ```
 
 Bump the pin deliberately (re-run `image digest`, re-prepare) — a pin never moves on its own.
+
+## Tart Linux VMs
+
+Tart clones Linux VMs as happily as macOS ones, and kinhin can serve Linux jobs from a full Tart
+VM when you want VM-grade isolation for Linux work without a container runtime. Two ways to get
+a Linux base VM:
+
+- **From a pre-configured image** — `kinhin image prepare --linux --target <name> --from` shows
+  the curated menu (`ghcr.io/cirruslabs/ubuntu:latest`, `ghcr.io/cirruslabs/debian:latest`, … —
+  all of them ship the `admin`/`admin` credentials and trust Tart's SSH key, so the bake works
+  out of the box); `--from <ref>` clones any other tart reference. The published images already
+  have an OS, so no install step is needed.
+- **From an install ISO** — `kinhin image prepare --linux --target <name> --iso <arm64.iso>`
+  creates a bare VM (`tart create --linux`) and boots it once with the ISO attached as a second
+  disk; you install the OS by hand in the VM window (create an `admin` user and let Tart's SSH
+  key in). A failed boot rolls the half-created VM back.
+
+Either way, the VM ends up on disk under its `<name>` — then `kinhin image prepare --source
+<name>` runs the usual agent bake against it (the registry pull is skipped for local names), and
+pointing `base_image: <name>` at it makes every runner VM a clone of it. The bake injects the
+same token-gated agents and managed toolchains as on macOS; mind that some agent downloads are
+pinned to their macOS binaries (`osx-arm64` actions-runner, `darwin-arm64` gitea-runner), so
+verify the agents your forges need run on your guest OS — the Linux runtimes below bake the
+Linux binaries instead and are the supported path for Linux jobs today.
 
 ## Apple `container` (Linux microVMs)
 
