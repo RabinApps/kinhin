@@ -22,7 +22,9 @@ struct Dev: CommandPlugin {
         let process = Process()
         process.executableURL = script
         process.arguments = arguments
-        process.environment = ProcessInfo.processInfo.environment.merging(["KINHIN_APP_BIN": binary.url.path(percentEncoded: false)]) { _, new in new }
+        process.environment = ProcessInfo.processInfo.environment.merging([
+            "KINHIN_APP_BIN": binary.url.path(percentEncoded: false)
+        ]) { _, new in new }
         process.currentDirectoryURL = context.package.directoryURL
         try process.run()
         process.waitUntilExit()
