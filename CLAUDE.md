@@ -8,6 +8,7 @@ Single Swift package (Swift 6.4 tools, Swift 6 language mode / strict concurrenc
 swift build
 swift test                        # ~1200 XCTest tests, ~2 min; no VMs or network needed
 scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
+scripts/dev-run.sh                # debug app, signed with a stable identity so Keychain "Always Allow" survives rebuilds
 swift format lint --strict -r Sources Tests
 swift format format -i -r Sources Tests
 ```
