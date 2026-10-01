@@ -215,7 +215,6 @@ kinhin logs [-n N]          Recent log lines
 | [Forge support](docs/forges.md)                                  | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, multiple accounts |
 | [Runtimes & routing](docs/runtimes.md)                           | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing   |
 | [Architecture](docs/architecture.md)                             | Package targets, source layout, tests, CI                                   |
-| [Runtime abstraction design](docs/runtime-abstraction-design.md) | Historical design document for the shipped Runtime layer                    |
 
 ## Troubleshooting
 
