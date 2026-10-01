@@ -39,8 +39,13 @@ final class UpdateTrustTests: XCTestCase {
         }
     }
 
-    private func tempDMG() -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-update-\(dmgName)")
+    /// Download directories still holding this test's DMG (none should survive a failure).
+    private func leftoverDMGs() -> [URL] {
+        let temp = FileManager.default.temporaryDirectory
+        let dirs = (try? FileManager.default.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil)) ?? []
+        return dirs.filter { $0.lastPathComponent.hasPrefix(UpdateChecker.downloadDirectoryPrefix) }
+            .map { $0.appendingPathComponent(dmgName) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     // MARK: - Validators
@@ -79,9 +84,31 @@ final class UpdateTrustTests: XCTestCase {
         XCTAssertTrue(UpdateTrust.isValidTeamID("ABCDE12345"))
         XCTAssertFalse(UpdateTrust.isValidTeamID("abcde12345"))
         XCTAssertFalse(UpdateTrust.isValidTeamID("ABC\" or anchor apple"))
-        XCTAssertEqual(
-            UpdateTrust.requirement(teamID: "ABCDE12345"),
-            "anchor apple generic and certificate leaf[subject.OU] = \"ABCDE12345\"")
+        let requirement = UpdateTrust.requirement(teamID: "ABCDE12345")
+        // Developer ID CA + Developer ID Application leaf + the team: an Apple
+        // Development or App Store certificate of the same team must not satisfy it.
+        XCTAssertTrue(requirement.contains("certificate 1[field.1.2.840.113635.100.6.2.6]"))
+        XCTAssertTrue(requirement.contains("certificate leaf[field.1.2.840.113635.100.6.1.13]"))
+        XCTAssertTrue(requirement.hasSuffix("certificate leaf[subject.OU] = \"ABCDE12345\""))
+    }
+
+    func testReleaseTagAndRedirectValidation() {
+        XCTAssertTrue(UpdateTrust.isValidReleaseTag("v1.2.3"))
+        for tag in ["1.2.3", "v1.2", "v1.2.3-beta", "v1.2.3\n", "v1.2.3 ", "vx.y.z"] {
+            XCTAssertFalse(UpdateTrust.isValidReleaseTag(tag), tag)
+        }
+        for url in [
+            "https://github.com/a/b/releases/download/v1.0.0/x.dmg",
+            "https://objects.githubusercontent.com/x", "https://release-assets.githubusercontent.com/x",
+        ] {
+            XCTAssertTrue(UpdateTrust.isTrustedRedirectTarget(URL(string: url)!), url)
+        }
+        for url in [
+            "http://github.com/x", "https://evil.example/x", "https://githubusercontent.com.evil.example/x",
+            "https://notgithub.com/x",
+        ] {
+            XCTAssertFalse(UpdateTrust.isTrustedRedirectTarget(URL(string: url)!), url)
+        }
     }
 
     // MARK: - Release feed
@@ -110,7 +137,7 @@ final class UpdateTrustTests: XCTestCase {
         }
     }
 
-    func testFetchRejectsTraversalAssetName() async {
+    func testFetchNeverSelectsATraversalAssetName() async {
         let name = "../../evil-arm64.dmg"
         let body = Data(
             """
@@ -121,7 +148,7 @@ final class UpdateTrustTests: XCTestCase {
             _ = try await makeChecker(shell: FakeShell(), teamID: nil).fetchLatestRelease()
             XCTFail("must throw")
         } catch {
-            XCTAssertEqual(error as? UpdateCheckError, .untrustedAsset(name))
+            XCTAssertEqual(error as? UpdateCheckError, .noDMGAsset("v0.2.0"))
         }
     }
 
@@ -151,6 +178,39 @@ final class UpdateTrustTests: XCTestCase {
         XCTAssertEqual(call.first, "/usr/bin/codesign")
         XCTAssertTrue(call.contains("-R=" + UpdateTrust.requirement(teamID: "ABCDE12345")))
         XCTAssertEqual(call.last, url.path)
+        // Then the Gatekeeper assessment (notarization, revocation) the missing quarantine skips.
+        let assess = try XCTUnwrap(shell.calls.dropFirst().first)
+        XCTAssertEqual(assess.first, "/usr/sbin/spctl")
+        XCTAssertEqual(assess.last, url.path)
+    }
+
+    func testDownloadDeletesFileWhenGatekeeperRejectsIt() async {
+        stubDownload(payload: Data("dmg".utf8))
+        let shell = FakeShell()
+        shell.failOn = "/usr/sbin/spctl"
+        do {
+            _ = try await makeChecker(shell: shell, teamID: "ABCDE12345").downloadDMG(makeInfo())
+            XCTFail("a DMG Gatekeeper rejects must throw")
+        } catch {
+            XCTAssertEqual(error as? UpdateCheckError, .notarizationRejected(dmgName))
+        }
+        XCTAssertTrue(leftoverDMGs().isEmpty)
+    }
+
+    func testDownloadRefusesWhenOwnSignatureIsUnreadable() async {
+        stubDownload(payload: Data("dmg".utf8))
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        let checker = UpdateChecker(
+            repo: "acme/kinhin", currentVersion: "0.1.0", session: URLSession(configuration: config),
+            shell: FakeShell(), signing: .unreadable)
+        do {
+            _ = try await checker.downloadDMG(makeInfo())
+            XCTFail("an unreadable own signature must not fall back to checksum-only")
+        } catch {
+            XCTAssertEqual(error as? UpdateCheckError, .signingUnreadable)
+        }
+        XCTAssertTrue(leftoverDMGs().isEmpty)
     }
 
     func testDownloadDeletesFileWhenSignatureCheckFails() async {
@@ -163,7 +223,7 @@ final class UpdateTrustTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? UpdateCheckError, .signatureInvalid(dmgName))
         }
-        XCTAssertFalse(FileManager.default.fileExists(atPath: tempDMG().path))
+        XCTAssertTrue(leftoverDMGs().isEmpty, "a rejected download must not stay on disk")
     }
 
     func testDownloadSkipsSignatureCheckWithoutTeamID() async throws {

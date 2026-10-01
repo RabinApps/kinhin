@@ -74,12 +74,28 @@ final class UpdateCheckTests: XCTestCase {
         XCTAssertNotNil(info.publishedAt)
     }
 
-    func testFallbackAssetMatchWhenExactNameDiffers() async throws {
-        let release = releaseJSON(tag: "v0.2.0", assets: ["kinhin-nightly-arm64.dmg"])
+    func testDifferentlyNamedDMGIsNotOffered() async {
+        let release = releaseJSON(tag: "v0.2.0", assets: ["kinhin-0.1.0-arm64.dmg", "kinhin-nightly-arm64.dmg"])
         StubProtocol.handler = { _ in (200, release, [:]) }
-        let result = try await makeChecker(version: "0.1.0").check()
-        guard case .available(let info) = result else { return XCTFail("expected available, got \(result)") }
-        XCTAssertEqual(info.dmgName, "kinhin-nightly-arm64.dmg")
+        do {
+            _ = try await makeChecker(version: "0.1.0").check()
+            XCTFail("only kinhin-<tag version>-arm64.dmg may be offered")
+        } catch {
+            XCTAssertEqual(error as? UpdateCheckError, .noDMGAsset("v0.2.0"))
+        }
+    }
+
+    func testMalformedReleaseTagIsRefused() async {
+        for tag in ["v0.2", "latest", "v0.2.0-rc1"] {
+            let release = releaseJSON(tag: tag, assets: ["kinhin-0.2.0-arm64.dmg"])
+            StubProtocol.handler = { _ in (200, release, [:]) }
+            do {
+                _ = try await makeChecker(version: "0.1.0").check()
+                XCTFail("accepted tag \(tag)")
+            } catch {
+                XCTAssertEqual(error as? UpdateCheckError, .invalidTag(tag))
+            }
+        }
     }
 
     // MARK: - Check outcomes

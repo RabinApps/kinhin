@@ -1,16 +1,22 @@
 import Foundation
+import KinhinKit
 
 /// App-side update policy: which repo to check, how often, and the last-check
 /// stamp (UserDefaults, so the 24h throttle survives relaunches).
 enum UpdatePreferences {
     /// The GitHub repo releases are published to. Fill in RabinApps, or override
     /// for forks/local testing via the KINHIN_UPDATE_REPO environment variable.
-    /// A Developer ID build only installs DMGs signed by its own Team ID
-    /// (`UpdateChecker.trustedTeamID`), so pointing it at another repo cannot
-    /// deliver a foreign binary.
+    /// Developer ID builds ignore the override (see `repo`) and also only
+    /// install DMGs signed by their own Team ID (`UpdateChecker.signing`).
     static let repo: String = {
-        repo(fromEnvironment: ProcessInfo.processInfo.environment)
+        // A Developer ID build only ever updates from the official repo: the
+        // override exists for forks and local (ad-hoc) builds, and honoring it
+        // in a signed release would let an inherited environment redirect it.
+        if UpdateTrust.currentTeamID() != nil { return defaultRepo }
+        return repo(fromEnvironment: ProcessInfo.processInfo.environment)
     }()
+
+    static let defaultRepo = "RabinApps/kinhin"
 
     /// The repo-selection rule, injectable for tests: an env var containing
     /// "owner/name" wins; anything else (missing, empty, malformed) falls
@@ -23,7 +29,7 @@ enum UpdatePreferences {
         if let legacy = env["ORCHARD_UPDATE_REPO"], legacy.contains("/") {
             return legacy
         }
-        return "RabinApps/kinhin"
+        return defaultRepo
     }
 
     /// Automatic checks run at most once per day; the menu item always checks on demand.

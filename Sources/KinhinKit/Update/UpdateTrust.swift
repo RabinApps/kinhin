@@ -35,31 +35,67 @@ public enum UpdateTrust {
         return url.path.lowercased().hasPrefix(prefix.lowercased()) && !url.path.contains("..")
     }
 
+    /// The only release tag shape the updater acts on.
+    static func isValidReleaseTag(_ tag: String) -> Bool {
+        tag.range(of: #"^v[0-9]+\.[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil
+    }
+
+    /// Hosts a release download may be redirected through: GitHub itself and the
+    /// CDNs it serves release assets from. Everything else is refused.
+    static func isTrustedRedirectTarget(_ url: URL) -> Bool {
+        guard url.scheme == "https", let host = url.host?.lowercased() else { return false }
+        return ["github.com", "api.github.com"].contains(host) || host.hasSuffix(".githubusercontent.com")
+    }
+
+    /// Upper bound for the release JSON and `checksums.txt`; both are tiny.
+    static let maxMetadataBytes = 2_000_000
+
     static func isValidTeamID(_ id: String) -> Bool {
         id.range(of: #"^[A-Z0-9]{10}$"#, options: .regularExpression) != nil
     }
 
-    /// Code requirement for `codesign -R`: Apple-issued Developer ID chain
-    /// whose leaf certificate belongs to `teamID`.
+    /// Code requirement for `codesign -R`: the Developer ID chain (Developer ID
+    /// CA plus a Developer ID Application leaf) whose leaf belongs to `teamID`.
+    /// Pinning the leaf type keeps an Apple Development or Mac App Store
+    /// certificate of the same team from satisfying it.
     static func requirement(teamID: String) -> String {
-        "anchor apple generic and certificate leaf[subject.OU] = \"\(teamID)\""
+        "anchor apple generic"
+            + " and certificate 1[field.1.2.840.113635.100.6.2.6] exists"
+            + " and certificate leaf[field.1.2.840.113635.100.6.1.13] exists"
+            + " and certificate leaf[subject.OU] = \"\(teamID)\""
+    }
+
+    /// How the running build is signed, which decides what the updater can pin.
+    public enum Signing: Equatable, Sendable {
+        /// Developer ID build: updates must be signed by this team.
+        case developerID(teamID: String)
+        /// Ad-hoc or unsigned (forks, local builds, `swift test`): nothing to pin to.
+        case adHoc
+        /// The signature could not be read at all. Treated as untrusted, never as ad-hoc.
+        case unreadable
     }
 
     /// The Developer ID Team ID the running binary is signed with; nil for
-    /// ad-hoc or unsigned builds (forks, local builds, `swift test`), where
-    /// there is nothing to pin the update to.
+    /// ad-hoc, unsigned or unreadable signatures.
     public static func currentTeamID() -> String? {
+        if case .developerID(let team) = currentSigning() { return team }
+        return nil
+    }
+
+    public static func currentSigning() -> Signing {
         var code: SecCode?
-        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return nil }
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return .unreadable }
         var staticCode: SecStaticCode?
-        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return nil }
+        guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return .unreadable }
         var info: CFDictionary?
         let flags = SecCSFlags(rawValue: kSecCSSigningInformation)
         guard SecCodeCopySigningInformation(staticCode, flags, &info) == errSecSuccess,
-            let dict = info as? [String: Any],
-            let team = dict[kSecCodeInfoTeamIdentifier as String] as? String,
-            isValidTeamID(team)
-        else { return nil }
-        return team
+            let dict = info as? [String: Any]
+        else { return .unreadable }
+        if let team = dict[kSecCodeInfoTeamIdentifier as String] as? String {
+            return isValidTeamID(team) ? .developerID(teamID: team) : .unreadable
+        }
+        // Signed without a team: ad-hoc (or unsigned), which is normal for local builds.
+        return .adHoc
     }
 }

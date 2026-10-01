@@ -44,6 +44,10 @@ enum UpdateCheckError: LocalizedError, Equatable {
     case invalidRepo(String)
     case untrustedAsset(String)
     case signatureInvalid(String)
+    case notarizationRejected(String)
+    case signingUnreadable
+    case invalidTag(String)
+    case responseTooLarge(String)
 
     var errorDescription: String? {
         switch self {
@@ -65,6 +69,15 @@ enum UpdateCheckError: LocalizedError, Equatable {
             return "Release asset \(name) is not served from the release's own download URL; refusing it"
         case .signatureInvalid(let name):
             return "\(name) is not signed by the same Developer ID as this app; the file was discarded"
+        case .notarizationRejected(let name):
+            return "Gatekeeper rejected \(name) (not notarized or revoked); the file was discarded"
+        case .signingUnreadable:
+            return
+                "Could not read this app's code signature, so an update cannot be verified; reinstall kinhin manually"
+        case .invalidTag(let tag):
+            return "Release tag '\(tag)' is not of the form vMAJOR.MINOR.PATCH; refusing it"
+        case .responseTooLarge(let what):
+            return "\(what) is unexpectedly large; refusing it"
         }
     }
 }
@@ -100,26 +113,38 @@ public struct UpdateChecker: Sendable {
     let currentVersion: String
     let session: URLSession
     let shell: any ShellRunning
-    /// Team ID the downloaded installer must be signed by; nil skips the
-    /// check (ad-hoc/unsigned builds have no signer to pin to).
-    let trustedTeamID: String?
+    /// How the running build is signed. A Developer ID build only accepts DMGs
+    /// signed by its own team; an ad-hoc build (nothing to pin to) falls back to
+    /// the checksum; an unreadable signature refuses every update.
+    let signing: UpdateTrust.Signing
 
     public init(
         repo: String, currentVersion: String = kinhinVersion.current, session: URLSession? = nil,
-        shell: any ShellRunning = Shell(), trustedTeamID: String? = UpdateTrust.currentTeamID()
+        shell: any ShellRunning = Shell(), signing: UpdateTrust.Signing = UpdateTrust.currentSigning()
     ) {
         self.repo = repo
         self.currentVersion = currentVersion
         self.shell = shell
-        self.trustedTeamID = trustedTeamID
+        self.signing = signing
         if let session {
             self.session = session
         } else {
             let config = URLSessionConfiguration.default
             config.timeoutIntervalForRequest = 15
             config.timeoutIntervalForResource = 30
-            self.session = URLSession(configuration: config)
+            // Redirects may only stay on GitHub's own hosts.
+            self.session = URLSession(configuration: config, delegate: UpdateRedirectGuard(), delegateQueue: nil)
         }
+    }
+
+    /// For tests and callers that only know the team: nil means ad-hoc.
+    public init(
+        repo: String, currentVersion: String = kinhinVersion.current, session: URLSession? = nil,
+        shell: any ShellRunning = Shell(), trustedTeamID: String?
+    ) {
+        self.init(
+            repo: repo, currentVersion: currentVersion, session: session, shell: shell,
+            signing: trustedTeamID.map { .developerID(teamID: $0) } ?? .adHoc)
     }
 
     static func dmgAssetName(forVersion version: String) -> String {
@@ -150,6 +175,9 @@ public struct UpdateChecker: Sendable {
         req.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
 
         let (data, response) = try await session.data(for: req)
+        guard data.count <= UpdateTrust.maxMetadataBytes else {
+            throw UpdateCheckError.responseTooLarge("the release response")
+        }
         guard let http = response as? HTTPURLResponse else {
             throw UpdateCheckError.http(0, "non-HTTP response")
         }
@@ -183,12 +211,14 @@ public struct UpdateChecker: Sendable {
             throw UpdateCheckError.decoding("releases/latest: \(error.localizedDescription)")
         }
 
-        let version = release.tag_name.hasPrefix("v") ? String(release.tag_name.dropFirst()) : release.tag_name
+        guard UpdateTrust.isValidReleaseTag(release.tag_name) else {
+            throw UpdateCheckError.invalidTag(release.tag_name)
+        }
+        let version = String(release.tag_name.dropFirst())
+        // Exactly the DMG for this version: a differently named (or older) DMG
+        // attached to a new tag must not be offered as the update.
         let wanted = Self.dmgAssetName(forVersion: version)
-        guard
-            let dmg = release.assets.first(where: { $0.name == wanted })
-                ?? release.assets.first(where: { $0.name.hasSuffix("-arm64.dmg") })
-        else {
+        guard let dmg = release.assets.first(where: { $0.name == wanted }) else {
             throw UpdateCheckError.noDMGAsset(release.tag_name)
         }
         guard UpdateTrust.isSafeAssetName(dmg.name),
@@ -224,36 +254,47 @@ public struct UpdateChecker: Sendable {
         guard UpdateTrust.isSafeAssetName(info.dmgName) else {
             throw UpdateCheckError.untrustedAsset(info.dmgName)
         }
-        let temp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("kinhin-update-\(info.dmgName)")
-        // A leftover from an earlier download usually isn't there; if it is and
-        // cannot be removed, the moveItem below throws the real error.
-        try? FileManager.default.removeItem(at: temp)
+        Self.removeStaleDownloads()
+        // A fresh private directory per download: nothing else can pre-create or
+        // swap the file between verification and the moment it is opened.
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(Self.downloadDirectoryPrefix)\(UUID().uuidString)", isDirectory: true)
+        try Paths.createPrivateDirectory(directory)
+        let temp = directory.appendingPathComponent(info.dmgName)
 
         let delegate = DownloadProgressDelegate(progress: progress)
         let (location, response) = try await session.download(for: URLRequest(url: info.dmgURL), delegate: delegate)
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
             try? FileManager.default.removeItem(at: location)  // system temp file; the HTTP error is what matters
+            bestEffort("update", "remove download directory") { try FileManager.default.removeItem(at: directory) }
             throw UpdateCheckError.http(http.statusCode, "downloading \(info.dmgName)")
         }
-        try FileManager.default.moveItem(at: location, to: temp)
         do {
+            try FileManager.default.moveItem(at: location, to: temp)
             try await verifyChecksum(of: temp, named: info.dmgName, checksumsURL: info.checksumsURL)
             try await verifySignature(of: temp, named: info.dmgName)
         } catch {
             // Never leave an unverified (or tampered) installer on disk.
-            bestEffort("update", "remove unverified download") { try FileManager.default.removeItem(at: temp) }
+            bestEffort("update", "remove unverified download") { try FileManager.default.removeItem(at: directory) }
             throw error
         }
         return temp
     }
 
     /// Requires the DMG to be signed by the Developer ID Team ID of the running
-    /// app. Skipped (with a warning) when the running build has no Team ID.
+    /// app and accepted by Gatekeeper (notarized, not revoked). An ad-hoc build
+    /// has no signer to pin to and relies on the checksum; a build whose own
+    /// signature cannot be read refuses the update.
     func verifySignature(of file: URL, named name: String) async throws {
-        guard let teamID = trustedTeamID else {
+        let teamID: String
+        switch signing {
+        case .developerID(let team):
+            teamID = team
+        case .adHoc:
             Log.warn("update", "running build has no Developer ID; \(name) verified by checksum only")
             return
+        case .unreadable:
+            throw UpdateCheckError.signingUnreadable
         }
         let result = try await shell.run([
             "/usr/bin/codesign", "--verify", "--strict", "-R=\(UpdateTrust.requirement(teamID: teamID))", file.path,
@@ -261,6 +302,27 @@ public struct UpdateChecker: Sendable {
         guard result.succeeded else {
             Log.error("update", "signature check failed for \(name): \(result.failureExcerpt)")
             throw UpdateCheckError.signatureInvalid(name)
+        }
+        // The file carries no quarantine attribute, so Gatekeeper never looked at it:
+        // ask for the same assessment (notarization ticket, revocation) explicitly.
+        let assessment = try await shell.run([
+            "/usr/sbin/spctl", "--assess", "--type", "open", "--context", "context:primary-signature", "-v", file.path,
+        ])
+        guard assessment.succeeded else {
+            Log.error("update", "Gatekeeper assessment failed for \(name): \(assessment.failureExcerpt)")
+            throw UpdateCheckError.notarizationRejected(name)
+        }
+    }
+
+    static let downloadDirectoryPrefix = "kinhin-update-"
+
+    /// Earlier downloads (and the old fixed-name files) are not needed once a
+    /// new one starts; best effort, the system temp directory is cleaned anyway.
+    static func removeStaleDownloads() {
+        let fm = FileManager.default
+        let entries = (try? fm.contentsOfDirectory(at: fm.temporaryDirectory, includingPropertiesForKeys: nil)) ?? []
+        for entry in entries where entry.lastPathComponent.hasPrefix(downloadDirectoryPrefix) {
+            bestEffort("update", "remove old download \(entry.lastPathComponent)") { try fm.removeItem(at: entry) }
         }
     }
 
@@ -270,6 +332,9 @@ public struct UpdateChecker: Sendable {
     func verifyChecksum(of file: URL, named name: String, checksumsURL: URL?) async throws {
         guard let checksumsURL else { throw UpdateCheckError.noChecksum(name) }
         let (data, response) = try await session.data(from: checksumsURL)
+        guard data.count <= UpdateTrust.maxMetadataBytes else {
+            throw UpdateCheckError.responseTooLarge("checksums.txt")
+        }
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
             throw UpdateCheckError.http(http.statusCode, "downloading checksums.txt")
         }
@@ -304,8 +369,36 @@ public struct UpdateChecker: Sendable {
     }
 }
 
+/// Refuses redirects that leave GitHub's hosts or drop to http. Used as the
+/// session delegate and for the download task, so no step of an update can be
+/// bounced to a host the release did not name.
+final class UpdateRedirectGuard: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(
+        _: URLSession, task _: URLSessionTask, willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        if let url = request.url, UpdateTrust.isTrustedRedirectTarget(url) {
+            completionHandler(request)
+        } else {
+            Log.warn("update", "refused a redirect to \(request.url?.host ?? "an unknown host")")
+            completionHandler(nil)
+        }
+    }
+}
+
 /// Bridges URLSession download progress to a closure.
 final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate, Sendable {
+    private let redirectGuard = UpdateRedirectGuard()
+
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        redirectGuard.urlSession(
+            session, task: task, willPerformHTTPRedirection: response, newRequest: request,
+            completionHandler: completionHandler)
+    }
+
     let progress: (@Sendable (Double) -> Void)?
 
     init(progress: (@Sendable (Double) -> Void)?) {
