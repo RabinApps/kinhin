@@ -78,11 +78,32 @@ public enum Paths {
     public static func ensureSupportDirectories() {
         migrateLegacySupportDirectory()
         // Best effort: a directory that cannot be created is logged here, and
-        // the first write into it fails with the real error.
-        for directory in [appSupport, logsDirectory, stateDirectory, toolchainCache] {
-            bestEffort("paths", "creating \(directory.path)") {
-                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        // the first write into it fails with the real error. The private ones
+        // are 0700 (created that way, or tightened if an older build made them
+        // with the default umask); the toolchain cache is mounted into guests,
+        // so it keeps default permissions.
+        for directory in [appSupport, logsDirectory, stateDirectory] {
+            bestEffort("paths", "securing \(directory.path)") {
+                try createPrivateDirectory(directory)
+                try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
             }
+        }
+        bestEffort("paths", "creating \(toolchainCache.path)") {
+            try FileManager.default.createDirectory(at: toolchainCache, withIntermediateDirectories: true)
+        }
+        restrictExistingFiles()
+    }
+
+    /// Tightens files earlier builds created world-readable: the config and its
+    /// backup, and the live and rotated logs.
+    private static func restrictExistingFiles() {
+        let fm = FileManager.default
+        var files = [config, config.appendingPathExtension("bak")]
+        // A missing logs directory just means there is nothing to tighten.
+        let logs = (try? fm.contentsOfDirectory(at: logsDirectory, includingPropertiesForKeys: nil)) ?? []
+        files += logs.filter { $0.lastPathComponent.hasPrefix("kinhin.log") }
+        for file in files where fm.fileExists(atPath: file.path) {
+            bestEffort("paths", "restricting \(file.lastPathComponent)") { try restrictToOwner(file) }
         }
     }
 

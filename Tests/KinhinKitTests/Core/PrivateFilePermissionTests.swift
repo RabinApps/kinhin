@@ -40,4 +40,13 @@ final class PrivateFilePermissionTests: XCTestCase {
         store.upsert(VMRecord(id: "kinhin-1", phase: .ready))
         XCTAssertEqual(try mode(root.appendingPathComponent("fleet.json")), 0o600)
     }
+
+    func testExistingWorldReadableLogIsTightenedOnOpen() throws {
+        try Paths.createPrivateDirectory(root)
+        let file = root.appendingPathComponent("kinhin.log")
+        XCTAssertTrue(
+            FileManager.default.createFile(atPath: file.path, contents: nil, attributes: [.posixPermissions: 0o644]))
+        _ = try RotatingLogFile(url: file)
+        XCTAssertEqual(try mode(file), 0o600)
+    }
 }

@@ -35,7 +35,14 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     /// nil for a single-repo fleet).
     public var runningByRepo: [String: Int]?
     public var records: [VMRecord]
-    public var lastError: String?
+    /// Masked on assignment (see `VMRecord.error`).
+    public var lastError: String? {
+        didSet {
+            if let lastError, LogRedactor.redact(lastError) != lastError {
+                self.lastError = LogRedactor.redact(lastError)
+            }
+        }
+    }
     var updatedAt: Date
     /// Execution runtime serving the fleet ("tart" or "appleContainer").
     public var runtime: String?

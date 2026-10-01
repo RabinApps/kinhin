@@ -39,7 +39,11 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     /// attribution, stamped by the reconcile loop from in-progress jobs;
     /// nil when nothing is running or the scope is a single repo).
     public var repos: [String]?
-    public var error: String?
+    /// Forge response bodies and guest stderr end up here; they are masked on
+    /// assignment so status RPCs, the UI and Shortcuts never carry a token.
+    public var error: String? {
+        didSet { if let error, LogRedactor.redact(error) != error { self.error = LogRedactor.redact(error) } }
+    }
 
     public init(id: String, phase: VMPhase = .cloning, createdAt: Date = Date()) {
         self.id = id

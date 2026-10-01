@@ -59,6 +59,7 @@ public enum KeychainTokenStore {
     }
 
     public static func save(_ token: String, forge: ForgeID, name: String) throws {
+        LogRedactor.registerSecret(token)
         if mode == .environment {
             saveForSession(token, name: name)
             return
@@ -100,6 +101,12 @@ public enum KeychainTokenStore {
     }
 
     public static func load(forge: ForgeID, name: String) throws -> String? {
+        let token = try loadStored(forge: forge, name: name)
+        if let token { LogRedactor.registerSecret(token) }
+        return token
+    }
+
+    private static func loadStored(forge: ForgeID, name: String) throws -> String? {
         if mode == .environment { return environmentToken(name: name) }
         let account = account(for: forge, name: name)
         if let token = try load(from: service, account: account) {

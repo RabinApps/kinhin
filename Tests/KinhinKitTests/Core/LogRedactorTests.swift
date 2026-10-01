@@ -61,4 +61,27 @@ final class LogRedactorTests: XCTestCase {
             LogRedactor.redact("config: --token 'abc123' --name 'kinhin-1'"),
             "config: --token [REDACTED] --name 'kinhin-1'")
     }
+
+    func testRedactsJSONQuotedAndEnvironmentStyleSecrets() {
+        assertRedacts(#"{"token":"AAAA1111BBBB"}"#, secret: "AAAA1111BBBB")
+        assertRedacts(#"{"password": "hunter2hunter2"}"#, secret: "hunter2hunter2")
+        assertRedacts("GITHUB_TOKEN=AAAA1111BBBB run", secret: "AAAA1111BBBB")
+        assertRedacts("registration_token: AAAA1111BBBB", secret: "AAAA1111BBBB")
+    }
+
+    func testRedactsURLUserinfoAndBareBearer() {
+        assertRedacts("clone https://oauth2:s3cr3tvalue123@gitea.example/org/repo", secret: "s3cr3tvalue123")
+        XCTAssertTrue(LogRedactor.redact("https://oauth2:s3cr3t@host/x").contains("@host/x"))
+        assertRedacts("sent Bearer abcdefghijklmnop1234", secret: "abcdefghijklmnop1234")
+        assertRedacts("ATBBabcdefghijklmnopqrstuvwx1234", secret: "ATBBabcdefghijklmnopqrstuvwx1234")
+    }
+
+    func testMasksRegisteredSecretsLiterally() {
+        defer { LogRedactor.forgetAllSecretsForTesting() }
+        let unprefixed = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+        LogRedactor.registerSecret(unprefixed)
+        assertRedacts("request failed for \(unprefixed) at host", secret: unprefixed)
+        LogRedactor.registerSecret("short")
+        XCTAssertEqual(LogRedactor.redact("a short word"), "a short word")
+    }
 }

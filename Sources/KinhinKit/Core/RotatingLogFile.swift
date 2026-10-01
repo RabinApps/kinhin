@@ -43,6 +43,8 @@ final class RotatingLogFile {
                 throw CocoaError(.fileWriteNoPermission)
             }
         }
+        // A log left world-readable by an older build gets tightened on open.
+        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         let opened = try FileHandle(forWritingTo: url)
         size = try opened.seekToEnd()
         handle = opened
