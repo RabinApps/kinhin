@@ -45,9 +45,13 @@ hand-installed OS instead. Then `kinhin image prepare --source <name>` bakes the
 (the registry pull is skipped for local VM names) and `base_image: <name>` makes every runner
 VM a clone of it.
 
-One caveat: some agent downloads in the tart bake are pinned to their macOS binaries, so verify
-the agents your forges need run on your guest OS — the Linux runtimes below bake Linux binaries
-and are the supported path for Linux jobs today.
+The bake detects the guest OS (`uname -s` in the scratch VM) and installs the matching agent
+binaries for every forge: `linux-arm64` builds in the same `$HOME` layout as macOS, so runner
+registration is identical. Linux guests need an apt-based distro with passwordless `sudo` (the
+curated images have both). With `toolchains.share_cache` on, Linux guests mount the host cache
+over virtiofs themselves (macOS guests get it automatically); macOS-only toolchain entries
+(Homebrew formulas, CocoaPods, …) are skipped on a Linux guest. The apple/container and Docker
+runtimes below remain the lighter-weight option for Linux jobs.
 
 ## apple/container for Linux jobs
 

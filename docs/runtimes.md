@@ -65,10 +65,14 @@ a Linux base VM:
 Either way, the VM ends up on disk under its `<name>` — then `kinhin image prepare --source
 <name>` runs the usual agent bake against it (the registry pull is skipped for local names), and
 pointing `base_image: <name>` at it makes every runner VM a clone of it. The bake injects the
-same token-gated agents and managed toolchains as on macOS; mind that some agent downloads are
-pinned to their macOS binaries (`osx-arm64` actions-runner, `darwin-arm64` gitea-runner), so
-verify the agents your forges need run on your guest OS — the Linux runtimes below bake the
-Linux binaries instead and are the supported path for Linux jobs today.
+same token-gated agents and managed toolchains as on macOS, picking the right ones for the guest.
+The bake detects the guest OS (`uname -s` in the scratch VM) and installs `linux-arm64` agent
+binaries for every forge in the same `$HOME` layout as macOS, so runner registration is
+identical. Linux guests need an apt-based distro with passwordless `sudo` (the curated images
+have both). With `toolchains.share_cache` on, Linux guests mount the host cache over virtiofs
+themselves at `/var/kinhin-cache` (macOS guests get it automatically); macOS-only toolchain
+entries (Homebrew formulas, CocoaPods, …) are skipped on a Linux guest. The apple/container and
+Docker runtimes below remain the lighter-weight option for Linux jobs.
 
 ## Apple `container` (Linux microVMs)
 

@@ -103,6 +103,7 @@ enum ToolchainsCommand {
     static func effectiveRuntimeMounts(hasContainer: Bool, hasDocker: Bool) -> [String] {
         var lines = [
             "macOS VMs (tart): \(ToolchainCacheMount.guestPath) via virtiofs",
+            "Linux VMs (tart): \(ToolchainCacheMount.linuxGuestPath) via virtiofs (mounted by the guest)",
             "image prepares:   always mounted (VM + container bakes)",
         ]
         if hasContainer {
