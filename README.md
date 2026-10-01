@@ -12,8 +12,8 @@
 > Here, one step at a time: a queued job arrives, a runner is born, serves, and is released.
 
 kinhin runs [Tart](https://tart.run) macOS virtual machines on your Apple Silicon Mac — plus
-Linux jobs in [apple/container](https://github.com/apple/container) microVMs or in Docker
-containers — and turns them into ephemeral self-hosted CI runners. It watches your repositories'
+Linux jobs in [apple/container](https://github.com/apple/container) microVMs, in Docker
+containers, or in full Tart Linux VMs — and turns them into ephemeral self-hosted CI runners. It watches your repositories'
 queued jobs and grows or shrinks the fleet to match — a fresh VM (or container) boots for each
 job, runs it, and is deleted. For repos you fully trust, an opt-in **host** mode runs jobs directly
 on your Mac instead — no VM, no isolation (see [Host mode](docs/runtimes.md#host-mode-run-jobs-directly-on-your-mac)).
@@ -35,7 +35,7 @@ Your Mac stays usable: host CPU, memory, and disk headroom are always reserved.
 - **Multi-forge** — GitHub Actions, GitLab CI/CD, Gitea Actions, Forgejo, Buildkite, Azure Pipelines, and Bitbucket Pipelines from the same pool; the Forge
   abstraction keeps the door open for other platforms (see [Forge support](docs/forges.md)).
 - **Multi-runtime** — macOS jobs run in Tart VMs, Linux jobs in [apple/container](https://github.com/apple/container)
-  microVMs or Docker containers, from one fleet: each job is routed by repo, workflow, or `runs-on:` label, and the host
+  microVMs, Docker containers, or full Tart Linux VMs, from one fleet: each job is routed by repo, workflow, or `runs-on:` label, and the host
   budget is partitioned across the pools so neither can overcommit your Mac (see
   [Runtimes & routing](docs/runtimes.md)). Trusted repos can opt in to
   [host mode](docs/runtimes.md#host-mode-run-jobs-directly-on-your-mac): jobs run directly on your Mac, unisolated.
@@ -70,9 +70,14 @@ concurrently without leaking state. Full write-up with sources: [Why kinhin](doc
   ```
 - A GitHub PAT with `repo` scope for the repository you want to serve (or a GitLab, Gitea/Forgejo,
   Buildkite, Azure DevOps or Bitbucket access token if you only use those — see [Forge support](docs/forges.md))
-- Optional — Linux jobs in [apple/container](https://github.com/apple/container):
-  `brew install container && container system start` (macOS jobs always need Tart)
+- Optional — Linux jobs. Three options (see [Runtimes](docs/runtimes.md#choosing-a-linux-runtime) for the
+  comparison): [apple/container](https://github.com/apple/container) microVMs
+  (`brew install container && container system start`), Docker containers, or full Tart Linux VMs —
+  the last needs nothing beyond tart itself, which macOS jobs require anyway
 - ~60 GB free disk for the base image plus per-VM scratch
+
+Sizing a fleet for your Mac — CPU, memory, and storage recommendations — is covered in
+[Hardware requirements & sizing](docs/hardware.md).
 
 ## Install
 
@@ -231,6 +236,7 @@ kinhin logs [-n N]          Recent log lines
 | [Install](docs/install.md)                                       | Install script, air-gapped installs, update checks                          |
 | [Security](docs/security.md)                                     | Threat model, hardening for untrusted PRs, what kinhin enforces             |
 | [The kinhin app](docs/app.md)                                    | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together     |
+| [Hardware requirements & sizing](docs/hardware.md)               | Minimum specs and CPU / memory / storage recommendations                    |
 | [How scaling works](docs/scaling.md)                             | Capacity cap, the scaling loop, `runners_per_vm`, recovery                  |
 | [Toolchains & the shared cache](docs/toolchains.md)              | Provision scripts, managed toolchains, per-job installs, the download cache |
 | [Forge support](docs/forges.md)                                  | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, multiple accounts |

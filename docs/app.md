@@ -22,9 +22,11 @@ Everything kinhin does happens in a single main window. A segmented control swit
 ### This Mac: macOS and Linux jobs
 
 The **This Mac** card (Setup step 2, and Advanced → Accounts) has two parts. **macOS jobs** runs workflows in tart
-virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple container** and **Docker**:
+virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple container** and **Docker**
+(see [Runtimes](runtimes.md#choosing-a-linux-runtime) for the side-by-side comparison and when to use each):
 
-- **Tart (Linux VM)** serves Linux jobs from full tart VMs. Its checkbox stays off until tart is installed (use the
+- **Tart (Linux VM)** serves Linux jobs from full tart VMs (VM-grade isolation, no extra runtime to install). Its
+  checkbox stays off until tart is installed (use the
   **Install…** button beside it). Turning it on sets the tart base image to a Linux image (Ubuntu by default; Debian
   and Fedora are in the picker) and the macOS base-image picker is replaced by a note. Turning it off returns tart to
   the macOS default. A tart fleet serves one OS at a time, and your fleet `labels:` must match: if they still include

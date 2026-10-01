@@ -66,7 +66,8 @@ Every `poll_interval` seconds the engine:
 4. Computes the desired instance count **per pool**:
    `desired = clamp(ceil(pool_queue / runners_per_vm), min_runners, pool_cap)`.
 5. Spawns instances up to `desired` (linked clone → boot → SSH → register `runners_per_vm`
-   runners → `run.sh`) — Tart VMs for macOS pools, containers for Linux pools.
+   runners → `run.sh`) — Tart VMs for macOS and Tart-Linux pools, containers for the container
+   Linux pools (see [Runtimes & routing](/guide/runtimes#choosing-a-linux-runtime)).
 6. Deletes idle instances when `desired` drops (scale to zero by default).
 
 Runners register `--ephemeral`, so the forge removes the registration as soon as the job

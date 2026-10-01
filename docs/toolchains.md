@@ -133,7 +133,7 @@ is the cross-platform installer; Homebrew-only tools use apt or mise on Linux):
 
 Baking suits tools every job needs. For tools only some workflows need, keep
 `toolchains:` lean and let each workflow install what it needs. Every prepared
-image (Tart, apple/container, and Docker) carries `kinhin-toolchain`, a helper
+image (Tart — macOS or Linux — apple/container, and Docker) carries `kinhin-toolchain`, a helper
 generated from the same catalog:
 
 ```yaml
@@ -174,7 +174,8 @@ Flutter SDKs. Every ecosystem gets its own env redirect at install time:
 | mise / Homebrew         | `MISE_CACHE_DIR`, `HOMEBREW_CACHE`                                                       |
 | npm / pnpm / yarn / bun | `NPM_CONFIG_CACHE`, `npm_config_store_dir`, `YARN_CACHE_FOLDER`, `BUN_INSTALL_CACHE_DIR` |
 | Flutter (fvm, macOS)    | `FVM_CACHE_PATH`                                                                         |
-| Go / Rust               | `GOMODCACHE` + `GOCACHE`, `CARGO_HOME`                                                   |
+| Go                      | `GOMODCACHE` + `GOCACHE`                                                                 |
+| Rust                    | none (rustup cannot install onto the shared virtiofs cache, so Cargo's registry is per-VM) |
 | Python                  | `UV_CACHE_DIR`, `PIP_CACHE_DIR`                                                          |
 | JVM                     | `GRADLE_USER_HOME`                                                                       |
 | .NET                    | `NUGET_PACKAGES`                                                                         |
@@ -195,7 +196,8 @@ case a duplicate download), but it does share cache state across ephemeral jobs.
 
 ### Linux runtimes
 
-Both Linux runtimes ([Apple `container` and Docker](runtimes.md)) are covered too:
+All three Linux runtime options ([Tart Linux VMs](runtimes.md#tart-linux-vms),
+[apple/container and Docker](runtimes.md#choosing-a-linux-runtime)) are covered:
 `image prepare --container` and `image prepare --docker` bind-mount the same host cache into
 their scratch containers (`-v host:guest`), bake the config's `toolchains:` with a
 Linux-specific script (apt for dotnet, mise bootstrapped on demand, npm globals; macOS-only

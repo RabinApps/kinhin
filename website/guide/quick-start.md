@@ -13,9 +13,15 @@ runners. This page gets you from zero to a working fleet. New here? Read [why ki
   brew install openai/tools/tart
   ```
 - A GitHub PAT with `repo` scope (or a Gitea access token — see [Forge support](/guide/forges))
-- Optional — Linux jobs in [apple/container](https://github.com/apple/container):
-  `brew install container && container system start` (macOS jobs always need Tart)
+- Optional — Linux jobs. Three options — [apple/container](https://github.com/apple/container)
+  microVMs (`brew install container && container system start`), Docker containers, or
+  [Tart Linux VMs](/guide/runtimes#tart-linux-vms), which need nothing beyond tart itself;
+  see the [comparison](/guide/runtimes#choosing-a-linux-runtime) for when to use each
+  (macOS jobs always need Tart)
 - ~60 GB free disk for the base image plus per-VM scratch
+
+Sizing the fleet — CPU, memory, and storage recommendations — is covered in
+[Hardware requirements & sizing](/guide/hardware).
 
 ## Install (one line)
 

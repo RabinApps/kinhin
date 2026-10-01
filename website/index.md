@@ -4,7 +4,7 @@ layout: home
 hero:
   name: 'kinhin ○'
   text: 'The mindful CI'
-  tagline: Autoscaling CI runners that live on your Mac — ephemeral, resource-aware, and gone when the job is done. macOS jobs run on Tart VMs; Linux jobs on apple/container microVMs or Docker.
+  tagline: Autoscaling CI runners that live on your Mac — ephemeral, resource-aware, and gone when the job is done. macOS jobs run on Tart VMs; Linux jobs on apple/container microVMs, Docker containers, or Tart Linux VMs.
   actions:
     - theme: brand
       text: Get started
@@ -21,7 +21,7 @@ features:
   - title: Multi-forge
     details: GitHub Actions, GitLab CI/CD, Gitea Actions, Forgejo, Buildkite, Azure Pipelines and Bitbucket Pipelines served from one shared pool. The Forge abstraction keeps the door open for more.
   - title: Multi-runtime
-    details: macOS jobs on Tart VMs, Linux jobs on apple/container microVMs or Docker containers — each job routed by repo, workflow, or runs-on label.
+    details: macOS jobs on Tart VMs, Linux jobs on apple/container microVMs, Docker containers, or Tart Linux VMs — each job routed by repo, workflow, or runs-on label.
   - title: Resource-aware
     details: The scaler never exceeds what your Mac can handle. Host CPU, memory, and disk headroom are always reserved, and the budget is partitioned across runtime pools.
   - title: Menu bar or headless

@@ -12,6 +12,8 @@ The effective concurrency cap is
 Linux container slots). The scaler re-checks free disk before every spawn and holds new VMs when
 the disk would dip below `reserve.disk_gb` plus one instance's footprint — a queue burst can
 never fill your disk. `kinhin doctor` prints the cap and the binding constraint.
+Not sure how big a Mac you need for the fleet you want? See
+[Hardware requirements & sizing](hardware.md).
 
 When several runtimes are configured, this budget is partitioned across their pools by the
 `runtimes.budget` weights (see [Runtimes](runtimes.md#per-repo--per-workflow-runtime-routing)).
@@ -29,7 +31,8 @@ Every `poll_interval` seconds the engine:
    is that runtime's slice of the host budget (`budget` weights) when multiple runtimes are
    configured, or the full [capacity cap](#capacity) for a single-pool fleet.
 5. Spawns instances up to `desired` (linked clone → boot → SSH → register `runners_per_vm`
-   runners → `run.sh`) — Tart VMs for macOS pools, apple containers or Docker slots for Linux pools,
+   runners → `run.sh`) — Tart VMs for macOS pools and for Tart Linux VMs, apple containers or
+   Docker slots for the container Linux pools (see [Choosing a Linux runtime](runtimes.md#choosing-a-linux-runtime)),
    and a runner process on the Mac itself for host routes.
 6. Deletes idle instances when `desired` drops (scale to zero by default).
 

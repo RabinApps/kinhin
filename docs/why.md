@@ -45,7 +45,7 @@ the instance deleted. Nothing carries over between jobs, and nothing sits idle w
 - **One engine, every forge.** The same fleet serves GitHub, GitLab, Gitea/Forgejo, Buildkite, Azure
   Pipelines, and Bitbucket from one pool (see [Forge support](forges.md)).
 - **Concurrency without the VM ceiling.** `runners_per_vm` runs several runner processes inside one Tart VM,
-  and Linux jobs run in containers or microVMs, so you are not held to two simultaneous jobs.
+  and Linux jobs run in containers, microVMs, or full Tart Linux VMs, so you are not held to two simultaneous jobs.
 - **Never overcommits your Mac.** The cap is computed from your cores, RAM, and free disk after reserving
   host headroom (see [How scaling works](scaling.md)).
 
