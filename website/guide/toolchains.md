@@ -70,6 +70,14 @@ prepares skip re-downloading mise tools, brew bottles, npm packages, and Flutter
 (`npm ci`, `pnpm install`, `mise install`, …) then hit warm cache instead of re-downloading
 gigabytes per job.
 
+::: warning Don't enable it for untrusted code
+The cache is mounted writable, and it holds things other jobs _execute_: Cargo's `bin/`, fvm's
+Flutter SDKs, Playwright and Cypress browsers, Gradle init scripts. A job from a fork PR can plant
+a binary there that a later job from a different repository runs, and the next `image prepare`
+can bake it into the base image. Leave `share_cache` off (the default) on a fleet that runs
+outside contributors' PRs, or restrict it to repositories whose code you trust.
+:::
+
 The cache auto-expires — default 30 days since last use, with LRU eviction past 50 GB — and a
 one-hour grace window means a prune can never race a live download. Tune or disable it under
 `toolchains.cache`, sweep manually with `kinhin toolchains prune [--dry-run]`, and inspect

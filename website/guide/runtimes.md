@@ -53,6 +53,25 @@ over virtiofs themselves (macOS guests get it automatically); macOS-only toolcha
 (Homebrew formulas, CocoaPods, …) are skipped on a Linux guest. The apple/container and Docker
 runtimes below remain the lighter-weight option for Linux jobs.
 
+## Isolating runner VMs from each other
+
+By default Tart puts every VM on one shared virtual network, so a job in one runner VM can reach
+the other runner VMs and anything else on your LAN. If jobs can include code you don't fully
+trust (fork PRs, outside contributors), turn on Softnet isolation:
+
+```yaml
+tart_softnet: true # boots runner VMs with `tart run --net-softnet`
+```
+
+Each VM can then reach the internet but not its neighbours or the local network. It needs the
+`softnet` binary and its one-time privilege setup — install it with
+`brew install cirruslabs/cli/softnet` and follow Tart's Softnet instructions. kinhin refuses to
+start with `tart_softnet: true` when `softnet` isn't installed, rather than silently booting VMs
+on the shared network. Baked images also disable SSH password login (`image prepare` writes
+`/etc/ssh/sshd_config.d/000-kinhin-hardening.conf`), so a VM that can reach another still can't
+log in with the base image's default `admin` password; re-run `kinhin image prepare` to pick
+that up on an existing image.
+
 ## apple/container for Linux jobs
 
 One lightweight VM per runner container on Apple silicon — no Docker daemon, stronger

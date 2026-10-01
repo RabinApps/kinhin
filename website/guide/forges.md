@@ -216,6 +216,21 @@ accounts:
   forge in `accounts:`.
 - Older builds ignore `accounts:`, so avoid sharing one config file with a build that predates it.
 
+## Plain `http://` instances
+
+Self-hosted Gitea, Forgejo, GitLab and Azure DevOps instances must use `https://`: the access token is sent with every request, so over `http://` it crosses the network in cleartext. `localhost`, `127.0.0.1` and `[::1]` are exempt. For an instance on a network you trust, opt in per account:
+
+```yaml
+accounts:
+  - name: lab-gitea
+    forge: gitea
+    scope: "me/repo"
+    instance: "http://gitea.lan:3000"
+    allow_insecure_http: true # the token is sent in cleartext
+```
+
+The flag only lifts the https requirement for that account. Redirects still have to stay on the same host and may not downgrade from https to http, and pagination links must match the configured API host. kinhin logs a warning each time such an account attaches. GitHub, Buildkite and Bitbucket are always https, so the key is rejected on them.
+
 ## More forges are planned
 
 The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo

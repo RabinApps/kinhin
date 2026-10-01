@@ -23,6 +23,7 @@ export default defineConfig({
           { text: 'Toolchains & shared cache', link: '/guide/toolchains' },
           { text: 'Runtimes & routing', link: '/guide/runtimes' },
           { text: 'Forge support', link: '/guide/forges' },
+          { text: 'Security', link: '/guide/security' },
           { text: 'Troubleshooting', link: '/guide/troubleshooting' },
         ],
       },

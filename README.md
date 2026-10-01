@@ -208,6 +208,7 @@ kinhin logs [-n N]          Recent log lines
 | Doc                                                              | Covers                                                                      |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | [Install](docs/install.md)                                       | Install script, air-gapped installs, update checks, Homebrew tap            |
+| [Security](docs/security.md)                                     | Threat model, hardening for untrusted PRs, what kinhin enforces             |
 | [The kinhin app](docs/app.md)                                    | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together     |
 | [How scaling works](docs/scaling.md)                             | Capacity cap, the scaling loop, `runners_per_vm`, recovery                  |
 | [Toolchains & the shared cache](docs/toolchains.md)              | Provision scripts, managed toolchains, per-job installs, the download cache |
