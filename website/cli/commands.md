@@ -2,6 +2,7 @@
 
 ```
 kinhin config init          Write the starter config
+kinhin config validate      Check the config file without starting anything (exit 3 when invalid)
 kinhin auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
 kinhin auth set --gitea     Store/replace the Gitea access token
 kinhin auth add NAME --github|--gitlab|--gitea|--forgejo|--buildkite|--azuredevops|--bitbucket --scope S [--instance URL] [--token X]   Add another account (any forge) to config.yaml
@@ -11,6 +12,7 @@ kinhin auth remove NAME     Remove an account and its token
 kinhin auth status --json   All forges' stored-token state in one machine-readable document (exit 1 until ready)
 kinhin doctor [--json]      Prerequisites + computed capacity (--json: host, runtime health, stored tokens, checklist,
                             and capacity in one machine-readable document; ready=false until every half passes)
+kinhin doctor --bundle [FILE]  Write a redacted support bundle (doctor report, config, recent log) to attach to a bug report
 kinhin setup-status [--json] First-run checklist; exit 1 until ready (--json for scripts)
 kinhin runtimes [--json]    Pools, capacity, budget split, live health, and routes (--no-health skips probes)
 kinhin runtimes route add <pattern> <tart|appleContainer|docker>
@@ -40,6 +42,9 @@ kinhin toolchains prune [--dry-run]
                             Expire stale host-cache entries now
 kinhin start                Run the fleet in the foreground
 kinhin daemon               Run the daemon in the foreground
+kinhin cleanup [--vms] [--image] [--cache] [--all] [--yes]
+                            Reclaim disk: leftover runner VMs, the base image, the toolchain cache. Reports only
+                            unless --yes is given (stop the fleet first)
 kinhin daemon install       Install + start the LaunchAgent
 kinhin daemon uninstall     Remove the LaunchAgent
 kinhin status --json        Fleet status as a machine-readable document (daemon/paused/autoResume fields; watch streams prose)

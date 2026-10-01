@@ -34,16 +34,19 @@ Open-Anyway dance only applies to old releases or locally built copies (clear it
   and never strips the quarantine attribute. A local DMG is checked against `DMG.sha256` when one
   sits next to it.
 - **Update check:** a checksum only proves the file matches its release, so a Developer ID build
-  also requires the DMG to be signed by the **same Team ID as the running app** (`codesign -R`
-  against that Team ID); a DMG that fails is deleted. Download and checksum URLs must point at
-  `github.com/<repo>/releases/download/…`, and file names must be plain names. Builds without a
-  Developer ID (forks, local builds) can't pin a signer and fall back to the checksum alone, with
-  a warning in the log. Because of the pin, `KINHIN_UPDATE_REPO` can't make a release build install
-  someone else's binary.
+  also requires the DMG to be signed by the **same Team ID as the running app**, with a Developer
+  ID Application certificate (`codesign -R`), and accepted by Gatekeeper (`spctl`: notarized, not
+  revoked). A DMG that fails either check is deleted. Only `kinhin-<version>-arm64.dmg` for a
+  `vMAJOR.MINOR.PATCH` tag is offered; download and checksum URLs must point at
+  `github.com/<repo>/releases/download/…`, redirects may only stay on GitHub hosts, and file names
+  must be plain names. Builds without a Developer ID (forks, local builds) can't pin a signer and
+  fall back to the checksum alone, with a warning in the log; a build whose own signature can't be
+  read refuses updates. Signed builds ignore `KINHIN_UPDATE_REPO`, so it can't redirect a release
+  build, and the Team ID pin means it couldn't make one install someone else's binary anyway.
 
 ## Update checks
 
 After installing, the menu bar app checks GitHub Releases at most once a day and shows an
 **Update available — kinhin x.y.z…** item when a newer `v*` release exists; clicking it downloads
-the DMG (via URLSession, so it is never quarantined; it is verified as described above) and opens it for a one-click install. Point it
-at your fork with `KINHIN_UPDATE_REPO=RabinApps/kinhin` if needed.
+the DMG (via URLSession, so it is never quarantined; it is verified as described above) and opens it for a one-click install. Forks and local (ad-hoc) builds can point it at their own repo with
+`KINHIN_UPDATE_REPO=owner/name`; signed release builds ignore that variable.
