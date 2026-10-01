@@ -9,3 +9,15 @@ final class VMNamingTests: XCTestCase {
         XCTAssertTrue(names.allSatisfy { $0.hasPrefix("kinhin-") })
     }
 }
+
+extension VMNamingTests {
+    func testGeneratedNamesAreValidIDsAndForeignNamesAreNot() {
+        XCTAssertTrue(VMRecord.isValidID(VMRecord.newName()))
+        for bad in [
+            "", "kinhin-", "runner-1", "../kinhin-1", "kinhin-../x", "kinhin-1/2", "kinhin-1 2", "kinhin-1;id",
+            "tahoe-base",
+        ] {
+            XCTAssertFalse(VMRecord.isValidID(bad), bad)
+        }
+    }
+}

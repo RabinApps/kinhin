@@ -82,6 +82,7 @@ public enum RPCError: LocalizedError {
     case bindFailed(String)
     case listenFailed
     case socketPathTooLong
+    case permissionsFailed(String)
     case connectionFailed(String)
     case timeout
     case rejected(String)
@@ -92,6 +93,7 @@ public enum RPCError: LocalizedError {
         case .bindFailed(let path): return "could not bind socket at \(path) (is another daemon running?)"
         case .listenFailed: return "could not listen on socket"
         case .socketPathTooLong: return "socket path too long"
+        case .permissionsFailed(let path): return "could not restrict \(path) to the current user"
         case .connectionFailed(let path): return "could not connect to daemon at \(path) — is `kinhin daemon` running?"
         case .timeout: return "daemon did not answer in time"
         case .rejected(let why): return "daemon rejected the request: \(why)"

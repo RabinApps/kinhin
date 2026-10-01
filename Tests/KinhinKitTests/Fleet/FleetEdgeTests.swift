@@ -211,7 +211,7 @@ final class FleetEdgeTests: XCTestCase {
         let id = await engine.status().records.first!.id
         github.register(name: id, busy: false)
 
-        await engine.deleteVM(id: id)
+        try await engine.deleteVM(id: id)
 
         let status = await engine.status()
         XCTAssertTrue(status.records.isEmpty)

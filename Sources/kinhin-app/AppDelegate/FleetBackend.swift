@@ -51,7 +51,7 @@ enum FleetBackend: Sendable {
     func deleteVM(id: String) async throws {
         switch self {
         case .inProcess(let engine):
-            await engine.deleteVM(id: id)
+            try await engine.deleteVM(id: id)
         case .daemon(let client):
             let payload = try JSONEncoder().encode(Daemon.VMDeleteRequest(id: id))
             try await client.perform { try $0.command(.deleteVM, payload: payload) }

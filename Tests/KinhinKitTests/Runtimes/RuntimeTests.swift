@@ -96,7 +96,7 @@ final class RuntimeTests: XCTestCase {
         }
         let id = await engine.status().records.first!.id
 
-        await engine.deleteVM(id: id)
+        try await engine.deleteVM(id: id)
         let status = await engine.status()
         XCTAssertTrue(status.records.isEmpty)
         XCTAssertTrue(tart.stopCalls.contains(id), "teardown routed through the runtime (stop)")

@@ -188,7 +188,7 @@ public enum Daemon {
                 guard let id = decodePayload(VMDeleteRequest.self)?.id else {
                     return RPCResponse(id: request.id, ok: false, error: "expected {\"id\": \"...\"}")
                 }
-                await engine.deleteVM(id: id)
+                try await engine.deleteVM(id: id)
                 return RPCResponse(id: request.id, ok: true)
             case .replaceGiteaToken, .replaceForgejoToken:
                 // Gitea/Forgejo tokens are account tokens under the accounts

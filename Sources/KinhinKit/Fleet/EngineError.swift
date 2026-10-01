@@ -12,6 +12,9 @@ public enum EngineError: LocalizedError, Sendable {
     /// A runner id that isn't in the forge's id format (the engine only
     /// passes ids that came from the same forge's `runners()`).
     case invalidRunnerID(forge: ForgeID, id: String)
+    /// A VM id that isn't one of kinhin's own (`kinhin-<ts>-<hex>`) or isn't
+    /// in the store; deleting it would touch foreign runners or VMs.
+    case unknownVM(String)
 
     public var errorDescription: String? {
         switch self {
@@ -23,6 +26,8 @@ public enum EngineError: LocalizedError, Sendable {
             return "kinhin isn't set up yet. Open kinhin to finish setup."
         case .invalidRunnerID(let forge, let id):
             return "'\(id)' is not a \(forge.displayName) runner id"
+        case .unknownVM(let id):
+            return "'\(id)' is not a VM managed by kinhin"
         }
     }
 }

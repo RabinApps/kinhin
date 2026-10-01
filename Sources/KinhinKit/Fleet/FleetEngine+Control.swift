@@ -155,7 +155,14 @@ extension FleetEngine {
 
     /// Manually delete one VM (from the UI). Reconcile will scale back up if
     /// demand still exists; the user should pause first to hold the fleet down.
-    public func deleteVM(id: String) async {
+    ///
+    /// Throws `EngineError.unknownVM` for an id that is malformed or not in
+    /// the store: the delete also removes same-named forge runners and stops
+    /// the VM by name, so it must never run on an arbitrary string.
+    public func deleteVM(id: String) async throws {
+        guard VMRecord.isValidID(id), store.all.contains(where: { $0.id == id }) else {
+            throw EngineError.unknownVM(id)
+        }
         Log.info("engine", "manual delete of \(id)")
         await deleteVMRecord(id: id, reason: "manual delete")
     }

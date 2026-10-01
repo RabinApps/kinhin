@@ -48,6 +48,12 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
         self.updatedAt = createdAt
     }
 
+    /// Ids kinhin generates are `kinhin-<ts>-<hex>`; anything else (a stray
+    /// runner name, `..` segments) is never an instance of ours.
+    static func isValidID(_ id: String) -> Bool {
+        id.range(of: #"^kinhin-[A-Za-z0-9._-]+$"#, options: .regularExpression) != nil && !id.contains("..")
+    }
+
     static func newName(now: Date = Date()) -> String {
         let ts = Int(now.timeIntervalSince1970)
         // 32 bits of entropy: names are drawn in bursts (scale-up) within the
