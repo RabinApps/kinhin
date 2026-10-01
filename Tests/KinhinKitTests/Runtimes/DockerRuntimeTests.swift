@@ -69,7 +69,7 @@ final class DockerRuntimeTests: XCTestCase {
         XCTAssertEqual(runArgv.first, bin)
         for flag in [
             "run", "--detach", "--name", "kinhin-abc", "--cpus", "3",
-            "--memory", "6144M", "--platform", "linux/arm64", "--rm",
+            "--memory", "6144M", "--platform", "linux/arm64", "--pids-limit", "--rm",
         ] {
             XCTAssertTrue(runArgv.contains(flag), "run argv must contain \(flag): \(runArgv)")
         }
@@ -78,7 +78,7 @@ final class DockerRuntimeTests: XCTestCase {
 
     func testProvisionIsIdempotentForExistingContainer() async throws {
         let shell = FakeShell()
-        // `docker ps --all --quiet` finds the container → start, never run.
+        // `docker ps --all --format {{.Names}}` finds the container → start, never run.
         shell.responses = [ShellResult(exitCode: 0, stdout: "kinhin-abc\n", stderr: "")]
         let runtime = DockerRuntime(
             shell: shell, image: "img", cpus: 2, memoryGB: 4,
@@ -87,6 +87,9 @@ final class DockerRuntimeTests: XCTestCase {
         try await runtime.provision(id: "kinhin-abc", route: makeRoute())
         let argvs = shell.calls
         XCTAssertTrue(argvs[0].contains("ps"))
+        // ids (`--quiet`) would never match the kinhin- names the engine recovers by.
+        XCTAssertTrue(argvs[0].contains("{{.Names}}"), "\(argvs[0])")
+        XCTAssertFalse(argvs[0].contains("--quiet"))
         XCTAssertTrue(argvs[1].contains("start"), "recovery restarts the existing container: \(argvs)")
         XCTAssertFalse(argvs.contains { $0.contains("run") }, "no second container is created")
     }

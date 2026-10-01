@@ -69,7 +69,8 @@ public struct AppleContainerRuntime: Runtime {
             shell: shell, bin: bin,
             dialect: .init(
                 tag: "container", listVerb: "list", removeVerb: "delete",
-                imageListArguments: ["image", "list", "--quiet"], runFlags: [], shapeNote: nil),
+                listNameArguments: ["--quiet"], imageListArguments: ["image", "list", "--quiet"], runFlags: [],
+                shapeNote: nil),
             image: image, cpus: cpus, memoryBytes: memoryBytes, toolchainsConfig: toolchainsConfig)
     }
 

@@ -18,8 +18,13 @@ public struct SSHExecutor: SSHExecuting {
     public func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
         -> ShellResult
     {
+        // The user is spliced into "user@ip"; a leading dash or odd character would
+        // let a config value become an ssh option.
+        guard Self.isSafeUser(user) else {
+            throw TartError.commandFailed(what: "ssh to \(vm)", stderr: "refusing unsafe ssh user '\(user)'")
+        }
         var argv = [
-            "ssh",
+            Self.sshPath,
             "-o", "StrictHostKeyChecking=no",
             "-o", "UserKnownHostsFile=/dev/null",
             "-o", "BatchMode=yes",
@@ -34,6 +39,13 @@ public struct SSHExecutor: SSHExecuting {
         // command line, so it never shows up in the host's process list.
         argv += ["\(user)@\(ip)", "bash -s"]
         return try await shell.run(argv, input: Data(script.utf8), cwd: nil, timeout: timeout)
+    }
+
+    /// Absolute, so a file named `ssh` in the working directory is never run.
+    static let sshPath = "/usr/bin/ssh"
+
+    static func isSafeUser(_ user: String) -> Bool {
+        user.range(of: #"^[A-Za-z_][A-Za-z0-9._-]{0,63}$"#, options: .regularExpression) != nil
     }
 
     static func tartHostKey() -> String? {

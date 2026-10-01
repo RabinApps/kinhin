@@ -15,6 +15,9 @@ struct LinuxContainerCLI: Sendable {
         let listVerb: String
         /// Removes a container: `docker rm` / `container delete`.
         let removeVerb: String
+        /// Flags that make the list command print one container *name* per line
+        /// (`docker ps --quiet` prints ids, which never match the `kinhin-` names).
+        let listNameArguments: [String]
         /// Lists local image references, one per line.
         let imageListArguments: [String]
         /// Extra `run` flags (Docker's `--platform`).
@@ -165,7 +168,7 @@ struct LinuxContainerCLI: Sendable {
     /// Container ids known to the CLI (`all`: stopped ones too). Throws when
     /// the CLI fails: a dead daemon must not read as "no containers".
     func containerIDs(all: Bool) async throws -> [String] {
-        let argv = [bin, dialect.listVerb] + (all ? ["--all"] : []) + ["--quiet"]
+        let argv = [bin, dialect.listVerb] + (all ? ["--all"] : []) + dialect.listNameArguments
         let result = try await run(argv)
         try require(result, "listing containers")
         return result.outputLines

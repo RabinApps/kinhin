@@ -114,7 +114,7 @@ extension RunnerBootstrap {
             set -euo pipefail
             \(tartLinuxPrerequisitesScript(tools: [("curl", "curl"), ("tar", "tar"), ("gzip", "gzip")]))
 
-            RUNNER_VERSION=\(runnerVersion)
+            RUNNER_VERSION=\(shellQuote(runnerVersion))
 
             \(dirs)
 

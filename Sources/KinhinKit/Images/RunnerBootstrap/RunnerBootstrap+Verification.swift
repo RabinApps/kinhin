@@ -16,7 +16,7 @@ extension RunnerBootstrap {
     static func verifiedDownloadScript(url: String, file: String, expectedDigestCommand: String) -> String {
         let quotedFile = shellQuote(file)
         return """
-            curl -fsSL \(shellQuote(url)) -o \(quotedFile)
+            curl --proto-redir '=https' --tlsv1.2 -fsSL \(shellQuote(url)) -o \(quotedFile)
             expected="$(\(expectedDigestCommand) || true)"
             if [ -z "$expected" ]; then
               echo "error: could not determine the published SHA-256 for \(file); refusing to install" >&2
@@ -42,12 +42,12 @@ extension RunnerBootstrap {
     static func githubRunnerDigestCommand(version: String, platform: String) -> String {
         let api = "https://api.github.com/repos/actions/runner/releases/tags/v\(version)"
         return
-            "curl -fsSL \(shellQuote(api)) | grep -o \(shellQuote("BEGIN SHA \(platform) -->[0-9a-f]*")) | head -1 | sed 's/.*-->//'"
+            "curl --proto-redir '=https' --tlsv1.2 -fsSL \(shellQuote(api)) | grep -o \(shellQuote("BEGIN SHA \(platform) -->[0-9a-f]*")) | head -1 | sed 's/.*-->//'"
     }
 
     /// Gitea publishes `<asset>.sha256` ("<hex>  <name>") next to every asset.
     static func giteaRunnerDigestCommand(assetURL: String) -> String {
-        "curl -fsSL \(shellQuote(assetURL + ".sha256")) | awk '{print $1}' | head -1"
+        "curl --proto-redir '=https' --tlsv1.2 -fsSL \(shellQuote(assetURL + ".sha256")) | awk '{print $1}' | head -1"
     }
 
     static func githubRunnerDownloadScript(version: String, platform: String, file: String) -> String {
@@ -70,7 +70,7 @@ extension RunnerBootstrap {
         let sums = "https://gitlab-runner-downloads.s3.amazonaws.com/v\(version)/release.sha256"
         let asset = "binaries/gitlab-runner-\(platform)"
         return
-            "curl -fsSL \(shellQuote(sums)) | awk -v a=\(shellQuote(asset)) '{ sub(/^[*.\\/]+/, \"\", $2) } $2 == a { print $1 }' | head -1"
+            "curl --proto-redir '=https' --tlsv1.2 -fsSL \(shellQuote(sums)) | awk -v a=\(shellQuote(asset)) '{ sub(/^[*.\\/]+/, \"\", $2) } $2 == a { print $1 }' | head -1"
     }
 
     /// `platform` is e.g. "darwin-arm64", "linux-amd64".
@@ -86,7 +86,8 @@ extension RunnerBootstrap {
     static func buildkiteAgentDigestCommand(version: String, asset: String) -> String {
         let sums =
             "https://github.com/buildkite/agent/releases/download/v\(version)/buildkite-agent-\(version).SHA256SUMS"
-        return "curl -fsSL \(shellQuote(sums)) | awk -v a=\(shellQuote(asset)) '$2 == a { print $1 }' | head -1"
+        return
+            "curl --proto-redir '=https' --tlsv1.2 -fsSL \(shellQuote(sums)) | awk -v a=\(shellQuote(asset)) '$2 == a { print $1 }' | head -1"
     }
 
     /// `platform` is e.g. "darwin-arm64", "linux-amd64".
@@ -103,7 +104,8 @@ extension RunnerBootstrap {
     static func azureAgentDigestCommand(version: String, platform: String) -> String {
         let api = "https://api.github.com/repos/microsoft/azure-pipelines-agent/releases/tags/v\(version)"
         let row = "vsts-agent-\(platform)-\(version).tar.gz) | [0-9a-f]\\{64\\}"
-        return "curl -fsSL \(shellQuote(api)) | grep -o \(shellQuote(row)) | head -1 | awk '{print $NF}'"
+        return
+            "curl --proto-redir '=https' --tlsv1.2 -fsSL \(shellQuote(api)) | grep -o \(shellQuote(row)) | head -1 | awk '{print $NF}'"
     }
 
     static func azureAgentDownloadScript(version: String, platform: String, file: String) -> String {

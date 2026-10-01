@@ -49,7 +49,12 @@ enum RunnerBootstrap {
                 """
         }
 
+        // Every runner is registered before any is started: a started runner is
+        // already executing job code as this user, and `config.sh --token` puts
+        // the registration token in the argv `ps` shows. Registering first keeps
+        // that token away from job processes.
         var registrations = ""
+        var starts = ""
         for index in 1...runnerCount {
             let runnerName = "\(name)-r\(index)"
             let dir = "~/actions-runner-\(index)"
@@ -59,14 +64,17 @@ enum RunnerBootstrap {
                 if [ -f .runner ]; then
                   ./config.sh remove --token \(shellQuote(token)) >/dev/null 2>&1 || true
                 fi
-                ./config.sh --url \(shellQuote(configureURL)) \\
-                            --token \(shellQuote(token)) \\
-                            --labels \(shellQuote(labelList)) \\
-                            --name \(shellQuote(runnerName)) \\
-                            --unattended \\
-                            --replace \\
+                ./config.sh --url \(shellQuote(configureURL)) \
+                            --token \(shellQuote(token)) \
+                            --labels \(shellQuote(labelList)) \
+                            --name \(shellQuote(runnerName)) \
+                            --unattended \
+                            --replace \
                             \(ephemeralFlag)--work _work-\(index) >/dev/null
 
+                """
+            starts += """
+                cd \(dir)
                 nohup ./run.sh > run-\(index).log 2>&1 &
 
                 """
@@ -75,7 +83,8 @@ enum RunnerBootstrap {
             set -euo pipefail
 
             # One runner agent directory per process (config.sh refuses shared dirs).
-            \(registrations)echo "\(runnerCount) runners started"
+            \(registrations)# All registered; now start serving jobs.
+            \(starts)echo "\(runnerCount) runners started"
             """
     }
 
@@ -106,7 +115,7 @@ enum RunnerBootstrap {
         return """
             set -euo pipefail
 
-            RUNNER_VERSION=\(runnerVersion)
+            RUNNER_VERSION=\(shellQuote(runnerVersion))
 
             \(dirs)
 

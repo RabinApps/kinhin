@@ -94,7 +94,7 @@ extension RunnerBootstrap {
                 """
                 # mise bootstrap (Linux base images don't ship it) + shims on PATH
                 if ! command -v mise >/dev/null 2>&1; then
-                  curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+                  curl --proto-redir '=https' --tlsv1.2 -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
                 fi
                 export PATH="$HOME/.local/share/mise/shims:$PATH"
                 # persist it: runners start from a login shell, so job steps only see

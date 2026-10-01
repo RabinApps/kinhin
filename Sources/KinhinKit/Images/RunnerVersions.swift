@@ -184,10 +184,12 @@ public struct RunnerVersionResolver: Sendable {
             throw ImageError.malformedVersionFeed(
                 feed: feed, reason: "payload is not JSON with a tag_name string (\(error.localizedDescription))")
         }
+        // `\z` (not `$`): ICU's `$` also matches before a trailing newline, which would
+        // let "v1.2.3\n" through into a script.
         let tag = payload.tag_name
         // The tag is spliced into bake scripts and download URLs, so only a
         // plain dotted version (optionally `-pre.release`) is accepted.
-        let wellFormed = tag.range(of: #"^v[0-9]+(\.[0-9]+)+(-[A-Za-z0-9.]+)?$"#, options: .regularExpression) != nil
+        let wellFormed = tag.range(of: #"^v[0-9]+(\.[0-9]+)+(-[A-Za-z0-9.]+)?\z"#, options: .regularExpression) != nil
         guard wellFormed, !(excludesDashes && tag.contains("-")) else {
             throw ImageError.malformedVersionFeed(feed: feed, reason: "tag '\(tag)' is not a stable v-prefixed version")
         }

@@ -172,7 +172,7 @@ public struct TartController: TartControlling {
     {
         // The script goes over stdin so it never appears in the process list.
         let argv = [
-            "ssh",
+            SSHExecutor.sshPath,
             "-o", "StrictHostKeyChecking=no",
             "-o", "UserKnownHostsFile=/dev/null",
             "-o", "LogLevel=ERROR",

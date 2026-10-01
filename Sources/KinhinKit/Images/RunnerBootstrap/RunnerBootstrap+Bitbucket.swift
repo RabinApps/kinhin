@@ -184,7 +184,7 @@ extension RunnerBootstrap {
     static func temurinJDKDigestCommand(asset: String, jdkVersion: String) -> String {
         let sidecar =
             "https://github.com/adoptium/temurin\(versionPrefix(jdkVersion))-binaries/releases/download/jdk-\(jdkVersion)/\(asset).sha256.txt"
-        return "curl -fsSL \(shellQuote(sidecar)) | awk '{print $1}' | head -1"
+        return "curl --proto-redir '=https' --tlsv1.2 -fsSL \(shellQuote(sidecar)) | awk '{print $1}' | head -1"
     }
 
     /// `platform` is Temurin's arch_os segment, e.g. "aarch64_mac",

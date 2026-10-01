@@ -78,8 +78,11 @@ public struct DockerRuntime: Runtime {
             shell: shell, bin: bin,
             dialect: .init(
                 tag: "docker", listVerb: "ps", removeVerb: "rm",
+                listNameArguments: ["--format", "{{.Names}}"],
                 imageListArguments: ["images", "--format", "{{.Repository}}:{{.Tag}}"],
-                runFlags: ["--platform", platform.rawValue], shapeNote: platform.rawValue),
+                // The pids limit stops a fork bomb in one job from starving the host. Capabilities
+                // and no-new-privileges stay at Docker's defaults: jobs apt-get and sudo.
+                runFlags: ["--platform", platform.rawValue, "--pids-limit", "4096"], shapeNote: platform.rawValue),
             image: image, cpus: cpus, memoryBytes: memoryBytes, toolchainsConfig: toolchainsConfig)
     }
 
