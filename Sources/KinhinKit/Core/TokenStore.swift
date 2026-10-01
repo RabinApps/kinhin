@@ -59,6 +59,10 @@ public enum KeychainTokenStore {
     }
 
     public static func save(_ token: String, forge: ForgeID, name: String) throws {
+        if mode == .environment {
+            saveForSession(token, name: name)
+            return
+        }
         let data = Data(token.utf8)
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -96,6 +100,7 @@ public enum KeychainTokenStore {
     }
 
     public static func load(forge: ForgeID, name: String) throws -> String? {
+        if mode == .environment { return environmentToken(name: name) }
         let account = account(for: forge, name: name)
         if let token = try load(from: service, account: account) {
             return token
@@ -139,6 +144,10 @@ public enum KeychainTokenStore {
     }
 
     public static func delete(forge: ForgeID, name: String) {
+        if mode == .environment {
+            forgetSessionToken(name: name)
+            return
+        }
         delete(from: service, account: account(for: forge, name: name))
     }
 
@@ -150,6 +159,97 @@ public enum KeychainTokenStore {
         ]
         SecItemDelete(query as CFDictionary)
     }
+}
+
+// MARK: - Dev-only environment token source
+
+extension KeychainTokenStore {
+    /// Where tokens live. `environment` exists only in DEBUG builds: it lets a
+    /// developer run without ever touching (or being prompted by) the Keychain.
+    enum Mode: Equatable {
+        case keychain
+        case environment
+    }
+
+    /// The env var that turns the environment source on (DEBUG builds only).
+    static let modeVariable = "KINHIN_TOKEN_STORE"
+
+    /// The variable an account's token is read from: `KINHIN_TOKEN_<NAME>`,
+    /// upper-cased with every non-alphanumeric character as `_`
+    /// (`github` → `KINHIN_TOKEN_GITHUB`, `ci-bot` → `KINHIN_TOKEN_CI_BOT`).
+    public static func environmentVariableName(for accountName: String) -> String {
+        let normalized = accountName.uppercased().map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "_" }
+        return "KINHIN_TOKEN_" + String(normalized)
+    }
+
+    #if DEBUG
+        /// Test seam: the process environment the environment source reads.
+        static var environmentProvider: @Sendable () -> [String: String] {
+            get { environmentProviderStorage.withLock { $0 } }
+            set { environmentProviderStorage.withLock { $0 = newValue } }
+        }
+        private static let environmentProviderStorage = Mutex<@Sendable () -> [String: String]>({
+            ProcessInfo.processInfo.environment
+        })
+        /// Tokens entered in the UI/CLI this process; never persisted.
+        private static let sessionTokens = Mutex<[String: String]>([:])
+        private static let announcedMode = Mutex(false)
+        private static let warnedAboutSave = Mutex(false)
+
+        static var mode: Mode {
+            // Tests that point the store at a throwaway Keychain service keep
+            // using it, even when a developer exports the variable globally.
+            guard serviceOverride == nil, environmentProvider()[modeVariable] == "env" else { return .keychain }
+            let first = announcedMode.withLock { announced -> Bool in
+                defer { announced = true }
+                return !announced
+            }
+            if first {
+                Log.info(
+                    "keychain",
+                    "token store: environment (\(modeVariable)=env, debug build) — the Keychain is not used")
+            }
+            return .environment
+        }
+
+        static func environmentToken(name: String) -> String? {
+            let variable = environmentVariableName(for: name)
+            if let session = sessionTokens.withLock({ $0[variable] }) { return session }
+            let value = environmentProvider()[variable]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (value?.isEmpty ?? true) ? nil : value
+        }
+
+        static func saveForSession(_ token: String, name: String) {
+            sessionTokens.withLock { $0[environmentVariableName(for: name)] = token }
+            let first = warnedAboutSave.withLock { warned -> Bool in
+                defer { warned = true }
+                return !warned
+            }
+            if first {
+                Log.warn(
+                    "keychain",
+                    "environment token mode: tokens entered now last for this run only — set the env var to keep one")
+            }
+        }
+
+        static func forgetSessionToken(name: String) {
+            _ = sessionTokens.withLock { $0.removeValue(forKey: environmentVariableName(for: name)) }
+        }
+
+        /// Clears per-process state (tests).
+        static func resetEnvironmentModeForTesting() {
+            sessionTokens.withLock { $0.removeAll() }
+            announcedMode.withLock { $0 = false }
+            warnedAboutSave.withLock { $0 = false }
+            environmentProvider = { ProcessInfo.processInfo.environment }
+        }
+    #else
+        /// Release builds always use the Keychain.
+        static var mode: Mode { .keychain }
+        static func environmentToken(name: String) -> String? { nil }
+        static func saveForSession(_ token: String, name: String) {}
+        static func forgetSessionToken(name: String) {}
+    #endif
 }
 
 /// Caches the short-lived (1 h) runner registration token, refreshing it

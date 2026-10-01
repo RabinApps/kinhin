@@ -11,3 +11,5 @@ bad.sha256
 # Stray screencapture output and local scratch files at the repo root
 /-R*
 /*.png
+# Local dev tokens for scripts/dev-run.sh --env-tokens
+.env.dev
