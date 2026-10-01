@@ -41,6 +41,9 @@ enum UpdateCheckError: LocalizedError, Equatable {
     case decoding(String)
     case noChecksum(String)
     case checksumMismatch(String)
+    case invalidRepo(String)
+    case untrustedAsset(String)
+    case signatureInvalid(String)
 
     var errorDescription: String? {
         switch self {
@@ -56,6 +59,12 @@ enum UpdateCheckError: LocalizedError, Equatable {
             return "Release has no checksum for \(name); refusing to install an unverified update"
         case .checksumMismatch(let name):
             return "Downloaded \(name) does not match the release checksum; the file was discarded"
+        case .invalidRepo(let repo):
+            return "'\(repo)' is not a valid owner/name GitHub repository"
+        case .untrustedAsset(let name):
+            return "Release asset \(name) is not served from the release's own download URL; refusing it"
+        case .signatureInvalid(let name):
+            return "\(name) is not signed by the same Developer ID as this app; the file was discarded"
         }
     }
 }
@@ -90,10 +99,19 @@ public struct UpdateChecker: Sendable {
     public let repo: String  // "owner/name"
     let currentVersion: String
     let session: URLSession
+    let shell: any ShellRunning
+    /// Team ID the downloaded installer must be signed by; nil skips the
+    /// check (ad-hoc/unsigned builds have no signer to pin to).
+    let trustedTeamID: String?
 
-    public init(repo: String, currentVersion: String = kinhinVersion.current, session: URLSession? = nil) {
+    public init(
+        repo: String, currentVersion: String = kinhinVersion.current, session: URLSession? = nil,
+        shell: any ShellRunning = Shell(), trustedTeamID: String? = UpdateTrust.currentTeamID()
+    ) {
         self.repo = repo
         self.currentVersion = currentVersion
+        self.shell = shell
+        self.trustedTeamID = trustedTeamID
         if let session {
             self.session = session
         } else {
@@ -119,8 +137,8 @@ public struct UpdateChecker: Sendable {
 
     /// Query releases/latest and build UpdateInfo from the DMG asset.
     func fetchLatestRelease() async throws -> UpdateInfo {
-        guard repo.split(separator: "/").count == 2 else {
-            throw UpdateCheckError.notFound(repo)
+        guard UpdateTrust.isValidRepo(repo) else {
+            throw UpdateCheckError.invalidRepo(repo)
         }
         guard let releaseURL = URL(string: "https://api.github.com/repos/\(repo)/releases/latest") else {
             throw UpdateCheckError.notFound(repo)
@@ -173,22 +191,39 @@ public struct UpdateChecker: Sendable {
         else {
             throw UpdateCheckError.noDMGAsset(release.tag_name)
         }
+        guard UpdateTrust.isSafeAssetName(dmg.name),
+            UpdateTrust.isTrustedDownloadURL(dmg.browser_download_url, repo: repo)
+        else {
+            throw UpdateCheckError.untrustedAsset(dmg.name)
+        }
+        // A checksums URL outside the release is dropped, which fails closed
+        // later (`noChecksum`) instead of trusting a foreign host.
+        let checksums = release.assets
+            .first(where: {
+                $0.name == "checksums.txt" && UpdateTrust.isTrustedDownloadURL($0.browser_download_url, repo: repo)
+            })?
+            .browser_download_url
         return UpdateInfo(
             tag: release.tag_name,
             version: version,
             dmgName: dmg.name,
             dmgURL: dmg.browser_download_url,
-            checksumsURL: release.assets.first(where: { $0.name == "checksums.txt" })?.browser_download_url,
+            checksumsURL: checksums,
             releaseURL: release.html_url,
             publishedAt: release.published_at,
             notes: release.body
         )
     }
 
-    /// Stream a release DMG to a temp file. URLSession downloads do not set the
-    /// quarantine attribute, so the mounted DMG opens without Gatekeeper
-    /// prompts — same effect as `curl -O`. Caller must remove the file when done.
+    /// Stream a release DMG to a temp file, then verify its checksum and (for
+    /// Developer ID builds) that it is signed by the running app's Team ID.
+    /// URLSession downloads carry no quarantine attribute; the signature
+    /// check is what stands in for Gatekeeper here. Caller must remove the
+    /// file when done.
     public func downloadDMG(_ info: UpdateInfo, progress: (@Sendable (Double) -> Void)? = nil) async throws -> URL {
+        guard UpdateTrust.isSafeAssetName(info.dmgName) else {
+            throw UpdateCheckError.untrustedAsset(info.dmgName)
+        }
         let temp = FileManager.default.temporaryDirectory
             .appendingPathComponent("kinhin-update-\(info.dmgName)")
         // A leftover from an earlier download usually isn't there; if it is and
@@ -204,12 +239,29 @@ public struct UpdateChecker: Sendable {
         try FileManager.default.moveItem(at: location, to: temp)
         do {
             try await verifyChecksum(of: temp, named: info.dmgName, checksumsURL: info.checksumsURL)
+            try await verifySignature(of: temp, named: info.dmgName)
         } catch {
             // Never leave an unverified (or tampered) installer on disk.
             bestEffort("update", "remove unverified download") { try FileManager.default.removeItem(at: temp) }
             throw error
         }
         return temp
+    }
+
+    /// Requires the DMG to be signed by the Developer ID Team ID of the running
+    /// app. Skipped (with a warning) when the running build has no Team ID.
+    func verifySignature(of file: URL, named name: String) async throws {
+        guard let teamID = trustedTeamID else {
+            Log.warn("update", "running build has no Developer ID; \(name) verified by checksum only")
+            return
+        }
+        let result = try await shell.run([
+            "/usr/bin/codesign", "--verify", "--strict", "-R=\(UpdateTrust.requirement(teamID: teamID))", file.path,
+        ])
+        guard result.succeeded else {
+            Log.error("update", "signature check failed for \(name): \(result.failureExcerpt)")
+            throw UpdateCheckError.signatureInvalid(name)
+        }
     }
 
     /// Compares the file's SHA-256 with its line in the release's

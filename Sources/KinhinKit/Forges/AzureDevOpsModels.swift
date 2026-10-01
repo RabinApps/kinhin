@@ -42,7 +42,13 @@ public struct AzureDevOpsCredentials: Sendable {
     /// environment variable): `name` or `name=value`, where the name is
     /// letters, digits and `_`, not starting with a digit.
     static func isValidLabel(_ label: String) -> Bool {
-        let name = label.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
+        let parts = label.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+        let name = parts.first ?? ""
+        // The value is exported into the agent's environment: no control
+        // characters (newlines, NUL) in it.
+        if parts.count == 2, parts[1].unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) {
+            return false
+        }
         guard let first = name.first, first.isLetter || first == "_" else { return false }
         return name.allSatisfy { ($0.isASCII && ($0.isLetter || $0.isNumber)) || $0 == "_" }
     }

@@ -33,11 +33,11 @@ final class MacToolchainsTests: XCTestCase {
         XCTAssertTrue(script.contains("set -euo pipefail"))
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/mnt/cache/npm\""), script)
         XCTAssertTrue(script.contains("export npm_config_store_dir=\"/mnt/cache/pnpm-store\""), script)
-        XCTAssertTrue(script.contains("mise use --global node@22"))
+        XCTAssertTrue(script.contains("mise use --global 'node@22'"))
         XCTAssertTrue(script.contains("brew install \"$f\""), "brew installs are guarded")
         XCTAssertTrue(script.contains("brew list --versions \"$f\""), "brew installs are guarded")
-        XCTAssertTrue(script.contains("npm install -g pnpm"), "npm globals guarded")
-        XCTAssertTrue(script.contains("npm ls -g --depth=0 pnpm"), "npm globals guarded")
+        XCTAssertTrue(script.contains("npm install -g 'pnpm'"), "npm globals guarded")
+        XCTAssertTrue(script.contains("npm ls -g --depth=0 'pnpm'"), "npm globals guarded")
         XCTAssertTrue(script.contains("corepack enable"), "packageManager-field support")
         XCTAssertTrue(script.contains("yamllint --version"), "verify commands are appended")
         XCTAssertTrue(script.contains("node --version"), "verify commands are appended")
@@ -51,7 +51,7 @@ final class MacToolchainsTests: XCTestCase {
         let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains))
         let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: nil)
         XCTAssertFalse(script.contains("export "), "no mount → no cache exports (defaults apply)")
-        XCTAssertTrue(script.contains("mise use --global node@22"))
+        XCTAssertTrue(script.contains("mise use --global 'node@22'"))
     }
 
     func testCacheEnvExportsAreGuardedOnMountPresence() {

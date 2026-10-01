@@ -147,8 +147,8 @@ final class LinuxToolchainsTests: XCTestCase {
         XCTAssertTrue(script.contains("apt-get install -y --no-install-recommends"))
         XCTAssertTrue(script.contains("dotnet-sdk-8.0"))
         XCTAssertTrue(script.contains("mise.run"), "mise is bootstrapped on Linux (not preinstalled)")
-        XCTAssertTrue(script.contains("mise use --global node@22"))
-        XCTAssertTrue(script.contains("npm install -g vercel"))
+        XCTAssertTrue(script.contains("mise use --global 'node@22'"))
+        XCTAssertTrue(script.contains("npm install -g 'vercel'"))
         XCTAssertTrue(
             script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""),
             "cache exports point at the Linux guest path")
@@ -170,7 +170,7 @@ final class LinuxToolchainsTests: XCTestCase {
             """)
         let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: sel, mountPath: nil)
         XCTAssertFalse(script.contains("export NPM_CONFIG_CACHE"))
-        XCTAssertTrue(script.contains("mise use --global node@22"))
+        XCTAssertTrue(script.contains("mise use --global 'node@22'"))
     }
 
     func testLinuxCacheMountVolumeSpecAndConstants() {
@@ -208,7 +208,8 @@ final class LinuxToolchainsTests: XCTestCase {
         }
         XCTAssertEqual(bashExecs.count, 2, "agent install + managed toolchains: \(shell.calls)")
         let managedExec = shell.calls[bashExecs[1].offset].joined(separator: " ")
-        XCTAssertTrue(managedExec.contains("mise use --global node@22"), "second exec is the managed toolchain script")
+        XCTAssertTrue(
+            managedExec.contains("mise use --global 'node@22'"), "second exec is the managed toolchain script")
         let buildIdx = try XCTUnwrap(shell.calls.firstIndex { $0.contains("build") })
         XCTAssertGreaterThan(buildIdx, bashExecs[1].offset, "managed toolchains bake before container build")
         XCTAssertGreaterThan(bashExecs[0].offset, runIdx)

@@ -45,7 +45,7 @@ extension RunnerBootstrap {
         }
 
         if !selection.brewTaps.isEmpty {
-            let taps = selection.brewTaps.joined(separator: " ")
+            let taps = selection.brewTaps.map(shellQuote).joined(separator: " ")
             lines.append(
                 """
                 # Homebrew taps
@@ -56,7 +56,7 @@ extension RunnerBootstrap {
         }
 
         if !selection.brewFormulas.isEmpty {
-            let formulas = selection.brewFormulas.map(\.name).joined(separator: " ")
+            let formulas = selection.brewFormulas.map(\.name).map(shellQuote).joined(separator: " ")
             lines.append(
                 """
                 # Homebrew formulas (casks included; guarded so re-runs no-op)
@@ -69,7 +69,7 @@ extension RunnerBootstrap {
         }
 
         if !selection.miseSpecs.isEmpty {
-            let specs = selection.miseSpecs.joined(separator: " ")
+            let specs = selection.miseSpecs.map(shellQuote).joined(separator: " ")
             lines.append(
                 """
                 # mise pins — installed AND set globally so every runner shell sees them
@@ -80,10 +80,10 @@ extension RunnerBootstrap {
         if !selection.npmPackages.isEmpty {
             lines.append("# npm globals (guarded so re-runs no-op)")
             for package in selection.npmPackages {
-                let spec = package.version.isEmpty ? "\(package.name)" : "\(package.name)@\(package.version)"
+                let spec = shellQuote(package.version.isEmpty ? package.name : "\(package.name)@\(package.version)")
                 lines.append(
                     """
-                    if ! npm ls -g --depth=0 \(package.name) >/dev/null 2>&1; then
+                    if ! npm ls -g --depth=0 \(shellQuote(package.name)) >/dev/null 2>&1; then
                       npm install -g \(spec)
                     fi
                     """
@@ -94,7 +94,7 @@ extension RunnerBootstrap {
         }
 
         if !selection.gems.isEmpty {
-            let gems = selection.gems.joined(separator: " ")
+            let gems = selection.gems.map(shellQuote).joined(separator: " ")
             lines.append(
                 """
                 # Ruby gems (user install; guarded so re-runs no-op)

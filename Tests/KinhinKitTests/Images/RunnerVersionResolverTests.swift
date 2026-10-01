@@ -116,6 +116,16 @@ final class RunnerVersionResolverTests: XCTestCase {
                 from: Data(#"{"tag_name":"v19.4.1"}"#.utf8), feed: "GitLab", fallback: "fb", excludesDashes: true),
             "19.4.1")
     }
+
+    /// The tag is spliced into bake scripts and URLs: anything that is not a
+    /// plain dotted version is refused, however plausible it looks.
+    func testStableTagParserRejectsShellMetacharacters() {
+        for tag in ["v1.$(id)", "v1.2;rm -rf ~", "v1.2 3", "v1.2`x`", "v1.2\n3", "v1.", "v.1", "1.2.3", "v1.2/../x"] {
+            let payload = Data(#"{"tag_name":"\#(tag.replacingOccurrences(of: "\n", with: "\\n"))"}"#.utf8)
+            XCTAssertThrowsError(
+                try RunnerVersionResolver.stableTag(from: payload, feed: "GitHub", fallback: "fb"), tag)
+        }
+    }
 }
 
 extension XCTestCase {

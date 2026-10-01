@@ -48,7 +48,7 @@ final class ToolchainHelperScriptTests: XCTestCase {
         XCTAssertNil(yamllint.versionedBody, "brew formulas ignore versions")
         let flutter = try XCTUnwrap(entries.first { $0.id == "flutter" })
         XCTAssertTrue(
-            try XCTUnwrap(flutter.versionedBody).contains("fvm install \(ToolchainHelperEntry.versionSentinel)"))
+            try XCTUnwrap(flutter.versionedBody).contains("fvm install '\(ToolchainHelperEntry.versionSentinel)'"))
     }
 
     func testCatalogIDsAreUniqueAcrossToolsAndStacks() {

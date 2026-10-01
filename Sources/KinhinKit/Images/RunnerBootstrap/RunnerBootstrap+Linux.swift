@@ -75,7 +75,7 @@ extension RunnerBootstrap {
         }
 
         if !selection.aptPackages.isEmpty {
-            let packages = selection.aptPackages.joined(separator: " ")
+            let packages = selection.aptPackages.map(shellQuote).joined(separator: " ")
             lines.append(
                 """
                 # apt packages (guarded so re-runs no-op)
@@ -101,7 +101,7 @@ extension RunnerBootstrap {
                 # the pinned tools if the shims are on PATH there too
                 printf '%s\\n' 'export PATH="$HOME/.local/share/mise/shims:$PATH"' | \(s)tee /etc/profile.d/kinhin-mise.sh > /dev/null
                 """)
-            let specs = selection.miseSpecs.joined(separator: " ")
+            let specs = selection.miseSpecs.map(shellQuote).joined(separator: " ")
             lines.append(
                 """
                 # mise pins — installed AND set globally so every runner shell sees them
@@ -112,10 +112,10 @@ extension RunnerBootstrap {
         if !selection.npmPackages.isEmpty {
             lines.append("# npm globals (guarded so re-runs no-op)")
             for package in selection.npmPackages {
-                let spec = package.version.isEmpty ? "\(package.name)" : "\(package.name)@\(package.version)"
+                let spec = shellQuote(package.version.isEmpty ? package.name : "\(package.name)@\(package.version)")
                 lines.append(
                     """
-                    if ! npm ls -g --depth=0 \(package.name) >/dev/null 2>&1; then
+                    if ! npm ls -g --depth=0 \(shellQuote(package.name)) >/dev/null 2>&1; then
                       \(s)npm install -g \(spec)
                     fi
                     """)
@@ -123,7 +123,7 @@ extension RunnerBootstrap {
         }
 
         if !selection.gems.isEmpty {
-            let gems = selection.gems.joined(separator: " ")
+            let gems = selection.gems.map(shellQuote).joined(separator: " ")
             lines.append(
                 """
                 # Ruby gems (system install; guarded so re-runs no-op)

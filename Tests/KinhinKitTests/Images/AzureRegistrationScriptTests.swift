@@ -26,7 +26,8 @@ final class AzureRegistrationScriptTests: XCTestCase {
         XCTAssertTrue(script.contains("./config.sh --unattended --url \"$1\" --auth pat --pool \"$2\" --agent \"$3\""))
         XCTAssertTrue(script.contains("./run.sh --once"))
         XCTAssertTrue(script.contains("./config.sh remove --unattended --auth pat"), "the agent deregisters itself")
-        XCTAssertTrue(script.contains("export 'kinhin=true'"), "labels are advertised as capabilities")
+        XCTAssertTrue(script.contains("'kinhin-1-r1' 'kinhin=true'"), "labels are advertised as capabilities")
+        XCTAssertTrue(script.contains(#"for kv in "$@"; do export "$kv"; done"#))
         XCTAssertTrue(script.contains("'https://dev.azure.com/acme' 'Mac Fleet' 'kinhin-1-r2'"))
         XCTAssertTrue(script.contains(#"VSTS_AGENT_INPUT_TOKEN="$(cat .pat)""#))
         XCTAssertTrue(script.contains("umask 077"))
@@ -80,7 +81,7 @@ final class AzureRegistrationScriptTests: XCTestCase {
                 forge: forge(), token: "pat-secret", runnerTokens: [:], name: "kinhin-1", runnerCount: 1,
                 route: route, labels: nil)
         XCTAssertTrue(docker.contains("cp -a /opt/azure-agent /opt/azure-agents/'kinhin-1'"), docker)
-        XCTAssertTrue(docker.contains("export 'AGENT_ALLOW_RUNASROOT=1'"), "containers run the agent as root")
+        XCTAssertTrue(docker.contains("'AGENT_ALLOW_RUNASROOT=1'"), "containers run the agent as root")
 
         let agentDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let host = try await HostRuntime(shell: FakeShell(), agentDir: agentDir).registrationScript(
@@ -88,5 +89,25 @@ final class AzureRegistrationScriptTests: XCTestCase {
             labels: nil)
         XCTAssertTrue(host.contains(agentDir.appendingPathComponent("azure-agent").path), host)
         XCTAssertTrue(host.contains("host-instances/kinhin-1"), "agents live in the scrubbed instance dir")
+    }
+
+    /// A capability value must stay one literal argument: it travels as a
+    /// quoted positional argument, never inside the single-quoted `bash -c` body.
+    func testCapabilityValuesCannotBreakOutOfTheAgentShell() {
+        let hostile = "foo=1;touch /tmp/pwn' ; echo $(id)"
+        let script = RunnerBootstrap.azureRegistrationScript(
+            organization: "https://dev.azure.com/acme", token: "pat", pool: "p", runnerNames: ["r1"],
+            capabilities: [hostile], template: "\"$HOME/a\"", baseDir: "\"$HOME/b\"", copy: .apfsClone)
+        let quoted = RunnerBootstrap.shellQuote(hostile)
+        XCTAssertTrue(script.contains("'p' 'r1' \(quoted)"), script)
+        // The body of the bash -c string (before the closing quote) holds no capability text.
+        let body = script.components(separatedBy: "nohup /bin/bash -c '")[1].components(separatedBy: "' azure-agent")[0]
+        XCTAssertFalse(body.contains("touch"), body)
+    }
+
+    func testLabelValuesWithControlCharactersAreInvalid() {
+        XCTAssertTrue(AzureDevOpsCredentials.isValidLabel("xcode=16.2 beta"))
+        XCTAssertFalse(AzureDevOpsCredentials.isValidLabel("xcode=16\nINJECT=1"))
+        XCTAssertFalse(AzureDevOpsCredentials.isValidLabel("xcode=16\u{0}"))
     }
 }

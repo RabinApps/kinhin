@@ -179,7 +179,7 @@ final class ImagePreparerTests: XCTestCase {
         // Execs: probe, agents, managed toolchains.
         XCTAssertEqual(ssh.scripts.count, 3)
         let managed = ssh.scripts[2]
-        XCTAssertTrue(managed.contains("mise use --global node@22"), managed)
+        XCTAssertTrue(managed.contains("mise use --global 'node@22'"), managed)
         XCTAssertTrue(managed.contains("$SUDO apt-get"), "a tart Linux guest elevates through sudo")
         XCTAssertTrue(managed.contains("| sudo tee /etc/profile.d/kinhin-mise.sh"), "profile.d needs root")
         XCTAssertFalse(managed.contains("brew install"), "brew formulas never install on a Linux guest")

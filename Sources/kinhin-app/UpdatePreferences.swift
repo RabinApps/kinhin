@@ -5,6 +5,9 @@ import Foundation
 enum UpdatePreferences {
     /// The GitHub repo releases are published to. Fill in RabinApps, or override
     /// for forks/local testing via the KINHIN_UPDATE_REPO environment variable.
+    /// A Developer ID build only installs DMGs signed by its own Team ID
+    /// (`UpdateChecker.trustedTeamID`), so pointing it at another repo cannot
+    /// deliver a foreign binary.
     static let repo: String = {
         repo(fromEnvironment: ProcessInfo.processInfo.environment)
     }()

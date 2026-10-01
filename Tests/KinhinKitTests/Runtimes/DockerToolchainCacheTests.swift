@@ -99,7 +99,8 @@ final class DockerToolchainCacheTests: XCTestCase {
         }
         XCTAssertEqual(bashExecs.count, 2, "agent install + managed toolchains: \(shell.calls)")
         let managedExec = shell.calls[bashExecs[1].offset].joined(separator: " ")
-        XCTAssertTrue(managedExec.contains("mise use --global node@22"), "second exec is the managed toolchain script")
+        XCTAssertTrue(
+            managedExec.contains("mise use --global 'node@22'"), "second exec is the managed toolchain script")
         let commitIdx = try XCTUnwrap(shell.calls.firstIndex { $0.contains("commit") })
         XCTAssertGreaterThan(commitIdx, bashExecs[1].offset, "managed toolchains bake before docker commit")
         XCTAssertGreaterThan(bashExecs[0].offset, runIdx)

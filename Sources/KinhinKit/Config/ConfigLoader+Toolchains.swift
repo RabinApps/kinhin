@@ -22,6 +22,12 @@ extension ConfigLoader {
         let brew = try Self.parseList(partial.brew, key: "toolchains.brew")
         let stackNames = try Self.parseList(partial.stacks, key: "toolchains.stacks")
             .map(ToolchainsConfigEditor.normalizedSpec)
+        // These reach bake scripts: shell metacharacters, spaces and a leading
+        // `-` are rejected up front (checked after normalisation so legacy
+        // `tool@—` placeholders are repaired, not refused).
+        try Self.requireSafeEntries(specs, key: "toolchains.specs")
+        try Self.requireSafeEntries(brew, key: "toolchains.brew")
+        try Self.requireSafeEntries(stackNames, key: "toolchains.stacks")
 
         var toolchains = KinhinConfig.ToolchainsConfig(
             specs: partial.specs != nil ? specs : nil,
@@ -110,5 +116,22 @@ extension ConfigLoader {
             }
         }
         return raw
+    }
+
+    static func requireSafeEntries(_ entries: [String], key: String) throws {
+        for entry in entries {
+            let trimmed = entry.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard isSafeToolchainEntry(trimmed) else {
+                throw ConfigError.invalid(
+                    "\(key): '\(trimmed)' contains characters that are not allowed (letters, digits and . _ + : / @ = ~ ^ * , - only; no leading '-')"
+                )
+            }
+        }
+    }
+
+    /// Allowlist for toolchain entries (`node@22`, `ubi:owner/repo`, `npm:@scope/pkg`,
+    /// `homebrew/cask/foo`). Everything else is refused rather than escaped.
+    static func isSafeToolchainEntry(_ entry: String) -> Bool {
+        entry.range(of: #"^[A-Za-z0-9_][A-Za-z0-9._+:/@=~^*,-]*$"#, options: .regularExpression) != nil
     }
 }

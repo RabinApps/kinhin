@@ -12,11 +12,17 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   test:
+    # The self-hosted runner shares a Mac with the fleet and its Keychain, so
+    # it never runs code from fork PRs (they would execute arbitrary tests).
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, macos, arm64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Swift version
         run: swift --version
@@ -45,7 +51,7 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, macos, arm64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Tests under ThreadSanitizer (serial)
         # The script exits nonzero on any sanitizer report; a failing exit
@@ -55,7 +61,7 @@ jobs:
   docs-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Docs lint (stale strings)
         run: bash scripts/docs-lint.sh

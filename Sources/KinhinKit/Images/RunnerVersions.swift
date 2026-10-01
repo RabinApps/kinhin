@@ -185,7 +185,10 @@ public struct RunnerVersionResolver: Sendable {
                 feed: feed, reason: "payload is not JSON with a tag_name string (\(error.localizedDescription))")
         }
         let tag = payload.tag_name
-        guard tag.hasPrefix("v"), tag.dropFirst().contains("."), !(excludesDashes && tag.contains("-")) else {
+        // The tag is spliced into bake scripts and download URLs, so only a
+        // plain dotted version (optionally `-pre.release`) is accepted.
+        let wellFormed = tag.range(of: #"^v[0-9]+(\.[0-9]+)+(-[A-Za-z0-9.]+)?$"#, options: .regularExpression) != nil
+        guard wellFormed, !(excludesDashes && tag.contains("-")) else {
             throw ImageError.malformedVersionFeed(feed: feed, reason: "tag '\(tag)' is not a stable v-prefixed version")
         }
         return String(tag.dropFirst())

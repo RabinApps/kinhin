@@ -246,7 +246,7 @@ final class ToolchainSelectionTests: XCTestCase {
         XCTAssertTrue(sel.brewFormulas.contains(BrewFormula(name: "fvm", isCask: false)))
         XCTAssertTrue(sel.brewFormulas.contains(BrewFormula(name: "cocoapods", isCask: false)))
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "FVM_CACHE_PATH", subdirectory: "fvm")))
-        XCTAssertEqual(sel.stackSteps, ["fvm install 3.24.0", "fvm global 3.24.0"])
+        XCTAssertEqual(sel.stackSteps, ["fvm install '3.24.0'", "fvm global '3.24.0'"])
     }
 
     func testDotnetResolvesToCaskWithNugetCache() throws {

@@ -89,7 +89,11 @@ extension RunnerBootstrap {
         organization: String, token: String, pool: String, runnerNames: [String], capabilities: [String],
         template: String, baseDir: String, copy: AgentCopy, extraEnvironment: [String] = []
     ) -> String {
-        let exports = (extraEnvironment + capabilities).map { "export \(shellQuote($0))" }.joined(separator: "\n  ")
+        // Passed to the agent shell as positional arguments (after the three
+        // fixed ones) and exported there with `export "$kv"`: the single-quoted
+        // `bash -c` body can't carry shellQuote'd values, whose quotes would
+        // end the outer string and leave the value unquoted.
+        let environment = (extraEnvironment + capabilities).map(shellQuote).joined(separator: " ")
         var blocks = ""
         for (index, runner) in runnerNames.enumerated() {
             let dir = "\(baseDir)/\(shellQuote(runner))"
@@ -101,14 +105,15 @@ extension RunnerBootstrap {
                 cd \(dir)
                 (umask 077 && printf '%s' \(shellQuote(token)) > .pat)
                 nohup /bin/bash -c '
-                  \(exports.isEmpty ? ":" : exports)
+                  shift 3
+                  for kv in "$@"; do export "$kv"; done
                   VSTS_AGENT_INPUT_TOKEN="$(cat .pat)"
                   export VSTS_AGENT_INPUT_TOKEN
                   ./config.sh --unattended --url "$1" --auth pat --pool "$2" --agent "$3" \\
                     --replace --acceptTeeEula --work "$PWD/_work" || exit 1
                   ./run.sh --once || true
                   ./config.sh remove --unattended --auth pat
-                ' azure-agent \(shellQuote(organization)) \(shellQuote(pool)) \(shellQuote(runner)) \\
+                ' azure-agent \(shellQuote(organization)) \(shellQuote(pool)) \(shellQuote(runner)) \(environment) \\
                   > agent.log 2>&1 < /dev/null &
                 echo $! > agent.pid
 

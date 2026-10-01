@@ -69,8 +69,8 @@ extension AppDelegate {
             checkForUpdates()
             return
         }
-        // Download the release DMG (never quarantined — no Gatekeeper prompts)
-        // and open it so the user lands in Finder, ready to install.
+        // Download the release DMG (checksum- and signature-verified by the
+        // updater) and open it so the user lands in Finder, ready to install.
         guard updateDownloadTask == nil else { return }
         updateDownloadTask = Task { [weak self] in
             await self?.downloadAndPresent(info)

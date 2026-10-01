@@ -7,12 +7,13 @@
 #
 # What it does:
 #   1. Fetches (or uses the given) kinhin-x.y.z-arm64.dmg from GitHub Releases
-#   2. Verifies it against the release checksums.txt when one exists
-#   3. Mounts the DMG and copies kinhin.app to /Applications
+#   2. Verifies it against the release checksums.txt (a download without one
+#      is refused; a local DMG is checked against DMG.sha256 when present)
+#   3. Mounts the DMG, checks the app's code signature, and copies kinhin.app
+#      to /Applications
 #   4. Symlinks the bundled kinhin CLI into the bin dir
-#   5. Installs without Gatekeeper prompts: quarantine is applied by browsers,
-#      not by curl, so a curl-fetched DMG launches cleanly. (A local DMG that
-#      passed through a browser may still be quarantined; we clear that too.)
+#   Quarantine is never stripped: a curl-fetched DMG carries none, and a
+#   browser-downloaded one is left for Gatekeeper to assess.
 #
 #   bash scripts/install.sh --uninstall      # reverses everything above
 #
@@ -21,6 +22,10 @@
 set -euo pipefail
 
 REPO="${REPO:-RabinApps/kinhin}"
+[[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && "$REPO" != *..* ]] \
+    || { echo "error: REPO must look like owner/name" >&2; exit 1; }
+# https only, TLS 1.2+, for every network fetch.
+CURL=(curl --proto '=https' --tlsv1.2 -fL --retry 3)
 INSTALL_DIR="${INSTALL_DIR:-/Applications}"
 
 # Resolve the CLI bin dir: Homebrew on Apple Silicon first (its bin is user-
@@ -102,16 +107,18 @@ else
         [[ "$TAG" == v* ]] || TAG="v$TAG"
     else
         info "Looking up the latest release of $REPO"
-        TAG="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+        TAG="$("${CURL[@]}" -sS "https://api.github.com/repos/$REPO/releases/latest" \
             | sed -n 's/.*"tag_name": *"*\([^"]*\)"*.*/\1/p' | head -n1)"
         [[ -n "$TAG" ]] || die "could not determine the latest release tag (is $REPO reachable and public? pin one: install.sh v0.1.0)"
     fi
+    [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9.]+)?$ ]] || die "unexpected release tag: $TAG"
     info "Fetching kinhin $TAG from GitHub Releases"
     BASE="https://github.com/$REPO/releases/download/$TAG"
-    curl -fL --retry 3 -o "$TMP_DIR/dmg" "$BASE/kinhin-${TAG#v}-arm64.dmg"
-    curl -fL --retry 3 -o "$TMP_DIR/checksums.txt" "$BASE/checksums.txt" \
-        || echo "note: no checksums.txt in this release; skipping verification"
-    DMG="$TMP_DIR/dmg"
+    DMG_NAME="kinhin-${TAG#v}-arm64.dmg"
+    "${CURL[@]}" -o "$TMP_DIR/$DMG_NAME" "$BASE/$DMG_NAME"
+    "${CURL[@]}" -o "$TMP_DIR/checksums.txt" "$BASE/checksums.txt" \
+        || die "no checksums.txt in release $TAG; refusing to install an unverified download"
+    DMG="$TMP_DIR/$DMG_NAME"
 fi
 
 # ---------------------------------------------------------------------------
@@ -125,7 +132,8 @@ elif [[ -f "$DMG.sha256" ]]; then
 fi
 if [[ -n "$CHECKSUMS" ]]; then
     info "Verifying sha256"
-    EXPECTED="$(awk -v f="$(basename "$DMG")" '$2 ~ f {print $1}' "$CHECKSUMS")"
+    # Exact file-name match (optional `*` binary marker), first hit only.
+    EXPECTED="$(awk -v f="$(basename "$DMG")" '$2 == f || $2 == "*" f {print $1; exit}' "$CHECKSUMS")"
     [[ -n "$EXPECTED" ]] || die "checksum file does not mention $(basename "$DMG")"
     echo "$EXPECTED  $DMG" | shasum -a 256 -c - >/dev/null \
         || die "checksum mismatch — do not install this download"
@@ -142,14 +150,15 @@ hdiutil attach -nobrowse -readonly -quiet -mountpoint "$MNT" "$DMG" \
     || die "could not mount the DMG"
 [[ -d "$MNT/kinhin.app" ]] || die "kinhin.app not found in the DMG"
 
+info "Checking the code signature"
+codesign --verify --deep --strict "$MNT/kinhin.app" || die "kinhin.app has an invalid code signature"
+spctl -a -t exec "$MNT/kinhin.app" 2>/dev/null \
+    || echo "note: Gatekeeper does not accept this build (ad-hoc or unnotarized, e.g. a fork)" >&2
+
 info "Copying kinhin.app to $INSTALL_DIR"
 rm -rf "$INSTALL_DIR/kinhin.app"
 mkdir -p "$INSTALL_DIR"
-# ditto preserves bundle structure/metadata and does not preserve quarantine
 ditto "$MNT/kinhin.app" "$INSTALL_DIR/kinhin.app"
-# Belt and suspenders for browser-downloaded DMGs (quarantine may be stamped
-# on the mounted app itself before the copy)
-xattr -dr com.apple.quarantine "$INSTALL_DIR/kinhin.app" 2>/dev/null || true
 
 info "Linking kinhin CLI into $BIN_DIR"
 mkdir -p "$BIN_DIR"

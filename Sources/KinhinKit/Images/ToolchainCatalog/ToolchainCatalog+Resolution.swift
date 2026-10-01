@@ -142,6 +142,7 @@ extension ToolchainCatalog {
                 continue
             }
             let version = stack.effectiveVersion(pinned: pinned)
+            let quoted = RunnerBootstrap.shellQuote(version)
             // A stack with its own Linux recipe (flutter) swaps the macOS
             // Homebrew/fvm pieces for apt + shell steps on Linux; every other
             // stack contributes the same pieces on both platforms.
@@ -150,7 +151,6 @@ extension ToolchainCatalog {
                 for package in stack.linuxAptPackages where !out.aptPackages.contains(package) {
                     out.aptPackages.append(package)
                 }
-                let quoted = "'" + version.replacingOccurrences(of: "'", with: "'\\''") + "'"
                 for step in stack.linuxSteps {
                     guard !step.contains("<version>") || !version.isEmpty else { continue }
                     out.stackSteps.append(step.replacingOccurrences(of: "<version>", with: quoted))
@@ -175,7 +175,7 @@ extension ToolchainCatalog {
                 let hasMount = mountPath != nil
                 for step in stack.postInstall where step.contains("<version>") {
                     guard hasMount, !version.isEmpty else { continue }
-                    out.stackSteps.append(step.replacingOccurrences(of: "<version>", with: version))
+                    out.stackSteps.append(step.replacingOccurrences(of: "<version>", with: quoted))
                 }
                 for step in stack.postInstall where !step.contains("<version>") {
                     out.stackSteps.append(step)

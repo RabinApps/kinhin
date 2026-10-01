@@ -151,6 +151,8 @@ Key fields:
 The effective concurrency cap is the smallest of `max_runners` and what your Mac's CPU, memory,
 and disk can hold after the `reserve` headroom; `kinhin doctor` prints the cap and the binding
 constraint. See [How scaling works](docs/scaling.md) for the formula and the scaling loop.
+Serving the same repo from more than one Mac? Give each Mac its own label so only one spawns for a
+job: [Running on multiple Macs](docs/scaling.md#running-on-multiple-macs).
 
 ## Commands
 

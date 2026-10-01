@@ -81,6 +81,48 @@ isolation); with `4`, one VM serves four concurrent jobs before the scaler spawn
 jobs on identical macOS stacks are the sweet spot — set it high enough that `vm.cpu`/`vm.memory_gb`
 cover the _sum_ of the jobs you expect on one VM.
 
+## Running on multiple Macs
+
+Each Mac runs its own engine and polls the forge independently; kinhin does not coordinate between
+machines (the daemon lock only guards against two daemons on the _same_ Mac). If two Macs serve the
+same repo with the same labels, both see a queued job and both spawn a runner for it. The forge
+hands the job to exactly one of them, so it never runs twice, but the other Mac boots a VM it didn't
+need.
+
+To keep demand from overlapping, give each Mac its own label:
+
+```yaml
+# Mac A
+labels: ["mac-a"]
+```
+
+```yaml
+# Mac B
+labels: ["mac-b"]
+```
+
+A workflow then picks the Mac it wants:
+
+```yaml
+runs-on: [self-hosted, macos, arm64, mac-a] # only Mac A spawns for this job
+```
+
+A job counts as demand only when it requests _every_ configured label, so the other Mac ignores it.
+To fan one job across both Macs, use a matrix:
+
+```yaml
+strategy:
+  matrix:
+    mac: [mac-a, mac-b]
+runs-on: [self-hosted, macos, arm64, "${{ matrix.mac }}"]
+```
+
+Things to know:
+
+- A job with neither label matches no Mac and stays queued.
+- A shared pool (the same labels on both Macs) still works, but a burst can make both Macs spawn.
+  Lower `max_runners` on the weaker Mac to limit the waste.
+
 ## Lifecycle and recovery
 
 Ephemeral runners register with `--ephemeral`, so GitHub removes the runner registration as soon
