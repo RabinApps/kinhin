@@ -27,6 +27,10 @@ public struct DoctorReportBuilder: Sendable {
     let osVersion: OperatingSystemVersion?
     /// Whether the `softnet` binary is installed (fixture). nil looks it up on PATH.
     let softnetInstalled: Bool?
+    /// The active org-permission check (mints and discards a registration
+    /// token): takes the stored token and the org scope, returns the verdict
+    /// line. Only the human rendering runs it; tests substitute a fixture.
+    let orgPermissionCheck: @Sendable (String, String) async -> String
 
     public init(
         host: HostResources? = nil,
@@ -45,7 +49,10 @@ public struct DoctorReportBuilder: Sendable {
         hostHealth: RuntimeHealth? = nil,
         dockerInstalled: Bool? = nil,
         osVersion: OperatingSystemVersion? = nil,
-        softnetInstalled: Bool? = nil
+        softnetInstalled: Bool? = nil,
+        orgPermissionCheck: @escaping @Sendable (String, String) async -> String = { token, scope in
+            await TokenHealthCheck.github(token: token, scope: scope).message
+        }
     ) {
         self.host = host
         self.clt = clt
@@ -62,6 +69,7 @@ public struct DoctorReportBuilder: Sendable {
         self.dockerInstalled = dockerInstalled
         self.osVersion = osVersion
         self.softnetInstalled = softnetInstalled
+        self.orgPermissionCheck = orgPermissionCheck
     }
 
     public func build() async -> DoctorReport {

@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -436,4 +437,64 @@ final class DoctorReportTests: XCTestCase {
         XCTAssertTrue(text.contains("tok github: no token stored — run: kinhin auth set --account github"), text)
         XCTAssertTrue(text.contains("capacity:   up to"), text)
     }
+
+    // MARK: - Config detail lines (human output only)
+
+    func testPlainTextCarriesTheConfigDetailLines() async {
+        var cfg = Self.config()
+        cfg.toolchains = KinhinConfig.ToolchainsConfig(shareCache: false)
+        let text = await builder(config: cfg).buildPlainText()
+
+        XCTAssertTrue(text.contains("kinhin doctor"), "the shared report is rendered first")
+        XCTAssertTrue(text.contains("  config:     \(Paths.config.path)"), text)
+        XCTAssertTrue(text.contains("  image:      \(cfg.image)"), text)
+        XCTAssertTrue(text.contains("share_cache is off"), text)
+        XCTAssertFalse(text.contains("org perms:"), "a repo scope has no org-permission check")
+    }
+
+    func testPlainTextSaysWhenTheConfigIsMissing() async {
+        let text = await builder(config: nil).buildPlainText()
+        XCTAssertTrue(text.contains("config:     missing — run: kinhin config init"), text)
+        XCTAssertFalse(text.contains("  image:"), "no config → no config-specific lines")
+    }
+
+    func testOrgScopeRunsTheActivePermissionCheckOnce() async {
+        let probes = LockedBox<[String]>([])
+        let builder = DoctorReportBuilder(
+            host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
+            config: .loaded(Self.config(repo: "acme")),
+            authLoad: { _ in "ghp_live" }, accountLoad: { _, _ in "ghp_live" },
+            orgPermissionCheck: { token, scope in
+                probes.withValue { $0.append("\(token)@\(scope)") }
+                return "ok ✓"
+            })
+        let text = await builder.buildPlainText()
+
+        XCTAssertTrue(text.contains("scope:      organization 'acme'"), text)
+        XCTAssertTrue(text.contains("org perms:  ok ✓"), text)
+        XCTAssertEqual(probes.value, ["ghp_live@acme"])
+    }
+
+    func testOrgScopeWithoutAStoredTokenSaysHowToFixIt() async {
+        let builder = DoctorReportBuilder(
+            host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
+            config: .loaded(Self.config(repo: "acme")),
+            authLoad: { _ in nil }, accountLoad: { _, _ in nil })
+        let text = await builder.buildPlainText()
+        XCTAssertTrue(text.contains("org perms:  cannot verify — no token stored"), text)
+    }
+
+    func testJSONDocumentIsUnchangedByTheTextOnlyLines() async throws {
+        let (_, data) = try await DoctorCommand.emitJSON(builder: builder(config: Self.config()))
+        let json = String(decoding: data, as: UTF8.self)
+        XCTAssertFalse(json.contains("org perms"), "the active probe is human-output only")
+    }
+}
+
+/// Mutex-guarded box so a `@Sendable` fixture can record calls.
+private final class LockedBox<Value: Sendable>: Sendable {
+    private let stored: Mutex<Value>
+    init(_ value: Value) { stored = Mutex(value) }
+    var value: Value { stored.withLock { $0 } }
+    func withValue(_ body: (inout Value) -> Void) { stored.withLock { body(&$0) } }
 }
