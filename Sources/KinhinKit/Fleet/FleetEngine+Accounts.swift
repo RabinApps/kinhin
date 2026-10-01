@@ -47,6 +47,15 @@ extension FleetEngine {
     /// Build and register the forge for one account.
     @discardableResult
     func attach(account: AccountConfig, token: String, verify: Bool) async -> Bool {
+        if account.allowInsecureHTTP == true, let instance = account.instance,
+            let url = URL(string: instance), url.scheme?.lowercased() == "http",
+            !ForgeHTTP.isLoopback(host: url.host ?? "")
+        {
+            Log.warn(
+                "engine",
+                "account '\(account.name)' talks to \(instance) over plain http (allow_insecure_http): its access token travels in cleartext"
+            )
+        }
         do {
             let forge: Forge
             switch account.forge {
@@ -68,14 +77,18 @@ extension FleetEngine {
                 }
                 forge = try await GiteaForge.make(
                     forge: account.forge,
-                    credentials: GiteaCredentials(token: token, scope: account.scope, instance: instance),
+                    credentials: GiteaCredentials(
+                        token: token, scope: account.scope, instance: instance,
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false),
                     labels: account.labels ?? ["macos:host"],
                     demandFloor: config.minRunners,
                     account: account.name
                 )
             case .gitlab:
                 forge = try await GitLabForge.make(
-                    credentials: GitLabCredentials(token: token, scope: account.scope, instance: account.instance),
+                    credentials: GitLabCredentials(
+                        token: token, scope: account.scope, instance: account.instance,
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false),
                     labels: account.labels ?? config.labels,
                     account: account.name
                 )
@@ -84,7 +97,9 @@ extension FleetEngine {
                     throw EngineError.accountUnverified("no organization URL configured")
                 }
                 forge = try await AzureDevOpsForge.make(
-                    credentials: AzureDevOpsCredentials(token: token, scope: account.scope, instance: instance),
+                    credentials: AzureDevOpsCredentials(
+                        token: token, scope: account.scope, instance: instance,
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false),
                     labels: account.labels ?? [],
                     account: account.name
                 )

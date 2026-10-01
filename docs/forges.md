@@ -148,6 +148,21 @@ accounts:
 - A top-level `repo:`, `gitea:`, or `forgejo:` key is rejected by the parser — declare every forge in `accounts:`. Older kinhin builds ignore the `accounts:` key, so don't share one config with a build that predates it.
 - `kinhin auth status --json` keeps its `forges` entries and adds an `accounts` array.
 
+## Plain `http://` instances
+
+Self-hosted Gitea, Forgejo, GitLab and Azure DevOps instances must use `https://`: the access token is sent with every request, so over `http://` it crosses the network in cleartext. `localhost`, `127.0.0.1` and `[::1]` are exempt. For an instance on a network you trust, opt in per account:
+
+```yaml
+accounts:
+  - name: lab-gitea
+    forge: gitea
+    scope: "me/repo"
+    instance: "http://gitea.lan:3000"
+    allow_insecure_http: true # the token is sent in cleartext
+```
+
+The flag only lifts the https requirement for that account. Redirects still have to stay on the same host and may not downgrade from https to http, and pagination links must match the configured API host. kinhin logs a warning each time such an account attaches. GitHub, Buildkite and Bitbucket are always https, so the key is rejected on them.
+
 ## More forges are planned
 
 The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo landed as a thin re-brand of the Gitea forge, GitLab as a per-runner adapter (`GitLabForge`), Buildkite as a cluster-token adapter (`BuildkiteForge`), Azure DevOps as a PAT-registered pool adapter (`AzureDevOpsForge`), and Bitbucket as a per-runner adapter with idle-grace exit (`BitbucketForge`). Sourcehut is a candidate for the next one. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.

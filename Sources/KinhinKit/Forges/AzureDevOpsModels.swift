@@ -10,11 +10,16 @@ public struct AzureDevOpsCredentials: Sendable {
     public let token: String
     public let scope: String
     public let instance: String
+    /// The account opted in to plain `http://` (`allow_insecure_http`): the
+    /// token then travels in cleartext. Redirect and pagination host checks
+    /// still apply.
+    public let allowInsecureHTTP: Bool
 
-    public init(token: String, scope: String, instance: String) {
+    public init(token: String, scope: String, instance: String, allowInsecureHTTP: Bool = false) {
         self.token = token
         self.scope = scope
         self.instance = instance
+        self.allowInsecureHTTP = allowInsecureHTTP
     }
 
     /// The pool name, trimmed.
@@ -22,9 +27,9 @@ public struct AzureDevOpsCredentials: Sendable {
 
     /// An http(s) organization or collection URL with a host. An `_apis`
     /// path is not allowed (the client appends it).
-    static func validate(instance: String) throws -> URL {
+    static func validate(instance: String, allowInsecureHTTP: Bool = false) throws -> URL {
         guard let url = URL(string: instance),
-            let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+            ForgeHTTP.permitsScheme(of: url, allowInsecureHTTP: allowInsecureHTTP),
             let host = url.host, !host.isEmpty,
             !url.path.split(separator: "/").contains("_apis")
         else {

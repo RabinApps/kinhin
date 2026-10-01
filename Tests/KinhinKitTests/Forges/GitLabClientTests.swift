@@ -30,7 +30,9 @@ final class GitLabClientTests: XCTestCase {
 
     func testInstanceValidation() {
         XCTAssertNoThrow(try GitLabCredentials.validate(instance: "https://gitlab.example.com"))
-        XCTAssertNoThrow(try GitLabCredentials.validate(instance: "http://10.0.0.5:8080/gitlab"))
+        XCTAssertThrowsError(try GitLabCredentials.validate(instance: "http://10.0.0.5:8080/gitlab"))
+        XCTAssertNoThrow(
+            try GitLabCredentials.validate(instance: "http://10.0.0.5:8080/gitlab", allowInsecureHTTP: true))
         XCTAssertThrowsError(try GitLabCredentials.validate(instance: "gitlab.example.com"))
         XCTAssertThrowsError(try GitLabCredentials.validate(instance: "https://gitlab.example.com/api/v4"))
         XCTAssertTrue(GitLabCredentials.isValidScope("grp/sub/proj"))

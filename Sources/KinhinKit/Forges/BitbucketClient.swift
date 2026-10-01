@@ -196,12 +196,22 @@ public struct BitbucketClient: Sendable {
         }
     }
 
+    static func isTrustedPageLink(_ url: URL) -> Bool {
+        guard let api = URL(string: BitbucketCredentials.apiBase) else { return false }
+        return url.scheme?.lowercased() == "https" && url.host?.lowercased() == api.host?.lowercased()
+            && url.user == nil && url.port == nil
+    }
+
     func url(_ path: String, _ query: [URLQueryItem] = []) throws -> URL {
         // A `path` that already starts with the API base (a `next` page link)
         // is used as is.
-        if path.hasPrefix(BitbucketCredentials.apiBase) {
-            guard let absolute = URLComponents(string: path), let absoluteURL = absolute.url else {
-                throw BitbucketError.invalidScope(credentials.scope)
+        if path.contains("://") {
+            // Compare parsed hosts: a string prefix also matches
+            // `https://api.bitbucket.org.evil.example`.
+            guard let absolute = URLComponents(string: path), let absoluteURL = absolute.url,
+                Self.isTrustedPageLink(absoluteURL)
+            else {
+                throw BitbucketError.untrustedPageLink(path)
             }
             return absoluteURL
         }

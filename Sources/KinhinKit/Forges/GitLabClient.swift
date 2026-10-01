@@ -264,7 +264,8 @@ public struct GitLabClient: Sendable {
     }
 
     func url(_ path: String, _ query: [URLQueryItem]) throws -> URL {
-        let base = try GitLabCredentials.validate(instance: credentials.instance)
+        let base = try GitLabCredentials.validate(
+            instance: credentials.instance, allowInsecureHTTP: credentials.allowInsecureHTTP)
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             throw GitLabError.invalidInstance(credentials.instance)
         }

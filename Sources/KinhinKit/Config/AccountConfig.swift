@@ -21,17 +21,25 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     /// capabilities that pipelines demand (nil → none: the pool is kinhin's
     /// alone). Unused for GitHub.
     public var labels: [String]?
+    /// Self-hosted forges only: allow an `http://` instance URL (the token
+    /// then crosses the network in cleartext). Nil/false requires https.
+    public var allowInsecureHTTP: Bool?
 
-    public init(name: String, forge: ForgeID, scope: String, instance: String? = nil, labels: [String]? = nil) {
+    public init(
+        name: String, forge: ForgeID, scope: String, instance: String? = nil, labels: [String]? = nil,
+        allowInsecureHTTP: Bool? = nil
+    ) {
         self.name = name
         self.forge = forge
         self.scope = scope
         self.instance = instance
         self.labels = labels
+        self.allowInsecureHTTP = allowInsecureHTTP
     }
 
     enum CodingKeys: String, CodingKey {
         case name, forge, scope, instance, labels
+        case allowInsecureHTTP = "allow_insecure_http"
     }
 
     /// Names the app treats specially (the primary per-forge cards). GitLab

@@ -101,7 +101,8 @@ public struct AzureDevOpsClient: Sendable {
     }
 
     func url(_ path: String, _ query: [URLQueryItem] = []) throws -> URL {
-        let base = try AzureDevOpsCredentials.validate(instance: credentials.instance)
+        let base = try AzureDevOpsCredentials.validate(
+            instance: credentials.instance, allowInsecureHTTP: credentials.allowInsecureHTTP)
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             throw AzureDevOpsError.invalidInstance(credentials.instance)
         }

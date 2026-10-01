@@ -66,6 +66,7 @@ public enum AccountsConfigEditor {
             if let labels = account.labels {
                 lines.append("    labels: [\(labels.map(YAMLText.quoted).joined(separator: ", "))]")
             }
+            if account.allowInsecureHTTP == true { lines.append("    allow_insecure_http: true") }
         }
         return lines.joined(separator: "\n")
     }

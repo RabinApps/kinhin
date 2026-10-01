@@ -129,6 +129,13 @@ public struct GitHubClient: GitHubServing {
 
     // MARK: - Plumbing
 
+    /// A GitHub owner or repository name: letters, digits, `.`, `_`, `-`, and
+    /// never `.`/`..` (the scope is spliced into the request path).
+    static func isValidScopeSegment(_ segment: Substring) -> Bool {
+        !segment.isEmpty && segment != "." && segment != ".."
+            && segment.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "_" || $0 == "-") }
+    }
+
     func request(method: String, path: String, body: Data? = nil) throws -> URLRequest {
         let segments = credentials.scope.split(separator: "/")
         // A scope-less client is only for token-level calls (listing the repos
@@ -137,7 +144,7 @@ public struct GitHubClient: GitHubServing {
         guard
             tokenLevel
                 || ((segments.count == 1 || segments.count == 2)
-                    && segments.allSatisfy({ !$0.isEmpty }))
+                    && segments.allSatisfy(Self.isValidScopeSegment))
         else {
             throw GitHubError.http(0, "invalid scope spec \(credentials.scope) — use 'owner/name' or an org name")
         }

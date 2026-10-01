@@ -404,15 +404,21 @@ enum AuthCommand {
                 try await environment.checkGitHub(GitHubCredentials(token: token, scope: account.scope))
             case .gitea, .forgejo:
                 try await environment.checkGitea(
-                    GiteaCredentials(token: token, scope: account.scope, instance: account.instance ?? ""))
+                    GiteaCredentials(
+                        token: token, scope: account.scope, instance: account.instance ?? "",
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false))
             case .gitlab:
                 try await environment.checkGitLab(
-                    GitLabCredentials(token: token, scope: account.scope, instance: account.instance))
+                    GitLabCredentials(
+                        token: token, scope: account.scope, instance: account.instance,
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false))
             case .buildkite:
                 try await environment.checkBuildkite(BuildkiteCredentials(token: token, scope: account.scope))
             case .azuredevops:
                 try await environment.checkAzureDevOps(
-                    AzureDevOpsCredentials(token: token, scope: account.scope, instance: account.instance ?? ""))
+                    AzureDevOpsCredentials(
+                        token: token, scope: account.scope, instance: account.instance ?? "",
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false))
             case .bitbucket:
                 try await environment.checkBitbucket(BitbucketCredentials(token: token, scope: account.scope))
             }

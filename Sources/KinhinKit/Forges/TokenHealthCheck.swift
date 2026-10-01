@@ -32,12 +32,14 @@ public enum TokenHealthCheck {
 
     /// Check the Gitea provider against its configured instance.
     public static func gitea(
-        token: String, scope: String, instance: String,
+        token: String, scope: String, instance: String, allowInsecureHTTP: Bool = false,
         client gitea: GiteaClient? = nil
     ) async -> Report {
         let client =
             gitea
-            ?? GiteaClient(credentials: GiteaCredentials(token: token, scope: scope, instance: instance))
+            ?? GiteaClient(
+                credentials: GiteaCredentials(
+                    token: token, scope: scope, instance: instance, allowInsecureHTTP: allowInsecureHTTP))
         do {
             _ = try await client.fetchRegistrationToken()
             return Report(ok: true, message: "Token works against \(scope) @ \(instance)")
@@ -51,11 +53,14 @@ public enum TokenHealthCheck {
     /// creation API, the token has the scopes kinhin uses, and the scope
     /// resolves to a project or group it can see.
     public static func gitlab(
-        token: String, scope: String, instance: String?,
+        token: String, scope: String, instance: String?, allowInsecureHTTP: Bool = false,
         client gitlab: GitLabClient? = nil
     ) async -> Report {
         let client =
-            gitlab ?? GitLabClient(credentials: GitLabCredentials(token: token, scope: scope, instance: instance))
+            gitlab
+            ?? GitLabClient(
+                credentials: GitLabCredentials(
+                    token: token, scope: scope, instance: instance, allowInsecureHTTP: allowInsecureHTTP))
         do {
             let version = try await client.version()
             if let major = Int(version.prefix { $0.isNumber }), major < 16 {
@@ -96,12 +101,14 @@ public enum TokenHealthCheck {
     /// Check an Azure DevOps account: the PAT is accepted by the organization
     /// and can manage the configured agent pool.
     public static func azureDevOps(
-        token: String, scope: String, instance: String,
+        token: String, scope: String, instance: String, allowInsecureHTTP: Bool = false,
         client azure: AzureDevOpsClient? = nil
     ) async -> Report {
         let client =
             azure
-            ?? AzureDevOpsClient(credentials: AzureDevOpsCredentials(token: token, scope: scope, instance: instance))
+            ?? AzureDevOpsClient(
+                credentials: AzureDevOpsCredentials(
+                    token: token, scope: scope, instance: instance, allowInsecureHTTP: allowInsecureHTTP))
         do {
             let pool = try await client.resolvePool()
             return Report(ok: true, message: "Token works against agent pool \(pool.name) @ \(instance)")
@@ -163,13 +170,16 @@ public enum TokenHealthCheck {
                     ok: false, message: "No \(forge.rawValue) account in config.yaml — add one to check the token.")
             }
             return await Self.gitea(
-                token: token, scope: account.scope, instance: account.instance ?? "", client: gitea)
+                token: token, scope: account.scope, instance: account.instance ?? "",
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false, client: gitea)
         case .gitlab:
             // GitLab always lived in accounts:; check the one named "gitlab".
             guard let account = config?.accounts.first(where: { $0.forge == .gitlab }) else {
                 return Report(ok: false, message: "No GitLab account in config.yaml — add one to check the token.")
             }
-            return await Self.gitlab(token: token, scope: account.scope, instance: account.instance)
+            return await Self.gitlab(
+                token: token, scope: account.scope, instance: account.instance,
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         case .buildkite:
             guard let account = config?.accounts.first(where: { $0.forge == .buildkite }) else {
                 return Report(ok: false, message: "No Buildkite account in config.yaml — add one to check the token.")
@@ -182,7 +192,9 @@ public enum TokenHealthCheck {
                 return Report(
                     ok: false, message: "No Azure DevOps account in config.yaml — add one to check the token.")
             }
-            return await Self.azureDevOps(token: token, scope: account.scope, instance: instance)
+            return await Self.azureDevOps(
+                token: token, scope: account.scope, instance: instance,
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         case .bitbucket:
             guard let account = config?.accounts.first(where: { $0.forge == .bitbucket }) else {
                 return Report(ok: false, message: "No Bitbucket account in config.yaml — add one to check the token.")
@@ -202,16 +214,22 @@ public enum TokenHealthCheck {
             guard let instance = account.instance, !instance.isEmpty else {
                 return Report(ok: false, message: "This account has no server address in config.yaml.")
             }
-            return await gitea(token: token, scope: account.scope, instance: instance)
+            return await gitea(
+                token: token, scope: account.scope, instance: instance,
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         case .gitlab:
-            return await gitlab(token: token, scope: account.scope, instance: account.instance)
+            return await gitlab(
+                token: token, scope: account.scope, instance: account.instance,
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         case .buildkite:
             return await buildkite(token: token, scope: account.scope)
         case .azuredevops:
             guard let instance = account.instance, !instance.isEmpty else {
                 return Report(ok: false, message: "This account has no organization URL in config.yaml.")
             }
-            return await azureDevOps(token: token, scope: account.scope, instance: instance)
+            return await azureDevOps(
+                token: token, scope: account.scope, instance: instance,
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         case .bitbucket:
             return await bitbucket(token: token, scope: account.scope)
         }
@@ -220,23 +238,28 @@ public enum TokenHealthCheck {
     /// The repositories a token can see on a forge (the Connect form's
     /// picker). `instance` is required for Gitea-family forges; GitLab
     /// defaults to gitlab.com.
-    public static func repositories(forge: ForgeID, token: String, instance: String?) async throws -> [RepoRef] {
+    public static func repositories(
+        forge: ForgeID, token: String, instance: String?, allowInsecureHTTP: Bool = false
+    ) async throws -> [RepoRef] {
         switch forge {
         case .github:
             return try await GitHubClient(credentials: GitHubCredentials(token: token, scope: "")).listRepositories()
         case .gitea, .forgejo:
             return try await GiteaClient(
-                credentials: GiteaCredentials(token: token, scope: "", instance: instance ?? "")
+                credentials: GiteaCredentials(
+                    token: token, scope: "", instance: instance ?? "", allowInsecureHTTP: allowInsecureHTTP)
             ).listRepositories()
         case .gitlab:
             return try await GitLabClient(
-                credentials: GitLabCredentials(token: token, scope: "", instance: instance)
+                credentials: GitLabCredentials(
+                    token: token, scope: "", instance: instance, allowInsecureHTTP: allowInsecureHTTP)
             ).listRepositories()
         case .buildkite:
             return try await BuildkiteClient(credentials: BuildkiteCredentials(token: token, scope: "")).listScopes()
         case .azuredevops:
             return try await AzureDevOpsClient(
-                credentials: AzureDevOpsCredentials(token: token, scope: "", instance: instance ?? "")
+                credentials: AzureDevOpsCredentials(
+                    token: token, scope: "", instance: instance ?? "", allowInsecureHTTP: allowInsecureHTTP)
             ).listPools()
         case .bitbucket:
             return try await BitbucketClient(credentials: BitbucketCredentials(token: token, scope: "")).listScopes()

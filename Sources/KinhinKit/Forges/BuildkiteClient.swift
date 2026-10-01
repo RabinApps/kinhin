@@ -169,8 +169,19 @@ public struct BuildkiteClient: Sendable {
             all.append(contentsOf: batch)
             pages += 1
             next = batch.isEmpty ? nil : Self.nextPage(response.value(forHTTPHeaderField: "Link"))
+            // The token rides on every page request: a `next` link is only
+            // followed when it stays on the API host over https.
+            if let link = next, !Self.isTrustedPageLink(link) {
+                throw BuildkiteError.untrustedPageLink(link.absoluteString)
+            }
         }
         return all
+    }
+
+    static func isTrustedPageLink(_ url: URL) -> Bool {
+        guard let api = URL(string: BuildkiteCredentials.apiBase) else { return false }
+        return url.scheme?.lowercased() == "https" && url.host?.lowercased() == api.host?.lowercased()
+            && url.user == nil && url.port == nil
     }
 
     /// The `rel="next"` target of an RFC 8288 `Link` header.

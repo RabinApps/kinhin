@@ -291,6 +291,8 @@ enum BitbucketError: LocalizedError, Equatable {
     case invalidScope(String)
     case scopeNotFound(String)
     case missingOAuthClientSecret(String)
+    /// A pagination link that leaves the Bitbucket API host (or is not https).
+    case untrustedPageLink(String)
 
     var errorDescription: String? {
         switch self {
@@ -309,6 +311,8 @@ enum BitbucketError: LocalizedError, Equatable {
             return "invalid Bitbucket scope '\(scope)': use '<workspace>' or '<workspace>/<repo-slug>'"
         case .scopeNotFound(let scope):
             return "no Bitbucket workspace or repository '\(scope)': check the slugs and that the token can see them"
+        case .untrustedPageLink(let link):
+            return "Bitbucket returned a pagination link outside its API (\(link)); refusing to send the token there"
         case .missingOAuthClientSecret(let name):
             return
                 "Bitbucket created runner '\(name)' but did not return its OAuth client secret: the secret is shown "

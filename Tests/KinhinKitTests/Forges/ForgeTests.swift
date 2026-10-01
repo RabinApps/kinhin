@@ -86,7 +86,9 @@ final class ForgeTests: XCTestCase {
         XCTAssertThrowsError(try GiteaCredentials.validate(instance: "gitea.example.com"))
         XCTAssertThrowsError(try GiteaCredentials.validate(instance: "https://gitea.example.com/api"))
         XCTAssertNoThrow(try GiteaCredentials.validate(instance: "https://gitea.example.com"))
-        XCTAssertNoThrow(try GiteaCredentials.validate(instance: "http://192.168.8.8:3000"))
+        // Plain http to a LAN host needs the account's explicit opt-in.
+        XCTAssertThrowsError(try GiteaCredentials.validate(instance: "http://192.168.8.8:3000"))
+        XCTAssertNoThrow(try GiteaCredentials.validate(instance: "http://192.168.8.8:3000", allowInsecureHTTP: true))
     }
 
     // MARK: - GitHub forge mapping

@@ -213,6 +213,8 @@ enum BuildkiteError: LocalizedError, Equatable {
     case invalidScope(String)
     case clusterNotFound(organization: String, cluster: String)
     case insufficientScopes([String])
+    /// A pagination link that leaves the Buildkite API host (or is not https).
+    case untrustedPageLink(String)
 
     var errorDescription: String? {
         switch self {
@@ -231,6 +233,8 @@ enum BuildkiteError: LocalizedError, Equatable {
             return "invalid Buildkite scope '\(scope)': use 'org-slug/cluster' (the cluster's name or id)"
         case .clusterNotFound(let organization, let cluster):
             return "no cluster '\(cluster)' in the Buildkite organization '\(organization)'"
+        case .untrustedPageLink(let link):
+            return "Buildkite returned a pagination link outside its API (\(link)); refusing to send the token there"
         case .insufficientScopes(let missing):
             return "the Buildkite token is missing scopes: \(missing.joined(separator: ", ")). "
                 + "It needs \(BuildkiteCredentials.requiredScopes.joined(separator: ", "))"

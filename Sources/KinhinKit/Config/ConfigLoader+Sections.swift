@@ -14,6 +14,18 @@ extension ConfigLoader {
         return trimmed
     }
 
+    /// An `http://` instance sends the token in cleartext: refuse it unless
+    /// the account says `allow_insecure_http: true` (loopback is exempt).
+    static func requireSecureTransport(_ instance: String, allowInsecureHTTP: Bool, account: String) throws {
+        guard let url = URL(string: instance), url.scheme?.lowercased() == "http",
+            !ForgeHTTP.isLoopback(host: url.host ?? ""), !allowInsecureHTTP
+        else { return }
+        throw ConfigError.invalid(
+            "account '\(account)': instance \(instance) uses plain http, which sends the access token in cleartext. "
+                + "Use https, or set allow_insecure_http: true on this account if the network is trusted"
+        )
+    }
+
     /// Validates the `accounts:` list: unique tame names, a known forge, a
     /// scope, and a Gitea-family instance URL. The names "github", "gitea"
     /// and "forgejo" are the primary accounts (they map to the original
@@ -55,6 +67,17 @@ extension ConfigLoader {
                     throw ConfigError.invalid("account '\(name)': scope must be 'owner/name' or an org name")
                 }
             }
+            // Hosted forges (GitHub, Buildkite, Bitbucket) are always https.
+            let selfHosted = [ForgeID.gitea, .forgejo, .gitlab, .azuredevops].contains(forge)
+            if entry.allowInsecureHTTP != nil && !selfHosted {
+                throw ConfigError.invalid(
+                    "account '\(name)': allow_insecure_http applies to self-hosted forges (gitea, forgejo, gitlab, azuredevops) only"
+                )
+            }
+            let allowInsecureHTTP = entry.allowInsecureHTTP ?? false
+            if selfHosted, let instance = entry.instance {
+                try requireSecureTransport(instance, allowInsecureHTTP: allowInsecureHTTP, account: name)
+            }
             switch forge {
             case .github:
                 if entry.instance != nil || entry.labels != nil {
@@ -67,7 +90,7 @@ extension ConfigLoader {
                         "account '\(name)': instance is required (e.g. https://gitea.example.com)")
                 }
                 do {
-                    _ = try GiteaCredentials.validate(instance: instance)
+                    _ = try GiteaCredentials.validate(instance: instance, allowInsecureHTTP: allowInsecureHTTP)
                 } catch {
                     throw ConfigError.invalid(
                         "account '\(name)': instance must be a base URL like https://gitea.example.com (no path)")
@@ -76,11 +99,13 @@ extension ConfigLoader {
                     throw ConfigError.invalid("account '\(name)': labels must be non-empty when present")
                 }
                 result.append(
-                    AccountConfig(name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels))
+                    AccountConfig(
+                        name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels,
+                        allowInsecureHTTP: entry.allowInsecureHTTP))
             case .gitlab:
                 if let instance = entry.instance {
                     do {
-                        _ = try GitLabCredentials.validate(instance: instance)
+                        _ = try GitLabCredentials.validate(instance: instance, allowInsecureHTTP: allowInsecureHTTP)
                     } catch {
                         throw ConfigError.invalid(
                             "account '\(name)': instance must be a URL like https://gitlab.example.com (no /api)")
@@ -91,7 +116,8 @@ extension ConfigLoader {
                 }
                 result.append(
                     AccountConfig(
-                        name: name, forge: forge, scope: scope, instance: entry.instance, labels: entry.labels))
+                        name: name, forge: forge, scope: scope, instance: entry.instance, labels: entry.labels,
+                        allowInsecureHTTP: entry.allowInsecureHTTP))
             case .buildkite:
                 if entry.instance != nil {
                     throw ConfigError.invalid("account '\(name)': Buildkite is hosted only; remove instance")
@@ -110,7 +136,7 @@ extension ConfigLoader {
                     )
                 }
                 do {
-                    _ = try AzureDevOpsCredentials.validate(instance: instance)
+                    _ = try AzureDevOpsCredentials.validate(instance: instance, allowInsecureHTTP: allowInsecureHTTP)
                 } catch {
                     throw ConfigError.invalid(
                         "account '\(name)': instance must be an organization URL like https://dev.azure.com/acme")
@@ -123,7 +149,9 @@ extension ConfigLoader {
                     }
                 }
                 result.append(
-                    AccountConfig(name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels))
+                    AccountConfig(
+                        name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels,
+                        allowInsecureHTTP: entry.allowInsecureHTTP))
             case .bitbucket:
                 if entry.instance != nil {
                     throw ConfigError.invalid("account '\(name)': Bitbucket is hosted only; remove instance")

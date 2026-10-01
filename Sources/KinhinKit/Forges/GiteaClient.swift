@@ -12,11 +12,16 @@ public struct GiteaCredentials: Sendable {
     public let scope: String
     /// Instance base URL, e.g. "https://gitea.example.com" (no /api suffix).
     public let instance: String
+    /// The account opted in to plain `http://` (`allow_insecure_http`): the
+    /// token then travels in cleartext. Redirect and pagination host checks
+    /// still apply.
+    public let allowInsecureHTTP: Bool
 
-    public init(token: String, scope: String, instance: String) {
+    public init(token: String, scope: String, instance: String, allowInsecureHTTP: Bool = false) {
         self.token = token
         self.scope = scope
         self.instance = instance
+        self.allowInsecureHTTP = allowInsecureHTTP
     }
 
     var isOrgScope: Bool { !scope.contains("/") }
@@ -33,9 +38,9 @@ public struct GiteaCredentials: Sendable {
     /// URL the in-VM act_runner registers against (the instance itself).
     var registrationURL: String { instance }
 
-    static func validate(instance: String) throws -> URL {
+    static func validate(instance: String, allowInsecureHTTP: Bool = false) throws -> URL {
         guard let url = URL(string: instance),
-            let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+            ForgeHTTP.permitsScheme(of: url, allowInsecureHTTP: allowInsecureHTTP),
             let host = url.host, !host.isEmpty,
             url.path.isEmpty || url.path == "/"
         else {
@@ -236,7 +241,8 @@ public struct GiteaClient: Sendable {
 
     private func sendOnce(path: String, method: String) async throws -> (Data, HTTPURLResponse) {
         // validate() already throws the typed GiteaError.invalidInstance.
-        let base = try GiteaCredentials.validate(instance: credentials.instance)
+        let base = try GiteaCredentials.validate(
+            instance: credentials.instance, allowInsecureHTTP: credentials.allowInsecureHTTP)
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             throw GiteaError.invalidInstance(credentials.instance)
         }

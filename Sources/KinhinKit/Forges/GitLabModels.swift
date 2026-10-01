@@ -14,18 +14,23 @@ public struct GitLabCredentials: Sendable {
     /// Instance base URL, e.g. "https://gitlab.com" or a self-managed
     /// "https://example.com/gitlab" (relative-root installs keep their path).
     public let instance: String
+    /// The account opted in to plain `http://` (`allow_insecure_http`): the
+    /// token then travels in cleartext. Redirect and pagination host checks
+    /// still apply.
+    public let allowInsecureHTTP: Bool
 
-    public init(token: String, scope: String, instance: String? = nil) {
+    public init(token: String, scope: String, instance: String? = nil, allowInsecureHTTP: Bool = false) {
         self.token = token
         self.scope = scope
         self.instance = instance ?? Self.defaultInstance
+        self.allowInsecureHTTP = allowInsecureHTTP
     }
 
     /// An http(s) URL with a host. A path prefix is allowed; an `/api` suffix
     /// is not (the client appends `/api/v4`).
-    static func validate(instance: String) throws -> URL {
+    static func validate(instance: String, allowInsecureHTTP: Bool = false) throws -> URL {
         guard let url = URL(string: instance),
-            let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+            ForgeHTTP.permitsScheme(of: url, allowInsecureHTTP: allowInsecureHTTP),
             let host = url.host, !host.isEmpty,
             !url.path.split(separator: "/").contains("api")
         else {

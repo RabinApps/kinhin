@@ -11,6 +11,54 @@ enum ForgeHTTP {
         injected ?? shared
     }
 
+    /// Hosts that never leave this machine; plain http to them leaks nothing.
+    static func isLoopback(host: String) -> Bool {
+        let host = host.lowercased()
+        return host == "localhost" || host.hasSuffix(".localhost") || host == "127.0.0.1" || host == "::1"
+            || host == "[::1]"
+    }
+
+    /// The scheme rule for a self-hosted instance URL: https always; http only
+    /// to loopback or when the account opted in (`allow_insecure_http`).
+    static func permitsScheme(of url: URL, allowInsecureHTTP: Bool) -> Bool {
+        switch url.scheme?.lowercased() {
+        case "https": return true
+        case "http": return allowInsecureHTTP || isLoopback(host: url.host ?? "")
+        default: return false
+        }
+    }
+
+    /// Whether a request may follow a redirect: same host, and never from
+    /// https down to http. Credentials ride on the original request's headers
+    /// (some, like GitLab's `PRIVATE-TOKEN`, are not stripped by Foundation on
+    /// a cross-host hop), so a redirect elsewhere would hand them over.
+    static func allowsRedirect(from original: URL?, to target: URL?) -> Bool {
+        guard let original, let target,
+            let fromHost = original.host?.lowercased(), let toHost = target.host?.lowercased(),
+            fromHost == toHost
+        else { return false }
+        let fromScheme = original.scheme?.lowercased()
+        let toScheme = target.scheme?.lowercased()
+        if fromScheme == "https" { return toScheme == "https" }
+        return toScheme == "http" || toScheme == "https"
+    }
+
+    /// Refuses redirects that `allowsRedirect` rejects; the 3xx response then
+    /// reaches the client, which reports it as an HTTP error.
+    private final class RedirectGuard: NSObject, URLSessionTaskDelegate, Sendable {
+        func urlSession(
+            _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+            newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+        ) {
+            if ForgeHTTP.allowsRedirect(from: task.originalRequest?.url, to: request.url) {
+                completionHandler(request)
+            } else {
+                Log.warn("forge", "refused a redirect to a different host or a downgrade to http")
+                completionHandler(nil)
+            }
+        }
+    }
+
     private static let shared: URLSession = {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
@@ -21,7 +69,7 @@ enum ForgeHTTP {
         // is the clients' own job (GitHub: `ConditionalGetCache`).
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        return URLSession(configuration: config)
+        return URLSession(configuration: config, delegate: RedirectGuard(), delegateQueue: nil)
     }()
 
     /// A network-layer failure (offline, DNS, timeout) worth another

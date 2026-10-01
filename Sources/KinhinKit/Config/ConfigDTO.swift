@@ -39,6 +39,12 @@ public struct PartialConfig: Decodable {
         var scope: String?
         var instance: String?
         var labels: [String]?
+        var allowInsecureHTTP: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case name, forge, scope, instance, labels
+            case allowInsecureHTTP = "allow_insecure_http"
+        }
     }
 
     /// Gitea-family sections are gone (accounts: entries replace them);
