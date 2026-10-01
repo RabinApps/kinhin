@@ -80,7 +80,8 @@ final class AccountsConfigEditorTests: XCTestCase {
 
     func testQuotesAndSpecialCharactersRoundTrip() throws {
         let odd = AccountConfig(
-            name: "a", forge: .gitea, scope: "me/re\"po", instance: "https://git.lan", labels: ["a:b", "c d"])
+            name: "a", forge: .gitea, scope: "me/repo", instance: "https://git.lan",
+            labels: ["a:b", "c d", "say \"hi\""])
         try AccountsConfigEditor.add(odd, to: url)
         XCTAssertEqual(try AccountsConfigEditor.accounts(at: url), [odd])
     }

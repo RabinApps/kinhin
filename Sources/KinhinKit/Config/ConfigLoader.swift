@@ -154,6 +154,7 @@ public struct ConfigLoader {
                 throw ConfigError.invalid(
                     "container.image must not be empty (a Linux OCI image baked with runner agents)")
             }
+            try Self.requireSafeImageReference(containerImage, key: "container.image")
             if let cpus = container.cpus, cpus < 1 {
                 throw ConfigError.invalid("container.cpus must be >= 1")
             }
@@ -178,6 +179,7 @@ public struct ConfigLoader {
             guard let dockerImage = docker.image, !dockerImage.isEmpty else {
                 throw ConfigError.invalid("docker.image must not be empty (a Linux OCI image baked with runner agents)")
             }
+            try Self.requireSafeImageReference(dockerImage, key: "docker.image")
             if let cpus = docker.cpus, cpus < 1 {
                 throw ConfigError.invalid("docker.cpus must be >= 1")
             }
@@ -301,6 +303,33 @@ public struct ConfigLoader {
                 cfg.reserve.diskGB = disk
             }
         }
+        try validateHostScopes(cfg)
         return cfg
+    }
+
+    /// An OCI image reference is passed to `docker run` / `container run` as a
+    /// positional argument: a leading dash would be read as a flag, and whitespace
+    /// or control characters never belong in a reference.
+    static func requireSafeImageReference(_ image: String, key: String) throws {
+        let safe = image.range(of: #"^[A-Za-z0-9][A-Za-z0-9._/:@+-]*\z"#, options: .regularExpression) != nil
+        guard safe else {
+            throw ConfigError.invalid(
+                "\(key) '\(image)' is not a valid image reference (letters, digits and . _ / : @ + -; no leading dash)")
+        }
+    }
+
+    /// Host mode runs repo code unisolated on the Mac, and the host runner is
+    /// registered at the account's scope: any workflow in that scope can ask for
+    /// it by label, whatever the routes say. So with a host route configured every
+    /// account must be scoped to a single repository, never a whole org, group,
+    /// cluster or pool.
+    private static func validateHostScopes(_ cfg: KinhinConfig) throws {
+        guard cfg.hostRoutesConfigured else { return }
+        for account in cfg.accounts where !account.isSingleRepositoryScope {
+            throw ConfigError.invalid(
+                "account '\(account.name)' (scope '\(account.scope)') would expose host mode to everything in that scope: "
+                    + "the host runner registers at the account's scope, so any workflow there could run unisolated on your Mac. "
+                    + "With a runtime 'host' route, give every account a single-repository scope (owner/name)")
+        }
     }
 }

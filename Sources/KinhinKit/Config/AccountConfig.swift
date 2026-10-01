@@ -80,7 +80,31 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     /// `owner/name` or a bare org name.
     static func isValidScope(_ scope: String) -> Bool {
         let segments = scope.split(separator: "/", omittingEmptySubsequences: false)
-        return (1...2).contains(segments.count) && segments.allSatisfy { !$0.isEmpty }
+        // The characters forges allow in owner and repo names. Scopes are spliced into API paths, so
+        // `?`, `#`, `%` and `..` must never get through.
+        return (1...2).contains(segments.count)
+            && segments.allSatisfy {
+                !$0.isEmpty && $0 != "." && $0 != ".."
+                    && $0.range(of: #"^[A-Za-z0-9._-]+\z"#, options: .regularExpression) != nil
+            }
+    }
+}
+
+extension AccountConfig {
+    /// True when the scope names one repository (`owner/name`) on a forge whose
+    /// runners register per repository. Orgs, groups, Buildkite clusters and Azure
+    /// pools cover many repositories.
+    var isSingleRepositoryScope: Bool {
+        switch forge {
+        case .github, .gitea, .forgejo, .bitbucket:
+            return scope.split(separator: "/", omittingEmptySubsequences: false).count == 2
+        case .gitlab:
+            // GitLab paths nest; only a project path (group/project) names one project,
+            // and it is indistinguishable from a subgroup, so require two or more segments.
+            return scope.split(separator: "/").count >= 2
+        case .buildkite, .azuredevops:
+            return false
+        }
     }
 }
 
