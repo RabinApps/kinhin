@@ -75,14 +75,17 @@ class MainWindowTestCase: XCTestCase {
         try await super.tearDown()
     }
 
+    var tabs: MainTabsModel { window.tabs }
+    var models: WindowModels { window.models }
+
     // MARK: - Helpers
 
     /// Opens the wizard with its forms pointed at a scratch config, so
     /// stepping through never touches (or auto-edits) the real one.
     func showWizard() -> WizardModel {
-        window.setupIncompleteFlag = true
-        window.showSetup()
-        let wizard = window.wizardModel!
+        tabs.setupIncomplete = true
+        tabs.showSetup()
+        let wizard = models.wizardModel!
         wizard.mac.configURL = scratchConfig
         wizard.connect.configURL = scratchConfig
         wizard.connect.hasStoredToken = { _ in false }
@@ -90,88 +93,8 @@ class MainWindowTestCase: XCTestCase {
         return wizard
     }
 
-    func segment() -> NSSegmentedControl {
-        guard let control = window.window?.contentView?.flattenedViews().compactMap({ $0 as? NSSegmentedControl }).first
-        else {
-            fatalError("main window must carry the tab segment control")
-        }
-        return control
-    }
-
-    func index(of tab: MainTab) -> Int {
-        window.visibleTabs.firstIndex(of: tab) ?? -1
-    }
-
     /// Drives the wizard's Finish → onFinished → dismiss path.
     func finishSetupForTesting() {
-        window.wizardModel?.onFinished?()
-    }
-
-    func allText() -> String {
-        window.window?.contentView?.flattenedText().joined(separator: "\n") ?? ""
-    }
-
-    /// Realizes the window's layout and reports whether every hosting view's
-    /// primary SwiftUI child has real geometry. SwiftUI renders lazily and an
-    /// empty form collapses to a zero-width column, so a section whose model
-    /// never loaded still passes an "is the right view installed" check —
-    /// this is the geometry-level signal that catches it.
-    func contentHasVisibleArea(in controller: MainTabsWindowController, line: UInt = #line) -> Bool {
-        guard let content = controller.window?.contentView else {
-            XCTFail("the window has no content view", line: line)
-            return false
-        }
-        content.layoutSubtreeIfNeeded()
-        // NSHostingView is generic, so `is NSHostingView<…>` can't typecheck;
-        // match the runtime type name instead.
-        let hosted = content.flattenedViews().filter { host in
-            String(describing: type(of: host)).hasPrefix("NSHostingView<")
-        }
-        guard !hosted.isEmpty else {
-            XCTFail("no hosting view found in the content view", line: line)
-            return false
-        }
-        // The hosting view's FIRST child is its SwiftUI content container
-        // (zero-sized when the form is empty); the others are focus rings and
-        // other AppKit chrome that keep their size regardless.
-        return hosted.allSatisfy { host in
-            guard let contentChild = host.subviews.first else { return false }
-            let frame = contentChild.convert(contentChild.bounds, to: nil)
-            return !frame.isEmpty && frame.width > 1 && frame.height > 1
-        }
-    }
-
-    /// Fires a control's action the way a click would (target/action ignores
-    /// method visibility, so private @objc actions stay reachable in tests).
-    /// Named `fire` to stay clear of NSObject.perform(_:).
-    func fire(_ control: NSControl?, line: UInt = #line) {
-        guard let control else { return XCTFail("control is nil", line: line) }
-        guard let target = control.target else {
-            return XCTFail("control has no target", line: line)
-        }
-        guard let action = control.action else {
-            return XCTFail("control has no action", line: line)
-        }
-        _ = target.perform(action, with: control)
-    }
-}
-
-extension NSView {
-    /// All descendant views, depth-first.
-    func flattenedViews() -> [NSView] {
-        var result: [NSView] = []
-        for sub in subviews {
-            result.append(sub)
-            result.append(contentsOf: sub.flattenedViews())
-        }
-        return result
-    }
-
-    func flattenedText() -> [String] {
-        flattenedViews().compactMap { ($0 as? NSTextField)?.stringValue }
-    }
-
-    func flattenedButtons() -> [NSButton] {
-        flattenedViews().compactMap { $0 as? NSButton }
+        models.wizardModel?.onFinished?()
     }
 }

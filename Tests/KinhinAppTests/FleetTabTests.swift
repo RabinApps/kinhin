@@ -12,8 +12,7 @@ final class FleetTabTests: MainWindowTestCase {
 
     func testRenderShowsNeedsSetupBeforeFirstStatus() {
         fleet.status = nil
-        XCTAssertEqual(window.fleetModel.statusLine, "Needs setup — open the Setup tab")
-        XCTAssertTrue(window.tabViews[.fleet] is NSHostingView<FleetView>)
+        XCTAssertEqual(models.fleetModel.statusLine, "Needs setup — open the Setup tab")
     }
 
     func testRenderShowsSharedStatusLineVMRowsAndCurrentJobs() {
@@ -39,7 +38,7 @@ final class FleetTabTests: MainWindowTestCase {
         fleet.status = status
 
         // The exact same line the menu renders — one renderer, two surfaces.
-        let model = window.fleetModel
+        let model = models.fleetModel
         XCTAssertEqual(model.statusLine, FleetStatusFormatter.summary(status))
         XCTAssertEqual(model.records.map(\.id), ["kinhin-vm-test", "kinhin-vm-idle"], "one row per VM")
         XCTAssertTrue(model.title(for: busy).contains("kinhin-vm-test — busy"))
@@ -51,19 +50,19 @@ final class FleetTabTests: MainWindowTestCase {
 
     func testRenderIdleFleetShowsNoVMsAndNoJobs() {
         fleet.status = FleetStatus()
-        XCTAssertTrue(window.fleetModel.records.isEmpty)
-        XCTAssertTrue(window.fleetModel.working.isEmpty)
+        XCTAssertTrue(models.fleetModel.records.isEmpty)
+        XCTAssertTrue(models.fleetModel.working.isEmpty)
     }
 
     func testRenderTogglesPauseButtonTitle() {
         fleet.status = FleetStatus()
-        XCTAssertEqual(window.fleetModel.pauseTitle, "Pause")
+        XCTAssertEqual(models.fleetModel.pauseTitle, "Pause")
 
         var status = FleetStatus()
         status.running = true
         status.paused = true
         fleet.status = status
-        XCTAssertEqual(window.fleetModel.pauseTitle, "Resume")
+        XCTAssertEqual(models.fleetModel.pauseTitle, "Resume")
     }
 
     func testPausedAutoResumeNoteShowsOnlyWhenThePolicyIsOn() {
@@ -71,12 +70,12 @@ final class FleetTabTests: MainWindowTestCase {
         status.running = true
         status.paused = true
         fleet.status = status
-        XCTAssertNil(window.fleetModel.pausedAutoResumeNote, "policy off: no note")
+        XCTAssertNil(models.fleetModel.pausedAutoResumeNote, "policy off: no note")
 
         status.autoResume = true
         fleet.status = status
         XCTAssertEqual(
-            window.fleetModel.pausedAutoResumeNote,
+            models.fleetModel.pausedAutoResumeNote,
             "Auto-resume is on — the fleet releases itself when the queue is empty.")
     }
 
@@ -88,7 +87,7 @@ final class FleetTabTests: MainWindowTestCase {
         status.pollInterval = 15
         fleet.status = status
         XCTAssertEqual(
-            window.fleetModel.pausedAutoResumeNote,
+            models.fleetModel.pausedAutoResumeNote,
             "Auto-resume is on — the engine re-checks the queue every 15s and resumes once it's empty.")
     }
 
@@ -101,15 +100,15 @@ final class FleetTabTests: MainWindowTestCase {
         status.queueDepth = 3
         status.queuePolledAt = Date().addingTimeInterval(-2)
         fleet.status = status
-        let line = window.fleetModel.statusLine
+        let line = models.fleetModel.statusLine
         XCTAssertTrue(line.contains("\n  ⏱ queue age: "), "the tab carries the same freshness line: \(line)")
         XCTAssertFalse(line.contains("stale"), "fresh within the cadence: \(line)")
 
         status.queuePolledAt = Date().addingTimeInterval(-9_999)
         fleet.status = status
         XCTAssertTrue(
-            window.fleetModel.statusLine.contains("s old (stale — a forge poll failed or the engine is stopped)"),
-            "an outage must not read as fresh: \(window.fleetModel.statusLine)")
+            models.fleetModel.statusLine.contains("s old (stale — a forge poll failed or the engine is stopped)"),
+            "an outage must not read as fresh: \(models.fleetModel.statusLine)")
     }
 
     func testRenderMarksErrorRows() {
@@ -117,14 +116,14 @@ final class FleetTabTests: MainWindowTestCase {
         failed.createdAt = Date()
         failed.error = "boot timed out"
         fleet.status = FleetStatus(records: [failed])
-        XCTAssertTrue(window.fleetModel.detail(for: failed).contains("⚠︎ boot timed out"))
+        XCTAssertTrue(models.fleetModel.detail(for: failed).contains("⚠︎ boot timed out"))
     }
 
     // MARK: - Delegate plumbing
 
     func testFleetControlButtonsReachTheDelegate() {
-        window.fleetModel.onStart()
-        window.fleetModel.onStop()
+        models.fleetModel.onStart()
+        models.fleetModel.onStop()
         XCTAssertEqual(delegate.startCalls, 1)
         XCTAssertEqual(delegate.stopCalls, 1)
     }
@@ -132,70 +131,70 @@ final class FleetTabTests: MainWindowTestCase {
     // MARK: - In-flight start/stop (progress + disabled controls)
 
     func testStartClickMarksPendingUntilTheActionEnds() {
-        window.fleetModel.startClicked()
-        XCTAssertEqual(window.fleetModel.pendingAction, .start)
-        XCTAssertTrue(window.fleetModel.isBusy)
+        models.fleetModel.startClicked()
+        XCTAssertEqual(models.fleetModel.pendingAction, .start)
+        XCTAssertTrue(models.fleetModel.isBusy)
         XCTAssertEqual(delegate.startCalls, 1, "the click still dispatches")
 
         // The action owner clears it when the command and refresh are done.
         fleet.pendingFleetAction = nil
-        XCTAssertNil(window.fleetModel.pendingAction)
-        XCTAssertFalse(window.fleetModel.isBusy)
+        XCTAssertNil(models.fleetModel.pendingAction)
+        XCTAssertFalse(models.fleetModel.isBusy)
     }
 
     func testStopClickMarksPendingAndIgnoresDoubleClicks() {
         fleet.status = {
             var s = FleetStatus(); s.running = true; return s
         }()
-        window.fleetModel.stopClicked()
-        XCTAssertEqual(window.fleetModel.pendingAction, .stop)
+        models.fleetModel.stopClicked()
+        XCTAssertEqual(models.fleetModel.pendingAction, .stop)
         XCTAssertEqual(delegate.stopCalls, 1)
 
         // A second click while busy must not dispatch again (state backstop
         // behind the disabled buttons).
-        window.fleetModel.stopClicked()
-        window.fleetModel.startClicked()
+        models.fleetModel.stopClicked()
+        models.fleetModel.startClicked()
         XCTAssertEqual(delegate.stopCalls, 1)
         XCTAssertEqual(delegate.startCalls, 0)
 
         fleet.pendingFleetAction = nil
-        XCTAssertNil(window.fleetModel.pendingAction)
+        XCTAssertNil(models.fleetModel.pendingAction)
     }
 
     func testPauseToggleIsIgnoredWhileBusy() {
         fleet.status = FleetStatus()  // not paused, not busy
-        window.fleetModel.startClicked()
-        window.fleetModel.togglePause()
+        models.fleetModel.startClicked()
+        models.fleetModel.togglePause()
         XCTAssertEqual(delegate.pauseCalls, 0, "no pause/resume during a start/stop")
         XCTAssertEqual(delegate.resumeCalls, 0)
         fleet.pendingFleetAction = nil
-        window.fleetModel.togglePause()
+        models.fleetModel.togglePause()
         XCTAssertEqual(delegate.pauseCalls, 1)
     }
 
     func testPauseButtonDispatchesBasedOnRenderedState() {
         fleet.status = FleetStatus()  // not paused
-        window.fleetModel.togglePause()
+        models.fleetModel.togglePause()
         XCTAssertEqual(delegate.pauseCalls, 1)
         XCTAssertEqual(delegate.resumeCalls, 0)
 
         var status = FleetStatus()
         status.paused = true
         fleet.status = status
-        window.fleetModel.togglePause()
+        models.fleetModel.togglePause()
         XCTAssertEqual(delegate.pauseCalls, 1)
         XCTAssertEqual(delegate.resumeCalls, 1)
     }
 
     func testUpdateCheckLivesInSettingsNotTheFleetTab() {
-        window.showAdvanced(.app)
-        window.appModel.onCheckForUpdates()
+        tabs.showAdvanced(.app)
+        models.appModel.onCheckForUpdates()
         XCTAssertEqual(delegate.updateCalls, 1)
     }
 
     func testUpdateCardRendersEachState() {
-        window.showAdvanced(.app)
-        let model = window.appModel
+        tabs.showAdvanced(.app)
+        let model = models.appModel
         updates.updateCardState = .checking
         XCTAssertFalse(model.updateButtonEnabled)
         XCTAssertTrue(model.updateText.contains("checking…"))
@@ -214,19 +213,18 @@ final class FleetTabTests: MainWindowTestCase {
 
     func testFleetButtonsShowOnlyApplicableActions() {
         fleet.status = FleetStatus()  // stopped
-        XCTAssertFalse(window.fleetModel.running, "stopped shows Start only")
+        XCTAssertFalse(models.fleetModel.running, "stopped shows Start only")
 
         var status = FleetStatus()
         status.running = true
         fleet.status = status
-        XCTAssertTrue(window.fleetModel.running, "running shows Stop and Pause")
+        XCTAssertTrue(models.fleetModel.running, "running shows Stop and Pause")
     }
 
-    func testLogsSheetRendersSearchableViewer() throws {
-        window.fleetModel.onShowLogs()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        let model = try XCTUnwrap(window.logsModel, "the Logs… button creates the viewer")
-        defer { if let sheet = window.window?.attachedSheet { window.window?.endSheet(sheet) } }
+    func testLogsButtonPresentsTheSearchableViewer() throws {
+        models.fleetModel.onShowLogs()
+        XCTAssertEqual(tabs.sheet, .logs, "the Logs… button presents the sheet")
+        let model = try XCTUnwrap(models.logsModel, "the Logs… button creates the viewer")
         // The viewer is SwiftUI-hosted; its state lives in the model.
         XCTAssertEqual(model.query, "", "the search starts empty")
         XCTAssertEqual(model.minLevel, .debug, "level filter present, defaulting to All")
@@ -234,15 +232,16 @@ final class FleetTabTests: MainWindowTestCase {
         // "1 line" or "N lines", depending on what earlier tests logged.
         let status = model.statusText
         XCTAssertTrue(status.hasSuffix(" line") || status.hasSuffix(" lines"), "a line count is shown")
-        let sheet = try XCTUnwrap(window.logsSheet, "the logs sheet exists")
-        XCTAssertGreaterThan(sheet.contentView?.frame.width ?? 0, 0, "the viewer is laid out inside the sheet")
+
+        tabs.dismissSheet()
+        XCTAssertNil(tabs.sheet)
     }
 
     func testDeleteButtonCarriesTheVMID() {
         var record = VMRecord(id: "kinhin-vm-del", phase: .ready)
         record.createdAt = Date()
         fleet.status = FleetStatus(records: [record])
-        window.fleetModel.onDeleteVM("kinhin-vm-del")
+        models.fleetModel.onDeleteVM("kinhin-vm-del")
         XCTAssertEqual(delegate.deletedVMIDs, ["kinhin-vm-del"])
     }
 }

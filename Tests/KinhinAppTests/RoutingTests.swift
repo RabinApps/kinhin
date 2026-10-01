@@ -38,9 +38,11 @@ final class RoutingTests: XCTestCase {
     func testSelectingTheRoutingSectionLoadsIt() {
         // Regression: the page stayed empty because nothing reloaded it when
         // it was opened from the Advanced sub-tabs.
-        let window = MainTabsWindowController(defaults: UserDefaults(suiteName: "kinhin-routing-\(UUID().uuidString)")!)
-        window.showAdvanced(.routing)
-        XCTAssertGreaterThanOrEqual(window.runtimesModel?.loads ?? 0, 1)
+        let window = MainTabsWindowController(
+            defaults: UserDefaults(suiteName: "kinhin-routing-\(UUID().uuidString)")!, fleet: FleetController(),
+            updates: UpdateController())
+        window.tabs.showAdvanced(.routing)
+        XCTAssertGreaterThanOrEqual(window.models.runtimesModel?.loads ?? 0, 1)
     }
 
     func testAddRouteExplainsWhenNothingHasLoaded() {

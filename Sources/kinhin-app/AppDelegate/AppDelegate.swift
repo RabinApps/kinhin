@@ -109,7 +109,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             setupIncomplete = true
             Log.info("app", "setup incomplete — the guided setup opens")
-            mainController?.setupIncompleteFlag = true
             if reopenSetupOnFailure { openMainWindow() }
         }
     }

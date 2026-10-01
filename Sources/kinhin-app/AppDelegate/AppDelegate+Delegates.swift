@@ -37,19 +37,17 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation {
     /// from the now-complete config and hand the window back to the Fleet tab.
     func setupTabFinished() {
         setupIncomplete = false
-        mainController?.setupIncompleteFlag = false
         fleet.backend = nil
         bootstrapEngine(reopenSetupOnFailure: false)
         guard fleet.service != nil else {
             // Not ready after all: say why instead of silently resetting the
             // wizard (the old behavior looked like "Start fleet does nothing").
             setupIncomplete = true
-            mainController?.setupIncompleteFlag = true
             AlertKit.notice(
                 "kinhin can't start the fleet yet",
                 "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open the Setup tab to finish."
             )
-            mainController?.showSetup()
+            mainController?.tabs.showSetup()
             return
         }
         // "Start fleet" means start it: bootstrapping alone only builds the engine.
