@@ -58,6 +58,15 @@ final class TartHealthTests: XCTestCase {
         XCTAssertEqual(health, .healthy)
     }
 
+    func testHealthyBareVersionOutput() async {
+        // Tart 2.40+ prints just the version number for `--version`.
+        let health = await TartHealthProbe(
+            shell: shell(version: result(0, stdout: "2.40.1\n")), configuredPath: stubBinaryPath
+        )
+        .check()
+        XCTAssertEqual(health, .healthy)
+    }
+
     func testMissingBinary() async {
         // An override pointing at nothing guarantees "missing" regardless of host.
         let health = await TartHealthProbe(configuredPath: "/nonexistent/kinhin-test-tart").check()

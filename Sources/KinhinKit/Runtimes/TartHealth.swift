@@ -86,9 +86,13 @@ public struct TartHealthProbe {
         return .killedOnLaunch
     }
 
-    /// True when `tart --version` behaves like a working binary.
+    /// True when `tart --version` behaves like a working binary. Older builds print
+    /// "tart version 2.32.1"; newer ones (2.40+) print only the bare version number.
     static func launchLooksHealthy(_ result: ShellResult) -> Bool {
-        result.succeeded && result.stdout.contains("tart version")
+        guard result.succeeded else { return false }
+        if result.stdout.contains("tart version") { return true }
+        return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+            .range(of: #"^[0-9]+\.[0-9]+(\.[0-9]+)?([-+][0-9A-Za-z.-]+)?$"#, options: .regularExpression) != nil
     }
 
     /// Maps a failed launch to a short reason. `nil` means "unclassifiable".
