@@ -12,6 +12,8 @@ struct StartFleetIntent: AppIntent {
 }
 
 struct StopFleetIntent: AppIntent {
+    /// Stopping tears every runner VM down; require an authenticated session.
+    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
     static let title: LocalizedStringResource = "Stop Fleet"
     static let description = IntentDescription("Stops the runner fleet. Running jobs finish before the VMs go down.")
 

@@ -142,7 +142,15 @@ enum RunCommands {
 
     static func daemon(_ args: [String]) async throws {
         if args.contains("install") {
-            let binary = CommandLine.arguments[0]
+            // The LaunchAgent runs this path at every login: it must be absolute (a relative
+            // argv[0] resolves against whatever the cwd is at launch) and a built release, not a
+            // debug binary that carries development-only token handling.
+            let binary = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.path
+            if binary.contains("/.build/debug/") || binary.contains("/.build/arm64-apple-macosx/debug/") {
+                fail(
+                    "refusing to install a LaunchAgent for a debug build (\(binary)); install a release build",
+                    exit: .usage)
+            }
             try Daemon.installAgent(binaryPath: binary)
             // launchctl load
             let shell = Shell()

@@ -2,6 +2,8 @@ import AppIntents
 
 struct DeleteVMIntent: AppIntent {
     static let title: LocalizedStringResource = "Delete VM"
+    /// Destructive: Siri and imported Shortcuts must not run it on a locked session.
+    static let authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
     static let description = IntentDescription(
         "Deletes a stalled runner VM without opening the window. Pauses first so autoscale can't recreate it.")
 

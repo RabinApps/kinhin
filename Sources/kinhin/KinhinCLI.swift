@@ -28,7 +28,11 @@ struct KinhinCLI {
         do {
             switch command {
             case .configInit:
-                try ConfigCommands.configInit(args)
+                if args.dropFirst().first == "validate" {
+                    print(try ConfigCommands.validate())
+                } else {
+                    try ConfigCommands.configInit(args)
+                }
 
             case .auth:
                 try await AuthCommand.run(args)
@@ -85,6 +89,9 @@ struct KinhinCLI {
 
             case .daemon:
                 try await RunCommands.daemon(args)
+
+            case .cleanup:
+                try await CleanupCommand.run(args)
 
             case .version:
                 print("kinhin \(kinhinVersion.current)")

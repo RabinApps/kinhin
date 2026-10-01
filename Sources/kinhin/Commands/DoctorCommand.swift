@@ -21,6 +21,10 @@ enum DoctorCommand {
         Paths.ensureSupportDirectories()
         // Machine output first: the whole point is a one-shot diagnostics
         // document for scripts — nothing else is printed in this mode.
+        if args.contains("--bundle") {
+            try await SupportBundle.run(args: args)
+            return
+        }
         if args.contains("--json") {
             _ = try await Self.emitJSON()
             return

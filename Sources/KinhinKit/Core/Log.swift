@@ -85,6 +85,11 @@ public enum Log {
         emit(.warn, component, message)
     }
 
+    /// Masks tokens and credentials in arbitrary text (support bundles, copied reports).
+    public static func redact(_ text: String) -> String {
+        LogRedactor.redact(text)
+    }
+
     public static func error(_ component: String, _ message: String) {
         emit(.error, component, message)
     }

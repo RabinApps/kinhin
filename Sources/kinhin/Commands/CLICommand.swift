@@ -21,6 +21,7 @@ enum CLICommand: Equatable {
     case watch
     case logs
     case daemon
+    case cleanup
     case version
     case help
 
@@ -65,6 +66,8 @@ enum CLICommand: Equatable {
             return .logs
         case "daemon":
             return .daemon
+        case "cleanup":
+            return .cleanup
         case "version", "--version", "-v":
             return .version
         case "help", "--help", "-h":

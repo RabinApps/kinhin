@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import KinhinKit
 import Observation
@@ -55,6 +56,11 @@ final class FleetController {
     @ObservationIgnored var daemonProbe: () -> Bool = { RPCClient.isDaemonAlive() }
     @ObservationIgnored var makeDaemonBackend: () -> any FleetServing = { FleetBackend.daemon(RPCClient()) }
     @ObservationIgnored private var pollTask: Task<Void, Never>?
+    /// Notifications for state changes nobody is watching for, and the sleep guard
+    /// held while the fleet serves jobs. Both are driven from `refresh()`.
+    @ObservationIgnored var alerts = FleetAlerts()
+    @ObservationIgnored var sleepPreventer = SleepPreventer()
+    @ObservationIgnored private var wakeObserver: (any NSObjectProtocol)?
 
     /// The production backend, when `service` is one.
     var backend: FleetBackend? {
@@ -71,6 +77,13 @@ final class FleetController {
     /// at launch, so tests that build a controller never poll.
     func startPolling(every interval: Duration = .seconds(3)) {
         guard pollTask == nil else { return }
+        // After a wake the picture on screen is stale and the daemon connection may have
+        // dropped: look again straight away instead of waiting out the interval.
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in await self?.refresh() }
+        }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh()
@@ -84,6 +97,8 @@ final class FleetController {
     }
 
     func stopPolling() {
+        if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
+        wakeObserver = nil
         pollTask?.cancel()
         pollTask = nil
     }
@@ -122,6 +137,7 @@ final class FleetController {
             guard generation == serviceGeneration else { return }  // the backend was swapped mid-poll
             status = fresh
             unreachableReason = nil
+            publishSideEffects()
         } catch is CancellationError {
             return
         } catch {
@@ -133,7 +149,13 @@ final class FleetController {
             if unreachableReason == nil { Log.warn("app", "fleet poll failed: \(error.localizedDescription)") }
             status = nil
             unreachableReason = error.localizedDescription
+            publishSideEffects()
         }
+    }
+
+    private func publishSideEffects() {
+        alerts.observe(status: status, unreachableReason: unreachableReason)
+        sleepPreventer.update(fleetRunning: status?.running ?? false, paused: status?.paused ?? false)
     }
 
     /// The status line shared by the menu and the Fleet tab.

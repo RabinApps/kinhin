@@ -12,6 +12,7 @@ func helpText() -> String {
 
     SETUP:
         config init                 Write a starter config file
+        config validate             Check the config file without starting anything (exit 3 when invalid)
         auth [set]                  Store (or replace) your GitHub PAT in the Keychain (or: auth set --token)
         auth set --gitea            Store (or replace) your Gitea access token (auth set --gitea --token X)
         auth set --account NAME     Store the token for a named account (--token X to skip the prompt)
@@ -22,6 +23,7 @@ func helpText() -> String {
         auth status [--json]        Show whether a token is stored and valid (--json: all forges, machine output, exit 1 until ready)
         auth clear                  Remove the stored token
         doctor [--json]             Check prerequisites and print the computed capacity (--json: merged machine-readable diagnostics document)
+        doctor --bundle [FILE]      Write a redacted support bundle (doctor report, config, recent log) to attach to a bug report
         setup-status [--json]       First-run checklist (pass --json for machine output)
         setup repair host-agent     Install the GitHub + Gitea runner agents for host runs (unisolated, on this Mac);
                                     gitlab-runner / buildkite-agent / the Azure Pipelines agent / the Bitbucket runner are added only when a GitLab / Buildkite / Azure DevOps / Bitbucket account is configured
@@ -68,6 +70,9 @@ func helpText() -> String {
     RUNNING:
         start                       Start the fleet in this terminal (Ctrl-C to stop)
         daemon                      Run the headless daemon in this terminal
+        cleanup [--vms] [--image] [--cache] [--all] [--yes]
+                                    Reclaim disk: leftover runner VMs, the base image, the toolchain cache.
+                                    Reports only unless --yes is given (stop the fleet first)
         daemon install              Install and start a LaunchAgent daemon
         daemon uninstall            Stop and remove the LaunchAgent
         status [--json]             Show fleet status (attach to daemon if running; --json: machine-readable document with daemon/paused/autoResume fields)
