@@ -37,11 +37,6 @@ final class WindowModels {
 
     lazy var fleetModel: FleetModel = {
         let model = FleetModel(controller: fleet)
-        model.onStart = { [weak self] in self?.delegate?.startFleet() }
-        model.onStop = { [weak self] in self?.delegate?.stopFleet() }
-        model.onPause = { [weak self] in self?.delegate?.pauseFleet() }
-        model.onResume = { [weak self] in self?.delegate?.resumeFleet() }
-        model.onDeleteVM = { [weak self] in self?.delegate?.deleteVM(id: $0) }
         return model
     }()
 
@@ -49,7 +44,6 @@ final class WindowModels {
         let model = AppSectionModel(prefs: prefs, updates: updates)
         model.onLaunchModeChanged = { [weak self] in self?.delegate?.launchModeChanged($0) }
         model.onLaunchAtLoginChanged = { [weak self] in self?.delegate?.launchAtLoginChanged($0) }
-        model.onCheckForUpdates = { [weak self] in self?.delegate?.checkForUpdatesNow() }
         model.onOpenLogs = { [weak self] in self?.delegate?.openLogsFolder() }
         return model
     }()

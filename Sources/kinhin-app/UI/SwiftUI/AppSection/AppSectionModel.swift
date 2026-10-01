@@ -15,7 +15,6 @@ final class AppSectionModel {
 
     @ObservationIgnored var onLaunchModeChanged: (LaunchMode) -> Void = { _ in }
     @ObservationIgnored var onLaunchAtLoginChanged: (Bool) -> Void = { _ in }
-    @ObservationIgnored var onCheckForUpdates: () -> Void = {}
     @ObservationIgnored var onOpenLogs: () -> Void = {}
 
     private(set) var launchMode: LaunchMode
@@ -72,6 +71,9 @@ final class AppSectionModel {
         case .failed(let message): return "Update check failed: \(message)"
         }
     }
+
+    /// The card's button: download when a release is waiting, else check.
+    func updateButtonClicked() { updates.checkOrDownload() }
 
     var updateButtonTitle: String {
         if case .available = updateState { return "Download…" }

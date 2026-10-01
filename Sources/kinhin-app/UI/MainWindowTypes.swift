@@ -73,18 +73,12 @@ enum AdvancedSection: String, CaseIterable {
 
 // MARK: - Tab delegate
 
-/// Everything the tabbed window needs from the app. The window stays free of
-/// FleetEngine/RPC knowledge: tabs render state and ask the delegate to act,
-/// mirroring how the status-bar menu targets the AppDelegate.
+/// What the tabbed window still needs from the app: the process-level
+/// concerns (activation policy, login item, window lifecycle, engine
+/// bootstrap). Fleet actions go through `FleetController` instead.
 @MainActor
 protocol MainTabsWindowDelegate: AnyObject {
-    func startFleet()
-    func stopFleet()
-    func pauseFleet()
-    func resumeFleet()
-    func deleteVM(id: String)
     func openLogsFolder()
-    func checkForUpdatesNow()
     func launchModeChanged(_ mode: LaunchMode)
     func launchAtLoginChanged(_ enabled: Bool)
     func mainTabsWindowWillClose()

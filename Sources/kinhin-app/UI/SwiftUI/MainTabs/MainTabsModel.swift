@@ -29,6 +29,7 @@ final class MainTabsModel {
     init(fleet: FleetController, models: WindowModels) {
         self.fleet = fleet
         self.models = models
+        models.fleetModel.onNeedsSetup = { [weak self] in self?.showSetup() }
         models.fleetModel.onShowLogs = { [weak self] in self?.present(.logs) }
         models.fleetModel.onShowDiagnostics = { [weak self] in self?.present(.diagnostics) }
     }

@@ -9,26 +9,14 @@ import XCTest
 /// without touching a real engine, daemon, or NSApp.terminate.
 @MainActor
 final class RecordingTabsDelegate: MainTabsWindowDelegate {
-    var startCalls = 0
-    var stopCalls = 0
-    var pauseCalls = 0
-    var resumeCalls = 0
-    var deletedVMIDs: [String] = []
     var logsCalls = 0
-    var updateCalls = 0
     var changedModes: [LaunchMode] = []
     var loginToggles: [Bool] = []
     var closeCalls = 0
     var setupFinishedCalls = 0
     var rebootstrapCalls = 0
 
-    func startFleet() { startCalls += 1 }
-    func stopFleet() { stopCalls += 1 }
-    func pauseFleet() { pauseCalls += 1 }
-    func resumeFleet() { resumeCalls += 1 }
-    func deleteVM(id: String) { deletedVMIDs.append(id) }
     func openLogsFolder() { logsCalls += 1 }
-    func checkForUpdatesNow() { updateCalls += 1 }
     func launchModeChanged(_ mode: LaunchMode) { changedModes.append(mode) }
     func launchAtLoginChanged(_ enabled: Bool) { loginToggles.append(enabled) }
     func mainTabsWindowWillClose() { closeCalls += 1 }
@@ -44,6 +32,7 @@ class MainWindowTestCase: XCTestCase {
     var window: MainTabsWindowController!
     var fleet: FleetController!
     var updates: UpdateController!
+    var fake: FakeFleetServing!
     var suite: UserDefaults!
     var suiteName: String!
     var scratchConfig: URL!
@@ -57,7 +46,9 @@ class MainWindowTestCase: XCTestCase {
             "kinhin-mainwindow-\(UUID().uuidString).yaml")
         try? "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n".write(
             to: scratchConfig, atomically: true, encoding: .utf8)
+        fake = FakeFleetServing()
         fleet = FleetController()
+        fleet.service = fake
         updates = UpdateController()
         window = MainTabsWindowController(defaults: suite, fleet: fleet, updates: updates)
         window.delegate = delegate
@@ -68,6 +59,7 @@ class MainWindowTestCase: XCTestCase {
         suite.removePersistentDomain(forName: suiteName)
         window = nil
         fleet = nil
+        fake = nil
         updates = nil
         delegate = nil
         suite = nil
@@ -79,6 +71,14 @@ class MainWindowTestCase: XCTestCase {
     var models: WindowModels { window.models }
 
     // MARK: - Helpers
+
+    func waitUntil(_ message: String, timeout: Duration = .seconds(5), _ condition: () -> Bool) async {
+        let deadline = ContinuousClock.now + timeout
+        while !condition() {
+            if ContinuousClock.now > deadline { return XCTFail("timed out: \(message)") }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
 
     /// Opens the wizard with its forms pointed at a scratch config, so
     /// stepping through never touches (or auto-edits) the real one.

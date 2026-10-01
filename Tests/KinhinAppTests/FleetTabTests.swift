@@ -119,77 +119,94 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertTrue(models.fleetModel.detail(for: failed).contains("⚠︎ boot timed out"))
     }
 
-    // MARK: - Delegate plumbing
+    // MARK: - Buttons drive the controller
 
-    func testFleetControlButtonsReachTheDelegate() {
-        models.fleetModel.onStart()
-        models.fleetModel.onStop()
-        XCTAssertEqual(delegate.startCalls, 1)
-        XCTAssertEqual(delegate.stopCalls, 1)
+    private func calls(_ name: String) -> Int { fake.calls.filter { $0 == name }.count }
+
+    func testStartAndStopButtonsReachTheBackend() async {
+        models.fleetModel.startClicked()
+        await waitUntil("start") { calls("start") == 1 }
+        await waitUntil("pending clears") { fleet.pendingFleetAction == nil }
+
+        models.fleetModel.stopClicked()
+        await waitUntil("stop") { calls("stop") == 1 }
+        await waitUntil("pending clears") { fleet.pendingFleetAction == nil }
+    }
+
+    func testStartWithNothingConfiguredOpensSetupInsteadOfStalling() {
+        fleet.service = nil
+        var openedSetup = 0
+        models.fleetModel.onNeedsSetup = { openedSetup += 1 }
+        models.fleetModel.startClicked()
+        XCTAssertEqual(openedSetup, 1)
+        XCTAssertNil(fleet.pendingFleetAction, "the button must not stay busy with no backend")
     }
 
     // MARK: - In-flight start/stop (progress + disabled controls)
 
-    func testStartClickMarksPendingUntilTheActionEnds() {
+    func testStartClickMarksPendingUntilTheActionEnds() async {
+        fake.gated = true
         models.fleetModel.startClicked()
         XCTAssertEqual(models.fleetModel.pendingAction, .start)
         XCTAssertTrue(models.fleetModel.isBusy)
-        XCTAssertEqual(delegate.startCalls, 1, "the click still dispatches")
+        await waitUntil("the click dispatches") { calls("start") == 1 }
 
-        // The action owner clears it when the command and refresh are done.
-        fleet.pendingFleetAction = nil
-        XCTAssertNil(models.fleetModel.pendingAction)
+        // The controller clears it when the command and refresh are done.
+        fake.releaseGate()
+        await waitUntil("pending clears") { fleet.pendingFleetAction == nil }
         XCTAssertFalse(models.fleetModel.isBusy)
     }
 
-    func testStopClickMarksPendingAndIgnoresDoubleClicks() {
+    func testStopClickMarksPendingAndIgnoresDoubleClicks() async {
+        fake.gated = true
         fleet.status = {
             var s = FleetStatus(); s.running = true; return s
         }()
         models.fleetModel.stopClicked()
         XCTAssertEqual(models.fleetModel.pendingAction, .stop)
-        XCTAssertEqual(delegate.stopCalls, 1)
+        await waitUntil("stop dispatched") { calls("stop") == 1 }
 
         // A second click while busy must not dispatch again (state backstop
         // behind the disabled buttons).
         models.fleetModel.stopClicked()
         models.fleetModel.startClicked()
-        XCTAssertEqual(delegate.stopCalls, 1)
-        XCTAssertEqual(delegate.startCalls, 0)
+        XCTAssertEqual(calls("stop"), 1)
+        XCTAssertEqual(calls("start"), 0)
 
-        fleet.pendingFleetAction = nil
-        XCTAssertNil(models.fleetModel.pendingAction)
+        fake.releaseGate()
+        await waitUntil("pending clears") { fleet.pendingFleetAction == nil }
     }
 
-    func testPauseToggleIsIgnoredWhileBusy() {
+    func testPauseToggleIsIgnoredWhileBusy() async {
+        fake.gated = true
         fleet.status = FleetStatus()  // not paused, not busy
         models.fleetModel.startClicked()
         models.fleetModel.togglePause()
-        XCTAssertEqual(delegate.pauseCalls, 0, "no pause/resume during a start/stop")
-        XCTAssertEqual(delegate.resumeCalls, 0)
-        fleet.pendingFleetAction = nil
+        XCTAssertEqual(calls("setPaused(true)"), 0, "no pause/resume during a start/stop")
+
+        fake.releaseGate()
+        await waitUntil("pending clears") { fleet.pendingFleetAction == nil }
         models.fleetModel.togglePause()
-        XCTAssertEqual(delegate.pauseCalls, 1)
+        await waitUntil("pause dispatched") { calls("setPaused(true)") == 1 }
     }
 
-    func testPauseButtonDispatchesBasedOnRenderedState() {
+    func testPauseButtonDispatchesBasedOnRenderedState() async {
         fleet.status = FleetStatus()  // not paused
         models.fleetModel.togglePause()
-        XCTAssertEqual(delegate.pauseCalls, 1)
-        XCTAssertEqual(delegate.resumeCalls, 0)
+        await waitUntil("pause") { calls("setPaused(true)") == 1 }
 
         var status = FleetStatus()
         status.paused = true
         fleet.status = status
         models.fleetModel.togglePause()
-        XCTAssertEqual(delegate.pauseCalls, 1)
-        XCTAssertEqual(delegate.resumeCalls, 1)
+        await waitUntil("resume") { calls("setPaused(false)") == 1 }
+        XCTAssertEqual(calls("setPaused(true)"), 1)
     }
 
-    func testUpdateCheckLivesInSettingsNotTheFleetTab() {
+    func testUpdateCardButtonChecksWhenNothingIsWaiting() {
         tabs.showAdvanced(.app)
-        models.appModel.onCheckForUpdates()
-        XCTAssertEqual(delegate.updateCalls, 1)
+        XCTAssertEqual(models.appModel.updateButtonTitle, "Check for Updates…")
+        XCTAssertTrue(models.appModel.updateButtonEnabled)
     }
 
     func testUpdateCardRendersEachState() {
@@ -237,11 +254,22 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertNil(tabs.sheet)
     }
 
-    func testDeleteButtonCarriesTheVMID() {
+    func testDeleteButtonConfirmsThenDeletesTheVM() async {
+        AlertKit.runModal = { _ in .alertFirstButtonReturn }
+        defer { AlertKit.runModal = { $0.runModal() } }
         var record = VMRecord(id: "kinhin-vm-del", phase: .ready)
         record.createdAt = Date()
-        fleet.status = FleetStatus(records: [record])
-        models.fleetModel.onDeleteVM("kinhin-vm-del")
-        XCTAssertEqual(delegate.deletedVMIDs, ["kinhin-vm-del"])
+        fake.status = FleetStatus(records: [record])
+        fleet.status = fake.status
+        models.fleetModel.deleteClicked("kinhin-vm-del")
+        await waitUntil("delete") { fake.calls.contains("deleteVM(kinhin-vm-del)") }
+    }
+
+    func testDeclinedDeleteConfirmationLeavesTheVMAlone() async {
+        AlertKit.runModal = { _ in .alertSecondButtonReturn }
+        defer { AlertKit.runModal = { $0.runModal() } }
+        models.fleetModel.deleteClicked("kinhin-vm-del")
+        try? await Task.sleep(for: .milliseconds(50))
+        XCTAssertFalse(fake.calls.contains("deleteVM(kinhin-vm-del)"))
     }
 }

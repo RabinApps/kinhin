@@ -6,7 +6,6 @@ import KinhinKit
 @MainActor
 extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation {
     func openLogsFolder() { openLogs() }
-    func checkForUpdatesNow() { updateItemClicked() }
 
     func launchModeChanged(_ mode: LaunchMode) {
         applyActivationPolicy()

@@ -3,16 +3,13 @@ import KinhinKit
 import Observation
 
 /// State behind the Fleet tab: reads the latest fleet status and the in-flight
-/// action from `FleetController` (the single source of truth) and routes its
-/// buttons to the window's callbacks.
+/// action from `FleetController` (the single source of truth); its buttons
+/// call the controller directly.
 @MainActor
 @Observable
 final class FleetModel {
-    @ObservationIgnored var onStart: () -> Void = {}
-    @ObservationIgnored var onStop: () -> Void = {}
-    @ObservationIgnored var onPause: () -> Void = {}
-    @ObservationIgnored var onResume: () -> Void = {}
-    @ObservationIgnored var onDeleteVM: (String) -> Void = { _ in }
+    /// Set by the window: Start with nothing configured, and the two sheets.
+    @ObservationIgnored var onNeedsSetup: () -> Void = {}
     @ObservationIgnored var onShowLogs: () -> Void = {}
     @ObservationIgnored var onShowDiagnostics: () -> Void = {}
 
@@ -50,24 +47,25 @@ final class FleetModel {
     /// The VMs currently running a workflow.
     var working: [VMRecord] { records.filter { $0.job != nil } }
 
-    /// Button entry points: mark the in-flight action, then dispatch. A
-    /// second click while busy is a no-op (the buttons disable too — this is
-    /// the state-level backstop).
+    /// Button entry points. A second click while busy is a no-op (the
+    /// buttons disable too — this is the state-level backstop).
     func startClicked() {
         guard !isBusy else { return }
-        controller.pendingFleetAction = .start
-        onStart()
+        controller.userStart(openSetup: onNeedsSetup)
     }
 
     func stopClicked() {
         guard !isBusy else { return }
-        controller.pendingFleetAction = .stop
-        onStop()
+        controller.userStop()
     }
 
     func togglePause() {
         guard !isBusy else { return }
-        if paused { onResume() } else { onPause() }
+        controller.userSetPaused(!paused)
+    }
+
+    func deleteClicked(_ id: String) {
+        controller.userDeleteVM(id: id)
     }
 
     // MARK: - Row text

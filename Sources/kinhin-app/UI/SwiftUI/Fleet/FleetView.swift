@@ -26,7 +26,6 @@ struct FleetView: View {
                 if model.running {
                     if model.pendingAction == .stop {
                         Button {
-                            model.onStop()
                         } label: {
                             HStack(spacing: 4) {
                                 ProgressView().controlSize(.small)
@@ -43,7 +42,6 @@ struct FleetView: View {
                         .disabled(model.isBusy)
                 } else if model.pendingAction == .start {
                     Button {
-                        model.onStart()
                     } label: {
                         HStack(spacing: 4) {
                             ProgressView().controlSize(.small)
@@ -105,7 +103,7 @@ struct FleetView: View {
                     .foregroundStyle(record.error != nil ? StatusStyle.error.color : StatusStyle.secondary.color)
             }
             Spacer(minLength: 12)
-            Button("Delete") { model.onDeleteVM(record.id) }
+            Button("Delete") { model.deleteClicked(record.id) }
                 .controlSize(.small)
                 .accessibilityLabel("Delete \(record.id)")
         }

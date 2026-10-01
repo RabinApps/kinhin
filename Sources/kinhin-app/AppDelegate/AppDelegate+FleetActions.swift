@@ -8,48 +8,19 @@ extension AppDelegate {
     // MARK: - Actions
 
     @objc func startFleet() {
-        // Nothing configured yet: Setup is the answer, not an alert. The
-        // Fleet tab's button already marked the action pending, so clear it.
-        guard fleet.service != nil else {
-            fleet.pendingFleetAction = nil
-            openSetupTab()
-            return
-        }
-        Task {
-            do {
-                try await fleet.perform(.start)
-            } catch {
-                AlertKit.present(error: error, title: "Couldn't start the fleet")
-            }
-        }
+        fleet.userStart { [weak self] in self?.openSetupTab() }
     }
 
     @objc func stopFleet() {
-        Task {
-            do {
-                try await fleet.perform(.stop)
-            } catch {
-                AlertKit.present(error: error, title: "Couldn't stop the fleet")
-            }
-        }
+        fleet.userStop()
     }
 
     @objc func pauseFleet() {
-        setPausedFromMenu(true, failureTitle: "Couldn't pause the fleet")
+        fleet.userSetPaused(true)
     }
 
     @objc func resumeFleet() {
-        setPausedFromMenu(false, failureTitle: "Couldn't resume the fleet")
-    }
-
-    private func setPausedFromMenu(_ paused: Bool, failureTitle: String) {
-        Task {
-            do {
-                try await fleet.setPaused(paused)
-            } catch {
-                AlertKit.present(error: error, title: failureTitle)
-            }
-        }
+        fleet.userSetPaused(false)
     }
 
     @objc func deleteVM(_ sender: NSMenuItem) {
@@ -58,23 +29,6 @@ extension AppDelegate {
     }
 
     func deleteVM(id: String) {
-        guard
-            confirmDestructive(
-                title: "Delete \(id)?",
-                message: "This stops the VM and removes it. Any job running on it is cancelled.",
-                button: "Delete")
-        else { return }
-        Task {
-            do {
-                try await fleet.deleteVM(id: id)
-            } catch {
-                AlertKit.present(error: error, title: "Couldn't delete \(id)")
-            }
-        }
-    }
-
-    /// Runs a confirmation alert.
-    func confirmDestructive(title: String, message: String, button: String) -> Bool {
-        AlertKit.confirm(title: title, message: message, confirmTitle: button, destructive: true)
+        fleet.userDeleteVM(id: id)
     }
 }

@@ -35,7 +35,7 @@ struct AppSectionView: View {
                     }
                 }
                 FormCard(title: "Updates") {
-                    Button(model.updateButtonTitle) { model.onCheckForUpdates() }
+                    Button(model.updateButtonTitle) { model.updateButtonClicked() }
                         .disabled(!model.updateButtonEnabled)
                         .accessibilityIdentifier("check-for-updates")
                     HintText(model.updateText).accessibilityIdentifier("update-status")
