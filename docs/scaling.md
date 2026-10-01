@@ -2,7 +2,7 @@
 
 The capacity cap, the scaling loop, job density, and how kinhin recovers from restarts.
 
-[← Back to README](../README.md)
+[← Back to README](../README.md) · Why this exists: [Why kinhin](why.md)
 
 ## Capacity
 

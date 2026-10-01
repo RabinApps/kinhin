@@ -43,6 +43,16 @@ Your Mac stays usable: host CPU, memory, and disk headroom are always reserved.
   same engine, same config (see [The kinhin app](docs/app.md)).
 - **One-line install** — `curl … | bash` from GitHub Releases, with daily update checks.
 
+## Why kinhin
+
+Every CI platform's self-hosted runner works one job at a time: register one on your Mac and the rest of
+the queue waits. GitHub [assigns a single job to each ephemeral runner](https://docs.github.com/en/actions/reference/runners/self-hosted-runners),
+Gitea's `act_runner` defaults to [`capacity: 1`](https://gitea.com/gitea/act_runner/src/branch/main/internal/pkg/config/config.example.yaml),
+[Buildkite](https://buildkite.com/docs/agent/cli-start) and [Azure Pipelines](https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/agents)
+scale by adding agents, and macOS itself [limits a Mac to two macOS VMs](https://eclecticlight.co/2022/08/04/virtualisation-on-apple-silicon-macs-8-how-apple-limits-vms/).
+kinhin fixes that: it watches your queues and boots a fresh, isolated runner per job, so jobs run
+concurrently without leaking state. Full write-up with sources: [Why kinhin](docs/why.md).
+
 ## Requirements
 
 - Apple Silicon Mac (arm64), macOS 15+
@@ -211,6 +221,7 @@ kinhin logs [-n N]          Recent log lines
 
 | Doc                                                              | Covers                                                                      |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [Why kinhin](docs/why.md)                                        | The one-job-per-runner problem and how kinhin solves it, with sources       |
 | [Install](docs/install.md)                                       | Install script, air-gapped installs, update checks                          |
 | [Security](docs/security.md)                                     | Threat model, hardening for untrusted PRs, what kinhin enforces             |
 | [The kinhin app](docs/app.md)                                    | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together     |

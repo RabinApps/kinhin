@@ -14,6 +14,8 @@ hero:
       link: /cli/commands
 
 features:
+  - title: Real concurrency
+    details: Self-hosted runners handle one job at a time. Kinhin scales a fleet of ephemeral runners to your queue so jobs run in parallel. <a href="/guide/why-kinhin">Why kinhin</a>
   - title: Ephemeral by default
     details: Every job gets a freshly cloned VM. The runner deregisters itself afterwards and the VM is deleted — no state leaks between jobs.
   - title: Multi-forge

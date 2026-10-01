@@ -18,6 +18,7 @@ export default defineConfig({
       {
         text: 'Guide',
         items: [
+          { text: 'Why kinhin', link: '/guide/why-kinhin' },
           { text: 'Quick start', link: '/guide/quick-start' },
           { text: 'Configuration', link: '/guide/config' },
           { text: 'Toolchains & shared cache', link: '/guide/toolchains' },

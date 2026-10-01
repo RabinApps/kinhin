@@ -1,7 +1,7 @@
 # Quick start
 
 Kinhin turns your Apple Silicon Mac into an autoscaling fleet of ephemeral self-hosted CI
-runners. This page gets you from zero to a working fleet.
+runners. This page gets you from zero to a working fleet. New here? Read [why kinhin exists](/guide/why-kinhin).
 
 ## Requirements
 
