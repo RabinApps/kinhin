@@ -14,6 +14,7 @@ final class FakeTart: TartControlling, Sendable {
         /// Host directories shared into each booted VM, per run call.
         var runMounts: [[String]] = []
         var stopCalls: [String] = []
+        var installKeyCalls: [(vm: String, user: String)] = []
         var createLinuxCalls: [String] = []
         var runWithDiskCalls: [(name: String, isoPath: String)] = []
         var failNextClone = false
@@ -45,6 +46,7 @@ final class FakeTart: TartControlling, Sendable {
     var deleteCalls: [String] { state.withLock { $0.deleteCalls } }
     var pullCalls: [String] { state.withLock { $0.pullCalls } }
     var runCalls: [String] { state.withLock { $0.runCalls } }
+    var installKeyCalls: [(vm: String, user: String)] { state.withLock { $0.installKeyCalls } }
     /// Host directories shared into each booted VM, per run call.
     var runMounts: [[String]] { state.withLock { $0.runMounts } }
     var stopCalls: [String] { state.withLock { $0.stopCalls } }
@@ -148,6 +150,15 @@ final class FakeTart: TartControlling, Sendable {
         -> ShellResult
     {
         ShellResult(exitCode: 0, stdout: "", stderr: "")
+    }
+
+    func installGuestSSHKey(vm: String, user: String) async throws {
+        try state.withLock { state in
+            state.installKeyCalls.append((vm, user))
+            if let stderr = state.failNext["installKey"] {
+                throw TartError.commandFailed(what: "exec", stderr: stderr)
+            }
+        }
     }
 
     func stop(name: String) async throws {

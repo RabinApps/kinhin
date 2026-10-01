@@ -14,6 +14,10 @@ public struct ImagePreparer {
 
     let tart: TartControlling
     let ssh: SSHExecuting
+    /// How long to wait for the guest agent to accept the SSH key (it starts a
+    /// little after the VM has an IP). Tests shorten these.
+    var guestKeyAttempts = 12
+    var guestKeyRetryDelay: Duration = .seconds(5)
 
     public init(tart: TartControlling, ssh: SSHExecuting) {
         self.tart = tart
@@ -173,6 +177,13 @@ public struct ImagePreparer {
         try await tart.run(name: tmp, mounts: cacheMounts)
         let ip = try await tart.ip(of: tmp, timeout: 300)
 
+        // Cirrus base images trust no SSH key and SSH here never sends a password,
+        // so trust ours through the guest agent first. Best effort: a Linux guest
+        // without the agent may already trust a key, so a failure is reported
+        // only if the SSH call below then fails too.
+        let keyInstallFailure = try await installGuestSSHKey(
+            vm: tmp, user: options.user, attempts: guestKeyAttempts, delay: guestKeyRetryDelay)
+
         // Detect the guest OS (unless overridden) so a tart Linux base VM
         // gets the Linux agent binaries and the Linux toolchain path. The
         // probe is the first SSH exec: it needs the booted scratch VM.
@@ -180,7 +191,14 @@ public struct ImagePreparer {
         if let override = options.guestOS {
             guestOS = override
         } else {
-            guestOS = try await Self.detectGuestOS(vm: tmp, user: options.user, ip: ip, ssh: ssh)
+            do {
+                guestOS = try await Self.detectGuestOS(vm: tmp, user: options.user, ip: ip, ssh: ssh)
+            } catch ImageError.provisioningFailed(let why) {
+                guard let keyInstallFailure else { throw ImageError.provisioningFailed(why) }
+                throw ImageError.provisioningFailed(
+                    "\(why). kinhin also could not install its SSH key in the VM through `tart exec`: \(keyInstallFailure)"
+                )
+            }
         }
         switch guestOS {
         case .macOS:
@@ -334,6 +352,28 @@ public struct ImagePreparer {
         }
         try await tart.clone(source: tmp, to: options.target)
         Log.info("image", "prepared image '\(options.target)' is ready")
+    }
+
+    // MARK: - Guest SSH key
+
+    /// Installs the guest SSH key, retrying while the guest agent comes up (it
+    /// starts a little after the VM has an IP). Returns the last failure, or nil.
+    func installGuestSSHKey(vm: String, user: String, attempts: Int, delay: Duration) async throws -> String? {
+        var failure: String?
+        for attempt in 1...attempts {
+            do {
+                try await tart.installGuestSSHKey(vm: vm, user: user)
+                return nil
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                failure = error.localizedDescription
+                Log.info("image", "guest SSH key not installed yet (attempt \(attempt)/\(attempts)): \(failure ?? "")")
+                if attempt < attempts { try await Task.sleep(for: delay) }
+            }
+        }
+        Log.warn("image", "could not install the guest SSH key: \(failure ?? "unknown error")")
+        return failure
     }
 
     // MARK: - Guest OS detection

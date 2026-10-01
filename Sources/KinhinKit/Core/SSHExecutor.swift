@@ -5,7 +5,7 @@ public protocol SSHExecuting: Sendable {
 }
 
 /// Executes scripts inside runner VMs over SSH. Tart images ship with the
-/// `admin` user and our key installed during `kinhin image prepare`.
+/// `admin` user; `kinhin image prepare` installs our key (see `GuestSSHKey`).
 public struct SSHExecutor: SSHExecuting {
     let shell: ShellRunning
     let user: String
@@ -31,7 +31,7 @@ public struct SSHExecutor: SSHExecuting {
             "-o", "LogLevel=ERROR",
             "-o", "ConnectTimeout=10",
         ]
-        // Cirrus Labs images trust the key Tart generates at ~/.tart/ssh.
+        // kinhin's own guest key (~/.tart/ssh): `image prepare` trusts it in the VM via `tart exec`.
         if let tartKey = Self.tartHostKey() {
             argv += ["-i", tartKey]
         }

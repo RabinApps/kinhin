@@ -51,6 +51,10 @@ public protocol TartControlling: Sendable {
     func stop(name: String) async throws
     func delete(name: String) async throws
     func pull(image: String) async throws
+    /// Trusts kinhin's guest SSH key for `user` in the booted VM, through the
+    /// guest agent (`tart exec`), so the first SSH call can authenticate. The
+    /// default does nothing (fakes, stand-ins).
+    func installGuestSSHKey(vm: String, user: String) async throws
     /// Creates an empty Linux VM (`tart create --linux name`) with no OS —
     /// the starting point of the "Linux VM from scratch" flow.
     func createLinux(name: String) async throws
@@ -63,6 +67,8 @@ public extension TartControlling {
     func run(name: String) async throws {
         try await run(name: name, mounts: [])
     }
+
+    func installGuestSSHKey(vm: String, user: String) async throws {}
 }
 
 /// Real implementation that shells out to the tart binary.
@@ -71,6 +77,8 @@ public struct TartController: TartControlling {
     let shell: ShellRunning
     /// Boot VMs with `--net-softnet` (isolated from each other and the LAN).
     let softnet: Bool
+    /// Where the guest SSH key lives; overridden by tests.
+    var guestKeyDirectory = GuestSSHKey.defaultDirectory
 
     public init(configuredPath: String? = nil, shell: ShellRunning = Shell(), softnet: Bool = false) throws {
         guard let found = Paths.findExecutable(named: "tart", override: configuredPath) else {
@@ -201,6 +209,16 @@ public struct TartController: TartControlling {
     public func pull(image: String) async throws {
         let res = try await exec(["pull", image], timeout: 3600)
         guard res.succeeded else { throw TartError.commandFailed(what: "pull \(image)", stderr: res.stderr) }
+    }
+
+    public func installGuestSSHKey(vm: String, user: String) async throws {
+        guard SSHExecutor.isSafeUser(user) else {
+            throw TartError.commandFailed(what: "exec \(vm)", stderr: "refusing unsafe ssh user '\(user)'")
+        }
+        let key = try await GuestSSHKey.publicKey(in: guestKeyDirectory, shell: shell)
+        let script = GuestSSHKey.installScript(publicKey: key, user: user)
+        let res = try await exec(["exec", vm, "bash", "-c", script], timeout: 60)
+        guard res.succeeded else { throw TartError.commandFailed(what: "exec \(vm)", stderr: res.failureExcerpt) }
     }
 
     public func createLinux(name: String) async throws {

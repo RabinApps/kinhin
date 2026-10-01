@@ -43,6 +43,53 @@ final class ImagePreparerTests: XCTestCase {
         XCTAssertEqual(tart.vms[options.target]?.source, scratch)
     }
 
+    func testPrepareTrustsTheGuestSSHKeyBeforeTheFirstSSHCall() async throws {
+        let tart = FakeTart()
+        let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false))
+        let scratch = try XCTUnwrap(tart.cloneCalls.first?.name)
+        XCTAssertEqual(tart.installKeyCalls.map(\.vm), [scratch])
+        XCTAssertEqual(tart.installKeyCalls.map(\.user), ["admin"])
+    }
+
+    func testAKeyInstallFailureIsReportedWhenSSHThenFails() async throws {
+        let tart = FakeTart()
+        tart.failNext("installKey", stderr: "guest agent not running")
+        let ssh = FakeSSH()
+        ssh.failWith = "admin@192.168.65.2: Permission denied (publickey)"
+        var preparer = ImagePreparer(tart: tart, ssh: ssh)
+        preparer.guestKeyAttempts = 3
+        preparer.guestKeyRetryDelay = .zero
+        do {
+            try await preparer.run(
+                ImagePreparer.Options(
+                    hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                    hasAzureDevOpsToken: false))
+            XCTFail("expected the bake to fail")
+        } catch let error as ImageError {
+            guard case .provisioningFailed(let why) = error else { return XCTFail("wrong error: \(error)") }
+            XCTAssertTrue(why.contains("Permission denied"), why)
+            XCTAssertTrue(why.contains("guest agent not running"), why)
+        }
+        XCTAssertEqual(tart.installKeyCalls.count, 3, "retries while the guest agent comes up")
+    }
+
+    func testAKeyInstallFailureDoesNotStopABakeWhoseSSHWorks() async throws {
+        let tart = FakeTart()
+        tart.failNext("installKey", stderr: "no guest agent")
+        var preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
+        preparer.guestKeyAttempts = 2
+        preparer.guestKeyRetryDelay = .zero
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false))
+        XCTAssertTrue(tart.cloneCalls.contains { $0.name == "tahoe-base" })
+    }
+
     func testABuildkiteTokenAloneBakesOnlyTheBuildkiteAgent() async throws {
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
