@@ -36,8 +36,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             installStatusItem()
         }
         FleetIntentEnvironment.bridge = AppFleetIntentBridge(controller: fleet)
-        bootstrapEngine()
-        autoStartFleetIfEnabled()
+        // Off the launch path: the Keychain read can block on an access prompt
+        // or a locked keychain, and the menu and window must stay usable. The
+        // window opens below; if setup turns out to be incomplete the
+        // bootstrap brings the Setup tab up itself.
+        Task {
+            await bootstrapEngine()
+            autoStartFleetIfEnabled()
+        }
         fleet.startPolling()
         // Once per day (or on first launch), at most; then hourly.
         updates.startScheduledChecks()
@@ -88,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Engine wiring
 
-    func bootstrapEngine(reopenSetupOnFailure: Bool = true) {
+    func bootstrapEngine(reopenSetupOnFailure: Bool = true) async {
         // First-run convenience: materialize the starter config (never
         // overwriting). The checklist still asks for a real repo, so this
         // can't mask an unfinished setup.
@@ -109,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // fleet against "your-org/your-repo".
             ConfigLoader.hasAnyForge(cfg),
             // GitHub PAT, or (Gitea-only config) the Gitea token.
-            let pat = engineTokenLoggingFailure(for: cfg),
+            let pat = await engineTokenLoggingFailure(for: cfg),
             // tart, or a Linux runtime (Docker / Apple container) to run on.
             cfg.canRunOnThisHost()
         {
@@ -130,9 +136,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The engine token for launch. A Keychain failure is logged and yields nil,
     /// which routes to the guided setup; its checklist then shows the
     /// "Keychain error" row instead of asking for a token that is already saved.
-    private func engineTokenLoggingFailure(for cfg: KinhinConfig) -> String? {
+    private func engineTokenLoggingFailure(for cfg: KinhinConfig) async -> String? {
         do {
-            return try ConfigLoader.engineToken(for: cfg)
+            // Detached: SecItemCopyMatching blocks until the user answers a
+            // Keychain prompt, and must never hold the main thread.
+            return try await Task.detached { try ConfigLoader.engineToken(for: cfg) }.value
         } catch {
             Log.error("app", "could not read the forge token at launch: \(error.localizedDescription)")
             return nil

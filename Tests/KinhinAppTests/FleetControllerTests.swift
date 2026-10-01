@@ -13,6 +13,7 @@ final class FleetControllerTests: XCTestCase {
         fake = FakeFleetServing()
         fleet = FleetController()
         fleet.service = fake
+        fleet.daemonProbe = { false }  // never touch a real daemon socket
     }
 
     override func tearDown() async throws {
@@ -283,5 +284,38 @@ final class FleetControllerTests: XCTestCase {
         fake.releaseGate()
         try await first.value
         XCTAssertNil(fleet.pendingFleetAction)
+    }
+
+    // MARK: - Daemon adoption
+
+    func testAdoptsADaemonThatStartsWhileTheAppHasNoBackend() async {
+        fleet.service = nil
+        fleet.setupIncomplete = true
+        let daemon = FakeFleetServing(FleetStatus(running: true))
+        fleet.daemonProbe = { true }
+        fleet.makeDaemonBackend = { daemon }
+
+        await fleet.refresh()
+
+        XCTAssertNotNil(fleet.service)
+        XCTAssertFalse(fleet.setupIncomplete, "a running daemon means setup is evidently complete")
+        XCTAssertEqual(fleet.status?.running, true)
+    }
+
+    func testNeverAdoptsADaemonWhileTheAppHasItsOwnBackend() async {
+        var probes = 0
+        fleet.daemonProbe = {
+            probes += 1
+            return true
+        }
+        await fleet.refresh()
+        XCTAssertEqual(probes, 0, "an existing backend is never swapped for a daemon")
+    }
+
+    func testNoDaemonLeavesNeedsSetup() async {
+        fleet.service = nil
+        await fleet.refresh()
+        XCTAssertNil(fleet.service)
+        XCTAssertEqual(fleet.statusLine, "Needs setup — open the Setup tab")
     }
 }

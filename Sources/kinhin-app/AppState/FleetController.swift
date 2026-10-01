@@ -50,6 +50,10 @@ final class FleetController {
         try FleetEngine.production(config: $0, token: $1)
     }
     @ObservationIgnored var hostSnapshot: () -> HostResources = { ResourceProbe().snapshot() }
+    /// Whether a daemon is serving this Mac, and how to talk to it. Checked
+    /// only while the app has no backend of its own.
+    @ObservationIgnored var daemonProbe: () -> Bool = { RPCClient.isDaemonAlive() }
+    @ObservationIgnored var makeDaemonBackend: () -> any FleetServing = { FleetBackend.daemon(RPCClient()) }
     @ObservationIgnored private var pollTask: Task<Void, Never>?
 
     /// The production backend, when `service` is one.
@@ -98,6 +102,16 @@ final class FleetController {
 
     func refresh() async {
         guard let polled = service else {
+            // No backend of our own: adopt a daemon that has started since
+            // launch (with an engine of our own we never do — two fleets
+            // would fight over the same VMs).
+            if daemonProbe() {
+                Log.info("app", "a daemon is now serving this Mac — attaching to it")
+                service = makeDaemonBackend()
+                setupIncomplete = false
+                await refresh()
+                return
+            }
             status = nil
             unreachableReason = nil
             return
