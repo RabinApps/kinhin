@@ -41,7 +41,7 @@ public protocol TartControlling: Sendable {
     func list() async throws -> [TartVM]
     func clone(source: String, to name: String) async throws
     /// Boots the VM, optionally sharing host directories into the guest
-    /// (tart virtiofs; macOS guests auto-mount under "/Volumes/My Shared Files").
+    /// (`--dir name:hostpath` specs; macOS guests auto-mount under "/Volumes/My Shared Files").
     func run(name: String, mounts: [String]) async throws
     /// Convenience for callers that never mount host directories.
     func run(name: String) async throws
@@ -84,8 +84,9 @@ public struct TartController: TartControlling {
     /// The `tart run` argument list; separate from `run` so it can be tested
     /// without launching a VM.
     static func runArguments(name: String, mounts: [String], softnet: Bool) -> [String] {
-        // virtiofs shares: guests auto-mount under "/Volumes/My Shared Files".
-        let mountArgs = mounts.flatMap { ["--virtiofs", $0] }
+        // `--dir name:hostpath` shares: macOS guests auto-mount them under
+        // "/Volumes/My Shared Files/<name>" (tart's documented directory-sharing flag).
+        let mountArgs = mounts.flatMap { ["--dir", $0] }
         return ["run", "--no-graphics"] + (softnet ? ["--net-softnet"] : []) + mountArgs + [name]
     }
 

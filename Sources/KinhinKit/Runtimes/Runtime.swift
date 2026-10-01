@@ -182,7 +182,7 @@ struct TartRuntime: Runtime {
         }
         Log.info(id, "cloning from \(route.image)")
         try await tart.clone(source: route.image, to: id)
-        let mounts = route.cacheMount ? [ToolchainCacheMount.guestPath] : []
+        let mounts = route.cacheMount ? [ToolchainCacheMount.tartDirectorySpec] : []
         try await tart.run(name: id, mounts: mounts)
     }
 

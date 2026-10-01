@@ -11,8 +11,8 @@ labels: bug
 **Environment**
 - kinhin version (`kinhin version`):
 - macOS version / Mac model:
+- Forge (GitHub / Gitea / Forgejo / GitLab / Buildkite / Azure DevOps / Bitbucket):
 - Runtime (Tart / container / Docker / host):
 
-**Diagnostics** (tokens are redacted; review before posting)
-- `kinhin doctor --json`:
-- `kinhin logs -n 200`:
+**Diagnostics**
+Attach the output of `kinhin doctor --bundle` (tokens are redacted; review before posting).

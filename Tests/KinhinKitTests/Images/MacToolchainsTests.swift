@@ -90,7 +90,7 @@ final class MacToolchainsTests: XCTestCase {
                 hasAzureDevOpsToken: false))
         XCTAssertEqual(tart.runMounts.count, 1)
         XCTAssertEqual(
-            tart.runMounts[0], [ToolchainCacheMount.guestPath], "prepare shares the host cache unconditionally")
+            tart.runMounts[0], [ToolchainCacheMount.tartDirectorySpec], "prepare shares the host cache unconditionally")
     }
 
     func testRunnerVMsMountCacheOnlyWhenShareCacheIsOn() async throws {
@@ -104,7 +104,7 @@ final class MacToolchainsTests: XCTestCase {
         try await runtime.provision(
             id: "kinhin-b",
             route: RepoRoute(repo: "r", image: "tahoe-base", ephemeral: true, bootTimeout: 300, cacheMount: true))
-        XCTAssertEqual(tart.runMounts.last, [ToolchainCacheMount.guestPath], "share_cache on → cache mounted")
+        XCTAssertEqual(tart.runMounts.last, [ToolchainCacheMount.tartDirectorySpec], "share_cache on → cache mounted")
     }
 
     func testRepoRouteCarriesShareCacheFromConfig() throws {

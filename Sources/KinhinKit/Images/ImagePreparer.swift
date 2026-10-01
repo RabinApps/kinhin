@@ -161,7 +161,7 @@ public struct ImagePreparer {
         // prepare write-through (brew, mise, npm, fvm) lands in one cache
         // that later prepares and runner VMs reuse. Best-effort: scripts
         // skip the cache gracefully when the share is not visible.
-        let cacheMounts = [ToolchainCacheMount.guestPath]
+        let cacheMounts = [ToolchainCacheMount.tartDirectorySpec]
         do {
             try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
         } catch {

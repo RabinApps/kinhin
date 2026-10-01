@@ -98,7 +98,28 @@ final class UpdateCheckTests: XCTestCase {
         }
     }
 
+    func testBetaVersionOrdering() {
+        XCTAssertTrue(isVersion("0.0.1-beta-1", olderThan: "0.0.1-beta-2"))
+        XCTAssertTrue(isVersion("0.0.1-beta-2", olderThan: "0.0.1-beta-10"))  // numeric, not lexicographic
+        XCTAssertTrue(isVersion("0.0.1-beta-10", olderThan: "0.0.1"))
+        XCTAssertFalse(isVersion("0.0.1", olderThan: "0.0.1-beta-1"))
+    }
+
     // MARK: - Check outcomes
+
+    func testBetaBuildListsReleasesAndSeesPrerelease() async throws {
+        let release = releaseJSON(tag: "v0.0.1-beta-2", assets: ["kinhin-0.0.1-beta-2-arm64.dmg"])
+        let list = Data("[".utf8) + release + Data("]".utf8)
+        let path = Mutex<String?>(nil)
+        StubProtocol.handler = { request in
+            path.withLock { $0 = request.url?.path }
+            return (200, list, [:])
+        }
+        let result = try await makeChecker(version: "0.0.1-beta-1").check()
+        guard case .available(let info) = result else { return XCTFail("expected available, got \(result)") }
+        XCTAssertEqual(info.version, "0.0.1-beta-2")
+        XCTAssertEqual(path.withLock { $0 }, "/repos/acme/kinhin/releases")
+    }
 
     func testCheckReturnsAvailableWhenRunningOlder() async throws {
         let release = releaseJSON(tag: "v0.2.0", assets: ["kinhin-0.2.0-arm64.dmg"])

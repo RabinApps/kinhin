@@ -2,6 +2,12 @@
 
 **The mindful CI — autoscaling runners that live on your Mac: GitHub Actions, GitLab CI/CD, Gitea/Forgejo Actions, Buildkite, Azure Pipelines, and Bitbucket Pipelines.**
 
+> **Beta (`v0.0.1-beta-1`).** Only **GitHub Actions with Tart macOS VMs** has been run for real. Every other
+> forge (Gitea, Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket) and runtime (apple/container, Docker, host)
+> is covered by unit tests against fakes and stubbed HTTP only, and has **never been run against a real server**.
+> Expect surprises there, and please [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose).
+> See [what has been tested](docs/forges.md#what-has-been-tested). kinhin sends no telemetry.
+
 > ○ kinhin (kin-hin) is walking meditation: slow, deliberate steps between sittings.
 > Here, one step at a time: a queued job arrives, a runner is born, serves, and is released.
 

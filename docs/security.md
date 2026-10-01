@@ -35,6 +35,11 @@ Every job runs in a fresh VM or container that is deleted afterwards, but VMs ru
 - **The shared cache is pruned safely.** Pruning removes entries relative to a directory descriptor with `O_NOFOLLOW`, so a symlink planted by a job cannot redirect a delete outside the cache.
 - **Updates are verified.** See [Updates and installs](install.md#how-updates-and-installs-are-verified).
 
+## Telemetry and network calls
+
+kinhin sends no telemetry and has no analytics. It talks only to the forges you configure (and their runner
+download hosts), and to GitHub Releases for the once-a-day update check.
+
 ## Known limits
 
 - **Guest SSH does not verify host keys.** The host registers runners over SSH to the VM's IP with host key checking off (every VM is a clone of one image, so there is no per-VM key to pin yet). On Tart's default shared network a hostile job in another VM could answer on a booting VM's address and receive its registration token. `tart_softnet: true` closes this; turn it on if any repository you serve runs untrusted code.

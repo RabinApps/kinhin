@@ -14,6 +14,11 @@ public enum ToolchainCacheMount {
     /// name keeps the share safe if other shares ever join the same mount.
     static let guestDirectoryName = "kinhin-cache"
 
+    /// The `tart run --dir` argument sharing the host cache (`name:hostpath`). tart
+    /// mounts a share at `/Volumes/My Shared Files/<name>` in macOS guests, which is
+    /// where `guestPath` points, and under the virtiofs automount tag in Linux guests.
+    public static var tartDirectorySpec: String { guestDirectoryName + ":" + Paths.toolchainCache.path }
+
     /// Absolute guest-side path of the shared cache in macOS guests.
     public static var guestPath: String { guestSharesRoot + "/" + guestDirectoryName }
     /// Absolute guest-side path of the shared cache in Linux guests

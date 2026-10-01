@@ -13,13 +13,22 @@ final class TartSoftnetTests: XCTestCase {
 
     func testMountsStillPrecedeTheVMName() {
         XCTAssertEqual(
-            TartController.runArguments(name: "vm", mounts: ["/cache"], softnet: true),
-            ["run", "--no-graphics", "--net-softnet", "--virtiofs", "/cache", "vm"])
+            TartController.runArguments(name: "vm", mounts: ["kinhin-cache:/cache"], softnet: true),
+            ["run", "--no-graphics", "--net-softnet", "--dir", "kinhin-cache:/cache", "vm"])
     }
 
     func testConfigKeyParses() throws {
         let on = try ConfigLoader.parse("tart_softnet: true\n")
         XCTAssertEqual(on.tartSoftnet, true)
         XCTAssertNil(try ConfigLoader.parse("labels: [macos]\n").tartSoftnet, "off unless asked for")
+    }
+}
+
+final class TartCacheShareSpecTests: XCTestCase {
+    func testShareSpecNamesTheGuestDirectoryAndPointsAtTheHostCache() {
+        let spec = ToolchainCacheMount.tartDirectorySpec
+        // name:hostpath → tart mounts it at "/Volumes/My Shared Files/<name>", which is guestPath.
+        XCTAssertEqual(spec, "kinhin-cache:" + Paths.toolchainCache.path)
+        XCTAssertTrue(ToolchainCacheMount.guestPath.hasSuffix("/" + spec.split(separator: ":")[0]))
     }
 }

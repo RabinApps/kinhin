@@ -11,6 +11,8 @@ if [ -z "$SOURCE_VERSION" ]; then
     exit 1
 fi
 VERSION="${KINHIN_VERSION:-$SOURCE_VERSION}"
+# Info.plist versions must be numeric; a "-beta-N" suffix lives only in Version.swift and the tag.
+BUNDLE_VERSION="${VERSION%%-*}"
 OUT_DIR="${1:-dist}"
 APP="$OUT_DIR/kinhin.app"
 CONFIGURATION="${CONFIGURATION:-release}" # lowercase: debug|release
@@ -76,9 +78,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleIdentifier</key>
     <string>$BUNDLE_ID</string>
     <key>CFBundleVersion</key>
-    <string>$VERSION</string>
+    <string>$BUNDLE_VERSION</string>
     <key>CFBundleShortVersionString</key>
-    <string>$VERSION</string>
+    <string>$BUNDLE_VERSION</string>
     <key>CFBundleExecutable</key>
     <string>kinhin</string>
     <key>CFBundlePackageType</key>

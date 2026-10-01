@@ -94,7 +94,11 @@ final class UpdateTrustTests: XCTestCase {
 
     func testReleaseTagAndRedirectValidation() {
         XCTAssertTrue(UpdateTrust.isValidReleaseTag("v1.2.3"))
-        for tag in ["1.2.3", "v1.2", "v1.2.3-beta", "v1.2.3\n", "v1.2.3 ", "vx.y.z"] {
+        XCTAssertTrue(UpdateTrust.isValidReleaseTag("v0.0.1-beta-1"))
+        for tag in [
+            "1.2.3", "v1.2", "v1.2.3-beta", "v1.2.3-beta-", "v1.2.3-rc-1", "v1.2.3-beta-1\n", "v1.2.3\n", "v1.2.3 ",
+            "vx.y.z",
+        ] {
             XCTAssertFalse(UpdateTrust.isValidReleaseTag(tag), tag)
         }
         for url in [

@@ -44,9 +44,20 @@ Open-Anyway dance only applies to old releases or locally built copies (clear it
   read refuses updates. Signed builds ignore `KINHIN_UPDATE_REPO`, so it can't redirect a release
   build, and the Team ID pin means it couldn't make one install someone else's binary anyway.
 
+## Full uninstall
+
+```bash
+kinhin cleanup --all               # VMs, images, caches
+kinhin daemon uninstall            # the LaunchAgent
+bash scripts/install.sh --uninstall   # the app and the CLI
+```
+
+`--uninstall` keeps your config and the Keychain PAT. To remove those too, delete the kinhin config directory
+and the kinhin entries in Keychain Access.
+
 ## Update checks
 
 After installing, the menu bar app checks GitHub Releases at most once a day and shows an
-**Update available — kinhin x.y.z…** item when a newer `v*` release exists; clicking it downloads
+**Update available — kinhin x.y.z…** item when a newer `v*` release exists (beta builds also see `-beta-N` pre-releases); clicking it downloads
 the DMG (via URLSession, so it is never quarantined; it is verified as described above) and opens it for a one-click install. Forks and local (ad-hoc) builds can point it at their own repo with
 `KINHIN_UPDATE_REPO=owner/name`; signed release builds ignore that variable.

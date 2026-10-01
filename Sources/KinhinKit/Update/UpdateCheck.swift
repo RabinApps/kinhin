@@ -100,7 +100,8 @@ func isVersion(_ a: String, olderThan b: String) -> Bool {
         let (ri, rs) = parts(r)
         if li != ri { return li < ri }
         if ls.isEmpty != rs.isEmpty { return !ls.isEmpty }  // "-beta" < ""
-        if ls != rs { return ls < rs }
+        // Numeric-aware so `-beta-2` < `-beta-10`.
+        if ls != rs { return ls.compare(rs, options: .numeric) == .orderedAscending }
     }
     return false
 }
@@ -160,12 +161,15 @@ public struct UpdateChecker: Sendable {
         return .available(info)
     }
 
-    /// Query releases/latest and build UpdateInfo from the DMG asset.
+    /// Query releases/latest and build UpdateInfo from the DMG asset. A beta build
+    /// lists releases instead, because `/releases/latest` never returns pre-releases.
     func fetchLatestRelease() async throws -> UpdateInfo {
         guard UpdateTrust.isValidRepo(repo) else {
             throw UpdateCheckError.invalidRepo(repo)
         }
-        guard let releaseURL = URL(string: "https://api.github.com/repos/\(repo)/releases/latest") else {
+        let listsPrereleases = currentVersion.contains("-")
+        let endpoint = listsPrereleases ? "releases?per_page=1" : "releases/latest"
+        guard let releaseURL = URL(string: "https://api.github.com/repos/\(repo)/\(endpoint)") else {
             throw UpdateCheckError.notFound(repo)
         }
         var req = URLRequest(url: releaseURL)
@@ -206,7 +210,16 @@ public struct UpdateChecker: Sendable {
         decoder.dateDecodingStrategy = .iso8601
         let release: ReleaseResponse
         do {
-            release = try decoder.decode(ReleaseResponse.self, from: data)
+            if listsPrereleases {
+                guard let newest = try decoder.decode([ReleaseResponse].self, from: data).first else {
+                    throw UpdateCheckError.notFound(repo)
+                }
+                release = newest
+            } else {
+                release = try decoder.decode(ReleaseResponse.self, from: data)
+            }
+        } catch let error as UpdateCheckError {
+            throw error
         } catch {
             throw UpdateCheckError.decoding("releases/latest: \(error.localizedDescription)")
         }

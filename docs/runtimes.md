@@ -5,6 +5,9 @@ Mac — and how one fleet routes each job between them.
 
 [← Back to README](../README.md)
 
+> **Beta:** only the Tart runtime has been run for real. apple/container, Docker and host mode are covered by
+> unit tests against fakes and have not been exercised live.
+
 Every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the
 agent, and tears down. Four backends ship:
 

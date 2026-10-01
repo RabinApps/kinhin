@@ -35,9 +35,9 @@ public enum UpdateTrust {
         return url.path.lowercased().hasPrefix(prefix.lowercased()) && !url.path.contains("..")
     }
 
-    /// The only release tag shape the updater acts on.
+    /// The only release tag shapes the updater acts on: `vMAJOR.MINOR.PATCH`, optionally `-beta-N`.
     static func isValidReleaseTag(_ tag: String) -> Bool {
-        tag.range(of: #"^v[0-9]+\.[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil
+        tag.range(of: #"^v[0-9]+\.[0-9]+\.[0-9]+(-beta-[0-9]+)?$"#, options: .regularExpression) != nil
     }
 
     /// Hosts a release download may be redirected through: GitHub itself and the

@@ -4,17 +4,31 @@ Which CI platforms kinhin serves, how to add Gitea, Forgejo, GitLab, Buildkite, 
 
 [← Back to README](../README.md)
 
-kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today seven forges ship:
+kinhin is built on a **Forge abstraction**: the engine speaks one unified protocol — mint a registration token, list/delete runners, report queued demand, track running jobs — and each CI platform implements it behind that interface. Today seven forges ship (see [what has been tested](#what-has-been-tested)):
 
 | Forge          | Status       | Runner agent                             | Scope shape                              |
 | -------------- | ------------ | ---------------------------------------- | ---------------------------------------- |
-| GitHub Actions | ✅ supported | actions-runner (GitHub's official agent) | `owner/name` repo or org                 |
-| Gitea Actions  | ✅ supported | gitea-runner (formerly act_runner)       | `owner/name` repo or org on any instance |
-| Forgejo        | ✅ supported | gitea-runner (wire-compatible)           | `owner/name` repo or org on any instance |
-| GitLab CI/CD   | ✅ supported | gitlab-runner (GitLab's official agent)  | project or group path (`group/sub/proj`) |
-| Buildkite      | ✅ supported | buildkite-agent (Buildkite's agent)      | `org/cluster` (cluster name or id)       |
-| Azure Pipelines | ✅ supported | Azure Pipelines agent (vsts-agent)      | an agent pool in an organization         |
-| Bitbucket Pipelines | ✅ supported | Bitbucket shell runner (Java-based)  | a workspace, or `workspace/repo-slug`    |
+| GitHub Actions | ✅ live-tested | actions-runner (GitHub's official agent) | `owner/name` repo or org                 |
+| Gitea Actions  | 🧪 untested | gitea-runner (formerly act_runner)       | `owner/name` repo or org on any instance |
+| Forgejo        | 🧪 untested | gitea-runner (wire-compatible)           | `owner/name` repo or org on any instance |
+| GitLab CI/CD   | 🧪 untested | gitlab-runner (GitLab's official agent)  | project or group path (`group/sub/proj`) |
+| Buildkite      | 🧪 untested | buildkite-agent (Buildkite's agent)      | `org/cluster` (cluster name or id)       |
+| Azure Pipelines | 🧪 untested | Azure Pipelines agent (vsts-agent)      | an agent pool in an organization         |
+| Bitbucket Pipelines | 🧪 untested | Bitbucket shell runner (Java-based)  | a workspace, or `workspace/repo-slug`    |
+
+## What has been tested
+
+This is a beta. "Live-tested" means the author ran it against a real server. "Untested" means the code has
+unit tests (stubbed HTTP, fake shells, registration-script checks) but has **never been run against a real
+Gitea, Forgejo, GitLab, Buildkite, Azure DevOps or Bitbucket instance**. Unit tests show the code matches our
+reading of each API, not that the real service agrees, so expect API-shape surprises there.
+
+| Forge | Live-tested | Unit-tested |
+| ----- | ----------- | ----------- |
+| GitHub Actions + Tart | yes | yes |
+| Gitea, Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket | **no** | yes |
+
+If you try one, please open a "Forge report" issue saying whether it worked.
 
 One fleet can serve **all of them at the same time** from a shared VM pool: each VM is assigned at spawn to whichever forge has the most pending work, registers there, and is deleted when its job finishes. Token-gating ties platforms to credentials — an agent is baked into the image and a forge attaches only when that platform's token exists.
 
@@ -163,7 +177,7 @@ accounts:
 
 The flag only lifts the https requirement for that account. Redirects still have to stay on the same host and may not downgrade from https to http, and pagination links must match the configured API host. kinhin logs a warning each time such an account attaches. GitHub, Buildkite and Bitbucket are always https, so the key is rejected on them.
 
-## More forges are planned
+## More forges may follow
 
 The Forge protocol was designed so new platforms slot in without touching the engine. Forgejo landed as a thin re-brand of the Gitea forge, GitLab as a per-runner adapter (`GitLabForge`), Buildkite as a cluster-token adapter (`BuildkiteForge`), Azure DevOps as a PAT-registered pool adapter (`AzureDevOpsForge`), and Bitbucket as a per-runner adapter with idle-grace exit (`BitbucketForge`). Sourcehut is a candidate for the next one. Adding one means implementing the Forge protocol (client + bootstrap script + lifecycle notes) — the autoscaler, VM pool, checklist, status surfaces, and tests all come for free. See `Sources/KinhinKit/Forges/Forge.swift` for the contract.
 

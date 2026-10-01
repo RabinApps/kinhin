@@ -31,8 +31,9 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           # Git ref names may contain shell metacharacters; only a plain semver
           # ever reaches the later steps.
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::tag '$GITHUB_REF_NAME' is not vMAJOR.MINOR.PATCH"; exit 1; }
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta-[0-9]+)?$ ]] || { echo "::error::tag '$GITHUB_REF_NAME' is not vMAJOR.MINOR.PATCH[-beta-N]"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in *-beta-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;; *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;; esac
 
       # Release builds must be Developer ID signed and notarized; never fall
       # back to ad-hoc for a tag.
@@ -149,6 +150,7 @@ jobs:
             dist/install.sh
             dist/checksums.txt
           generate_release_notes: true
+          prerelease: ${{ steps.ver.outputs.prerelease == 'true' }}
 
       - name: Remove signing material
         if: always()
