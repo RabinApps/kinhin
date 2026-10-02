@@ -9,7 +9,7 @@ final class ProjectToolchainDetectorTests: XCTestCase {
                 #"{"engines":{"node":"^20.1"},"packageManager":"pnpm@9.1.0","devDependencies":{"typescript":"5"}}"#,
             "pnpm-lock.yaml": "",
         ]).detect()
-        XCTAssertEqual(result.specs, ["node@20", "pnpm@9.1.0", "typescript"])
+        XCTAssertEqual(result.specs, ["node@20", "pnpm@9.1.0", "typescript@5"])
         XCTAssertTrue(result.stacks.isEmpty)
     }
 
@@ -48,8 +48,16 @@ final class ProjectToolchainDetectorTests: XCTestCase {
     func testPlainSwiftPackageInstallsSwiftWithoutXcode() throws {
         let result = try ProjectFixture(["Package.swift": "// swift-tools-version: 6.0\nplatforms: [.macOS(.v15)]"])
             .detect()
-        XCTAssertEqual(result.specs, ["swift@latest"])
+        XCTAssertEqual(result.specs, ["swift@6.0"])
         XCTAssertTrue(result.recommendations.isEmpty)
+    }
+
+    func testSwiftVersionFileBeatsToolsVersionAndNoVersionMeansLatest() throws {
+        let pinned = try ProjectFixture([".swift-version": "5.10\n", "Package.swift": "// swift-tools-version:6.0\n"])
+        XCTAssertEqual(try pinned.detect().specs, ["swift@5.10"])
+        XCTAssertEqual(try ProjectFixture(["Package.swift": "// no version\n"]).detect().specs, ["swift@latest"])
+        XCTAssertEqual(
+            try ProjectFixture(["Package.swift": "// swift-tools-version:5.9\n"]).detect().specs, ["swift@5.9"])
     }
 
     func testXcodeProjectRecommendsXcodeImageInsteadOfSwift() throws {
@@ -70,6 +78,15 @@ final class ProjectToolchainDetectorTests: XCTestCase {
             try ProjectFixture([".github/workflows/ci.yml": "jobs:\n  j:\n    steps:\n      - run: xcodebuild test\n"])
                 .detect().recommendations.isEmpty)
         XCTAssertFalse(try ProjectFixture(["ios/Runner.xcworkspace/x": ""]).detect().recommendations.isEmpty)
+    }
+
+    func testXcrunAloneDoesNotNeedXcode() throws {
+        let result = try ProjectFixture([
+            "Package.swift": "",
+            ".github/workflows/release.yml": "jobs:\n  j:\n    steps:\n      - run: xcrun notarytool submit x.zip\n",
+        ]).detect()
+        XCTAssertTrue(result.recommendations.isEmpty)
+        XCTAssertEqual(result.specs, ["swift@latest"])
     }
 
     func testEmptyProjectDetectsNothing() throws {

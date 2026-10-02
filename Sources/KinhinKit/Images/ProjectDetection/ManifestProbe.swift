@@ -40,16 +40,29 @@ struct ManifestProbe: ToolchainProbe {
         marker("helm", ["Chart.yaml"])
         marker("kustomize", ["kustomization.yaml", "kustomization.yml"])
         marker("elixir", ["mix.exs"])
-        marker("swift", ["Package.swift"])
         marker("uv", ["uv.lock"])
         marker("python", ["pyproject.toml", "requirements.txt", "Pipfile", "setup.py"])
 
         if let text = try reader.text("go.mod"),
             let line = text.split(whereSeparator: \.isNewline).first(where: { $0.hasPrefix("go ") })
         {
+            // `toolchain go1.22.5` is the exact version; `go 1.22` is the language floor.
+            if let toolchain = text.split(whereSeparator: \.isNewline).first(where: { $0.hasPrefix("toolchain go") }) {
+                add(
+                    "go", version: String(toolchain.dropFirst("toolchain go".count)).trimmed(), "go.mod",
+                    "toolchain directive")
+            }
             add("go", version: String(line.dropFirst(3)).trimmed(), "go.mod", "go directive")
         } else if reader.exists("go.mod") {
             add("go", "go.mod", "go.mod present")
+        }
+
+        if let text = try reader.text("Package.swift") {
+            // `// swift-tools-version: 6.4` (the minimum the package needs; the closest pin SwiftPM offers).
+            let version = text.split(whereSeparator: \.isNewline).first.flatMap { Self.toolsVersion(in: String($0)) }
+            add(
+                "swift", version: version, "Package.swift",
+                version.map { "swift-tools-version \($0)" } ?? "Package.swift present")
         }
 
         if reader.exists("Cargo.toml") { add("rust", "Cargo.toml", "Cargo.toml present") }
@@ -146,24 +159,36 @@ struct ManifestProbe: ToolchainProbe {
         // "pnpm@9.1.0+sha512.…": the version ends at `+`.
         if let manager = json["packageManager"] as? String {
             let parts = manager.split(separator: "@", maxSplits: 1).map(String.init)
-            if parts.count == 2, ["pnpm", "yarn"].contains(parts[0]) {
+            if parts.count == 2, ["pnpm", "yarn", "bun"].contains(parts[0]) {
                 let version = parts[1].split(separator: "+").first.map(String.init)
                 add(parts[0], false, version, "package.json", "packageManager \(manager.split(separator: "+")[0])")
             }
         }
 
-        let dependencies = Set(
-            ["dependencies", "devDependencies"].flatMap { (json[$0] as? [String: Any])?.keys.map { $0 } ?? [] })
+        var versions: [String: String] = [:]
+        for section in ["dependencies", "devDependencies"] {
+            for (name, value) in json[section] as? [String: Any] ?? [:] { versions[name] = value as? String ?? "" }
+        }
+        let dependencies = Set(versions.keys)
         for name in dependencies.sorted() {
-            if let tool = Self.npmTools[name] { add(tool, false, nil, "package.json", "depends on \(name)") }
+            if let tool = Self.npmTools[name] {
+                add(tool, false, versions[name], "package.json", "depends on \(name)")
+            }
+        }
+        if let volta = (json["volta"] as? [String: Any])?["node"] as? String {
+            add("node", false, volta, "package.json", "volta pins node")
         }
         if dependencies.contains("expo") {
             add("expo", true, nil, "package.json", "depends on expo")
         } else if dependencies.contains("react-native") {
             add("react-native", true, nil, "package.json", "depends on react-native")
         }
-        if dependencies.contains("vercel") { add("vercel", true, nil, "package.json", "depends on vercel") }
-        if dependencies.contains("wrangler") { add("cloudflare", true, nil, "package.json", "depends on wrangler") }
+        if dependencies.contains("vercel") {
+            add("vercel", true, versions["vercel"], "package.json", "depends on vercel")
+        }
+        if dependencies.contains("wrangler") {
+            add("cloudflare", true, versions["wrangler"], "package.json", "depends on wrangler")
+        }
         return out
     }
 
@@ -182,6 +207,14 @@ struct ManifestProbe: ToolchainProbe {
             return unquote(line[line.index(after: eq)...])
         }
         return nil
+    }
+
+    /// The version in a `swift-tools-version` comment line.
+    static func toolsVersion(in line: String) -> String? {
+        guard let range = line.range(of: "swift-tools-version") else { return nil }
+        let rest = line[range.upperBound...].drop { !$0.isNumber }
+        let version = rest.prefix { $0.isNumber || $0 == "." }
+        return version.isEmpty ? nil : String(version)
     }
 
     private static func quoted(in line: String) -> String? {

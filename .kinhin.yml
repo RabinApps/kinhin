@@ -1,0 +1,2 @@
+toolchains:
+  specs: ["node@20", "swift@6.4"]

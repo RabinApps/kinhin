@@ -10,7 +10,8 @@ struct VersionFileProbe: ToolchainProbe {
 
     private static let singleFiles: [(file: String, tool: String)] = [
         (".nvmrc", "node"), (".node-version", "node"), (".python-version", "python"),
-        (".ruby-version", "ruby"), (".go-version", "go"), (".java-version", "java"),
+        (".ruby-version", "ruby"), (".go-version", "go"), (".swift-version", "swift"),
+        (".terraform-version", "terraform"), (".bun-version", "bun"), (".java-version", "java"),
     ]
 
     func hits(in reader: ProjectFileReading) throws -> [ToolchainHit] {

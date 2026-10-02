@@ -14,7 +14,7 @@ public struct ProjectToolchainDetector: Sendable {
     }
 
     func detect(reader: ProjectFileReading) throws -> ToolchainDetection {
-        let probes: [ToolchainProbe] = [VersionFileProbe(), ManifestProbe(), WorkflowProbe()]
+        let probes: [ToolchainProbe] = [VersionFileProbe(), ManifestProbe(), BuildFileVersionProbe(), WorkflowProbe()]
         var hits: [ToolchainHit] = []
         for probe in probes {
             try Task.checkCancellation()

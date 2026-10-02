@@ -129,7 +129,7 @@ refuses to replace an existing file unless you add `--force`.
 **What it reads:**
 
 - **Version files:** `.tool-versions`, `mise.toml`, `.nvmrc`, `.node-version`, `.python-version`, `.ruby-version`,
-  `.go-version`, `.java-version`.
+  `.go-version`, `.java-version`, `.swift-version`.
 - **Manifests and lockfiles:** `package.json` (`engines`, `packageManager`, `devDependencies`), npm/pnpm/yarn/bun
   lockfiles, `go.mod`, `Cargo.toml`, `rust-toolchain`, `pyproject.toml`, `requirements.txt`, `uv.lock`, `Gemfile`,
   fastlane, `pubspec.yaml`, `Package.swift`, Gradle and Maven files, `composer.json`, `.csproj`, `global.json`,
@@ -139,6 +139,14 @@ refuses to replace an existing file unless you add `--force`.
 
 **Precedence.** For a version, a version file beats a manifest, a manifest beats a workflow, and a workflow beats the
 catalog's default spec. Ranges are reduced to their floor: the major version for node, java, bun and deno (`^20.1` and `>=20` both become `20`), major.minor for the rest (`>=3.11,<4` becomes `3.11`).
+
+**Your project's own versions.** Every tool the catalog can pin gets the version the project already uses, never a newer
+default. Besides the version files and workflows above, that means the `go.mod` `toolchain`/`go` lines, `rust-version`,
+`Pipfile`/`runtime.txt`, `mix.exs`, Terraform `required_version`, the Gradle and Maven wrappers, JDK levels from Gradle
+and `pom.xml`, the Kotlin plugin, `.fvmrc` and `pubspec.yaml` for Flutter and Dart, `package.json` `volta` and the
+version ranges of npm tools such as TypeScript or ESLint. A tool whose project states no version falls back to the
+catalog default. `php`, `composer`, `dotnet`, `yamllint` and the Homebrew-only cloud CLIs take no `@version` in the
+catalog, so they are emitted bare.
 
 **Always valid.** Runtimes are added automatically where the catalog requires them (pnpm or `vercel` pull in `node`;
 `kotlin` or `gradle` pull in `java`), so the output satisfies the [no-implicit-installs rule](#rules-that-apply-to-every-declaration).
@@ -152,7 +160,8 @@ tvOS, watchOS or visionOS, or a workflow that calls `xcodebuild`, it prints a **
 `recommendations` field in `--json`) to set `base_image:` (or `image prepare --source`) to an image that includes Xcode,
 such as `ghcr.io/cirruslabs/macos-tahoe-xcode:latest`, and leaves `swift` out of the block because Xcode ships its own.
 A plain Swift package (macOS-only or no Apple-platform targets, built with `swift build`) gets the `swift` toolchain
-instead and no recommendation.
+instead and no recommendation. Its version comes from `.swift-version`, else the `// swift-tools-version:` line in
+`Package.swift`, else a workflow's `swift-version`, else `latest`.
 
 **Limits.** It scans a local directory only (no remote repos), reads GitHub Actions workflows only (no GitLab or Gitea
 CI files), and doesn't edit `projects:` entries in `config.yaml`. The result is a starting point: review it, and remember

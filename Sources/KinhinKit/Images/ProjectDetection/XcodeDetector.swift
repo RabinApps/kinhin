@@ -7,8 +7,10 @@ enum XcodeDetector {
     /// The Xcode-flavoured base image to suggest.
     static let recommendedImage = "ghcr.io/cirruslabs/macos-tahoe-xcode:latest"
 
-    /// Workflow text that means the build calls Xcode.
-    private static let workflowTokens = ["xcodebuild", "xcode-select", "xcrun", "setup-xcode", "xcresulttool"]
+    /// Workflow text that means the build needs full Xcode (`xcrun` alone ships with the Command Line Tools).
+    private static let workflowTokens = [
+        "xcodebuild", "setup-xcode", "xcresulttool", "xcode-select -s", "xcode-select --switch",
+    ]
 
     /// Where Xcode projects live: the root, plus the platform folders of Flutter and React Native.
     private static let projectFolders = ["", "ios", "macos"]

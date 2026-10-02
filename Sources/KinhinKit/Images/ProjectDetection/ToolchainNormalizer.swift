@@ -91,21 +91,28 @@ enum ToolchainNormalizer {
         guard var text = raw?.trimmed(), !text.isEmpty else { return nil }
         let lowered = text.lowercased()
         if lowered.hasPrefix("lts") || lowered == "latest" || lowered == "*" || lowered == "node" { return nil }
-        // Only the first clause of "a || b" or ">=a <b".
-        text = String(text.split(whereSeparator: { " ,|".contains($0) }).first ?? "")
+        // Strip a leading operator (`~> 1.5`, `>= 3.11`), then keep only the first clause of "a || b" or ">=a <b".
         var isRange = false
-        while let first = text.first, "^~>=<".contains(first) {
+        while let first = text.first, "^~>=< ".contains(first) {
+            if first != " " { isRange = true }
             text.removeFirst()
-            isRange = true
         }
+        text = String(text.split(whereSeparator: { " ,|".contains($0) }).first ?? "")
         if text.hasPrefix("v") || text.hasPrefix("V") { text.removeFirst() }
         var parts = text.split(separator: ".").map(String.init)
         while let last = parts.last, ["x", "X", "*"].contains(last) {
             parts.removeLast()
             isRange = true
         }
+        // Java 8 is spelled `1.8`.
+        if tool == "java", parts.count == 2, parts[0] == "1" { parts.removeFirst() }
         guard !parts.isEmpty else { return nil }
-        if isRange { parts = Array(parts.prefix(majorOnly.contains(tool) ? 1 : 2)) }
+        // Flutter resolves a git ref, so only a full release version works; its floor is kept whole.
+        if tool == "flutter" {
+            guard parts.count >= 3 else { return nil }
+        } else if isRange {
+            parts = Array(parts.prefix(majorOnly.contains(tool) ? 1 : 2))
+        }
         let cleaned = parts.joined(separator: ".")
         // Same alphabet the loader's safety check allows for a version.
         guard cleaned.range(of: "^[A-Za-z0-9][A-Za-z0-9._-]*$", options: .regularExpression) != nil else { return nil }
