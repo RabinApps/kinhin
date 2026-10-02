@@ -34,9 +34,15 @@ jobs:
           shims="$HOME/.local/share/mise/shims"
           if [ -d "$shims" ]; then
             echo "$shims" >> "$GITHUB_PATH"
-            xcode="/Applications/Xcode.app/Contents/Developer"
-            [ -d "$xcode" ] && echo "DEVELOPER_DIR=$xcode" >> "$GITHUB_ENV"
+            # Newest installed Xcode (any /Applications/Xcode*.app name).
+            xcode="$(ls -d /Applications/Xcode*.app/Contents/Developer 2>/dev/null | sort -V | tail -1)"
+            [ -n "$xcode" ] && echo "DEVELOPER_DIR=$xcode" >> "$GITHUB_ENV"
           fi
+          # Diagnostics for toolchain/SDK mismatches (XCTest not found).
+          echo "xcode-select: $(xcode-select -p 2>&1)"
+          echo "xcode found:  ${xcode:-none}"
+          ls -d /Applications/Xcode*.app 2>&1 || true
+          find /Library/Developer/CommandLineTools /Applications/Xcode*.app -maxdepth 8 -name 'XCTest.framework' 2>/dev/null | head -5 || true
           true
 
       - name: Swift version
@@ -78,9 +84,15 @@ jobs:
           shims="$HOME/.local/share/mise/shims"
           if [ -d "$shims" ]; then
             echo "$shims" >> "$GITHUB_PATH"
-            xcode="/Applications/Xcode.app/Contents/Developer"
-            [ -d "$xcode" ] && echo "DEVELOPER_DIR=$xcode" >> "$GITHUB_ENV"
+            # Newest installed Xcode (any /Applications/Xcode*.app name).
+            xcode="$(ls -d /Applications/Xcode*.app/Contents/Developer 2>/dev/null | sort -V | tail -1)"
+            [ -n "$xcode" ] && echo "DEVELOPER_DIR=$xcode" >> "$GITHUB_ENV"
           fi
+          # Diagnostics for toolchain/SDK mismatches (XCTest not found).
+          echo "xcode-select: $(xcode-select -p 2>&1)"
+          echo "xcode found:  ${xcode:-none}"
+          ls -d /Applications/Xcode*.app 2>&1 || true
+          find /Library/Developer/CommandLineTools /Applications/Xcode*.app -maxdepth 8 -name 'XCTest.framework' 2>/dev/null | head -5 || true
           true
 
       - name: Tests under ThreadSanitizer (serial)
