@@ -187,7 +187,9 @@ final class FakeGitHub: GitHubServing, Sendable {
         let (depth, failing, repos, refs, shas, fork) = state.withLock {
             state -> (Int, Bool, [String], [String], [String], Bool) in
             state.queuedJobsCallCount += 1
-            return (state.queueDepth, state.failQueue, state.queueRepos, state.queueRefs, state.queueShas, state.queueForks)
+            return (
+                state.queueDepth, state.failQueue, state.queueRepos, state.queueRefs, state.queueShas, state.queueForks
+            )
         }
         if failing { throw GitHubError.http(0, "offline") }
         return (0..<depth).map { i in

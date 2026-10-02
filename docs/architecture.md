@@ -69,6 +69,19 @@ item, menu items and VM rows. AppKit menus aren't observable, so that observer i
   selection, Fleet-tab buttons, launch-mode and login persistence), update menu states, update preferences,
   SwiftUI form models, App Intents through the bridge.
 
+## External contributors
+
+If your company or project uses **kinhin**, you can add it to the public list so
+the community can see who else is running it. See
+[external-contributors.md](external-contributors.md) for the exact entry format
+and the PR process.
+
+The same page doubles as the process for maintainers reviewing external PRs.
+Nothing here changes how the engine works — the PR only edits Markdown and, if
+you touch Swift, follows the rules in [CLAUDE.md](../CLAUDE.md): no VMs or
+network, `swift build`/`swift test` pass, `swift format lint --strict` clean, and
+`bash scripts/docs-lint.sh` clean.
+
 ## CI
 
 `.github/workflows/ci.yml` lints, builds (debug and release), and tests on a self-hosted macOS

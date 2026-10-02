@@ -30,7 +30,8 @@ final class ProjectsConfigTests: XCTestCase {
     }
 
     func testAbsentSectionIsEmpty() throws {
-        XCTAssertTrue(try ConfigLoader.parse("accounts:\n  - {name: github, forge: github, scope: a/b}\n").projects.isEmpty)
+        XCTAssertTrue(
+            try ConfigLoader.parse("accounts:\n  - {name: github, forge: github, scope: a/b}\n").projects.isEmpty)
     }
 
     func testBadPatternsAreRejected() {

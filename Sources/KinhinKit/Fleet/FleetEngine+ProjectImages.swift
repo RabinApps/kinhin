@@ -71,7 +71,9 @@ extension FleetEngine {
     /// image, or the derived image it was bound to at spawn.
     func route(forRecord id: String) -> RepoRoute {
         guard let image = store.all.first(where: { $0.id == id })?.image else { return RepoRoute.from(config: config) }
-        guard let record = projectStore.record(named: image) else { return RepoRoute.from(config: config, image: image) }
+        guard let record = projectStore.record(named: image) else {
+            return RepoRoute.from(config: config, image: image)
+        }
         return RepoRoute.from(
             config: config, image: image, toolchains: record.toolchains.config, cacheMount: record.shareCache,
             cacheScope: record.shareCache ? record.key : nil)

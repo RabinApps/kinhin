@@ -11,6 +11,11 @@ swift format lint --strict -r Sources Tests
 swift test
 ```
 
+## External contributors
+
+See [external-contributors.md](external-contributors.md) for how companies and
+projects can add themselves to the kinhin list via a PR.
+
 ## Docs versions
 
 The site at `/` is built from `main`. A release is snapshotted under `/<tag>/` (with a version picker in the nav):

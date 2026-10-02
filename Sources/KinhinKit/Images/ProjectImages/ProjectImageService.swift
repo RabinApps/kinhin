@@ -121,7 +121,8 @@ public struct ProjectImageService: Sendable {
             let forge = try self.forge ?? serving(repository)
             file = try await forge.projectFile(repository: repository, ref: ref)
         }
-        let resolution = ProjectToolchainResolver.resolve(repository: repository, projects: config.projects, repoFile: file)
+        let resolution = ProjectToolchainResolver.resolve(
+            repository: repository, projects: config.projects, repoFile: file)
         if let warning = resolution.warning { Log.warn("images", warning) }
         let builder = ProjectImageBuilder(tart: tart, store: store, baseImage: config.image, bake: bake)
         return (resolution, builder)

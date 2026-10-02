@@ -12,7 +12,8 @@ final class ProjectToolchainResolverTests: XCTestCase {
 
     func testRepoFileHonoredOnlyWhenProjectOptsIn() {
         let off = [KinhinConfig.ProjectConfig(pattern: "acme/api")]
-        XCTAssertEqual(ProjectToolchainResolver.resolve(repository: "acme/api", projects: off, repoFile: file).source, .global)
+        XCTAssertEqual(
+            ProjectToolchainResolver.resolve(repository: "acme/api", projects: off, repoFile: file).source, .global)
         let on = [KinhinConfig.ProjectConfig(pattern: "acme/api", repoFile: true)]
         let result = ProjectToolchainResolver.resolve(repository: "acme/api", projects: on, repoFile: file)
         XCTAssertEqual(result.source, .repoFile)
@@ -26,10 +27,12 @@ final class ProjectToolchainResolverTests: XCTestCase {
         // the file is unusable (e.g. absent for the base repo), because
         // honor-the-file paths skip the per-project share_cache toggle.
         let on = [KinhinConfig.ProjectConfig(pattern: "acme/api", repoFile: true)]
-        let result = ProjectToolchainResolver.resolve(repository: "acme/api", projects: on, repoFile: file, isFork: true)
+        let result = ProjectToolchainResolver.resolve(
+            repository: "acme/api", projects: on, repoFile: file, isFork: true)
         if case .repoFile = result.source {
-            XCTAssertEqual(result.shareCache, false,
-                          "a fork should not mount the host cache when honoring a repo file")
+            XCTAssertEqual(
+                result.shareCache, false,
+                "a fork should not mount the host cache when honoring a repo file")
         } else {
             XCTAssertEqual(result.source, .global)
         }

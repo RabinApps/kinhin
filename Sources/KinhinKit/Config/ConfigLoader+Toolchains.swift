@@ -5,7 +5,8 @@ extension ConfigLoader {
 
     /// Validates and resolves the `toolchain_cache:` section: non-negative
     /// limits, and `auto_prune: false` only alongside explicit limits.
-    static func parseToolchainCache(_ cache: PartialConfig.PartialCachePolicy) throws -> KinhinConfig.ToolchainCacheConfig
+    static func parseToolchainCache(_ cache: PartialConfig.PartialCachePolicy) throws
+        -> KinhinConfig.ToolchainCacheConfig
     {
         if let auto = cache.autoPrune, auto == false, cache.maxAgeDays == nil, cache.maxGB == nil {
             throw ConfigError.invalid(

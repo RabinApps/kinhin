@@ -28,7 +28,9 @@ export default defineConfig({
   description:
     "The mindful CI — autoscaling CI runners that live on your Mac. " +
     "macOS jobs on Tart VMs, Linux jobs on apple/container microVMs or Docker.",
-  head: [["link", { rel: "icon", type: "image/svg+xml", href: `${base}enso.svg` }]],
+  head: [
+    ["link", { rel: "icon", type: "image/svg+xml", href: `${base}enso.svg` }],
+  ],
 
   // docs/ is the single source for the guides: the site reads the repo root and publishes only
   // the pages listed here, so nothing under website/guide is a copy of a docs/ page.
@@ -86,7 +88,11 @@ export default defineConfig({
         items: [
           // Absolute links bypass `base`, so the picker works from inside any version.
           { text: "Latest (main)", link: "/", target: "_self" },
-          ...versions.map((v: string) => ({ text: v, link: `/${v}/`, target: "_self" })),
+          ...versions.map((v: string) => ({
+            text: v,
+            link: `/${v}/`,
+            target: "_self",
+          })),
         ],
       },
     ],
@@ -108,6 +114,10 @@ export default defineConfig({
           { text: "Forge support", link: "/guide/forges" },
           { text: "Security", link: "/guide/security" },
           { text: "Support & sponsors", link: "/guide/support" },
+          {
+            text: "Companies & projects using kinhin",
+            link: "/guide/external-contributors",
+          },
           { text: "Troubleshooting", link: "/guide/troubleshooting" },
           { text: "Debugging races (TSan)", link: "/guide/debugging-races" },
         ],
@@ -119,6 +129,10 @@ export default defineConfig({
           { text: "CLI commands", link: "/cli/commands" },
           { text: "Forge API reference", link: "/guide/forges/" },
           { text: "GitHub API", link: "/guide/forges/github" },
+          {
+            text: "Contributing to kinhin",
+            link: "/guide/external-contributors",
+          },
           { text: "Gitea & Forgejo API", link: "/guide/forges/gitea" },
           { text: "GitLab API", link: "/guide/forges/gitlab" },
           { text: "Buildkite API", link: "/guide/forges/buildkite" },
@@ -134,7 +148,7 @@ export default defineConfig({
     outline: { level: [2, 3] },
     footer: {
       message:
-        'Released under the Apache License 2.0. <a href="/guide/support">Support kinhin</a> · More from Rabin Apps: <a href="https://supdesk.app/en">SupDesk</a>',
+        'Released under the Apache License 2.0. <a href="/guide/support">Support kinhin</a> · <a href="/guide/contributing">Companies & projects using kinhin</a> · More from Rabin Apps: <a href="https://supdesk.app/en">SupDesk</a>',
       copyright: "Copyright © 2026 Rabin Apps, LLC",
     },
   },
