@@ -45,11 +45,15 @@ GitHub supports each version for 24 months after the next one ships, signals ret
 | POST | `{actionsBase}/runners/registration-token` | Mint a runner registration token (1 h lifetime) | `GitHubClient.swift:243` |
 | GET | `{actionsBase}/runners?per_page=100&page=N` | List runners | `GitHubClient.swift:323` |
 | DELETE | `{actionsBase}/runners/{id}` | Remove a runner | `GitHubClient.swift:344` |
-| GET | `{actionsBase}/runs?status=queued\|in_progress&per_page=100&page=N` | Demand and running jobs | `GitHubClient+Runs.swift:28,52` |
-| GET | `/repos/{repo}/actions/runs?...` | Per-repository fallback for org scope | `GitHubClient+Runs.swift:80` |
+| GET | `/repos/{repo}/actions/runs?status=queued\|in_progress&per_page=100&page=N` | Demand and running jobs (repo scope; org scope per repository) | `GitHubClient+Runs.swift` |
+| GET | `/orgs/{org}/actions/runs` | Not used (undocumented) | none |
 | GET | `/repos/{repo}/actions/runs/{id}/jobs?per_page=100` (org mode: `{actionsBase}/runs/{id}/jobs`) | Job labels for matching | `GitHubClient+Runs.swift:139-141` |
 | GET | `/user/repos?affiliation=owner,collaborator,organization_member` | Repository picker | `GitHubClient.swift:270` |
 | GET | `/orgs/{org}/repos`, `/users/{owner}/repos` | Repository picker, org and user | `GitHubClient.swift:272-274` |
+
+## Scale sets (future direction)
+
+GitHub's supported autoscaling path is runner scale sets plus JIT runner configuration (see [`actions/scaleset`](https://github.com/actions/scaleset)). The scale-set message API is Public Preview and, like the endpoint removed above, is not in any published OpenAPI description. kinhin keeps polling documented per-repository endpoints until the message API is documented. JIT stays out of scope (audit finding 2 is unchanged).
 
 ## Registration flow
 
@@ -82,11 +86,11 @@ GitHub supports each version for 24 months after the next one ships, signals ret
 |---|---|---|
 | `X-GitHub-Api-Version` | github.com | `2022-11-28` and `2026-03-10` are identical for the endpoints kinhin calls. |
 | Base path | github.com vs GHES | `/` vs `/api/v3`. |
-| `/orgs/{org}/actions/runs` | all | Not in any published OpenAPI description (see below). |
+| `/orgs/{org}/actions/runs` | all | Not used (undocumented). |
 
 ## Audit findings
 
-1. **Undocumented endpoint relied on.** `GET /orgs/{org}/actions/runs` (`GitHubClient+Runs.swift:28,34`) is absent from the OpenAPI descriptions for both github.com versions and from GHES 3.14 and 3.22. The existing code comment says classic tokens read org-wide runs through it and fine-grained tokens get a 404. kinhin already falls back to per-repository reads on a 404, so the failure mode is handled, but the classic-token fast path rests on undocumented behavior. Treat as a risk: GitHub could remove it without a version bump.
+1. **Resolved (2026-10-01): undocumented endpoint.** `GET /orgs/{org}/actions/runs` is absent from the OpenAPI descriptions for both github.com versions and from GHES 3.14 and 3.22. It used to be the classic-token fast path, with a per-repository fallback on 404. kinhin never calls it now: org scope reads each repository's runs via the documented `GET /repos/{repo}/actions/runs`.
 2. **JIT config unused** (see Registration flow). Ephemeral runners with a shared registration token are valid, but JIT is GitHub's recommended path for ephemeral runners.
 3. **No GHES support.** Hard-coded base URL.
 4. **Documented status values are wider than the ones used.** GitHub lists `queued`, `in_progress`, `waiting`, `pending`, `requested` as run statuses. kinhin polls only `queued` and `in_progress`, so a run held in `waiting` (for example on an environment approval) is not counted as demand, which is arguably correct. Recorded here as intent, not a bug.

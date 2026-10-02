@@ -34,7 +34,7 @@ Highest-impact findings, most severe first. Details and evidence are in each pag
 1. **Gitea 1.26 and later: registration-token method.** The spec only has `POST`; kinhin sends `GET`. Forgejo only has `GET`. See [gitea.md](gitea.md#audit-findings).
 2. **Gitea and Forgejo demand detection does not match the published specs.** The task-list response key, the unsupported `status` parameter and the missing `runner_name` are all differences from the spec. Better endpoints exist on newer releases. Needs a check against a live server before any change.
 3. **Gitea and Forgejo runner list and delete** are missing on Gitea before 1.24 and on every released Forgejo checked (through v14).
-4. **GitHub org scope relies on an undocumented endpoint** (`/orgs/{org}/actions/runs`), with a fallback for 404.
+4. **GitHub org scope relied on an undocumented endpoint** (`/orgs/{org}/actions/runs`). Resolved (2026-10-01): kinhin no longer calls it and reads each repository's runs via the documented `/repos/{repo}/actions/runs`.
 5. **Azure DevOps demand relies on an undocumented path** (`pools/{id}/jobrequests`) and is pinned to `api-version=7.0`, which Azure DevOps Server 2020 and older reject.
 6. **GitHub has no GHES support and does not use JIT runner config.**
 7. **Buildkite and Bitbucket**: no mismatches with the docs or spec; minor efficiency notes only.
