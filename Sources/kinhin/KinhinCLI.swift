@@ -93,6 +93,9 @@ struct KinhinCLI {
             case .cleanup:
                 try await CleanupCommand.run(args)
 
+            case .support:
+                print(SupportLinks.summary())
+
             case .version:
                 print("kinhin \(kinhinVersion.current)")
 

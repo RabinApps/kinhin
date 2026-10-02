@@ -101,12 +101,27 @@ extension RunnerBootstrap {
                 # the pinned tools if the shims are on PATH there too
                 printf '%s\\n' 'export PATH="$HOME/.local/share/mise/shims:$PATH"' | \(s)tee /etc/profile.d/kinhin-mise.sh > /dev/null
                 """)
-            let specs = selection.miseSpecs.map(shellQuote).joined(separator: " ")
-            lines.append(
-                """
-                # mise pins — installed AND set globally so every runner shell sees them
-                mise use --global \(specs)
-                """)
+            // mise's rust install writes rustup-init into MISE_CACHE_DIR, which fails on
+            // bind/virtiofs mounts ("Inappropriate ioctl for device"), so rust installs with
+            // mise's default (guest-local) cache — same bypass as the macOS script.
+            let rustSpecs = selection.miseSpecs.filter { ToolchainCatalog.rootTool(of: $0) == "rust" }
+            let otherSpecs = selection.miseSpecs.filter { ToolchainCatalog.rootTool(of: $0) != "rust" }
+            if !otherSpecs.isEmpty {
+                let specs = otherSpecs.map(shellQuote).joined(separator: " ")
+                lines.append(
+                    """
+                    # mise pins — installed AND set globally so every runner shell sees them
+                    mise use --global \(specs)
+                    """)
+            }
+            if !rustSpecs.isEmpty {
+                let specs = rustSpecs.map(shellQuote).joined(separator: " ")
+                lines.append(
+                    """
+                    # rust: guest-local mise cache (see above)
+                    env -u MISE_CACHE_DIR mise use --global \(specs)
+                    """)
+            }
         }
 
         if !selection.npmPackages.isEmpty {

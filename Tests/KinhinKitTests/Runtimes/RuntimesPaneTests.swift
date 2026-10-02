@@ -248,13 +248,17 @@ final class RuntimesPaneTests: XCTestCase {
     }
 
     func testTartControllerConstructionFailureReportsMissing() async throws {
-        let yaml = configWithContainer() + "\nruntimes:\n  default: tart\n"
+        // tart_path pointing at nothing forces construction to fail regardless
+        // of whether this Mac happens to have tart installed.
+        let yaml =
+            configWithContainer()
+            + "\ntart_path: \"/nonexistent/kinhin-test-tart\"\nruntimes:\n  default: tart\n"
         let vm = await RuntimesPaneViewModel.load(
             configYAML: yaml,
             host: testHost,
             reserve: .default,
             loadHealth: true,
-            tartHealth: nil,  // no injection: real path; construction fails when tart is absent
+            tartHealth: nil,  // no injection: real path; construction fails on the missing override
             containerHealth: { .ready }
         )
         let tart = try XCTUnwrap(vm.pools.first { $0.runtime == .tart })

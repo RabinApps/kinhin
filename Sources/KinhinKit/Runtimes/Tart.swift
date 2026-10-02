@@ -107,9 +107,26 @@ public struct TartController: TartControlling {
     }
 
     public func list() async throws -> [TartVM] {
+        // Newer tart builds print only names for `--quiet`, so ask for JSON.
+        let json = try await exec(["list", "--format", "json"])
+        if json.succeeded, let vms = Self.parseListJSON(json.stdout) { return vms }
         let res = try await exec(["list", "--quiet"])
         guard res.succeeded else { throw TartError.commandFailed(what: "list", stderr: res.stderr) }
         return Self.parseList(res.stdout)
+    }
+
+    /// Parse `tart list --format json`; nil when the output isn't that JSON.
+    static func parseListJSON(_ text: String) -> [TartVM]? {
+        struct Entry: Decodable {
+            let Name: String
+            let Source: String
+            let State: String
+            let Disk: Int?
+        }
+        guard let data = text.data(using: .utf8),
+            let entries = try? JSONDecoder().decode([Entry].self, from: data)
+        else { return nil }
+        return entries.map { TartVM(name: $0.Name, source: $0.Source, status: $0.State, diskGB: $0.Disk) }
     }
 
     /// Parse `tart list --quiet` output: lines of "name \t source \t status".

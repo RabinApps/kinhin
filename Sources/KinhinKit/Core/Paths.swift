@@ -108,9 +108,12 @@ public enum Paths {
     }
 
     /// Locate a binary: explicit override, PATH, then Homebrew prefixes.
+    /// An override is authoritative: a configured path that is not an
+    /// executable is a misconfiguration, so it reports missing instead of
+    /// silently probing PATH/Homebrew behind the user's back.
     public static func findExecutable(named name: String, override: String? = nil) -> String? {
-        if let override, !override.isEmpty, FileManager.default.isExecutableFile(atPath: override) {
-            return override
+        if let override, !override.isEmpty {
+            return FileManager.default.isExecutableFile(atPath: override) ? override : nil
         }
         // Honor the user's PATH first. PATH entries may be absolute (the
         // common case) or relative — only prefix a slash for relative ones,

@@ -31,6 +31,8 @@ final class CLICommandTests: XCTestCase {
         XCTAssertEqual(CLICommand.parse(["daemon"]), .daemon)
         XCTAssertEqual(CLICommand.parse(["daemon", "install"]), .daemon)
         XCTAssertEqual(CLICommand.parse(["daemon", "uninstall"]), .daemon)
+        XCTAssertEqual(CLICommand.parse(["support"]), .support)
+        XCTAssertEqual(CLICommand.parse(["sponsor"]), .support)
         XCTAssertEqual(CLICommand.parse(["version"]), .version)
         XCTAssertEqual(CLICommand.parse(["--version"]), .version)
         XCTAssertEqual(CLICommand.parse(["-v"]), .version)
@@ -59,6 +61,7 @@ final class CLICommandTests: XCTestCase {
     func testNoOpCommandsAreExemptFromAutoCreate() {
         XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.help))
         XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.version))
+        XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.support))
         XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.configInit))
     }
 

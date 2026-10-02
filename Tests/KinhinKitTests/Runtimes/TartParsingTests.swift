@@ -3,6 +3,17 @@ import XCTest
 @testable import KinhinKit
 
 final class TartParsingTests: XCTestCase {
+    func testTartListJSONParsing() throws {
+        let json = """
+            [{"State":"stopped","Disk":50,"Source":"local","Size":40,"Name":"tahoe-base","Running":false},
+             {"State":"running","Disk":50,"Source":"OCI","Size":33,"Name":"ghcr.io/x/y:latest","Running":true}]
+            """
+        let vms = try XCTUnwrap(TartController.parseListJSON(json))
+        XCTAssertEqual(vms.map(\.name), ["tahoe-base", "ghcr.io/x/y:latest"])
+        XCTAssertEqual(vms[0].status, "stopped")
+        XCTAssertNil(TartController.parseListJSON("tahoe-base\nother"))
+    }
+
     func testTartListParsing() {
         let output = """
             tahoe-base\tghcr.io/cirruslabs/macos-tahoe-base:latest\trunning\t4\t8\t64

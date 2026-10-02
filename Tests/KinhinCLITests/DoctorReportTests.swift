@@ -271,7 +271,7 @@ final class DoctorReportTests: XCTestCase {
         XCTAssertTrue(killed.reason?.contains("openai/homebrew-tools#27") ?? false)
         XCTAssertEqual(killed.repairCommands.count, 2)
         XCTAssertTrue(
-            killed.repairCommands[0].contains("cirruslabs/cli/tart"),
+            killed.repairCommands[0].contains("openai/cli/tart"),
             "a Gatekeeper kill rolls back to the notarized Cirrus build FIRST")
         XCTAssertTrue(killed.repairCommands[1].contains("openai/tools/tart"))
 

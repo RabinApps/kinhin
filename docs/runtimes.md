@@ -11,12 +11,12 @@ Mac — and how one fleet routes each job between them.
 Every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the
 agent, and tears down. Four backends ship:
 
-| Runtime             | Runs                                                                   | Isolation                                    |
-| ------------------- | ---------------------------------------------------------------------- | -------------------------------------------- |
+| Runtime             | Runs                                                                               | Isolation                                    |
+| ------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------- |
 | **Tart**            | macOS jobs — or Linux jobs on a Linux base (see [Tart Linux VMs](#tart-linux-vms)) | One VM per runner (linked clone)             |
-| **apple/container** | Linux jobs                                                             | One lightweight microVM per runner container |
-| **Docker**          | Linux jobs                                                             | Containers in your provider's shared VM      |
-| **Host**            | Jobs on the Mac                                                        | None — opt-in, trusted repos only            |
+| **apple/container** | Linux jobs                                                                         | One lightweight microVM per runner container |
+| **Docker**          | Linux jobs                                                                         | Containers in your provider's shared VM      |
+| **Host**            | Jobs on the Mac                                                                    | None — opt-in, trusted repos only            |
 
 The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the
 protocol, so new backends slot in without touching lifecycle code.
@@ -63,7 +63,17 @@ tart_softnet: true # boots runner VMs with `tart run --net-softnet`
 
 Each VM can then reach the internet but not its neighbours or the local network. It needs the
 `softnet` binary and its one-time privilege setup — install it with
-`brew install openai/tools/softnet` and follow Tart's Softnet instructions. kinhin refuses to
+`brew install cirruslabs/tools/softnet`, then give it root once. Softnet cannot start without it
+(`tart run` fails with "root privileges are required to run and passwordless sudo was not
+available", or the VM boots with no reachable IP). Either make the real binary setuid root:
+
+```bash
+sudo chown root "$(readlink -f "$(which softnet)")" && sudo chmod u+s "$(readlink -f "$(which softnet)")"
+```
+
+or add a passwordless-sudo rule for it (`%admin ALL = (root) NOPASSWD: <softnet path>` in
+`/etc/sudoers.d/softnet`, mode 440). Use the resolved path, not the Homebrew symlink, and redo the
+setuid step after `brew upgrade softnet`, which replaces the binary. kinhin refuses to
 start with `tart_softnet: true` when `softnet` isn't installed, rather than silently booting VMs
 on the shared network. Baked images also disable SSH password login (`image prepare` writes
 `/etc/ssh/sshd_config.d/000-kinhin-hardening.conf`), so a VM that can reach another still can't
@@ -75,18 +85,18 @@ that up on an existing image.
 Linux jobs can run three ways, and which one fits depends on the isolation, density, and setup
 overhead you want:
 
-|                        | **Tart Linux VM**                                                            | **apple/container**                                                        | **Docker**                                                                        |
-| ---------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| What one instance is   | A full Linux VM, linked clone of your prepared image                          | A container in its own lightweight microVM                                  | A container in your provider's shared Linux VM                                     |
-| Isolation              | VM-grade: own kernel, own disk, own network stack                             | MicroVM-grade: own kernel per container                                     | Container-grade: shared kernel with every other slot and anything else in the VM   |
-| Concurrency            | Bounded by VM shapes (like macOS VMs) — the heaviest option per job           | High — microVMs are small and boot fast                                    | Highest — small container slots, bounded by daemon resources and `max_slots`       |
-| Per-instance disk      | 50 GB planning default (`disk_gb` overrides)                                  | 8 GB planning default                                                      | 8 GB planning default                                                              |
-| amd64 / emulation      | Native arm64 only (Tart is arm64)                                             | Native arm64 only (`container.platform` is rejected)                        | arm64 native; `linux/amd64` under Rosetta/QEMU emulation                            |
-| Extra software         | None — tart itself, which macOS jobs need anyway                              | The container CLI + its system service                                      | A running Docker provider (Docker Desktop, OrbStack, colima)                        |
-| Image bakes & toolchains | `image prepare --linux` bakes the same agents and managed toolchains          | `image prepare --container`                                                 | `image prepare --docker`, or a CI-built Dockerfile                                  |
-| Shared download cache  | Mounted over virtiofs (like macOS guests) when `share_cache: true`            | Mounted at `/var/kinhin-cache` when `share_cache: true`                     | Mounted at `/var/kinhin-cache` when `share_cache: true`                             |
-| Mixing with macOS jobs | No — a tart fleet serves one OS at a time (the base image decides)            | Yes, alongside Tart macOS VMs, with a budget split                          | Yes, alongside Tart macOS VMs, with a budget split                                  |
-| Best for               | Full VM control: apt-based distro of your choice, kernel modules, system services, sudo scripts — or a Linux-only Mac with tart already installed | The default for Linux CI: strong isolation without a Docker daemon          | Teams already running a Docker provider; CI-built images pushed to a registry       |
+|                          | **Tart Linux VM**                                                                                                                                 | **apple/container**                                                | **Docker**                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| What one instance is     | A full Linux VM, linked clone of your prepared image                                                                                              | A container in its own lightweight microVM                         | A container in your provider's shared Linux VM                                   |
+| Isolation                | VM-grade: own kernel, own disk, own network stack                                                                                                 | MicroVM-grade: own kernel per container                            | Container-grade: shared kernel with every other slot and anything else in the VM |
+| Concurrency              | Bounded by VM shapes (like macOS VMs) — the heaviest option per job                                                                               | High — microVMs are small and boot fast                            | Highest — small container slots, bounded by daemon resources and `max_slots`     |
+| Per-instance disk        | 50 GB planning default (`disk_gb` overrides)                                                                                                      | 8 GB planning default                                              | 8 GB planning default                                                            |
+| amd64 / emulation        | Native arm64 only (Tart is arm64)                                                                                                                 | Native arm64 only (`container.platform` is rejected)               | arm64 native; `linux/amd64` under Rosetta/QEMU emulation                         |
+| Extra software           | None — tart itself, which macOS jobs need anyway                                                                                                  | The container CLI + its system service                             | A running Docker provider (Docker Desktop, OrbStack, colima)                     |
+| Image bakes & toolchains | `image prepare --linux` bakes the same agents and managed toolchains                                                                              | `image prepare --container`                                        | `image prepare --docker`, or a CI-built Dockerfile                               |
+| Shared download cache    | Mounted over virtiofs (like macOS guests) when `share_cache: true`                                                                                | Mounted at `/var/kinhin-cache` when `share_cache: true`            | Mounted at `/var/kinhin-cache` when `share_cache: true`                          |
+| Mixing with macOS jobs   | No — a tart fleet serves one OS at a time (the base image decides)                                                                                | Yes, alongside Tart macOS VMs, with a budget split                 | Yes, alongside Tart macOS VMs, with a budget split                               |
+| Best for                 | Full VM control: apt-based distro of your choice, kernel modules, system services, sudo scripts — or a Linux-only Mac with tart already installed | The default for Linux CI: strong isolation without a Docker daemon | Teams already running a Docker provider; CI-built images pushed to a registry    |
 
 Rules of thumb:
 

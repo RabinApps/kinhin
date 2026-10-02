@@ -4,8 +4,8 @@ import KinhinKit
 /// The full help screen, one call site for the printer and tests alike.
 func helpText() -> String {
     """
-    kinhin — autoscaling CI runners on your Mac (GitHub Actions & Gitea Actions)
-    macOS jobs run on Tart VMs; Linux jobs on apple/container microVMs or Docker
+    kinhin — autoscaling CI runners on your Mac: GitHub Actions, GitLab CI/CD, Gitea/Forgejo Actions, Buildkite, Azure Pipelines, and Bitbucket Pipelines.
+    macOS jobs run on Tart VMs; Linux jobs on apple/container microVMs, Docker, or Tart Linux VMs
 
     USAGE:
         kinhin <command> [options]
@@ -82,6 +82,7 @@ func helpText() -> String {
         watch                       Live status view (refreshes every 2s)
 
     OTHER:
+        support                     Show ways to donate or sponsor kinhin
         version                     Print version
         help                        Show this help
     """

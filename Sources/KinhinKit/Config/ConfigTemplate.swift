@@ -62,6 +62,8 @@ extension ConfigLoader {
         # image (ghcr.io/cirruslabs/macos-sequoia-base:latest and friends;
         # pick one in the app) instead of the default macOS base. A local VM
         # name (e.g. one made with `image prepare --linux`) also works.
+        # A Linux image here turns the whole tart fleet into Tart Linux VMs —
+        # remove `macos` from `labels:` when you do.
         # base_image: "ghcr.io/cirruslabs/macos-sequoia-base:latest"
 
         # Seconds a freshly booted VM has to register as a runner.
@@ -121,9 +123,10 @@ extension ConfigLoader {
 
         # Optional: route repos and workflows to different execution runtimes.
         # macOS jobs need Tart VMs; Linux jobs can run in Apple-container
-        # microVMs (cheaper per job). Each runtime's runners carry distinct
-        # labels, so a workflow overrides its repo's route per job via
-        # `runs-on:` (e.g. runs-on: [kinhin-container]).
+        # microVMs, Docker containers, or full Tart Linux VMs (a tart fleet
+        # serves one OS at a time — see docs/runtimes.md for the comparison).
+        # Each runtime's runners carry distinct labels, so a workflow overrides
+        # its repo's route per job via `runs-on:` (e.g. runs-on: [kinhin-container]).
         # runtimes:
         #   default: tart                # runtime for repos with no route
         #   budget: {tart: 0.6, appleContainer: 0.4}   # host-budget split
@@ -136,9 +139,9 @@ extension ConfigLoader {
         #       runtime: appleContainer
 
         # Optional: run Linux jobs in Apple `container` microVMs instead of
-        # full Tart VMs (github.com/apple/container — lightweight, one VM per
-        # container, Apple silicon only). Much cheaper per job for Linux
-        # workloads; macOS jobs still need Tart. Requires the container CLI
+        # full VMs (github.com/apple/container — lightweight, one VM per
+        # container, Apple silicon only). Cheaper per job for Linux workloads
+        # than a full VM; macOS jobs still need Tart. Requires the container CLI
         # (brew install container) and a Linux image baked with the
         # runner agents — prepare it with: kinhin image prepare --container-image <name>
         # container:

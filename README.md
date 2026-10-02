@@ -6,7 +6,10 @@
 > forge (Gitea, Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket) and runtime (apple/container, Docker, host)
 > is covered by unit tests against fakes and stubbed HTTP only, and has **never been run against a real server**.
 > Expect surprises there, and please [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose).
-> See [what has been tested](docs/forges.md#what-has-been-tested). kinhin sends no telemetry.
+> See [what has been tested](docs/forges.md#what-has-been-tested) and the [roadmap to v0.1.0](docs/beta-roadmap.md).
+> kinhin sends no telemetry.
+>
+> [Support kinhin](docs/support.md).
 
 > ○ kinhin (kin-hin) is walking meditation: slow, deliberate steps between sittings.
 > Here, one step at a time: a queued job arrives, a runner is born, serves, and is released.
@@ -157,19 +160,19 @@ preparing the image — then starts the fleet. The main window has **Fleet**, **
 `~/Library/Application Support/Kinhin/config.yaml` — full template via `kinhin config init`.
 Key fields:
 
-| Field                                      | Meaning                                                                                                                                                                          |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `repo`                                     | GitHub scope to serve: `owner/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization** (PAT needs org runner-admin permission) |
-| `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                 |
-| `min_runners` / `max_runners`              | Scaling bounds (in VMs)                                                                                                                                                          |
-| `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                       |
-| `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                               |
-| `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                     |
-| `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                        |
+| Field                                      | Meaning                                                                                                                                                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repo`                                     | GitHub scope to serve: `owner/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization** (PAT needs org runner-admin permission)                        |
+| `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                                        |
+| `min_runners` / `max_runners`              | Scaling bounds (in VMs)                                                                                                                                                                                 |
+| `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                                              |
+| `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                                                      |
+| `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                                            |
+| `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                                               |
 | `base_image`                               | What `image prepare` starts from: a pre-configured tart image (`ghcr.io/cirruslabs/…`), digest-pinned (`ref@sha256:…` — see `kinhin image digest`), or a local VM name; absent = the default macOS base |
-| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](docs/toolchains.md#baking-toolchains-into-the-base-image))                         |
-| `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                          |
-| `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                            |
+| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](docs/toolchains.md#baking-toolchains-into-the-base-image))                                                |
+| `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                                                 |
+| `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                                   |
 
 The effective concurrency cap is the smallest of `max_runners` and what your Mac's CPU, memory,
 and disk can hold after the `reserve` headroom; `kinhin doctor` prints the cap and the binding
@@ -226,23 +229,25 @@ kinhin status|watch         Fleet status
 kinhin pause|resume         Hold the fleet / resume scaling
 kinhin stop                 Stop the fleet
 kinhin logs [-n N]          Recent log lines
+kinhin support              Show ways to donate or sponsor kinhin
 ```
 
 ## Documentation
 
-| Doc                                                              | Covers                                                                      |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| [Why kinhin](docs/why.md)                                        | The one-job-per-runner problem and how kinhin solves it, with sources       |
-| [Install](docs/install.md)                                       | Install script, air-gapped installs, update checks                          |
-| [Security](docs/security.md)                                     | Threat model, hardening for untrusted PRs, what kinhin enforces             |
-| [The kinhin app](docs/app.md)                                    | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together     |
-| [Hardware requirements & sizing](docs/hardware.md)               | Minimum specs and CPU / memory / storage recommendations                    |
-| [How scaling works](docs/scaling.md)                             | Capacity cap, the scaling loop, `runners_per_vm`, recovery                  |
-| [Toolchains & the shared cache](docs/toolchains.md)              | Provision scripts, managed toolchains, per-job installs, the download cache |
-| [Forge support](docs/forges.md)                                  | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, multiple accounts |
-| [Forge API reference](docs/forges/README.md)                     | Per-forge endpoints, auth, API versions and an audit against each forge's docs |
-| [Runtimes & routing](docs/runtimes.md)                           | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing   |
-| [Architecture](docs/architecture.md)                             | Package targets, source layout, tests, CI                                   |
+| Doc                                                 | Covers                                                                                |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [Why kinhin](docs/why.md)                           | The one-job-per-runner problem and how kinhin solves it, with sources                 |
+| [Install](docs/install.md)                          | Install script, air-gapped installs, update checks                                    |
+| [Security](docs/security.md)                        | Threat model, hardening for untrusted PRs, what kinhin enforces                       |
+| [The kinhin app](docs/app.md)                       | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together               |
+| [Hardware requirements & sizing](docs/hardware.md)  | Minimum specs and CPU / memory / storage recommendations                              |
+| [How scaling works](docs/scaling.md)                | Capacity cap, the scaling loop, `runners_per_vm`, recovery                            |
+| [Toolchains & the shared cache](docs/toolchains.md) | Provision scripts, managed toolchains, per-job installs, the download cache           |
+| [Support & sponsors](docs/support.md)               | Donate, or become a paid sponsor                                                      |
+| [Forge support](docs/forges.md)                     | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, multiple accounts |
+| [Forge API reference](docs/forges/README.md)        | Per-forge endpoints, auth, API versions and an audit against each forge's docs        |
+| [Runtimes & routing](docs/runtimes.md)              | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing             |
+| [Architecture](docs/architecture.md)                | Package targets, source layout, tests, CI                                             |
 
 ## Troubleshooting
 
@@ -285,6 +290,15 @@ accounts, upper-cased with non-alphanumerics as `_`), loaded from a git-ignored 
 `.env.dev.example`). The same works for the CLI: `KINHIN_TOKEN_STORE=env KINHIN_TOKEN_GITHUB=… swift run kinhin
 auth status`. Tokens typed into the app in this mode last for that run only. It exists only in debug builds —
 release builds always use the Keychain.
+
+## Support kinhin
+
+kinhin is free and built by one developer, with no ads and no telemetry. If it saves you time, you can
+[sponsor on GitHub](https://github.com/sponsors/RabinApps), [donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=YEJ37WF4Q3HPC),
+or [buy me a coffee](https://buymeacoffee.com/rabinapps). Companies can become sponsors and get a logo here and on
+the website: see [Support & sponsors](docs/support.md) or email support@rabinapps.com.
+
+**More from Rabin Apps:** [SupDesk](https://supdesk.app/en), the feedback and support console for solo founders, devs and small teams.
 
 ## License
 

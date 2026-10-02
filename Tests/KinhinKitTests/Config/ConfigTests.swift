@@ -175,7 +175,7 @@ final class ConfigTests: XCTestCase {
     func testOrgScopeCredentialsRouteToOrgEndpoints() {
         let creds = GitHubCredentials(token: "t", scope: "acme")
         XCTAssertTrue(creds.isOrgScope)
-        XCTAssertEqual(creds.configureURL, "https://github.com/organizations/acme")
+        XCTAssertEqual(creds.configureURL, "https://github.com/acme")
         XCTAssertEqual(creds.owner, "acme")
     }
 

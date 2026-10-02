@@ -22,6 +22,7 @@ enum CLICommand: Equatable {
     case logs
     case daemon
     case cleanup
+    case support
     case version
     case help
 
@@ -68,6 +69,8 @@ enum CLICommand: Equatable {
             return .daemon
         case "cleanup":
             return .cleanup
+        case "support", "sponsor":
+            return .support
         case "version", "--version", "-v":
             return .version
         case "help", "--help", "-h":
@@ -85,7 +88,7 @@ enum CLICommand: Equatable {
     /// commands, which print help before failing) auto-creates.
     static func shouldAutoCreateConfig(_ command: CLICommand?) -> Bool {
         switch command {
-        case .help, .version, .configInit:
+        case .help, .version, .support, .configInit:
             return false
         default:
             return true

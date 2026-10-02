@@ -2,6 +2,7 @@ import { defineConfig } from "vitepress";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { docsLinks } from "./docsLinks";
+import versions from "../versions.json";
 
 // https://vitepress.dev/reference/site-config
 const siteRoot = path.resolve(
@@ -10,12 +11,24 @@ const siteRoot = path.resolve(
 );
 const docsDir = path.resolve(siteRoot, "..", "docs") + path.sep;
 
+// Unset = the latest docs built from main, served at "/". A release snapshot is built from its tag
+// with DOCS_VERSION=<tag> and served under "/<tag>/" (see .github/workflows/docs.yml).
+const docsVersion = process.env.DOCS_VERSION;
+// A snapshot is beta when its tag has a prerelease suffix. The latest docs (main) are beta until a
+// stable release is listed in versions.json.
+const isPrerelease = (v: string) => /-(alpha|beta|rc)/i.test(v);
+const isBeta = docsVersion
+  ? isPrerelease(docsVersion)
+  : !(versions as string[]).some((v) => !isPrerelease(v));
+const base = docsVersion ? `/${docsVersion}/` : "/";
+
 export default defineConfig({
+  base,
   title: "Kinhin",
   description:
     "The mindful CI — autoscaling CI runners that live on your Mac. " +
     "macOS jobs on Tart VMs, Linux jobs on apple/container microVMs or Docker.",
-  head: [["link", { rel: "icon", type: "image/svg+xml", href: "/enso.svg" }]],
+  head: [["link", { rel: "icon", type: "image/svg+xml", href: `${base}enso.svg` }]],
 
   // docs/ is the single source for the guides: the site reads the repo root and publishes only
   // the pages listed here, so nothing under website/guide is a copy of a docs/ page.
@@ -39,6 +52,11 @@ export default defineConfig({
   },
   markdown: { config: (md) => md.use(docsLinks) },
   vite: {
+    // Read by the theme to show an "old version" banner on snapshot builds.
+    define: {
+      __DOCS_VERSION__: JSON.stringify(docsVersion ?? ""),
+      __DOCS_BETA__: JSON.stringify(isBeta),
+    },
     plugins: [
       {
         // docs/ pages sit outside website/, so Node resolution never reaches website/node_modules:
@@ -63,6 +81,14 @@ export default defineConfig({
     nav: [
       { text: "Guide", link: "/guide/quick-start" },
       { text: "CLI", link: "/cli/commands" },
+      {
+        text: docsVersion ?? "Latest",
+        items: [
+          // Absolute links bypass `base`, so the picker works from inside any version.
+          { text: "Latest (main)", link: "/", target: "_self" },
+          ...versions.map((v: string) => ({ text: v, link: `/${v}/`, target: "_self" })),
+        ],
+      },
     ],
     sidebar: [
       {
@@ -71,14 +97,17 @@ export default defineConfig({
         items: [
           { text: "Why kinhin", link: "/guide/why-kinhin" },
           { text: "Quick start", link: "/guide/quick-start" },
+          { text: "Beta roadmap", link: "/guide/beta-roadmap" },
           { text: "Install & updates", link: "/guide/install" },
           { text: "Configuration", link: "/guide/config" },
           { text: "Toolchains & shared cache", link: "/guide/toolchains" },
           { text: "Hardware requirements & sizing", link: "/guide/hardware" },
+          { text: "Running on a rented Mac", link: "/guide/rented-mac" },
           { text: "How scaling works", link: "/guide/scaling" },
           { text: "Runtimes & routing", link: "/guide/runtimes" },
           { text: "Forge support", link: "/guide/forges" },
           { text: "Security", link: "/guide/security" },
+          { text: "Support & sponsors", link: "/guide/support" },
           { text: "Troubleshooting", link: "/guide/troubleshooting" },
           { text: "Debugging races (TSan)", link: "/guide/debugging-races" },
         ],
@@ -104,7 +133,8 @@ export default defineConfig({
     search: { provider: "local" },
     outline: { level: [2, 3] },
     footer: {
-      message: "Released under the Apache License 2.0.",
+      message:
+        'Released under the Apache License 2.0. <a href="/guide/support">Support kinhin</a> · More from Rabin Apps: <a href="https://supdesk.app/en">SupDesk</a>',
       copyright: "Copyright © 2026 Rabin Apps, LLC",
     },
   },

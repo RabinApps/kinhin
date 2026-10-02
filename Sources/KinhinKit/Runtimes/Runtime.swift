@@ -138,6 +138,12 @@ struct TartRuntime: Runtime {
     /// The resolved managed-toolchain selection (cache envs come from here
     /// when `share_cache` mounts the host cache into runner VMs).
     let toolchainsConfig: @Sendable () -> KinhinConfig.ToolchainsConfig?
+    /// How long registration keeps retrying while the guest's sshd is still
+    /// coming up, and the pause between attempts. `tart ip` answers as soon
+    /// as the VM has a lease — often 20+ seconds before SSH listens (seen
+    /// live under softnet).
+    let sshReadyWindow: TimeInterval
+    let sshRetryInterval: Duration
 
     /// Cache envs to export in registration scripts when the route mounts
     /// the shared cache. Computed once per script request from live config.
@@ -148,12 +154,15 @@ struct TartRuntime: Runtime {
 
     init(
         tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, ssh: SSHExecuting = SSHExecutor(),
-        toolchainsConfig: @escaping @Sendable () -> KinhinConfig.ToolchainsConfig? = { nil }
+        toolchainsConfig: @escaping @Sendable () -> KinhinConfig.ToolchainsConfig? = { nil },
+        sshReadyWindow: TimeInterval = 120, sshRetryInterval: Duration = .seconds(5)
     ) {
         self.tart = tart
         self.bootTimeout = bootTimeout
         self.ssh = ssh
         self.toolchainsConfig = toolchainsConfig
+        self.sshReadyWindow = sshReadyWindow
+        self.sshRetryInterval = sshRetryInterval
     }
 
     func health() async -> RuntimeHealth {
@@ -196,7 +205,21 @@ struct TartRuntime: Runtime {
         guard let ip, !ip.isEmpty else {
             throw TartError.ipNotFound(vm: id)
         }
-        return try await ssh.exec(vm: id, user: "admin", ip: ip, script: script, timeout: timeout)
+        // sshd can lag the DHCP lease; retry only "nothing is listening yet"
+        // errors, so a real script failure still fails on the first attempt.
+        let deadline = Date().addingTimeInterval(sshReadyWindow)
+        while true {
+            let result = try await ssh.exec(vm: id, user: "admin", ip: ip, script: script, timeout: timeout)
+            if result.succeeded || !Self.sshNotListeningYet(result.stderr) || Date() >= deadline {
+                return result
+            }
+            Log.info(id, "SSH not up yet; retrying")
+            try await Task.sleep(for: sshRetryInterval)
+        }
+    }
+
+    static func sshNotListeningYet(_ stderr: String) -> Bool {
+        ["Operation timed out", "Connection refused", "No route to host"].contains { stderr.contains($0) }
     }
 
     func existingInstanceIDs() async throws -> [String] {

@@ -178,3 +178,5 @@ footprints + reserve), so the [storage](#storage) recommendation applies.
 
 Serving one repo from several Macs splits the load, and each Mac still sizes itself independently
 ([Running on multiple Macs](scaling.md#running-on-multiple-macs)).
+
+No spare Mac? See [Running kinhin on a rented Mac](rented-mac.md).

@@ -30,23 +30,51 @@ extension RunnerBootstrap {
             + lines.joined(separator: "\n")
     }
 
+    /// How the managed-toolchains script reaches its guest, which decides
+    /// what its PATH setup must do.
+    enum ToolchainSessionKind {
+        /// An SSH exec: a bare shell that skips the guest's login profile, so
+        /// brew and mise are not on PATH and must be put there.
+        case ssh
+        /// A runner job step: the runner already exports its PATH; adding
+        /// brew's bin here would shadow the job's own tools.
+        case job
+    }
+
     /// The managed-toolchains script baked by `image prepare` when a
     /// `toolchains:` section is configured: cache exports, brew taps +
     /// formulas (idempotent), mise pins (`mise use --global`), npm globals,
     /// gems, then every verify command — a failing verify aborts the prepare
     /// with the previous image left intact.
-    static func managedToolchainsInstallScript(selection: ManagedToolchainSelection, mountPath: String?)
+    static func managedToolchainsInstallScript(
+        selection: ManagedToolchainSelection, mountPath: String?, session: ToolchainSessionKind = .ssh
+    )
         -> String
     {
-        var lines: [String] = [
-            "set -euo pipefail",
+        var lines: [String] = ["set -euo pipefail"]
+        switch session {
+        case .ssh:
             // ssh starts a bare shell that skips the guest's login profile, so brew and
-            // mise are not on PATH: put them there, shims first, like ~/.zprofile does.
-            """
-            export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/share/mise/shims:$PATH"
-            export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
-            """,
-        ]
+            // mise are not on PATH: put them there. Shims go first so a mise pin beats a
+            // Homebrew copy of the same tool the base image ships (node, python).
+            lines.append(
+                """
+                export PATH="$HOME/.local/share/mise/shims:/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+                export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
+                """)
+        case .job:
+            // The runner's PATH already carries everything the base image ships
+            // (mise shims via the login profile). Don't prepend brew: in a job
+            // step that would shadow the job's own PATH entries (a stubbed or
+            // project-local tool would silently lose to brew's). If an image
+            // somehow lacks them, fall back — checked, never prepended.
+            lines.append(
+                """
+                command -v brew >/dev/null 2>&1 || export PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/sbin"
+                command -v mise >/dev/null 2>&1 || export PATH="$PATH:$HOME/.local/share/mise/shims"
+                export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
+                """)
+        }
 
         if let mountPath {
             lines.append(Self.cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: mountPath))
@@ -76,12 +104,25 @@ extension RunnerBootstrap {
                 """)
         }
 
-        if !selection.miseSpecs.isEmpty {
-            let specs = selection.miseSpecs.map(shellQuote).joined(separator: " ")
+        // mise's rust install writes rustup-init into MISE_CACHE_DIR, which fails on the
+        // virtiofs cache share ("Inappropriate ioctl for device"), so rust installs with
+        // mise's default (guest-local) cache and every other spec uses the shared one.
+        let rustSpecs = selection.miseSpecs.filter { ToolchainCatalog.rootTool(of: $0) == "rust" }
+        let otherSpecs = selection.miseSpecs.filter { ToolchainCatalog.rootTool(of: $0) != "rust" }
+        if !otherSpecs.isEmpty {
+            let specs = otherSpecs.map(shellQuote).joined(separator: " ")
             lines.append(
                 """
                 # mise pins — installed AND set globally so every runner shell sees them
                 mise use --global \(specs)
+                """)
+        }
+        if !rustSpecs.isEmpty {
+            let specs = rustSpecs.map(shellQuote).joined(separator: " ")
+            lines.append(
+                """
+                # rust: guest-local mise cache (see above)
+                env -u MISE_CACHE_DIR mise use --global \(specs)
                 """)
         }
 

@@ -1,0 +1,23 @@
+.version-banner {
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 14px;
+  background: var(--vp-c-warning-soft);
+  color: var(--vp-c-text-1);
+}
+.version-banner a {
+  font-weight: 600;
+  color: var(--vp-c-brand-1);
+}
+.beta-badge {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  text-transform: uppercase;
+  color: var(--vp-c-warning-1);
+  background: var(--vp-c-warning-soft);
+  text-decoration: none;
+}

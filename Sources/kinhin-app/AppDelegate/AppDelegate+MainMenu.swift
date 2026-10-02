@@ -56,6 +56,15 @@ extension AppDelegate {
         main.addItem(windowItem)
         NSApp.windowsMenu = window
 
+        let helpItem = NSMenuItem()
+        let help = NSMenu(title: "Help")
+        help.addItem(withTitle: "Support kinhin…", action: #selector(openSupportPage), keyEquivalent: "").target = self
+        help.addItem(withTitle: "Become a Sponsor…", action: #selector(openBecomeSponsor), keyEquivalent: "").target =
+            self
+        helpItem.submenu = help
+        main.addItem(helpItem)
+        NSApp.helpMenu = help
+
         NSApp.mainMenu = main
     }
 

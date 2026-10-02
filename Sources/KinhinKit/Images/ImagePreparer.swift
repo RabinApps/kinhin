@@ -93,7 +93,15 @@ public struct ImagePreparer {
         public init(config cfg: KinhinConfig) {
             self.init(provisionScriptPath: cfg.provisionScript, toolchains: cfg.toolchains)
             if let baseImage = cfg.baseImage {
-                source = TartBaseImage.resolveSource(preparedName: baseImage)
+                // An explicit registry reference is used verbatim (the config
+                // template's "a pre-configured tart image" promise);
+                // ConfigLoader already validated its shape. Short curated
+                // names expand through the catalog; unknown bare names keep
+                // the documented default.
+                source =
+                    baseImage.contains("/")
+                    ? baseImage
+                    : TartBaseImage.resolveSource(preparedName: baseImage)
             }
         }
     }
@@ -102,12 +110,26 @@ public struct ImagePreparer {
     public func run(_ options: Options) async throws {
         let tmp = "kinhin-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
         let tart = self.tart
-        defer {
-            Task {
-                await bestEffortAsync(tmp, "stopping scratch VM") { try await tart.stop(name: tmp) }
-                await bestEffortAsync(tmp, "deleting scratch VM") { try await tart.delete(name: tmp) }
-            }
+        do {
+            try await prepareScratchVM(options, scratch: tmp)
+        } catch {
+            // Clean up before the error reaches the caller: a CLI process
+            // exits right after, which would kill a fire-and-forget task and
+            // leave the scratch VM behind (seen live: a failed toolchain bake
+            // left kinhin-prepare-tmp-* on disk).
+            await bestEffortAsync(tmp, "stopping scratch VM") { try await tart.stop(name: tmp) }
+            await bestEffortAsync(tmp, "deleting scratch VM") { try await tart.delete(name: tmp) }
+            throw error
         }
+        // Success: the scratch VM was already stopped for the commit, and its
+        // disk is an APFS clone peer of the target's — deleting it is safe.
+        await bestEffortAsync(tmp, "deleting scratch VM") { try await tart.delete(name: tmp) }
+    }
+
+    /// The prepare pipeline body: scratch-VM clone through the final commit.
+    /// Throws on the first failure; `run` owns the scratch VM's cleanup.
+    private func prepareScratchVM(_ options: Options, scratch tmp: String) async throws {
+        let tart = self.tart
 
         // Resolve agent versions from the release feeds (pinned fallback
         // when offline) so images pick up new runner releases without an

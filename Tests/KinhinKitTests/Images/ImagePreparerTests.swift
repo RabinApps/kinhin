@@ -20,6 +20,23 @@ final class ImagePreparerTests: XCTestCase {
         XCTAssertEqual(ImagePreparer.Options(config: cfg).source, ImagePreparer.defaultSource)
     }
 
+    /// An explicit registry reference in `base_image:` is used verbatim —
+    /// it must never be rewritten to the default (a cirruslabs reference
+    /// once got silently swapped for an unreachable openai one).
+    func testOptionsFromConfigUseARegistryBaseImageVerbatim() throws {
+        var cfg = makeTestConfig()
+        cfg.baseImage = "ghcr.io/cirruslabs/macos-tahoe-base:latest"
+        XCTAssertEqual(
+            ImagePreparer.Options(config: cfg).source, "ghcr.io/cirruslabs/macos-tahoe-base:latest")
+
+        cfg.baseImage =
+            "ghcr.io/cirruslabs/macos-tahoe-base@sha256:1b093499716409d29e8b5336844528e1cae375db97d2ad8e5aeff78cf0da201e"
+        XCTAssertEqual(
+            ImagePreparer.Options(config: cfg).source,
+            "ghcr.io/cirruslabs/macos-tahoe-base@sha256:1b093499716409d29e8b5336844528e1cae375db97d2ad8e5aeff78cf0da201e"
+        )
+    }
+
     func testImagePrepareHappyPath() async throws {
         let tart = FakeTart()
         let ssh = FakeSSH()
@@ -326,5 +343,46 @@ final class ImagePreparerTests: XCTestCase {
         XCTAssertNil(tart.vms["tahoe-base"])
         XCTAssertFalse(tart.deleteCalls.contains("tahoe-base"))
         XCTAssertFalse(tart.cloneCalls.contains { $0.name == "tahoe-base" })
+    }
+
+    /// A failed prepare must clean up its scratch VM before the error reaches
+    /// the caller: a CLI process exits right after, killing any
+    /// fire-and-forget cleanup task (seen live: kinhin-prepare-tmp-* left on
+    /// disk after a failed toolchain bake).
+    func testImagePrepareFailureDeletesTheScratchVMInline() async throws {
+        let tart = FakeTart()
+        let ssh = FakeSSH()
+        ssh.failWith = "sudo: a password is required"
+        let preparer = ImagePreparer(tart: tart, ssh: ssh)
+        let options = ImagePreparer.Options(
+            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+            hasAzureDevOpsToken: false)
+
+        do {
+            try await preparer.run(options)
+            XCTFail("expected provisioning failure")
+        } catch let error as ImageError {
+            guard case .provisioningFailed = error else { return XCTFail("wrong error: \(error)") }
+        }
+        // Inline cleanup, not a background task the exiting CLI would kill.
+        let scratch = try XCTUnwrap(tart.cloneCalls.first?.name)
+        XCTAssertTrue(scratch.hasPrefix("kinhin-prepare-tmp-"), scratch)
+        XCTAssertTrue(tart.stopCalls.contains(scratch), "scratch stopped on failure: \(tart.stopCalls)")
+        XCTAssertTrue(tart.deleteCalls.contains(scratch), "scratch deleted on failure: \(tart.deleteCalls)")
+    }
+
+    /// A successful prepare also deletes its scratch VM: the target image is
+    /// a clone peer, so nothing needs the scratch clone anymore.
+    func testImagePrepareSuccessDeletesTheScratchVM() async throws {
+        let tart = FakeTart()
+        let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
+        try await preparer.run(
+            .init(
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false))
+        let scratch = try XCTUnwrap(tart.cloneCalls.first?.name)
+        XCTAssertTrue(scratch.hasPrefix("kinhin-prepare-tmp-"), scratch)
+        XCTAssertTrue(tart.deleteCalls.contains(scratch), "scratch deleted after success: \(tart.deleteCalls)")
+        XCTAssertNotNil(tart.vms["tahoe-base"], "the prepared image survives")
     }
 }

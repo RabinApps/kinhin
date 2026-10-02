@@ -12,7 +12,6 @@ final class TokenRequirementsTests: XCTestCase {
         XCTAssertTrue(
             text.contains("no organization-level runs permission"),
             "fine-grained limitation must be stated: \(text)")
-        XCTAssertTrue(text.contains("falls back to reading each repository"), text)
         XCTAssertFalse(text.contains("Administration"), "repo-only permission must not leak into org advice")
     }
 

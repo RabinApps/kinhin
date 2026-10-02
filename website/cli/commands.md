@@ -51,6 +51,7 @@ kinhin status --json        Fleet status as a machine-readable document (daemon/
 kinhin pause|resume         Hold the fleet / resume scaling
 kinhin stop                 Stop the fleet
 kinhin logs [-n N]          Recent log lines
+kinhin support              Show ways to donate or sponsor kinhin
 kinhin version              Print version
 kinhin help                 Show help
 ```

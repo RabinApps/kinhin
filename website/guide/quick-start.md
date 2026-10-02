@@ -12,7 +12,8 @@ runners. This page gets you from zero to a working fleet. New here? Read [why ki
   brew trust openai/tools
   brew install openai/tools/tart
   ```
-- A GitHub PAT with `repo` scope (or a Gitea access token — see [Forge support](/guide/forges))
+- An access token for at least one CI platform: GitHub, Gitea, Forgejo, GitLab, Buildkite, Azure DevOps or
+  Bitbucket (see [Pick your forge](#pick-your-forge) and [Forge support](/guide/forges))
 - Optional — Linux jobs. Three options — [apple/container](https://github.com/apple/container)
   microVMs (`brew install container && container system start`), Docker containers, or
   [Tart Linux VMs](/guide/runtimes#tart-linux-vms), which need nothing beyond tart itself;
@@ -41,6 +42,43 @@ to /Applications, and symlinks the `kinhin` CLI into your bin dir. Release artif
 Developer ID signed and notarized, so the app launches with **no Gatekeeper prompts** — the
 Open-Anyway dance only applies to old releases or locally built copies.
 
+## Pick your forge
+
+One fleet can serve several forges at once. Start with one; you can add more later.
+
+| Forge | Scope | Token | Store it with |
+| ----- | ----- | ----- | ------------- |
+| GitHub Actions | `owner/name` repo or org | PAT with `repo` scope | `kinhin auth set` |
+| Gitea | `owner/name` or org, plus `instance` URL | Access token with runner rights | `kinhin auth set --gitea` |
+| Forgejo | `owner/name` or org, plus `instance` URL | Access token with runner rights | `kinhin auth set --forgejo` |
+| GitLab | `group/project` or group path (`instance` optional, gitlab.com by default) | Access token with `create_runner`, `manage_runner`, `read_api` | `kinhin auth set --gitlab` |
+| Buildkite | `org/cluster` | REST API token with agent, build and cluster scopes | `kinhin auth set --buildkite` |
+| Azure DevOps | Agent pool name, plus organization `instance` URL | PAT with **Agent Pools (Read & manage)** only | `kinhin auth set --azuredevops` |
+| Bitbucket | Workspace, or `workspace/repo-slug` | Workspace or repository access token with runner and pipeline scopes | `kinhin auth set --bitbucket` |
+
+GitHub is the default account. Every other forge is an entry under `accounts:` in `config.yaml`, or
+you can create it from the CLI:
+
+```bash
+kinhin auth add gitlab --gitlab --scope group/project
+kinhin auth add ado --azuredevops --scope "Mac Fleet" --instance https://dev.azure.com/acme
+```
+
+```yaml
+accounts:
+  - name: gitlab
+    forge: gitlab
+    scope: "group/project"
+    labels: ["macos"] # runner tags / labels that jobs select on
+```
+
+::: warning Beta
+Only GitHub Actions has been tested against a real server. The other forges are unit-tested but not
+yet live-tested; see [what has been tested](/guide/forges#what-has-been-tested). Please report how it goes.
+:::
+
+Each forge's setup details, token scopes and job-selection rules are in [Forge support](/guide/forges).
+
 ## First fleet (CLI)
 
 ```bash
@@ -49,8 +87,9 @@ kinhin config init
 #    edit ~/Library/Application Support/Kinhin/config.yaml
 #    -> set the accounts: entry (name/forge/scope) and the labels jobs will request
 
-# 2. Store a GitHub PAT (repo scope) — it goes in your Keychain, not a file
-kinhin auth set
+# 2. Store a token for your forge — it goes in your Keychain, not a file
+kinhin auth set                  # GitHub PAT (repo scope)
+kinhin auth set --gitlab         # or --gitea, --forgejo, --buildkite, --azuredevops, --bitbucket
 
 # 3. Check prerequisites and see how many VMs your Mac can host
 kinhin doctor
@@ -74,13 +113,17 @@ jobs:
       - run: uname -m # arm64 — you're running on your own Mac
 ```
 
+That example is for GitHub. On other forges, jobs select runners differently: by runner tags (GitLab),
+`runs-on` labels (Gitea, Forgejo, Bitbucket), agent query rules such as `queue=kinhin` (Buildkite), or
+pool and capabilities (Azure DevOps). See [Forge support](/guide/forges).
+
 Watch the fleet: `kinhin watch` (live) or `kinhin status` (one shot).
 
 ## First fleet (menu bar app)
 
 Install with the one-liner above, then launch **kinhin** from Applications. The setup window
-walks through the same steps — installing tart, creating the config, storing the token, and
-preparing the image — then starts the fleet. The menu bar shows the number of live runner VMs.
+walks through the same steps — installing tart, creating the config, connecting a forge and storing
+its token (the Connect form offers all seven), and preparing the image — then starts the fleet. The menu bar shows the number of live runner VMs.
 
 ::: tip Signed & notarized
 Official releases are Developer ID signed and notarized — no right-click → **Open** needed.

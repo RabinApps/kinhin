@@ -131,6 +131,25 @@ final class LinuxToolchainsTests: XCTestCase {
             "no brew install happens on Linux")
     }
 
+    /// mise's rust install cannot use the shared cache on bind/virtiofs mounts
+    /// ("Inappropriate ioctl for device"); only rust bypasses it.
+    func testLinuxRustInstallsWithoutTheSharedMiseCache() throws {
+        let sel = try linuxSelection(
+            """
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22", "rust@stable"]}
+            """)
+        let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(
+            selection: sel, mountPath: ToolchainCacheMount.linuxGuestPath)
+        XCTAssertTrue(script.contains("env -u MISE_CACHE_DIR mise use --global 'rust@stable'"), script)
+        XCTAssertTrue(script.contains("mise use --global 'node@22'"), "other specs keep the shared cache")
+        XCTAssertFalse(script.contains("env -u MISE_CACHE_DIR mise use --global 'node@22'"))
+    }
+
     func testLinuxManagedScriptCoversAptMiseNpmAndGuards() throws {
         let sel = try linuxSelection(
             """

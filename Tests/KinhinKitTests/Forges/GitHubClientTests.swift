@@ -155,7 +155,26 @@ final class GitHubClientTests: XCTestCase {
     }
 
     func testOrgConfigureURLIsOrganizationsPath() {
-        XCTAssertEqual(makeOrgClient().configureURL, "https://github.com/organizations/acme")
+        XCTAssertEqual(makeOrgClient().configureURL, "https://github.com/acme")
+    }
+
+    /// The per-poll repo cap must keep the repos with recent activity: the
+    /// list is requested most-recently-pushed first (a repo late in the
+    /// default order once never had its queued jobs seen).
+    func testOrgScopeRequestsReposMostRecentlyPushedFirst() async throws {
+        let queries = Mutex<[String]>([])
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/orgs/acme/repos" {
+                queries.withLock { $0.append(request.url?.query ?? "") }
+                return (200, Data("[{\"full_name\":\"acme/widgets\"}]".utf8), [:])
+            }
+            return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        _ = try await makeOrgClient().queuedJobs(matching: ["self-hosted"])
+        let query = try XCTUnwrap(queries.withLock { $0.first })
+        XCTAssertTrue(query.contains("sort=pushed") && query.contains("direction=desc"), query)
     }
 
     // MARK: - org scope reads runs per repository

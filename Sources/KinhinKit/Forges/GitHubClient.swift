@@ -18,13 +18,11 @@ public struct GitHubCredentials: Sendable {
     /// The owner segment of the scope ("acme" in "acme/api").
     public var owner: String { String(scope.split(separator: "/").first ?? "") }
 
-    /// URL passed to the runner's `config.sh --url`. Org-level runners
-    /// register at /organizations/<org>, repo-level at /<owner>/<repo>.
-    var configureURL: String {
-        isOrgScope
-            ? "https://github.com/organizations/\(scope)"
-            : "https://github.com/\(scope)"
-    }
+    /// URL passed to the runner's `config.sh --url`: GitHub's documented form
+    /// is `https://github.com/<org>` for org runners and
+    /// `https://github.com/<owner>/<repo>` for repo runners (the
+    /// `/organizations/<org>` form answers 404 from runner-registration).
+    var configureURL: String { "https://github.com/\(scope)" }
 
     /// REST path prefix for the Actions API of this scope.
     var actionsBase: String {
@@ -76,7 +74,7 @@ public enum GitHubError: LocalizedError, Equatable, Sendable {
 /// Minimal GitHub REST client covering what the autoscaler needs.
 public protocol GitHubServing: Sendable {
     /// The URL the VM's `config.sh --url` must use for this scope
-    /// (organizations register at github.com/organizations/<org>).
+    /// (organizations register at github.com/<org>).
     var configureURL: String { get }
     func fetchRegistrationToken() async throws -> RegistrationToken
     func listRunners() async throws -> [GHRunner]

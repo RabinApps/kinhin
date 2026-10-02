@@ -259,8 +259,9 @@ public struct KinhinConfig: Sendable, Equatable {
 
     /// Routing configuration: which execution runtime serves which repo or
     /// workflow. One fleet can mix macOS jobs on Tart VMs and Linux jobs in
-    /// Apple containers. Each runtime gets its own label pool so workflows
-    /// opt in per job via `runs-on:`.
+    /// Apple containers, Docker containers, or full Tart Linux VMs (the tart
+    /// pool serves one OS at a time). Each runtime gets its own label pool so
+    /// workflows opt in per job via `runs-on:`.
     public struct RuntimeConfig: Sendable, Equatable {
         /// Runtime for repos with no matching route.
         public var defaultRuntime: String

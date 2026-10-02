@@ -10,6 +10,14 @@ extension AppDelegate {
         NSWorkspace.shared.open(url)
     }
 
+    @objc func openSupportPage() {
+        NSWorkspace.shared.open(SupportLinks.githubSponsors.url)
+    }
+
+    @objc func openBecomeSponsor() {
+        NSWorkspace.shared.open(SupportLinks.becomeASponsor.url)
+    }
+
     @objc func quit() {
         NSApp.terminate(nil)
     }

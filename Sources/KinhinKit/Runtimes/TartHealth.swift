@@ -145,18 +145,18 @@ public struct TartHealthProbe {
             ]
         )
         let cirrusRollback = TartRepair(
-            title: "Roll back to the notarized Cirrus Labs build (cirruslabs/cli/tart, known-good 2.32.1)",
+            title: "Roll back to the notarized Cirrus Labs build (openai/cli/tart, known-good 2.32.1)",
             commands: [
                 ["brew", "uninstall", "openai/tools/tart", "openai/tools/softnet"],
-                ["brew", "tap", "cirruslabs/cli"],
-                ["brew", "trust", "cirruslabs/cli"],
-                ["brew", "install", "cirruslabs/cli/tart"],
+                ["brew", "tap", "openai/cli"],
+                ["brew", "trust", "openai/cli"],
+                ["brew", "install", "openai/cli/tart"],
             ]
         )
         let openaiRetry = TartRepair(
             title: "Retry the OpenAI tap (check openai/homebrew-tools#27 for a fixed bottle first)",
             commands: [
-                ["brew", "uninstall", "cirruslabs/cli/tart"],
+                ["brew", "uninstall", "openai/cli/tart"],
                 ["brew", "tap", "openai/tools"],
                 ["brew", "trust", "openai/tools"],
                 ["brew", "install", "openai/tools/tart"],

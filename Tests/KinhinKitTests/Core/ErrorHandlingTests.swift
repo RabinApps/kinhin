@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -88,6 +89,25 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertTrue(tart.cloneCalls.isEmpty)
     }
 
+    /// `tart ip` answers before sshd listens: registration retries the
+    /// "nothing listening yet" errors, but not a genuine script failure.
+    func testTartRegistrationRetriesUntilSSHListens() async throws {
+        let ssh = FlakySSH(failures: 2, stderr: "ssh: connect to host 10.0.0.2 port 22: Operation timed out")
+        let runtime = TartRuntime(
+            tart: FakeTart(), bootTimeout: { 300 }, ssh: ssh, sshReadyWindow: 30, sshRetryInterval: .milliseconds(1))
+        let result = try await runtime.execRegistration("vm-1", ip: "10.0.0.2", "true", timeout: 5)
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(ssh.calls, 3)
+
+        let broken = FlakySSH(failures: 5, stderr: "bash: config.sh: command failed")
+        let runtime2 = TartRuntime(
+            tart: FakeTart(), bootTimeout: { 300 }, ssh: broken, sshReadyWindow: 30,
+            sshRetryInterval: .milliseconds(1))
+        let failed = try await runtime2.execRegistration("vm-1", ip: "10.0.0.2", "true", timeout: 5)
+        XCTAssertFalse(failed.succeeded)
+        XCTAssertEqual(broken.calls, 1, "a real failure is not retried")
+    }
+
     func testTartTeardownStillAttemptsDeleteWhenListFails() async {
         let tart = FakeTart()
         tart.vms["vm-1"] = TartVM(name: "vm-1", source: "base", status: "running")
@@ -122,5 +142,24 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertEqual(Paths.appSupport.lastPathComponent, "Kinhin")
         XCTAssertTrue(Paths.legacyAppSupport.path.hasSuffix("/Orchard"))
         XCTAssertTrue(Daemon.agentPlistPath().path.contains("LaunchAgents"))
+    }
+}
+
+private final class FlakySSH: SSHExecuting, Sendable {
+    private let state = Mutex(0)
+    let failures: Int
+    let stderr: String
+    init(failures: Int, stderr: String) {
+        self.failures = failures
+        self.stderr = stderr
+    }
+    var calls: Int { state.withLock { $0 } }
+    func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
+        let n = state.withLock { n -> Int in
+            n += 1
+            return n
+        }
+        if n <= failures { return ShellResult(exitCode: 255, stdout: "", stderr: stderr) }
+        return ShellResult(exitCode: 0, stdout: "ok", stderr: "")
     }
 }

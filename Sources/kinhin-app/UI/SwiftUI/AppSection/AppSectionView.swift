@@ -41,6 +41,27 @@ struct AppSectionView: View {
                     HintText(model.updateText).accessibilityIdentifier("update-status")
                 }
                 FormCard(
+                    title: "Support kinhin",
+                    subtitle: "kinhin is free and built by one developer. Donations and sponsors keep it going."
+                ) {
+                    HStack {
+                        ForEach(SupportLinks.donate, id: \.name) { channel in
+                            Link(channel.name, destination: channel.url)
+                        }
+                        Link(SupportLinks.becomeASponsor.name, destination: SupportLinks.becomeASponsor.url)
+                    }
+                    if !SupportLinks.sponsors.isEmpty {
+                        HStack(spacing: 4) {
+                            HintText("Sponsored by")
+                            ForEach(SupportLinks.sponsors, id: \.name) { Link($0.name, destination: $0.url) }
+                        }
+                    }
+                    HStack(spacing: 4) {
+                        HintText("More from Rabin Apps:")
+                        ForEach(SupportLinks.projects, id: \.name) { Link($0.name, destination: $0.url) }
+                    }
+                }
+                FormCard(
                     title: "Files",
                     subtitle:
                         "Everything above is saved in config.yaml — open it for settings that have no control here."

@@ -59,6 +59,25 @@ final class MacToolchainsTests: XCTestCase {
 
     /// ssh starts a bare shell (no login profile), so the script must put brew and
     /// mise on PATH itself, before the first use of either.
+    /// rustup cannot write into CARGO_HOME on the virtiofs share, so the catalog must not redirect it.
+    func testRustDoesNotRedirectCargoHomeOntoTheSharedCache() throws {
+        let rust = try XCTUnwrap(ToolchainCatalog.tool(id: "rust"))
+        XCTAssertFalse(rust.cacheEnvs.contains { $0.variable == "CARGO_HOME" })
+    }
+
+    /// mise's rust install cannot use the virtiofs MISE_CACHE_DIR; only rust bypasses it.
+    func testRustInstallsWithoutTheSharedMiseCache() throws {
+        let cfg = try self.toolchainsConfig(
+            """
+              specs: ["node@22", "rust@stable"]
+            """)
+        let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains))
+        let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: "/mnt/cache")
+        XCTAssertTrue(script.contains("env -u MISE_CACHE_DIR mise use --global 'rust@stable'"), script)
+        XCTAssertTrue(script.contains("mise use --global 'node@22'"), "other specs keep the shared cache")
+        XCTAssertFalse(script.contains("env -u MISE_CACHE_DIR mise use --global 'node@22'"))
+    }
+
     func testManagedScriptPutsHomebrewAndMiseOnPathFirst() throws {
         let cfg = try self.toolchainsConfig(
             """
@@ -66,10 +85,10 @@ final class MacToolchainsTests: XCTestCase {
             """)
         let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains))
         let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: nil)
-        let path = try XCTUnwrap(script.range(of: "export PATH=\"/opt/homebrew/bin"))
+        let path = try XCTUnwrap(script.range(of: "export PATH=\"$HOME/.local/share/mise/shims:/opt/homebrew/bin"))
         let mise = try XCTUnwrap(script.range(of: "mise use --global"))
         XCTAssertLessThan(path.lowerBound, mise.lowerBound)
-        XCTAssertTrue(script.contains(".local/share/mise/shims"))
+        XCTAssertTrue(script.contains("/opt/homebrew/sbin"), "brew stays on PATH, behind the shims")
     }
 
     func testCacheEnvExportsAreGuardedOnMountPresence() {

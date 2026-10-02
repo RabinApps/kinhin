@@ -67,7 +67,11 @@ struct ToolchainHelperEntry: Sendable, Equatable {
         -> String
     {
         switch platform {
-        case .macOS: return RunnerBootstrap.managedToolchainsInstallScript(selection: selection, mountPath: mountPath)
+        case .macOS:
+            // The helper runs inside a runner job step, not an SSH bake session:
+            // its PATH setup must not shadow the job's own PATH entries.
+            return RunnerBootstrap.managedToolchainsInstallScript(
+                selection: selection, mountPath: mountPath, session: .job)
         case .linux:
             return RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: selection, mountPath: mountPath)
         }

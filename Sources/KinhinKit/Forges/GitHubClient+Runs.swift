@@ -76,7 +76,9 @@ extension GitHubClient {
         return runs
     }
 
-    /// Repositories to poll in org scope: the org's repos, or — when
+    /// Repositories to poll in org scope, most recently pushed first so the
+    /// per-poll cap (`maxReposPerPoll`) keeps the repos that actually have
+    /// work instead of cutting off alphabetically-late ones: the org's repos, or — when
     /// even that 404s (the org repo list needs Members read) — every repo
     /// the token can see, filtered down to the scope's org.
     func listScopeRepositories() async throws -> [String] {
@@ -85,9 +87,10 @@ extension GitHubClient {
 
     func fetchScopeRepositories() async throws -> [String] {
         do {
-            return try await pagedRepoNames(path: "/orgs/\(credentials.scope)/repos")
+            return try await pagedRepoNames(path: "/orgs/\(credentials.scope)/repos?sort=pushed&direction=desc")
         } catch GitHubError.notFound {
-            let all = try await pagedRepoNames(path: "/user/repos?affiliation=owner,collaborator,organization_member")
+            let all = try await pagedRepoNames(
+                path: "/user/repos?affiliation=owner,collaborator,organization_member&sort=pushed&direction=desc")
             let prefix = "\(credentials.owner)/"
             return all.filter { $0.hasPrefix(prefix) }
         }

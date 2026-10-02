@@ -72,6 +72,10 @@ extension AppDelegate {
         let versionItem = m.addItem(withTitle: "  kinhin \(kinhinVersion.current)", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
         m.addItem(withTitle: "Open Logs", action: #selector(openLogs), keyEquivalent: "").target = self
+        let supportItem = m.addItem(
+            withTitle: "Support kinhin…", action: #selector(openSupportPage), keyEquivalent: "")
+        supportItem.target = self
+        supportItem.identifier = NSUserInterfaceItemIdentifier("supportKinhin")
         m.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q").target = self
 
         // Placeholder VM section refreshed dynamically.

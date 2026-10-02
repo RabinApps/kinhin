@@ -20,7 +20,10 @@ extension ToolchainCatalog {
             ], verify: "go version", defaultSpec: "go@latest", category: .languages),
         ToolchainEntry(
             id: "rust", summary: "Rust toolchain (rustc + cargo)", installer: .mise,
-            cacheEnvs: [ToolchainCacheEnv(variable: "CARGO_HOME", subdirectory: "cargo")], verify: "cargo --version",
+            // No CARGO_HOME redirect: rustup writes its env file and proxies into CARGO_HOME and
+            // fails on the virtiofs cache share ("Inappropriate ioctl for device"), so the
+            // toolchain could never install. Cargo's registry stays per-VM.
+            cacheEnvs: [], verify: "cargo --version",
             defaultSpec: "rust@stable", category: .languages),
         ToolchainEntry(
             id: "python", summary: "Python (mise-managed)", installer: .mise,
