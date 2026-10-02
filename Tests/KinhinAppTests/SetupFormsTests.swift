@@ -229,6 +229,65 @@ final class SetupFormsTests: XCTestCase {
         XCTAssertNil(try snapshot().docker)
     }
 
+    func testExistingImageOffersARebuildThatAsksFirst() {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        XCTAssertEqual(model.imageButtonTitle, "Prepare image")
+        model.setImagePresentForTesting(true)
+        XCTAssertEqual(model.imageButtonTitle, "Rebuild image…")
+
+        var asked = 0
+        model.confirmRebuild = { _, _ in
+            asked += 1
+            return false
+        }
+        model.prepareImage()
+        XCTAssertEqual(asked, 1)
+        XCTAssertFalse(model.busy, "declining the confirmation must not start a rebuild")
+    }
+
+    func testSavingABaseImageSaysItNeedsARebuild() throws {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        model.saveBaseImage("ghcr.io/cirruslabs/macos-tahoe-xcode:latest", for: .tart)
+        XCTAssertTrue(model.busyLine.text.contains("Rebuild the image"))
+    }
+
+    func testAddingAndRemovingANamedImagePersists() throws {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        model.addImage(name: " xcode ", baseImage: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest")
+        XCTAssertEqual(try snapshot().images.map(\.name), ["xcode"])
+        XCTAssertEqual(try snapshot().images.first?.baseImage, "ghcr.io/cirruslabs/macos-tahoe-xcode:latest")
+        XCTAssertEqual(model.extraImages.map(\.name), ["xcode"])
+
+        model.setImageBase(nil, for: "xcode")
+        XCTAssertNil(try snapshot().images.first?.baseImage)
+
+        model.setImageLabels("xcode, xcode-26", for: "xcode")
+        XCTAssertEqual(try snapshot().images.first?.labels, ["xcode", "xcode-26"])
+        XCTAssertEqual(model.extraImages.first?.labels, ["xcode", "xcode-26"])
+        // A label the fleet already has would make every job match: refused, nothing written.
+        model.setImageLabels("macos", for: "xcode")
+        XCTAssertEqual(model.busyLine.style, .error)
+        XCTAssertEqual(try snapshot().images.first?.labels, ["xcode", "xcode-26"])
+
+        model.removeImage("xcode")
+        XCTAssertTrue(try snapshot().images.isEmpty)
+        XCTAssertTrue(model.extraImages.isEmpty)
+    }
+
+    func testAddingAReservedImageNameIsRefusedAndSaid() throws {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        model.addImage(name: "kinhin-xcode", baseImage: nil)
+        XCTAssertTrue(try snapshot().images.isEmpty)
+        XCTAssertEqual(model.busyLine.style, .error)
+    }
+
     func testLinuxRuntimeTogglesPersist() throws {
         let model = MacToolsModel()
         model.configURL = configURL

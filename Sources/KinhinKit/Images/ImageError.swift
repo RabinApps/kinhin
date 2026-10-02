@@ -17,6 +17,8 @@ public enum ImageError: LocalizedError {
     case malformedVersionFeed(feed: String, reason: String)
     /// A rebuild was asked for a runtime whose config section is missing.
     case notConfigured(section: String)
+    /// `--image NAME` named neither `image:` nor an `images:` entry.
+    case unknownImage(String)
 
     public var errorDescription: String? {
         switch self {
@@ -29,6 +31,8 @@ public enum ImageError: LocalizedError {
             return "runner release feed '\(feed)' returned an unusable payload: \(why)"
         case .notConfigured(let section):
             return "no \(section).image is set — add a \(section): section first"
+        case .unknownImage(let name):
+            return "no image named '\(name)': it must be the image: value or an images: entry in the config"
         }
     }
 }

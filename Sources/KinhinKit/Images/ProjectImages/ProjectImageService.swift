@@ -82,6 +82,19 @@ public struct ProjectImageService: Sendable {
         }
     }
 
+    /// Deletes the derived images cloned from `base` only (it was just rebuilt);
+    /// images derived from other bases are still valid.
+    public static func invalidate(
+        base: String, tart: TartControlling, store: ProjectImageStore = ProjectImageStore()
+    ) async {
+        for record in store.all where record.base == base {
+            await bestEffortAsync("images", "deleting stale project image \(record.name)") {
+                try await tart.delete(name: record.name)
+            }
+            store.remove(name: record.name)
+        }
+    }
+
     /// What `repository` (at `ref`) resolves to, without baking.
     public func describe(repository: String, ref: String?) async throws -> Result {
         let (resolution, builder) = try await resolve(repository: repository, ref: ref)

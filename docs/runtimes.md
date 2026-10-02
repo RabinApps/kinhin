@@ -25,8 +25,61 @@ with [`kinhin-toolchain install`](toolchains.md#per-job-toolchains).
 
 `image prepare` clones a Cirrus Labs macOS image by default and bakes the runner agents into it. To start from another
 published image (`macos-sequoia-base`, `macos-sonoma-xcode`, …), set the top-level `base_image:` or pick one in the app's
-macOS card. `kinhin doctor` flags a reference that is neither a published image nor a local VM, so a typo doesn't
+macOS card, then press **Rebuild image…** in that card: a changed base image only takes effect once the image is rebuilt (the
+Apple container and Docker rows have a **Build image…** button for their Linux images). `kinhin doctor` flags a reference that is neither a published image nor a local VM, so a typo doesn't
 surface as a failed clone mid-prepare.
+
+### Multiple macOS images
+
+Besides the main `image:`, you can keep extra named images, each baked on its own base, for example one on a Cirrus
+`-xcode` image for jobs that need full Xcode:
+
+```yaml
+image: "tahoe-base"
+images:
+  - name: xcode
+    base_image: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest"
+```
+
+Build them with `kinhin image prepare --image xcode`, or `kinhin image prepare --all` to build `image:` and every
+`images:` entry one after another. In the app, use **More images** in the macOS card: each entry has its own base-image
+picker (including the Xcode images), a status line, **Prepare** / **Rebuild…** and **Remove**, and **Add image** creates
+a new one. Rebuilding an image only discards the per-project images derived from that image.
+
+Names must be letters, numbers, `.`, `_` or `-`, differ from `image:` and from each other, and must not start with
+`kinhin-` or `orchard-`: those names are how kinhin recognises runner VMs, so it would clean them up. Removing an entry
+leaves its prepared VM on disk (`tart delete <name>`).
+
+#### Choosing the image per job
+
+Give an entry `labels:` and a workflow picks it with `runs-on`, next to your usual labels:
+
+```yaml
+images:
+  - name: xcode
+    base_image: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest"
+    labels: [xcode]
+```
+
+```yaml
+jobs:
+  build:
+    runs-on: [self-hosted, macos, arm64, xcode] # runs on the xcode image
+```
+
+Jobs that ask for none of the extra labels run on `image:`. A runner cloned from an extra image registers with the fleet
+labels plus the image's labels. Notes:
+
+- Image labels must include at least one label that is not already in the fleet `labels:`, and two images cannot share
+  the same labels. If a job requests the labels of several images, the one with the most labels wins.
+- Prepare the image first. A job for an image that was never prepared cannot clone it and shows a clone error.
+- A runner with extra labels can also pick up a plain job, because the forge only checks that a runner has every label
+  the job asks for. Plain jobs are still counted against the main image.
+- Label selection works for GitHub and Buildkite. Other forges register runners with the fleet labels only, so their jobs
+  always run on `image:`.
+- Per-project toolchain images (`projects:`) are derived from `image:` only, so a job routed to an extra image does not
+  get one.
+- Changing `images:` restarts the fleet's engine; running VMs are kept.
 
 For reproducible bakes, pin the image to a digest. A `:latest` tag can be republished at any time, and `kinhin doctor`
 warns about mutable tags:

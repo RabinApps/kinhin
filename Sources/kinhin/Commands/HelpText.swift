@@ -42,6 +42,9 @@ func helpText() -> String {
                                     download cache (auto-pruned). Starts from base_image:
                                     (a pre-configured tart image or a local VM name)
                                     instead of the default macOS base
+        image prepare --image <name>  Build one named image from the config's images:
+                                    list (its own base_image:); --all builds image: and
+                                    every images: entry, one after another
         image prepare --project <owner/name> [--ref <branch|tag>]
                                     Bake that repo's toolchains (its .kinhin.yml at --ref
                                     when the project sets repo_file, else the project's

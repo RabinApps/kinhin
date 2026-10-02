@@ -49,7 +49,9 @@ extension FleetEngine {
         do {
             // Resolve this record's runtime and pool (mixed fleets: per-record).
             var probe = VMRecord(id: id, phase: .cloning)
-            probe.runtime = store.all.first { $0.id == id }?.runtime
+            let stored = store.all.first { $0.id == id }
+            probe.runtime = stored?.runtime
+            probe.image = stored?.image
             let recordRuntime = runtime(for: probe)
             // Phase: provisioning (clone+boot for VMs, container run for
             // containers; idempotent for an existing id — recovery path).

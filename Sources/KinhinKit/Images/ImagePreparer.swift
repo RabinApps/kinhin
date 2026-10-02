@@ -104,8 +104,17 @@ public struct ImagePreparer {
         /// prepare entry point (CLI, setup checklist, app buttons) starts
         /// here so none of them drops a configured key.
         public init(config cfg: KinhinConfig) {
-            self.init(provisionScriptPath: cfg.provisionScript, cachePolicy: cfg.toolchainCache)
-            if let baseImage = cfg.baseImage {
+            self.init(config: cfg, target: cfg.image, baseImage: cfg.baseImage)
+        }
+
+        /// The options for one named `images:` entry: its own target name and base.
+        public init(config cfg: KinhinConfig, image: KinhinConfig.ImageConfig) {
+            self.init(config: cfg, target: image.name, baseImage: image.baseImage)
+        }
+
+        private init(config cfg: KinhinConfig, target: String, baseImage: String?) {
+            self.init(target: target, provisionScriptPath: cfg.provisionScript, cachePolicy: cfg.toolchainCache)
+            if let baseImage {
                 // An explicit registry reference is used verbatim (the config
                 // template's "a pre-configured tart image" promise);
                 // ConfigLoader already validated its shape. Short curated

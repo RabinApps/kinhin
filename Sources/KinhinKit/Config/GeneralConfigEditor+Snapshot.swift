@@ -22,6 +22,8 @@ extension GeneralConfigEditor {
         public var reserveMemoryGB: Int
         public var container: Container?
         public var docker: Docker?
+        /// Extra named tart images (`images:`).
+        public var images: [KinhinConfig.ImageConfig] = []
 
         /// The configured base image for a Linux runtime (nil = default).
         /// The configured Docker platform (arm64 when absent or unrecognized).
@@ -125,6 +127,9 @@ extension GeneralConfigEditor {
                 .init(
                     image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 2, memoryGB: $0.memoryGB ?? 4,
                     maxSlots: $0.maxSlots ?? 8, baseImage: $0.baseImage, platform: $0.platform)
+            },
+            images: (partial.images ?? []).compactMap { entry in
+                entry.name.map { .init(name: $0, baseImage: entry.baseImage, labels: entry.labels) }
             }
         )
     }

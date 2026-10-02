@@ -6,7 +6,7 @@ import Foundation
 extension FleetEngine {
     /// What `resolveProjectImages` learned about one forge's queue.
     struct ProjectImageDemand {
-        /// Queued tart jobs per ready derived image name.
+        /// Queued tart jobs per image name: a named `images:` entry, or a ready derived project image.
         var byImage: [String: Int] = [:]
         /// Notices for jobs still waiting on a bake, deduplicated.
         var notices: Set<String> = []
@@ -19,9 +19,16 @@ extension FleetEngine {
     func resolveProjectImages(for jobs: [ForgeJob], forge: Forge) async -> ProjectImageDemand {
         var result = ProjectImageDemand()
         let projects = projectsState.withLock { $0 }
-        guard !projects.isEmpty else { return result }
+        guard !projects.isEmpty || !config.images.isEmpty else { return result }
         let model = routing
         for job in jobs where model.runtime(for: job) == .tart {
+            // A job that requests a named image's labels runs on that image; per-project
+            // toolchain images are derived from the main image only, so they do not apply.
+            if let named = ImageRouting.image(for: job.labels, in: config.images) {
+                result.byImage[named.name, default: 0] += 1
+                continue
+            }
+            guard !projects.isEmpty else { continue }
             let resolution = await projectSource.resolve(job: job, forge: forge, projects: projects)
             if let warning = resolution.warning { Log.warn("engine", warning) }
             guard let toolchains = resolution.toolchains else { continue }

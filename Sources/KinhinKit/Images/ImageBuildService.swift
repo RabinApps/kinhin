@@ -7,15 +7,18 @@ import Foundation
 /// no entry point drops a configured key. (`kinhin image prepare` adds its
 /// own flag overrides on top of the same preparers.)
 public enum ImageBuildService {
-    public static func rebuild(_ runtime: RuntimeID, config cfg: KinhinConfig, shell: ShellRunning = Shell())
-        async throws
-    {
+    /// `image` names which tart image to rebuild: nil or `image:` is the primary
+    /// one, otherwise an `images:` entry. Ignored for the Linux runtimes.
+    public static func rebuild(
+        _ runtime: RuntimeID, config cfg: KinhinConfig, image: String? = nil, shell: ShellRunning = Shell()
+    ) async throws {
         switch runtime {
         case .tart:
+            let options = try tartOptions(config: cfg, image: image)
             let tart = try TartController(configuredPath: cfg.tartPath)
-            try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(ImagePreparer.Options(config: cfg))
+            try await ImagePreparer(tart: tart, ssh: SSHExecutor()).run(options)
             // Derived project images were cloned from the base just replaced.
-            await ProjectImageService.invalidateAll(tart: tart)
+            await ProjectImageService.invalidate(base: options.target, tart: tart)
         case .appleContainer:
             guard let container = cfg.container else { throw ImageError.notConfigured(section: "container") }
             try await AppleContainerRuntime.startSystem(shell: shell)
@@ -37,5 +40,12 @@ public enum ImageBuildService {
         case .host:
             break  // host runners use the Mac itself: nothing to build
         }
+    }
+
+    /// The prepare options for a named tart image (nil/`image:` = the primary).
+    public static func tartOptions(config cfg: KinhinConfig, image: String?) throws -> ImagePreparer.Options {
+        guard let image, image != cfg.image else { return ImagePreparer.Options(config: cfg) }
+        guard let entry = cfg.images.first(where: { $0.name == image }) else { throw ImageError.unknownImage(image) }
+        return ImagePreparer.Options(config: cfg, image: entry)
     }
 }

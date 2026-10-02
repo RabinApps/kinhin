@@ -41,6 +41,8 @@ final class FakeGitHub: GitHubServing, Sendable {
         /// Branch/tag, sha and fork flag cycled through the queued jobs.
         var queueRefs: [String] = []
         var queueShas: [String] = []
+        /// Labels every queued job requests beyond the fleet's own (e.g. an image label).
+        var queueExtraLabels: [String] = []
         var queueForks = false
         /// `.kinhin.yml` bodies keyed by "owner/name@ref" ("@default" when
         /// the read has no ref, i.e. the default branch).
@@ -81,6 +83,10 @@ final class FakeGitHub: GitHubServing, Sendable {
         set { state.withLock { $0.queueRefs = newValue } }
     }
 
+    var queueExtraLabels: [String] {
+        get { state.withLock { $0.queueExtraLabels } }
+        set { state.withLock { $0.queueExtraLabels = newValue } }
+    }
     var queueShas: [String] {
         get { state.withLock { $0.queueShas } }
         set { state.withLock { $0.queueShas = newValue } }
@@ -212,17 +218,18 @@ final class FakeGitHub: GitHubServing, Sendable {
     }
 
     func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] {
-        let (depth, failing, repos, refs, shas, fork) = state.withLock {
-            state -> (Int, Bool, [String], [String], [String], Bool) in
+        let (depth, failing, repos, refs, shas, fork, extra) = state.withLock {
+            state -> (Int, Bool, [String], [String], [String], Bool, [String]) in
             state.queuedJobsCallCount += 1
             return (
-                state.queueDepth, state.failQueue, state.queueRepos, state.queueRefs, state.queueShas, state.queueForks
+                state.queueDepth, state.failQueue, state.queueRepos, state.queueRefs, state.queueShas, state.queueForks,
+                state.queueExtraLabels
             )
         }
         if failing { throw GitHubError.http(0, "offline") }
         return (0..<depth).map { i in
             QueuedJob(
-                runID: 1, jobID: i, name: "job \(i)", labels: labels.sorted(),
+                runID: 1, jobID: i, name: "job \(i)", labels: labels.sorted() + extra,
                 repository: repos.isEmpty ? nil : repos[i % repos.count],
                 ref: refs.isEmpty ? nil : refs[i % refs.count], sha: shas.isEmpty ? nil : shas[i % shas.count],
                 isFork: fork)

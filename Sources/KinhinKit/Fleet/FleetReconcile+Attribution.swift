@@ -40,7 +40,13 @@ extension FleetEngine {
     /// forge's fleet labels).
     func poolLabels(for record: VMRecord) -> [String]? {
         guard let runtimeID = record.runtime.flatMap(RuntimeID.init(rawValue:)) else { return nil }
-        return routing.pools[runtimeID]?.labels
+        let pool = routing.pools[runtimeID]?.labels
+        // A tart instance cloned from a named image also advertises that image's labels, so
+        // the jobs that ask for them (`runs-on: [..., xcode]`) can land on it.
+        guard runtimeID == .tart, let pool, let image = record.image,
+            let extra = config.images.first(where: { $0.name == image })?.labels
+        else { return pool }
+        return pool + extra.filter { label in !pool.contains { $0.caseInsensitiveCompare(label) == .orderedSame } }
     }
 
     /// Pick the runtime for a new instance: among pools with unmet demand,

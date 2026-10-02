@@ -45,6 +45,10 @@ public struct KinhinConfig: Sendable, Equatable {
     /// name (e.g. one created with `image prepare --linux`). nil = the
     /// default macOS base.
     public var baseImage: String? = nil
+    /// Additional named macOS images beside `image:` (for example one baked on a
+    /// Cirrus `-xcode` base). Each is prepared separately with
+    /// `kinhin image prepare --image <name>`. Empty = just `image:`.
+    public var images: [ImageConfig] = []
     /// How long a freshly booted VM may take to join as a registered runner (seconds).
     var vmBootTimeout: Int
     /// Extra scratch disk (GB) attached to each VM. 0 disables the extra
@@ -180,6 +184,29 @@ public struct KinhinConfig: Sendable, Equatable {
             case autoPrune = "auto_prune"
             case maxAgeDays = "max_age_days"
             case maxGB = "max_gb"
+        }
+    }
+
+    /// One `images:` entry: an extra prepared tart image with its own base.
+    public struct ImageConfig: Sendable, Equatable {
+        /// The prepared tart VM name `image prepare --image` creates.
+        public var name: String
+        /// What this image's prepare starts from (curated reference, registry
+        /// reference, or local VM name); nil = the default macOS base.
+        public var baseImage: String?
+        /// Runner labels this image advertises on top of the fleet `labels:`.
+        /// Parsed and kept now; routing jobs by them is a later stage.
+        public var labels: [String]?
+
+        public init(name: String, baseImage: String? = nil, labels: [String]? = nil) {
+            self.name = name
+            self.baseImage = baseImage
+            self.labels = labels
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case name, labels
+            case baseImage = "base_image"
         }
     }
 
@@ -390,7 +417,7 @@ public struct KinhinConfig: Sendable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case labels, image, baseImage = "base_image"
+        case labels, image, images, baseImage = "base_image"
         case minRunners = "min_runners"
         case maxRunners = "max_runners"
         case runnersPerVM = "runners_per_vm"

@@ -197,17 +197,25 @@ enum ImageCommand {
         do {
             let tart = try TartController(configuredPath: cfg.tartPath)
             let preparer = ImagePreparer(tart: tart, ssh: SSHExecutor())
-            var options = ImagePreparer.Options(config: cfg)
-            options.source = flag("--source", in: args) ?? options.source
-            options.target = flag("--target", in: args) ?? options.target
-            options.runnerVersion = flag("--runner-version", in: args) ?? options.runnerVersion
-            // The flag wins over the config key; either may be absent (no
-            // user script is baked in that case).
-            options.provisionScriptPath = flag("--provision-script", in: args) ?? options.provisionScriptPath
-            try await preparer.run(options)
-            if options.target == cfg.image { await ProjectImageService.invalidateAll(tart: tart) }
-            print("image ready: \(options.target)")
-            print("set `image: \"\(options.target)\"` in your config to use it")
+            // `--all` bakes `image:` and every `images:` entry, one after another (each bake
+            // is disk-heavy); `--image NAME` picks one; neither = the primary `image:`.
+            let names: [String?] =
+                args.contains("--all") ? [nil] + cfg.images.map { Optional($0.name) } : [flag("--image", in: args)]
+            for name in names {
+                var options = try ImageBuildService.tartOptions(config: cfg, image: name)
+                options.source = flag("--source", in: args) ?? options.source
+                options.target = flag("--target", in: args) ?? options.target
+                options.runnerVersion = flag("--runner-version", in: args) ?? options.runnerVersion
+                // The flag wins over the config key; either may be absent (no
+                // user script is baked in that case).
+                options.provisionScriptPath = flag("--provision-script", in: args) ?? options.provisionScriptPath
+                try await preparer.run(options)
+                await ProjectImageService.invalidate(base: options.target, tart: tart)
+                print("image ready: \(options.target)")
+                if name == nil, options.target != cfg.image {
+                    print("set `image: \"\(options.target)\"` in your config to use it")
+                }
+            }
         } catch TartError.missingBinary {
             fail(
                 "tart is not installed. Install it first (or click 'Install via Homebrew' in the app): \(TartHealthProbe.installCommand)",

@@ -66,6 +66,16 @@ extension ConfigLoader {
         # remove `macos` from `labels:` when you do.
         # base_image: "ghcr.io/cirruslabs/macos-sequoia-base:latest"
 
+        # Extra named images beside image:, each baked on its own base (for
+        # example one with full Xcode). Build one with
+        # `kinhin image prepare --image <name>` (or --all), or in the app under
+        # "More images". Names must not start with kinhin- or orchard-. A job
+        # picks an image by requesting its labels in `runs-on` (GitHub, Buildkite).
+        # images:
+        #   - name: xcode
+        #     base_image: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest"
+        #     labels: [xcode]
+
         # Seconds a freshly booted VM has to register as a runner.
         vm_boot_timeout: 300
 

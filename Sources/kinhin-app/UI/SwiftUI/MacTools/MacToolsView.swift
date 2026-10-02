@@ -7,6 +7,8 @@ import SwiftUI
 @MainActor
 struct MacToolsView: View {
     @Bindable var model: MacToolsModel
+    @State private var newImageName = ""
+    @State private var newImageBase: String? = "ghcr.io/cirruslabs/macos-tahoe-xcode:latest"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -45,7 +47,7 @@ struct MacToolsView: View {
                 model.installTart()
             }
             statusRow(
-                "Base image", line: model.imageLine, visible: model.imageButtonVisible, button: "Prepare image",
+                "Base image", line: model.imageLine, visible: model.imageButtonVisible, button: model.imageButtonTitle,
                 id: "mac-prepare-image"
             ) {
                 model.prepareImage()
@@ -55,12 +57,74 @@ struct MacToolsView: View {
             } else {
                 baseImageRow(value: model.tartBaseImage, runtime: .tart)
             }
+            if model.tartInstalled, !model.tartLinuxOn { moreImagesSection }
             if model.busy || !model.busyLine.text.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     if model.busy { ProgressView().controlSize(.small) }
                     StatusText(text: model.busyLine.text, style: model.busyLine.style)
                         .textSelection(.enabled)
                 }
+            }
+        }
+    }
+
+    /// Extra named macOS images (for example one baked on an Xcode base). Each is
+    /// prepared on its own; picking which image a job runs on comes later.
+    private var moreImagesSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("More images").font(.system(size: 12, weight: .semibold))
+            HintText(
+                "Extra prepared images, such as one on an Xcode base. Each has its own base and is rebuilt separately.")
+            ForEach(model.extraImages) { row in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text(row.name).font(.system(size: 12, design: .monospaced))
+                        StatusText(
+                            text: row.present ? "ready ✓" : "not prepared yet",
+                            style: row.present ? .secondary : .warn)
+                        Spacer(minLength: 0)
+                        smallButton(row.present ? "Rebuild…" : "Prepare", id: "mac-image-prepare-\(row.name)") {
+                            model.prepareNamedImage(row.name)
+                        }
+                        smallButton("Remove", id: "mac-image-remove-\(row.name)") { model.removeImage(row.name) }
+                    }
+                    HStack(spacing: 8) {
+                        Text("Run jobs with labels").font(.system(size: 11)).foregroundStyle(
+                            StatusStyle.secondary.color)
+                        Spacer(minLength: 0)
+                        ImageLabelsField(
+                            labels: row.labels, id: row.name, commit: { model.setImageLabels($0, for: row.name) })
+                    }
+                    HStack(spacing: 8) {
+                        Text("Base image").font(.system(size: 11)).foregroundStyle(StatusStyle.secondary.color)
+                        Spacer(minLength: 0)
+                        BaseImagePicker(
+                            value: row.baseImage,
+                            onChange: { model.setImageBase($0, for: row.name) },
+                            catalog: .tartVM,
+                            pinDigest: { reference in await BaseImageChoice.pin(reference, in: .tartVM) }
+                        )
+                        .fixedSize()
+                    }
+                }
+            }
+            HStack(spacing: 8) {
+                TextField("New image name", text: $newImageName)
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.small)
+                    .frame(width: 150)
+                    .accessibilityIdentifier("mac-image-new-name")
+                BaseImagePicker(
+                    value: newImageBase, onChange: { newImageBase = $0 }, catalog: .tartVM,
+                    pinDigest: { reference in await BaseImageChoice.pin(reference, in: .tartVM) }
+                )
+                .fixedSize()
+                Spacer(minLength: 0)
+                smallButton("Add image", id: "mac-image-add") {
+                    model.addImage(name: newImageName, baseImage: newImageBase)
+                    newImageName = ""
+                }
+                .disabled(model.busy || newImageName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
     }
@@ -86,6 +150,7 @@ struct MacToolsView: View {
                 installID: "mac-install-container", install: { model.installContainer() })
             if model.containerOn {
                 baseImageRow(value: model.containerBaseImage, runtime: .appleContainer)
+                buildImageRow(.appleContainer)
             }
             runtimeRow(
                 "Docker", on: model.dockerOn, toggleID: "mac-docker-toggle",
@@ -94,6 +159,7 @@ struct MacToolsView: View {
                 installID: "mac-install-docker", install: { model.installDocker() })
             if model.dockerOn {
                 baseImageRow(value: model.dockerBaseImage, runtime: .docker)
+                buildImageRow(.docker)
                 platformRow
             }
         }
@@ -176,6 +242,14 @@ struct MacToolsView: View {
         }
     }
 
+    private func buildImageRow(_ runtime: RuntimeID) -> some View {
+        HStack(spacing: 8) {
+            Text("Image").font(.system(size: 12))
+            Spacer(minLength: 0)
+            smallButton("Build image…", id: "mac-build-image-\(runtime.rawValue)") { model.buildLinuxImage(runtime) }
+        }
+    }
+
     /// Native arm64 by default; amd64 is an explicit opt-in that runs under
     /// emulation, so the trade-off is stated right under the picker.
     private var platformRow: some View {
@@ -206,5 +280,26 @@ struct MacToolsView: View {
             .controlSize(.small)
             .disabled(model.busy)
             .accessibilityIdentifier(id)
+    }
+}
+
+/// Comma-separated labels for one extra image, saved on Return or when focus leaves.
+private struct ImageLabelsField: View {
+    let labels: [String]
+    let id: String
+    let commit: (String) -> Void
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField("e.g. xcode", text: $text)
+            .textFieldStyle(.roundedBorder)
+            .controlSize(.small)
+            .frame(width: 180)
+            .focused($focused)
+            .onAppear { text = labels.joined(separator: ", ") }
+            .onSubmit { commit(text) }
+            .onChange(of: focused) { _, isFocused in if !isFocused { commit(text) } }
+            .accessibilityIdentifier("mac-image-labels-\(id)")
     }
 }

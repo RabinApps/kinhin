@@ -122,6 +122,9 @@ public struct ConfigLoader {
             }
             cfg.baseImage = baseImage
         }
+        if let images = partial.images {
+            cfg.images = try Self.parseImages(images, primary: cfg.image, fleetLabels: cfg.labels)
+        }
         if let boot = partial.vmBootTimeout { cfg.vmBootTimeout = boot }
         if let disk = partial.diskGB {
             guard disk >= 0 else { throw ConfigError.invalid("disk_gb must be >= 0") }

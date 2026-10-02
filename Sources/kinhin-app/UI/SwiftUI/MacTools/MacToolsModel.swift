@@ -51,6 +51,19 @@ final class MacToolsModel: ConfigFormModel {
     private(set) var tartInstalled = false
     private(set) var imageLine = Line(text: "")
     private(set) var imageButtonVisible = false
+    /// The prepared tart image exists, so the button rebuilds it (a changed
+    /// base image only takes effect through a rebuild).
+    private(set) var imagePresent = false
+    /// Extra named macOS images (`images:`), with whether each is prepared.
+    struct ImageRow: Identifiable, Equatable {
+        var name: String
+        var baseImage: String?
+        var labels: [String] = []
+        var present: Bool
+        var id: String { name }
+    }
+    private(set) var extraImages: [ImageRow] = []
+    var imageButtonTitle: String { imagePresent ? "Rebuild image…" : "Prepare image" }
     /// A long-running action (install, prepare image) is in flight.
     private(set) var busy = false
     private(set) var busyLine = Line(text: "")
@@ -90,6 +103,10 @@ final class MacToolsModel: ConfigFormModel {
     @ObservationIgnored var brewPath: () -> String? = { RuntimeInstaller.brewPath }
     /// The Mac install options are judged against (real probe by default).
     @ObservationIgnored var hostFacts: () -> HostFacts = { .current() }
+    /// Confirms replacing an existing image (real alert by default; tests inject a closure).
+    @ObservationIgnored var confirmRebuild: (_ title: String, _ message: String) -> Bool = { title, message in
+        AlertKit.confirm(title: title, message: message, confirmTitle: "Rebuild", destructive: true)
+    }
     /// Shown instead of the confirmation when no option can run on this Mac.
     @ObservationIgnored var explainUnsupported: (InstallableTool, Error) -> Void = { tool, error in
         AlertKit.present(error: error, title: "\(tool.title) can't run on this Mac")
@@ -128,6 +145,10 @@ final class MacToolsModel: ConfigFormModel {
         dockerLine = Self.installLine(installed: dockerInstalled, blocked: dockerBlocked)
 
         let image = snapshot?.image ?? "tahoe-base"
+        let extra = snapshot?.images ?? []
+        extraImages = extra.map {
+            ImageRow(name: $0.name, baseImage: $0.baseImage, labels: $0.labels ?? [], present: false)
+        }
         let tartInstalled = TartController.isInstalled()
         if autoEnableLinuxRuntime, configReadable, !tartInstalled, !containerOn, !dockerOn {
             if dockerInstalled {
@@ -152,23 +173,32 @@ final class MacToolsModel: ConfigFormModel {
         imageLine = Line(text: "checking \(image)…")
         imageButtonVisible = false
         Task { [weak self] in
-            let present = await Task.detached { () -> Bool in
+            let preparedNames = await Task.detached { () -> Set<String> in
                 // A missing tart binary or a failed listing reads as "image
                 // not prepared" — the same state the prepare button offers
                 // to fix; failures are logged rather than hidden.
-                guard let tart = try? TartController() else { return false }
+                guard let tart = try? TartController() else { return [] }
                 do {
-                    return try await tart.list().contains { $0.name == image }
+                    return Set(try await tart.list().map(\.name))
                 } catch {
                     Log.warn("app", "tart list failed while checking '\(image)': \(error.localizedDescription)")
-                    return false
+                    return []
                 }
             }.value
+            let present = preparedNames.contains(image)
             guard let self else { return }
             self.imageLine = Line(
                 text: present ? "\(image) ready ✓" : "\(image) not prepared yet — takes a while, once",
                 style: present ? .secondary : .warn)
-            self.imageButtonVisible = !present
+            self.imagePresent = present
+            self.extraImages = extra.map {
+                ImageRow(
+                    name: $0.name, baseImage: $0.baseImage, labels: $0.labels ?? [],
+                    present: preparedNames.contains($0.name))
+            }
+            // Offered even when the image exists: after picking another base image
+            // (say an Xcode one) the image must be rebuilt for it to take effect.
+            self.imageButtonVisible = true
             self.setTartReady(present)
         }
     }
@@ -253,6 +283,7 @@ final class MacToolsModel: ConfigFormModel {
             try GeneralConfigEditor.setBaseImage(value, for: runtime, at: configURL)
             refreshBaseImages()
             onChanged?()
+            busyLine = Line(text: "Base image saved. Rebuild the image for it to take effect.")
         } catch {
             busyLine = .notSaved(error)
             refreshBaseImages()
@@ -333,8 +364,85 @@ final class MacToolsModel: ConfigFormModel {
     }
 
     func prepareImage() {
-        run("Preparing the runner image — this takes a while, but only once…") {
+        if imagePresent,
+            !confirmRebuild(
+                "Rebuild the runner image?",
+                "This replaces the existing image with a fresh bake from the selected base image and "
+                    + "takes a while. Running VMs keep working; new ones use the rebuilt image.")
+        {
+            return
+        }
+        run("Preparing the runner image — this takes a while…") {
             try await ImageBuildService.rebuild(.tart, config: ConfigLoader.load())
+        }
+    }
+
+    // MARK: - Named images
+
+    /// Adds an `images:` entry (a name and its base, e.g. a Cirrus `-xcode` image).
+    func addImage(name: String, baseImage: String?) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        mutateImages { $0.append(.init(name: trimmed, baseImage: baseImage)) }
+    }
+
+    func setImageBase(_ baseImage: String?, for name: String) {
+        mutateImages { images in
+            if let index = images.firstIndex(where: { $0.name == name }) { images[index].baseImage = baseImage }
+        }
+        busyLine = Line(text: "Base image saved. Rebuild '\(name)' for it to take effect.")
+    }
+
+    /// Sets the labels a job requests (`runs-on`) to run on this image; empty = not selectable by label.
+    func setImageLabels(_ text: String, for name: String) {
+        let labels = text.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
+        // Focus loss commits too: skip the config write (and engine restart) when nothing changed.
+        guard extraImages.first(where: { $0.name == name })?.labels != labels else { return }
+        mutateImages { images in
+            if let index = images.firstIndex(where: { $0.name == name }) {
+                images[index].labels = labels.isEmpty ? nil : labels
+            }
+        }
+    }
+
+    /// Removes the entry from the config. The prepared VM (large) stays on disk; say so.
+    func removeImage(_ name: String) {
+        mutateImages { $0.removeAll { $0.name == name } }
+        busyLine = Line(
+            text: "Removed '\(name)' from the config. Its prepared VM is still on disk (tart delete \(name)).")
+    }
+
+    func prepareNamedImage(_ name: String) {
+        let present = extraImages.first(where: { $0.name == name })?.present ?? false
+        if present,
+            !confirmRebuild(
+                "Rebuild image “\(name)”?",
+                "This replaces the existing image with a fresh bake from its base image and takes a while.")
+        {
+            return
+        }
+        run("Preparing image “\(name)” — this takes a while…") {
+            try await ImageBuildService.rebuild(.tart, config: ConfigLoader.load(), image: name)
+        }
+    }
+
+    private func mutateImages(_ change: (inout [KinhinConfig.ImageConfig]) -> Void) {
+        do {
+            var images = try ConfigStore.snapshot(at: configURL)?.images ?? []
+            change(&images)
+            try ImagesConfigEditor.apply(images, to: configURL)
+            reload()
+            onChanged?()
+        } catch {
+            busyLine = .notSaved(error)
+        }
+    }
+
+    /// Builds (or rebuilds) the Linux image for Apple container or Docker from its
+    /// configured base image.
+    func buildLinuxImage(_ runtime: RuntimeID) {
+        guard runtime == .appleContainer || runtime == .docker else { return }
+        run("Building the \(runtime == .docker ? "Docker" : "Apple container") image — this takes a while…") {
+            try await ImageBuildService.rebuild(runtime, config: ConfigLoader.load())
         }
     }
 
@@ -377,6 +485,7 @@ final class MacToolsModel: ConfigFormModel {
     // MARK: - Test hooks
 
     func setTartReadyForTesting(_ ready: Bool) { setTartReady(ready) }
+    func setImagePresentForTesting(_ present: Bool) { imagePresent = present }
     func setContainerForTesting(_ on: Bool) { setContainer(on) }
     func setDockerForTesting(_ on: Bool) { setDocker(on) }
     func setTartInstalledForTesting(_ installed: Bool) { tartInstalled = installed }
