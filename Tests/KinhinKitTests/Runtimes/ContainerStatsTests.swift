@@ -29,7 +29,7 @@ final class ContainerStatsTests: XCTestCase {
 
     func testMegabytesParsing() {
         XCTAssertEqual(ContainerManager.megabytes(fromSize: "2GiB"), 2048)
-        XCTAssertEqual(ContainerManager.megabytes(fromSize: "512KiB"), 0)
+        XCTAssertEqual(ContainerManager.megabytes(fromSize: "256KiB"), 0)
         XCTAssertNil(ContainerManager.megabytes(fromSize: "lots"))
     }
 

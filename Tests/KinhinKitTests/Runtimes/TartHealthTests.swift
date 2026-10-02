@@ -127,7 +127,7 @@ final class TartHealthTests: XCTestCase {
         let repairs = TartHealthProbe.repairs(for: .killedOnLaunch)
         XCTAssertEqual(repairs.count, 2)
         XCTAssertTrue(repairs[0].title.lowercased().contains("cirrus"))
-        XCTAssertTrue(repairs[0].commands.contains(["brew", "install", "cirruslabs/cli/tart"]))
+        XCTAssertTrue(repairs[0].commands.contains(["brew", "install", "openai/cli/tart"]))
         XCTAssertTrue(repairs[0].commands.contains(["brew", "uninstall", "openai/tools/tart", "openai/tools/softnet"]))
     }
 

@@ -378,14 +378,14 @@ final class DoctorReportTests: XCTestCase {
 
     func testToolchainCacheSectionSelectionBreakdownUsesConfigSubdirectories() throws {
         // The pure mapping: a toolchains selection yields exactly its mapped
-        // subdirectories (deduplicated), in stable order, even for dirs that
+        // subdirectories (deduplicated), sorted, even for dirs that
         // don't exist yet (measured as zero bytes).
         var cfg = Self.config()
         cfg.projects = [Self.project(specs: ["go@1.23", "go@latest"])]
         let section = DoctorReportBuilder.toolchainCacheSection(config: cfg)
         XCTAssertEqual(
-            section.ecosystems.map(\.directory), ["go/mod", "go/build", "mise"],
-            "the breakdown mirrors the selection's cache map (deduped, order-stable)")
+            section.ecosystems.map(\.directory), ["go/build", "go/mod", "mise"],
+            "the breakdown mirrors the selection's cache map (deduped, sorted)")
     }
 
     func testToolchainCacheWarningFlagsEmptyCacheWithShareCacheOn() {

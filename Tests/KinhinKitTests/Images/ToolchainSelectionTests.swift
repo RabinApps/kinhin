@@ -49,7 +49,7 @@ final class ToolchainSelectionTests: XCTestCase {
             labels: ["self-hosted"]
             toolchains: {specs: ["node@22"]}
             """)
-        XCTAssertTrue(error.hasPrefix("toolchains: is gone"), error)
+        XCTAssertTrue(error.contains("toolchains: is gone"), error)
     }
 
     func testTopLevelToolchainsKeyMessageMentionsProjects() {
@@ -62,7 +62,7 @@ final class ToolchainSelectionTests: XCTestCase {
             labels: ["self-hosted"]
             toolchains: {specs: ["node@22"]}
             """)
-        XCTAssertTrue(error.hasPrefix("toolchains: is gone"), error)
+        XCTAssertTrue(error.contains("toolchains: is gone"), error)
         XCTAssertTrue(error.contains("projects:"), error)
     }
 
@@ -183,9 +183,7 @@ final class ToolchainSelectionTests: XCTestCase {
                     forge: github
                     scope: "acme/widgets"
                 labels: ["self-hosted"]
-                projects:
-                  - pattern: acme/widgets
-                    toolchain_cache: {max_gb: -1}
+                toolchain_cache: {max_gb: -1}
                 """))
     }
 

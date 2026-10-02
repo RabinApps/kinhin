@@ -86,7 +86,7 @@ final class ConfigInitAndHelpTests: XCTestCase {
 
     func testHelpTextMentionsToolchainFlagsAndCommand() {
         let help = helpText()
-        XCTAssertTrue(help.contains("--toolchain"), "help should advertise the managed-toolchain override flag")
+        XCTAssertTrue(help.contains("image prepare --project"), "help should advertise the per-project bake")
         XCTAssertTrue(help.contains("toolchains prune"), "help should advertise the manual cache prune")
     }
 

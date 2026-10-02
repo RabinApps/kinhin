@@ -148,7 +148,7 @@ final class DockerRuntimeTests: XCTestCase {
         )
         let route = RepoRoute(
             repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30, cacheMount: true,
-            toolchains: .init(specs: ["node@22"]))
+            toolchains: .init(specs: ["node@22", "pnpm"]))
         let script = try await runtime.registrationScript(
             forge: GitHubForge(
                 credentials: .github(token: "t", scope: "acme/widgets"), labels: ["kinhin"],

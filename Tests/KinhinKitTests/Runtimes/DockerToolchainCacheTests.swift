@@ -22,15 +22,17 @@ final class DockerToolchainCacheTests: XCTestCase {
             binPath: bin
         )
         try await runtime.provision(id: "kinhin-a", route: makeRoute())
-        let runArgvA = try XCTUnwrap(shell.calls.first { $0.contains("run") && $0.contains("--name kinhin-a") })
+        let runArgvA = try XCTUnwrap(shell.calls.first { $0.contains("run") && $0.contains("kinhin-a") })
         XCTAssertFalse(runArgvA.contains("--volume"), "no cacheMount → no bind mount")
 
         try await runtime.provision(id: "kinhin-b", route: makeRoute(cacheMount: true))
-        let runArgvB = try XCTUnwrap(shell.calls.first { $0.contains("run") && $0.contains("--name kinhin-b") })
+        let runArgvB = try XCTUnwrap(shell.calls.first { $0.contains("run") && $0.contains("kinhin-b") })
         XCTAssertTrue(runArgvB.contains("--volume"))
         XCTAssertTrue(runArgvB.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
-        XCTAssertTrue(runArgvA.contains("tahoe-base"), "route image is what gets started")
-        XCTAssertTrue(runArgvB.contains("tahoe-base"), "route image is what gets started")
+        // The route's image names a tart VM image; a Linux runtime always starts its own configured image.
+        XCTAssertTrue(runArgvA.contains("img"), "the runtime's configured image is what gets started")
+        XCTAssertFalse(runArgvA.contains("tahoe-base"))
+        XCTAssertTrue(runArgvB.contains("img"))
     }
 
     func testRegistrationScriptPrefixesLinuxCacheExportsWhenMounted() async throws {

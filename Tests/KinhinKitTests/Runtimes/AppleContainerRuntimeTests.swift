@@ -151,9 +151,9 @@ final class AppleContainerRuntimeTests: XCTestCase {
             binPath: "/usr/local/bin/container")
         let route = RepoRoute(
             repo: "acme/widgets", image: "tahoe-base-derived", ephemeral: true, bootTimeout: 30, cacheMount: true,
-            toolchains: .init(specs: ["node@22"]))
+            toolchains: .init(specs: ["node@22", "pnpm"]))
         let script = try await runtime.registrationScript(
-            forge: gitlabForge(), token: "", runnerTokens: [:], name: "kinhin-1",
+            forge: gitlabForge(), token: "", runnerTokens: ["kinhin-1": "glrt-1"], name: "kinhin-1",
             runnerCount: 1, route: route, labels: nil)
         // The route image is what the container CLI actually uses; this test
         // asserts the registration script no longer hard-codes a wrong image name.
