@@ -300,6 +300,8 @@ struct TaskQueueWrapper: Decodable {
         let runner_name: String?
         let repo_full_name: String?
         let repository: String?
+        let head_branch: String?
+        let head_sha: String?
         // Nested attribution shape: {"repository":{"full_name":...}}.
         let repositoryObject: RepoObject?
 
@@ -318,6 +320,8 @@ struct TaskQueueWrapper: Decodable {
             // whole entry.
             // Older/newer Gitea versions disagree on which of the two shapes the
             // `repository` field takes; either being absent is expected, not an error.
+            head_branch = try? c.decodeIfPresent(String.self, forKey: .head_branch)
+            head_sha = try? c.decodeIfPresent(String.self, forKey: .head_sha)
             repository = try? c.decodeIfPresent(String.self, forKey: .repository)
             repositoryObject = try? c.decodeIfPresent(RepoObject.self, forKey: .repository)
         }
@@ -326,6 +330,7 @@ struct TaskQueueWrapper: Decodable {
             case id, name, title, status, runner_name
             case repo_full_name = "repo_full_name"
             case repository
+            case head_branch, head_sha
         }
     }
 
@@ -346,7 +351,7 @@ struct TaskQueueWrapper: Decodable {
             let name = entry.name ?? entry.title
             return GiteaTask(
                 id: entry.id, name: name, repository: repository, status: entry.status,
-                runnerName: entry.runner_name)
+                runnerName: entry.runner_name, ref: entry.head_branch, sha: entry.head_sha)
         }
         // When entries are absent but the instance reports a count (older
         // shapes), fall back to count-only placeholders so demand survives.

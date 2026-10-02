@@ -147,10 +147,10 @@ final class AppleContainerRuntimeTests: XCTestCase {
     func testGitLabRegistrationScriptRunsRunSingleWithTheCacheMount() async throws {
         let runtime = AppleContainerRuntime(
             shell: FakeShell(), image: "img", cpus: 2, memoryGB: 4,
-            binPath: "/usr/local/bin/container",
-            toolchainsConfig: { KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true) })
+            binPath: "/usr/local/bin/container")
         let route = RepoRoute(
-            repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30, cacheMount: true)
+            repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30, cacheMount: true,
+            toolchains: .init(specs: ["node@22"]))
         let script = try await runtime.registrationScript(
             forge: gitlabForge(), token: "", runnerTokens: ["kinhin-1-r1": "glrt-1", "kinhin-1-r2": "glrt-2"],
             name: "kinhin-1", runnerCount: 2, route: route, labels: nil)

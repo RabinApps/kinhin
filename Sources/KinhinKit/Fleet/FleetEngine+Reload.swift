@@ -2,7 +2,7 @@ import Foundation
 import Synchronization
 
 // FleetEngine — live config reload: what a running engine can adopt in
-// place (routing, caps, labels) and the hand-off when it must be rebuilt.
+// place (routing, caps, labels, projects) and the hand-off when it must be rebuilt.
 extension FleetEngine {
     /// Which parts of a config edit the *running* engine can adopt without
     /// a rebuild: the routing model (pools/routes/budget), the capacity
@@ -16,6 +16,8 @@ extension FleetEngine {
         var b = new
         a.runtimes = nil
         b.runtimes = nil
+        a.projects = []
+        b.projects = []
         a.labels = []
         b.labels = []
         return a != b
@@ -124,6 +126,7 @@ extension FleetEngine {
             hostConfigured: newConfig.hostRoutesConfigured
         )
         let caps = RuntimeCapacity.caps(for: newConfig, host: host)
+        projectsState.withLock { $0 = newConfig.projects }
         routingState.withLock { $0 = RoutingState(model: model, caps: caps) }
         // Fleet label edits must reach the forge's demand query too —
         // queuedJobs(matching:) filters by the forge's label set.

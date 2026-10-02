@@ -27,7 +27,7 @@ Inside the targets, code is organized by domain:
 | `KinhinKit/Forges/`         | One `Forge` protocol; GitHub, Gitea (serves Forgejo too), GitLab, Buildkite, Azure DevOps and Bitbucket clients over a shared `ForgeHTTP` transport; auth status reporting (per-forge API reference: [docs/forges/](forges/README.md)) |
 | `KinhinKit/Runtimes/`       | Runtime protocol, Tart, Apple-container, Docker and Host runtimes, routing pools, capacity partition, daemon-side container manager           |
 | `KinhinKit/Fleet/`          | FleetEngine (engine / reload / credentials / reconcile / lifecycle splits), status model, records, daemon dispatch + RPC client/server        |
-| `KinhinKit/Images/`         | VM and container image preparation (tart macOS and Linux, container), runner bootstrap scripts, toolchain catalog, registry digest pinning     |
+| `KinhinKit/Images/`         | VM and container image preparation (tart macOS and Linux, container), runner bootstrap scripts, toolchain catalog, registry digest pinning and per-project derived images |
 | `KinhinKit/Setup/`          | Setup checklist computer, doctor report builder, CLT/tart health probes, host agent installer                                                  |
 | `KinhinKit/Cache/`          | Managed-toolchain cache pruning (auto-expiry)                                                                                                 |
 | `KinhinKit/Update/`         | GitHub-release update check + DMG download                                                                                                    |
@@ -54,7 +54,7 @@ item, menu items and VM rows. AppKit menus aren't observable, so that observer i
 
 - **`KinhinKitTests`** (engine, mirrored on the source folders):
   - `Core`: shell, SSH executor, Keychain failure reporting, log redaction, error categories
-  - `Config`: config parsing + editors (general/labels/runtimes/budget/toolchains/accounts), capacity, reload policy
+  - `Config`: config parsing + editors (general/labels/runtimes/budget/accounts), the `projects:` section and `.kinhin.yml` parser (`ProjectFileLoader`), capacity, reload policy
   - `Forges`: GitHub/Gitea/GitLab/Buildkite/Azure DevOps/Bitbucket clients over `ForgeHTTP`, demand attribution, registration-token cache, retry/backoff
   - `Runtimes`: Tart + Apple-container + Docker semantics, routing pools, health probes, cache mounts
   - `Images`: image pipeline (tart + container), runner bootstrap scripts, toolchain selection and helper scripts, digest pinning

@@ -92,7 +92,7 @@ What kinhin puts on disk, and how much to plan for:
 | ------------------------------------------- | --------------------------------------------------------------------------------- |
 | Prepared macOS base image                   | ~40–60 GB (Xcode-baked images: more)                                              |
 | Per-instance footprint (`disk_per_vm`)      | 50 GB default for Tart VMs (macOS or Linux) and 8 GB for container slots; override with `disk_gb` |
-| Download cache (`toolchains.cache.max_gb`)  | 50 GB default, LRU-pruned with 30-day expiry                                      |
+| Download cache (`toolchain_cache.max_gb`)  | 50 GB default, LRU-pruned with 30-day expiry                                      |
 | Host reserve (`reserve.disk_gb`)            | 10 GB default; spawns hold below reserve + one instance's footprint               |
 
 Recommendations:

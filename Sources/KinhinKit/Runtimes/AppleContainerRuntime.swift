@@ -24,9 +24,6 @@ public struct AppleContainerRuntime: Runtime {
     /// Existence probe for the binary (tests inject a constant; production
     /// checks the filesystem).
     let exists: @Sendable (String) -> Bool
-    /// The resolved managed-toolchain selection source (cache envs come from
-    /// here when `share_cache` bind-mounts the host cache into containers).
-    let toolchainsConfig: @Sendable () -> KinhinConfig.ToolchainsConfig?
 
     public init(
         shell: ShellRunning = Shell(),
@@ -34,8 +31,7 @@ public struct AppleContainerRuntime: Runtime {
         cpus: Int = 4,
         memoryGB: Int = 8,
         binPath: String? = nil,
-        exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
-        toolchainsConfig: @escaping @Sendable () -> KinhinConfig.ToolchainsConfig? = { nil }
+        exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
     ) {
         self.shell = shell
         self.image = image
@@ -43,14 +39,6 @@ public struct AppleContainerRuntime: Runtime {
         self.memoryBytes = Int64(memoryGB) * 1_073_741_824
         self.binPath = binPath
         self.exists = exists
-        self.toolchainsConfig = toolchainsConfig
-    }
-
-    /// Linux-platform selection for cache-env exports in registration
-    /// scripts (computed per request from live config). nil = no selection.
-    var linuxToolchainSelection: ManagedToolchainSelection? {
-        guard let config = toolchainsConfig() else { return nil }
-        return ToolchainCatalog.selection(from: config, platform: .linux)
     }
 
     /// Resolved path of the `container` CLI (the Homebrew cask installs to
@@ -71,7 +59,7 @@ public struct AppleContainerRuntime: Runtime {
                 tag: "container", listVerb: "list", removeVerb: "delete",
                 listNameArguments: ["--quiet"], imageListArguments: ["image", "list", "--quiet"], runFlags: [],
                 shapeNote: nil),
-            image: image, cpus: cpus, memoryBytes: memoryBytes, toolchainsConfig: toolchainsConfig)
+            image: image, cpus: cpus, memoryBytes: memoryBytes)
     }
 
     // MARK: - Health

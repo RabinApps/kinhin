@@ -140,11 +140,23 @@ extension GitHubClient {
         let repository: RepoSummary?
         /// Repository the runs endpoint was scoped to (fallback reads).
         let scopedRepository: String?
+        let ref: String?
+        let sha: String?
+        let isFork: Bool
 
         init(summary: RunSummary, repository: String?) {
             self.id = summary.id
             self.repository = summary.repository
             self.scopedRepository = repository
+            self.ref = summary.head_branch
+            self.sha = summary.head_sha
+            // A pull request from a fork runs with the fork as head repository.
+            let base = summary.repository?.full_name ?? repository
+            if let head = summary.head_repository?.full_name, let base {
+                self.isFork = head.caseInsensitiveCompare(base) != .orderedSame
+            } else {
+                self.isFork = false
+            }
         }
 
         /// What jobs of this run should be attributed to: the run payload's
@@ -167,6 +179,9 @@ extension GitHubClient {
     struct RunSummary: Codable {
         let id: Int
         let repository: RepoSummary?
+        let head_branch: String?
+        let head_sha: String?
+        let head_repository: RepoSummary?
     }
 
     struct JobsResponse: Codable {

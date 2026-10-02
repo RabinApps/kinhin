@@ -4,20 +4,23 @@ import XCTest
 @testable import KinhinTestSupport
 
 /// The macOS managed-toolchain install script and the shared cache mount
-/// wiring (prepare always mounts it; runner VMs only with share_cache).
+/// wiring (prepare always mounts it; runner VMs only with a project's share_cache).
 final class MacToolchainsTests: XCTestCase {
     // MARK: - Managed install script
 
     private func toolchainsConfig(_ toolchainsYAML: String) throws -> KinhinConfig {
-        try ConfigLoader.parse(
+        let indented = toolchainsYAML.split(separator: "\n").map { "      " + $0 }.joined(separator: "\n")
+        return try ConfigLoader.parse(
             """
             accounts:
               - name: github
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains:
-            \(toolchainsYAML)
+            projects:
+              - pattern: acme/widgets
+                toolchains:
+            \(indented)
             """)
     }
 
@@ -27,7 +30,7 @@ final class MacToolchainsTests: XCTestCase {
               specs: ["node@22", "pnpm"]
               brew: ["yamllint"]
             """)
-        let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains), mountPath: "/mnt/cache")
+        let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.projects[0].toolchains), mountPath: "/mnt/cache")
         let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: "/mnt/cache")
 
         XCTAssertTrue(script.contains("set -euo pipefail"))
@@ -48,7 +51,7 @@ final class MacToolchainsTests: XCTestCase {
             """
               specs: ["node@22"]
             """)
-        let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains))
+        let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.projects[0].toolchains))
         let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: nil)
         let exports = script.split(separator: "\n").filter { $0.hasPrefix("export ") }
         XCTAssertTrue(
@@ -71,7 +74,7 @@ final class MacToolchainsTests: XCTestCase {
             """
               specs: ["node@22", "rust@stable"]
             """)
-        let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains))
+        let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.projects[0].toolchains))
         let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: "/mnt/cache")
         XCTAssertTrue(script.contains("env -u MISE_CACHE_DIR mise use --global 'rust@stable'"), script)
         XCTAssertTrue(script.contains("mise use --global 'node@22'"), "other specs keep the shared cache")
@@ -83,7 +86,7 @@ final class MacToolchainsTests: XCTestCase {
             """
               specs: ["node@22"]
             """)
-        let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains))
+        let sel = ToolchainCatalog.selection(from: try XCTUnwrap(cfg.projects[0].toolchains))
         let script = RunnerBootstrap.managedToolchainsInstallScript(selection: sel, mountPath: nil)
         let path = try XCTUnwrap(script.range(of: "export PATH=\"$HOME/.local/share/mise/shims:/opt/homebrew/bin"))
         let mise = try XCTUnwrap(script.range(of: "mise use --global"))
@@ -144,7 +147,7 @@ final class MacToolchainsTests: XCTestCase {
         XCTAssertEqual(tart.runMounts.last, [ToolchainCacheMount.tartDirectorySpec], "share_cache on → cache mounted")
     }
 
-    func testRepoRouteCarriesShareCacheFromConfig() throws {
+    func testSharesToolchainCacheComesFromProjects() throws {
         let cfg = try ConfigLoader.parse(
             """
             accounts:
@@ -152,9 +155,11 @@ final class MacToolchainsTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {share_cache: true}
+            projects:
+              - pattern: acme/widgets
+                share_cache: true
             """)
-        XCTAssertEqual(RepoRoute.from(config: cfg).cacheMount, true)
+        XCTAssertTrue(cfg.sharesToolchainCache)
         let plain = try ConfigLoader.parse(
             """
             accounts:
@@ -163,34 +168,32 @@ final class MacToolchainsTests: XCTestCase {
                 scope: "acme/widgets"
             labels: ["self-hosted"]
             """)
-        XCTAssertEqual(RepoRoute.from(config: plain).cacheMount, false)
+        XCTAssertFalse(plain.sharesToolchainCache)
+        XCTAssertFalse(RepoRoute.from(config: plain).cacheMount, "the route's mount is passed in, never derived")
+        XCTAssertTrue(RepoRoute.from(config: cfg, cacheMount: true).cacheMount)
+    }
+
+    func testScopedRouteMountsOnlyItsCacheSubdirectory() async throws {
+        let tart = FakeTart()
+        let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
+        try await runtime.provision(
+            id: "kinhin-c",
+            route: RepoRoute(
+                repo: "r", image: "p-img", ephemeral: true, bootTimeout: 300, cacheMount: true, cacheScope: "p-img"))
+        XCTAssertEqual(tart.runMounts.last, [ToolchainCacheMount.tartDirectorySpec(scope: "p-img")])
     }
 
     func testRegistrationScriptPrefixesCacheExportsWhenMounted() async throws {
         let tart = FakeTart()
-        let runtime = TartRuntime(
-            tart: tart,
-            bootTimeout: { 300 },
-            toolchainsConfig: {
-                try? ConfigLoader.parse(
-                    """
-                    accounts:
-                      - name: github
-                        forge: github
-                        scope: "acme/widgets"
-                    labels: ["self-hosted"]
-                    toolchains: {specs: ["node@22", "pnpm"]}
-                    """
-                ).toolchains
-            }
-        )
+        let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
         let forge = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
             labels: ["self-hosted"],
             client: FakeGitHub()
         )
         let route = RepoRoute(
-            repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 300, cacheMount: true)
+            repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 300, cacheMount: true,
+            toolchains: .init(specs: ["node@22", "pnpm"]))
         let script = try await runtime.registrationScript(
             forge: forge, token: "tok", name: "vm", runnerCount: 1, route: route, labels: nil)
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE"), "registration script exports cache envs")

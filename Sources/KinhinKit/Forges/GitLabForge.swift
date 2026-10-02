@@ -95,8 +95,12 @@ struct GitLabForge: Forge {
 
     func queuedJobs() async throws -> [ForgeJob] {
         try await client.jobs(.pending, in: gitlabScope).filter(isOurs).map {
-            ForgeJob(name: $0.name, runnerName: nil, repository: $0.project, labels: $0.tags)
+            ForgeJob(name: $0.name, runnerName: nil, repository: $0.project, labels: $0.tags, ref: $0.ref, sha: $0.sha)
         }
+    }
+
+    func projectFile(repository: String, ref: String?) async throws -> Data? {
+        try await client.projectFile(repository: repository, ref: ref)
     }
 
     /// Running jobs keyed by the runner (→ instance) executing them. Also

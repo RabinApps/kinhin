@@ -29,13 +29,21 @@ public struct GiteaTask: Sendable, Equatable {
     public let status: String?
     /// The runner (→ VM) executing the task; running tasks only.
     public let runnerName: String?
+    /// Branch/tag and commit the task runs at, when the instance reports them.
+    public let ref: String?
+    public let sha: String?
 
-    public init(id: Int?, name: String?, repository: String?, status: String?, runnerName: String? = nil) {
+    public init(
+        id: Int?, name: String?, repository: String?, status: String?, runnerName: String? = nil, ref: String? = nil,
+        sha: String? = nil
+    ) {
         self.id = id
         self.name = name
         self.repository = repository
         self.status = status
         self.runnerName = runnerName
+        self.ref = ref
+        self.sha = sha
     }
 }
 

@@ -141,6 +141,21 @@ accounts:
 - Demand: the public API has no queued-steps endpoint, so kinhin polls the active pipelines' steps — the one repository, or the workspace's recently active repositories (one page of repos, one page of pipelines each), which keeps the poll inside Bitbucket's roughly 1000 requests/hour budget. The step payload does not expose `runs_on` yet, so every active step counts as demand; the runner itself matches `runs-on:` labels at the forge. Demand is attributed per repository.
 - The runner is Java-based: images bake the runner package **and a Temurin JDK 25** (verified against Temurin's per-asset SHA-256; the package itself is pinned by digest, since Atlassian publishes no checksums). Image provisioning is token-gated as with the other forges, and `kinhin setup repair host-agent` installs the runner for host routes.
 
+## Refs and repo files (per-project toolchains)
+
+[Per-project toolchains](toolchains.md#per-project-toolchains) need two things from a forge: the
+**ref** (branch or tag) and **commit sha** a queued job runs at, and the contents of
+`.kinhin.yml` at that ref. Each queued job carries an optional `ref` and `sha`, and a forge can
+fetch the project file. GitHub reads them from the run (`head_branch`, `head_sha`) and the
+contents API; Gitea/Forgejo and GitLab do the same where their APIs expose it. The result is
+cached per repo and sha, so a job that sits in the queue costs one request, and fetches use the
+normal retry and rate-budget accounting. A failed fetch is logged, shown in Diagnostics, and the
+job falls back to the global image.
+
+Buildkite, Bitbucket and Azure DevOps have no ref/file API for this, so jobs from those forges
+never read a `.kinhin.yml`; they use the matching `projects[].toolchains`, or run on the plain base image
+with no toolchains baked.
+
 ## Multiple accounts
 
 Serve as many GitHub orgs/repos, Gitea/Forgejo instances, GitLab projects/groups, Buildkite clusters, Azure DevOps pools and Bitbucket workspaces as you like from one fleet. Every forge is an `accounts:` entry; the ones named `github`, `gitea`, and `forgejo` are the primary accounts (their tokens keep the original Keychain items — nothing to migrate), and additional entries each carry their own token:

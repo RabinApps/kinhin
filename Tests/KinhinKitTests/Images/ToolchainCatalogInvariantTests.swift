@@ -16,9 +16,11 @@ final class ToolchainCatalogInvariantTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: [\(specList)], stacks: [\(stackList)]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: [\(specList)], stacks: [\(stackList)]}
             """)
-        return try XCTUnwrap(cfg.toolchains)
+        return try XCTUnwrap(cfg.projects[0].toolchains)
     }
 
     func testEveryEntryHasVerifyAndUniqueID() {

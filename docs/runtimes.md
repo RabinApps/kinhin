@@ -24,9 +24,18 @@ protocol, so new backends slot in without touching lifecycle code.
 So Linux jobs have **three** execution options — two container runtimes plus a full VM on Tart.
 [Choosing a Linux runtime](#choosing-a-linux-runtime) compares them side by side.
 
-Both Linux runtimes support [managed toolchains and the shared cache](toolchains.md#linux-runtimes):
-`image prepare --container|--docker` bakes the config's `toolchains:` into the Linux image, and
-`share_cache: true` mounts the host cache into every runner container at `/var/kinhin-cache`.
+Neither Linux container runtime bakes toolchains: `image prepare --container|--docker` bakes only
+the agents, and jobs install what they need with
+[`kinhin-toolchain install`](toolchains.md#per-job-toolchains). A project with `share_cache: true`
+gets the host cache mounted into its runner containers at `/var/kinhin-cache`
+([details](toolchains.md#linux-runtimes)).
+
+With [per-project toolchains](toolchains.md#per-project-toolchains) each runner VM or container is
+bound to the image its job resolved to: the global image, or a derived `<image>-p<hash>` image
+for that project's toolchains. The image is recorded on the VM so lifecycle and crash recovery
+pick the same one. Pools are bucketed by runtime and image. Tart derived images are APFS clones
+of the base; Apple `container` derived images get no layer sharing and are full size, while
+Docker commits share layers.
 
 ### Choosing the macOS base image
 
@@ -93,7 +102,7 @@ overhead you want:
 | Per-instance disk        | 50 GB planning default (`disk_gb` overrides)                                                                                                      | 8 GB planning default                                              | 8 GB planning default                                                            |
 | amd64 / emulation        | Native arm64 only (Tart is arm64)                                                                                                                 | Native arm64 only (`container.platform` is rejected)               | arm64 native; `linux/amd64` under Rosetta/QEMU emulation                         |
 | Extra software           | None — tart itself, which macOS jobs need anyway                                                                                                  | The container CLI + its system service                             | A running Docker provider (Docker Desktop, OrbStack, colima)                     |
-| Image bakes & toolchains | `image prepare --linux` bakes the same agents and managed toolchains                                                                              | `image prepare --container`                                        | `image prepare --docker`, or a CI-built Dockerfile                               |
+| Image bakes & toolchains | `image prepare --linux` bakes the same agents; `image prepare --project` bakes toolchains                                                                             | `image prepare --container`                                        | `image prepare --docker`, or a CI-built Dockerfile                               |
 | Shared download cache    | Mounted over virtiofs (like macOS guests) when `share_cache: true`                                                                                | Mounted at `/var/kinhin-cache` when `share_cache: true`            | Mounted at `/var/kinhin-cache` when `share_cache: true`                          |
 | Mixing with macOS jobs   | No — a tart fleet serves one OS at a time (the base image decides)                                                                                | Yes, alongside Tart macOS VMs, with a budget split                 | Yes, alongside Tart macOS VMs, with a budget split                               |
 | Best for                 | Full VM control: apt-based distro of your choice, kernel modules, system services, sudo scripts — or a Linux-only Mac with tart already installed | The default for Linux CI: strong isolation without a Docker daemon | Teams already running a Docker provider; CI-built images pushed to a registry    |
@@ -135,11 +144,12 @@ from `labels:` when you turn it on. Two ways to get a Linux base VM:
 Either way, the VM ends up on disk under its `<name>` — then
 `kinhin image prepare --source <name>` runs the usual agent bake against it (the registry pull is skipped for local names), and
 pointing `base_image: <name>` at it makes every runner VM a clone of it. The bake injects the
-same token-gated agents and managed toolchains as on macOS, picking the right ones for the guest.
+same token-gated agents as on macOS, picking the right ones for the guest. Per-project
+[toolchain images](toolchains.md#per-project-toolchains) are derived from it the same way.
 The bake detects the guest OS (`uname -s` in the scratch VM) and installs `linux-arm64` agent
 binaries for every forge in the same `$HOME` layout as macOS, so runner registration is
 identical. Linux guests need an apt-based distro with passwordless `sudo` (the curated images
-have both). With `toolchains.share_cache` on, Linux guests mount the host cache over virtiofs
+have both). With a project's `share_cache` on, its Linux guests mount the host cache over virtiofs
 themselves at `/var/kinhin-cache` (macOS guests get it automatically); macOS-only toolchain
 entries (Homebrew formulas, CocoaPods, …) are skipped on a Linux guest. The apple/container and
 Docker runtimes remain the lighter-weight options for Linux jobs — see
@@ -208,8 +218,7 @@ provider; kinhin does not configure it. Details:
 ### Choosing the base image
 
 `image prepare --container|--docker` bakes the agents on top of a base image: `ubuntu:24.04` by
-default. Pick another in the app (Advanced → Toolchains → Rebuild images, or the Linux card in
-Setup) or set `base_image:` under `container:` / `docker:`; `--container-image` / `--docker-image`
+default. Pick another in the app (the Linux card in Setup) or set `base_image:` under `container:` / `docker:`; `--container-image` / `--docker-image`
 override it for one run. The install scripts use `apt-get`, so the base must be Debian- or
 Ubuntu-based (an Alpine or Fedora base is rejected up front with a clear message).
 
@@ -249,7 +258,7 @@ docker build --platform linux/arm64 -t ghcr.io/acme/kinhin-ci-linux:latest .
 docker push ghcr.io/acme/kinhin-ci-linux:latest
 ```
 
-Then point `docker.image:` at the pushed reference. Bake your toolchains into the image the same way (`toolchains:` via a provision script in the Dockerfile) — a CI-built image has no access to the host cache during its build, so anything the jobs need must live in the image (runners on your own host still get the shared-cache mount at runtime when `share_cache: true`). Unlike `image prepare`, the Dockerfile bakes both agents unconditionally; that's harmless, since agents only register when your fleet has a stored token for their platform. Pin the `ARG`s to a release (the versions above match kinhin's current pinned fallbacks) and bump them deliberately.
+Then point `docker.image:` at the pushed reference. Bake toolchains into the image yourself in the Dockerfile (kinhin bakes no toolchains for Docker) — a CI-built image has no access to the host cache during its build, so anything the jobs need must live in the image (runners on your own host still get the shared-cache mount at runtime when the project sets `share_cache: true`). Unlike `image prepare`, the Dockerfile bakes both agents unconditionally; that's harmless, since agents only register when your fleet has a stored token for their platform. Pin the `ARG`s to a release (the versions above match kinhin's current pinned fallbacks) and bump them deliberately.
 
 ## Per-repo & per-workflow runtime routing
 

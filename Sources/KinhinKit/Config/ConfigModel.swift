@@ -69,11 +69,17 @@ public struct KinhinConfig: Sendable, Equatable {
     /// `kinhin image prepare` (after the runner agents install) — the place
     /// for toolchains every runner VM should boot with (Go, Rust, a JDK…).
     public var provisionScript: String? = nil
-    /// Managed toolchains: declarative runtimes installed and pinned into
-    /// the base image by `kinhin image prepare` (no hand-written script
-    /// required), with a host-side download cache shared across prepares —
-    /// and, opt-in, across runner VMs. nil = feature off, behavior unchanged.
-    public var toolchains: ToolchainsConfig? = nil
+    /// Host download-cache auto-expiry policy (`toolchain_cache:`). Baked
+    /// images are never touched, only the regenerable cache on the host.
+    public var toolchainCache: ToolchainCacheConfig? = nil
+    /// Most derived per-project images kept (`max_project_images:`, nil = 8);
+    /// the least recently used are deleted beyond it.
+    public var maxProjectImages: Int? = nil
+    /// Per-project toolchain scopes (`projects:`): which repos may declare
+    /// their own toolchains in a `.kinhin.yml`, and per-repo toolchains.
+    /// Every project is independent; repos matching no entry get the plain
+    /// base image with no toolchains baked.
+    public var projects: [ProjectConfig] = []
     /// Docker runtime (Linux containers inside the provider's shared VM —
     /// Docker Desktop/OrbStack/colima). kinhin delegates the VM and manages
     /// nothing; it runs one container per job slot. nil = feature off.
@@ -81,6 +87,9 @@ public struct KinhinConfig: Sendable, Equatable {
     /// Additional forge accounts beyond the legacy `repo:` / `gitea:` ones,
     /// each with its own Keychain token. See `allAccounts` for the full set.
     public var accounts: [AccountConfig] = []
+
+    /// True when any project mounts the host toolchain cache into its runners.
+    public var sharesToolchainCache: Bool { projects.contains { $0.shareCache == true } }
 
     // MARK: - Forge views (derived from `accounts`)
 
@@ -124,10 +133,11 @@ public struct KinhinConfig: Sendable, Equatable {
         runtimes?.routes.contains { $0.runtime == RuntimeID.host.rawValue } ?? false
     }
 
-    /// Declarative toolchain installs baked by `image prepare`. Every entry
-    /// installs exactly its own pieces — nothing is added implicitly. The
-    /// catalog (see `ToolchainCatalog`) is advisory: unknown `specs` pass
-    /// through to mise and unknown `brew` formulas pass through to brew.
+    /// Declarative toolchain installs for one project. Every entry installs
+    /// exactly its own pieces, nothing is added implicitly. The catalog (see
+    /// `ToolchainCatalog`) is advisory: unknown `specs` pass through to mise
+    /// and unknown `brew` formulas pass through to brew (config entries
+    /// only; a repo's `.kinhin.yml` is catalog-only).
     public struct ToolchainsConfig: Sendable, Equatable {
         /// mise specs, e.g. "go@1.23.4", "node@22", "java@temurin-17".
         /// Installed with `mise use --global` so every runner shell sees them.
@@ -138,48 +148,77 @@ public struct KinhinConfig: Sendable, Equatable {
         /// "flutter@3.24.0" (SDK version), "expo", "react-native", "vercel",
         /// "cloudflare".
         public var stacks: [String]? = nil
-        /// Opt-in: mount the host toolchain cache into every runner VM so
-        /// per-job installs (`npm ci`, `mise install`, `fvm install`,
-        /// `dotnet restore`) hit warm cache. Best-effort: concurrent VM
-        /// writers are tolerated by these tools (worst case a re-download).
-        public var shareCache: Bool? = nil
-        /// Host-side cache auto-expiry policy. Baked images are never
-        /// touched — only the regenerable download cache on the host.
-        public var cache: CachePolicy? = nil
 
-        /// Memberwise init is internal; this public init supports CLI
-        /// flag-only construction (e.g. `image prepare --toolchain go@1.23`).
-        public init(
-            specs: [String]? = nil, brew: [String]? = nil, stacks: [String]? = nil, shareCache: Bool? = nil,
-            cache: CachePolicy? = nil
-        ) {
+        public init(specs: [String]? = nil, brew: [String]? = nil, stacks: [String]? = nil) {
             self.specs = specs
             self.brew = brew
             self.stacks = stacks
-            self.shareCache = shareCache
-            self.cache = cache
-        }
-
-        public struct CachePolicy: Sendable, Equatable {
-            /// Daily prune while the fleet engine runs, and a sweep after
-            /// each successful image prepare.
-            public var autoPrune: Bool? = nil
-            /// Entries unused this many days are deleted (0 = no age limit).
-            public var maxAgeDays: Int? = nil
-            /// LRU eviction beyond this total size in GB (0 = no size limit).
-            public var maxGB: Int? = nil
-
-            enum CodingKeys: String, CodingKey {
-                case autoPrune = "auto_prune"
-                case maxAgeDays = "max_age_days"
-                case maxGB = "max_gb"
-            }
         }
 
         enum CodingKeys: String, CodingKey {
             case specs, brew, stacks
+        }
+    }
+
+    /// Host toolchain-cache auto-expiry policy.
+    public struct ToolchainCacheConfig: Sendable, Equatable {
+        /// Daily prune while the fleet engine runs, and a sweep after
+        /// each successful image prepare.
+        public var autoPrune: Bool? = nil
+        /// Entries unused this many days are deleted (0 = no age limit).
+        public var maxAgeDays: Int? = nil
+        /// LRU eviction beyond this total size in GB (0 = no size limit).
+        public var maxGB: Int? = nil
+
+        public init(autoPrune: Bool? = nil, maxAgeDays: Int? = nil, maxGB: Int? = nil) {
+            self.autoPrune = autoPrune
+            self.maxAgeDays = maxAgeDays
+            self.maxGB = maxGB
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case autoPrune = "auto_prune"
+            case maxAgeDays = "max_age_days"
+            case maxGB = "max_gb"
+        }
+    }
+
+    /// One `projects:` entry: a repo pattern with its toolchain scope.
+    public struct ProjectConfig: Sendable, Equatable {
+        /// "owner/name", or "owner/*" for every repo of an owner.
+        public var pattern: String
+        /// Honor the repo's own `.kinhin.yml` (read at the job's ref). Off by
+        /// default: a repo file chooses what is installed on this Mac.
+        public var repoFile: Bool
+        /// This project's own toolchains: used when the repo has no usable
+        /// `.kinhin.yml` (or `repo_file` is off). nil = nothing baked.
+        public var toolchains: ToolchainsConfig?
+        /// Mount the host toolchain cache while baking and running this
+        /// project's images (nil = off for projects: isolation by default).
+        public var shareCache: Bool?
+
+        public init(
+            pattern: String, repoFile: Bool = false, toolchains: ToolchainsConfig? = nil, shareCache: Bool? = nil
+        ) {
+            self.pattern = pattern
+            self.repoFile = repoFile
+            self.toolchains = toolchains
+            self.shareCache = shareCache
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case pattern
+            case repoFile = "repo_file"
+            case toolchains
             case shareCache = "share_cache"
-            case cache
+        }
+
+        /// True when this entry covers `repository` ("owner/name").
+        public func matches(_ repository: String) -> Bool {
+            let key = repository.lowercased()
+            let want = pattern.lowercased()
+            if want.hasSuffix("/*") { return key.hasPrefix(String(want.dropLast())) }
+            return key == want
         }
     }
 
@@ -367,7 +406,9 @@ public struct KinhinConfig: Sendable, Equatable {
         case docker
         case runtimes
         case provisionScript = "provision_script"
-        case toolchains
+        case toolchainCache = "toolchain_cache"
+        case maxProjectImages = "max_project_images"
+        case projects
         case accounts
     }
 
@@ -388,7 +429,6 @@ public struct KinhinConfig: Sendable, Equatable {
         container: nil,
         runtimes: nil,
         provisionScript: nil,
-        toolchains: nil,
         docker: nil
     )
 }

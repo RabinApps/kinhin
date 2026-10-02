@@ -20,6 +20,8 @@ final class DiagnosticsModel {
     }
 
     private(set) var rows: [Row] = []
+    /// The fleet's current image-bake notice, when one is showing.
+    @ObservationIgnored var fleetImageNotice: () -> String? = { nil }
     var status = "Probing this Mac…"
 
     /// Runs the doctor probe set (the same builder `kinhin doctor --json`
@@ -120,6 +122,10 @@ final class DiagnosticsModel {
         var cacheDetail = "\(ByteCountFormatter.string(fromByteCount: cache.totalBytes, countStyle: .file)) cached"
         if cache.warning { cacheDetail += " — shared with runners but empty (run image prepare)" }
         rows.append(Row(title: "Toolchain cache", detail: cacheDetail, ok: cache.usable))
+
+        if let notice = fleetImageNotice(), !notice.isEmpty {
+            rows.append(Row(title: "Project images", detail: notice, ok: true))
+        }
 
         self.rows = rows
     }

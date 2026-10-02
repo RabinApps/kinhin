@@ -41,16 +41,16 @@ final class BrokenConfigFormsTests: XCTestCase {
         try "- just\n- a list\n".write(to: configURL, atomically: true, encoding: .utf8)
     }
 
-    func testToolchainsSaysSoWhenTheConfigBreaksUnderASave() throws {
+    func testToolchainsSaysSoWhenTheConfigBreaks() throws {
         let model = ToolchainsModel()
         model.configURL = configURL
         model.reload()
         try breakConfig()
 
-        model.saveBaseImage("debian:12", for: .docker)
+        model.reload()
 
-        XCTAssertTrue(model.statusTextForTesting.contains("config.yaml can't be read"), model.statusTextForTesting)
-        XCTAssertNil(model.baseImage(for: .docker))
+        XCTAssertTrue(model.statusTextForTesting.contains("config.yaml has a problem"), model.statusTextForTesting)
+        XCTAssertTrue(model.rows.isEmpty, "no rows are rendered as if nothing were configured")
     }
 
     func testMacToolsSaysSoWhenTheConfigBreaksUnderAnEdit() throws {

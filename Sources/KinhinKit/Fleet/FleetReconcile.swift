@@ -193,6 +193,10 @@ extension FleetEngine {
         var byForge: [String: Int] = [:]
         /// The same jobs bucketed into label pools (one per runtime).
         var byPool: [RuntimeID: Int] = [:]
+        /// Queued tart jobs served by a ready derived per-project image.
+        var byImage: [String: Int] = [:]
+        /// Jobs waiting on an image bake, for the status snapshot.
+        var imageNotices: Set<String> = []
     }
 
     /// Polls every attached forge's queue (and running work) into `Demand`
@@ -222,6 +226,9 @@ extension FleetEngine {
                 for (poolID, count) in routing.demandByPool(for: jobs, forgeID: forge.id) {
                     demand.byPool[poolID, default: 0] += count
                 }
+                let projectDemand = await resolveProjectImages(for: jobs, forge: forge)
+                for (image, count) in projectDemand.byImage { demand.byImage[image, default: 0] += count }
+                demand.imageNotices.formUnion(projectDemand.notices)
             } catch {
                 let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
                 Log.warn("engine", "could not fetch \(forge.name) queue: \(message)")
@@ -244,6 +251,7 @@ extension FleetEngine {
         }
         let byRepo = ForgeDemand.mergeQueueByRepo(perForgeJobs)
         await statusBox.modify { [demand] in
+            $0.imageNotice = demand.imageNotices.isEmpty ? nil : demand.imageNotices.sorted().joined(separator: "; ")
             $0.queueDepth = demand.queueDepth
             $0.queueByRepo = byRepo
             if answeredQueue { $0.queuePolledAt = Date() }
@@ -294,6 +302,7 @@ extension FleetEngine {
             let chosen = selectRuntime(
                 demand: demand.byPool, active: activeByRuntime(), caps: capsByRuntime, fallback: routing.defaultRuntime)
             record.runtime = chosen.rawValue
+            if chosen == .tart { record.image = chooseImage(demand: demand) }
             if chosen != .host {
                 let diskPerVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: chosen.rawValue)
                 let freeDisk = hostProbe().freeDiskGB

@@ -3,12 +3,12 @@ import XCTest
 @testable import KinhinKit
 @testable import KinhinTestSupport
 
-/// `toolchains:` config validation (no implicit installs) and how the
+/// Per-project `toolchains:` config validation (no implicit installs) and how the
 /// catalog resolves a selection into install steps, cache envs and pins.
 final class ToolchainSelectionTests: XCTestCase {
     // MARK: - Config validation
 
-    func testConfigParsesToolchainsSection() throws {
+    func testConfigParsesProjectToolchainsSection() throws {
         let cfg = try ConfigLoader.parse(
             """
             accounts:
@@ -16,28 +16,46 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains:
-              specs: ["go@1.23.4", "node@22"]
-              brew: ["yamllint"]
-              stacks: ["flutter@3.24.0", "vercel"]
-              share_cache: true
-              cache:
-                auto_prune: true
-                max_age_days: 14
-                max_gb: 20
+            projects:
+              - pattern: acme/widgets
+                share_cache: true
+                toolchains:
+                  specs: ["go@1.23.4", "node@22"]
+                  brew: ["yamllint"]
+                  stacks: ["flutter@3.24.0", "vercel"]
+            toolchain_cache:
+              auto_prune: true
+              max_age_days: 14
+              max_gb: 20
             """)
-        let toolchains = try XCTUnwrap(cfg.toolchains)
+        let project = try XCTUnwrap(cfg.projects.first)
+        let toolchains = try XCTUnwrap(project.toolchains)
         XCTAssertEqual(toolchains.specs, ["go@1.23.4", "node@22"])
         XCTAssertEqual(toolchains.brew, ["yamllint"])
         XCTAssertEqual(toolchains.stacks, ["flutter@3.24.0", "vercel"])
-        XCTAssertEqual(toolchains.shareCache, true)
-        XCTAssertEqual(toolchains.cache?.maxAgeDays, 14)
-        XCTAssertEqual(toolchains.cache?.maxGB, 20)
+        XCTAssertEqual(project.shareCache, true)
+        XCTAssertTrue(cfg.sharesToolchainCache)
+        XCTAssertEqual(cfg.toolchainCache?.maxAgeDays, 14)
+        XCTAssertEqual(cfg.toolchainCache?.maxGB, 20)
     }
 
-    func testTemplateHasNoToolchainsSection() throws {
+    func testTopLevelToolchainsKeyIsRejected() {
+        let error = self.thrownConfigError(
+            """
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22"]}
+            """)
+        XCTAssertTrue(error.hasPrefix("toolchains: is gone"), error)
+    }
+
+    func testTemplateHasNoProjects() throws {
         let cfg = try ConfigLoader.parse(ConfigLoader.template())
-        XCTAssertNil(cfg.toolchains, "the starter config must not enable managed toolchains")
+        XCTAssertTrue(cfg.projects.isEmpty, "the starter config must not enable managed toolchains")
+        XCTAssertFalse(cfg.sharesToolchainCache)
     }
 
     func testDuplicateAndEmptyEntriesRejected() {
@@ -49,7 +67,9 @@ final class ToolchainSelectionTests: XCTestCase {
                     forge: github
                     scope: "acme/widgets"
                 labels: ["self-hosted"]
-                toolchains: {specs: ["go@1", "go@1"]}
+                projects:
+                  - pattern: acme/widgets
+                    toolchains: {specs: ["go@1", "go@1"]}
                 """))
         XCTAssertThrowsError(
             try ConfigLoader.parse(
@@ -59,7 +79,9 @@ final class ToolchainSelectionTests: XCTestCase {
                     forge: github
                     scope: "acme/widgets"
                 labels: ["self-hosted"]
-                toolchains: {brew: [""]}
+                projects:
+                  - pattern: acme/widgets
+                    toolchains: {brew: [""]}
                 """))
     }
 
@@ -71,7 +93,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {stacks: ["flutterish"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {stacks: ["flutterish"]}
             """)
         XCTAssertTrue(error.contains("unknown stack 'flutterish'"), error)
         XCTAssertTrue(error.contains("flutter"), "the error should list known stacks: \(error)")
@@ -87,7 +111,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {stacks: ["vercel"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {stacks: ["vercel"]}
             """)
         XCTAssertTrue(error.contains("requires node"), error)
         XCTAssertTrue(error.contains("node@22"), error)
@@ -101,9 +127,11 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["node@22"], stacks: ["vercel"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["node@22"], stacks: ["vercel"]}
             """)
-        XCTAssertEqual(cfg.toolchains?.specs, ["node@22"])
+        XCTAssertEqual(cfg.projects[0].toolchains?.specs, ["node@22"])
     }
 
     /// Tool-level requirements are validated the same way (pnpm needs node).
@@ -115,7 +143,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["pnpm"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["pnpm"]}
             """)
         XCTAssertTrue(error.contains("'pnpm' requires node"), error)
     }
@@ -129,7 +159,7 @@ final class ToolchainSelectionTests: XCTestCase {
                     forge: github
                     scope: "acme/widgets"
                 labels: ["self-hosted"]
-                toolchains: {cache: {max_age_days: -5}}
+                toolchain_cache: {max_age_days: -5}
                 """))
         XCTAssertThrowsError(
             try ConfigLoader.parse(
@@ -139,7 +169,9 @@ final class ToolchainSelectionTests: XCTestCase {
                     forge: github
                     scope: "acme/widgets"
                 labels: ["self-hosted"]
-                toolchains: {cache: {max_gb: -1}}
+                projects:
+                  - pattern: acme/widgets
+                    toolchain_cache: {max_gb: -1}
                 """))
     }
 
@@ -159,7 +191,7 @@ final class ToolchainSelectionTests: XCTestCase {
 
     private func selection(_ yaml: String) throws -> ManagedToolchainSelection {
         let cfg = try ConfigLoader.parse(yaml)
-        return ToolchainCatalog.selection(from: try XCTUnwrap(cfg.toolchains), mountPath: "/mnt/cache")
+        return ToolchainCatalog.selection(from: try XCTUnwrap(cfg.projects[0].toolchains), mountPath: "/mnt/cache")
     }
 
     func testKnownSpecResolvesToMiseWithCacheEnvsAndVerify() throws {
@@ -170,7 +202,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["go@1.23.4"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["go@1.23.4"]}
             """)
         XCTAssertEqual(sel.miseSpecs, ["go@1.23.4"])
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "GOMODCACHE", subdirectory: "go/mod")))
@@ -185,7 +219,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["zig@0.13"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["zig@0.13"]}
             """)
         XCTAssertEqual(sel.miseSpecs, ["zig@0.13"], "long tail: unknown specs go to mise verbatim")
     }
@@ -198,7 +234,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["node@22"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["node@22"]}
             """)
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "NPM_CONFIG_CACHE", subdirectory: "npm")))
     }
@@ -211,7 +249,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["node@22", "pnpm"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["node@22", "pnpm"]}
             """)
         XCTAssertEqual(sel.npmPackages, [.init(name: "pnpm")])
         XCTAssertTrue(
@@ -226,7 +266,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["node@22"], stacks: ["vercel@1.2.3"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["node@22"], stacks: ["vercel@1.2.3"]}
             """)
         XCTAssertEqual(sel.npmPackages, [.init(name: "vercel", version: "1.2.3")])
         XCTAssertTrue(sel.verifications.contains("vercel --version"))
@@ -240,7 +282,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {stacks: ["flutter@3.24.0"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {stacks: ["flutter@3.24.0"]}
             """)
         XCTAssertEqual(sel.brewTaps, ["leoafarias/fvm"])
         XCTAssertTrue(sel.brewFormulas.contains(BrewFormula(name: "fvm", isCask: false)))
@@ -257,7 +301,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["dotnet"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["dotnet"]}
             """)
         XCTAssertEqual(sel.brewFormulas, [BrewFormula(name: "dotnet-sdk", isCask: true)])
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget")))
@@ -272,7 +318,9 @@ final class ToolchainSelectionTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["node@22", "pnpm"], brew: ["cocoapods"], stacks: ["react-native"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["node@22", "pnpm"], brew: ["cocoapods"], stacks: ["react-native"]}
             """)
         let pods = sel.brewFormulas.filter { $0.name == "cocoapods" }
         XCTAssertEqual(pods.count, 1, "cocoapods from brew + react-native stack dedupes")

@@ -35,6 +35,9 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     /// later stages). Nil on old records → treated as tart on read.
     public var runtime: String?
     public var job: String?
+    /// The derived per-project image this instance was cloned from (nil =
+    /// the fleet's base image). Recovery re-derives the route from it.
+    public var image: String?
     /// Repositories with a job currently executing on this VM (org scope
     /// attribution, stamped by the reconcile loop from in-progress jobs;
     /// nil when nothing is running or the scope is a single repo).

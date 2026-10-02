@@ -83,10 +83,14 @@ public protocol GitHubServing: Sendable {
     func runningJobs(matching labels: Set<String>) async throws -> [RunningJob]
     /// The API budget the last response reported; nil when unknown.
     var rateLimit: ForgeRateLimit? { get }
+    /// `.kinhin.yml` of `repository` at `ref` (nil = default branch), or nil
+    /// when the repository has none.
+    func projectFile(repository: String, ref: String?) async throws -> Data?
 }
 
 extension GitHubServing {
     public var rateLimit: ForgeRateLimit? { nil }
+    public func projectFile(repository: String, ref: String?) async throws -> Data? { nil }
 }
 
 public struct GitHubClient: GitHubServing {
@@ -351,7 +355,8 @@ public struct GitHubClient: GitHubServing {
                     jobs.append(
                         QueuedJob(
                             runID: run.id, jobID: job.id, name: job.name,
-                            labels: jobLabels.sorted(), repository: run.attributedRepository
+                            labels: jobLabels.sorted(), repository: run.attributedRepository,
+                            ref: run.ref, sha: run.sha, isFork: run.isFork
                         ))
                 }
             }

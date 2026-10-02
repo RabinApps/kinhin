@@ -136,8 +136,22 @@ public struct ConfigLoader {
             }
             cfg.provisionScript = provision
         }
-        if let toolchains = partial.toolchains {
-            cfg.toolchains = try Self.parseToolchains(toolchains)
+        if partial.toolchains != nil {
+            throw ConfigError.invalid(
+                "toolchains: is gone — every project declares its own: projects: "
+                    + "[{pattern: owner/name, toolchains: {specs: [go@1.23.4]}}], or let the repo declare them in a "
+                    + ".kinhin.yml (projects: [{pattern: owner/name, repo_file: true}]). The cache policy moved to toolchain_cache:"
+            )
+        }
+        if let cache = partial.toolchainCache {
+            cfg.toolchainCache = try Self.parseToolchainCache(cache)
+        }
+        if let maxImages = partial.maxProjectImages {
+            guard maxImages >= 1 else { throw ConfigError.invalid("max_project_images must be >= 1") }
+            cfg.maxProjectImages = maxImages
+        }
+        if let projects = partial.projects {
+            cfg.projects = try Self.parseProjects(projects)
         }
         if partial.repo != nil {
             throw ConfigError.invalid(

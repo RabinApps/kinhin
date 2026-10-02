@@ -151,7 +151,10 @@ public struct GitLabClient: Sendable {
             let name: String
             let tag_list: [String]?
             let runner: Runner?
+            let ref: String?
+            let commit: Commit?
             struct Runner: Decodable { let description: String? }
+            struct Commit: Decodable { let id: String? }
         }
         do {
             let (data, _) = try await send(
@@ -161,7 +164,7 @@ public struct GitLabClient: Sendable {
             return jobs.map {
                 GitLabJob(
                     id: $0.id, name: $0.name, tags: $0.tag_list ?? [], project: project.path,
-                    runnerDescription: $0.runner?.description)
+                    runnerDescription: $0.runner?.description, ref: $0.ref, sha: $0.commit?.id)
             }
         } catch GitLabError.notFound, GitLabError.forbidden {
             Log.warn("gitlab", "skipping jobs of \(project.path): not readable with this token")

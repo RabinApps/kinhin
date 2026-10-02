@@ -220,6 +220,12 @@ struct RuntimeConfigModel: Sendable {
         return counts
     }
 
+    /// The runtime whose pool a queued job routes to.
+    func runtime(for job: ForgeJob) -> RuntimeID {
+        let defaultPool = pools[defaultRuntime] ?? RuntimePool(runtime: .tart, labels: [])
+        return RuntimeRouter.assign(job: job, config: self, defaultPool: defaultPool, pools: pools).pool.runtime
+    }
+
     /// True when the pool exists (its runtime is configured).
     func poolExists(_ runtime: RuntimeID) -> Bool {
         pools[runtime] != nil

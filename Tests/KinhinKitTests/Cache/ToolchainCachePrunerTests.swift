@@ -107,7 +107,7 @@ final class ToolchainCachePrunerTests: XCTestCase {
     func testCachePolicyDefaultsFromConfig() {
         XCTAssertEqual(
             ToolchainCachePolicy(from: nil), ToolchainCachePolicy(autoPrune: true, maxAgeDays: 30, maxGB: 50))
-        let partial = KinhinConfig.ToolchainsConfig(cache: .init(autoPrune: false, maxAgeDays: 7, maxGB: 0))
+        let partial = KinhinConfig.ToolchainCacheConfig(autoPrune: false, maxAgeDays: 7, maxGB: 0)
         let policy = ToolchainCachePolicy(from: partial)
         XCTAssertEqual(policy, ToolchainCachePolicy(autoPrune: false, maxAgeDays: 7, maxGB: 0))
     }

@@ -31,9 +31,6 @@ public struct DockerRuntime: Runtime {
     /// Existence probe for the binary (tests inject a constant; production
     /// checks the filesystem).
     let exists: @Sendable (String) -> Bool
-    /// The resolved managed-toolchain selection source (cache envs come from
-    /// here when `share_cache` bind-mounts the host cache into containers).
-    let toolchainsConfig: @Sendable () -> KinhinConfig.ToolchainsConfig?
 
     public init(
         shell: ShellRunning = Shell(),
@@ -42,8 +39,7 @@ public struct DockerRuntime: Runtime {
         memoryGB: Int = 4,
         platform: LinuxPlatform = .arm64,
         binPath: String? = nil,
-        exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) },
-        toolchainsConfig: @escaping @Sendable () -> KinhinConfig.ToolchainsConfig? = { nil }
+        exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
     ) {
         self.shell = shell
         self.image = image
@@ -52,7 +48,6 @@ public struct DockerRuntime: Runtime {
         self.platform = platform
         self.binPath = binPath
         self.exists = exists
-        self.toolchainsConfig = toolchainsConfig
     }
 
     /// Resolved path of the `docker` CLI. Public so the CLI doctor and the
@@ -83,7 +78,7 @@ public struct DockerRuntime: Runtime {
                 // The pids limit stops a fork bomb in one job from starving the host. Capabilities
                 // and no-new-privileges stay at Docker's defaults: jobs apt-get and sudo.
                 runFlags: ["--platform", platform.rawValue, "--pids-limit", "4096"], shapeNote: platform.rawValue),
-            image: image, cpus: cpus, memoryBytes: memoryBytes, toolchainsConfig: toolchainsConfig)
+            image: image, cpus: cpus, memoryBytes: memoryBytes)
     }
 
     // MARK: - Health

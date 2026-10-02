@@ -2,29 +2,15 @@ import Foundation
 import KinhinKit
 import Observation
 
-/// State and actions behind the Toolchains form: choose what gets
-/// preinstalled into your runner images, and rebuild the images with it.
-///
-/// - Tools and stacks come from kinhin's catalog; each row says whether it
-///   applies to macOS (tart), Linux (Docker / Apple container), or both.
-/// - Nothing is written until **Apply**; a tool that needs Node (pnpm,
-///   Playwright…) can't be applied without Node also selected, same as the
-///   engine's own rule.
-/// - Changes only reach an image when it is rebuilt, so each runtime has a
-///   **Rebuild image…** button with a confirmation dialog.
+/// State behind the Advanced → Toolchains tab. The tab is read-only:
+/// toolchain versions are declared in each repo's `.kinhin.yml` (or in the
+/// `projects:` / `toolchains:` YAML), never edited here. It shows how every
+/// configured repo resolves its toolchains, the derived images kinhin has
+/// built, and offers the one action that does not edit toolchains: rebuilding
+/// the base image.
 @MainActor
 @Observable
-final class ToolchainsModel: ConfigFormModel {
-    /// How the grid is seeded when the form loads.
-    enum Seed {
-        /// From the saved config (every catalog entry ON when it has no
-        /// `toolchains:` section) — the Advanced → Toolchains page.
-        case fromConfig
-        /// Every tool and stack OFF, nothing read from disk — the setup
-        /// wizard's step, where the user explicitly picks what to preinstall.
-        case allOff
-    }
-
+final class ToolchainsModel {
     typealias Line = StatusLine
 
     /// A runtime that is set up, with the platform its image targets.
@@ -33,22 +19,12 @@ final class ToolchainsModel: ConfigFormModel {
         let platform: ToolchainPlatform
     }
 
-    @ObservationIgnored let seed: Seed
     var configURL: URL = Paths.config
-    @ObservationIgnored var onChanged: (() -> Void)?
 
     /// Confirms a rebuild. Injectable so tests never open a modal.
-    @ObservationIgnored var confirmRebuild: (_ runtime: RuntimeID, _ plan: ToolchainsConfigEditor.Plan) -> Bool = {
-        runtime, plan in
-        var text =
-            "This replaces the current image with a fresh one that includes your saved tools. It can take 10–30 minutes and downloads a lot."
-        text +=
-            plan.installing.isEmpty
-            ? "\n\nNo tools are selected: the image will have only the runner agents."
-            : "\n\nInstalling: \(plan.installing.joined(separator: ", "))."
-        if !plan.skipped.isEmpty {
-            text += "\n\nSkipped (not available for this runtime): \(plan.skipped.joined(separator: ", "))."
-        }
+    @ObservationIgnored var confirmRebuild: (_ runtime: RuntimeID) -> Bool = { runtime in
+        let text =
+            "This replaces the base image with a fresh one that has only the runner agents. It can take 10–30 minutes and downloads a lot. Per-repo images with toolchains are baked separately, when a job needs them."
         return AlertKit.confirm(
             title: "Rebuild the \(ToolchainsModel.runtimeTitle(runtime))?", message: text,
             confirmTitle: "Rebuild Image", style: .informational)
@@ -58,265 +34,149 @@ final class ToolchainsModel: ConfigFormModel {
         runtime, cfg in
         try await ImageBuildService.rebuild(runtime, config: cfg)
     }
-
-    // MARK: - Selection
-
-    private(set) var baseline = ToolchainsSelection()
-    /// The selection being edited; only **Apply** writes it.
-    var working = ToolchainsSelection()
-
-    /// What each version field shows. Never blank: the default spec (or "—")
-    /// fills in until the user types; what is stored goes through
-    /// `normalizedVersion`, so neither a "node@" prefix nor the dash ever
-    /// reaches config.yaml.
-    var toolText: [String: String] = [:]
-    var stackText: [String: String] = [:]
-    var brewText = ""
-    var specsText = ""
+    /// The derived images kinhin has recorded.
+    @ObservationIgnored var loadImageRecords: () -> [ProjectImageRecord] = { ProjectImageStore().all }
+    /// The tart images on disk, for sizes. Throws when tart is not installed.
+    @ObservationIgnored var listTartImages: () async throws -> [TartVM] = {
+        try await TartController(configuredPath: nil).list()
+    }
+    /// Puts text on the clipboard. Injectable so tests leave the real one alone.
+    @ObservationIgnored var copyToPasteboard: (String) -> Void = ToolchainsGuide.copyToPasteboard
 
     // MARK: - Display state
 
+    private(set) var overview: ProjectToolchainsOverview?
+    /// Disk size of each tart image by name, when known.
+    private(set) var imageSizesGB: [String: Int] = [:]
     private(set) var status = Line(text: "")
     private(set) var busy = false
     private(set) var imageRuntimes: [ImageRuntime] = []
+    private(set) var copiedID: String?
     private var baseImageValues: [RuntimeID: String] = [:]
 
-    init(seed: Seed = .fromConfig) {
-        self.seed = seed
-        resetFieldTexts()
-    }
-
-    // MARK: - Derived
-
-    var hasPendingChanges: Bool { working != baseline }
-    var problems: [String] { ToolchainsConfigEditor.requirementProblems(working) }
-    var applyEnabled: Bool { hasPendingChanges && problems.isEmpty && !busy }
-    var revertEnabled: Bool { hasPendingChanges && !busy }
-    var rebuildEnabled: Bool { !hasPendingChanges && !busy }
-
-    func isToolOn(_ id: String) -> Bool { working.tools[id] != nil }
-    func isStackOn(_ id: String) -> Bool { working.stacks[id] != nil }
-
-    /// Whether a tool's version can be pinned (mise and npm installs).
-    static func isVersionable(_ entry: ToolchainEntry) -> Bool {
-        switch entry.installer {
-        case .mise, .npm: return true
-        default: return false
-        }
-    }
-
-    func toolFieldEnabled(_ entry: ToolchainEntry) -> Bool { Self.isVersionable(entry) && isToolOn(entry.id) }
-
-    func toolPlaceholder(_ entry: ToolchainEntry) -> String {
-        Self.isVersionable(entry)
-            ? (entry.defaultSpec.split(separator: "@").dropFirst().first.map(String.init) ?? "latest") : "—"
-    }
-
-    func stackFieldEnabled(_ stack: ToolchainStack) -> Bool { stack.versionKind != nil && isStackOn(stack.id) }
-
-    func stackPlaceholder(_ stack: ToolchainStack) -> String {
-        let selected = working.stacks[stack.id]
-        return stack.versionKind == nil
-            ? "—" : (selected?.isEmpty ?? true ? (stack.defaultVersion.isEmpty ? "latest" : stack.defaultVersion) : "—")
-    }
+    var rows: [ProjectToolchainsRow] { overview?.rows ?? [] }
+    var repoFileImages: [ProjectImageRecord] { overview?.repoFileImages ?? [] }
+    var rebuildEnabled: Bool { !busy && overview != nil }
 
     func baseImage(for runtime: RuntimeID) -> String? { baseImageValues[runtime] }
 
     // MARK: - Loading
 
-    /// Says why the config could not be loaded, instead of a blank grid.
-    func showLoadError(_ error: Error) {
-        status = Line(
-            text:
-                "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file.",
-            style: .error)
-    }
-
-    /// A "everything on by default" selection mirroring the catalog, used to
-    /// keep the grid populated before the user has written any config.
-    func catalogSelection() -> ToolchainsSelection {
-        var out = ToolchainsSelection()
-        for entry in ToolchainCatalog.tools { out.tools[entry.id] = "" }
-        for stack in ToolchainCatalog.stacks { out.stacks[stack.id] = "" }
-        return out
-    }
-
-    /// Reloads the saved selection as the baseline and reseeds the grid per
-    /// `seed`: every catalog entry ON when the config has no `toolchains:`
-    /// section (so the page is never blank), or all OFF in the wizard, where
-    /// the user must explicitly pick each toolchain.
+    /// Reads config.yaml and the image index. A config that fails to load is
+    /// reported instead of rendering an empty page.
     func reload() {
-        let loaded: ToolchainsSelection
+        let cfg: KinhinConfig
         do {
-            loaded = try ToolchainsConfigEditor.selection(from: ConfigStore.text(at: configURL))
+            cfg = try ConfigLoader.load(from: configURL)
         } catch {
-            showLoadError(error)
+            overview = nil
+            imageRuntimes = []
+            status = Line(
+                text:
+                    "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file.",
+                style: .error)
             return
         }
-        baseline = loaded
-        switch seed {
-        case .allOff: working = ToolchainsSelection()
-        case .fromConfig: working = loaded.isEmpty ? catalogSelection() : loaded
-        }
-        resetFieldTexts()
-        refreshImages()
-        refreshState()
+        overview = ProjectToolchainsOverview.build(config: cfg, images: loadImageRecords())
+        refreshRuntimes(cfg)
+        if !busy { status = Line(text: "") }
+        Task { [weak self] in await self?.refreshImageSizes() }
     }
 
-    /// Re-derives every field's text from `working`.
-    func resetFieldTexts() {
-        toolText = Dictionary(
-            uniqueKeysWithValues: ToolchainCatalog.tools.map { entry in
-                let selected = working.tools[entry.id]
-                return (
-                    entry.id,
-                    selected.flatMap { !$0.isEmpty ? $0 : nil } ?? (entry.defaultSpec.isEmpty ? "—" : entry.defaultSpec)
-                )
-            })
-        stackText = Dictionary(
-            uniqueKeysWithValues: ToolchainCatalog.stacks.map { stack in
-                let selected = working.stacks[stack.id]
-                return (
-                    stack.id,
-                    selected.flatMap { !$0.isEmpty ? $0 : nil }
-                        ?? (stack.defaultVersion.isEmpty ? "—" : stack.defaultVersion)
-                )
-            })
-        brewText = working.extraBrew.joined(separator: ", ")
-        specsText = working.extraSpecs.joined(separator: ", ")
+    /// Fills in image sizes from `tart list`; sizes stay unknown when tart is unavailable.
+    func refreshImageSizes() async {
+        do {
+            let images = try await listTartImages()
+            imageSizesGB = Dictionary(
+                images.compactMap { image in image.diskGB.map { (image.name, $0) } },
+                uniquingKeysWith: { first, _ in first })
+        } catch is CancellationError {
+            return
+        } catch {
+            // Sizes are cosmetic: without tart the rows simply omit them.
+            Log.info("images", "image sizes unavailable: \(error.localizedDescription)")
+            imageSizesGB = [:]
+        }
     }
 
     /// One image row per runtime that is actually set up.
-    private func refreshImages() {
-        let snapshot: GeneralConfigEditor.Snapshot?
-        do {
-            snapshot = try ConfigStore.snapshot(at: configURL)
-        } catch {
-            // Say so instead of listing no Linux images as if none were set up.
-            snapshot = nil
-            status = .unreadableConfig(error)
-        }
+    private func refreshRuntimes(_ cfg: KinhinConfig) {
         var runtimes: [ImageRuntime] = []
         if TartController.isInstalled() { runtimes.append(ImageRuntime(runtime: .tart, platform: .macOS)) }
-        if snapshot?.container != nil { runtimes.append(ImageRuntime(runtime: .appleContainer, platform: .linux)) }
-        if snapshot?.docker != nil { runtimes.append(ImageRuntime(runtime: .docker, platform: .linux)) }
+        if let container = cfg.container {
+            runtimes.append(ImageRuntime(runtime: .appleContainer, platform: .linux))
+            baseImageValues[.appleContainer] = container.baseImage
+        }
+        if let docker = cfg.docker {
+            runtimes.append(ImageRuntime(runtime: .docker, platform: .linux))
+            baseImageValues[.docker] = docker.baseImage
+        }
         imageRuntimes = runtimes
-        baseImageValues = [:]
-        for item in runtimes where item.runtime != .tart {
-            if let value = snapshot?.baseImage(for: item.runtime) { baseImageValues[item.runtime] = value }
+        baseImageValues = baseImageValues.filter { key, _ in runtimes.contains { $0.runtime == key } }
+    }
+
+    // MARK: - Row text
+
+    /// Where a row's toolchains come from, in one line.
+    static func sourceTitle(_ row: ProjectToolchainsRow) -> String {
+        if row.isDefault { return "No toolchains baked" }
+        switch row.source {
+        case .repoFile: return ".kinhin.yml honored"
+        case .projectFallback: return "Project toolchains"
+        case .none: return "No toolchains"
         }
     }
 
-    // MARK: - Editing (working copy only; Apply writes)
-
-    func setTool(_ id: String, on: Bool) {
-        working.tools[id] = on ? ToolchainsConfigEditor.normalizedVersion(toolText[id] ?? "", for: id) : nil
-        refreshState()
-    }
-
-    func setStack(_ id: String, on: Bool) {
-        working.stacks[id] = on ? ToolchainsConfigEditor.normalizedVersion(stackText[id] ?? "", for: id) : nil
-        refreshState()
-    }
-
-    func setToolText(_ id: String, _ text: String) {
-        toolText[id] = text
-        if working.tools[id] != nil {
-            working.tools[id] = ToolchainsConfigEditor.normalizedVersion(
-                text.trimmingCharacters(in: .whitespaces), for: id)
-        }
-        refreshState()
-    }
-
-    func setStackText(_ id: String, _ text: String) {
-        stackText[id] = text
-        if working.stacks[id] != nil {
-            working.stacks[id] = ToolchainsConfigEditor.normalizedVersion(
-                text.trimmingCharacters(in: .whitespaces), for: id)
-        }
-        refreshState()
-    }
-
-    func setBrewText(_ text: String) {
-        brewText = text
-        working.extraBrew = Self.splitList(text.trimmingCharacters(in: .whitespaces))
-        refreshState()
-    }
-
-    func setSpecsText(_ text: String) {
-        specsText = text
-        working.extraSpecs = Self.splitList(text.trimmingCharacters(in: .whitespaces))
-        refreshState()
-    }
-
-    func setShareCache(_ on: Bool) {
-        working.shareCache = on
-        refreshState()
-    }
-
-    static func splitList(_ text: String) -> [String] {
-        text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-    }
-
-    // MARK: - State
-
-    func refreshState() {
-        let pending = hasPendingChanges
-        let problems = self.problems
-        if !problems.isEmpty {
-            status = Line(text: problems.joined(separator: " "), style: .warn)
-        } else if pending {
-            status = Line(text: "Unapplied changes. Apply, then rebuild an image.", style: .warn)
-        } else if !busy, !status.text.hasPrefix("Applied"), !status.text.hasPrefix("Rebuilt"),
-            !status.text.hasPrefix("Not")
-        {
-            status = Line(text: "")
+    /// The explanation under a row's title.
+    static func detail(_ row: ProjectToolchainsRow) -> String {
+        switch row.source {
+        case .repoFile:
+            var text = "Versions come from .kinhin.yml in the repo at each job's branch/tag."
+            text +=
+                row.hasToolchains
+                ? " Used when a repo has no usable file: the project toolchains below."
+                : " With no usable file, jobs use the base image."
+            return text
+        case .projectFallback:
+            return "The repo's .kinhin.yml is ignored (repo_file is off); these versions apply."
+        case .none:
+            return row.isDefault
+                ? "No toolchains baked: jobs use the base image (they can still run `kinhin-toolchain install` per job)."
+                : "No toolchains on this project entry and repo_file is off: jobs use the base image."
         }
     }
 
-    func revert() {
-        status = Line(text: "")
-        reload()
+    /// "name · 12 GB · last used 2 hours ago", leaving out what is unknown.
+    func imageLine(_ record: ProjectImageRecord) -> String {
+        var parts = [record.name]
+        if let size = imageSizesGB[record.name] { parts.append("\(size) GB") }
+        parts.append("last used " + Self.relativeDate(record.lastUsedAt))
+        return parts.joined(separator: " · ")
     }
 
-    func apply() {
-        do {
-            try ToolchainsConfigEditor.apply(working, to: configURL)
-            baseline = working
-            status = Line(text: "Applied ✓ — rebuild an image below to use it.", style: .ok)
-            refreshState()
-            onChanged?()
-        } catch {
-            status = Line(text: "Not applied — \(error.localizedDescription)", style: .error)
-        }
+    /// "name · 33 GB" for the base image on the "other repos" row.
+    func baseImageLine(_ name: String) -> String {
+        imageSizesGB[name].map { "\(name) · \($0) GB" } ?? name
     }
 
-    /// Writes the chosen base image; on failure says why and shows what is
-    /// actually saved.
-    func saveBaseImage(_ value: String?, for runtime: RuntimeID) {
-        do {
-            try GeneralConfigEditor.setBaseImage(value, for: runtime, at: configURL)
-            baseImageValues[runtime] = value
-            status = Line(text: "Base image saved — rebuild the image to use it.")
-            onChanged?()
-        } catch {
-            AlertKit.present(error: error, title: "Couldn't save the base image")
-            do {
-                baseImageValues[runtime] = try ConfigStore.snapshot(at: configURL)?.baseImage(for: runtime)
-            } catch {
-                baseImageValues[runtime] = nil
-                status = .unreadableConfig(error)
-            }
-        }
+    static func relativeDate(_ date: Date, now: Date = Date()) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: now)
     }
 
-    // MARK: - Rebuild
+    // MARK: - Copy
+
+    func copy(_ text: String, id: String) {
+        copyToPasteboard(text)
+        copiedID = id
+    }
+
+    // MARK: - Rebuild base image
 
     @discardableResult
     func startRebuild(_ runtime: RuntimeID) -> Task<Void, Never>? {
-        guard !hasPendingChanges else { return nil }
-        let platform: ToolchainPlatform = runtime == .tart ? .macOS : .linux
-        guard confirmRebuild(runtime, ToolchainsConfigEditor.plan(baseline, for: platform)) else { return nil }
+        guard !busy, confirmRebuild(runtime) else { return nil }
         let cfg: KinhinConfig
         do {
             cfg = try ConfigLoader.load(from: configURL)
@@ -326,18 +186,17 @@ final class ToolchainsModel: ConfigFormModel {
         }
         busy = true
         status = Line(text: "Rebuilding the \(Self.runtimeTitle(runtime))… this can take a while.")
-        refreshState()
         let rebuild = self.rebuild
         return Task { [weak self] in
             do {
                 try await rebuild(runtime, cfg)
-                self?.status = Line(text: "Rebuilt the \(Self.runtimeTitle(runtime)) ✓", style: .ok)
+                self?.busy = false
                 self?.reload()
+                self?.status = Line(text: "Rebuilt the \(Self.runtimeTitle(runtime)) ✓", style: .ok)
             } catch {
+                self?.busy = false
                 self?.status = Line(text: "Not rebuilt — \(error.localizedDescription)", style: .error)
             }
-            self?.busy = false
-            self?.refreshState()
         }
     }
 
@@ -352,18 +211,5 @@ final class ToolchainsModel: ConfigFormModel {
 
     // MARK: - Test hooks
 
-    func toggleToolForTesting(_ id: String, version: String = "", on: Bool = true) {
-        working.tools[id] = on ? version : nil
-        refreshState()
-    }
-    func toggleStackForTesting(_ id: String, on: Bool = true) {
-        working.stacks[id] = on ? "" : nil
-        refreshState()
-    }
-    func setShareCacheForTesting(_ on: Bool) { setShareCache(on) }
     var statusTextForTesting: String { status.text }
-    var applyEnabledForTesting: Bool { applyEnabled }
-    var rebuildEnabledForTesting: [RuntimeID: Bool] {
-        Dictionary(uniqueKeysWithValues: imageRuntimes.map { ($0.runtime, rebuildEnabled) })
-    }
 }

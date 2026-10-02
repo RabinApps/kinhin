@@ -4,7 +4,7 @@ import Foundation
 
 /// Where the shared toolchain cache lives on the host and inside guests.
 /// `image prepare` always mounts it (faster re-prepares); runner VMs mount
-/// it when `toolchains.share_cache` is on.
+/// it when the project sets `share_cache`.
 public enum ToolchainCacheMount {
     /// tart auto-mounts virtiofs shares under this path inside macOS guests.
     static let guestSharesRoot = "/Volumes/My Shared Files"
@@ -17,7 +17,20 @@ public enum ToolchainCacheMount {
     /// The `tart run --dir` argument sharing the host cache (`name:hostpath`). tart
     /// mounts a share at `/Volumes/My Shared Files/<name>` in macOS guests, which is
     /// where `guestPath` points, and under the virtiofs automount tag in Linux guests.
-    public static var tartDirectorySpec: String { guestDirectoryName + ":" + Paths.toolchainCache.path }
+    public static var tartDirectorySpec: String { tartDirectorySpec(scope: nil) }
+
+    /// The `--dir` spec sharing the host cache, or, with a `scope` (a
+    /// project image key), only that project's own subdirectory, so repos
+    /// that opt into the cache never see each other's downloads. The
+    /// directory is created on demand.
+    public static func tartDirectorySpec(scope: String?) -> String {
+        guard let scope else { return guestDirectoryName + ":" + Paths.toolchainCache.path }
+        let directory = Paths.toolchainCache.appendingPathComponent(scope, isDirectory: true)
+        bestEffort("cache", "creating the cache directory for \(scope)") {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        return guestDirectoryName + ":" + directory.path
+    }
 
     /// Absolute guest-side path of the shared cache in macOS guests.
     public static var guestPath: String { guestSharesRoot + "/" + guestDirectoryName }

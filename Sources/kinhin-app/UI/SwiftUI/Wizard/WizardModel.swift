@@ -2,15 +2,15 @@ import Foundation
 import KinhinKit
 import Observation
 
-/// State behind the first-run wizard: the step, and the three forms it
+/// State behind the first-run wizard: the step, and the forms it
 /// reuses from the Setup tab so nothing is entered in two different places.
 ///
 /// 1. **Connect** — paste a GitHub token, pick the repo or org to serve
 ///    (optionally add a self-hosted Gitea).
 /// 2. **This Mac** — install tart and prepare the runner image; optionally
 ///    enable Linux runtimes.
-/// 3. **Select toolchains** — pick what runtimes/tools to preinstall into
-///    your runner images. Everything starts OFF so the user chooses.
+/// 3. **Toolchains** — an informational page: toolchains are declared per
+///    repo (`.kinhin.yml`, `projects:`), so there is nothing to choose or save.
 /// 4. **Start** — a plain-language summary and "Start fleet".
 ///
 /// Every choice is written as soon as it is made, so leaving the wizard at
@@ -36,7 +36,7 @@ final class WizardModel {
             switch self {
             case .connect: return "Connect your code"
             case .mac: return "Get this Mac ready"
-            case .toolchains: return "Select your toolchains"
+            case .toolchains: return "Toolchains"
             case .start: return "Ready to go"
             }
         }
@@ -51,7 +51,7 @@ final class WizardModel {
                     "Choose what runs your jobs: Linux (Docker or Apple container), macOS virtual machines (tart), or both. You only need one."
             case .toolchains:
                 return
-                    "Pick every tool and stack that should be preinstalled in each runner image. Nothing is installed until you apply."
+                    "Nothing to choose here: every repo declares its own toolchains, and nothing is installed until a job needs it."
             case .start: return "Everything you chose is saved. You can change any of it later in the Setup tab."
             }
         }
@@ -59,17 +59,13 @@ final class WizardModel {
 
     /// Fired when the user presses Start fleet.
     @ObservationIgnored var onFinished: (() -> Void)?
-    /// Fired when the user leaves setup unfinished ("Finish later").
-    @ObservationIgnored var onFinishLater: (() -> Void)?
 
     let connect = ConnectModel()
     let mac = MacToolsModel()
-    let toolchains = ToolchainsModel(seed: .allOff)
 
     private(set) var step: Step = .connect
     /// The "Ready to go" summary, refreshed each time that step is shown.
     private(set) var summaryText = ""
-    private var toolchainsLoaded = false
     /// "Start the fleet whenever kinhin opens": defaults on here (a CI
     /// runner is usually wanted running); saved when the user starts the fleet.
     var autoStartFleet = true
@@ -80,15 +76,14 @@ final class WizardModel {
         // Setup with nothing to run jobs on switches on an installed Linux
         // runtime so the wizard can finish.
         mac.autoEnableLinuxRuntime = true
-        // The wizard's Apply writes back into the real config.yaml, like
-        // the other forms.
-        toolchains.configURL = Paths.config
     }
 
     // MARK: - Derived
 
     var header: String { "Step \(step.rawValue + 1) of \(Step.allCases.count) — \(step.title)" }
-    var skipTitle: String { step == .start ? "Finish later" : "Skip for now" }
+    /// Steps before the last can be skipped; setup itself cannot be left early.
+    var canSkip: Bool { step != .start }
+    var skipTitle: String { "Skip for now" }
     var nextTitle: String { step == .start ? "Start fleet" : "Continue" }
     var canGoBack: Bool { step != .connect }
     var canContinue: Bool { step != .start || missingItems.isEmpty }
@@ -105,9 +100,6 @@ final class WizardModel {
                 "Set up something to run jobs on (step 2): a Linux runtime (Docker or Apple container), or tart for macOS jobs."
             )
         }
-        if toolchains.hasPendingChanges {
-            missing.append("Apply your toolchain selection in step 3 before starting the fleet.")
-        }
         return missing
     }
 
@@ -121,12 +113,7 @@ final class WizardModel {
         case .mac:
             mac.reload()
         case .toolchains:
-            // Load once: reloading on every visit would discard selections
-            // made before stepping back and forth.
-            if !toolchainsLoaded {
-                toolchainsLoaded = true
-                toolchains.reload()
-            }
+            break  // informational: no state to load or validate
         case .start:
             refreshSummary()
         }
@@ -149,7 +136,7 @@ final class WizardModel {
     }
 
     func skip() {
-        if step == .start { onFinishLater?() } else { next() }
+        if canSkip { next() }
     }
 
     // MARK: - Summary
@@ -179,16 +166,6 @@ final class WizardModel {
             }
         }
         lines.append("Runs on:  \(mac.runsOnDescription)")
-        // Summarize the step-3 toolchain selection on the final "Ready to
-        // go" step, so the user sees exactly what will be preinstalled.
-        let selectedTools = toolchains.working.tools.keys.sorted()
-        let selectedStacks = toolchains.working.stacks.keys.sorted()
-        if !selectedTools.isEmpty {
-            lines.append("Toolchains:  \(selectedTools.joined(separator: ", "))")
-        }
-        if !selectedStacks.isEmpty {
-            lines.append("Stacks:  \(selectedStacks.joined(separator: ", "))")
-        }
         let missing = missingItems
         if !missing.isEmpty {
             lines.append("")

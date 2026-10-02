@@ -61,7 +61,7 @@ final class WindowModels {
     // MARK: - Setup wizard
 
     /// A fresh first-run wizard wired to the app's token handlers.
-    func makeWizard(onFinished: @escaping () -> Void, onFinishLater: @escaping () -> Void) -> WizardModel {
+    func makeWizard(onFinished: @escaping () -> Void) -> WizardModel {
         let model = WizardModel()
         model.connect.saveToken = { [weak self] forge, token in
             try await self?.tokenSaved?(forge, token)
@@ -70,7 +70,6 @@ final class WindowModels {
             try await self?.accountTokenSaved?(account, token)
         }
         model.onFinished = onFinished
-        model.onFinishLater = onFinishLater
         wizardModel = model
         return model
     }
@@ -123,8 +122,8 @@ final class WindowModels {
             guard toolchainsModel == nil else { return }
             let model = ToolchainsModel()
             model.configURL = Paths.config
-            model.onChanged = { [weak self] in self?.runtimesEdited?() }
             toolchainsModel = model
+            model.reload()
         case .app:
             _ = appModel
         }
@@ -139,7 +138,8 @@ final class WindowModels {
         case .accounts:
             connectModel?.reload()
             macToolsModel?.reload()
-        case .capacity, .toolchains, .app: break
+        case .toolchains: toolchainsModel?.reload()
+        case .capacity, .app: break
         }
     }
 
@@ -155,6 +155,7 @@ final class WindowModels {
     func ensureDiagnosticsModel() -> DiagnosticsModel {
         if let diagnosticsModel { return diagnosticsModel }
         let model = DiagnosticsModel()
+        model.fleetImageNotice = { [weak self] in self?.fleetModel.status?.imageNotice }
         diagnosticsModel = model
         return model
     }

@@ -41,22 +41,35 @@ final class MainTabsModel {
         set { fleet.setupIncomplete = newValue }
     }
 
-    /// Tabs currently shown: Setup appears only until first-run setup is done.
+    /// First-run setup is unfinished: the window shows only the wizard (no tab
+    /// bar) and every other page, tab switch, menu action and sheet is
+    /// unreachable until the wizard finishes.
+    var isGatedBySetup: Bool { setupIncomplete }
+
+    /// Tabs shown in the tab bar: none while setup gates the window.
     var visibleTabs: [MainTab] {
-        setupIncomplete ? [.fleet, .setup, .advanced] : [.fleet, .advanced]
+        isGatedBySetup ? [] : [.fleet, .advanced]
     }
 
-    /// The tab on screen; a vanished Setup tab reads as Fleet.
+    /// The tab on screen: the wizard while setup gates the window; afterwards
+    /// a stale Setup request reads as Fleet.
     var selectedTab: MainTab {
-        requestedTab == .setup && !setupIncomplete ? .fleet : requestedTab
+        if isGatedBySetup { return .setup }
+        return requestedTab == .setup ? .fleet : requestedTab
     }
 
     // MARK: - Navigation
 
     func select(_ tab: MainTab) {
+        // While setup is unfinished every request lands on the wizard.
+        if isGatedBySetup {
+            requestedTab = .setup
+            if models.wizardModel == nil { _ = makeWizard() }
+            return
+        }
         // Setup only exists during onboarding; afterwards its forms live in
         // Advanced → Accounts.
-        if tab == .setup && !setupIncomplete {
+        if tab == .setup {
             showAdvanced(.accounts)
             return
         }
@@ -90,6 +103,10 @@ final class MainTabsModel {
 
     /// Opens Advanced on a given section (used by the menu).
     func showAdvanced(_ section: AdvancedSection) {
+        guard !isGatedBySetup else {
+            select(.setup)
+            return
+        }
         select(.advanced)
         selectAdvancedSection(section)
     }
@@ -124,7 +141,8 @@ final class MainTabsModel {
         case .capacity: models.capacityModel?.reload()
         case .routing: models.runtimesModel?.reload()
         case .containers: models.containersModel?.reload()
-        case .toolchains, .app: break
+        case .toolchains: models.toolchainsModel?.reload()
+        case .app: break
         }
     }
 
@@ -133,22 +151,20 @@ final class MainTabsModel {
     private func makeWizard() -> WizardModel {
         models.makeWizard(
             onFinished: { [weak self] in
-                // Setup is done: the Setup tab goes away for good.
+                // Setup is done: the tab bar appears and the window lands on Fleet.
                 guard let self else { return }
                 setupIncomplete = false
                 models.discardWizard()
                 requestedTab = .fleet
                 onSetupFinished?()
-            },
-            onFinishLater: { [weak self] in
-                // Leave setup as it is; the Setup tab stays until it is finished.
-                self?.requestedTab = .fleet
             })
     }
 
     // MARK: - Sheets
 
+    /// Ignored while setup gates the window: Logs and Diagnostics stay hidden.
     func present(_ sheet: MainSheet) {
+        guard !isGatedBySetup else { return }
         switch sheet {
         case .logs:
             models.ensureLogsModel().refresh()

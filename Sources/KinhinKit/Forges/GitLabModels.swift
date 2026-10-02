@@ -91,13 +91,21 @@ public struct GitLabJob: Sendable, Equatable {
     public let project: String
     /// The runner executing the job (running jobs only).
     public let runnerDescription: String?
+    /// Branch/tag and commit the job runs at.
+    public let ref: String?
+    public let sha: String?
 
-    public init(id: Int, name: String, tags: [String], project: String, runnerDescription: String?) {
+    public init(
+        id: Int, name: String, tags: [String], project: String, runnerDescription: String?, ref: String? = nil,
+        sha: String? = nil
+    ) {
         self.id = id
         self.name = name
         self.tags = tags
         self.project = project
         self.runnerDescription = runnerDescription
+        self.ref = ref
+        self.sha = sha
     }
 }
 

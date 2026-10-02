@@ -43,7 +43,8 @@ final class MainTabsModelTests: XCTestCase {
     func testSetupTabFollowsFleetControllerSetupState() {
         XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced])
         fleet.setupIncomplete = true
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .setup, .advanced])
+        XCTAssertEqual(tabs.visibleTabs, [], "no tab bar while setup gates the window")
+        XCTAssertTrue(tabs.isGatedBySetup)
         tabs.setupIncomplete = false
         XCTAssertFalse(fleet.setupIncomplete, "the model writes through to the controller")
     }
@@ -87,13 +88,49 @@ final class MainTabsModelTests: XCTestCase {
         XCTAssertNil(models.wizardModel)
     }
 
-    func testFinishLaterKeepsTheSetupTab() throws {
+    // MARK: - Setup gating
+
+    func testGatedWindowIgnoresTabSwitchesAndAlwaysShowsTheWizard() {
+        fleet.setupIncomplete = true
+        tabs.select(.fleet)
+        XCTAssertEqual(tabs.selectedTab, .setup)
+        XCTAssertNotNil(models.wizardModel)
+        tabs.userSelected(.advanced)
+        XCTAssertEqual(tabs.selectedTab, .setup)
+        tabs.showAdvanced(.routing)
+        XCTAssertEqual(tabs.selectedTab, .setup)
+        XCTAssertNil(models.runtimesModel, "no Advanced section is built behind the wizard")
+        XCTAssertEqual(tabs.visibleTabs, [])
+    }
+
+    func testGatedWindowIgnoresLogsAndDiagnosticsRequests() {
+        fleet.setupIncomplete = true
+        tabs.present(.logs)
+        tabs.present(.diagnostics)
+        models.fleetModel.onShowLogs()
+        models.fleetModel.onShowDiagnostics()
+        XCTAssertNil(tabs.sheet)
+        XCTAssertNil(models.logsModel)
+        XCTAssertNil(models.diagnosticsModel)
+    }
+
+    func testTabBarAppearsAndFleetOpensWhenTheWizardFinishes() throws {
         fleet.setupIncomplete = true
         tabs.showSetup()
-        try XCTUnwrap(models.wizardModel).onFinishLater?()
+        XCTAssertTrue(tabs.isGatedBySetup)
+        try XCTUnwrap(models.wizardModel).onFinished?()
+        XCTAssertFalse(tabs.isGatedBySetup)
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced])
         XCTAssertEqual(tabs.selectedTab, .fleet)
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .setup, .advanced])
-        XCTAssertNotNil(models.wizardModel)
+        tabs.select(.advanced)
+        XCTAssertEqual(tabs.selectedTab, .advanced, "navigation works again")
+    }
+
+    func testReopeningSetupAfterOnboardingStaysInAdvancedWithTheTabBar() {
+        tabs.showSetup()
+        XCTAssertFalse(tabs.isGatedBySetup)
+        XCTAssertEqual(tabs.selectedTab, .advanced)
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced])
     }
 
     func testApplySetupInProgressOnlyActsDuringOnboarding() {

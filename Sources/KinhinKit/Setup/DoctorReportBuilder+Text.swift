@@ -37,9 +37,9 @@ extension DoctorReportBuilder {
         var lines = ["  config:     \(exists ? Paths.config.path : "missing — run: kinhin config init")"]
         guard let cfg else { return lines }
         lines.append("  image:      \(cfg.image)")
-        if let shareCache = cfg.toolchains?.shareCache, !shareCache {
+        if !cfg.projects.isEmpty, !cfg.sharesToolchainCache {
             lines.append(
-                "  cache note: share_cache is off — per-job `kinhin-toolchain install` steps download from scratch every job"
+                "  cache note: no project sets share_cache — per-job `kinhin-toolchain install` steps download from scratch every job"
             )
         }
         lines += await orgPermissionLines(cfg)

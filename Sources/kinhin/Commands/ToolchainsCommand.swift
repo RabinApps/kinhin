@@ -1,13 +1,17 @@
 import Foundation
 import KinhinKit
 
-/// `kinhin toolchains` — discovery for the managed-toolchain feature: the
-/// curated catalog (tools + stacks), the current config's selections, the
-/// shared-cache state, and the manual `prune` subcommand.
+/// `kinhin toolchains` — discovery for per-project toolchains: each
+/// project's declared toolchains, the curated catalog (tools + stacks), the
+/// shared-cache state, the derived images, and the `prune` subcommand.
 enum ToolchainsCommand {
     static func run(_ args: [String]) async {
         if hasFlag("--json", in: args) {
             print(jsonSummary())
+            return
+        }
+        if let project = flag("--project", in: args) {
+            await describeProject(project, ref: flag("--ref", in: args))
             return
         }
 
@@ -15,42 +19,32 @@ enum ToolchainsCommand {
         let pruner = ToolchainCachePruner()
         let bytes = pruner.totalBytes()
 
-        print("Managed toolchains")
+        print("Toolchains (per project)")
         print("")
 
-        // Current selections. A broken config degrades to "no selections"
-        // rather than failing a purely informational command; `kinhin config`
-        // commands surface the real parse error.
+        // A broken config degrades to "no projects" rather than failing a
+        // purely informational command; `kinhin config` commands surface
+        // the real parse error.
         let cfg = try? ConfigLoader.load()
-        let toolchains = cfg?.toolchains
-        print("Selections (config.yaml `toolchains:` section)")
-        if let toolchains {
-            print(
-                "  specs:        \((toolchains.specs ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.specs ?? []).joined(separator: ", "))"
-            )
-            print(
-                "  brew:         \((toolchains.brew ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.brew ?? []).joined(separator: ", "))"
-            )
-            print(
-                "  stacks:       \((toolchains.stacks ?? []).joined(separator: ", ").isEmpty ? "-" : (toolchains.stacks ?? []).joined(separator: ", "))"
-            )
-            let shareCacheOn = toolchains.shareCache ?? false
-            if shareCacheOn {
-                let mounts = effectiveRuntimeMounts(hasContainer: cfg?.container != nil, hasDocker: cfg?.docker != nil)
-                print("  share_cache:  yes — mounts at runtime into:")
-                for mount in mounts {
-                    print("    \(mount)")
+        print("Projects (config.yaml `projects:` section)")
+        if let projects = cfg?.projects, !projects.isEmpty {
+            for project in projects {
+                print("  \(project.pattern)")
+                if project.repoFile {
+                    print("    versions:     from .kinhin.yml in the repo at each job's branch/tag")
                 }
-            } else {
-                print("  share_cache:  no (add `share_cache: true` to share; baked installs always use the cache)")
+                if let toolchains = project.toolchains {
+                    print("    toolchains:   \(summary(of: toolchains))")
+                }
+                print("    share_cache:  \(project.shareCache == true ? "yes" : "no")")
             }
-            let policy = ToolchainCachePolicy(from: toolchains)
-            print(
-                "  cache:        auto_prune: \(policy.autoPrune ? "on" : "off"), max_age_days: \(policy.maxAgeDays), max_gb: \(policy.maxGB)"
-            )
         } else {
-            print("  none configured — add a `toolchains:` section to config.yaml (see below)")
+            print("  none configured — every repo gets the plain base image (see below)")
         }
+        let policy = ToolchainCachePolicy(from: cfg?.toolchainCache)
+        print(
+            "  cache:        auto_prune: \(policy.autoPrune ? "on" : "off"), max_age_days: \(policy.maxAgeDays), max_gb: \(policy.maxGB)"
+        )
         print("")
 
         // Catalog: stacks
@@ -63,7 +57,7 @@ enum ToolchainsCommand {
         print("")
 
         // Catalog: tools
-        print("Tools (mise by default; unknown specs pass through — this list is advisory)")
+        print("Tools (mise by default; a repo's .kinhin.yml may only name tools in this list)")
         for tool in ToolchainCatalog.tools {
             let reqs =
                 tool.requires.isEmpty ? "" : " · requires: \(tool.requires.map(\.rawValue).joined(separator: ", "))"
@@ -76,43 +70,70 @@ enum ToolchainsCommand {
         )
         print("Prune manually: kinhin toolchains prune [--dry-run]")
         print("")
-        print("Example config:")
+        print("Every project declares its own toolchains. In config.yaml:")
+        print(
+            """
+              projects:
+                - pattern: acme/api          # or acme/* for every repo of an owner
+                  repo_file: true            # read .kinhin.yml in the repo at each job's ref
+                - pattern: acme/web
+                  toolchains:
+                    specs: ["node@22", "pnpm"]
+                    stacks: ["vercel"]
+            """)
+        print("")
+        print("and in the repo's .kinhin.yml:")
         print(
             """
               toolchains:
-                specs: ["node@22", "pnpm"]
-                brew: ["yamllint"]
-                stacks: ["flutter@3.24.0", "vercel"]
-                share_cache: false
-                cache:
-                  auto_prune: true
-                  max_age_days: 30
-                  max_gb: 50
+                specs: ["go@1.22.5", "node@20"]
             """)
         print("")
-        print("Wire it up: set the section, then `kinhin image prepare` (bakes the tools into the base image).")
+        print("Preview a repo: kinhin toolchains --project acme/api [--ref main]")
+        print("Bake it now:    kinhin image prepare --project acme/api [--ref main]")
         print("")
         print("Per job: every prepared image also carries `kinhin-toolchain`, so a workflow step can install")
-        print("only what it needs (`run: kinhin-toolchain install node@22 pnpm`). Keep the image lean and set")
-        print("`share_cache: true` so those installs hit the warm host cache. Inspect: kinhin toolchains helper")
+        print("only what it needs (`run: kinhin-toolchain install node@22 pnpm`). Inspect: kinhin toolchains helper")
     }
 
-    /// The runtime-specific mount lines reflecting the effective wiring:
-    /// prepare-time bakes always mount the cache; runner VMs/containers
-    /// mount it per runtime when `share_cache` is on.
-    static func effectiveRuntimeMounts(hasContainer: Bool, hasDocker: Bool) -> [String] {
-        var lines = [
-            "macOS VMs (tart): \(ToolchainCacheMount.guestPath) via virtiofs",
-            "Linux VMs (tart): \(ToolchainCacheMount.linuxGuestPath) via virtiofs (mounted by the guest)",
-            "image prepares:   always mounted (VM + container bakes)",
-        ]
-        if hasContainer {
-            lines.append("apple containers: \(ToolchainCacheMount.linuxGuestPath) via -v bind mount")
+    static func summary(of toolchains: KinhinConfig.ToolchainsConfig) -> String {
+        let parts =
+            (toolchains.specs ?? []) + (toolchains.brew ?? []).map { "brew:\($0)" }
+            + (toolchains.stacks ?? []).map { "stack:\($0)" }
+        return parts.isEmpty ? "-" : parts.joined(separator: ", ")
+    }
+
+    /// `kinhin toolchains --project owner/name [--ref X]`.
+    static func describeProject(_ project: String, ref: String?) async {
+        do {
+            let cfg = try ConfigLoader.load()
+            let tart = try TartController(configuredPath: cfg.tartPath)
+            let result = try await ProjectImageService(config: cfg, tart: tart).describe(repository: project, ref: ref)
+            print("repository:  \(result.repository)")
+            print("source:      \(result.source)")
+            print("toolchains:  \(result.summary.isEmpty ? "-" : result.summary)")
+            print("image:       \(result.imageName ?? "base image (nothing to bake)")")
+            if let warning = result.warning { warn(warning) }
+        } catch {
+            fail(error)
         }
-        if hasDocker {
-            lines.append("docker slots:     \(ToolchainCacheMount.linuxGuestPath) via -v bind mount")
+    }
+
+    /// `kinhin toolchains list-images`.
+    static func listImages() async {
+        let records = ProjectImageStore().all.sorted { $0.lastUsedAt > $1.lastUsedAt }
+        guard !records.isEmpty else {
+            print("No derived project images.")
+            return
         }
-        return lines
+        let sizes = ((try? await TartController(configuredPath: nil).list()) ?? []).reduce(into: [String: Int]()) {
+            $0[$1.name] = $1.diskGB
+        }
+        for record in records {
+            let size = sizes[record.name].map { "\($0) GB disk" } ?? "not on disk"
+            let used = record.lastUsedAt.formatted(date: .abbreviated, time: .shortened)
+            print("\(record.name)  \(record.summary)  [\(size)] last used \(used)")
+        }
     }
 
     /// `kinhin toolchains helper [--linux]`: the per-job helper script as
@@ -127,10 +148,11 @@ enum ToolchainsCommand {
         // A broken config degrades to the default prune policy; the prune
         // report itself is still fully accurate.
         let cfg = try? ConfigLoader.load()
-        let policy = ToolchainCachePolicy(from: cfg?.toolchains)
+        let policy = ToolchainCachePolicy(from: cfg?.toolchainCache)
         // Manual prune always executes regardless of auto_prune (explicit
         // intent); --dry-run reports without touching anything.
         let report = ToolchainCachePruner().prune(policy: policy, dryRun: dryRun)
+        await pruneImages(dryRun: dryRun, config: cfg)
         if report.entries.isEmpty {
             print(dryRun ? "Nothing to prune." : "Cache is clean — nothing pruned.")
             return
@@ -144,19 +166,48 @@ enum ToolchainsCommand {
         )
     }
 
+    /// Derived images beyond `max_project_images` or unused for the cache's
+    /// age limit.
+    static func pruneImages(dryRun: Bool, config: KinhinConfig?) async {
+        let inUse = Set(FleetStore().all.compactMap(\.image))
+        let candidates = ProjectImageService.pruneCandidates(config: config, inUse: inUse)
+        guard !candidates.isEmpty else { return }
+        if dryRun {
+            print("Would delete derived images: \(candidates.joined(separator: ", "))")
+            return
+        }
+        guard let config else { return }
+        do {
+            let tart = try TartController(configuredPath: config.tartPath)
+            let removed = await ProjectImageService.prune(config: config, tart: tart, inUse: inUse)
+            print("Deleted derived images: \(removed.isEmpty ? "none" : removed.joined(separator: ", "))")
+        } catch {
+            warn("could not prune derived images: \(error.localizedDescription)")
+        }
+    }
+
     static func jsonSummary() -> String {
         // A broken config degrades to defaults in the JSON document (the
         // doctor's JSON embeds the same config error separately).
         let cfg = try? ConfigLoader.load()
-        let policy = ToolchainCachePolicy(from: cfg?.toolchains)
+        let policy = ToolchainCachePolicy(from: cfg?.toolchainCache)
         let bytes = ToolchainCachePruner().totalBytes()
+        let projects: [[String: Any]] = (cfg?.projects ?? []).map { project in
+            [
+                "pattern": project.pattern,
+                "repo_file": project.repoFile,
+                "specs": project.toolchains?.specs ?? [],
+                "brew": project.toolchains?.brew ?? [],
+                "stacks": project.toolchains?.stacks ?? [],
+                "share_cache": project.shareCache ?? false,
+            ]
+        }
+        let images: [[String: Any]] = ProjectImageStore().all.map {
+            ["name": $0.name, "summary": $0.summary, "last_used": ISO8601DateFormatter().string(from: $0.lastUsedAt)]
+        }
         let dict: [String: Any] = [
-            "selections": [
-                "specs": cfg?.toolchains?.specs ?? [],
-                "brew": cfg?.toolchains?.brew ?? [],
-                "stacks": cfg?.toolchains?.stacks ?? [],
-                "share_cache": cfg?.toolchains?.shareCache ?? false,
-            ],
+            "projects": projects,
+            "images": images,
             "cache": [
                 "path": Paths.toolchainCache.path,
                 "bytes": bytes,

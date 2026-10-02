@@ -59,6 +59,8 @@ struct KinhinCLI {
                 do {
                     if args.dropFirst().first == "prune" {
                         await ToolchainsCommand.prune(Array(args.dropFirst()))
+                    } else if args.dropFirst().first == "list-images" {
+                        await ToolchainsCommand.listImages()
                     } else if args.dropFirst().first == "helper" {
                         ToolchainsCommand.helper(Array(args.dropFirst()))
                     } else {

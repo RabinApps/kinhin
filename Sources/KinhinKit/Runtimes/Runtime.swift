@@ -36,28 +36,44 @@ public struct RepoRoute: Sendable, Equatable {
     public let image: String
     public let ephemeral: Bool
     let bootTimeout: Int
-    /// Opt-in (`toolchains.share_cache`): share the host toolchain cache
-    /// into every runner VM of this route via virtiofs, so per-job installs
-    /// (`npm ci`, `mise install`, `fvm install`, `dotnet restore`) hit warm
-    /// cache. Best-effort — see `ToolchainCacheMount`.
+    /// Opt-in per project (`projects[].share_cache`): share the host
+    /// toolchain cache into this route's runner VMs via virtiofs, so per-job
+    /// installs (`npm ci`, `mise install`, `fvm install`, `dotnet restore`)
+    /// hit warm cache. Best-effort — see `ToolchainCacheMount`.
     let cacheMount: Bool
+    /// The toolchains baked into `image` (its cache envs are exported in the
+    /// registration script when `cacheMount` is on). nil = none baked.
+    let toolchains: KinhinConfig.ToolchainsConfig?
+    /// The project image key scoping the cache share (nil = the whole cache).
+    let cacheScope: String?
 
-    public init(repo: String, image: String, ephemeral: Bool, bootTimeout: Int, cacheMount: Bool = false) {
+    public init(
+        repo: String, image: String, ephemeral: Bool, bootTimeout: Int, cacheMount: Bool = false,
+        toolchains: KinhinConfig.ToolchainsConfig? = nil, cacheScope: String? = nil
+    ) {
         self.repo = repo
         self.image = image
         self.ephemeral = ephemeral
         self.bootTimeout = bootTimeout
         self.cacheMount = cacheMount
+        self.toolchains = toolchains
+        self.cacheScope = cacheScope
     }
 
-    /// The route implied by today's single-fleet config.
-    public static func from(config: KinhinConfig) -> RepoRoute {
+    /// The route for a runner: the fleet's base image, or the derived
+    /// per-project `image` (baked with `toolchains`) its record was bound to.
+    public static func from(
+        config: KinhinConfig, image: String? = nil, toolchains: KinhinConfig.ToolchainsConfig? = nil,
+        cacheMount: Bool = false, cacheScope: String? = nil
+    ) -> RepoRoute {
         RepoRoute(
             repo: config.repo,
-            image: config.image,
+            image: image ?? config.image,
             ephemeral: config.vm.ephemeral,
             bootTimeout: config.vmBootTimeout,
-            cacheMount: config.toolchains?.shareCache ?? false
+            cacheMount: cacheMount,
+            toolchains: toolchains,
+            cacheScope: cacheScope
         )
     }
 }
@@ -135,9 +151,6 @@ struct TartRuntime: Runtime {
     let tart: TartControlling
     let ssh: SSHExecuting
     let bootTimeout: @Sendable () -> Int
-    /// The resolved managed-toolchain selection (cache envs come from here
-    /// when `share_cache` mounts the host cache into runner VMs).
-    let toolchainsConfig: @Sendable () -> KinhinConfig.ToolchainsConfig?
     /// How long registration keeps retrying while the guest's sshd is still
     /// coming up, and the pause between attempts. `tart ip` answers as soon
     /// as the VM has a lease — often 20+ seconds before SSH listens (seen
@@ -146,21 +159,18 @@ struct TartRuntime: Runtime {
     let sshRetryInterval: Duration
 
     /// Cache envs to export in registration scripts when the route mounts
-    /// the shared cache. Computed once per script request from live config.
-    var cachedToolchainSelection: ManagedToolchainSelection? {
-        guard let config = toolchainsConfig() else { return nil }
-        return ToolchainCatalog.selection(from: config)
+    /// the shared cache, from the toolchains baked into the route's image.
+    func cachedToolchainSelection(for route: RepoRoute) -> ManagedToolchainSelection? {
+        route.toolchains.map { ToolchainCatalog.selection(from: $0) }
     }
 
     init(
         tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, ssh: SSHExecuting = SSHExecutor(),
-        toolchainsConfig: @escaping @Sendable () -> KinhinConfig.ToolchainsConfig? = { nil },
         sshReadyWindow: TimeInterval = 120, sshRetryInterval: Duration = .seconds(5)
     ) {
         self.tart = tart
         self.bootTimeout = bootTimeout
         self.ssh = ssh
-        self.toolchainsConfig = toolchainsConfig
         self.sshReadyWindow = sshReadyWindow
         self.sshRetryInterval = sshRetryInterval
     }
@@ -191,7 +201,7 @@ struct TartRuntime: Runtime {
         }
         Log.info(id, "cloning from \(route.image)")
         try await tart.clone(source: route.image, to: id)
-        let mounts = route.cacheMount ? [ToolchainCacheMount.tartDirectorySpec] : []
+        let mounts = route.cacheMount ? [ToolchainCacheMount.tartDirectorySpec(scope: route.cacheScope)] : []
         try await tart.run(name: id, mounts: mounts)
     }
 
@@ -236,7 +246,7 @@ struct TartRuntime: Runtime {
         // produces; exports are guarded no-ops when the share is absent.
         // The base VM may be macOS or Linux, so the guest picks its own cache root.
         let cachePrefix = RunnerBootstrap.tartCachePrefix(
-            mounted: route.cacheMount, selection: cachedToolchainSelection)
+            mounted: route.cacheMount, selection: cachedToolchainSelection(for: route))
         switch forge.credentials.forge {
         case .github:
             return cachePrefix

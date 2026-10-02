@@ -46,11 +46,17 @@ struct GitHubForge: Forge {
 
     func queuedJobs() async throws -> [ForgeJob] {
         try await client.queuedJobs(matching: Set(labels)).map {
-            ForgeJob(name: $0.name, runnerName: nil, repository: $0.repository, labels: $0.labels)
+            ForgeJob(
+                name: $0.name, runnerName: nil, repository: $0.repository, labels: $0.labels, ref: $0.ref,
+                sha: $0.sha, isFork: $0.isFork)
         }
     }
 
     var rateLimit: ForgeRateLimit? { client.rateLimit }
+
+    func projectFile(repository: String, ref: String?) async throws -> Data? {
+        try await client.projectFile(repository: repository, ref: ref)
+    }
 
     func runningJobs() async throws -> [ForgeJob] {
         try await client.runningJobs(matching: Set(labels)).map {

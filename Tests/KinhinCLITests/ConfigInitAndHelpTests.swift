@@ -102,12 +102,16 @@ final class ConfigInitAndHelpTests: XCTestCase {
         XCTAssertLessThan(image.lowerBound, start.lowerBound)
     }
 
-    func testHelpTextMentionsLinuxToolchainOverridesForBothContainerRuntimes() {
+    func testHelpTextDescribesPerProjectBakesNotToolchainOverrides() {
         let help = helpText()
-        XCTAssertTrue(help.contains("--linux-toolchain"), "help should advertise the Linux bake override")
-        let docker = try! XCTUnwrap(help.range(of: "--docker"))
-        let bakes = try! XCTUnwrap(help.range(of: "bakes `toolchains:` the same way"))
-        XCTAssertLessThan(docker.lowerBound, bakes.lowerBound, "the docker line documents the same toolchain bake")
+        XCTAssertTrue(help.contains("image prepare --project <owner/name>"), "help should advertise per-project bakes")
+        for removed in ["--toolchain", "--stack", "--linux-toolchain", "--linux-stack"] {
+            XCTAssertFalse(help.contains(removed), "\(removed) was removed and must not be advertised")
+        }
+        let project = try! XCTUnwrap(help.range(of: "image prepare --project"))
+        let container = try! XCTUnwrap(help.range(of: "image prepare --container"))
+        XCTAssertLessThan(project.lowerBound, container.lowerBound)
+        XCTAssertTrue(help.contains("toolchains --project <owner/name>"))
     }
 
     func testHelpTextSpeaksKinhinAndMentionsEveryRuntime() {

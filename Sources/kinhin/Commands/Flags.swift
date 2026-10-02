@@ -10,16 +10,3 @@ func flag(_ name: String, in args: [String]) -> String? {
 func hasFlag(_ name: String, in args: [String]) -> Bool {
     args.contains(name)
 }
-
-/// All values for a repeatable `--flag <value>` argument, in order.
-func allFlags(_ name: String, in args: [String]) -> [String] {
-    var values: [String] = []
-    var index = args.startIndex
-    while let found = args[index...].firstIndex(of: name) {
-        let valueIndex = args.index(after: found)
-        guard valueIndex < args.endIndex else { break }
-        values.append(args[valueIndex])
-        index = args.index(after: valueIndex)
-    }
-    return values
-}

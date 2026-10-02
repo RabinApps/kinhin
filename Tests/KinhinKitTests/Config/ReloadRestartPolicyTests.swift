@@ -59,7 +59,18 @@ final class ReloadRestartPolicyTests: XCTestCase {
                 }),
             "forge accounts must restart")
         XCTAssertTrue(
-            FleetEngine.restartRequired(from: base, to: with { $0.toolchains = .init(specs: ["node@22"]) }),
-            "toolchains must restart")
+            FleetEngine.restartRequired(from: base, to: with { $0.toolchainCache = .init(maxGB: 10) }),
+            "toolchain_cache must restart")
+        XCTAssertFalse(
+            FleetEngine.restartRequired(
+                from: base,
+                to: with {
+                    $0.projects = [
+                        .init(
+                            pattern: "acme/widgets", repoFile: false,
+                            toolchains: .init(specs: ["node@22"]), shareCache: true)
+                    ]
+                }),
+            "projects hot-apply, they never restart")
     }
 }

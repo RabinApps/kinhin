@@ -81,7 +81,7 @@ extension ConfigLoader {
         # disk_gb: 0           # extra scratch disk per VM (0 = none)
         # tart_path: /opt/homebrew/bin/tart
         # tart_softnet: true   # isolate runner VMs from each other and the LAN (needs softnet; see docs/runtimes.md)
-        # Running PRs from outside contributors? Also keep toolchains.share_cache off (docs/toolchains.md).
+        # Running PRs from outside contributors? Also keep projects[].share_cache off (docs/toolchains.md).
         # token_ttl: 3000      # seconds to cache the runner registration token
 
         # Optional: bake your own toolchains into the base image. The script
@@ -96,24 +96,28 @@ extension ConfigLoader {
         # output is logged, recording what went into the image.
         # provision_script: "~/kinhin/provision.sh"
 
-        # Optional: managed toolchains — kinhin installs and pins the
-        # runtimes below into the base image (no script to write), with
-        # version prints logged as the audit trail. Every entry installs
-        # exactly its own pieces; a stack that needs a runtime (vercel needs
-        # node) is a validation error until you list that runtime too.
-        # Unknown specs pass through to mise, unknown brew entries to brew —
-        # see `kinhin toolchains` for the curated catalog. To install per job
-        # instead, keep this lean and add `run: kinhin-toolchain install node@22`
-        # to the workflows that need it (every prepared image carries it).
-        # toolchains:
-        #   specs: ["go@1.23.4", "node@22", "bun@1.1.27", "deno@2", "java@temurin-17", "dotnet", "uv"]
-        #   brew: ["wget", "cmake", "yamllint"]
-        #   stacks: ["flutter@3.24.0", "expo", "react-native", "vercel", "cloudflare"]
-        #   share_cache: false   # mount the host download cache into runner VMs (opt-in)
-        #   cache:               # host-side cache auto-expiry (baked images are never touched)
-        #     auto_prune: true   # sweep after each prepare + daily while the fleet runs
-        #     max_age_days: 30   # entries unused this long are deleted (0 = never)
-        #     max_gb: 50         # LRU eviction beyond this size (0 = unlimited)
+        # Optional: per-project toolchains. Each repo gets the toolchains it
+        # declares, baked into its own image (`kinhin image prepare --project
+        # owner/name`); there is no global toolchain list. Either let the repo
+        # declare them in a .kinhin.yml (repo_file: true), or declare them here.
+        # Every entry installs exactly its own pieces; a stack that needs a
+        # runtime (vercel needs node) is a validation error until you list it.
+        # See `kinhin toolchains` for the curated catalog. Repos without
+        # toolchains run on the plain base image and can install per job with
+        # `run: kinhin-toolchain install node@22`. See docs/toolchains.md.
+        # projects:
+        #   - pattern: "owner/*"     # owner/name or owner/*
+        #     repo_file: true        # honor the repo's .kinhin.yml (default false)
+        #   - pattern: "owner/api"
+        #     toolchains:
+        #       specs: ["go@1.23.4", "node@22"]
+        #       stacks: ["flutter@3.24.0"]
+        #     share_cache: false     # mount the host download cache (opt-in)
+        # max_project_images: 8      # cap on derived per-project images (LRU)
+        # toolchain_cache:           # host-side cache auto-expiry (baked images are never touched)
+        #   auto_prune: true         # sweep after each bake + daily while the fleet runs
+        #   max_age_days: 30         # entries unused this long are deleted (0 = never)
+        #   max_gb: 50               # LRU eviction beyond this size (0 = unlimited)
 
         # Optional: serve more forges from the same fleet. Every accounts:
         # entry above is one forge; VMs are assigned to whichever forge has

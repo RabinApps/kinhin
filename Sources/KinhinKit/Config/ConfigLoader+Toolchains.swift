@@ -3,7 +3,27 @@ import Foundation
 extension ConfigLoader {
     // MARK: - Toolchains section
 
-    /// Validates and resolves the `toolchains:` section. Beyond the usual
+    /// Validates and resolves the `toolchain_cache:` section: non-negative
+    /// limits, and `auto_prune: false` only alongside explicit limits.
+    static func parseToolchainCache(_ cache: PartialConfig.PartialCachePolicy) throws -> KinhinConfig.ToolchainCacheConfig
+    {
+        if let auto = cache.autoPrune, auto == false, cache.maxAgeDays == nil, cache.maxGB == nil {
+            throw ConfigError.invalid(
+                "toolchain_cache: set auto_prune: false together with explicit max_age_days / max_gb values, or remove the section (the defaults are auto_prune: true, 30 days, 50 GB)"
+            )
+        }
+        if let days = cache.maxAgeDays, days < 0 {
+            throw ConfigError.invalid("toolchain_cache.max_age_days must be >= 0 (0 = no age limit)")
+        }
+        if let gb = cache.maxGB, gb < 0 {
+            throw ConfigError.invalid("toolchain_cache.max_gb must be >= 0 (0 = no size limit)")
+        }
+        return KinhinConfig.ToolchainCacheConfig(
+            autoPrune: cache.autoPrune, maxAgeDays: cache.maxAgeDays, maxGB: cache.maxGB)
+    }
+
+    /// Validates and resolves a toolchain set (`projects[].toolchains`).
+    /// Beyond the usual
     /// shape checks (non-empty entries, no duplicates per list, non-negative
     /// cache values) this enforces the no-implicit-installs rule: a stack
     /// that needs a runtime (e.g. vercel → node) fails validation naming the
@@ -14,47 +34,20 @@ extension ConfigLoader {
     public static func parseToolchains(_ partial: PartialConfig.PartialToolchains) throws
         -> KinhinConfig.ToolchainsConfig
     {
-        // Entries written by older builds carry a doubled id or a "—" placeholder
-        // in the version slot (`node@node@22`, `supabase@—`); repair them here so
-        // an existing config keeps working instead of failing mid-bake.
-        let specs = try Self.parseList(partial.specs, key: "toolchains.specs").map(
-            ToolchainsConfigEditor.normalizedSpec)
+        let specs = try Self.parseList(partial.specs, key: "toolchains.specs")
         let brew = try Self.parseList(partial.brew, key: "toolchains.brew")
         let stackNames = try Self.parseList(partial.stacks, key: "toolchains.stacks")
-            .map(ToolchainsConfigEditor.normalizedSpec)
         // These reach bake scripts: shell metacharacters, spaces and a leading
-        // `-` are rejected up front (checked after normalisation so legacy
-        // `tool@—` placeholders are repaired, not refused).
+        // `-` are rejected up front.
         try Self.requireSafeEntries(specs, key: "toolchains.specs")
         try Self.requireSafeEntries(brew, key: "toolchains.brew")
         try Self.requireSafeEntries(stackNames, key: "toolchains.stacks")
 
-        var toolchains = KinhinConfig.ToolchainsConfig(
+        let toolchains = KinhinConfig.ToolchainsConfig(
             specs: partial.specs != nil ? specs : nil,
             brew: partial.brew != nil ? brew : nil,
-            stacks: partial.stacks != nil ? stackNames : nil,
-            shareCache: partial.shareCache,
-            cache: nil
+            stacks: partial.stacks != nil ? stackNames : nil
         )
-
-        if let cache = partial.cache {
-            if let auto = cache.autoPrune, auto == false, cache.maxAgeDays == nil, cache.maxGB == nil {
-                throw ConfigError.invalid(
-                    "toolchains.cache: set auto_prune: false together with explicit max_age_days / max_gb values, or remove the cache section (the defaults are auto_prune: true, 30 days, 50 GB)"
-                )
-            }
-            if let days = cache.maxAgeDays, days < 0 {
-                throw ConfigError.invalid("toolchains.cache.max_age_days must be >= 0 (0 = no age limit)")
-            }
-            if let gb = cache.maxGB, gb < 0 {
-                throw ConfigError.invalid("toolchains.cache.max_gb must be >= 0 (0 = no size limit)")
-            }
-            toolchains.cache = KinhinConfig.ToolchainsConfig.CachePolicy(
-                autoPrune: cache.autoPrune,
-                maxAgeDays: cache.maxAgeDays,
-                maxGB: cache.maxGB
-            )
-        }
 
         // Stack ids must be known, and their runtime prerequisites must be
         // explicitly selected. Unknown specs/brew entries stay legal (pass-

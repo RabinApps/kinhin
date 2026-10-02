@@ -305,7 +305,7 @@ public struct SetupStatusComputer: Sendable {
             var isDir: ObjCBool = false
             let exists = fm.fileExists(atPath: Paths.toolchainCache.path, isDirectory: &isDir)
             let usable = exists && isDir.boolValue && fm.isWritableFile(atPath: Paths.toolchainCache.path)
-            let shareCacheOn = parsed?.toolchains?.shareCache ?? false
+            let shareCacheOn = parsed?.sharesToolchainCache ?? false
             checks.append(Self.toolchainCacheCheck(usable: usable, shareCacheOn: shareCacheOn))
         }
 

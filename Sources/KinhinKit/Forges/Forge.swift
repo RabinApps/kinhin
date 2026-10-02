@@ -135,6 +135,10 @@ public protocol Forge: Sendable {
     func runningJobs() async throws -> [ForgeJob]
     /// The API budget the forge last reported (nil: the forge reports none).
     var rateLimit: ForgeRateLimit? { get }
+    /// The bytes of `.kinhin.yml` in `repository` at `ref` (nil `ref` = the
+    /// default branch), or nil when the repo has none. Forges without a file
+    /// API return nil.
+    func projectFile(repository: String, ref: String?) async throws -> Data?
 }
 
 extension Forge {
@@ -147,6 +151,8 @@ extension Forge {
     public var attributesByRepo: Bool { !scope.contains("/") }
 
     public var rateLimit: ForgeRateLimit? { nil }
+
+    public func projectFile(repository: String, ref: String?) async throws -> Data? { nil }
 
     /// The API id of a runner on a forge that numbers them (GitHub, the Gitea
     /// family, GitLab); `ForgeRunner.id` carries it as a string.
@@ -190,11 +196,24 @@ public struct ForgeJob: Sendable, Equatable {
     /// Labels the job requested via `runs-on:` (when the forge exposes
     /// them) — the per-workflow routing signal.
     public let labels: [String]?
+    /// Branch or tag the job runs at (nil when the forge doesn't expose it).
+    public let ref: String?
+    /// Commit the job runs at (nil when the forge doesn't expose it).
+    public let sha: String?
+    /// True when the job comes from a fork's pull request: its repo file is
+    /// never honored.
+    public let isFork: Bool
 
-    public init(name: String, runnerName: String?, repository: String?, labels: [String]? = nil) {
+    public init(
+        name: String, runnerName: String?, repository: String?, labels: [String]? = nil, ref: String? = nil,
+        sha: String? = nil, isFork: Bool = false
+    ) {
         self.name = name
         self.runnerName = runnerName
         self.repository = repository
         self.labels = labels
+        self.ref = ref
+        self.sha = sha
+        self.isFork = isFork
     }
 }

@@ -12,7 +12,13 @@ final class DoctorSecuritySectionTests: XCTestCase {
         var cfg = KinhinConfig.default
         cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")] + accounts
         cfg.tartSoftnet = softnet
-        if let shareCache { cfg.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: shareCache) }
+        if let shareCache {
+            cfg.projects = [
+                KinhinConfig.ProjectConfig(
+                    pattern: "acme/widgets", toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
+                    shareCache: shareCache)
+            ]
+        }
         return cfg
     }
 
@@ -93,7 +99,7 @@ final class DoctorSecuritySectionTests: XCTestCase {
         let off = await report(config(shareCache: true)).plainText
         XCTAssertTrue(off.contains("softnet:"), off)
         XCTAssertTrue(off.contains("off (runner VMs share one network)"), off)
-        XCTAssertTrue(off.contains("share_cache is on"), off)
+        XCTAssertTrue(off.contains("a project has share_cache on"), off)
 
         let on = await report(config(softnet: true)).plainText
         XCTAssertTrue(on.contains("on ✓ (runner VMs are isolated"), on)

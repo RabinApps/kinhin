@@ -57,6 +57,15 @@ public struct ImagePreparer {
         /// scratch VM). A Linux guest gets the Linux agent binaries and the
         /// Linux toolchain path; macOS keeps the classic bake.
         public var guestOS: GuestOS?
+        /// Mount the host toolchain cache into the scratch VM (default). A
+        /// per-project bake turns it off unless the project opts in, so a
+        /// repo-chosen toolchain set never writes through the shared cache.
+        public var shareCache: Bool
+        /// Host cache expiry applied before the bake (nil = defaults).
+        public var cachePolicy: KinhinConfig.ToolchainCacheConfig?
+        /// Scopes the cache share to one project's subdirectory (its image
+        /// key); nil shares the whole host cache.
+        public var cacheScope: String?
 
         public init(
             source: String = ImagePreparer.defaultSource, target: String = ImagePreparer.defaultTarget,
@@ -66,7 +75,8 @@ public struct ImagePreparer {
             hasBuildkiteToken: Bool? = nil, hasAzureDevOpsToken: Bool? = nil, hasBitbucketToken: Bool? = nil,
             provisionScriptPath: String? = nil,
             provisionTimeout: TimeInterval = 1800, toolchains: KinhinConfig.ToolchainsConfig? = nil,
-            toolchainTimeout: TimeInterval = 1800, guestOS: GuestOS? = nil
+            toolchainTimeout: TimeInterval = 1800, guestOS: GuestOS? = nil, shareCache: Bool = true,
+            cachePolicy: KinhinConfig.ToolchainCacheConfig? = nil, cacheScope: String? = nil
         ) {
             self.source = source
             self.target = target
@@ -84,6 +94,9 @@ public struct ImagePreparer {
             self.toolchains = toolchains
             self.toolchainTimeout = toolchainTimeout
             self.guestOS = guestOS
+            self.shareCache = shareCache
+            self.cachePolicy = cachePolicy
+            self.cacheScope = cacheScope
         }
 
         /// The options a config asks for: its `base_image:` (else the
@@ -91,7 +104,7 @@ public struct ImagePreparer {
         /// prepare entry point (CLI, setup checklist, app buttons) starts
         /// here so none of them drops a configured key.
         public init(config cfg: KinhinConfig) {
-            self.init(provisionScriptPath: cfg.provisionScript, toolchains: cfg.toolchains)
+            self.init(provisionScriptPath: cfg.provisionScript, cachePolicy: cfg.toolchainCache)
             if let baseImage = cfg.baseImage {
                 // An explicit registry reference is used verbatim (the config
                 // template's "a pre-configured tart image" promise);
@@ -180,22 +193,30 @@ public struct ImagePreparer {
 
         // Cache upkeep: sweep stale entries before this prepare writes
         // through the cache (noop unless age/size limits trip).
-        let policy = ToolchainCachePolicy(from: options.toolchains)
+        let policy = ToolchainCachePolicy(from: options.cachePolicy)
         ToolchainCachePruner().prune(policy: policy)
 
         // Always share the host toolchain cache into the scratch VM: every
         // prepare write-through (brew, mise, npm, fvm) lands in one cache
         // that later prepares and runner VMs reuse. Best-effort: scripts
         // skip the cache gracefully when the share is not visible.
-        let cacheMounts = [ToolchainCacheMount.tartDirectorySpec]
-        do {
-            try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
-        } catch {
-            Log.warn(
-                "image", "could not create toolchain cache dir (\(error.localizedDescription)); continuing without it")
+        let cacheMounts =
+            options.shareCache ? [ToolchainCacheMount.tartDirectorySpec(scope: options.cacheScope)] : []
+        if options.shareCache {
+            do {
+                try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
+            } catch {
+                Log.warn(
+                    "image",
+                    "could not create toolchain cache dir (\(error.localizedDescription)); continuing without it")
+            }
         }
 
-        Log.info("image", "booting scratch VM (host toolchain cache shared via virtiofs)")
+        Log.info(
+            "image",
+            options.shareCache
+                ? "booting scratch VM (host toolchain cache shared via virtiofs)"
+                : "booting scratch VM (no host cache share)")
         try await tart.run(name: tmp, mounts: cacheMounts)
         let ip = try await tart.ip(of: tmp, timeout: 300)
 

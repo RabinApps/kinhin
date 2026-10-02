@@ -54,7 +54,7 @@ extension FleetEngine {
             // Phase: provisioning (clone+boot for VMs, container run for
             // containers; idempotent for an existing id — recovery path).
             updateRecord(id) { $0.phase = .cloning }
-            try await recordRuntime.provision(id: id, route: RepoRoute.from(config: config))
+            try await recordRuntime.provision(id: id, route: route(forRecord: id))
             try Task.checkCancellation()
 
             // Phase: booting. Runtimes return the address their registration
@@ -112,7 +112,7 @@ extension FleetEngine {
             try Task.checkCancellation()
             let script = try await recordRuntime.registrationScript(
                 forge: forge, token: token, runnerTokens: runnerTokens, name: id,
-                runnerCount: runnerCount, route: RepoRoute.from(config: config),
+                runnerCount: runnerCount, route: route(forRecord: id),
                 labels: labels
             )
             result = try await recordRuntime.execRegistration(id, ip: ip, script, timeout: 600)

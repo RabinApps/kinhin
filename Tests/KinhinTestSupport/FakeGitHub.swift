@@ -34,6 +34,14 @@ final class FakeGitHub: GitHubServing, Sendable {
         var runningJobsCallCount = 0
         /// The API budget the fake reports (nil: unknown, like other forges).
         var rateLimit: ForgeRateLimit?
+        /// Branch/tag, sha and fork flag cycled through the queued jobs.
+        var queueRefs: [String] = []
+        var queueShas: [String] = []
+        var queueForks = false
+        /// `.kinhin.yml` bodies keyed by "owner/name@ref" ("@default" when
+        /// the read has no ref, i.e. the default branch).
+        var projectFiles: [String: Data] = [:]
+        var projectFileCalls: [String] = []
     }
 
     private let state = Mutex(State())
@@ -62,6 +70,36 @@ final class FakeGitHub: GitHubServing, Sendable {
     var rateLimit: ForgeRateLimit? {
         get { state.withLock { $0.rateLimit } }
         set { state.withLock { $0.rateLimit = newValue } }
+    }
+
+    var queueRefs: [String] {
+        get { state.withLock { $0.queueRefs } }
+        set { state.withLock { $0.queueRefs = newValue } }
+    }
+
+    var queueShas: [String] {
+        get { state.withLock { $0.queueShas } }
+        set { state.withLock { $0.queueShas = newValue } }
+    }
+
+    var queueForks: Bool {
+        get { state.withLock { $0.queueForks } }
+        set { state.withLock { $0.queueForks = newValue } }
+    }
+
+    var projectFiles: [String: Data] {
+        get { state.withLock { $0.projectFiles } }
+        set { state.withLock { $0.projectFiles = newValue } }
+    }
+
+    var projectFileCalls: [String] { state.withLock { $0.projectFileCalls } }
+
+    func projectFile(repository: String, ref: String?) async throws -> Data? {
+        state.withLock { state in
+            let key = "\(repository)@\(ref ?? "default")"
+            state.projectFileCalls.append(key)
+            return state.projectFiles[key]
+        }
     }
 
     var registrationTokenCalls: Int { state.withLock { $0.registrationTokenCalls } }
@@ -146,15 +184,18 @@ final class FakeGitHub: GitHubServing, Sendable {
     }
 
     func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] {
-        let (depth, failing, repos) = state.withLock { state -> (Int, Bool, [String]) in
+        let (depth, failing, repos, refs, shas, fork) = state.withLock {
+            state -> (Int, Bool, [String], [String], [String], Bool) in
             state.queuedJobsCallCount += 1
-            return (state.queueDepth, state.failQueue, state.queueRepos)
+            return (state.queueDepth, state.failQueue, state.queueRepos, state.queueRefs, state.queueShas, state.queueForks)
         }
         if failing { throw GitHubError.http(0, "offline") }
         return (0..<depth).map { i in
             QueuedJob(
                 runID: 1, jobID: i, name: "job \(i)", labels: labels.sorted(),
-                repository: repos.isEmpty ? nil : repos[i % repos.count])
+                repository: repos.isEmpty ? nil : repos[i % repos.count],
+                ref: refs.isEmpty ? nil : refs[i % refs.count], sha: shas.isEmpty ? nil : shas[i % shas.count],
+                isFork: fork)
         }
     }
 

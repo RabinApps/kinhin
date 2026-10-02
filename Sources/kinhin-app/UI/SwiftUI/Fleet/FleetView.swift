@@ -17,6 +17,13 @@ struct FleetView: View {
                     // auto-resume note, queue age, and both per-repo
                     // breakdowns on a paused fleet draining its last jobs.
                     .lineLimit(5)
+                if let notice = model.imageNotice {
+                    Text(notice)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .accessibilityIdentifier("image-notice")
+                }
             }
 
             // Only the actions that apply: Start when stopped; Stop and

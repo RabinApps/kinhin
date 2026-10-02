@@ -125,23 +125,7 @@ enum ImageCommand {
                     configured: cfg.container?.baseImage, flagOverride: flag("--container-image", in: args))
                 let target = flag("--target", in: args) ?? "kinhin-ci-linux"
                 let preparer = ContainerImagePreparer(shell: shell)
-                var options = ContainerImagePreparer.Options(image: image, target: target)
-                // Managed toolchains for the Linux bake: config section by
-                // default; --linux-toolchain / --linux-stack flags
-                // (repeatable) override it for this prepare. A bare flag
-                // means "no managed toolchains". macOS-only entries are
-                // skipped with a note, never an error.
-                let specFlags = allFlags("--linux-toolchain", in: args)
-                let stackFlags = allFlags("--linux-stack", in: args)
-                if !specFlags.isEmpty || !stackFlags.isEmpty {
-                    let override = PartialConfig.PartialToolchains(
-                        specs: specFlags.isEmpty ? nil : specFlags,
-                        stacks: stackFlags.isEmpty ? nil : stackFlags
-                    )
-                    options.toolchains = try ConfigLoader.parseToolchains(override)
-                } else {
-                    options.toolchains = cfg.toolchains
-                }
+                let options = ContainerImagePreparer.Options(image: image, target: target)
                 let baked = try await preparer.prepare(options)
                 print("container image ready: \(baked)")
                 print("set `container.image: \"\(baked)\"` in your config to use it")
@@ -183,25 +167,28 @@ enum ImageCommand {
                 if options.platform.isEmulated {
                     warn(LinuxPlatform.emulationNotice)
                 }
-                // Managed toolchains for the Linux bake: config section by
-                // default; --linux-toolchain / --linux-stack flags
-                // (repeatable) override it for this prepare. A bare flag
-                // means "no managed toolchains". macOS-only entries are
-                // skipped with a note, never an error.
-                let specFlags = allFlags("--linux-toolchain", in: args)
-                let stackFlags = allFlags("--linux-stack", in: args)
-                if !specFlags.isEmpty || !stackFlags.isEmpty {
-                    let override = PartialConfig.PartialToolchains(
-                        specs: specFlags.isEmpty ? nil : specFlags,
-                        stacks: stackFlags.isEmpty ? nil : stackFlags
-                    )
-                    options.toolchains = try ConfigLoader.parseToolchains(override)
-                } else {
-                    options.toolchains = cfg.toolchains
-                }
                 let baked = try await preparer.prepare(options)
                 print("docker image ready: \(baked)")
                 print("set `docker.image: \"\(baked)\"` in your config to use it")
+            } catch {
+                fail(error)
+            }
+            return
+        }
+        if let project = flag("--project", in: args) {
+            // Eager per-project bake: resolve the repo's toolchains (its
+            // .kinhin.yml at --ref when the project opts in, else the project
+            // entry's own) and bake the derived image now, so the first job
+            // starts warm.
+            do {
+                let tart = try TartController(configuredPath: cfg.tartPath)
+                let result = try await ProjectImageService(config: cfg, tart: tart).prepare(
+                    repository: project, ref: flag("--ref", in: args))
+                print(result.summaryLine)
+            } catch TartError.missingBinary {
+                fail(
+                    "tart is not installed. Install it first (or click 'Install via Homebrew' in the app): \(TartHealthProbe.installCommand)",
+                    exit: .runtime)
             } catch {
                 fail(error)
             }
@@ -217,19 +204,8 @@ enum ImageCommand {
             // The flag wins over the config key; either may be absent (no
             // user script is baked in that case).
             options.provisionScriptPath = flag("--provision-script", in: args) ?? options.provisionScriptPath
-            // Managed toolchains: config section by default; --toolchain /
-            // --stack flags (repeatable) override it for this prepare. A
-            // bare --toolchain/--stack means "no managed toolchains".
-            let specFlags = allFlags("--toolchain", in: args)
-            let stackFlags = allFlags("--stack", in: args)
-            if !specFlags.isEmpty || !stackFlags.isEmpty {
-                let override = PartialConfig.PartialToolchains(
-                    specs: specFlags.isEmpty ? nil : specFlags,
-                    stacks: stackFlags.isEmpty ? nil : stackFlags
-                )
-                options.toolchains = try ConfigLoader.parseToolchains(override)
-            }
             try await preparer.run(options)
+            if options.target == cfg.image { await ProjectImageService.invalidateAll(tart: tart) }
             print("image ready: \(options.target)")
             print("set `image: \"\(options.target)\"` in your config to use it")
         } catch TartError.missingBinary {

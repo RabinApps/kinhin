@@ -36,19 +36,22 @@ func helpText() -> String {
                                     (host runs unisolated on this Mac and needs --consent)
         runtimes route remove <pat>     Delete that route; a running daemon reloads routing live
         image prepare [--provision-script <file>]
-                                    Build the runner base image (slow, once); the script
-                                    bakes your toolchains in after the agents install.
-                                    Also bakes `toolchains:` config entries and uses the
-                                    shared host download cache (auto-pruned). Starts
-                                    from base_image: (a pre-configured tart image or a
-                                    local VM name) instead of the default macOS base
-        image prepare --toolchain <spec> [--stack <name>]
-                                    Override the config's toolchains for this prepare
-        image prepare --container   Build the Linux container image (apple container);
-                                    bakes `toolchains:` too — macOS-only entries are
-                                    skipped (use --linux-toolchain/--linux-stack to override)
+                                    Build the runner base image (slow, once): the runner
+                                    agents plus your provision script. Toolchains are
+                                    per project (see --project). Uses the shared host
+                                    download cache (auto-pruned). Starts from base_image:
+                                    (a pre-configured tart image or a local VM name)
+                                    instead of the default macOS base
+        image prepare --project <owner/name> [--ref <branch|tag>]
+                                    Bake that repo's toolchains (its .kinhin.yml at --ref
+                                    when the project sets repo_file, else the project's
+                                    own toolchains:) into a derived image now, so its
+                                    first job starts warm
+        image prepare --container   Build the Linux container image (apple container):
+                                    runner agents only; jobs install toolchains with
+                                    `kinhin-toolchain install`
         image prepare --docker      Build the Linux container image (Docker Desktop /
-                                    OrbStack / colima); bakes `toolchains:` the same way.
+                                    OrbStack / colima), agents only, the same way.
                                     --platform linux/amd64 bakes an x86_64 image that runs
                                     under emulation (slower; see docs)
         image prepare --linux --target <name> [--iso <file>] [--from <ref>]
@@ -59,8 +62,12 @@ func helpText() -> String {
                                     the agents into it. --from starts from a pre-configured
                                     image instead (tart.run's VM images; bare --from shows
                                     the menu)
-        toolchains                  Managed-toolchain catalog, selections, and cache state
-        toolchains prune [--dry-run]   Expire stale host-cache entries now
+        toolchains                  Toolchain catalog, per-project selections, and cache state
+        toolchains --project <owner/name> [--ref <branch|tag>]
+                                    Show which toolchains that repo resolves to, where they
+                                    come from, and the derived image they bake into
+        toolchains list-images      Derived per-project images: size and last used
+        toolchains prune [--dry-run]   Expire stale host-cache entries and unused derived images now
         image digest <registry>/<repo>:<tag>
                                     Print the digest the registry currently serves, so
                                     base_image: can be pinned to ref@sha256:… and every

@@ -22,8 +22,10 @@ struct WizardView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             HStack(spacing: 8) {
-                Button(model.skipTitle) { model.skip() }
-                    .controlSize(.small)
+                if model.canSkip {
+                    Button(model.skipTitle) { model.skip() }
+                        .controlSize(.small)
+                }
                 Spacer()
                 Button("Back") { model.back() }
                     .disabled(!model.canGoBack)
@@ -45,7 +47,7 @@ struct WizardView: View {
         case .mac:
             ScrollView { MacToolsView(model: model.mac).padding(.bottom, 8) }
         case .toolchains:
-            ToolchainsView(model: model.toolchains, appliesOnReturn: false, inset: 0)
+            ScrollView { ToolchainsGuideView().padding(.bottom, 8) }
         case .start:
             @Bindable var model = model
             VStack(alignment: .leading, spacing: 14) {

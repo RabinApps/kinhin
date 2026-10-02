@@ -17,23 +17,19 @@ extension DoctorReportBuilder {
             isUsable = false
         }
         guard isUsable else {
-            let shareCacheOn = config?.toolchains?.shareCache ?? false
+            let shareCacheOn = config?.sharesToolchainCache ?? false
             return DoctorReport.ToolchainCacheSection(
                 root: root.path, usable: false, sharedWithRunners: shareCacheOn,
                 warning: shareCacheOn, totalBytes: 0, ecosystems: []
             )
         }
 
-        // The subdirectories the config's toolchains selection maps to
+        // The subdirectories the projects' toolchain selections map to
         // (Linux path irrelevant here — subdirectories are shared).
-        let selected: [String]?
-        if let toolchains = config?.toolchains {
-            let selection = ToolchainCatalog.selection(from: toolchains)
-            let dirs = selection.cacheEnvs.map(\.subdirectory)
-            selected = dirs.isEmpty ? nil : dirs
-        } else {
-            selected = nil
+        let dirs = (config?.projects ?? []).compactMap(\.toolchains).flatMap {
+            ToolchainCatalog.selection(from: $0).cacheEnvs.map(\.subdirectory)
         }
+        let selected: [String]? = dirs.isEmpty ? nil : Array(Set(dirs)).sorted()
 
         var ecosystems: [DoctorReport.ToolchainCacheSection.Ecosystem] = []
         var total: Int64 = 0
@@ -56,7 +52,7 @@ extension DoctorReportBuilder {
                 total += bytes
             }
         }
-        let shareCacheOn = config?.toolchains?.shareCache ?? false
+        let shareCacheOn = config?.sharesToolchainCache ?? false
         let warning = shareCacheOn && total == 0
         return DoctorReport.ToolchainCacheSection(
             root: root.path, usable: true, sharedWithRunners: shareCacheOn,
@@ -105,10 +101,10 @@ extension DoctorReportBuilder {
             warnings.append(
                 "account '\(name)' sends its access token over plain http (allow_insecure_http): use https if you can")
         }
-        let sharedCache = config.toolchains?.shareCache ?? false
+        let sharedCache = config.sharesToolchainCache
         if sharedCache {
             warnings.append(
-                "toolchains.share_cache is on: the cache is writable by every job and holds binaries other jobs run. Keep it off for untrusted PRs (docs/security.md)"
+                "a project has share_cache on: the cache is writable by every job and holds binaries other jobs run. Keep it off for untrusted PRs (docs/security.md)"
             )
         }
         return DoctorReport.SecuritySection(

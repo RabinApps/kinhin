@@ -96,8 +96,14 @@ struct GiteaForge: Forge {
             }
         }
         return tasks.map { task in
-            ForgeJob(name: task.name ?? taskName, runnerName: nil, repository: task.repository)
+            ForgeJob(
+                name: task.name ?? taskName, runnerName: nil, repository: task.repository, ref: task.ref,
+                sha: task.sha)
         }
+    }
+
+    func projectFile(repository: String, ref: String?) async throws -> Data? {
+        try await client.projectFile(repository: repository, ref: ref)
     }
 
     func runningJobs() async throws -> [ForgeJob] {

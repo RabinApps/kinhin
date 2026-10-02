@@ -31,7 +31,11 @@ public struct PartialConfig: Decodable {
     var docker: PartialDocker?
     var runtimes: PartialRuntimes?
     var provisionScript: String?
+    /// Removed key: decoded only so the loader can point at `projects:`.
     var toolchains: PartialToolchains?
+    var toolchainCache: PartialCachePolicy?
+    var maxProjectImages: Int?
+    var projects: [PartialProject]?
     var accounts: [PartialAccount]?
 
     struct PartialAccount: Decodable {
@@ -111,6 +115,20 @@ public struct PartialConfig: Decodable {
         var routes: [PartialRoute]?
     }
 
+    struct PartialProject: Decodable {
+        var pattern: String?
+        var repoFile: Bool?
+        var toolchains: PartialToolchains?
+        var shareCache: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case pattern
+            case repoFile = "repo_file"
+            case toolchains
+            case shareCache = "share_cache"
+        }
+    }
+
     struct PartialRoute: Decodable {
         var pattern: String?
         var runtime: String?
@@ -130,31 +148,16 @@ public struct PartialConfig: Decodable {
     }
 
     /// Public because `ConfigLoader.parseToolchains` (the shared validation
-    /// entry the CLI uses for `--toolchain/--stack` overrides) exposes it.
+    /// entry for project toolchains) exposes it.
     public struct PartialToolchains: Decodable {
         public var specs: [String]?
         public var brew: [String]?
         public var stacks: [String]?
-        public var shareCache: Bool?
-        public var cache: PartialCachePolicy?
 
-        public init(
-            specs: [String]? = nil, brew: [String]? = nil, stacks: [String]? = nil, shareCache: Bool? = nil,
-            cache: PartialCachePolicy? = nil
-        ) {
+        public init(specs: [String]? = nil, brew: [String]? = nil, stacks: [String]? = nil) {
             self.specs = specs
             self.brew = brew
             self.stacks = stacks
-            self.shareCache = shareCache
-            self.cache = cache
-        }
-
-        enum CodingKeys: String, CodingKey {
-            case specs
-            case brew
-            case stacks
-            case shareCache = "share_cache"
-            case cache
         }
     }
 
@@ -200,6 +203,9 @@ public struct PartialConfig: Decodable {
         case runtimes
         case provisionScript = "provision_script"
         case toolchains
+        case toolchainCache = "toolchain_cache"
+        case maxProjectImages = "max_project_images"
+        case projects
         case accounts
     }
 

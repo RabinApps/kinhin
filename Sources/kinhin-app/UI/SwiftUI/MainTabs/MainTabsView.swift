@@ -9,18 +9,21 @@ struct MainTabsView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Picker(
-                "kinhin sections",
-                selection: Binding(get: { model.selectedTab }, set: { model.userSelected($0) })
-            ) {
-                ForEach(model.visibleTabs, id: \.self) { Text($0.label).tag($0) }
+            // No tab bar while first-run setup gates the window.
+            if !model.isGatedBySetup {
+                Picker(
+                    "kinhin sections",
+                    selection: Binding(get: { model.selectedTab }, set: { model.userSelected($0) })
+                ) {
+                    ForEach(model.visibleTabs, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.large)
+                .accessibilityLabel("kinhin sections")
+                .frame(width: 300)
+                .padding(.top, 16)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.large)
-            .accessibilityLabel("kinhin sections")
-            .frame(width: 300)
-            .padding(.top, 16)
 
             page
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

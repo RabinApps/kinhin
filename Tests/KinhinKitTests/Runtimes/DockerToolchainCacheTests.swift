@@ -9,11 +9,13 @@ import XCTest
 final class DockerToolchainCacheTests: XCTestCase {
     private let bin = "/usr/local/bin/docker"
 
-    private func makeRoute(cacheMount: Bool = false) -> RepoRoute {
-        RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30, cacheMount: cacheMount)
+    private func makeRoute(cacheMount: Bool = false, toolchains: KinhinConfig.ToolchainsConfig? = nil) -> RepoRoute {
+        RepoRoute(
+            repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30, cacheMount: cacheMount,
+            toolchains: toolchains)
     }
 
-    func testProvisionMountsCacheOnlyWhenShareCacheIsOn() async throws {
+    func testProvisionMountsCacheOnlyWhenRouteSharesCache() async throws {
         let shell = FakeShell()
         let runtime = DockerRuntime(
             shell: shell, image: "img", cpus: 2, memoryGB: 4,
@@ -21,7 +23,7 @@ final class DockerToolchainCacheTests: XCTestCase {
         )
         try await runtime.provision(id: "kinhin-a", route: makeRoute())
         var runArgv = try XCTUnwrap(shell.calls.last { $0.contains("run") })
-        XCTAssertFalse(runArgv.contains("--volume"), "share_cache off → no bind mount")
+        XCTAssertFalse(runArgv.contains("--volume"), "no cacheMount → no bind mount")
 
         try await runtime.provision(id: "kinhin-b", route: makeRoute(cacheMount: true))
         runArgv = try XCTUnwrap(shell.calls.last { $0.contains("run") })
@@ -32,8 +34,7 @@ final class DockerToolchainCacheTests: XCTestCase {
     func testRegistrationScriptPrefixesLinuxCacheExportsWhenMounted() async throws {
         let runtime = DockerRuntime(
             shell: FakeShell(), image: "img", cpus: 2, memoryGB: 4,
-            binPath: bin,
-            toolchainsConfig: { KinhinConfig.ToolchainsConfig(specs: ["node@22", "pnpm"]) }
+            binPath: bin
         )
         let github = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
@@ -42,7 +43,7 @@ final class DockerToolchainCacheTests: XCTestCase {
         )
         let script = try await runtime.registrationScript(
             forge: github, token: "RT", name: "kinhin-1", runnerCount: 1,
-            route: makeRoute(cacheMount: true), labels: nil
+            route: makeRoute(cacheMount: true, toolchains: .init(specs: ["node@22", "pnpm"])), labels: nil
         )
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""))
         XCTAssertTrue(script.contains("export npm_config_store_dir=\"/var/kinhin-cache/pnpm-store\""))
@@ -55,8 +56,7 @@ final class DockerToolchainCacheTests: XCTestCase {
     func testRegistrationScriptWithoutMountHasNoExports() async throws {
         let runtime = DockerRuntime(
             shell: FakeShell(), image: "img", cpus: 2, memoryGB: 4,
-            binPath: bin,
-            toolchainsConfig: { KinhinConfig.ToolchainsConfig(specs: ["node@22"]) }
+            binPath: bin
         )
         let github = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
@@ -65,7 +65,7 @@ final class DockerToolchainCacheTests: XCTestCase {
         )
         let script = try await runtime.registrationScript(
             forge: github, token: "RT", name: "kinhin-1", runnerCount: 1,
-            route: makeRoute(), labels: nil
+            route: makeRoute(toolchains: .init(specs: ["node@22"])), labels: nil
         )
         XCTAssertFalse(script.contains("export NPM_CONFIG_CACHE"), "no mount → no cache exports")
     }
@@ -138,28 +138,6 @@ final class DockerToolchainCacheTests: XCTestCase {
         XCTAssertFalse(argvs.contains { $0.contains("commit") }, "no image is committed when a bake step fails")
         XCTAssertTrue(
             argvs.contains { $0.contains("rm") && $0.contains("--force") }, "the scratch container is cleaned up")
-    }
-
-    func testEngineWiresToolchainsIntoDockerRuntime() async throws {
-        var config = makeTestConfig()
-        config.docker = .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4)
-        config.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
-        let engine = FleetEngine(
-            config: config, github: FakeGitHub(), tart: FakeTart(),
-            store: makeTestStore(), ssh: FakeSSH(), host: testHost,
-            containerShell: FakeShell()
-        )
-        let runtime = try XCTUnwrap(engine.runtimesByRuntime[.docker] as? DockerRuntime)
-        let forge = GitHubForge(
-            credentials: .github(token: "tok", scope: "acme/widgets"),
-            labels: ["kinhin"],
-            client: FakeGitHub()
-        )
-        let route = RepoRoute(
-            repo: "acme/widgets", image: "kinhin-ci-linux", ephemeral: true, bootTimeout: 30, cacheMount: true)
-        let script = try await runtime.registrationScript(
-            forge: forge, token: "tok", name: "c", runnerCount: 1, route: route, labels: nil)
-        XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""))
     }
 }
 

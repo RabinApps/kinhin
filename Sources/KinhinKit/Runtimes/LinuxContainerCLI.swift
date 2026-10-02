@@ -33,9 +33,6 @@ struct LinuxContainerCLI: Sendable {
     let image: String
     let cpus: Int
     let memoryBytes: Int64
-    /// Managed toolchains (their cache envs are exported when the route
-    /// bind-mounts the host cache).
-    let toolchainsConfig: @Sendable () -> KinhinConfig.ToolchainsConfig?
 
     var memoryLabel: String { "\(memoryBytes / 1_048_576)M" }
 
@@ -77,7 +74,7 @@ struct LinuxContainerCLI: Sendable {
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) throws -> String {
         // Linux platform: macOS-only entries (brew, fvm, CocoaPods) never appear.
-        let selection = toolchainsConfig().map { ToolchainCatalog.selection(from: $0, platform: .linux) }
+        let selection = route.toolchains.map { ToolchainCatalog.selection(from: $0, platform: .linux) }
         let cachePrefix = RunnerBootstrap.cachePrefix(
             mounted: route.cacheMount, selection: selection, mountPath: ToolchainCacheMount.linuxGuestPath)
         switch forge.credentials.forge {

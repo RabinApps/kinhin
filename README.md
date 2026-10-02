@@ -47,7 +47,8 @@ Your Mac stays usable: host CPU, memory, and disk headroom are always reserved.
 - **Fast** — VMs are linked clones of one prepared base image, so boots take seconds, not minutes.
 - **Resource-aware** — the scaler never exceeds what your Mac can handle (see `kinhin doctor`).
 - **Toolchains your way** — bake them into the image, let kinhin install and pin them, or install
-  per job, with a shared download cache (see [Toolchains](docs/toolchains.md)).
+  per job, or let each repo pin its own versions in a `.kinhin.yml`, with a shared download cache
+  (see [Toolchains](docs/toolchains.md)).
 - **App, menu bar, or headless** — a main window, a classic tray app, or a LaunchAgent daemon;
   same engine, same config (see [The kinhin app](docs/app.md)).
 - **One-line install** — `curl … | bash` from GitHub Releases, with daily update checks.
@@ -171,6 +172,7 @@ Key fields:
 | `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                                               |
 | `base_image`                               | What `image prepare` starts from: a pre-configured tart image (`ghcr.io/cirruslabs/…`), digest-pinned (`ref@sha256:…` — see `kinhin image digest`), or a local VM name; absent = the default macOS base |
 | `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](docs/toolchains.md#baking-toolchains-into-the-base-image))                                                |
+| `projects`                                 | Per-repo toolchains: `repo_file: true` honors the repo's `.kinhin.yml`; `toolchains`, `share_cache` per entry (see [Per-project toolchains](docs/toolchains.md#per-project-toolchains)) |
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                                                 |
 | `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                                   |
 
@@ -204,23 +206,26 @@ kinhin setup repair host-agent
                              buildkite-agent, the Azure Pipelines agent or the Bitbucket runner is added too when
                              a GitLab, Buildkite, Azure DevOps or Bitbucket account is configured
 kinhin image prepare        Build the runner base image (once); --provision-script <file>
-                             bakes your toolchains in (see docs/toolchains.md); `toolchains:`
-                             config entries are baked automatically and downloads
-                             go through a shared host cache (auto-pruned); starts
-                             from top-level `base_image:` when set
+                             bakes your tools in (see docs/toolchains.md); bakes only the base
+                             image (agents + provision script), never per-project toolchains;
+                             starts from top-level `base_image:` when set
 kinhin image prepare --linux --target <name> [--from <ref>]
                              Create a Linux tart VM from scratch; --from starts it from a
                              pre-configured image (bare --from shows the menu) instead of an ISO
 kinhin image digest <registry>/<repo>:<tag>
                              Print the digest the registry currently serves, so base_image:
                              can be pinned to ref@sha256:… and bakes stay reproducible
-kinhin image prepare --toolchain <spec> [--stack <name>]
-                             Override the config's toolchains for this prepare
+kinhin image prepare --project <owner/name> [--ref <ref>]
+                             Bake the derived image (macOS/tart) for a repo's resolved toolchains now
 kinhin toolchains           Managed-toolchain catalog, selections, shared-cache state
+kinhin toolchains --project <owner/name> [--ref <ref>]
+                             Show a repo's effective toolchains, where they came from, and its image key
+kinhin toolchains list-images
+                             Derived per-project images: size and last used
 kinhin toolchains prune [--dry-run]
                              Expire stale host-cache entries now
 kinhin toolchains helper [--linux]
-                             Print the per-job `kinhin-toolchain` helper baked into images
+                             Print the per-job `kinhin-toolchain` helper present in images
 kinhin start                Run the fleet in the foreground
 kinhin daemon               Run the daemon in the foreground
 kinhin daemon install       Install + start the LaunchAgent
@@ -242,7 +247,7 @@ kinhin support              Show ways to donate or sponsor kinhin
 | [The kinhin app](docs/app.md)                       | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together               |
 | [Hardware requirements & sizing](docs/hardware.md)  | Minimum specs and CPU / memory / storage recommendations                              |
 | [How scaling works](docs/scaling.md)                | Capacity cap, the scaling loop, `runners_per_vm`, recovery                            |
-| [Toolchains & the shared cache](docs/toolchains.md) | Provision scripts, managed toolchains, per-job installs, the download cache           |
+| [Toolchains & the shared cache](docs/toolchains.md) | Provision scripts, managed and per-project toolchains, per-job installs, the download cache |
 | [Support & sponsors](docs/support.md)               | Donate, or become a paid sponsor                                                      |
 | [Forge support](docs/forges.md)                     | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, multiple accounts |
 | [Forge API reference](docs/forges/README.md)        | Per-forge endpoints, auth, API versions and an audit against each forge's docs        |

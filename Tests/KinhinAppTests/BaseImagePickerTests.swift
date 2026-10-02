@@ -128,13 +128,12 @@ final class BaseImagePickerTests: XCTestCase {
         // form; it must survive the save path's validation (TartBaseImage
         // problem checking) and the config round trip intact.
         let pinned = "\(Self.reference)@sha256:\(String(repeating: "cd", count: 32))"
-        let model = ToolchainsModel()
+        let model = MacToolsModel()
         model.configURL = configURL
         model.reload()
 
         model.saveBaseImage(pinned, for: .tart)
         XCTAssertEqual(try saved(.tart), pinned)
-        XCTAssertEqual(model.baseImage(for: .tart), pinned)
     }
 
     func testTartCatalogMapsCuratedReferencesAndDefaultsToNoKey() {
@@ -153,7 +152,7 @@ final class BaseImagePickerTests: XCTestCase {
     }
 
     func testSavingATartBaseImageWritesTheConfigKeyAndClearsIt() throws {
-        let model = ToolchainsModel()
+        let model = MacToolsModel()
         model.configURL = configURL
         model.reload()
 
@@ -255,35 +254,6 @@ final class BaseImagePickerTests: XCTestCase {
         XCTAssertFalse(model.tartLinuxOn, "a name kinhin can't classify isn't claimed as Linux")
         model.saveBaseImage("ghcr.io/cirruslabs/debian:latest", for: .tart)
         XCTAssertTrue(model.tartLinuxOn)
-    }
-
-    // MARK: - Toolchains page
-
-    func testToolchainsPageOffersAPickerForEachLinuxRuntimeAndSavesIt() throws {
-        let model = ToolchainsModel()
-        model.configURL = configURL
-        model.reload()
-        XCTAssertEqual(
-            Set(model.imageRuntimes.map(\.runtime).filter { $0 != .tart }), [.appleContainer, .docker])
-
-        var edited = 0
-        model.onChanged = { edited += 1 }
-        model.saveBaseImage("debian:12", for: .docker)
-        XCTAssertEqual(try saved(.docker), "debian:12")
-        XCTAssertNil(try saved(.appleContainer), "the other runtime is untouched")
-        XCTAssertEqual(edited, 1)
-    }
-
-    func testToolchainsPageRevertsThePickerWhenTheSaveFails() throws {
-        let model = ToolchainsModel()
-        model.configURL = configURL
-        model.reload()
-        // Remove the docker section behind the page's back so the save is refused.
-        try "labels: [self-hosted]\ncontainer:\n  image: \"kinhin-ci-linux\"\n"
-            .write(to: configURL, atomically: true, encoding: .utf8)
-        model.saveBaseImage("debian:12", for: .docker)
-        XCTAssertEqual(alerts, 1, "the failure is shown")
-        XCTAssertNil(model.baseImage(for: .docker), "the page shows what is actually saved")
     }
 
     // MARK: - Mac tools form

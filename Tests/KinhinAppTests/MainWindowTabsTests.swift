@@ -49,16 +49,16 @@ final class MainWindowTabsTests: MainWindowTestCase {
             ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "App"])
     }
 
-    func testSetupTabOnlyExistsWhileSetupIsUnfinished() {
+    func testTabBarIsHiddenWhileSetupIsUnfinished() {
         XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced], "a configured app has no Setup tab")
         XCTAssertEqual(tabs.visibleTabs.map(\.label), ["Fleet", "Advanced"])
 
         tabs.setupIncomplete = true
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .setup, .advanced])
-        XCTAssertEqual(tabs.visibleTabs.map(\.label), ["Fleet", "Setup", "Advanced"])
+        XCTAssertEqual(tabs.visibleTabs, [], "only the wizard is shown")
+        XCTAssertEqual(tabs.selectedTab, .setup)
 
         tabs.setupIncomplete = false
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced], "finishing setup removes the tab")
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced], "finishing setup reveals the tab bar")
     }
 
     func testWindowStartsOnTheFleetTab() {
@@ -77,7 +77,7 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertEqual(tabs.selectedTab, .advanced)
     }
 
-    func testSetupTabStaysNavigableDuringOnboardingAndVanishesWhenDone() {
+    func testWizardOwnsTheWindowDuringOnboardingAndHandsOffWhenDone() {
         tabs.setupIncomplete = true
         tabs.showSetup()
         XCTAssertEqual(tabs.selectedTab, .setup)
@@ -91,14 +91,16 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertEqual(delegate.setupFinishedCalls, 1, "the delegate re-bootstraps the engine")
     }
 
-    func testFinishLaterKeepsTheSetupTab() {
+    func testSetupCannotBeLeftEarlyFromTheLastStep() {
         let wizard = showWizard()
         wizard.next()  // connect → mac
         wizard.next()  // mac → toolchains
         wizard.next()  // toolchains → start
-        wizard.skip()  // "Finish later" on start step
-        XCTAssertEqual(tabs.selectedTab, .fleet)
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .setup, .advanced], "unfinished setup stays reachable")
+        XCTAssertFalse(wizard.canSkip, "there is no Finish later")
+        wizard.skip()
+        XCTAssertEqual(wizard.step, .start)
+        XCTAssertEqual(tabs.selectedTab, .setup)
+        XCTAssertEqual(tabs.visibleTabs, [])
     }
 
     func testSetupIncompleteOpensTheWizardWhenTheWindowOpens() {

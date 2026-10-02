@@ -90,6 +90,12 @@ public final class FleetEngine: Sendable {
     let routingState: Mutex<RoutingState>
     var routing: RuntimeConfigModel { routingState.withLock { $0.model } }
     var capsByRuntime: [RuntimeID: Int] { routingState.withLock { $0.caps } }
+    /// Per-project toolchains: the `projects:` rules (hot-reloaded), the
+    /// repo-file reader, and the builder of derived per-project images.
+    let projectsState: Mutex<[KinhinConfig.ProjectConfig]>
+    let projectSource = ProjectToolchainSource()
+    let projectStore: ProjectImageStore
+    let projectImages: ProjectImageBuilder
     /// Daily host-cache sweep task (started/stopped with the engine).
     private let _cachePruneTask = Mutex<Task<Void, Never>?>(nil)
 
@@ -123,19 +129,17 @@ public final class FleetEngine: Sendable {
         }
         self.forgeState = Mutex(ForgeState(byPlatform: initial))
         let shell = containerShell ?? Shell()
-        let toolchains: @Sendable () -> KinhinConfig.ToolchainsConfig? = { [config] in config.toolchains }
         let tartRuntime = TartRuntime(
-            tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh, toolchainsConfig: toolchains)
+            tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh)
         var runtimes: [RuntimeID: any Runtime] = [.tart: tartRuntime]
         if let container = config.container {
             runtimes[.appleContainer] = AppleContainerRuntime(
-                shell: shell, image: container.image, cpus: container.cpus, memoryGB: container.memoryGB,
-                toolchainsConfig: toolchains)
+                shell: shell, image: container.image, cpus: container.cpus, memoryGB: container.memoryGB)
         }
         if let docker = config.docker {
             runtimes[.docker] = DockerRuntime(
                 shell: shell, image: docker.image, cpus: docker.cpus, memoryGB: docker.memoryGB,
-                platform: docker.platform, toolchainsConfig: toolchains)
+                platform: docker.platform)
         }
         if config.hostRoutesConfigured {
             runtimes[.host] = HostRuntime(shell: shell)
@@ -147,6 +151,11 @@ public final class FleetEngine: Sendable {
         self.store = store
         self.ssh = ssh
         self.statusBox = FleetStatusBox()
+        self.projectsState = Mutex(config.projects)
+        let projectStore = dependencies.projectImageStore ?? ProjectImageStore()
+        self.projectStore = projectStore
+        self.projectImages = ProjectImageBuilder(
+            tart: tart, store: projectStore, baseImage: config.image, ssh: ssh, bake: dependencies.projectBake)
         // The primary runtime's cap; its disk estimate also feeds the
         // pre-spawn disk guard and `kinhin doctor`.
         self.capacity = Capacity.plan(for: config, host: host)
@@ -200,6 +209,10 @@ extension FleetEngine {
         public var hostProbe: (@Sendable () -> HostResources)?
         /// How long a detach waits for cancelled lifecycle tasks.
         public var lifecycleDrainTimeout: Duration
+        /// Index of derived per-project images; nil → the state directory's.
+        var projectImageStore: ProjectImageStore?
+        /// Replaces the real image bake (tests); nil → `ImagePreparer`.
+        var projectBake: ProjectImageBuilder.Bake?
 
         public init(
             githubFactory: GitHubClientFactory? = nil,

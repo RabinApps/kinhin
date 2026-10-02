@@ -56,13 +56,23 @@ public struct QueuedJob: Sendable, Equatable {
     /// Repository the job belongs to (always present in org scope; nil when
     /// the API response didn't include it).
     public let repository: String?
+    /// Branch or tag of the run, its commit, and whether it is a fork's PR.
+    public let ref: String?
+    public let sha: String?
+    public let isFork: Bool
 
-    public init(runID: Int, jobID: Int, name: String, labels: [String], repository: String? = nil) {
+    public init(
+        runID: Int, jobID: Int, name: String, labels: [String], repository: String? = nil, ref: String? = nil,
+        sha: String? = nil, isFork: Bool = false
+    ) {
         self.runID = runID
         self.jobID = jobID
         self.name = name
         self.labels = labels
         self.repository = repository
+        self.ref = ref
+        self.sha = sha
+        self.isFork = isFork
     }
 }
 

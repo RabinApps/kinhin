@@ -11,7 +11,8 @@ final class LinuxToolchainsTests: XCTestCase {
     private func linuxSelection(_ yaml: String) throws -> ManagedToolchainSelection {
         let cfg = try ConfigLoader.parse(yaml)
         return ToolchainCatalog.selection(
-            from: try XCTUnwrap(cfg.toolchains), platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath)
+            from: try XCTUnwrap(cfg.projects[0].toolchains), platform: .linux,
+            mountPath: ToolchainCacheMount.linuxGuestPath)
     }
 
     func testLinuxSelectionFiltersMacOSOnlyEntries() throws {
@@ -26,7 +27,9 @@ final class LinuxToolchainsTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["node@22", "go@1.23"], brew: ["yamllint", "awscli", "wget"], stacks: ["flutter@3.24.0", "vercel", "react-native"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["node@22", "go@1.23"], brew: ["yamllint", "awscli", "wget"], stacks: ["flutter@3.24.0", "vercel", "react-native"]}
             """)
         XCTAssertTrue(sel.miseSpecs.contains("node@22"))
         XCTAssertTrue(sel.miseSpecs.contains("go@1.23"))
@@ -48,7 +51,9 @@ final class LinuxToolchainsTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {stacks: ["flutter@3.24.0"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {stacks: ["flutter@3.24.0"]}
             """)
         XCTAssertTrue(
             Set(["curl", "git", "unzip", "xz-utils", "zip", "libglu1-mesa"]).isSubset(of: sel.aptPackages),
@@ -85,7 +90,9 @@ final class LinuxToolchainsTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {stacks: ["flutter"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {stacks: ["flutter"]}
             """)
         XCTAssertTrue(sel.stackSteps.joined().contains("flutter_ref='stable'"))
     }
@@ -108,7 +115,9 @@ final class LinuxToolchainsTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["dotnet"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["dotnet"]}
             """)
         XCTAssertEqual(sel.aptPackages, ["dotnet-sdk-8.0"])
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget")))
@@ -123,7 +132,9 @@ final class LinuxToolchainsTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["node@22"], brew: ["wget"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["node@22"], brew: ["wget"]}
             """)
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "MISE_CACHE_DIR", subdirectory: "mise")))
         XCTAssertFalse(
@@ -141,7 +152,9 @@ final class LinuxToolchainsTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["node@22", "rust@stable"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["node@22", "rust@stable"]}
             """)
         let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(
             selection: sel, mountPath: ToolchainCacheMount.linuxGuestPath)
@@ -158,7 +171,9 @@ final class LinuxToolchainsTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["dotnet", "node@22"], stacks: ["vercel"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["dotnet", "node@22"], stacks: ["vercel"]}
             """)
         let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(
             selection: sel, mountPath: ToolchainCacheMount.linuxGuestPath)
@@ -185,7 +200,9 @@ final class LinuxToolchainsTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            toolchains: {specs: ["node@22"]}
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["node@22"]}
             """)
         let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: sel, mountPath: nil)
         XCTAssertFalse(script.contains("export NPM_CONFIG_CACHE"))
@@ -268,14 +285,14 @@ final class LinuxToolchainsTests: XCTestCase {
             argvs.contains { $0.contains("delete") && $0.contains("--force") }, "the scratch container is cleaned up")
     }
 
-    func testContainerRunnerMountsCacheOnlyWhenShareCacheIsOn() async throws {
+    func testContainerRunnerMountsCacheOnlyWhenRouteSharesCache() async throws {
         let shell = FakeShell()
         let runtime = AppleContainerRuntime(
             shell: shell, image: "img", cpus: 2, memoryGB: 4, binPath: "/usr/local/bin/container")
         try await runtime.provision(
             id: "kinhin-a", route: RepoRoute(repo: "r", image: "img", ephemeral: true, bootTimeout: 30))
         var runArgv = try XCTUnwrap(shell.calls.last { $0.contains("run") })
-        XCTAssertFalse(runArgv.contains("--volume"), "share_cache off → no bind mount")
+        XCTAssertFalse(runArgv.contains("--volume"), "no cacheMount → no bind mount")
         try await runtime.provision(
             id: "kinhin-b",
             route: RepoRoute(repo: "r", image: "img", ephemeral: true, bootTimeout: 30, cacheMount: true))
@@ -288,26 +305,16 @@ final class LinuxToolchainsTests: XCTestCase {
         let shell = FakeShell()
         let runtime = AppleContainerRuntime(
             shell: shell, image: "img", cpus: 2, memoryGB: 4,
-            binPath: "/usr/local/bin/container",
-            toolchainsConfig: {
-                try? ConfigLoader.parse(
-                    """
-                    accounts:
-                      - name: github
-                        forge: github
-                        scope: "acme/widgets"
-                    labels: ["self-hosted"]
-                    toolchains: {specs: ["node@22", "pnpm"]}
-                    """
-                ).toolchains
-            }
+            binPath: "/usr/local/bin/container"
         )
         let forge = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
             labels: ["self-hosted"],
             client: FakeGitHub()
         )
-        let route = RepoRoute(repo: "acme/widgets", image: "img", ephemeral: true, bootTimeout: 30, cacheMount: true)
+        let route = RepoRoute(
+            repo: "acme/widgets", image: "img", ephemeral: true, bootTimeout: 30, cacheMount: true,
+            toolchains: .init(specs: ["node@22", "pnpm"]))
         let script = try await runtime.registrationScript(
             forge: forge, token: "tok", name: "c", runnerCount: 1, route: route, labels: nil)
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""))
@@ -321,8 +328,7 @@ final class LinuxToolchainsTests: XCTestCase {
     func testContainerRegistrationScriptWithoutMountHasNoExports() async throws {
         let runtime = AppleContainerRuntime(
             shell: FakeShell(), image: "img", cpus: 2, memoryGB: 4,
-            binPath: "/usr/local/bin/container",
-            toolchainsConfig: { KinhinConfig.ToolchainsConfig(specs: ["node@22"]) }
+            binPath: "/usr/local/bin/container"
         )
         let forge = GitHubForge(
             credentials: .github(token: "tok", scope: "acme/widgets"),
@@ -331,32 +337,9 @@ final class LinuxToolchainsTests: XCTestCase {
         )
         let script = try await runtime.registrationScript(
             forge: forge, token: "tok", name: "c", runnerCount: 1,
-            route: RepoRoute(repo: "r", image: "img", ephemeral: true, bootTimeout: 30), labels: nil)
+            route: RepoRoute(
+                repo: "r", image: "img", ephemeral: true, bootTimeout: 30, toolchains: .init(specs: ["node@22"])),
+            labels: nil)
         XCTAssertFalse(script.contains("export NPM_CONFIG_CACHE"), "no mount → no cache exports")
-    }
-
-    func testEngineWiresToolchainsIntoContainerRuntime() async throws {
-        let shell = ContainerFakingShell()
-        var config = makeTestConfig()
-        config.container = .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4)
-        config.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
-        let engine = FleetEngine(
-            config: config, github: FakeGitHub(), tart: FakeTart(),
-            store: makeTestStore(), ssh: FakeSSH(), host: testHost,
-            containerShell: shell
-        )
-        // The engine passes its config into the container runtime; verify via
-        // the runtime's registration script containing the Linux cache envs.
-        let runtime = try XCTUnwrap(engine.runtimesByRuntime[.appleContainer] as? AppleContainerRuntime)
-        let forge = GitHubForge(
-            credentials: .github(token: "tok", scope: "acme/widgets"),
-            labels: ["kinhin"],
-            client: FakeGitHub()
-        )
-        let route = RepoRoute(
-            repo: "acme/widgets", image: "kinhin-ci-linux", ephemeral: true, bootTimeout: 30, cacheMount: true)
-        let script = try await runtime.registrationScript(
-            forge: forge, token: "tok", name: "c", runnerCount: 1, route: route, labels: nil)
-        XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""))
     }
 }

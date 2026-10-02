@@ -29,6 +29,9 @@ final class FleetModel {
     var isBusy: Bool { pendingAction != nil }
 
     var statusLine: String { controller.statusLine }
+    /// Set while a per-project image bakes (jobs use the base image meanwhile).
+    /// Informational, not an error.
+    var imageNotice: String? { status?.imageNotice }
     var running: Bool { status?.running ?? false }
     var paused: Bool { status?.paused ?? false }
     /// Non-nil while the fleet is paused with auto-resume on: shown on the

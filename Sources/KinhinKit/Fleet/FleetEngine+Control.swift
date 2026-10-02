@@ -101,7 +101,7 @@ extension FleetEngine {
     /// ignored — pruning must never disturb scaling. The pruner's grace
     /// window keeps it from racing any in-flight download or install.
     func startCachePruneSweepIfNeeded() {
-        guard ToolchainCachePolicy(from: config.toolchains).autoPrune else { return }
+        guard ToolchainCachePolicy(from: config.toolchainCache).autoPrune || !config.projects.isEmpty else { return }
         cachePruneTask = Task { [weak self] () -> Void in
             while !Task.isCancelled {
                 do {
@@ -113,7 +113,8 @@ extension FleetEngine {
                     return
                 }
                 guard let self else { return }
-                let policy = ToolchainCachePolicy(from: self.config.toolchains)
+                await self.pruneProjectImages()
+                let policy = ToolchainCachePolicy(from: self.config.toolchainCache)
                 guard policy.autoPrune else { continue }
                 ToolchainCachePruner().prune(policy: policy)
             }

@@ -15,6 +15,11 @@ final class DoctorReportTests: XCTestCase {
 
     private let host = HostResources(logicalCores: 10, memoryGB: 32, freeDiskGB: 200, arm64: true)
 
+    private static func project(specs: [String]?, shareCache: Bool? = nil) -> KinhinConfig.ProjectConfig {
+        KinhinConfig.ProjectConfig(
+            pattern: "acme/widgets", toolchains: KinhinConfig.ToolchainsConfig(specs: specs), shareCache: shareCache)
+    }
+
     private static func config(repo: String = "acme/widgets", gitea: Bool = false, container: Bool = false)
         -> KinhinConfig
     {
@@ -376,7 +381,7 @@ final class DoctorReportTests: XCTestCase {
         // subdirectories (deduplicated), in stable order, even for dirs that
         // don't exist yet (measured as zero bytes).
         var cfg = Self.config()
-        cfg.toolchains = KinhinConfig.ToolchainsConfig(specs: ["go@1.23", "go@latest"])
+        cfg.projects = [Self.project(specs: ["go@1.23", "go@latest"])]
         let section = DoctorReportBuilder.toolchainCacheSection(config: cfg)
         if section.usable {
             XCTAssertEqual(
@@ -388,7 +393,7 @@ final class DoctorReportTests: XCTestCase {
     func testToolchainCacheWarningFlagsEmptyCacheWithShareCacheOn() {
         // share_cache on + nothing cached: the runner-mounts-empty warning.
         var cfg = Self.config()
-        cfg.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
+        cfg.projects = [Self.project(specs: ["node@22"], shareCache: true)]
         let section = DoctorReportBuilder.toolchainCacheSection(config: cfg)
         XCTAssertTrue(section.sharedWithRunners)
         if section.usable, section.totalBytes == 0 {
@@ -397,14 +402,14 @@ final class DoctorReportTests: XCTestCase {
 
         // share_cache off: never a warning.
         var plain = Self.config()
-        plain.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"])
+        plain.projects = [Self.project(specs: ["node@22"])]
         let quiet = DoctorReportBuilder.toolchainCacheSection(config: plain)
         XCTAssertFalse(quiet.sharedWithRunners)
         XCTAssertFalse(quiet.warning)
 
         // Unusable root with share_cache on: warn regardless of bytes.
         var on = Self.config()
-        on.toolchains = KinhinConfig.ToolchainsConfig(shareCache: true)
+        on.projects = [Self.project(specs: nil, shareCache: true)]
         _ = on  // the unusable branch is exercised via root: the warning flag
         let unusable = DoctorReport.ToolchainCacheSection(
             root: "/nonexistent", usable: false, sharedWithRunners: true, warning: true,
@@ -416,7 +421,7 @@ final class DoctorReportTests: XCTestCase {
 
     func testToolchainCacheJSONRoundTripsWithNewFields() async throws {
         var cfg = Self.config()
-        cfg.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], shareCache: true)
+        cfg.projects = [Self.project(specs: ["node@22"], shareCache: true)]
         let report = await builder(config: cfg).build()
         let json = String(decoding: try JSONEncoder().encode(report), as: UTF8.self)
         XCTAssertTrue(json.contains("\"sharedWithRunners\":true"), "the share flag is part of the contract")
@@ -442,13 +447,13 @@ final class DoctorReportTests: XCTestCase {
 
     func testPlainTextCarriesTheConfigDetailLines() async {
         var cfg = Self.config()
-        cfg.toolchains = KinhinConfig.ToolchainsConfig(shareCache: false)
+        cfg.projects = [Self.project(specs: ["node@22"], shareCache: false)]
         let text = await builder(config: cfg).buildPlainText()
 
         XCTAssertTrue(text.contains("kinhin doctor"), "the shared report is rendered first")
         XCTAssertTrue(text.contains("  config:     \(Paths.config.path)"), text)
         XCTAssertTrue(text.contains("  image:      \(cfg.image)"), text)
-        XCTAssertTrue(text.contains("share_cache is off"), text)
+        XCTAssertTrue(text.contains("no project sets share_cache"), text)
         XCTAssertFalse(text.contains("org perms:"), "a repo scope has no org-permission check")
     }
 
@@ -507,9 +512,12 @@ final class DoctorReportTests: XCTestCase {
 
     func testShareCacheNoteOnlyAppearsWhenItIsOff() async {
         var cfg = Self.config()
-        cfg.toolchains = KinhinConfig.ToolchainsConfig(shareCache: true)
+        cfg.projects = [Self.project(specs: ["node@22"], shareCache: true)]
         let text = await builder(config: cfg).buildPlainText()
-        XCTAssertFalse(text.contains("share_cache is off"), text)
+        XCTAssertFalse(text.contains("no project sets share_cache"), text)
+
+        let noProjects = await builder(config: Self.config()).buildPlainText()
+        XCTAssertFalse(noProjects.contains("no project sets share_cache"), "no projects → nothing to share")
     }
 
     func testJSONDocumentIsUnchangedByTheTextOnlyLines() async throws {
