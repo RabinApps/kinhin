@@ -138,7 +138,10 @@ final class GitHubClientTests: XCTestCase {
             if path.hasPrefix("/orgs/acme/actions/runners") {
                 return (200, Data("{\"total_count\":0,\"runners\":[]}".utf8), [:])
             }
-            if path.hasPrefix("/orgs/acme/actions/runs") {
+            if path == "/orgs/acme/repos" {
+                return (200, Data("[{\"full_name\":\"acme/widgets\"}]".utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs" {
                 return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
             }
             XCTFail("unexpected path: \(path)")
@@ -155,14 +158,13 @@ final class GitHubClientTests: XCTestCase {
         XCTAssertEqual(makeOrgClient().configureURL, "https://github.com/organizations/acme")
     }
 
-    // MARK: - fine-grained org fallback (org runs 404 → per-repo reads)
+    // MARK: - org scope reads runs per repository
 
-    func testOrgRunsNotFoundFallsBackToPerRepoRuns() async throws {
-        let orgRunsCalls = Mutex(0)
+    func testOrgScopeReadsPerRepoAndAttributes() async throws {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
-                orgRunsCalls.withLock { $0 += 1 }
+                XCTFail("org runs endpoint must never be called")
                 return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
             }
             if path == "/orgs/acme/repos" {
@@ -191,17 +193,16 @@ final class GitHubClientTests: XCTestCase {
 
         let jobs = try await makeOrgClient().queuedJobs(matching: ["kinhin"])
         XCTAssertEqual(jobs.count, 1)
-        XCTAssertEqual(jobs.first?.repository, "acme/widgets", "fallback reads must attribute the scoped repo")
-        XCTAssertEqual(orgRunsCalls.withLock { $0 }, 1)
+        XCTAssertEqual(jobs.first?.repository, "acme/widgets", "per-repo reads must attribute the scoped repo")
     }
 
-    func testOrgRunsFallbackIsStickyAcrossPolls() async throws {
+    func testOrgScopeNeverRequestsOrgRunsEndpointEvenIfItWouldAnswer() async throws {
         let orgRunsCalls = Mutex(0)
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
                 orgRunsCalls.withLock { $0 += 1 }
-                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
+                return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
             }
             if path == "/orgs/acme/repos" {
                 return (200, Data("[{\"full_name\":\"acme/widgets\"}]".utf8), [:])
@@ -215,44 +216,14 @@ final class GitHubClientTests: XCTestCase {
         defer { StubProtocol.handler = nil }
 
         let client = makeOrgClient()
+        _ = try await client.queuedJobs(matching: ["self-hosted"])
         _ = try await client.runningJobs(matching: ["self-hosted"])
-        _ = try await client.runningJobs(matching: ["self-hosted"])
-        _ = try await client.runningJobs(matching: ["self-hosted"])
-        XCTAssertEqual(orgRunsCalls.withLock { $0 }, 1, "after the first 404 later polls must skip the org endpoint")
-    }
-
-    func testOrgRunsFallbackSurvivesClientCopy() async throws {
-        let orgRunsCalls = Mutex(0)
-        StubProtocol.handler = { request in
-            let path = request.url?.path ?? ""
-            if path == "/orgs/acme/actions/runs" {
-                orgRunsCalls.withLock { $0 += 1 }
-                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
-            }
-            if path == "/orgs/acme/repos" {
-                return (200, Data("[{\"full_name\":\"acme/widgets\"}]".utf8), [:])
-            }
-            if path == "/repos/acme/widgets/actions/runs" {
-                return (200, Data("{\"total_count\":0,\"workflow_runs\":[]}".utf8), [:])
-            }
-            return (404, Data(), [:])
-        }
-        defer { StubProtocol.handler = nil }
-
-        let client = makeOrgClient()
-        _ = try await client.runningJobs(matching: ["self-hosted"])
-        let copy = client
-        _ = try await copy.runningJobs(matching: ["self-hosted"])
-        XCTAssertEqual(
-            orgRunsCalls.withLock { $0 }, 1, "the via-repos flag lives in a shared box and survives struct copies")
+        XCTAssertEqual(orgRunsCalls.withLock { $0 }, 0)
     }
 
     func testOrgRunsFallbackUsesUserReposWhenOrgListIsUnreadable() async throws {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
-            if path == "/orgs/acme/actions/runs" {
-                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
-            }
             if path == "/orgs/acme/repos" {
                 return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
             }
@@ -279,9 +250,6 @@ final class GitHubClientTests: XCTestCase {
     func testOrgRunsFallbackSkipsUnreadableRepos() async throws {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
-            if path == "/orgs/acme/actions/runs" {
-                return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
-            }
             if path == "/orgs/acme/repos" {
                 return (200, Data("[{\"full_name\":\"acme/open\"},{\"full_name\":\"acme/locked\"}]".utf8), [:])
             }
@@ -300,12 +268,11 @@ final class GitHubClientTests: XCTestCase {
         XCTAssertTrue(jobs.isEmpty, "one unreadable repository must not fail the whole read")
     }
 
-    func testOrgRuns404ErrorMessageMentionsTheFineGrainedLimit() {
+    func testOrgRuns404ErrorMessagePointsAtRepositoryAccess() {
         let orgError = GitHubError.notFound("/orgs/acme/actions/runs")
         let orgMessage = orgError.errorDescription ?? ""
-        XCTAssertTrue(orgMessage.contains("fine-grained"), orgMessage)
-        XCTAssertTrue(
-            orgMessage.contains("classic"), "org runs 404 must point at the classic-token option: \(orgMessage)")
+        XCTAssertTrue(orgMessage.contains("per repository"), orgMessage)
+        XCTAssertTrue(orgMessage.contains("Actions: Read-only"), orgMessage)
 
         // Non-org runs paths keep the generic message.
         let repoError = GitHubError.notFound("/repos/acme/widgets/actions/runs")
@@ -315,7 +282,7 @@ final class GitHubClientTests: XCTestCase {
     func testOrgRunsFallbackFailsWhenNoRepositoryIsReadable() async throws {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
-            if path == "/orgs/acme/actions/runs" || path == "/orgs/acme/repos" {
+            if path == "/orgs/acme/repos" {
                 return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
             }
             if path == "/user/repos" {

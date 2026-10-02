@@ -21,10 +21,7 @@ public enum OrgPermissionProbe {
     /// more specific remediation hint, since they need org-level rights.
     ///
     /// Two gates: the registration-token mint (runner management) and a
-    /// queued/running-jobs read — the exact call the engine polls. Fine-grained
-    /// tokens can pass the first and fail the second: GitHub grants runs
-    /// access only through the repository Actions permission, with no
-    /// fine-grained organization permission for `/orgs/{org}/actions/runs`.
+    /// queued/running-jobs read — the exact call the engine polls.
     public static func verify(github: GitHubServing, scope: String) async -> Report {
         do {
             _ = try await github.fetchRegistrationToken()

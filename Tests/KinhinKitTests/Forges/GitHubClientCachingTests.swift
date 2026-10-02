@@ -64,6 +64,7 @@ final class GitHubClientCachingTests: XCTestCase {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
+                XCTFail("org runs endpoint must never be called")
                 return (404, Data(#"{"message":"Not Found"}"#.utf8), [:])
             }
             if path == "/orgs/acme/repos" {

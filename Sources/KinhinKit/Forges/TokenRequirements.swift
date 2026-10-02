@@ -43,12 +43,10 @@ public struct TokenRequirements: Equatable, Sendable {
         ]
         let fineURL = "https://github.com/settings/personal-access-tokens/new"
         let classicURL = "https://github.com/settings/tokens/new"
-        // GitHub grants fine-grained tokens runs access only per repository;
-        // /orgs/{org}/actions/runs always 404s for them (no organization-level
-        // Actions runs permission exists). Classic tokens with the repo scope
-        // read org-wide runs, so org scopes should know about the limitation.
+        // GitHub documents no org-level runs endpoint, so org scopes read each
+        // repository's runs separately; org scopes should know about it.
         let orgRunsLimitation =
-            "Fine-grained tokens cannot read /orgs/{org}/actions/runs at all (no organization-level Actions runs permission exists) — kinhin falls back to reading each repository; a classic token with the repo scope polls the whole org directly."
+            "Fine-grained and classic tokens cannot read organization-wide runs at once (GitHub documents no org-level runs endpoint) — kinhin reads each repository's runs separately."
 
         func options(repo: Bool) -> [Option] {
             [
@@ -57,7 +55,9 @@ public struct TokenRequirements: Equatable, Sendable {
                     kind: "Classic token", url: classicURL,
                     permissions: repo
                         ? ["Scope: repo"]
-                        : ["Scopes: admin:org, repo — repo reads org-wide runs and jobs; admin:org manages runners"]),
+                        : [
+                            "Scopes: admin:org, repo — repo covers runners and jobs for every repository; admin:org manages runners"
+                        ]),
             ]
         }
 

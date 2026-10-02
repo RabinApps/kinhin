@@ -52,8 +52,8 @@ public enum GitHubError: LocalizedError, Equatable, Sendable {
         case .notFound(let what):
             if what.hasPrefix("/orgs/"), what.contains("/actions/runs") {
                 return
-                    "GitHub returned 404 for \(what): fine-grained tokens cannot read organization-wide workflow runs. "
-                    + "Kinhin falls back to per-repository reads; to poll the whole org at once use a classic token with the repo scope."
+                    "GitHub returned 404 for \(what): the token cannot read this organization's workflow runs. "
+                    + "Kinhin reads runs per repository; check the token's repository access and Actions: Read-only permission."
             }
             if what.hasSuffix("/*/actions/runs") {
                 return
@@ -96,11 +96,6 @@ public struct GitHubClient: GitHubServing {
     let session: URLSession
 
     public var configureURL: String { credentials.configureURL }
-
-    /// Sticky "the org runs endpoint is not readable" state (fine-grained
-    /// tokens). The client is a struct copied by value, so the flag lives in
-    /// a box to survive across polls.
-    var runsMode = RunsModeBox()
 
     /// The scope's runner list, shared briefly: every live instance's exit
     /// watch lists runners each second, and the fleet must cost one call per

@@ -21,6 +21,7 @@ final class QueueAttributionTests: XCTestCase {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
+                XCTFail("org runs endpoint must never be called")
                 return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
             }
             if path == "/orgs/acme/repos" {
@@ -73,6 +74,7 @@ final class QueueAttributionTests: XCTestCase {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
+                XCTFail("org runs endpoint must never be called")
                 return (404, Data("{\"message\":\"Not Found\"}".utf8), [:])
             }
             if path == "/orgs/acme/repos" {
@@ -122,7 +124,10 @@ final class QueueAttributionTests: XCTestCase {
         let runsStatus = Mutex<String?>(nil)
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
-            if path == "/orgs/acme/actions/runs" {
+            if path == "/orgs/acme/repos" {
+                return (200, Data("[{\"full_name\":\"acme/widgets\"}]".utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs" {
                 runsStatus.withLock {
                     $0 =
                         URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?

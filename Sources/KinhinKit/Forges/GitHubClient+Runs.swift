@@ -1,11 +1,10 @@
 import Foundation
 
-// GitHubClient — workflow runs and their jobs. Reads the org-wide runs
-// endpoint when the token can, else fans out per repository (fine-grained
-// tokens), bounded per poll.
+// GitHubClient — workflow runs and their jobs. Reads only documented
+// endpoints: org scope fans out per repository, bounded per poll.
 extension GitHubClient {
-    /// The scope's runs with the given status, through whichever endpoint the
-    /// token can read, capped per poll like the jobs fan-out.
+    /// The scope's runs with the given status, capped per poll like the jobs
+    /// fan-out (`maxRunsPerPoll`).
     func runs(status: String) async throws -> [RunRef] {
         var all = try await fetchRuns(status: status)
         if all.count > maxRunsPerPoll {
@@ -16,35 +15,20 @@ extension GitHubClient {
 
     /// All runs in the scope with the given status, following pagination.
     ///
-    /// GitHub grants fine-grained tokens runs access only through the
-    /// *repository* Actions permission; no fine-grained organization
-    /// permission unlocks `/orgs/{org}/actions/runs`, so org scope gets 404s
-    /// there even from tokens that manage runners fine. When that happens we
-    /// fall back to reading each repository's runs (see `runsFromRepos`); the
-    /// sticky flag skips the failing org call on later polls. Classic tokens
-    /// (`repo` scope) never need the fallback.
+    /// GitHub documents no org-wide runs endpoint, so org scope reads
+    /// repository by repository through `GET /repos/{repo}/actions/runs`
+    /// (see `runsFromRepos`), bounded by `maxReposPerPoll` repositories and
+    /// `maxRunsPerPoll` runs per poll. Each run is attributed
+    /// (`attributedRepository`) to the repository it was read from.
     func fetchRuns(status: String) async throws -> [RunRef] {
         guard credentials.isOrgScope else {
             return try await pagedRuns(path: "\(credentials.actionsBase)/runs", status: status, repository: nil)
-        }
-        if runsMode.viaRepos {
-            return try await runsFromRepos(status: status)
-        }
-        do {
-            return try await pagedRuns(path: "\(credentials.actionsBase)/runs", status: status, repository: nil)
-        } catch GitHubError.notFound {
-            runsMode.setViaRepos()
-            Log.warn(
-                "engine",
-                "org runs endpoint not readable for '\(credentials.scope)' — fine-grained tokens cannot read "
-                    + "/orgs/{org}/actions/runs; falling back to per-repository reads (a classic token with "
-                    + "the repo scope avoids this)")
         }
         return try await runsFromRepos(status: status)
     }
 
     /// One paginated runs fetch against a single endpoint. `repository`
-    /// attaches attribution for per-repository fallback reads.
+    /// attaches attribution for per-repository reads.
     func pagedRuns(path: String, status: String, repository: String?) async throws -> [RunRef] {
         var runs: [RunRef] = []
         var page = 1
@@ -65,7 +49,7 @@ extension GitHubClient {
         return runs
     }
 
-    /// Reads runs repo-by-repo (fine-grained-token fallback), attributing
+    /// Reads runs repo-by-repo (org scope), attributing
     /// each run to the repository it was read from. Repos the token cannot
     /// see (404) are skipped: one unreadable repository must not fail the
     /// whole queue read, and it contributes no jobs by definition.
@@ -92,7 +76,7 @@ extension GitHubClient {
         return runs
     }
 
-    /// Repositories to poll in fallback mode: the org's repos, or — when
+    /// Repositories to poll in org scope: the org's repos, or — when
     /// even that 404s (the org repo list needs Members read) — every repo
     /// the token can see, filtered down to the scope's org.
     func listScopeRepositories() async throws -> [String] {
@@ -131,9 +115,8 @@ extension GitHubClient {
         return names
     }
 
-    /// All jobs of one workflow run. In per-repository fallback mode the
-    /// run's scoped repository supplies the repo-scoped jobs path (the
-    /// org-scope path 404s for fine-grained tokens).
+    /// All jobs of one workflow run. In org scope the run's scoped
+    /// repository supplies the repo-scoped jobs path.
     func fetchJobs(runID: Int, repository: String?) async throws -> [GHJob] {
         let jobsPath =
             repository.map { "/repos/\($0)/actions/runs/\(runID)/jobs" }

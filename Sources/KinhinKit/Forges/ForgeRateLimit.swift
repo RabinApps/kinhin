@@ -38,7 +38,7 @@ public struct ForgeRateLimit: Sendable, Equatable {
 }
 
 /// The last rate limit a client saw, shared across copies of the client
-/// (a struct copied by value, like `RunsModeBox`).
+/// (a struct copied by value).
 final class RateLimitBox: Sendable {
     private let state = Mutex<ForgeRateLimit?>(nil)
 
