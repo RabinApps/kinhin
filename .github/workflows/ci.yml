@@ -24,6 +24,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - name: Prefer mise toolchains
+        # The runner's job PATH has Xcode's Swift (6.3.x) ahead of the baked
+        # mise-managed one, but Package.swift needs the 6.4 tools. Put the mise
+        # shims first; a no-op where mise isn't installed.
+        run: |
+          shims="$HOME/.local/share/mise/shims"
+          [ -d "$shims" ] && echo "$shims" >> "$GITHUB_PATH" || true
+
       - name: Swift version
         run: swift --version
 
@@ -52,6 +60,14 @@ jobs:
     runs-on: [self-hosted, macos, arm64]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Prefer mise toolchains
+        # The runner's job PATH has Xcode's Swift (6.3.x) ahead of the baked
+        # mise-managed one, but Package.swift needs the 6.4 tools. Put the mise
+        # shims first; a no-op where mise isn't installed.
+        run: |
+          shims="$HOME/.local/share/mise/shims"
+          [ -d "$shims" ] && echo "$shims" >> "$GITHUB_PATH" || true
 
       - name: Tests under ThreadSanitizer (serial)
         # The script exits nonzero on any sanitizer report; a failing exit
