@@ -4,10 +4,8 @@ What your Mac needs to run kinhin, and how to size CPU, memory, and storage for 
 
 [← Back to README](../README.md)
 
-kinhin runs a whole VM (or container) per job, so "how big a Mac do I need" is really "how many
-concurrent jobs do I want". The scaler never spawns more than the host can hold — the shapes you
-configure decide how much work fits, and `kinhin doctor` tells you what that is. This page is how
-to get there deliberately.
+kinhin runs a whole VM (or container) per job, so "how big a Mac do I need" really means "how many concurrent jobs do I
+want". The scaler never spawns more than the host can hold, and `kinhin doctor` tells you what that is.
 
 ## Minimum requirements
 
@@ -34,7 +32,7 @@ cap = min(max_runners,
           free_disk / disk_per_vm)
 ```
 
-Three consequences worth knowing before you size anything:
+Three things to know before you size anything:
 
 - **The formula is the contract.** The engine never overcommits CPU, RAM, or disk — a burst past
   the cap queues instead of thrashing your Mac.
@@ -60,8 +58,6 @@ decides where work lands). What matters is the sum across VMs staying within `co
 
 - Keep `reserve.cpu` at the default 2 if you work on the Mac while CI runs; 4 on an 8-core base
   chip keeps interactive work snappy, and near 0 only makes sense on a dedicated builder.
-- Base chips (8–10 logical cores) fit one 4-vCPU VM comfortably, two only with smaller shapes;
-  Pro/Max/Ultra chips (10–16 cores) are where two 4–6-vCPU VMs plus a Linux pool coexist.
 
 ## Memory (`vm.memory_gb`)
 
@@ -77,7 +73,6 @@ unusable if you guess low:
 | Flutter/Android on macOS (Java + Android SDK)| 8–12                 |
 | Shared VM with `runners_per_vm: n`           | the sum of the jobs  |
 
-- Validation floors: `vm.memory_gb` ≥ 2, `container.memory_gb` ≥ 2, `docker.memory_gb` ≥ 1.
 - Keep `reserve.memory_gb` at the default 4 or more if the Mac is also your daily driver: the
   scaler reserves that RAM on paper, but macOS still swaps when everything wants memory at once.
 - 8 GB Macs have no headroom for a useful macOS VM (8 − 4 reserve = 4 GB): use Linux — containers
@@ -109,26 +104,21 @@ Recommendations:
 
 ## Recommended setups
 
-What actually fits, by Mac memory (with the default `reserve.cpu: 2`, `reserve.memory_gb: 4`):
+What fits, by Mac memory (with the default `reserve.cpu: 2`, `reserve.memory_gb: 4`):
 
-| Mac                    | macOS fleet                                                       | Linux-only alternative         |
-| ---------------------- | ----------------------------------------------------------------- | ------------------------------ |
-| 8 GB                   | Not recommended — at most one 4 GB VM, nothing else running       | 2 slots × (2 cpu / 2 GB)       |
-| 16 GB                  | 1–2 × (3–4 cpu / 6 GB) — two VMs only on 10-core chips            | 3 slots × (2 cpu / 4 GB)       |
-| 24 GB                  | 2 × (4 cpu / 8 GB)                                                | 4–5 slots × (2 cpu / 4 GB)     |
-| 32 GB                  | 2 × (4–6 cpu / 10–12 GB)                                          | 5–7 slots × (2 cpu / 4 GB)     |
-| 48–64 GB               | 2 × (6–7 cpu / 14–16 GB), `runners_per_vm: 2` → 4 concurrent jobs | 6–8 slots × (2 cpu / 4 GB)     |
+| Mac      | macOS fleet                                                       | Linux-only alternative     |
+| -------- | ----------------------------------------------------------------- | -------------------------- |
+| 8 GB     | Not recommended                                                   | 2 slots × (2 cpu / 2 GB)   |
+| 16 GB    | 1–2 × (3–4 cpu / 6 GB); two VMs only on 10-core chips             | 3 slots × (2 cpu / 4 GB)   |
+| 24 GB    | 2 × (4 cpu / 8 GB)                                                | 4–5 slots × (2 cpu / 4 GB) |
+| 32 GB    | 2 × (4–6 cpu / 10–12 GB)                                          | 5–7 slots × (2 cpu / 4 GB) |
+| 48–64 GB | 2 × (6–7 cpu / 14–16 GB), `runners_per_vm: 2` → 4 concurrent jobs | 6–8 slots × (2 cpu / 4 GB) |
 
-The macOS shapes assume a 10-core chip or better (2 VMs × 4 vCPU + `reserve.cpu: 2` needs 10
-logical cores); on an 8-core base chip, drop to one VM or smaller shapes. Linux slot counts assume
-`container.cpus: 2`, `container.memory_gb: 4` — on base chips CPU caps the slots before RAM does
-(the 8 GB row shrinks the slots to 2 GB each, which is tight: a runner agent plus any real build
-wants more). Two macOS VMs is the ceiling on every row; more concurrent macOS jobs come from
-`runners_per_vm`, and Linux pools are bounded by the same CPU/RAM math.
+The macOS shapes assume a 10-core chip or better (two 4-vCPU VMs plus `reserve.cpu: 2` need 10 logical cores). On an
+8-core chip, use one VM or smaller shapes. Two macOS VMs is the ceiling on every row; more concurrent macOS jobs come
+from `runners_per_vm`.
 
-Two worked examples:
-
-A 16 GB Mac mini (M4, 10 cores) serving Linux services CI in apple/container microVMs:
+Example: a 16 GB Mac mini (M4, 10 cores) running Linux CI in apple/container microVMs.
 
 ```yaml
 max_runners: 3
@@ -140,31 +130,7 @@ container:
   memory_gb: 4
 ```
 
-Cap: (10 − 2) / 2 = 4 by CPU, (16 − 4) / 4 = 3 by RAM — three concurrent jobs.
-
-A 64 GB Mac Studio (M4 Max, 16 cores) for an Xcode fleet with a Linux side pool:
-
-```yaml
-max_runners: 2
-runners_per_vm: 2
-vm:
-  cpu: 6
-  memory_gb: 14
-reserve:
-  cpu: 4
-  memory_gb: 8
-runtimes:
-  default: tart
-  budget: { tart: 0.7, appleContainer: 0.3 }
-container:
-  image: "kinhin-ci-linux"
-  cpus: 2
-  memory_gb: 4
-```
-
-Cap: (16 − 4) / 6 = 2 VMs — the macOS ceiling anyway — × 2 runners = 4 concurrent Xcode jobs,
-with the container pool taking the remaining budget slice. Budget ~110 GB of disk (2 × 50 GB
-footprints + reserve), so the [storage](#storage) recommendation applies.
+The cap is (10 − 2) / 2 = 4 by CPU and (16 − 4) / 4 = 3 by RAM, so three concurrent jobs.
 
 ## Sizing in practice
 

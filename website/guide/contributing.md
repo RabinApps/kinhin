@@ -4,22 +4,14 @@ outline: [2, 3]
 
 # Contributing to kinhin
 
-`kinhin` is built by one developer, and the community makes it better. There are
-two ways to contribute:
-
-1. **Open an issue or PR** on [GitHub](https://github.com/RabinApps/kinhin) for
-   bug reports, feature requests, and code changes. The
-   [Contributing guide](https://github.com/RabinApps/kinhin/blob/main/CONTRIBUTING.md)
-   covers the development workflow, and the
-   [Architecture guide](https://github.com/RabinApps/kinhin/blob/main/docs/architecture.md)
-   covers the package layout.
-2. **Add your company or project to the list** of organizations running kinhin.
-   See [external-contributors.md](https://github.com/RabinApps/kinhin/blob/main/docs/external-contributors.md).
+kinhin is built by one developer, and bug reports, feature requests and pull requests are welcome on
+[GitHub](https://github.com/RabinApps/kinhin). Not writing code? You can also
+[add your project to Who uses kinhin](/guide/used-by) or [support the project](/guide/support).
 
 ## Before you open a PR
 
 `swift build` and `swift test` need no VMs or network. Follow the conventions
-in [CLAUDE.md](https://github.com/RabinApps/kinhin/blob/main/CLAUDE.md): no
+in [CONTRIBUTING.md](https://github.com/RabinApps/kinhin/blob/main/CONTRIBUTING.md): no
 print statements in `KinhinKit` or the app, errors are thrown, logging goes
 through `Log`, and access control is `internal` unless explicitly needed.
 
@@ -42,7 +34,7 @@ also run `scripts/tsan.sh` (serial, ~5–10 min).
 
 - The [Architecture guide](https://github.com/RabinApps/kinhin/blob/main/docs/architecture.md)
   has the package layout and folder map.
-- [CLAUDE.md](https://github.com/RabinApps/kinhin/blob/main/CLAUDE.md) has the
+- [CONTRIBUTING.md](https://github.com/RabinApps/kinhin/blob/main/CONTRIBUTING.md) has the
   contributor conventions (Swift, error handling, logging, tests).
 - The [Issue tracker](https://github.com/RabinApps/kinhin/issues) has a list of
   good first issues.

@@ -12,11 +12,10 @@ The effective concurrency cap is
 Linux container slots). The scaler re-checks free disk before every spawn and holds new VMs when
 the disk would dip below `reserve.disk_gb` plus one instance's footprint — a queue burst can
 never fill your disk. `kinhin doctor` prints the cap and the binding constraint.
-Not sure how big a Mac you need for the fleet you want? See
-[Hardware requirements & sizing](hardware.md).
+Not sure how big a Mac you need? See [Hardware requirements & sizing](hardware.md).
 
 When several runtimes are configured, this budget is partitioned across their pools by the
-`runtimes.budget` weights (see [Runtimes](runtimes.md#per-repo--per-workflow-runtime-routing)).
+`runtimes.budget` weights (see [Runtimes](runtimes.md#per-repo-and-per-workflow-routing)).
 
 ## The scaling loop
 
@@ -38,44 +37,28 @@ Every `poll_interval` seconds the engine:
 
 ### Poll cadence
 
-`poll_interval` is the cadence whenever there is something to react to. Two things stretch it:
+`poll_interval` is the normal cadence. Two things stretch it:
 
-- **Idle.** A running fleet with no queued jobs and no instances for 5 minutes polls every 60s
-  (or every `poll_interval`, if that is longer). The first new job restores the normal cadence.
-  The 5-minute grace keeps multi-stage workflows fast: the fleet is briefly empty between `needs:`
-  stages, and those gaps never slow the next stage. Resuming a paused fleet or reloading routing
-  triggers a poll immediately.
-- **API budget.** kinhin reads GitHub's rate-limit headers on every response. Below 25% of the
-  hourly budget it polls half as often, and below 10% a quarter as often, and it stops reading
-  running jobs (the per-repo "running" breakdown) so demand reads keep working. When the budget
-  is exhausted, it waits for the reset (at most 15 minutes).
+- **Idle.** After 5 minutes with no queued jobs and no instances, kinhin polls every 60s (or `poll_interval`, if
+  longer). The first new job restores the normal cadence. The 5-minute grace keeps multi-stage workflows fast, because
+  the fleet is briefly empty between `needs:` stages.
+- **API budget.** kinhin reads GitHub's rate-limit headers. Below 25% of the hourly budget it polls half as often, and
+  below 10% a quarter as often. When the budget is exhausted it waits for the reset (at most 15 minutes). The status
+  line notes any slowdown, for example `queue age: 12s old · checking every 60s (idle)`.
 
-A paused fleet never backs off for idleness, because the status surfaces promise to re-check the
-queue every `poll_interval`. The status line notes a slowdown, e.g.
-`queue age: 12s old · checking every 60s (idle)`, and a queue is only reported as stale when it is
-older than the cadence currently in effect.
-
-GitHub reads are conditional (`If-None-Match`), so a poll that finds nothing changed gets a 304,
-which does not count against the rate limit. Every live instance's exit watch reads one shared
-runner list, refreshed at most every few seconds, instead of one list per instance per second.
+GitHub reads are conditional, so a poll that finds nothing changed gets a 304, which doesn't count against the rate
+limit.
 
 ## Pausing and auto-resume
 
-A paused fleet skips spawning (and, by default, skips queue polling entirely). With
-`auto_resume: true` the engine keeps watching the queue while paused — on the normal
-`poll_interval` cadence, read-only — and unpauses itself in the pass that finds it empty: a
-deliberate pause (for example the Shortcuts "Delete VM" action pauses first so autoscaling
-can't recreate what was deleted) then releases the fleet on its own. If every forge fetch fails
-while paused, the engine holds: silence must not read as "nothing to do".
+A paused fleet doesn't spawn new instances. With `auto_resume: true` it keeps watching the queue while paused and
+resumes itself once the queue is empty. This is what makes a deliberate pause safe, for example the Shortcuts "Delete
+VM" action pauses first so autoscaling can't recreate what you just deleted. If every forge fetch fails while paused,
+the engine stays paused rather than treat silence as "nothing to do".
 
-Every surface that can show a paused fleet shares one cadence clause while the policy holds —
-the menu bar and Fleet tab status line, `kinhin status`, and Siri all render (with your
-configured `poll_interval`) that the engine "re-checks the queue every 20s and resumes once
-it's empty". Because only a forge *answering* a demand fetch refreshes the queue numbers,
-every status surface stamps them with an age: `kinhin status` prints `queue age: Ns old` and the
-menu bar and Fleet tab status line adds a `⏱ queue age: Ns old` line — stale during an outage, so a
-paused snapshot never masquerades as fresh. `kinhin status --json` exposes the same facts as fields:
-`paused`, `autoResume`, `pollInterval`, `queueAgeSeconds`.
+Every status surface (menu bar, Fleet tab, `kinhin status`, Siri) shows how old the queue numbers are, so a paused
+snapshot never looks fresh during an outage. `kinhin status --json` exposes `paused`, `autoResume`, `pollInterval` and
+`queueAgeSeconds`.
 
 ## Job density
 
@@ -128,13 +111,9 @@ Things to know:
 
 ## Lifecycle and recovery
 
-Ephemeral runners register with `--ephemeral`, so GitHub removes the runner registration as soon
-as the job finishes; kinhin then deletes the VM. If the engine crashes or restarts it reconciles
-`tart list` against its persisted state, adopts orphaned VMs, and drops records whose VMs vanished.
+Ephemeral runners register with `--ephemeral`, so GitHub removes the registration as soon as the job finishes, and
+kinhin then deletes the VM. If the engine crashes or restarts, it compares `tart list` with its saved state, adopts
+orphaned VMs, and drops records whose VMs vanished.
 
-Registration tokens are short-lived (1 h); kinhin caches and refreshes them automatically. Your
-PAT lives in the login Keychain.
-
-Config edits made from the app's **Advanced → Routing** tab (routes, budget split, labels) reach a
-running fleet live via `reload_config` — no restart; a running fleet simply re-buckets demand on
-its next poll.
+Registration tokens last an hour and are refreshed automatically. Your PAT lives in the login Keychain. Config edits
+from **Advanced → Routing** reach a running fleet without a restart.

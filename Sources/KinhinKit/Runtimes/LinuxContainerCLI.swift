@@ -40,6 +40,7 @@ struct LinuxContainerCLI: Sendable {
 
     /// Starts the runner container (or restarts an existing one: recovery).
     func provision(id: String, route: RepoRoute) async throws {
+        let image = route.image
         if try await containerIDs(all: true).contains(id) {
             Log.info(id, "container already exists; starting it (recovery)")
             try await require(run([bin, "start", id]), "starting container \(id)")

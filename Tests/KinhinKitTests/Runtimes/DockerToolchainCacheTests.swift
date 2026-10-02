@@ -22,13 +22,15 @@ final class DockerToolchainCacheTests: XCTestCase {
             binPath: bin
         )
         try await runtime.provision(id: "kinhin-a", route: makeRoute())
-        var runArgv = try XCTUnwrap(shell.calls.last { $0.contains("run") })
-        XCTAssertFalse(runArgv.contains("--volume"), "no cacheMount → no bind mount")
+        let runArgvA = try XCTUnwrap(shell.calls.first { $0.contains("run") && $0.contains("--name kinhin-a") })
+        XCTAssertFalse(runArgvA.contains("--volume"), "no cacheMount → no bind mount")
 
         try await runtime.provision(id: "kinhin-b", route: makeRoute(cacheMount: true))
-        runArgv = try XCTUnwrap(shell.calls.last { $0.contains("run") })
-        XCTAssertTrue(runArgv.contains("--volume"))
-        XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
+        let runArgvB = try XCTUnwrap(shell.calls.first { $0.contains("run") && $0.contains("--name kinhin-b") })
+        XCTAssertTrue(runArgvB.contains("--volume"))
+        XCTAssertTrue(runArgvB.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
+        XCTAssertTrue(runArgvA.contains("tahoe-base"), "route image is what gets started")
+        XCTAssertTrue(runArgvB.contains("tahoe-base"), "route image is what gets started")
     }
 
     func testRegistrationScriptPrefixesLinuxCacheExportsWhenMounted() async throws {

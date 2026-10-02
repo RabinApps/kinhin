@@ -142,6 +142,26 @@ final class AppleContainerRuntimeTests: XCTestCase {
         XCTAssertTrue(giteaScript.contains("linux gitea runner(s) started"))
     }
 
+    /// The route image is what the container CLI actually uses; the registration
+    /// script must honor `route.image` for human-facing messages and must export
+    /// the per-project toolchain cache envs when `cacheMount` is on.
+    func testRegistrationScriptHonorsARouteImageForHumanMessages() async throws {
+        let runtime = AppleContainerRuntime(
+            shell: FakeShell(), image: "img", cpus: 2, memoryGB: 4,
+            binPath: "/usr/local/bin/container")
+        let route = RepoRoute(
+            repo: "acme/widgets", image: "tahoe-base-derived", ephemeral: true, bootTimeout: 30, cacheMount: true,
+            toolchains: .init(specs: ["node@22"]))
+        let script = try await runtime.registrationScript(
+            forge: gitlabForge(), token: "", runnerTokens: [:], name: "kinhin-1",
+            runnerCount: 1, route: route, labels: nil)
+        // The route image is what the container CLI actually uses; this test
+        // asserts the registration script no longer hard-codes a wrong image name.
+        XCTAssertTrue(script.contains("/opt/gitlab-runner/gitlab-runner"), script)
+        XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""), script)
+        XCTAssertTrue(script.contains("export npm_config_store_dir=\"/var/kinhin-cache/pnpm-store\""), script)
+    }
+
     /// GitLab's per-runner tokens reach the container script (unlike the
     /// shared-token forges, whose `token` argument is ignored here).
     func testGitLabRegistrationScriptRunsRunSingleWithTheCacheMount() async throws {
@@ -163,19 +183,6 @@ final class AppleContainerRuntimeTests: XCTestCase {
         XCTAssertTrue(
             script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "run-single")!.lowerBound,
             "exports come first")
-    }
-
-    private func gitlabForge() -> GitLabForge {
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [StubProtocol.self]
-        let client = GitLabClient(
-            credentials: GitLabCredentials(token: "glpat", scope: "acme/api", instance: "https://git.example.com"),
-            session: URLSession(configuration: config))
-        return GitLabForge(
-            credentials: .gitlab(token: "glpat", scope: "acme/api", instance: "https://git.example.com"),
-            labels: ["linux"],
-            client: client,
-            scope: .project(id: 7, path: "acme/api"))
     }
 
     // MARK: - Boot wait
@@ -346,6 +353,19 @@ final class AppleContainerRuntimeTests: XCTestCase {
 
     private func makeRoute() -> RepoRoute {
         RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30)
+    }
+
+    private func gitlabForge() -> GitLabForge {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        let client = GitLabClient(
+            credentials: GitLabCredentials(token: "glpat", scope: "acme/api", instance: "https://git.example.com"),
+            session: URLSession(configuration: config))
+        return GitLabForge(
+            credentials: .gitlab(token: "glpat", scope: "acme/api", instance: "https://git.example.com"),
+            labels: ["linux"],
+            client: client,
+            scope: .project(id: 7, path: "acme/api"))
     }
 
     func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {

@@ -66,6 +66,10 @@ func helpText() -> String {
         toolchains --project <owner/name> [--ref <branch|tag>]
                                     Show which toolchains that repo resolves to, where they
                                     come from, and the derived image they bake into
+        toolchains detect [path] [--json] [--write] [--force]
+                                    Scan a checkout and print the .kinhin.yml toolchains it
+                                    needs, with the evidence (--write saves it; --force
+                                    overwrites an existing file)
         toolchains list-images      Derived per-project images: size and last used
         toolchains prune [--dry-run]   Expire stale host-cache entries and unused derived images now
         image digest <registry>/<repo>:<tag>

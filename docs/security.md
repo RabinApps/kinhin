@@ -24,16 +24,14 @@ Every job runs in a fresh VM or container that is deleted afterwards, but VMs ru
 
 ## What kinhin enforces
 
-- **Guest SSH is key-only.** `image prepare` writes `/etc/ssh/sshd_config.d/000-kinhin-hardening.conf` (no password or keyboard-interactive login) and fails the bake if sshd doesn't honour it. kinhin connects with Tart's key.
-- **Registration scripts travel over stdin**, not the command line, so tokens don't appear in `ps` on the host. Inside the guest, the Azure PAT file and the Buildkite token file are deleted as soon as the agent has read them, and the Azure PAT is not exported to the job. (The Azure agent still keeps its own credentials file, and the Buildkite agent holds its token in its environment, so scope those tokens narrowly.)
-- **Forge instances use https.** Gitea, Forgejo, GitLab and Azure DevOps instances must be `https://` unless the host is loopback or the account sets `allow_insecure_http: true` ([details](forges.md#plain-http-instances)). Redirects must stay on the same host and may not drop to http; Buildkite and Bitbucket pagination links must match the API host exactly.
-- **Config values can't inject shell.** `toolchains.specs`, `brew` and `stacks` entries (in `projects[]` or a `.kinhin.yml`) are limited to letters, digits and `. _ + : / @ = ~ ^ * , -` (no leading `-`), Azure capability values can't carry control characters, and every value is quoted again where it enters a script. Runner version tags from release feeds must look like `v1.2.3`.
-- **The daemon socket is private.** It lives in a 0700 directory as a 0600 socket, only the daemon's own user may connect, and at most 32 connections are open at once. `delete_vm` only accepts ids of VMs kinhin created and still tracks.
-- **Local files are private.** The support directory, `logs/` and `state/` are 0700 (older installs are tightened on launch) and log, config and fleet-state files are 0600. Tokens live in the Keychain (this-device-only), never in `config.yaml`. The log redactor masks GitHub, GitLab, Bitbucket and Buildkite token formats, `Authorization` / `PRIVATE-TOKEN` headers, JSON-quoted and `NAME_TOKEN=` secrets, credentials inside URLs, and every token kinhin has loaded (so unprefixed Gitea and Azure tokens are masked too). Errors shown in the UI, status and Shortcuts are redacted the same way. `kinhin doctor --bundle` writes a redacted report for bug reports.
-- **Host mode is repo-scoped.** The host runner registers at the account's scope, so any workflow in that scope could request it. A config with a `runtime: host` route is refused unless every account is scoped to a single repository (`owner/name`).
-- **Updates verify the signer and Gatekeeper.** The updater only accepts `kinhin-<version>-arm64.dmg` for a `vMAJOR.MINOR.PATCH` tag, requires the Developer ID Application signature of the running build's team, asks Gatekeeper (`spctl`) to assess the DMG (notarization, revocation), refuses to update when its own signature cannot be read, only follows redirects within GitHub, and ignores `KINHIN_UPDATE_REPO` in signed builds.
-- **The shared cache is pruned safely.** Pruning removes entries relative to a directory descriptor with `O_NOFOLLOW`, so a symlink planted by a job cannot redirect a delete outside the cache.
-- **Updates are verified.** See [Updates and installs](install.md#how-updates-and-installs-are-verified).
+- **Guest SSH is key-only.** `image prepare` turns off password login in the guest and fails the bake if sshd doesn't honour it.
+- **Tokens stay out of reach.** They live in the Keychain (this-device-only), never in `config.yaml`. Registration scripts travel over stdin, so tokens don't appear in `ps` on the host, and the log redactor masks every token format kinhin knows (plus any token it has loaded). `kinhin doctor --bundle` writes a redacted report for bug reports.
+- **Forge instances use https.** Gitea, Forgejo, GitLab and Azure DevOps instances must be `https://` unless the host is loopback or the account sets `allow_insecure_http: true` ([details](forges.md#plain-http-instances)). Redirects must stay on the same host.
+- **Config values can't inject shell.** Toolchain entries are limited to a strict character set and quoted again where they enter a script.
+- **The daemon socket and local files are private.** The socket is `0600` in a `0700` directory and only your user can connect. The support directory, logs and state are owner-only.
+- **Host mode is repo-scoped.** A config with a `runtime: host` route is refused unless every account is scoped to a single repository (`owner/name`).
+- **Updates are verified.** The updater requires the same Developer ID signer as the running app and a Gatekeeper check; see [Updates and installs](install.md#how-updates-and-installs-are-verified).
+- **The shared cache is pruned safely.** A symlink planted by a job can't redirect a delete outside the cache.
 
 ## Per-project toolchains
 
@@ -77,6 +75,6 @@ download hosts), and to GitHub Releases for the once-a-day update check.
 
 ## For maintainers: CI and releases
 
-- CI runs on a self-hosted Mac that also hosts the fleet, so fork PRs are not run there (`ci.yml` skips them) and the workflow token is read-only.
-- The release job needs signing and notarization secrets. Put them in a GitHub **environment** named `release` with required reviewers, and protect `v*` tags, so a pushed tag alone can't reach them. The version is validated as `vMAJOR.MINOR.PATCH` and passed to shell steps through `env:`.
+- CI runs on a self-hosted Mac that also hosts the fleet, so fork PRs are not run there and the workflow token is read-only.
+- Put the signing and notarization secrets in a GitHub **environment** named `release` with required reviewers, and protect `v*` tags, so a pushed tag alone can't reach them.
 - Actions are pinned to commit SHAs; bump them deliberately.

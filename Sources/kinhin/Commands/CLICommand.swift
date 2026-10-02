@@ -84,9 +84,11 @@ enum CLICommand: Equatable {
 
     /// Whether invoking this command should auto-create the starter config
     /// first. Mirrors the original exemption switch: help/version/config are
-    /// no-ops that must not touch disk; everything else (including unknown
+    /// no-ops that must not touch disk (and `toolchains detect`); everything else (including unknown
     /// commands, which print help before failing) auto-creates.
-    static func shouldAutoCreateConfig(_ command: CLICommand?) -> Bool {
+    static func shouldAutoCreateConfig(_ command: CLICommand?, args: [String] = []) -> Bool {
+        // `toolchains detect` only reads a project directory; it needs no config.
+        if command == .toolchains, args.dropFirst().first == "detect" { return false }
         switch command {
         case .help, .version, .support, .configInit:
             return false

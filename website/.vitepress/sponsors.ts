@@ -19,15 +19,15 @@ export interface Contributor {
 }
 
 /**
- * Community submissions come through the external-contributors.md PR process;
+ * Community submissions come through the used-by.md PR process;
  * maintainers review them before merging, so this list is a curated
  * representation, not raw PR content.
  */
 export const contributors: Contributor[] = [
   // Add new entries here when a company or project signs up.
   // Example:
-  // { sponsor: { name: "Acme Corp", url: "https://acme.example", blurb: "Runs CI on kinhin" } },
-  // { project: { name: "MyProject", url: "https://myproject.example", blurb: "Uses kinhin for CI" } },
+  // { sponsor: { name: "Acme Corp", url: "https://acme.example", blurb: "Runs CI on kinhin" }, project: null },
+  // { sponsor: null, project: { name: "MyProject", url: "https://myproject.example", blurb: "Uses kinhin for CI" } },
 ];
 
 export const internalSponsors: Sponsor[] = [

@@ -1,56 +1,35 @@
 # Runtimes & routing
 
-Where jobs execute: Tart VMs, Apple `container` microVMs, Docker containers, or directly on your
-Mac — and how one fleet routes each job between them.
+Where jobs run (Tart VMs, apple/container microVMs, Docker containers, or directly on your Mac) and how one fleet routes
+each job between them.
 
 [← Back to README](../README.md)
 
-> **Beta:** only the Tart runtime has been run for real. apple/container, Docker and host mode are covered by
-> unit tests against fakes and have not been exercised live.
+> **Beta:** only the Tart runtime has been run for real. apple/container, Docker and host mode are covered by unit tests
+> against fakes and have not been exercised live.
 
-Every job is placed on a **Runtime** — a pluggable executor that provisions instances, runs the
-agent, and tears down. Four backends ship:
+| Runtime             | Runs                                                         | Isolation                                    |
+| ------------------- | ------------------------------------------------------------ | -------------------------------------------- |
+| **Tart**            | macOS jobs, or Linux jobs on a [Linux base](#tart-linux-vms) | One VM per runner (linked clone)             |
+| **apple/container** | Linux jobs                                                   | One lightweight microVM per runner container |
+| **Docker**          | Linux jobs                                                   | Containers in your provider's shared VM      |
+| **Host**            | Jobs on the Mac itself                                       | None. Opt-in, trusted repos only.            |
 
-| Runtime             | Runs                                                                               | Isolation                                    |
-| ------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------- |
-| **Tart**            | macOS jobs — or Linux jobs on a Linux base (see [Tart Linux VMs](#tart-linux-vms)) | One VM per runner (linked clone)             |
-| **apple/container** | Linux jobs                                                                         | One lightweight microVM per runner container |
-| **Docker**          | Linux jobs                                                                         | Containers in your provider's shared VM      |
-| **Host**            | Jobs on the Mac                                                                    | None — opt-in, trusted repos only            |
+Each runner is bound to the image its job resolved to: the base image, or a derived image for the project's
+[toolchains](toolchains.md#per-project-toolchains). Neither Linux container runtime bakes toolchains; jobs install them
+with [`kinhin-toolchain install`](toolchains.md#per-job-toolchains).
 
-The engine is runtime-agnostic — pools, capacity partitioning, and routing all live above the
-protocol, so new backends slot in without touching lifecycle code.
+## macOS (Tart)
 
-So Linux jobs have **three** execution options — two container runtimes plus a full VM on Tart.
-[Choosing a Linux runtime](#choosing-a-linux-runtime) compares them side by side.
+### Choosing the base image
 
-Neither Linux container runtime bakes toolchains: `image prepare --container|--docker` bakes only
-the agents, and jobs install what they need with
-[`kinhin-toolchain install`](toolchains.md#per-job-toolchains). A project with `share_cache: true`
-gets the host cache mounted into its runner containers at `/var/kinhin-cache`
-([details](toolchains.md#linux-runtimes)).
+`image prepare` clones a Cirrus Labs macOS image by default and bakes the runner agents into it. To start from another
+published image (`macos-sequoia-base`, `macos-sonoma-xcode`, …), set the top-level `base_image:` or pick one in the app's
+macOS card. `kinhin doctor` flags a reference that is neither a published image nor a local VM, so a typo doesn't
+surface as a failed clone mid-prepare.
 
-With [per-project toolchains](toolchains.md#per-project-toolchains) each runner VM or container is
-bound to the image its job resolved to: the global image, or a derived `<image>-p<hash>` image
-for that project's toolchains. The image is recorded on the VM so lifecycle and crash recovery
-pick the same one. Pools are bucketed by runtime and image. Tart derived images are APFS clones
-of the base; Apple `container` derived images get no layer sharing and are full size, while
-Docker commits share layers.
-
-### Choosing the macOS base image
-
-`image prepare` clones a pre-configured Cirrus Labs macOS image by default and bakes the runner
-agents into it. Set the top-level `base_image:` to start from a different published image instead
-(`ghcr.io/cirruslabs/macos-sequoia-base:latest`, `…/macos-sonoma-xcode:latest`, … — pick one in the
-app's macOS card) or at a local VM you made with `image prepare --linux --target <name>`
-(`--from <ref>` starts that Linux VM from a pre-configured image too). Absent key = the default
-macOS base. `kinhin doctor` and the setup checklist flag a reference that is neither a
-pre-configured image nor a local VM — otherwise a typo here would only surface as a mid-prepare
-clone failure.
-
-For reproducible bakes, pin the reference to a digest: every bake then uses the exact same
-bits, while a `:latest` tag (including the curated defaults) can be republished by the registry
-at any time — doctor and the checklist warn about mutable tags with the command to fix it:
+For reproducible bakes, pin the image to a digest. A `:latest` tag can be republished at any time, and `kinhin doctor`
+warns about mutable tags:
 
 ```bash
 kinhin image digest ghcr.io/cirruslabs/macos-sequoia-base:latest
@@ -58,216 +37,114 @@ kinhin image digest ghcr.io/cirruslabs/macos-sequoia-base:latest
 #   pin it: base_image: "ghcr.io/cirruslabs/macos-sequoia-base:latest@sha256:…"
 ```
 
-Bump the pin deliberately (re-run `image digest`, re-prepare) — a pin never moves on its own.
+A pin never moves on its own: re-run `image digest` and re-prepare to update it.
 
 ### Isolating runner VMs from each other
 
-By default Tart puts every VM on one shared virtual network, so a job in one runner VM can reach
-the other runner VMs and anything else on your LAN. If jobs can include code you don't fully
-trust (fork PRs, outside contributors), turn on Softnet isolation:
+By default Tart puts every VM on one shared network, so a job can reach other runner VMs and your LAN. If jobs can
+include code you don't fully trust (fork PRs, outside contributors), turn on Softnet:
 
 ```yaml
 tart_softnet: true # boots runner VMs with `tart run --net-softnet`
 ```
 
-Each VM can then reach the internet but not its neighbours or the local network. It needs the
-`softnet` binary and its one-time privilege setup — install it with
-`brew install cirruslabs/tools/softnet`, then give it root once. Softnet cannot start without it
-(`tart run` fails with "root privileges are required to run and passwordless sudo was not
-available", or the VM boots with no reachable IP). Either make the real binary setuid root:
+Each VM can then reach the internet but not its neighbours or your local network. Softnet needs a one-time setup:
 
 ```bash
+brew install openai/tools/softnet
 sudo chown root "$(readlink -f "$(which softnet)")" && sudo chmod u+s "$(readlink -f "$(which softnet)")"
 ```
 
-or add a passwordless-sudo rule for it (`%admin ALL = (root) NOPASSWD: <softnet path>` in
-`/etc/sudoers.d/softnet`, mode 440). Use the resolved path, not the Homebrew symlink, and redo the
-setuid step after `brew upgrade softnet`, which replaces the binary. kinhin refuses to
-start with `tart_softnet: true` when `softnet` isn't installed, rather than silently booting VMs
-on the shared network. Baked images also disable SSH password login (`image prepare` writes
-`/etc/ssh/sshd_config.d/000-kinhin-hardening.conf`), so a VM that can reach another still can't
-log in with the base image's default `admin` password; re-run `kinhin image prepare` to pick
-that up on an existing image.
+Repeat the `chown`/`chmod` after `brew upgrade softnet`. (A passwordless-sudo rule for the resolved binary path also
+works.) kinhin refuses to start with `tart_softnet: true` if `softnet` isn't installed, rather than silently using the
+shared network. Baked images also disable SSH password login; re-run `kinhin image prepare` to apply that to an existing
+image.
 
 ## Choosing a Linux runtime
 
-Linux jobs can run three ways, and which one fits depends on the isolation, density, and setup
-overhead you want:
+Linux jobs can run three ways:
 
-|                          | **Tart Linux VM**                                                                                                                                 | **apple/container**                                                | **Docker**                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| What one instance is     | A full Linux VM, linked clone of your prepared image                                                                                              | A container in its own lightweight microVM                         | A container in your provider's shared Linux VM                                   |
-| Isolation                | VM-grade: own kernel, own disk, own network stack                                                                                                 | MicroVM-grade: own kernel per container                            | Container-grade: shared kernel with every other slot and anything else in the VM |
-| Concurrency              | Bounded by VM shapes (like macOS VMs) — the heaviest option per job                                                                               | High — microVMs are small and boot fast                            | Highest — small container slots, bounded by daemon resources and `max_slots`     |
-| Per-instance disk        | 50 GB planning default (`disk_gb` overrides)                                                                                                      | 8 GB planning default                                              | 8 GB planning default                                                            |
-| amd64 / emulation        | Native arm64 only (Tart is arm64)                                                                                                                 | Native arm64 only (`container.platform` is rejected)               | arm64 native; `linux/amd64` under Rosetta/QEMU emulation                         |
-| Extra software           | None — tart itself, which macOS jobs need anyway                                                                                                  | The container CLI + its system service                             | A running Docker provider (Docker Desktop, OrbStack, colima)                     |
-| Image bakes & toolchains | `image prepare --linux` bakes the same agents; `image prepare --project` bakes toolchains                                                                             | `image prepare --container`                                        | `image prepare --docker`, or a CI-built Dockerfile                               |
-| Shared download cache    | Mounted over virtiofs (like macOS guests) when `share_cache: true`                                                                                | Mounted at `/var/kinhin-cache` when `share_cache: true`            | Mounted at `/var/kinhin-cache` when `share_cache: true`                          |
-| Mixing with macOS jobs   | No — a tart fleet serves one OS at a time (the base image decides)                                                                                | Yes, alongside Tart macOS VMs, with a budget split                 | Yes, alongside Tart macOS VMs, with a budget split                               |
-| Best for                 | Full VM control: apt-based distro of your choice, kernel modules, system services, sudo scripts — or a Linux-only Mac with tart already installed | The default for Linux CI: strong isolation without a Docker daemon | Teams already running a Docker provider; CI-built images pushed to a registry    |
+|                       | **Tart Linux VM**                                  | **apple/container**                 | **Docker**                               |
+| --------------------- | -------------------------------------------------- | ----------------------------------- | ---------------------------------------- |
+| One instance is       | A full Linux VM (linked clone)                     | A container in its own microVM      | A container in your provider's shared VM |
+| Isolation             | Own kernel, disk and network                       | Own kernel per container            | Shared kernel with every other slot      |
+| Density               | Lowest (bounded by VM shapes)                      | High                                | Highest (bounded by `max_slots`)         |
+| Disk per instance     | 50 GB planning default (`disk_gb`)                 | 8 GB                                | 8 GB                                     |
+| amd64                 | No                                                 | No                                  | Yes, emulated                            |
+| Needs                 | Only tart                                          | The `container` CLI and its service | Docker Desktop, OrbStack or colima       |
+| Mixes with macOS jobs | No (a tart fleet serves one OS at a time)          | Yes                                 | Yes                                      |
+| Best for              | Full control: your distro, system services, `sudo` | The default for Linux CI            | Teams already running Docker             |
 
-Rules of thumb:
+- **Starting fresh?** Use **apple/container**: VM-grade isolation, no daemon, and it shares a fleet with macOS VMs.
+- **Already run Docker Desktop, OrbStack or colima?** Use **Docker**.
+- **Need a specific distro, kernel modules or long `sudo` provisioning?** Use a **Tart Linux VM**.
 
-- **Starting fresh with Linux CI?** Use **apple/container** — real VM isolation, no daemon to
-  babysit, and it coexists with macOS Tart VMs in one fleet.
-- **Already run Docker Desktop / OrbStack / colima?** Use **Docker** — one more image instead of
-  one more runtime, and `max_slots` caps the cost per job.
-- **Need things a container can't give you** (a specific distro with system services, kernel
-  modules, nested virtualization, long `sudo` provisioning)? Use a **Tart Linux VM** — it is a
-  real machine your jobs control end to end.
-- **Mac that never runs macOS jobs?** All three work; with tart already installed the Tart Linux
-  VM needs no further installs (but remember: its pool is the tart pool, so it can't serve macOS
-  jobs without re-preparing a macOS base image).
+Container runners register with opt-in labels (`kinhin-container`, `kinhin-docker`), so a workflow can pick a pool with
+`runs-on:` while the config routes the rest.
 
-Both container runtimes register their runners with opt-in labels (`kinhin-container`,
-`kinhin-docker`), so a workflow can pick a pool with `runs-on:` while the config routes the rest.
-
-## Tart Linux VMs
-
-Tart clones Linux VMs as happily as macOS ones, and kinhin can serve Linux jobs from a full Tart
-VM when you want VM-grade isolation for Linux work without a container runtime. In the app, the
-**Tart (Linux VM)** checkbox under **This Mac → Linux jobs** sets the tart `base_image` to a Linux
-image for you (it needs tart installed); a tart fleet serves one OS at a time, so remove `macos`
-from `labels:` when you turn it on. Two ways to get a Linux base VM:
-
-- **From a pre-configured image** — `kinhin image prepare --linux --target <name> --from` shows
-  the curated menu (`ghcr.io/cirruslabs/ubuntu:latest`, `ghcr.io/cirruslabs/debian:latest`, … —
-  all of them ship the `admin`/`admin` credentials and trust Tart's SSH key, so the bake works
-  out of the box); `--from <ref>` clones any other tart reference. The published images already
-  have an OS, so no install step is needed.
-- **From an install ISO** — `kinhin image prepare --linux --target <name> --iso <arm64.iso>`
-  creates a bare VM (`tart create --linux`) and boots it once with the ISO attached as a second
-  disk; you install the OS by hand in the VM window (create an `admin` user and let Tart's SSH
-  key in). A failed boot rolls the half-created VM back.
-
-Either way, the VM ends up on disk under its `<name>` — then
-`kinhin image prepare --source <name>` runs the usual agent bake against it (the registry pull is skipped for local names), and
-pointing `base_image: <name>` at it makes every runner VM a clone of it. The bake injects the
-same token-gated agents as on macOS, picking the right ones for the guest. Per-project
-[toolchain images](toolchains.md#per-project-toolchains) are derived from it the same way.
-The bake detects the guest OS (`uname -s` in the scratch VM) and installs `linux-arm64` agent
-binaries for every forge in the same `$HOME` layout as macOS, so runner registration is
-identical. Linux guests need an apt-based distro with passwordless `sudo` (the curated images
-have both). With a project's `share_cache` on, its Linux guests mount the host cache over virtiofs
-themselves at `/var/kinhin-cache` (macOS guests get it automatically); macOS-only toolchain
-entries (Homebrew formulas, CocoaPods, …) are skipped on a Linux guest. The apple/container and
-Docker runtimes remain the lighter-weight options for Linux jobs — see
-[Choosing a Linux runtime](#choosing-a-linux-runtime) for the full comparison.
-
-## Apple `container` (Linux microVMs)
-
-kinhin can run Linux jobs in [apple/container](https://github.com/apple/container) microVMs: one
-lightweight VM per runner container on Apple silicon, no Docker daemon, and stronger isolation than
-a shared Docker VM. Add this to your config and run `kinhin image prepare --container` to bake the
-agents into a Linux image:
+### apple/container
 
 ```yaml
 container:
   image: "kinhin-ci-linux" # built by: kinhin image prepare --container --target kinhin-ci-linux
-  base_image: "ubuntu:24.04" # optional: what that image is built on (any Debian/Ubuntu-based image)
+  base_image: "ubuntu:24.04" # optional: any Debian/Ubuntu-based image
   cpus: 4
   memory_gb: 8
 ```
 
-Requires the container CLI (`brew install container && container system start`). macOS jobs still
-need Tart — containers run Linux workloads only. When `container:` is configured, the setup
-checklist and `kinhin doctor` gain container rows (CLI health, system-service state, image present)
-with one-click fix actions; without it, the rows never appear. Run `kinhin runtimes` (or the app's
-**Advanced → Routing** tab) to see the pool, its cap, and its live health once configured.
+Install the CLI with `brew install container && container system start`, then run `kinhin image prepare --container`.
+Once `container:` is configured, the setup checklist and `kinhin doctor` gain container rows with one-click fixes.
+`kinhin runtimes` (or **Advanced → Routing**) shows the pool, its cap and its health.
 
-## Docker (Linux containers)
-
-Linux runner containers inside your provider's shared Linux VM (Docker Desktop, OrbStack, or
-colima): one container per job slot with per-slot `--cpus`/`--memory` limits, registration over
-`docker exec` (no SSH, no guest IP), and the daemon teardown as soon as the job is done. kinhin
-delegates the VM — it never starts, stops, or configures the provider. Add this to your config and
-run `kinhin image prepare --docker` to bake the agents into a Linux image:
+### Docker
 
 ```yaml
 docker:
   image: "ghcr.io/acme/kinhin-ci-linux" # built by: kinhin image prepare --docker --target <name>
-  base_image: "ubuntu:24.04" # optional: what that image is built on (any Debian/Ubuntu-based image)
+  base_image: "ubuntu:24.04" # optional: any Debian/Ubuntu-based image
   cpus: 2
   memory_gb: 4
   max_slots: 8 # hard cap on concurrent container slots
-  platform: "linux/arm64" # default and native; "linux/amd64" runs x86_64 under emulation (see below)
+  platform: "linux/arm64" # default; "linux/amd64" runs under emulation
 ```
 
-When `docker:` is configured, the checklist and `kinhin doctor` gain Docker rows (daemon reachable,
-image present) exactly like the container rows; without it, they never appear. Docker slots
-register with a `kinhin-docker` label so jobs opt in via `runs-on: [kinhin-docker]`, and
-`max_slots` clamps the budget partition.
+kinhin never starts or configures your Docker provider; it only runs containers in it. Run
+`kinhin image prepare --docker` to bake the agents. Docker slots register with `kinhin-docker`, so jobs opt in with
+`runs-on: [kinhin-docker]`.
 
-### Architecture and emulation
+Prefer a CI-built image? Write a Dockerfile that installs the GitHub Actions runner at `/opt/actions-runner` (with an
+executable `config.sh`) and the Gitea runner at `/opt/gitea-runner/gitea-runner`, push it, and set `docker.image:`. Bake
+any toolchains into it yourself; kinhin bakes none for Docker.
 
-kinhin runs on Apple Silicon, so Docker runner containers are `linux/arm64` by default (native
-speed). If a workflow needs x86_64, set `docker.platform: "linux/amd64"` (or pick it in the app
-under This Mac → Linux jobs, or bake once with `kinhin image prepare --docker --platform linux/amd64`).
-Disclosure: **`linux/amd64` runs under emulation** — Rosetta if you enabled it in Docker Desktop,
-otherwise QEMU. Expect slower jobs (QEMU can be several times slower), and some software fails
-under emulation: JITs, certain Go/Java/.NET builds, and anything using unsupported CPU
-instructions. Prefer arm64 unless a job needs x86_64. Emulation is provided by your Docker
-provider; kinhin does not configure it. Details:
+**amd64 runs under emulation** (Rosetta if enabled in Docker Desktop, otherwise QEMU). Expect slower jobs, and some
+software (JITs, certain Go/Java/.NET builds) fails under emulation. Prefer arm64 unless a job needs x86_64. amd64 slots
+register with an `x64` label instead of `arm64`, and you must rebuild the image after changing `platform`.
 
-- The baked agents follow the platform (`actions-runner-linux-x64` / `gitea-runner-linux-amd64`), so rebuild the image after changing `platform` — the checklist and `kinhin doctor` flag an image whose architecture doesn't match, and a rebuild never reuses an image of the other architecture as its base.
-- amd64 Docker slots register with an `x64` label instead of `arm64`, so `runs-on: [kinhin-docker, x64]` selects them and `arm64` jobs never land on emulated slots.
-- Apple `container` is arm64-only (`container.platform` is rejected). Toolchains are architecture-neutral.
-- kinhin warns whenever amd64 is selected: on `image prepare`, in the checklist / `kinhin doctor`, in the app, and once at fleet start.
+### Tart Linux VMs
 
-### Choosing the base image
-
-`image prepare --container|--docker` bakes the agents on top of a base image: `ubuntu:24.04` by
-default. Pick another in the app (the Linux card in Setup) or set `base_image:` under `container:` / `docker:`; `--container-image` / `--docker-image`
-override it for one run. The install scripts use `apt-get`, so the base must be Debian- or
-Ubuntu-based (an Alpine or Fedora base is rejected up front with a clear message).
-
-### Building the Docker image with a Dockerfile (CI-friendly)
-
-`kinhin image prepare --docker` bakes the image on the spot — fine for a one-host setup, but it needs a stored token and a live daemon on the machine doing the baking. For a reproducible, CI-buildable image, use a Dockerfile instead: it lands the runner agents at exactly the paths the registration scripts expect (`/opt/actions-runner` with `config.sh`, `/opt/gitea-runner/gitea-runner`), performs the same downloads `image prepare` would, and can be built anywhere with a `linux/arm64` builder (Apple silicon hosts run arm64 containers natively — keep the platform pinned unless you set `docker.platform: "linux/amd64"`, in which case build with `--platform linux/amd64`; the Dockerfile picks the matching agent from `TARGETARCH`):
-
-```dockerfile
-# kinhin-ci-linux — kinhin runner agents on Linux (arm64 native; amd64 runs emulated)
-# docker build --platform linux/arm64 -t ghcr.io/acme/kinhin-ci-linux:latest .
-FROM ubuntu:24.04
-
-ARG TARGETARCH  # set by BuildKit: arm64 or amd64
-
-ARG RUNNER_VERSION=2.325.0      # pin to a github/actions/runner release
-ARG GITEA_RUNNER_VERSION=3.5.0  # pin to a gitea/runner release
-
-# GitHub Actions agent at /opt/actions-runner (config.sh must be executable there)
-RUN GH_ARCH=$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo arm64) \
- && mkdir -p /opt/actions-runner \
- && cd /opt/actions-runner \
- && curl -fsSL "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${GH_ARCH}-${RUNNER_VERSION}.tar.gz" | tar xz \
- && ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
-
-# Gitea runner at /opt/gitea-runner/gitea-runner
-RUN mkdir -p /opt/gitea-runner \
- && cd /opt/gitea-runner \
- && curl -fsSL "https://gitea.com/gitea/runner/releases/download/v${GITEA_RUNNER_VERSION}/gitea-runner-${GITEA_RUNNER_VERSION}-linux-${TARGETARCH}.xz" -o runner.xz \
- && xz -d runner.xz && chmod +x runner && mv runner gitea-runner \
- && ./gitea-runner --version
-```
-
-Build and push from CI (any linux/arm64 runner — or amd64 with QEMU; use `--platform linux/amd64` for an x86_64 image):
+Choose **Tart (Linux VM)** under **This Mac → Linux jobs** in the app, or point `base_image:` at a Linux VM. A tart
+fleet serves one OS at a time, so remove `macos` from `labels:`. To make a Linux base VM:
 
 ```bash
-docker build --platform linux/arm64 -t ghcr.io/acme/kinhin-ci-linux:latest .
-docker push ghcr.io/acme/kinhin-ci-linux:latest
+# from a published image (pick from the menu, or pass --from <ref>)
+kinhin image prepare --linux --target <name> --from
+# or from an install ISO: creates a bare VM; you install the OS by hand in its window
+kinhin image prepare --linux --target <name> --iso <arm64.iso>
+# then bake the runner agents into it
+kinhin image prepare --source <name>
 ```
 
-Then point `docker.image:` at the pushed reference. Bake toolchains into the image yourself in the Dockerfile (kinhin bakes no toolchains for Docker) — a CI-built image has no access to the host cache during its build, so anything the jobs need must live in the image (runners on your own host still get the shared-cache mount at runtime when the project sets `share_cache: true`). Unlike `image prepare`, the Dockerfile bakes both agents unconditionally; that's harmless, since agents only register when your fleet has a stored token for their platform. Pin the `ARG`s to a release (the versions above match kinhin's current pinned fallbacks) and bump them deliberately.
+Guests need an apt-based distro with passwordless `sudo` (the published Cirrus Labs images have both). macOS-only
+toolchain entries (Homebrew, CocoaPods) are skipped on Linux guests.
 
-## Per-repo & per-workflow runtime routing
+## Per-repo and per-workflow routing
 
-One fleet can mix runtimes: macOS repos on Tart VMs, Linux repos in Apple containers. Add a `runtimes:` section to route per repo — and override per **workflow** (or per job) with labels:
+One fleet can mix runtimes. Add a `runtimes:` section to route by repo, and override per workflow with labels:
 
 ```yaml
 runtimes:
   default: tart # repos with no route
-  budget: { tart: 0.6, appleContainer: 0.4 } # host-budget split (no overcommit by construction)
+  budget: { tart: 0.6, appleContainer: 0.4 } # host-budget split; can never overcommit
   routes:
     - pattern: "acme/ios-app" # whole repo → Tart VMs
       runtime: tart
@@ -277,38 +154,37 @@ runtimes:
       runtime: appleContainer
 ```
 
-Routing precedence: **workflow route → repo route → `runs-on:` label → default**. Container runners always register with a `kinhin-container` label (plus optional `container.labels`), and Docker slots with `kinhin-docker`, so any job can opt into a Linux pool with `runs-on: [kinhin-container]` or `runs-on: [kinhin-docker]` without touching kinhin's config. No route and no label → the `runtimes.default` pool. Capacity is partitioned by the `budget` weights — the tightest density that can still never overcommit your Mac — and `kinhin status` reports `capacityByRuntime` so the split is visible. If a split starves a configured route (its runtime's cap hits 0), the pane warns you before you can save it.
+Precedence: **workflow route → repo route → `runs-on:` label → default**. Capacity is split by the `budget` weights, and
+`kinhin status` shows the result. If a split would leave a configured route with zero capacity, the app warns you
+before you can save it.
 
-Routes can also be managed from the terminal with `kinhin runtimes route add|remove` (see [Commands](../README.md#commands)).
-
-### The Routing pane
-
-The app's **Advanced → Routing** tab shows the pools with their per-runtime caps and budget shares, plus every route (repo and workflow). Each pool card carries a **live health chip** (● ready / ● missing / ● error) from the runtime's own probe — tart launch check, `container system status`, `docker info` — with the fix hint shown alongside any problem.
-
-- The **Budget** card edits the split directly: a slider per non-default runtime (the default keeps the remainder), a default-runtime picker, a **live cap preview** per row ("3 inst" updates as you drag), and a warning strip when the split on screen would starve a configured route with a cap of zero.
-- The **Labels** card edits the fleet's base label set and `container.labels` (commit on Enter or focus loss; empty label lists are rejected, and the `kinhin-container` routing marker is always merged in at pool build).
-- Routes can be added and removed in place.
-
-Every change rewrites only the relevant section of `config.yaml` — comments elsewhere are preserved — and lands only if the updated file still passes the engine's full config validation; all of it reaches a running fleet live via `reload_config` (budget weights re-partition capacity, label edits rebuild the forges' demand query — no restart). Prefer the terminal? `kinhin runtimes` prints the same pools/caps/budget/routes/health summary.
+Manage routes in **Advanced → Routing** (pools with a live health chip, a budget slider per runtime, labels, and routes)
+or with `kinhin runtimes route add|remove`. `kinhin runtimes` prints the same summary. Changes edit only the relevant
+part of `config.yaml`, must pass full validation, and reach a running fleet without a restart.
 
 ## Host mode: run jobs directly on your Mac
 
-Host mode is the fourth runtime: a job runs as an **ephemeral GitHub runner process on your Mac itself** — no VM and no container. It is fast (nothing boots) and sees your real toolchains, but it has **no isolation at all**: the job runs with your user's privileges and can read and modify your files and reach your network. Use it only for repositories and workflows you fully trust (your own private scripts, never a public repo that accepts pull requests from strangers).
+Host mode runs a job as an ephemeral runner process **on your Mac itself**: no VM, no container. It's fast and sees
+your real toolchains, but has **no isolation**: the job runs with your user's privileges and can read your files and
+reach your network. Use it only for repositories you fully trust, never a public repo that accepts pull requests from
+strangers.
 
-Because of that, host mode is opt-in per route and needs explicit consent:
+It is opt-in per route and needs explicit consent:
 
 ```yaml
 runtimes:
-  default: tart # `default: host` is rejected — host is never a fallback
+  default: tart # `default: host` is rejected; host is never a fallback
   routes:
-    - pattern: "acme/scripts" # whole repo → runs on this Mac, unisolated
+    - pattern: "acme/scripts"
       runtime: host
-      consent: true # required for host routes (and rejected on other runtimes)
+      consent: true # required for host routes
 ```
 
-- **Consent is enforced everywhere.** Config validation rejects a host route without `consent: true`. `kinhin runtimes route add <pattern> host --consent` refuses to run without the flag. In the app, **Advanced → Routing → Add Route…** lists "Host — this Mac, no isolation" and won't add the route until you tick the consent checkbox; host routes show a ⚠︎ _unisolated_ marker in the route list.
-- **Install the agent once.** Host runs use the GitHub actions-runner and the Gitea runner (which also serves Forgejo), installed — with SHA-256 verification — under `~/Library/Application Support/Kinhin/host-runner`. When a host route exists, the setup checklist and `kinhin doctor` gain a _Host runner agent_ row with a one-click **Install Host Runner Agent** fix; from the terminal run `kinhin setup repair host-agent`. Without host routes, none of this appears.
-- **Explicit `runs-on` marker.** The host pool always registers with the `kinhin-host` label, so a workflow can also opt in with `runs-on: [kinhin-host]` and only opted-in workflows can ever land on your Mac.
-- **Ephemeral process, warm machine.** Each runner registers with `--ephemeral`, gets its own work directory under kinhin's support directory, and that directory is scrubbed when the runner is torn down. The Mac itself is not reset between jobs, so anything a job installs or leaves outside its work directory persists.
-- **Every forge.** Host routes work for GitHub, Gitea and Forgejo. Gitea-family runners have no `--ephemeral`, so kinhin watches the runner go idle after its job (the same watch it uses for VMs), then stops the daemon and scrubs the work directory. Gitea host runners always register with `:host` labels (your configured labels are forced to the host scheme, plus `kinhin-host:host`), so a job can never be picked up in a container by mistake.
-- `kinhin runtimes` shows the Host pool and its health (agent installed or not) alongside the others; `kinhin doctor --json` includes a `hostRuntime` section (state, routed patterns, and the unisolated warning) only when a host route exists.
+- **Consent is enforced everywhere.** Config validation, `kinhin runtimes route add <pattern> host --consent`, and the
+  app's Add Route sheet all refuse without it. Host routes show an _unisolated_ warning in the route list.
+- **Install the agent once.** Run `kinhin setup repair host-agent` (or use the one-click fix in the setup checklist). The
+  runners are installed, SHA-256 verified, under `~/Library/Application Support/Kinhin/host-runner`.
+- **Workflows can opt in** with `runs-on: [kinhin-host]`. Only opted-in workflows can ever land on your Mac.
+- **The machine isn't reset between jobs.** Each runner is ephemeral and gets a work directory that is scrubbed
+  afterwards, but anything a job installs outside it persists.
+- Host routes work for GitHub, Gitea and Forgejo.

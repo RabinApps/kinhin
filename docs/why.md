@@ -48,13 +48,3 @@ the instance deleted. Nothing carries over between jobs, and nothing sits idle w
   and Linux jobs run in containers, microVMs, or full Tart Linux VMs, so you are not held to two simultaneous jobs.
 - **Never overcommits your Mac.** The cap is computed from your cores, RAM, and free disk after reserving
   host headroom (see [How scaling works](scaling.md)).
-
-## Sources
-
-- GitHub: [Self-hosted runners](https://docs.github.com/en/actions/reference/runners/self-hosted-runners); [Ephemeral runners & autoscaling webhooks](https://github.blog/changelog/2021-09-20-github-actions-ephemeral-self-hosted-runners-new-webhooks-for-auto-scaling/)
-- GitLab: [Runner advanced configuration](https://docs.gitlab.com/ee/runner/configuration/advanced-configuration.html)
-- Gitea: [act_runner config example](https://gitea.com/gitea/act_runner/src/branch/main/internal/pkg/config/config.example.yaml)
-- Buildkite: [`buildkite-agent start`](https://buildkite.com/docs/agent/cli-start)
-- Azure DevOps: [Agents](https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/agents); [Parallel jobs](https://learn.microsoft.com/en-us/azure/devops/pipelines/licensing/concurrent-jobs)
-- Bitbucket: [Configure runner concurrency](https://support.atlassian.com/bitbucket-cloud/docs/configure-runner-concurrency-and-inspect-step-queue)
-- Apple macOS VM limit: [Eclectic Light](https://eclecticlight.co/2022/08/04/virtualisation-on-apple-silicon-macs-8-how-apple-limits-vms/); [Apple Developer Forums](https://developer.apple.com/forums/thread/830383)

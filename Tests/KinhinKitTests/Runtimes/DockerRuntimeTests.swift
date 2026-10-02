@@ -141,6 +141,24 @@ final class DockerRuntimeTests: XCTestCase {
         XCTAssertTrue(giteaScript.contains("/opt/gitea-runner"))
     }
 
+    func testRegistrationScriptHonorsARouteImageForHumanMessages() async throws {
+        let runtime = DockerRuntime(
+            shell: FakeShell(), image: "img", cpus: 2, memoryGB: 4,
+            binPath: bin
+        )
+        let route = RepoRoute(
+            repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30, cacheMount: true,
+            toolchains: .init(specs: ["node@22"]))
+        let script = try await runtime.registrationScript(
+            forge: GitHubForge(
+                credentials: .github(token: "t", scope: "acme/widgets"), labels: ["kinhin"],
+                client: FakeGitHub()),
+            token: "RT", name: "kinhin-1", runnerCount: 1, route: route, labels: nil)
+        XCTAssertTrue(script.contains("/opt/actions-runner"))
+        XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""), script)
+        XCTAssertTrue(script.contains("export npm_config_store_dir=\"/var/kinhin-cache/pnpm-store\""), script)
+    }
+
     // MARK: - Boot wait
 
     func testAwaitReadyPollsUntilContainerAppears() async throws {

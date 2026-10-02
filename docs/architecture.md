@@ -4,7 +4,7 @@ How the Swift package is laid out, what the tests cover, and what CI runs.
 
 [← Back to README](../README.md)
 
-Contributor conventions (layout, style, error handling, formatting) are in [CLAUDE.md](../CLAUDE.md).
+Contributor conventions (layout, style, error handling, formatting) are in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Targets
 
@@ -69,19 +69,6 @@ item, menu items and VM rows. AppKit menus aren't observable, so that observer i
   selection, Fleet-tab buttons, launch-mode and login persistence), update menu states, update preferences,
   SwiftUI form models, App Intents through the bridge.
 
-## External contributors
-
-If your company or project uses **kinhin**, you can add it to the public list so
-the community can see who else is running it. See
-[external-contributors.md](external-contributors.md) for the exact entry format
-and the PR process.
-
-The same page doubles as the process for maintainers reviewing external PRs.
-Nothing here changes how the engine works — the PR only edits Markdown and, if
-you touch Swift, follows the rules in [CLAUDE.md](../CLAUDE.md): no VMs or
-network, `swift build`/`swift test` pass, `swift format lint --strict` clean, and
-`bash scripts/docs-lint.sh` clean.
-
 ## CI
 
 `.github/workflows/ci.yml` lints, builds (debug and release), and tests on a self-hosted macOS
@@ -124,4 +111,4 @@ There is no tolerated-race list: any report fails the script.
 
 1. Open `.build/tsan.log` and find the `WARNING: ThreadSanitizer` block. It shows the two conflicting accesses with stacks, and where each thread was created.
 2. Re-run just the affected suite with `scripts/tsan.sh -- --filter <TestClass>` to iterate quickly.
-3. Fix it with a `Mutex` or an actor (see the Concurrency section of [CLAUDE.md](../CLAUDE.md)), not a new `DispatchQueue`, semaphore or `NSLock`. Test globals that swap behavior across threads (such as `StubProtocol.handler`) keep their storage behind a `Mutex`; give any new test global the same treatment instead of `nonisolated(unsafe)`.
+3. Fix it with a `Mutex` or an actor (see the Style section of [CONTRIBUTING.md](../CONTRIBUTING.md)), not a new `DispatchQueue`, semaphore or `NSLock`. Test globals that swap behavior across threads (such as `StubProtocol.handler`) keep their storage behind a `Mutex`; give any new test global the same treatment instead of `nonisolated(unsafe)`.

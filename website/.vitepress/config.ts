@@ -98,47 +98,64 @@ export default defineConfig({
     ],
     sidebar: [
       {
-        text: "Guide",
-        collapsed: false,
+        text: "Get started",
         items: [
           { text: "Why kinhin", link: "/guide/why-kinhin" },
           { text: "Quick start", link: "/guide/quick-start" },
-          { text: "Beta roadmap", link: "/guide/beta-roadmap" },
           { text: "Install & updates", link: "/guide/install" },
           { text: "Configuration", link: "/guide/config" },
-          { text: "Toolchains & shared cache", link: "/guide/toolchains" },
-          { text: "Hardware requirements & sizing", link: "/guide/hardware" },
-          { text: "Running on a rented Mac", link: "/guide/rented-mac" },
-          { text: "How scaling works", link: "/guide/scaling" },
+        ],
+      },
+      {
+        text: "Run your fleet",
+        items: [
           { text: "Runtimes & routing", link: "/guide/runtimes" },
+          { text: "Toolchains & shared cache", link: "/guide/toolchains" },
           { text: "Forge support", link: "/guide/forges" },
+          { text: "How scaling works", link: "/guide/scaling" },
+        ],
+      },
+      {
+        text: "Hardware & hosting",
+        items: [
+          { text: "Hardware & sizing", link: "/guide/hardware" },
+          { text: "Running on a rented Mac", link: "/guide/rented-mac" },
+        ],
+      },
+      {
+        text: "Security & help",
+        items: [
           { text: "Security", link: "/guide/security" },
-          { text: "Support & sponsors", link: "/guide/sponsors" },
-          {
-            text: "Companies & projects using kinhin",
-            link: "/guide/external-contributors",
-          },
           { text: "Troubleshooting", link: "/guide/troubleshooting" },
+          { text: "Beta roadmap", link: "/guide/beta-roadmap" },
+        ],
+      },
+      {
+        text: "Community",
+        items: [
+          { text: "Support & sponsors", link: "/guide/support" },
+          { text: "Who uses kinhin", link: "/guide/used-by" },
+          { text: "Contributing", link: "/guide/contributing" },
           { text: "Debugging races (TSan)", link: "/guide/debugging-races" },
         ],
       },
       {
         text: "Reference",
-        collapsed: false,
         items: [
           { text: "CLI commands", link: "/cli/commands" },
           {
-            text: "Contributing to kinhin",
-            link: "/guide/contributing",
+            text: "Forge API notes",
+            collapsed: true,
+            items: [
+              { text: "Overview", link: "/guide/forges/" },
+              { text: "GitHub", link: "/guide/forges/github" },
+              { text: "Gitea & Forgejo", link: "/guide/forges/gitea" },
+              { text: "GitLab", link: "/guide/forges/gitlab" },
+              { text: "Buildkite", link: "/guide/forges/buildkite" },
+              { text: "Azure DevOps", link: "/guide/forges/azuredevops" },
+              { text: "Bitbucket", link: "/guide/forges/bitbucket" },
+            ],
           },
-          { text: "Forge API reference", link: "/guide/forges/" },
-          { text: "GitHub API", link: "/guide/forges/github" },
-
-          { text: "Gitea & Forgejo API", link: "/guide/forges/gitea" },
-          { text: "GitLab API", link: "/guide/forges/gitlab" },
-          { text: "Buildkite API", link: "/guide/forges/buildkite" },
-          { text: "Azure DevOps API", link: "/guide/forges/azuredevops" },
-          { text: "Bitbucket API", link: "/guide/forges/bitbucket" },
         ],
       },
     ],
@@ -149,7 +166,7 @@ export default defineConfig({
     outline: { level: [2, 3] },
     footer: {
       message:
-        'Released under the Apache License 2.0. <a href="/guide/support">Support kinhin</a> · <a href="/guide/contributing">Companies & projects using kinhin</a> · More from Rabin Apps: <a href="https://supdesk.app/en">SupDesk</a>',
+        'Released under the Apache License 2.0. <a href="/guide/support">Support kinhin</a> · <a href="/guide/used-by">Who uses kinhin</a> · More from Rabin Apps: <a href="https://supdesk.app/en">SupDesk</a>',
       copyright: "Copyright © 2026 Rabin Apps, LLC",
     },
   },

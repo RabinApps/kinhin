@@ -20,7 +20,7 @@ struct KinhinCLI {
         let args = Array(CommandLine.arguments.dropFirst())
         let command = CLICommand.parse(args)
 
-        if CLICommand.shouldAutoCreateConfig(command) {
+        if CLICommand.shouldAutoCreateConfig(command, args: args) {
             noteAutoCreatedConfigIfMissing()
         }
 
@@ -61,6 +61,8 @@ struct KinhinCLI {
                         await ToolchainsCommand.prune(Array(args.dropFirst()))
                     } else if args.dropFirst().first == "list-images" {
                         await ToolchainsCommand.listImages()
+                    } else if args.dropFirst().first == "detect" {
+                        ToolchainsDetectCommand.run(Array(args.dropFirst(2)))
                     } else if args.dropFirst().first == "helper" {
                         ToolchainsCommand.helper(Array(args.dropFirst()))
                     } else {

@@ -43,7 +43,7 @@ if grep -q "WARNING: ThreadSanitizer" "$LOG"; then
     echo "ThreadSanitizer reports (grouped by SUMMARY):"
     grep "SUMMARY: ThreadSanitizer" "$LOG" | sort | uniq -c | sort -rn | sed 's/^/  /'
     echo "Full stacks: $LOG"
-    echo "  -> fix the race (see the Concurrency section of CLAUDE.md)."
+    echo "  -> fix the race (see the Style section of CONTRIBUTING.md)."
     exit 1
 else
     echo "No ThreadSanitizer reports."

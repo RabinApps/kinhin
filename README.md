@@ -47,8 +47,9 @@ Your Mac stays usable: host CPU, memory, and disk headroom are always reserved.
 - **Fast** — VMs are linked clones of one prepared base image, so boots take seconds, not minutes.
 - **Resource-aware** — the scaler never exceeds what your Mac can handle (see `kinhin doctor`).
 - **Toolchains your way** — bake them into the image, let kinhin install and pin them, or install
-  per job, or let each repo pin its own versions in a `.kinhin.yml`, with a shared download cache
-  (see [Toolchains](docs/toolchains.md)).
+  per job, or let each repo pin its own versions in a `.kinhin.yml` (`kinhin toolchains detect` generates one
+  from your manifests and CI workflows), with a shared download cache (see [Toolchains](docs/toolchains.md)). `kinhin toolchains detect` writes that `.kinhin.yml` for you
+  by scanning a checkout.
 - **App, menu bar, or headless** — a main window, a classic tray app, or a LaunchAgent daemon;
   same engine, same config (see [The kinhin app](docs/app.md)).
 - **One-line install** — `curl … | bash` from GitHub Releases, with daily update checks.
@@ -171,7 +172,7 @@ Key fields:
 | `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                                            |
 | `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                                               |
 | `base_image`                               | What `image prepare` starts from: a pre-configured tart image (`ghcr.io/cirruslabs/…`), digest-pinned (`ref@sha256:…` — see `kinhin image digest`), or a local VM name; absent = the default macOS base |
-| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](docs/toolchains.md#baking-toolchains-into-the-base-image))                                                |
+| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](docs/toolchains.md#bake-tools-into-the-base-image))                                                |
 | `projects`                                 | Per-repo toolchains: `repo_file: true` honors the repo's `.kinhin.yml`; `toolchains`, `share_cache` per entry (see [Per-project toolchains](docs/toolchains.md#per-project-toolchains)) |
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                                                 |
 | `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                                   |
@@ -220,6 +221,8 @@ kinhin image prepare --project <owner/name> [--ref <ref>]
 kinhin toolchains           Managed-toolchain catalog, selections, shared-cache state
 kinhin toolchains --project <owner/name> [--ref <ref>]
                              Show a repo's effective toolchains, where they came from, and its image key
+kinhin toolchains detect [path] [--json] [--write] [--force]
+                             Scan a local checkout and generate its `.kinhin.yml` toolchains block, with evidence
 kinhin toolchains list-images
                              Derived per-project images: size and last used
 kinhin toolchains prune [--dry-run]
@@ -277,7 +280,7 @@ kinhin support              Show ways to donate or sponsor kinhin
 ## Contributing
 
 `swift build` and `swift test` need no VMs or network. Conventions (layout, style, error handling,
-formatting) are in [CLAUDE.md](CLAUDE.md); the package layout is in
+formatting) are in [CONTRIBUTING.md](CONTRIBUTING.md); the package layout is in
 [docs/architecture.md](docs/architecture.md). If you touch shared state or concurrency, also run `scripts/tsan.sh`
 ([how to read it](docs/architecture.md#debugging-races-with-threadsanitizer)).
 
@@ -301,7 +304,7 @@ release builds always use the Keychain.
 kinhin is free and built by one developer, with no ads and no telemetry. If it saves you time, you can
 [sponsor on GitHub](https://github.com/sponsors/RabinApps), [donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=YEJ37WF4Q3HPC),
 or [buy me a coffee](https://buymeacoffee.com/rabinapps). Companies can become sponsors and get a logo here and on
-the website: see [Support & sponsors](docs/support.md) or email support@rabinapps.com.
+the website: see [Support & sponsors](docs/support.md) or email support@rabinapps.com. Using kinhin in your project? [Add it to the list](docs/used-by.md).
 
 **More from Rabin Apps:** [SupDesk](https://supdesk.app/en), the feedback and support console for solo founders, devs and small teams.
 

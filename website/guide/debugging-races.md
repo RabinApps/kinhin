@@ -33,4 +33,4 @@ There is no tolerated-race list: any report fails the script.
 
 1. Open `.build/tsan.log` and find the `WARNING: ThreadSanitizer` block. It shows the two conflicting accesses with stacks, and where each thread was created.
 2. Re-run just the affected suite with `scripts/tsan.sh -- --filter <TestClass>` to iterate quickly.
-3. Fix it with a `Mutex` or an actor (see the Concurrency section of [CLAUDE.md](https://github.com/RabinApps/kinhin/blob/main/CLAUDE.md)), not a new `DispatchQueue`, semaphore or `NSLock`. Test globals that swap behavior across threads (such as `StubProtocol.handler`) keep their storage behind a `Mutex`; give any new test global the same treatment instead of `nonisolated(unsafe)`.
+3. Fix it with a `Mutex` or an actor (see the Style section of [CONTRIBUTING.md](https://github.com/RabinApps/kinhin/blob/main/CONTRIBUTING.md)), not a new `DispatchQueue`, semaphore or `NSLock`. Test globals that swap behavior across threads (such as `StubProtocol.handler`) keep their storage behind a `Mutex`; give any new test global the same treatment instead of `nonisolated(unsafe)`.

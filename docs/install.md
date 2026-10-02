@@ -29,20 +29,8 @@ Open-Anyway dance only applies to old releases or locally built copies (clear it
 
 ## How updates and installs are verified
 
-- **Install script:** it refuses a download that has no `checksums.txt`, matches the DMG's file name
-  exactly, fetches over https only (TLS 1.2+), checks the app's code signature before copying it,
-  and never strips the quarantine attribute. A local DMG is checked against `DMG.sha256` when one
-  sits next to it.
-- **Update check:** a checksum only proves the file matches its release, so a Developer ID build
-  also requires the DMG to be signed by the **same Team ID as the running app**, with a Developer
-  ID Application certificate (`codesign -R`), and accepted by Gatekeeper (`spctl`: notarized, not
-  revoked). A DMG that fails either check is deleted. Only `kinhin-<version>-arm64.dmg` for a
-  `vMAJOR.MINOR.PATCH` tag is offered; download and checksum URLs must point at
-  `github.com/<repo>/releases/download/…`, redirects may only stay on GitHub hosts, and file names
-  must be plain names. Builds without a Developer ID (forks, local builds) can't pin a signer and
-  fall back to the checksum alone, with a warning in the log; a build whose own signature can't be
-  read refuses updates. Signed builds ignore `KINHIN_UPDATE_REPO`, so it can't redirect a release
-  build, and the Team ID pin means it couldn't make one install someone else's binary anyway.
+- **Install script:** it refuses a download without `checksums.txt`, fetches over https only, checks the app's code signature before copying it, and never strips the quarantine attribute. A local DMG is checked against `DMG.sha256` when one sits next to it.
+- **Update check:** besides the checksum, a Developer ID build requires the DMG to be signed by the **same Team ID as the running app** and accepted by Gatekeeper (notarized, not revoked). A DMG that fails either check is deleted. Downloads must come from the project's GitHub releases. Builds without a Developer ID (forks, local builds) fall back to the checksum alone, with a warning in the log.
 
 ## Full uninstall
 

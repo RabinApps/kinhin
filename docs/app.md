@@ -84,27 +84,14 @@ starts). Start, stop, pause and resume are idempotent and work with both the in-
 
 ## Playbook: clear a stalled VM from Shortcuts
 
-A VM stuck in `cloning`, `booting` or `registering` (or `failed`) holds its slot hostage. You can
-clear it without opening the window — every step is a kinhin action in Shortcuts, or ask Siri:
+A VM stuck in `cloning`, `booting` or `registering` (or `failed`) holds its slot. Clear it without opening the window:
 
-1. **Diagnose.** Run **Diagnose VM** and pick the VM from the picker (every current VM, listed
-   with its phase). The answer names the phase, the assigned job, and the last error — enough to
-   decide whether it is truly stuck.
-2. **Delete with pause-first.** Run **Delete VM** for that VM. *Pause Fleet First* is on by
-   default: kinhin pauses the fleet, deletes the VM, and holds autoscaling so the stalled VM is
-   not instantly recreated. A job that was waiting for it simply waits for the next VM.
-3. **Let it release.** With auto-resume on (Advanced → Capacity, or the **Enable Auto-Resume**
-   action — it reports and no-ops when already on), the status line — menu bar, Fleet tab,
-   `kinhin status` — shows "auto-resume: re-checks the queue every 20s and resumes once it's
-   empty" while the fleet holds (the seconds match your `poll_interval`; without a cadence from
-   an older daemon, the short "releases when the queue is empty" appears instead). The engine
-   unpauses itself the moment a check finds the queue empty and scales back up.
+1. **Diagnose VM.** Pick the VM from the list. The answer names its phase, assigned job and last error.
+2. **Delete VM.** *Pause Fleet First* is on by default, so autoscaling doesn't instantly recreate the VM you deleted.
+3. **Enable Auto-Resume.** With [auto-resume](scaling.md#pausing-and-auto-resume) on, the fleet unpauses itself once the queue is empty and scales back up.
 
-Chain the steps into one shortcut (Diagnose VM → Delete VM → Enable Auto-Resume) and name it,
-say, "clear stalled runner". Leave Shortcuts' *Confirm Before Running* on for the delete step if
-it should ask before destroying anything; turn it off to make the whole flow one tap or one
-spoken command. With auto-resume off instead, resume by hand — the menu's **Resume** or
-"Resume kinhin".
+Chain the three into one shortcut (say, "clear stalled runner"). Leave *Confirm Before Running* on for the delete step if
+it should ask first.
 
 ## Headless + menu bar together
 

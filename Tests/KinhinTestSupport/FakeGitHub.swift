@@ -225,3 +225,40 @@ final class FakeGitHub: GitHubServing, Sendable {
         }
     }
 }
+
+extension FakeGitHub: Forge {
+    var id: ForgeID { .github }
+    var name: String { "github" }
+    var credentials: ForgeCredentials { .github(token: "t", scope: "acme/widgets") }
+    var account: String { "github" }
+    var labels: [String] { [] }
+    var registration: ForgeRegistration { .sharedShortLived }
+    var exitSemantics: ForgeExitSemantics { .deregisters }
+    var attributesByRepo: Bool { true }
+    func registrationURL() -> String { configureURL }
+    func mintRegistrationToken() async throws -> String {
+        try await fetchRegistrationToken().token
+    }
+    func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String] {
+        let token = try await mintRegistrationToken()
+        return Dictionary(uniqueKeysWithValues: runnerNames.map { ($0, token) })
+    }
+    func runners() async throws -> [ForgeRunner] {
+        try await listRunners().map { ForgeRunner(id: String($0.id), name: $0.name, busy: $0.busy) }
+    }
+    func deleteRunner(id: String) async throws {
+        try await deleteRunner(id: Int(id) ?? 0)
+    }
+    func queuedJobs() async throws -> [ForgeJob] {
+        try await queuedJobs(matching: Set(labels)).map {
+            ForgeJob(
+                name: $0.name, runnerName: nil, repository: $0.repository, labels: $0.labels, ref: $0.ref, sha: $0.sha,
+                isFork: $0.isFork)
+        }
+    }
+    func runningJobs() async throws -> [ForgeJob] {
+        try await runningJobs(matching: Set(labels)).map {
+            ForgeJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
+        }
+    }
+}
