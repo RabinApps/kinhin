@@ -78,6 +78,7 @@ final class ProjectImageEngineTests: XCTestCase {
         // Pass 1: the image is missing, so a bake starts and the job runs on the base image.
         try await h.engine.reconcileOnce()
         await h.engine.projectImages.waitForBakes()
+        await waitForCondition { !h.tart.cloneCalls.isEmpty }
         let firstClone = try XCTUnwrap(h.tart.cloneCalls.first)
         XCTAssertEqual(firstClone.source, "tahoe-base")
         XCTAssertEqual(h.bakes.all.count, 1)
@@ -86,6 +87,7 @@ final class ProjectImageEngineTests: XCTestCase {
         let derived = try XCTUnwrap(h.bakes.all.first)
         try await h.engine.deleteVMRecord(id: h.engine.status().records[0].id, reason: "test")
         try await h.engine.reconcileOnce()
+        await waitForCondition { h.tart.cloneCalls.count >= 2 }
         let clones = h.tart.cloneCalls
         XCTAssertEqual(clones.last?.source, derived)
         let record = await h.engine.status().records.last
@@ -111,6 +113,7 @@ final class ProjectImageEngineTests: XCTestCase {
         try await h.engine.reconcileOnce()
         XCTAssertTrue(h.bakes.all.isEmpty)
         XCTAssertTrue(h.github.projectFileCalls.isEmpty)
+        await waitForCondition { !h.tart.cloneCalls.isEmpty }
         XCTAssertEqual(h.tart.cloneCalls.first?.source, "tahoe-base")
     }
 

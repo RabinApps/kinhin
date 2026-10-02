@@ -316,9 +316,10 @@ extension FleetEngine {
             store.upsert(record)
             spawnLifecycle(for: record)
             toSpawn -= 1
-            // Stagger spawns slightly so disk I/O doesn't stampede. Cancellation
-            // stops further staggering (already-spawned VMs keep winding down).
-            try await Task.sleep(for: .milliseconds(1500))
+            // Stagger spawns slightly so disk I/O doesn't stampede (nothing to
+            // stagger after the last one). Cancellation stops further
+            // staggering (already-spawned VMs keep winding down).
+            if toSpawn > 0 { try await Task.sleep(for: spawnStagger) }
         }
         if let diskPressureMessage {
             Log.warn("engine", diskPressureMessage)

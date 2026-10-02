@@ -22,6 +22,18 @@ final class ShellTests: XCTestCase {
         XCTAssertEqual(result.exitCode, 124, "watchdog must mark timed-out processes")
     }
 
+    /// A child that traps SIGTERM must still be killed once the grace period
+    /// passes, instead of hanging the caller for its whole lifetime.
+    func testShellKillsChildThatIgnoresSIGTERM() async throws {
+        let clock = ContinuousClock()
+        let elapsed = try await clock.measure {
+            let result = try await Shell(killGracePeriod: 0.5).run(
+                ["/bin/sh", "-c", "trap '' TERM; while :; do sleep 1; done"], cwd: nil, timeout: 0.5)
+            XCTAssertEqual(result.exitCode, 124)
+        }
+        XCTAssertLessThan(elapsed, .seconds(10), "SIGKILL escalation must end a SIGTERM-ignoring child")
+    }
+
     /// Cancelling the surrounding task terminates the still-running child and
     /// throws CancellationError promptly — the caller never waits out the
     /// child's own timeout. This is what lets a detached engine lifecycle

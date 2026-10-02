@@ -78,7 +78,16 @@ public extension ShellRunning {
 /// drained. A command that finished before cancellation landed returns its
 /// normal result. The per-call timeout watchdog (exit 124) is unchanged.
 public struct Shell: ShellRunning {
-    public init() {}
+    /// Seconds a child gets to honour SIGTERM before it is killed outright.
+    let killGracePeriod: TimeInterval
+
+    public init() {
+        self.init(killGracePeriod: 5)
+    }
+
+    init(killGracePeriod: TimeInterval) {
+        self.killGracePeriod = killGracePeriod
+    }
 
     public func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
         try await execute(argv, input: nil, cwd: cwd, timeout: timeout)
@@ -127,6 +136,11 @@ public struct Shell: ShellRunning {
             errData.append(handle.availableData)
         }
 
+        // Awaiting exit through the termination handler (instead of a blocking
+        // `waitUntilExit`) keeps a long-running child from pinning a thread of
+        // the cooperative pool for its whole lifetime.
+        let exit = ProcessExit()
+        process.terminationHandler = { _ in exit.fire() }
         do {
             try process.run()
         } catch {
@@ -158,8 +172,8 @@ public struct Shell: ShellRunning {
                 flag = true
                 return true
             }
-            if shouldTerminate, process.isRunning {
-                process.terminate()
+            if shouldTerminate {
+                terminate(process)
             }
         }
         defer { watchdog.cancel() }
@@ -172,11 +186,10 @@ public struct Shell: ShellRunning {
         // only the child's death ends it.
         let wasCancelled = Mutex(false)
         await withTaskCancellationHandler {
-            process.waitUntilExit()
+            await exit.wait()
         } onCancel: {
             wasCancelled.withLock { $0 = true }
-            guard process.isRunning else { return }
-            process.terminate()
+            terminate(process)
         }
 
         outPipe.fileHandleForReading.readabilityHandler = nil
@@ -200,5 +213,48 @@ public struct Shell: ShellRunning {
             stdout: outData.text,
             stderr: errData.text
         )
+    }
+
+    /// SIGTERM a still-running child, then SIGKILL it if it ignores that: a
+    /// child that traps SIGTERM would otherwise hang the caller forever.
+    private func terminate(_ process: Process) {
+        guard process.isRunning else { return }
+        process.terminate()
+        let pid = process.processIdentifier
+        let grace = killGracePeriod
+        Task.detached {
+            try? await Task.sleep(for: .seconds(grace))
+            if process.isRunning { kill(pid, SIGKILL) }
+        }
+    }
+}
+
+/// One-shot "the child exited" signal that can be awaited from a task.
+private final class ProcessExit: Sendable {
+    private enum State {
+        case pending
+        case waiting(CheckedContinuation<Void, Never>)
+        case fired
+    }
+    private let state = Mutex(State.pending)
+
+    func fire() {
+        let waiter = state.withLock { state -> CheckedContinuation<Void, Never>? in
+            defer { state = .fired }
+            if case .waiting(let continuation) = state { return continuation }
+            return nil
+        }
+        waiter?.resume()
+    }
+
+    func wait() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let alreadyFired = state.withLock { state -> Bool in
+                if case .fired = state { return true }
+                state = .waiting(continuation)
+                return false
+            }
+            if alreadyFired { continuation.resume() }
+        }
     }
 }

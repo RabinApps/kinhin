@@ -145,8 +145,20 @@ public enum Daemon {
         _ request: RPCRequest,
         engineRef: EngineRef,
         configURL: URL = Paths.config,
-        engineFactory: (@Sendable (KinhinConfig) throws -> FleetEngine)? = nil
+        engineFactory: (@Sendable (KinhinConfig) throws -> FleetEngine)? = nil,
+        holdsGate: Bool = false
     ) async -> RPCResponse {
+        // Everything that changes the fleet runs through the same FIFO gate
+        // as a reload: a start/stop/pause/delete landing mid-rebuild would
+        // otherwise act on the engine being detached while the replacement
+        // never saw it. Reads (status, pipeline, logs, ping) stay concurrent.
+        if !holdsGate, request.method.mutatesFleet {
+            return await engineRef.serialized {
+                await handle(
+                    request, engineRef: engineRef, configURL: configURL, engineFactory: engineFactory,
+                    holdsGate: true)
+            }
+        }
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()
         /// Decodes the request payload, logging why a malformed one was rejected.
@@ -230,13 +242,11 @@ public enum Daemon {
                 await engine.replaceCredentials(pat: replacement.pat)
                 return RPCResponse(id: request.id, ok: true)
             case .reloadConfig:
-                // Reloads are serialized: two overlapping rebuilds would each
-                // detach the same engine and launch a replacement, leaving
-                // an orphan engine driving the fleet. Each reload re-reads
-                // the current engine once it holds the gate.
-                return await engineRef.serialized {
-                    await reload(request, engineRef: engineRef, configURL: configURL, engineFactory: engineFactory)
-                }
+                // Runs under the gate (see above): two overlapping rebuilds
+                // would each detach the same engine and launch a replacement,
+                // leaving an orphan engine driving the fleet. The engine was
+                // resolved after the gate was acquired, so it is current.
+                return await reload(request, engineRef: engineRef, configURL: configURL, engineFactory: engineFactory)
             case .logs:
                 let entries = Log.snapshot(limit: 300)
                 return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(entries))
@@ -265,38 +275,21 @@ public enum Daemon {
             let cfg = try ConfigLoader.load(from: configURL)
             if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
                 let replacement = try (engineFactory ?? Self.buildEngine)(cfg)
-                let previous = await engine.status()
-                let wasRunning = previous.running
-                let wasPaused = previous.paused
-                // A stopped fleet stays stopped across a rebuild — a
-                // config edit must never start spawning VMs.
-                if wasRunning {
-                    // Verify the replacement's forges while the old
-                    // engine still owns the fleet; nothing is adopted yet.
-                    replacement.markRunning()
-                    guard await replacement.prepareStart() else {
-                        // Startup verification failed (bad PAT, transient
-                        // network): keep the old engine serving instead
-                        // of trading a running fleet for a dead one.
-                        let error = await replacement.status().lastError ?? "startup verification failed"
-                        Log.error("daemon", "rebuild did not start: \(error) — keeping the previous engine")
-                        return RPCResponse(id: request.id, ok: false, error: "restart failed: \(error)")
-                    }
+                switch await engine.handOver(to: replacement) {
+                case .rejected(let error):
+                    // Startup verification failed (bad PAT, transient
+                    // network): the old engine keeps serving instead of
+                    // trading a running fleet for a dead one.
+                    Log.error("daemon", "rebuild did not start: \(error) — keeping the previous engine")
+                    return RPCResponse(id: request.id, ok: false, error: "restart failed: \(error)")
+                case .handedOver(let wasRunning, let wasPaused):
+                    engineRef.set(replacement)
+                    Log.info(
+                        "daemon",
+                        "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))"
+                    )
+                    return RPCResponse(id: request.id, ok: true)
                 }
-                // Detach (and drain) the old engine BEFORE the
-                // replacement recovers, so no instance is driven by
-                // two engines at once.
-                await engine.detachKeepingInstances()
-                if wasRunning {
-                    await replacement.launch()
-                    if wasPaused { await replacement.setPaused(true) }
-                }
-                engineRef.set(replacement)
-                Log.info(
-                    "daemon",
-                    "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))"
-                )
-                return RPCResponse(id: request.id, ok: true)
             }
             engine.applyReloaded(config: cfg, host: ResourceProbe().snapshot())
             return RPCResponse(id: request.id, ok: true)

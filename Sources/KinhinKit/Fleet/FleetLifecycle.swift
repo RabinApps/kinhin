@@ -30,14 +30,11 @@ extension FleetEngine {
     }
 
     func updateRecord(_ id: String, mutate: (inout VMRecord) -> Void) {
-        guard var record = store.all.first(where: { $0.id == id }) else {
-            // The record was deleted concurrently (manual delete, scale-down,
-            // engine stop). Never resurrect it from a racing lifecycle task.
-            return
-        }
-        mutate(&record)
-        record.updatedAt = Date()
-        store.upsert(record)
+        // A record deleted concurrently (manual delete, scale-down, engine
+        // stop) is never resurrected from a racing lifecycle task, and a
+        // mutation that changes nothing (the exit watch re-asserting the
+        // current phase every second) costs no write.
+        store.update(id: id, mutate)
     }
 
     func finishLifecycle(id: String) {
@@ -285,13 +282,16 @@ extension FleetEngine {
             task.cancel()
         }
         // Give tasks a moment to clean their VMs up. Cancellation here only
-        // shortens the grace period; the sweep below still runs.
-        do {
-            try await Task.sleep(for: .seconds(2))
-        } catch is CancellationError {
-            // Stop waiting early, but still sweep below.
-        } catch {
-            Log.warn("engine", "stop-grace sleep failed: \(error.localizedDescription)")
+        // shortens the grace period; the sweep below still runs. Nothing to
+        // wait for when no lifecycle task was running.
+        if !tasks.isEmpty {
+            do {
+                try await Task.sleep(for: .seconds(2))
+            } catch is CancellationError {
+                // Stop waiting early, but still sweep below.
+            } catch {
+                Log.warn("engine", "stop-grace sleep failed: \(error.localizedDescription)")
+            }
         }
         let remaining = store.all.filter { $0.phase.isActive }
         for record in remaining {

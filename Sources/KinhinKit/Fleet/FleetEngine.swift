@@ -55,6 +55,7 @@ public final class FleetEngine: Sendable {
     /// How long `detachKeepingInstances()` waits for cancelled lifecycle
     /// tasks before handing the fleet over anyway.
     let lifecycleDrainTimeout: Duration
+    let spawnStagger: Duration
 
     // MARK: - Mutable state
 
@@ -120,6 +121,7 @@ public final class FleetEngine: Sendable {
         self.tokenLoader = dependencies.tokenLoader
         self.hostProbe = dependencies.hostProbe ?? { [host] in host }
         self.lifecycleDrainTimeout = dependencies.lifecycleDrainTimeout
+        self.spawnStagger = dependencies.spawnStagger
         // The primary GitHub account attaches immediately under its account
         // name as an unverified placeholder: demand polling and the reconcile
         // loop work before the fleet starts, while start()'s verified attach
@@ -215,6 +217,9 @@ extension FleetEngine {
         public var hostProbe: (@Sendable () -> HostResources)?
         /// How long a detach waits for cancelled lifecycle tasks.
         public var lifecycleDrainTimeout: Duration
+        /// Pause between consecutive instance spawns in one reconcile pass,
+        /// so disk I/O does not stampede. Not applied after the last spawn.
+        public var spawnStagger: Duration
         /// Index of derived per-project images; nil → the state directory's.
         var projectImageStore: ProjectImageStore?
         /// Replaces the real image bake (tests); nil → `ImagePreparer`.
@@ -226,12 +231,14 @@ extension FleetEngine {
                 try KeychainTokenStore.load(forge: $0, name: $1)
             },
             hostProbe: (@Sendable () -> HostResources)? = nil,
-            lifecycleDrainTimeout: Duration = .seconds(15)
+            lifecycleDrainTimeout: Duration = .seconds(15),
+            spawnStagger: Duration = .milliseconds(1500)
         ) {
             self.githubFactory = githubFactory
             self.tokenLoader = tokenLoader
             self.hostProbe = hostProbe
             self.lifecycleDrainTimeout = lifecycleDrainTimeout
+            self.spawnStagger = spawnStagger
         }
 
         /// Production: the Keychain and a live disk probe (the GitHub

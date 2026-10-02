@@ -55,6 +55,44 @@ extension FleetEngine {
         invalidateRegistrationTokens()
     }
 
+    /// What `handOver(to:)` did.
+    public enum HandOverResult: Sendable, Equatable {
+        /// The replacement now owns the fleet; the old engine is detached.
+        case handedOver(wasRunning: Bool, wasPaused: Bool)
+        /// The replacement could not start (bad PAT, transient network). The
+        /// old engine is untouched and still owns the fleet.
+        case rejected(String)
+    }
+
+    /// Replace this engine with `replacement` (built from a new config)
+    /// without stopping any instance. The one ordering both the daemon and
+    /// the app rebuild must follow, so no instance is ever driven by two
+    /// engines at once:
+    ///   1. verify the replacement's forges while this engine still owns the
+    ///      fleet (nothing is adopted yet; a failure leaves this one serving),
+    ///   2. detach and drain this engine,
+    ///   3. only then let the replacement recover and start reconciling.
+    /// A stopped fleet stays stopped, and a paused one stays paused.
+    /// Callers must serialize hand-overs (the daemon's `EngineRef` gate).
+    public func handOver(to replacement: FleetEngine) async -> HandOverResult {
+        let previous = await status()
+        let wasRunning = previous.running
+        let wasPaused = previous.paused
+        if wasRunning {
+            replacement.markRunning()
+            guard await replacement.prepareStart() else {
+                let error = await replacement.status().lastError ?? "startup verification failed"
+                return .rejected(error)
+            }
+        }
+        await detachKeepingInstances()
+        if wasRunning {
+            await replacement.launch()
+            if wasPaused { await replacement.setPaused(true) }
+        }
+        return .handedOver(wasRunning: wasRunning, wasPaused: wasPaused)
+    }
+
     /// Wait for cancelled lifecycle tasks to exit, up to `timeout`. Shell
     /// commands ignore cancellation (they end on their own timeout), so a
     /// task blocked in one may outlive the bound; it then exits at its next

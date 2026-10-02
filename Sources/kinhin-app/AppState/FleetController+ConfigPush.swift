@@ -99,28 +99,18 @@ extension FleetController {
         }
         do {
             let replacement = try makeEngine(cfg, pat)
-            let previous = await old.status()
-            let wasRunning = previous.running
-            let wasPaused = previous.paused
-            // A stopped fleet stays stopped across a rebuild — a config edit
-            // must never start spawning VMs.
-            if wasRunning {
-                await replacement.start()
-                if wasPaused { await replacement.setPaused(true) }
-            }
-            let status = await replacement.status()
-            if wasRunning, !status.running, let error = status.lastError {
+            switch await old.handOver(to: replacement) {
+            case .rejected(let error):
                 // Startup verification failed (bad PAT, transient network):
                 // keep the old engine instead of trading a running fleet for
                 // a dead one.
                 Log.error("app", "rebuild did not start: \(error) — keeping the previous engine and config")
-                return
+            case .handedOver(let wasRunning, let wasPaused):
+                service = FleetBackend.inProcess(replacement)
+                Log.info(
+                    "app",
+                    "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))")
             }
-            await old.detachKeepingInstances()
-            service = FleetBackend.inProcess(replacement)
-            Log.info(
-                "app",
-                "config change required a restart — engine rebuilt (running: \(wasRunning), paused: \(wasPaused))")
         } catch {
             Log.error(
                 "app",

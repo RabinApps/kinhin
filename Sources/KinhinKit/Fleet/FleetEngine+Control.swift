@@ -11,6 +11,9 @@ extension FleetEngine {
         }
         guard !alreadyRunning else { return }
         guard await prepareStart() else { return }
+        // A stop() that landed while the forges were being verified wins:
+        // launching now would resurrect a fleet the caller just stopped.
+        guard running else { return }
         await launch()
     }
 

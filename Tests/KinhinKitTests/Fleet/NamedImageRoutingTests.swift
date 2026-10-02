@@ -53,6 +53,7 @@ final class NamedImageRoutingTests: XCTestCase {
         github.queueDepth = 1
         github.queueExtraLabels = ["xcode"]
         try await engine.reconcileOnce()
+        await waitForCondition { !tart.cloneCalls.isEmpty }
         XCTAssertEqual(tart.cloneCalls.first?.source, "xcode")
         let records = await engine.status().records
         XCTAssertEqual(records.first?.image, "xcode")
@@ -62,6 +63,7 @@ final class NamedImageRoutingTests: XCTestCase {
         let (engine, github, tart) = engine(images: [xcode])
         github.queueDepth = 1
         try await engine.reconcileOnce()
+        await waitForCondition { !tart.cloneCalls.isEmpty }
         XCTAssertEqual(tart.cloneCalls.first?.source, "tahoe-base")
         let records = await engine.status().records
         XCTAssertNil(records.first?.image)

@@ -19,10 +19,21 @@ public enum RPCMethod: String, Codable, Sendable {
     case replaceForgejoToken = "replace_forgejo_token"
     /// Swap the token of one named account (multi-account configs).
     case replaceAccountToken = "replace_account_token"
-    /// Reload the routing config from disk (the Runtimes pane's edit hook).
+    /// Reload the routing config from disk (the Advanced → Routing tab's edit hook).
     case reloadConfig = "reload_config"
     case logs
     case ping
+
+    /// Methods that change fleet state; the daemon runs them one at a time.
+    var mutatesFleet: Bool {
+        switch self {
+        case .start, .stop, .pause, .resume, .deleteVM, .replaceToken, .replaceGiteaToken, .replaceForgejoToken,
+            .replaceAccountToken, .reloadConfig:
+            return true
+        case .status, .pipelineDetail, .pipelineLog, .logs, .ping:
+            return false
+        }
+    }
 }
 
 /// Payload for `replace_token`: swaps the daemon's PAT without a restart.
