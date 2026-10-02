@@ -24,11 +24,11 @@ extension ConfigLoader {
             guard seen.insert(pattern.lowercased()).inserted else {
                 throw ConfigError.invalid("duplicate projects pattern '\(pattern)'")
             }
-            let toolchains = try partial.toolchains.map(Self.parseToolchains)
-            projects.append(
-                KinhinConfig.ProjectConfig(
-                    pattern: pattern, repoFile: partial.repoFile ?? false, toolchains: toolchains,
-                    shareCache: partial.shareCache))
+        let toolchains = try partial.toolchains.map(Self.parseToolchains)
+        projects.append(
+            KinhinConfig.ProjectConfig(
+                pattern: pattern, repoFile: partial.repoFile ?? false, toolchains: toolchains,
+                shareCache: partial.shareCache == true ? true : nil))
         }
         return projects
     }

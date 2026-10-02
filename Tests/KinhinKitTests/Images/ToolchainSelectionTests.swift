@@ -52,6 +52,20 @@ final class ToolchainSelectionTests: XCTestCase {
         XCTAssertTrue(error.hasPrefix("toolchains: is gone"), error)
     }
 
+    func testTopLevelToolchainsKeyMessageMentionsProjects() {
+        let error = self.thrownConfigError(
+            """
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
+            labels: ["self-hosted"]
+            toolchains: {specs: ["node@22"]}
+            """)
+        XCTAssertTrue(error.hasPrefix("toolchains: is gone"), error)
+        XCTAssertTrue(error.contains("projects:"), error)
+    }
+
     func testTemplateHasNoProjects() throws {
         let cfg = try ConfigLoader.parse(ConfigLoader.template())
         XCTAssertTrue(cfg.projects.isEmpty, "the starter config must not enable managed toolchains")

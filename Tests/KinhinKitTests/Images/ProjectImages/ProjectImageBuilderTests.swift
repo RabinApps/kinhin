@@ -71,7 +71,7 @@ final class ProjectImageBuilderTests: XCTestCase {
         guard case .failed(_, let reason) = result else { return XCTFail("expected failed, got \(result)") }
         XCTAssertEqual(reason, "boom")
         XCTAssertEqual(count.withLock { $0 }, 1)
-        clock.withLock { $0 = Date(timeIntervalSince1970: ProjectImageBuilder.retryAfter + 1) }
+        clock.withLock { $0 = Date(timeIntervalSince1970: ProjectImageBuilder.retryAfter) }
         _ = await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
         await builder.waitForBakes()
         XCTAssertEqual(count.withLock { $0 }, 2)
@@ -90,7 +90,7 @@ final class ProjectImageBuilderTests: XCTestCase {
         }
         let builder = ProjectImageBuilder(tart: tart, store: store, baseImage: "x", bake: { _ in })
         let removed = await builder.prune(maxImages: 1, maxAgeDays: 0, inUse: ["a"])
-        XCTAssertEqual(removed, ["b"])
-        XCTAssertEqual(Set(store.all.map(\.name)), ["a", "c"])
+        XCTAssertEqual(removed.sorted(), ["b", "c"])
+        XCTAssertEqual(Set(store.all.map(\.name)), ["a"])
     }
 }

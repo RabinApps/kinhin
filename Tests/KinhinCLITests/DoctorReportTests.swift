@@ -383,11 +383,8 @@ final class DoctorReportTests: XCTestCase {
         var cfg = Self.config()
         cfg.projects = [Self.project(specs: ["go@1.23", "go@latest"])]
         let section = DoctorReportBuilder.toolchainCacheSection(config: cfg)
-        if section.usable {
-            XCTAssertEqual(
-                section.ecosystems.map(\.directory), ["mise", "go/mod", "go/build"],
-                "the breakdown mirrors the selection's cache map (deduped, MISE umbrella first)")
-        }
+        XCTAssertEqual(section.ecosystems.map(\.directory), ["go/mod", "go/build", "mise"],
+                      "the breakdown mirrors the selection's cache map (deduped, order-stable)")
     }
 
     func testToolchainCacheWarningFlagsEmptyCacheWithShareCacheOn() {

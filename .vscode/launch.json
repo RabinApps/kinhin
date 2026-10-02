@@ -1,0 +1,44 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:kinhin}",
+      "name": "Debug kinhin",
+      "target": "kinhin",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug kinhin"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:kinhin}",
+      "name": "Release kinhin",
+      "target": "kinhin",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release kinhin"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:kinhin}",
+      "name": "Debug kinhin-app",
+      "target": "kinhin-app",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug kinhin-app"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:kinhin}",
+      "name": "Release kinhin-app",
+      "target": "kinhin-app",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release kinhin-app"
+    }
+  ]
+}

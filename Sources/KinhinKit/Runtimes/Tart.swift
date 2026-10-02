@@ -55,6 +55,7 @@ public protocol TartControlling: Sendable {
     /// guest agent (`tart exec`), so the first SSH call can authenticate. The
     /// default does nothing (fakes, stand-ins).
     func installGuestSSHKey(vm: String, user: String) async throws
+    func allowKeys(_ key: String) async throws
     /// Creates an empty Linux VM (`tart create --linux name`) with no OS —
     /// the starting point of the "Linux VM from scratch" flow.
     func createLinux(name: String) async throws
@@ -69,6 +70,7 @@ public extension TartControlling {
     }
 
     func installGuestSSHKey(vm: String, user: String) async throws {}
+    func allowKeys(_ key: String) async throws {}
 }
 
 /// Real implementation that shells out to the tart binary.
@@ -151,6 +153,10 @@ public struct TartController: TartControlling {
     public func clone(source: String, to name: String) async throws {
         let res = try await exec(["clone", source, name], timeout: 300)
         guard res.succeeded else { throw TartError.commandFailed(what: "clone \(source) \(name)", stderr: res.stderr) }
+    }
+
+    public func allowKeys(_ key: String) async throws {
+        // The host key kinhin already trusts in the VM is the one that matters.
     }
 
     public func run(name: String, mounts: [String]) async throws {
@@ -279,6 +285,7 @@ struct UnavailableTart: TartControlling {
     func pull(image: String) async throws { throw missing }
     func createLinux(name: String) async throws { throw missing }
     func runWithDisk(name: String, isoPath: String) async throws { throw missing }
+    func allowKeys(_ key: String) async throws { throw missing }
 }
 
 extension KinhinConfig {

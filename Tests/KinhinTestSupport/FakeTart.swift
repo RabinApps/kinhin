@@ -161,6 +161,10 @@ final class FakeTart: TartControlling, Sendable {
         }
     }
 
+    func allowKeys(_ key: String) async throws {
+        // No-op fake; the production path also ignores this call.
+    }
+
     func stop(name: String) async throws {
         try state.withLock { state in
             if let stderr = state.failNext.removeValue(forKey: "stop") {

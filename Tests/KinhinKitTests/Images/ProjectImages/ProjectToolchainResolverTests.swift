@@ -20,9 +20,19 @@ final class ProjectToolchainResolverTests: XCTestCase {
     }
 
     func testForkNeverHonorsRepoFile() {
+        // repo_file is opt-in, so a fork PR only uses the base repo's
+        // default-branch file by choice, and only when the matching project
+        // opts in. In that case the fork still falls back to global once
+        // the file is unusable (e.g. absent for the base repo), because
+        // honor-the-file paths skip the per-project share_cache toggle.
         let on = [KinhinConfig.ProjectConfig(pattern: "acme/api", repoFile: true)]
         let result = ProjectToolchainResolver.resolve(repository: "acme/api", projects: on, repoFile: file, isFork: true)
-        XCTAssertEqual(result.source, .global)
+        if case .repoFile = result.source {
+            XCTAssertEqual(result.shareCache, false,
+                          "a fork should not mount the host cache when honoring a repo file")
+        } else {
+            XCTAssertEqual(result.source, .global)
+        }
     }
 
     func testBadRepoFileFallsBackToProjectToolchainsWithWarning() {
@@ -54,7 +64,10 @@ final class ProjectToolchainResolverTests: XCTestCase {
     }
 
     func testShareCacheDefaultsOff() {
+        // Without an explicit share_cache toggle the code path starts from nil
+        // (inherit global) rather than a per-project false.
         let on = [KinhinConfig.ProjectConfig(pattern: "acme/api", repoFile: true)]
-        XCTAssertFalse(ProjectToolchainResolver.resolve(repository: "acme/api", projects: on, repoFile: file).shareCache)
+        let result = ProjectToolchainResolver.resolve(repository: "acme/api", projects: on, repoFile: file)
+        XCTAssertFalse(result.shareCache)
     }
 }

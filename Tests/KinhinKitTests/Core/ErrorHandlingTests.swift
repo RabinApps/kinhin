@@ -162,4 +162,8 @@ private final class FlakySSH: SSHExecuting, Sendable {
         if n <= failures { return ShellResult(exitCode: 255, stdout: "", stderr: stderr) }
         return ShellResult(exitCode: 0, stdout: "ok", stderr: "")
     }
+
+    func allowKeys(_ key: String) async throws {
+        // No-op: the real SSH executor ignores this call too.
+    }
 }

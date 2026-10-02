@@ -46,7 +46,7 @@ enum ProjectToolchainResolver {
         repository: String?, projects: [KinhinConfig.ProjectConfig], repoFile: Data?, isFork: Bool = false
     ) -> ProjectResolution {
         guard let repository, let project = project(for: repository, in: projects) else { return .global }
-        let shareCache = (project.shareCache ?? false) && !isFork
+        let shareCache = project.shareCache == true && !isFork
         var warning: String?
         if project.repoFile, let repoFile {
             do {
@@ -64,6 +64,6 @@ enum ProjectToolchainResolver {
                 toolchains: fallback, source: .project(pattern: project.pattern), shareCache: shareCache,
                 warning: warning)
         }
-        return ProjectResolution(toolchains: nil, source: .global, shareCache: false, warning: warning)
+        return ProjectResolution(toolchains: nil, source: .global, shareCache: shareCache, warning: warning)
     }
 }

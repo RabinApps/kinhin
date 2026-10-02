@@ -73,4 +73,8 @@ final class FakeSSH: SSHExecuting, Sendable {
         }
         return ShellResult(exitCode: 0, stdout: stdout, stderr: "")
     }
+
+    func allowKeys(_ key: String) async throws {
+        // No-op fake; matches the production executor's no-op.
+    }
 }

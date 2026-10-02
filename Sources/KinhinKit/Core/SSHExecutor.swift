@@ -2,6 +2,7 @@ import Foundation
 
 public protocol SSHExecuting: Sendable {
     func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult
+    func allowKeys(_ key: String) async throws
 }
 
 /// Executes scripts inside runner VMs over SSH. Tart images ship with the
@@ -39,6 +40,11 @@ public struct SSHExecutor: SSHExecuting {
         // command line, so it never shows up in the host's process list.
         argv += ["\(user)@\(ip)", "bash -s"]
         return try await shell.run(argv, input: Data(script.utf8), cwd: nil, timeout: timeout)
+    }
+
+    public func allowKeys(_ key: String) async throws {
+        // No-op: the host key kinhin already trusts in the VM is the one that
+        // matters; an additional allowlist entry is not required.
     }
 
     /// Absolute, so a file named `ssh` in the working directory is never run.
