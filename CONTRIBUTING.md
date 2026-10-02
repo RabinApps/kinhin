@@ -6,10 +6,24 @@ kinhin is built by one developer, and bug reports, feature requests and pull req
 Not writing code? You can also [add your project to the list](docs/used-by.md) of who uses kinhin, or
 [support the project](docs/support.md).
 
-Single Swift package (Swift 6.4 tools, Swift 6 language mode / strict concurrency, macOS 15+): `KinhinKit` (engine
+Single Swift package (Swift 6.2 tools, Swift 6 language mode / strict concurrency, macOS 15+): `KinhinKit` (engine
 library), `kinhin` (CLI), `kinhin-app` (AppKit menu bar app; `AppState/` holds the `@Observable`
 `FleetController`/`UpdateController`, and the main window, tabs, forms, wizard, Diagnostics and Logs are SwiftUI hosted
 in one `NSHostingView`, see `Sources/kinhin-app/UI/SwiftUI/`).
+
+## Requirements
+
+Full Xcode 26 or later (Swift 6.2+), not only the Command Line Tools: `swift test` needs XCTest, which ships with
+Xcode. If the build stops with `unable to resolve module dependency: 'XCTest'`, point the toolchain at Xcode:
+
+```bash
+sudo xcode-select -s /Applications/Xcode.app    # or: export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+```
+
+A standalone swift.org or mise toolchain works only together with Xcode's SDK for the same reason. The self-hosted CI
+runner is a kinhin-provisioned Tart VM, so its base image must include Xcode (for example
+`ghcr.io/cirruslabs/macos-tahoe-xcode:latest`); see [Toolchains](docs/toolchains.md). The CI "Check toolchain" step
+fails fast with this hint.
 
 ## Build, test, format
 

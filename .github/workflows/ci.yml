@@ -24,26 +24,17 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Prefer mise toolchains
-        # The runner's job PATH has Xcode's Swift (6.3.x) ahead of the baked
-        # mise-managed one, but Package.swift needs the 6.4 tools. Put the mise
-        # shims first; a no-op where mise isn't installed. The mise toolchain
-        # carries no XCTest and would otherwise fall back to the Command Line
-        # Tools SDK (which has none either), so point it at Xcode's SDK.
+      - name: Check toolchain
+        # `swift test` needs XCTest, which ships with full Xcode (not the
+        # Command Line Tools). Fail here with a pointer instead of minutes
+        # into the build; see CONTRIBUTING.md "Requirements".
         run: |
-          shims="$HOME/.local/share/mise/shims"
-          if [ -d "$shims" ]; then
-            echo "$shims" >> "$GITHUB_PATH"
-            # Newest installed Xcode (any /Applications/Xcode*.app name).
-            xcode="$(ls -d /Applications/Xcode*.app/Contents/Developer 2>/dev/null | sort -V | tail -1)"
-            [ -n "$xcode" ] && echo "DEVELOPER_DIR=$xcode" >> "$GITHUB_ENV"
-          fi
-          # Diagnostics for toolchain/SDK mismatches (XCTest not found).
           echo "xcode-select: $(xcode-select -p 2>&1)"
-          echo "xcode found:  ${xcode:-none}"
-          ls -d /Applications/Xcode*.app 2>&1 || true
-          find /Library/Developer/CommandLineTools /Applications/Xcode*.app "$HOME/.local/share/mise/installs/swift" -maxdepth 8 -name 'XCTest*' 2>/dev/null | head -10 || true
-          true
+          swift --version
+          if ! find "$(xcode-select -p)" -maxdepth 6 -name 'XCTest.framework' 2>/dev/null | grep -q .; then
+            echo "::error::XCTest not found under $(xcode-select -p). Use a runner image with full Xcode (for example ghcr.io/cirruslabs/macos-tahoe-xcode:latest), not a Command Line Tools-only image."
+            exit 1
+          fi
 
       - name: Swift version
         run: swift --version
@@ -74,26 +65,17 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Prefer mise toolchains
-        # The runner's job PATH has Xcode's Swift (6.3.x) ahead of the baked
-        # mise-managed one, but Package.swift needs the 6.4 tools. Put the mise
-        # shims first; a no-op where mise isn't installed. The mise toolchain
-        # carries no XCTest and would otherwise fall back to the Command Line
-        # Tools SDK (which has none either), so point it at Xcode's SDK.
+      - name: Check toolchain
+        # `swift test` needs XCTest, which ships with full Xcode (not the
+        # Command Line Tools). Fail here with a pointer instead of minutes
+        # into the build; see CONTRIBUTING.md "Requirements".
         run: |
-          shims="$HOME/.local/share/mise/shims"
-          if [ -d "$shims" ]; then
-            echo "$shims" >> "$GITHUB_PATH"
-            # Newest installed Xcode (any /Applications/Xcode*.app name).
-            xcode="$(ls -d /Applications/Xcode*.app/Contents/Developer 2>/dev/null | sort -V | tail -1)"
-            [ -n "$xcode" ] && echo "DEVELOPER_DIR=$xcode" >> "$GITHUB_ENV"
-          fi
-          # Diagnostics for toolchain/SDK mismatches (XCTest not found).
           echo "xcode-select: $(xcode-select -p 2>&1)"
-          echo "xcode found:  ${xcode:-none}"
-          ls -d /Applications/Xcode*.app 2>&1 || true
-          find /Library/Developer/CommandLineTools /Applications/Xcode*.app "$HOME/.local/share/mise/installs/swift" -maxdepth 8 -name 'XCTest*' 2>/dev/null | head -10 || true
-          true
+          swift --version
+          if ! find "$(xcode-select -p)" -maxdepth 6 -name 'XCTest.framework' 2>/dev/null | grep -q .; then
+            echo "::error::XCTest not found under $(xcode-select -p). Use a runner image with full Xcode (for example ghcr.io/cirruslabs/macos-tahoe-xcode:latest), not a Command Line Tools-only image."
+            exit 1
+          fi
 
       - name: Tests under ThreadSanitizer (serial)
         # The script exits nonzero on any sanitizer report; a failing exit
