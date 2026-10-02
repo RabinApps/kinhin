@@ -113,7 +113,7 @@ export default defineConfig({
           { text: "Runtimes & routing", link: "/guide/runtimes" },
           { text: "Forge support", link: "/guide/forges" },
           { text: "Security", link: "/guide/security" },
-          { text: "Support & sponsors", link: "/guide/support" },
+          { text: "Support & sponsors", link: "/guide/sponsors" },
           {
             text: "Companies & projects using kinhin",
             link: "/guide/external-contributors",
@@ -127,12 +127,13 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: "CLI commands", link: "/cli/commands" },
-          { text: "Forge API reference", link: "/guide/forges/" },
-          { text: "GitHub API", link: "/guide/forges/github" },
           {
             text: "Contributing to kinhin",
-            link: "/guide/external-contributors",
+            link: "/guide/contributing",
           },
+          { text: "Forge API reference", link: "/guide/forges/" },
+          { text: "GitHub API", link: "/guide/forges/github" },
+
           { text: "Gitea & Forgejo API", link: "/guide/forges/gitea" },
           { text: "GitLab API", link: "/guide/forges/gitlab" },
           { text: "Buildkite API", link: "/guide/forges/buildkite" },

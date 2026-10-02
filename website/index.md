@@ -20,7 +20,7 @@ hero:
       link: /cli/commands
     - theme: alt
       text: Sponsor
-      link: /guide/support
+      link: /guide/sponsors
     - theme: alt
       text: Companies & projects using kinhin
       link: /guide/contributing
@@ -55,7 +55,7 @@ HTTP only. See [what has been tested](/guide/forges#what-has-been-tested) and th
 
 
 ::: tip Support kinhin
-kinhin is free and built by one developer. [Donate or become a sponsor](/guide/support). Also from Rabin Apps: [SupDesk](https://supdesk.app/en).
+kinhin is free and built by one developer. [Donate or become a sponsor](/guide/sponsors). Also from Rabin Apps: [SupDesk](https://supdesk.app/en).
 
 *Companies and projects using [kinhin](https://github.com/RabinApps/kinhin) can add themselves: [Contributing to kinhin](/guide/contributing).*
 
