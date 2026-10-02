@@ -60,6 +60,7 @@ extension AppDelegate {
             item.identifier = NSUserInterfaceItemIdentifier(id)
         }
         applyFleetControlVisibility(to: m, status: fleet.status)
+        applySetupItemVisibility(to: m)
 
         m.addItem(.separator())
         // Hidden until a background check finds a newer release; manual checks
@@ -130,6 +131,11 @@ extension AppDelegate {
         }
     }
 
+    /// "Setup…" only matters until setup is done; Settings covers the rest.
+    func applySetupItemVisibility(to menu: NSMenu?) {
+        menu?.items.first { $0.identifier?.rawValue == "openSetupTab" }?.isHidden = !setupIncomplete
+    }
+
     /// The status-bar button title: a spinner glyph while a start/stop is in
     /// flight (the poll's last word is stale until the command completes),
     /// otherwise the state circle / active-VM count.
@@ -152,6 +158,7 @@ extension AppDelegate {
         let status = fleet.status
         let pending = fleet.pendingFleetAction
         applyFleetControlVisibility(to: menu, status: status)
+        applySetupItemVisibility(to: menu)
         statusItem?.button?.title = statusItemTitle(pending: pending, status: status)
         renderStatusLines(statusLineText(pending: pending, status: status))
         rebuildVMSection(status: status)

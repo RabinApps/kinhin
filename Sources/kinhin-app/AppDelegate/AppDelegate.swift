@@ -24,7 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     var setupIncomplete: Bool {
         get { fleet.setupIncomplete }
-        set { fleet.setupIncomplete = newValue }
+        set {
+            fleet.setupIncomplete = newValue
+            applySetupItemVisibility(to: menu)
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

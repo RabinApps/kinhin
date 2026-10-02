@@ -32,3 +32,17 @@ final class TartCacheShareSpecTests: XCTestCase {
         XCTAssertTrue(ToolchainCacheMount.guestPath.hasSuffix("/" + spec.split(separator: ":")[0]))
     }
 }
+
+final class TartRunEnvironmentTests: XCTestCase {
+    func testSoftnetAddsHomebrewToAGuiMinimalPath() {
+        let env = TartController.runEnvironment(base: ["PATH": "/usr/bin:/bin"], softnet: true)
+        let dirs = (env["PATH"] ?? "").split(separator: ":").map(String.init)
+        XCTAssertTrue(dirs.starts(with: ["/usr/bin", "/bin"]))
+        XCTAssertTrue(dirs.contains("/opt/homebrew/bin"))
+    }
+
+    func testWithoutSoftnetTheEnvironmentIsUntouched() {
+        let base = ["PATH": "/usr/bin:/bin", "HOME": "/h"]
+        XCTAssertEqual(TartController.runEnvironment(base: base, softnet: false), base)
+    }
+}

@@ -100,6 +100,22 @@ public struct TartController: TartControlling {
         return ["run", "--no-graphics"] + (softnet ? ["--net-softnet"] : []) + mountArgs + [name]
     }
 
+    /// `tart run --net-softnet` looks `softnet` up on PATH, and a GUI-launched
+    /// app has only /usr/bin:/bin:..., so without Homebrew's bin directories the
+    /// VM never boots ("softnet not found in PATH") and no IP ever appears.
+    static func runEnvironment(base: [String: String], softnet: Bool) -> [String: String] {
+        guard softnet else { return base }
+        var env = base
+        var dirs = (base["PATH"] ?? "").split(separator: ":").map(String.init)
+        var extra = ["/opt/homebrew/bin", "/usr/local/bin"]
+        if let found = Paths.findExecutable(named: "softnet") {
+            extra.insert((found as NSString).deletingLastPathComponent, at: 0)
+        }
+        for dir in extra where !dirs.contains(dir) { dirs.append(dir) }
+        env["PATH"] = dirs.joined(separator: ":")
+        return env
+    }
+
     public static func isInstalled(configuredPath: String? = nil) -> Bool {
         Paths.findExecutable(named: "tart", override: configuredPath) != nil
     }
@@ -164,6 +180,7 @@ public struct TartController: TartControlling {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
         process.arguments = Self.runArguments(name: name, mounts: mounts, softnet: softnet)
+        process.environment = Self.runEnvironment(base: ProcessInfo.processInfo.environment, softnet: softnet)
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice
