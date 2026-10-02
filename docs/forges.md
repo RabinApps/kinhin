@@ -175,5 +175,7 @@ use only `projects[].toolchains`, or the plain base image.
 ## More forges
 
 Adding a platform means implementing the Forge protocol (client, bootstrap script, lifecycle notes); the autoscaler,
-pool, checklist and status surfaces come for free. See `Sources/KinhinKit/Forges/Forge.swift`. Forges decide _who hands
-kinhin jobs_; [runtimes](runtimes.md) decide _where those jobs run_.
+pool, checklist and status surfaces come for free. For the full step-by-step checklist (config, engine, runner bootstrap,
+CLI, app, tests and docs), follow [Adding a forge](adding-a-forge.md); the protocol itself is in
+`Sources/KinhinKit/Forges/Forge.swift`. Forges decide _who hands kinhin jobs_; [runtimes](runtimes.md) decide _where
+those jobs run_.

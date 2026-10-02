@@ -1,0 +1,9 @@
+{
+  "name": "kinhin",
+  "description": "Skills for installing, configuring, operating and troubleshooting kinhin, the autoscaling pool of ephemeral CI runners on an Apple Silicon Mac.",
+  "version": "0.0.1",
+  "author": { "name": "Rabin Apps" },
+  "homepage": "https://github.com/RabinApps/kinhin",
+  "repository": "https://github.com/RabinApps/kinhin",
+  "license": "Apache-2.0"
+}

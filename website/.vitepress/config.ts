@@ -41,7 +41,8 @@ export default defineConfig({
     "{Sources,Tests,Plugins,scripts,dist,shots}/**",
     "**/node_modules/**",
     "docs/plans/**",
-    "docs/{app,architecture}.md",
+    "docs/{app,architecture,adding-a-forge}.md",
+    "skills/**",
   ],
   rewrites: {
     "website/index.md": "index.md",

@@ -1,0 +1,94 @@
+---
+name: kinhin-install
+description: Install kinhin and its prerequisites (Tart) on an Apple Silicon Mac, locally or on a rented or remote Mac, and run the first-time setup sequence. Use when the user wants to install, set up or bootstrap kinhin, or get a new Mac serving CI jobs.
+---
+
+# Install kinhin
+
+kinhin turns an Apple Silicon Mac into an autoscaling pool of ephemeral self-hosted CI runners: one fresh VM or
+container per job, deleted afterwards. This skill covers install and first run.
+
+**Beta status (tell the user):** only GitHub Actions with Tart macOS VMs has run for real. Every other forge and
+runtime is unit-tested against fakes only. Findings are welcome as GitHub issues ("Forge report").
+
+## Requirements
+
+- Apple Silicon and macOS 15 or newer (Intel is unsupported).
+- About 60 GB free disk and at least 16 GB RAM. An 8 GB Mac should use Linux containers only.
+- A forge token (see the `kinhin-configure` skill).
+- Tart, for macOS VMs.
+
+Check the machine first: `uname -m` must print `arm64`, and `sw_vers -productVersion` must be 15 or newer.
+
+## 1. Install Tart
+
+```bash
+brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart
+```
+
+If `kinhin doctor` later reports `tart: INSTALLED BUT KILLED ON LAUNCH`, the bottle is un-notarized. Roll back:
+
+```bash
+brew uninstall openai/tools/tart openai/tools/softnet
+brew tap cirruslabs/cli && brew trust cirruslabs/cli
+brew install cirruslabs/cli/tart
+```
+
+## 2. Install kinhin
+
+```bash
+curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
+```
+
+- Pin a version: `... | bash -s -- v0.1.0` (use a real release tag).
+- Air-gapped: download `scripts/install.sh` and the DMG, then `bash install.sh /path/to/kinhin-<version>-arm64.dmg`.
+- The installer verifies the DMG against the release `checksums.txt` and the code signature, copies `kinhin.app` to
+  `/Applications`, and symlinks the `kinhin` CLI into the first writable of `/opt/homebrew/bin`, `/usr/local/bin`,
+  `~/.local/bin`. Overrides: `REPO`, `INSTALL_DIR`, `BIN_DIR`.
+- Old or locally built copies may need `xattr -cr /Applications/kinhin.app`. Official releases are notarized.
+
+## 3. First-run sequence
+
+Run these in order, stopping to fix any failure before the next step:
+
+1. `kinhin config init` writes a commented starter config to
+   `~/Library/Application Support/Kinhin/config.yaml`.
+2. Edit `accounts:` and `labels` (use the `kinhin-configure` skill), then `kinhin config validate`.
+3. `kinhin auth set` stores the token in the Keychain. Never put tokens in the config or on the command line if you
+   can avoid it. `--token X` works but prints a warning.
+4. `kinhin doctor` checks Tart, disk, the token and the capacity cap.
+5. `kinhin image prepare` builds the base image. It runs once, is slow and uses roughly 40 to 60 GB.
+6. `kinhin start` runs in the foreground. `kinhin daemon install` installs a LaunchAgent that survives reboots.
+7. Trigger a workflow with `runs-on: [self-hosted, macos, arm64]` and watch with `kinhin watch` or `kinhin status`.
+
+## Rented or remote Mac
+
+From your own machine:
+
+```bash
+ssh admin@host 'bash -s' < scripts/bootstrap-rented-mac.sh
+```
+
+The script is idempotent: it checks arm64 and macOS 15+, installs Tart and kinhin if missing, runs
+`kinhin config init` if there is no config, and prints next steps. It never touches a token.
+
+Then, on the Mac:
+
+- Run `security unlock-keychain ~/Library/Keychains/login.keychain-db` in the SSH session, or the Keychain stays locked.
+- Enable automatic login and keep FileVault off, because the LaunchAgent needs a GUI session.
+- Run `kinhin daemon install` from a VNC or Screen Sharing session.
+- Use one customer per Mac. Never pass tokens as arguments or environment variables.
+
+## Update and uninstall
+
+- Update: re-run the install command (the CLI has no update command), then re-run `kinhin image prepare`.
+- Uninstall, in this order: stop the fleet, `kinhin cleanup --all --yes`, `kinhin daemon uninstall`, then
+  `bash install.sh --uninstall`. The config and Keychain token are kept. Delete the config directory and the Keychain
+  entries by hand if the user wants them gone.
+
+## More
+
+- [Install guide](https://github.com/RabinApps/kinhin/blob/main/docs/install.md)
+- [Rented Mac guide](https://github.com/RabinApps/kinhin/blob/main/docs/rented-mac.md)
+- [Hardware sizing](https://github.com/RabinApps/kinhin/blob/main/docs/hardware.md)
+- If a command here fails or differs, trust `kinhin help` and `kinhin <command> --help` over this page.

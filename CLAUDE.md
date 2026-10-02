@@ -15,4 +15,5 @@ exactly; do not duplicate its rules here.
   rebuilds.
 - Keep mechanical changes (moves, renames, formatting) in separate commits from behavior changes.
 - Docs live once, in `docs/`; `website/` holds only site-only pages. Don't copy a guide into `website/`.
+- Adding a forge: follow [docs/adding-a-forge.md](docs/adding-a-forge.md) step by step.
 - Don't commit or push unless asked.

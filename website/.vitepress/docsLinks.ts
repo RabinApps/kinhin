@@ -19,7 +19,7 @@ export const docRewrites: Record<string, string> = {
 }
 
 /** `docs/` pages the site does not publish (kept in sync with `srcExclude` in config.ts): they link to GitHub. */
-const unpublished = new Set(['docs/app.md', 'docs/architecture.md'])
+const unpublished = new Set(['docs/app.md', 'docs/architecture.md', 'docs/adding-a-forge.md'])
 
 /** `docs/<name>.md` and `docs/forges/<name>.md` keep their names under `/guide/`. */
 export function sitePath(repoPath: string): string | undefined {
