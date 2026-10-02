@@ -143,12 +143,13 @@ extension GitHubClient {
             guard jobs.contains(where: { $0.runnerName == runnerName && $0.status == "in_progress" }) else {
                 continue
             }
-            return Self.detail(jobs: jobs, run: run, runnerName: runnerName)
+            let repository = run.attributedRepository ?? (credentials.isOrgScope ? nil : credentials.scope)
+            return Self.detail(jobs: jobs, run: run, runnerName: runnerName, repository: repository)
         }
         return nil
     }
 
-    static func detail(jobs: [GHJob], run: RunRef, runnerName: String) -> PipelineDetail {
+    static func detail(jobs: [GHJob], run: RunRef, runnerName: String, repository: String?) -> PipelineDetail {
         let mapped = jobs.map { job -> PipelineJob in
             let steps = (job.steps ?? []).sorted { ($0.number ?? 0) < ($1.number ?? 0) }.map {
                 PipelineStep(
@@ -159,7 +160,7 @@ extension GitHubClient {
                 id: String(job.id), name: job.name,
                 state: PipelineParsing.state(status: job.status, conclusion: job.conclusion),
                 startedAt: PipelineParsing.date(job.startedAt), url: job.htmlURL, steps: steps,
-                isCurrent: job.runnerName == runnerName)
+                isCurrent: job.runnerName == runnerName, logRef: repository.map { "\($0)|\(job.id)" })
         }
         let first = jobs.first
         return PipelineDetail(
@@ -167,6 +168,36 @@ extension GitHubClient {
             repository: run.attributedRepository, ref: run.ref, sha: run.sha, url: first?.htmlURL,
             state: PipelineDetail.aggregate(mapped.map(\.state)),
             startedAt: mapped.compactMap(\.startedAt).min(), jobs: mapped, granularity: .step)
+    }
+
+    /// One job's log so far. The endpoint answers with a redirect to a signed
+    /// URL on another host, which the session refuses to follow with
+    /// credentials; the signed URL is fetched by hand, without them.
+    public func jobLog(repository: String, jobID: Int) async throws -> String? {
+        let segments = repository.split(separator: "/")
+        guard segments.count == 2, segments.allSatisfy(Self.isValidScopeSegment) else {
+            throw GitHubError.http(0, "invalid repository \(repository)")
+        }
+        let req = try request(method: "GET", path: "/repos/\(repository)/actions/jobs/\(jobID)/logs")
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw GitHubError.http(0, "non-HTTP response") }
+        switch http.statusCode {
+        case 200: return String(decoding: data, as: UTF8.self)
+        case 301, 302, 303, 307, 308:
+            guard let location = http.value(forHTTPHeaderField: "Location").flatMap(URL.init(string:)),
+                location.scheme?.lowercased() == "https"
+            else { throw GitHubError.http(http.statusCode, "log redirect without an https location") }
+            var signed = URLRequest(url: location)
+            signed.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
+            let (body, bodyResponse) = try await session.data(for: signed)
+            guard (bodyResponse as? HTTPURLResponse)?.statusCode == 200 else {
+                throw GitHubError.http((bodyResponse as? HTTPURLResponse)?.statusCode ?? 0, "log download failed")
+            }
+            return String(decoding: body, as: UTF8.self)
+        case 401: throw GitHubError.unauthorized
+        case 404, 410: return nil  // not available yet, or expired
+        default: throw GitHubError.http(http.statusCode, String(decoding: data.prefix(300), as: UTF8.self))
+        }
     }
 
     /// One workflow run plus the repository it was read from (nil in org

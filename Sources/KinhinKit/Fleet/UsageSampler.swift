@@ -26,7 +26,7 @@ final class UsageSampler: Sendable {
 
     init(
         tart: TartControlling, shell: ShellRunning, hostProbe: HostUsageProbe = HostUsageProbe(),
-        tartMemoryMB: @escaping @Sendable () -> Int, minInterval: Duration = .seconds(5)
+        tartMemoryMB: @escaping @Sendable () -> Int, minInterval: Duration = .seconds(2)
     ) {
         self.tart = tart
         self.shell = shell

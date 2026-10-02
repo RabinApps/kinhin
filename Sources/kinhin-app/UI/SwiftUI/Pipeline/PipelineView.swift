@@ -15,6 +15,8 @@ struct PipelineView: View {
             if let message = model.emptyMessage {
                 StatusText(text: message, style: model.error == nil ? .secondary : .error)
                 Spacer(minLength: 0)
+            } else if model.logTarget != nil {
+                outputPane
             } else if let job = model.selectedJob {
                 jobDetail(job)
             } else {
@@ -33,7 +35,7 @@ struct PipelineView: View {
                 } catch {
                     return
                 }
-                await model.load()
+                await model.refresh()
             }
         }
     }
@@ -56,8 +58,8 @@ struct PipelineView: View {
     private var footer: some View {
         HStack {
             if model.selectedJob != nil {
-                Button("‹ All jobs") { model.back() }
-                    .accessibilityLabel("Back to all jobs")
+                Button(model.logTarget != nil ? "‹ Steps" : "‹ All jobs") { model.back() }
+                    .accessibilityLabel(model.logTarget != nil ? "Back to the job's steps" : "Back to all jobs")
             }
             if let url = (model.selectedJob?.url ?? model.detail?.url).flatMap(URL.init(string:)) {
                 Link("Open in browser", destination: url)
@@ -94,14 +96,17 @@ struct PipelineView: View {
             StateGlyph(state: job.state)
             VStack(alignment: .leading, spacing: 2) {
                 Text(job.name).font(.system(size: 13, weight: .semibold)).lineLimit(2)
-                Text(
-                    [
-                        PipelineModel.label(for: job.state), model.duration(of: job),
-                        job.isCurrent ? "this VM" : nil,
-                    ].compactMap { $0 }.joined(separator: " · ")
-                )
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                // Ticks every second between polls, so elapsed time and "ago" stay live.
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(
+                        [
+                            PipelineModel.label(for: job.state), model.timing(of: job, now: context.date),
+                            job.isCurrent ? "this VM" : nil,
+                        ].compactMap { $0 }.joined(separator: " · ")
+                    )
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 0)
             Text("›").foregroundStyle(.tertiary)
@@ -126,8 +131,21 @@ struct PipelineView: View {
             }
             ScrollView {
                 VStack(spacing: 6) {
-                    ForEach(Array(job.steps.enumerated()), id: \.offset) { _, step in
-                        stepRow(step)
+                    Button {
+                        model.selectJobOutput()
+                    } label: {
+                        outputRow("Whole job output")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Show the output of \(job.name)")
+                    ForEach(Array(job.steps.enumerated()), id: \.offset) { index, step in
+                        Button {
+                            model.selectStep(index)
+                        } label: {
+                            stepRow(step)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Show the output of \(step.name), \(PipelineModel.label(for: step.state))")
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -135,21 +153,77 @@ struct PipelineView: View {
         }
     }
 
-    private func stepRow(_ step: PipelineStep) -> some View {
+    private func outputRow(_ title: String) -> some View {
         HStack(spacing: 10) {
-            StateGlyph(state: step.state)
-            Text(step.name).font(.system(size: 12)).lineLimit(2)
+            Text("≡").font(.system(size: 14, weight: .bold)).foregroundStyle(.secondary).frame(width: 16)
+            Text(title).font(.system(size: 12))
             Spacer(minLength: 8)
-            if let duration = model.duration(of: step) {
-                Text(duration).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
-            }
+            Text("›").foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .formSurface(cornerRadius: 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(step.name), \(PipelineModel.label(for: step.state))")
+        .contentShape(Rectangle())
+    }
+
+    private func stepRow(_ step: PipelineStep) -> some View {
+        HStack(spacing: 10) {
+            StateGlyph(state: step.state)
+            Text(step.name).font(.system(size: 12)).lineLimit(2)
+            Spacer(minLength: 8)
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                if let timing = model.timing(of: step, now: context.date) {
+                    Text(timing).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                }
+            }
+            Text("›").foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .formSurface(cornerRadius: 6)
+        .contentShape(Rectangle())
+    }
+
+    // MARK: - Output
+
+    private var outputPane: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                if let state = model.logState { StateGlyph(state: state) }
+                Text(model.logTitle).font(.system(size: 14, weight: .semibold)).lineLimit(2)
+                Spacer(minLength: 8)
+                if model.logState == .running {
+                    Text("● live").font(.system(size: 11, weight: .semibold)).foregroundStyle(StatusStyle.ok.color)
+                }
+            }
+            if let step = model.openStep {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    if let timing = model.timing(of: step, now: context.date) { HintText(timing) }
+                }
+            }
+            if let notice = model.logNotice { HintText(notice) }
+            if let placeholder = model.logPlaceholder {
+                StatusText(text: placeholder, style: model.logError == nil ? .secondary : .error)
+                Spacer(minLength: 0)
+            } else if let text = model.log?.text {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        Text(text)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                        Color.clear.frame(height: 1).id("end")
+                    }
+                    .formSurface(cornerRadius: 6)
+                    // Follow the tail as new output arrives.
+                    .onChange(of: text) { proxy.scrollTo("end", anchor: .bottom) }
+                    .onAppear { proxy.scrollTo("end", anchor: .bottom) }
+                }
+            }
+        }
     }
 }
 

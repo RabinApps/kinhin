@@ -88,11 +88,15 @@ public protocol GitHubServing: Sendable {
     func projectFile(repository: String, ref: String?) async throws -> Data?
     /// The in-progress job `runnerName` is executing, with its steps.
     func pipelineDetail(runnerName: String) async throws -> PipelineDetail?
+    /// The raw log of one job (`owner/name`, job id) so far; nil when the
+    /// client can't read logs.
+    func jobLog(repository: String, jobID: Int) async throws -> String?
 }
 
 extension GitHubServing {
     public var rateLimit: ForgeRateLimit? { nil }
     public func pipelineDetail(runnerName: String) async throws -> PipelineDetail? { nil }
+    public func jobLog(repository: String, jobID: Int) async throws -> String? { nil }
     public func projectFile(repository: String, ref: String?) async throws -> Data? { nil }
 }
 

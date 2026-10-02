@@ -55,6 +55,8 @@ The running job request names its build (`owner.id`), project (`scopeId`) and ti
 `/builds/{id}` for the title, branch and link. This request-to-build link is undocumented (like the job requests
 endpoint itself); a request without it shows no detail.
 
+Output is `GET /{project}/_apis/build/builds/{id}/logs/{logId}`, with the log id taken from the timeline record of the task (or job).
+
 ## Registration flow
 
 - Registration mode `sharedLongLived`, exit semantics `deregisters` (`AzureDevOpsForge.swift:28-29`).

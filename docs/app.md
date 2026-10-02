@@ -44,16 +44,23 @@ pipeline's jobs with their state and elapsed time, the job on this VM marked *th
 steps; **‹ All jobs** goes back. The view refreshes every two seconds while it is open, shows the last state when the
 job finishes, and **Open in browser** jumps to the run on the forge.
 
+Elapsed times tick every second between refreshes, and each job and step shows when it started or finished ("started 2m
+ago", "finished 5s ago"). Click a step (or **Whole job output**) to read its output live: the pane follows the tail as
+new lines arrive and shows a **live** mark while the step runs. **‹ Steps** goes back.
+
 What a forge exposes decides how deep it goes (the sheet says so when a forge reports jobs only):
 
-| Forge        | Jobs                         | Steps within a job                          |
-| ------------ | ---------------------------- | ------------------------------------------- |
-| GitHub       | every job of the run         | yes                                         |
-| Azure DevOps | the build timeline's jobs    | yes (the job's tasks)                       |
-| GitLab       | the pipeline's jobs          | no (GitLab's API has no steps below a job) |
-| Buildkite    | the build's script jobs      | no                                          |
-| Bitbucket    | the pipeline's steps         | no (every running step is marked as yours) |
-| Gitea, Forgejo | the running task           | no                                          |
+| Forge          | Jobs                      | Steps within a job                         | Output                              |
+| -------------- | ------------------------- | ------------------------------------------ | ----------------------------------- |
+| GitHub         | every job of the run      | yes                                        | per step (sliced from the job log)  |
+| Azure DevOps   | the build timeline's jobs | yes (the job's tasks)                      | per step, and per job               |
+| GitLab         | the pipeline's jobs       | no (GitLab's API has no steps below a job) | per job (the trace)                 |
+| Buildkite      | the build's script jobs   | no                                         | per job (needs `read_build_logs`)   |
+| Bitbucket      | the pipeline's steps      | no (every running step is marked as yours) | per step (Bitbucket's unit)         |
+| Gitea, Forgejo | the running task          | no                                         | not available (no stable public API) |
+
+Output is cleaned of terminal colors and keeps the most recent 200,000 characters. A forge may not serve a log until the
+step has produced some, so a new step can read "no output yet" for a moment.
 
 The CLI shows the same thing:
 
@@ -61,7 +68,10 @@ The CLI shows the same thing:
 kinhin pipeline                          # every busy VM: its jobs, and the steps of this VM's job
 kinhin pipeline kinhin-1700000000-ab12   # one VM
 kinhin pipeline kinhin-1700000000-ab12 --job build   # just that job's steps (id, name, or a unique part of it)
-kinhin pipeline --watch                  # refresh every 2s
+kinhin pipeline --watch                  # refresh every 2s (elapsed times and "ago" stay live)
+kinhin pipeline --step 2                 # print step 2's output (number, name, or a unique part of it)
+kinhin pipeline kinhin-1700000000-ab12 --job build --step Test --follow   # stream it until the step finishes
+kinhin pipeline --log --follow           # the whole job's output (with one busy VM, no VM name is needed)
 kinhin pipeline --json                   # machine-readable: [{"vm": …, "pipeline": …}]
 ```
 

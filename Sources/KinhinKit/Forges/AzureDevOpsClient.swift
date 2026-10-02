@@ -91,6 +91,13 @@ public struct AzureDevOpsClient: Sendable {
         return try decode(data, "build timeline")
     }
 
+    /// One log of a build (a job's or a task's), as text.
+    func buildLog(project: String, buildID: Int, logID: Int) async throws -> String {
+        let (data, _) = try await send(
+            "GET", "/\(project)/_apis/build/builds/\(buildID)/logs/\(logID)", accept: "text/plain")
+        return String(decoding: data, as: UTF8.self)
+    }
+
     func build(project: String, buildID: Int) async throws -> AzureDevOpsBuildInfo {
         let (data, _) = try await send("GET", "/\(project)/_apis/build/builds/\(buildID)")
         return try decode(data, "build")
@@ -127,12 +134,12 @@ public struct AzureDevOpsClient: Sendable {
     }
 
     /// Sends with retry on transient failures (network errors, 429, 5xx).
-    func send(_ method: String, _ path: String, _ query: [URLQueryItem] = []) async throws
-        -> (Data, HTTPURLResponse)
-    {
+    func send(
+        _ method: String, _ path: String, _ query: [URLQueryItem] = [], accept: String = "application/json"
+    ) async throws -> (Data, HTTPURLResponse) {
         let target = try url(path, query)
         return try await withTransientRetry(isTransient: Self.isTransient) {
-            try await sendOnce(method, target)
+            try await sendOnce(method, target, accept: accept)
         }
     }
 
@@ -141,12 +148,12 @@ public struct AzureDevOpsClient: Sendable {
         return ForgeHTTP.isTransientNetworkError(error)
     }
 
-    private func sendOnce(_ method: String, _ url: URL) async throws -> (Data, HTTPURLResponse) {
+    private func sendOnce(_ method: String, _ url: URL, accept: String) async throws -> (Data, HTTPURLResponse) {
         var req = URLRequest(url: url)
         req.httpMethod = method
         let basic = Data(":\(credentials.token)".utf8).base64EncodedString()
         req.setValue("Basic \(basic)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue(accept, forHTTPHeaderField: "Accept")
         req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else {

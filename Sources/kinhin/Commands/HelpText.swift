@@ -92,8 +92,10 @@ func helpText() -> String {
         logs [-n N]                 Show recent log lines
         watch                       Live status view (refreshes every 2s)
         pipeline [VM] [--job NAME|ID] [--watch] [--json]
-                                    Show the live pipeline a busy VM is running: its jobs and steps.
-                                    No VM: every busy VM. --job: just that job's steps. Needs the daemon
+                                    Show the live pipeline a busy VM is running: its jobs and steps, with live
+                                    timing. No VM: every busy VM. --job: just that job's steps. Needs the daemon
+        pipeline [VM] [--job NAME|ID] --step N|NAME | --log [--follow] [--json]
+                                    Print one step's (or the whole job's) output; --follow keeps streaming it
 
     OTHER:
         support                     Show ways to donate or sponsor kinhin

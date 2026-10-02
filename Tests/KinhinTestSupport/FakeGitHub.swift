@@ -37,6 +37,7 @@ final class FakeGitHub: GitHubServing, Sendable {
         /// What `pipelineDetail` answers, and the runner names it was asked for.
         var pipeline: PipelineDetail?
         var pipelineRunnerNames: [String] = []
+        var jobLogs: [String: String] = [:]
         /// Branch/tag, sha and fork flag cycled through the queued jobs.
         var queueRefs: [String] = []
         var queueShas: [String] = []
@@ -100,6 +101,16 @@ final class FakeGitHub: GitHubServing, Sendable {
     var pipeline: PipelineDetail? {
         get { state.withLock { $0.pipeline } }
         set { state.withLock { $0.pipeline = newValue } }
+    }
+
+    /// Raw job logs by "owner/name|jobID".
+    var jobLogs: [String: String] {
+        get { state.withLock { $0.jobLogs } }
+        set { state.withLock { $0.jobLogs = newValue } }
+    }
+
+    func jobLog(repository: String, jobID: Int) async throws -> String? {
+        state.withLock { $0.jobLogs["\(repository)|\(jobID)"] }
     }
 
     var pipelineRunnerNames: [String] { state.withLock { $0.pipelineRunnerNames } }

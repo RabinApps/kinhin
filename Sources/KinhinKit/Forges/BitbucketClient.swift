@@ -146,6 +146,14 @@ public struct BitbucketClient: Sendable {
         return active
     }
 
+    /// A step's log so far (`repository` is "workspace/repo").
+    func stepLog(repository: String, pipeline: String, step: String) async throws -> String {
+        let (data, _) = try await send(
+            "GET", "/2.0/repositories/\(repository)/pipelines/\(pipeline)/steps/\(step)/log",
+            accept: "application/octet-stream")
+        return String(decoding: data, as: UTF8.self)
+    }
+
     /// The workspace's repositories by last activity (newest first), for the
     /// "poll recently active repos only" demand strategy: one page (100)
     /// bounds the read.
@@ -242,13 +250,17 @@ public struct BitbucketClient: Sendable {
     }
 
     /// Sends with retry on transient failures (network errors, 429, 5xx).
-    func send(_ method: String, _ path: String, body: Data? = nil) async throws -> (Data, HTTPURLResponse) {
-        try await send(method, try url(path), body: body)
+    func send(_ method: String, _ path: String, body: Data? = nil, accept: String = "application/json") async throws
+        -> (Data, HTTPURLResponse)
+    {
+        try await send(method, try url(path), body: body, accept: accept)
     }
 
-    private func send(_ method: String, _ url: URL, body: Data?) async throws -> (Data, HTTPURLResponse) {
+    private func send(_ method: String, _ url: URL, body: Data?, accept: String = "application/json") async throws
+        -> (Data, HTTPURLResponse)
+    {
         try await withTransientRetry(isTransient: Self.isTransient) {
-            try await sendOnce(method, url, body: body)
+            try await sendOnce(method, url, body: body, accept: accept)
         }
     }
 
@@ -257,11 +269,13 @@ public struct BitbucketClient: Sendable {
         return ForgeHTTP.isTransientNetworkError(error)
     }
 
-    private func sendOnce(_ method: String, _ url: URL, body: Data?) async throws -> (Data, HTTPURLResponse) {
+    private func sendOnce(_ method: String, _ url: URL, body: Data?, accept: String) async throws -> (
+        Data, HTTPURLResponse
+    ) {
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.setValue("Bearer \(credentials.token)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue(accept, forHTTPHeaderField: "Accept")
         req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
         if let body {
             req.httpBody = body

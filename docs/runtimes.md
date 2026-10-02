@@ -149,7 +149,7 @@ The app and `kinhin status` show live CPU and RAM per instance (see
 | **apple/container**  | `container stats`                        | Not shown (the CLI only exposes a cumulative counter) | Used / limit         |
 
 For tart these are the host's view of the VM process, not metrics from inside the guest. CPU appears from the second
-sample. Samples are cached for about 5 seconds, so the app's refresh does not run a stats command every tick. Only
+sample. Samples are cached for about 2 seconds, so several readers (the app, the CLI) share one stats command. Only
 active instances are measured.
 
 ## Per-repo and per-workflow routing

@@ -47,6 +47,13 @@ struct ContainersView: View {
         }
         .padding(.leading, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Live CPU/RAM: SwiftUI cancels this task when the tab goes away.
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))  // cancellation ends the loop via isCancelled
+                await model.refreshUsage()
+            }
+        }
     }
 
     private func containerRow(_ item: ManagedContainer) -> some View {

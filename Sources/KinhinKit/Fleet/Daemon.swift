@@ -197,6 +197,13 @@ public enum Daemon {
                 // No job running is a valid answer: an ok response with no payload.
                 let detail = try await engine.pipelineDetail(vmID: id)
                 return RPCResponse(id: request.id, ok: true, payload: try detail.map { try encoder.encode($0) })
+            case .pipelineLog:
+                guard let ask = decodePayload(PipelineLogRequest.self) else {
+                    return RPCResponse(
+                        id: request.id, ok: false, error: "expected {\"id\": \"...\", \"jobID\": \"...\"}")
+                }
+                let log = try await engine.pipelineLog(vmID: ask.id, jobID: ask.jobID, stepIndex: ask.stepIndex)
+                return RPCResponse(id: request.id, ok: true, payload: try log.map { try encoder.encode($0) })
             case .replaceGiteaToken, .replaceForgejoToken:
                 // Gitea/Forgejo tokens are account tokens under the accounts
                 // schema; the legacy RPC cases stay on the wire but route to
@@ -295,6 +302,19 @@ public enum Daemon {
             return RPCResponse(id: request.id, ok: true)
         } catch {
             return RPCResponse(id: request.id, ok: false, error: "reload failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Payload of `pipeline_log`: a job of the VM's pipeline and, optionally,
+    /// the position of one of its steps.
+    public struct PipelineLogRequest: Codable {
+        public let id: String
+        public let jobID: String
+        public let stepIndex: Int?
+        public init(id: String, jobID: String, stepIndex: Int?) {
+            self.id = id
+            self.jobID = jobID
+            self.stepIndex = stepIndex
         }
     }
 

@@ -89,6 +89,14 @@ final class ContainersModel {
         }
     }
 
+    /// Re-reads only the live CPU/RAM numbers (the Containers tab calls this
+    /// every few seconds while visible). Best effort; skipped while a reload
+    /// or action is in flight and when nothing is running.
+    func refreshUsage() async {
+        guard !busy, tool.isInstalled, containers.contains(where: \.isRunning) else { return }
+        usage = (try? await makeManager(tool).stats()) ?? usage
+    }
+
     // MARK: - Actions
 
     func lifecycle(for item: ManagedContainer) -> [Lifecycle] {

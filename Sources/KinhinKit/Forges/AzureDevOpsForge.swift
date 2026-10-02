@@ -122,13 +122,15 @@ struct AzureDevOpsForge: Forge {
                 .map {
                     PipelineStep(
                         name: $0.name ?? "task", state: Self.state(state: $0.state, result: $0.result),
-                        startedAt: PipelineParsing.date($0.startTime), finishedAt: PipelineParsing.date($0.finishTime))
+                        startedAt: PipelineParsing.date($0.startTime), finishedAt: PipelineParsing.date($0.finishTime),
+                        logRef: logRef($0, project: project, buildID: buildID))
                 }
             let isCurrent = request.jobId.map { $0.caseInsensitiveCompare(job.id) == .orderedSame } ?? false
             return PipelineJob(
                 id: job.id, name: job.name ?? "job", state: Self.state(state: job.state, result: job.result),
                 startedAt: PipelineParsing.date(job.startTime), finishedAt: PipelineParsing.date(job.finishTime),
-                steps: steps, isCurrent: isCurrent || job.workerName == runnerName)
+                steps: steps, isCurrent: isCurrent || job.workerName == runnerName,
+                logRef: logRef(job, project: project, buildID: buildID))
         }
         guard !mapped.isEmpty else { return nil }
         return PipelineDetail(
@@ -138,6 +140,20 @@ struct AzureDevOpsForge: Forge {
             repository: request.pipeline, ref: info?.sourceBranch, sha: info?.sourceVersion,
             url: info?.links?.web?.href, state: PipelineDetail.aggregate(mapped.map(\.state)),
             startedAt: mapped.compactMap(\.startedAt).min(), jobs: mapped, granularity: .step)
+    }
+
+    private func logRef(_ record: AzureDevOpsTimelineRecord, project: String, buildID: Int) -> String? {
+        record.log?.id.map { "\(project)|\(buildID)|\($0)" }
+    }
+
+    /// A task's (or the whole job's) log from the build's log store.
+    func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? {
+        guard let ref = (step?.logRef ?? (step == nil ? job.logRef : nil)) else { return nil }
+        let parts = ref.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 3, let buildID = Int(parts[1]), let logID = Int(parts[2]) else { return nil }
+        let raw = try await client.buildLog(project: parts[0], buildID: buildID, logID: logID)
+        let (text, truncated) = PipelineLogText.clean(raw)
+        return PipelineLog(text: text, scope: step == nil ? .job : .step, truncated: truncated)
     }
 
     static func state(state: String?, result: String?) -> PipelineStepState {

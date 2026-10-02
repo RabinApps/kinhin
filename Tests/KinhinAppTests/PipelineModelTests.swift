@@ -115,3 +115,80 @@ final class PipelineModelTests: MainWindowTestCase {
         XCTAssertEqual(PipelineModel.duration(from: start, to: start.addingTimeInterval(3_720)), "1h 02m")
     }
 }
+
+/// The pipeline sheet's output pane: opening a step's output, following it,
+/// and stepping back out.
+@MainActor
+final class PipelineOutputModelTests: MainWindowTestCase {
+    private func loadedModel() async throws -> PipelineModel {
+        fake.pipeline = PipelineDetail(
+            forge: .github, title: "CI", state: .running,
+            jobs: [
+                PipelineJob(
+                    id: "1", name: "build", state: .running,
+                    steps: [
+                        PipelineStep(name: "Checkout", state: .succeeded),
+                        PipelineStep(name: "Test", state: .running),
+                    ], isCurrent: true)
+            ])
+        let model = models.makePipelineModel(vmID: "kinhin-vm-1")
+        await model.load()
+        model.select(try XCTUnwrap(model.detail?.jobs.first))
+        return model
+    }
+
+    func testOpeningAStepLoadsItsOutputAndRefreshFollowsIt() async throws {
+        let model = try await loadedModel()
+        model.selectStep(1)
+        XCTAssertEqual(model.logTitle, "Test")
+        XCTAssertEqual(model.logPlaceholder, "Loading output…")
+
+        fake.pipelineLogResult = PipelineLog(text: "step one\n", scope: .step)
+        await model.refresh()
+        XCTAssertTrue(fake.calls.contains("pipelineLog(kinhin-vm-1,1,1)"))
+        XCTAssertEqual(model.log?.text, "step one\n")
+        XCTAssertNil(model.logPlaceholder)
+
+        fake.pipelineLogResult = PipelineLog(text: "step one\nstep two\n", scope: .step)
+        await model.refresh()
+        XCTAssertEqual(model.log?.text, "step one\nstep two\n", "the open output follows new text")
+    }
+
+    func testWholeJobOutputUsesNoStepIndex() async throws {
+        let model = try await loadedModel()
+        fake.pipelineLogResult = PipelineLog(text: "all\n", scope: .job)
+        model.selectJobOutput()
+        await model.loadLog()
+        XCTAssertTrue(fake.calls.contains("pipelineLog(kinhin-vm-1,1,-)"))
+        XCTAssertEqual(model.logTitle, "build — whole job")
+    }
+
+    func testNoOutputFromTheForgeSaysSo() async throws {
+        let model = try await loadedModel()
+        fake.pipelineLogResult = nil
+        model.selectStep(0)
+        await model.loadLog()
+        XCTAssertEqual(model.logPlaceholder, "GitHub has no output for this step (yet).")
+    }
+
+    func testBackLeavesTheOutputThenTheJob() async throws {
+        let model = try await loadedModel()
+        model.selectStep(0)
+        model.back()
+        XCTAssertNil(model.logTarget)
+        XCTAssertNotNil(model.selectedJob, "back from output returns to the job's steps")
+        model.back()
+        XCTAssertNil(model.selectedJob)
+    }
+
+    func testFailureIsShownAndKeepsTheLastText() async throws {
+        let model = try await loadedModel()
+        fake.pipelineLogResult = PipelineLog(text: "partial\n", scope: .step)
+        model.selectStep(1)
+        await model.loadLog()
+        fake.commandError = EngineError.unknownPipelineJob("1")
+        await model.loadLog()
+        XCTAssertNotNil(model.logError)
+        XCTAssertEqual(model.log?.text, "partial\n", "a failed poll doesn't blank the output")
+    }
+}

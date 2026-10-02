@@ -209,7 +209,7 @@ struct BitbucketForge: Forge {
             PipelineJob(
                 id: step.uuid, name: step.name ?? "step", state: Self.state(step),
                 startedAt: PipelineParsing.date(step.startedOn), finishedAt: PipelineParsing.date(step.completedOn),
-                isCurrent: step.isRunning)
+                isCurrent: step.isRunning, logRef: "\(active.repository)|\(active.pipeline.uuid)|\(step.uuid)")
         }
         let number = active.pipeline.buildNumber
         return PipelineDetail(
@@ -218,6 +218,15 @@ struct BitbucketForge: Forge {
             url: number.map { "https://bitbucket.org/\(active.repository)/pipelines/results/\($0)" },
             state: PipelineDetail.aggregate(mapped.map(\.state)),
             startedAt: PipelineParsing.date(active.pipeline.createdOn), jobs: mapped, granularity: .job)
+    }
+
+    /// A step's log; a Bitbucket step is the unit here, so `step` is ignored.
+    func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? {
+        let parts = job.logRef?.split(separator: "|", omittingEmptySubsequences: false).map(String.init) ?? []
+        guard parts.count == 3 else { return nil }
+        let raw = try await client.stepLog(repository: parts[0], pipeline: parts[1], step: parts[2])
+        let (text, truncated) = PipelineLogText.clean(raw)
+        return PipelineLog(text: text, scope: .job, truncated: truncated)
     }
 
     static func state(_ step: BitbucketStep) -> PipelineStepState {

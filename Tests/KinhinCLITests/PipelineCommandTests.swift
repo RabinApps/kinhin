@@ -34,6 +34,11 @@ final class PipelineCommandTests: XCTestCase {
         let full = PipelineCommand.parse(["pipeline", "kinhin-1", "--job", "build", "--json"])
         XCTAssertEqual(full, PipelineCommand.Options(vm: "kinhin-1", job: "build", watch: false, json: true))
         XCTAssertTrue(PipelineCommand.parse(["pipeline", "--watch"])?.watch == true)
+        let output = PipelineCommand.parse(["pipeline", "kinhin-1", "--step", "3", "--follow"])
+        XCTAssertEqual(output?.step, "3")
+        XCTAssertTrue(output?.follow == true && output?.wantsOutput == true)
+        XCTAssertTrue(PipelineCommand.parse(["pipeline", "--log", "-f"])?.log == true)
+        XCTAssertNil(PipelineCommand.parse(["pipeline", "--step"]), "--step needs a value")
         XCTAssertNil(PipelineCommand.parse(["pipeline", "--job"]), "--job needs a value")
         XCTAssertNil(PipelineCommand.parse(["pipeline", "a", "b"]), "one VM at most")
         XCTAssertNil(PipelineCommand.parse(["pipeline", "--bogus"]))
@@ -43,13 +48,14 @@ final class PipelineCommandTests: XCTestCase {
 
     func testOverviewListsJobsAndStepsOfTheVMsOwnJob() throws {
         let text = try PipelineCommand.format(
-            [.init(vm: "kinhin-1", pipeline: detail)], options: .init(), requested: false)
+            [.init(vm: "kinhin-1", pipeline: detail)], options: .init(), requested: false,
+            now: start.addingTimeInterval(125))
         XCTAssertTrue(text.contains("GitHub · CI  (kinhin-1)"))
         XCTAssertTrue(text.contains("acme/api · main · abcdef1"))
-        XCTAssertTrue(text.contains("◐ build  [Running · "), text)
-        XCTAssertTrue(text.contains("this VM"))
-        XCTAssertTrue(text.contains("    ✓ Checkout  4s"))
-        XCTAssertTrue(text.contains("✓ lint  [Succeeded · 3s]"))
+        XCTAssertTrue(text.contains("◐ build  [Running · 2m 05s · started 2m ago · this VM]"), text)
+        XCTAssertTrue(text.contains("    ✓ Checkout  4s · finished 2m ago"), text)
+        XCTAssertTrue(text.contains("    ◐ Test  2m 00s · started 2m ago"), text)
+        XCTAssertTrue(text.contains("✓ lint  [Succeeded · 3s · finished 2m ago]"), text)
         XCTAssertFalse(text.contains("swiftlint"), "other jobs' steps only show when asked for")
     }
 
@@ -104,5 +110,42 @@ final class PipelineCommandTests: XCTestCase {
         XCTAssertEqual(PipelineFormatter.job(matching: "Build", in: pipeline)?.id, "1")
         XCTAssertEqual(PipelineFormatter.job(matching: "li", in: pipeline)?.name, "lint")
         XCTAssertNil(PipelineFormatter.job(matching: "x", in: pipeline))
+    }
+
+    // MARK: - Output
+
+    func testStepMatchingByNumberNameAndUniquePartial() {
+        let job = detail.jobs[0]  // Checkout, Test
+        XCTAssertEqual(PipelineCommand.stepIndex(matching: "2", in: job), 1)
+        XCTAssertNil(PipelineCommand.stepIndex(matching: "3", in: job))
+        XCTAssertEqual(PipelineCommand.stepIndex(matching: "checkout", in: job), 0)
+        XCTAssertEqual(PipelineCommand.stepIndex(matching: "tes", in: job), 1)
+        XCTAssertNil(PipelineCommand.stepIndex(matching: "e", in: job), "ambiguous")
+    }
+
+    func testTargetDefaultsToTheVMsOwnJob() throws {
+        let target = try PipelineCommand.resolveTarget(.init(step: "Test"), in: detail)
+        XCTAssertEqual(target.job.name, "build")
+        XCTAssertEqual(target.stepIndex, 1)
+        XCTAssertEqual(target.title, "build › Test")
+        let wholeJob = try PipelineCommand.resolveTarget(.init(job: "lint", log: true), in: detail)
+        XCTAssertNil(wholeJob.stepIndex)
+        XCTAssertThrowsError(try PipelineCommand.resolveTarget(.init(step: "nope"), in: detail)) {
+            XCTAssertEqual($0 as? PipelineCommandError, .unknownStep("nope", ["Checkout", "Test"]))
+        }
+    }
+
+    func testFollowerPrintsOnlyNewOutput() {
+        var follower = PipelineCommand.LogFollower()
+        XCTAssertEqual(follower.delta("one\ntwo\n"), "one\ntwo\n")
+        XCTAssertEqual(follower.delta("one\ntwo\n"), "", "nothing new")
+        XCTAssertEqual(follower.delta("one\ntwo\nthree\n"), "three\n")
+        // The log keeps only its recent part: its start is cut but the printed end still anchors.
+        var long = PipelineCommand.LogFollower()
+        let lines = (1...300).map { "line number \($0)" }
+        _ = long.delta(lines.joined(separator: "\n") + "\n")
+        let cut = (51...302).map { "line number \($0)" }.joined(separator: "\n") + "\n"
+        XCTAssertEqual(long.delta(cut), "line number 301\nline number 302\n")
+        XCTAssertTrue(follower.delta("unrelated\n").contains("output restarted"))
     }
 }

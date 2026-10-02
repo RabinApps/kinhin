@@ -30,6 +30,28 @@ extension FleetEngine {
         return found
     }
 
+    /// The output of one step (or, with no `stepIndex`, the whole job) of the
+    /// pipeline `vmID` is running, or nil when the VM runs no job or its forge
+    /// can't provide output. `jobID` and `stepIndex` come from `pipelineDetail`.
+    ///
+    /// Throws `EngineError.unknownVM` for an id not in the store and
+    /// `unknownPipelineJob` for a job (or step position) the pipeline lacks.
+    public func pipelineLog(vmID: String, jobID: String, stepIndex: Int?) async throws -> PipelineLog? {
+        guard let detail = try await pipelineDetail(vmID: vmID) else { return nil }
+        guard let job = detail.jobs.first(where: { $0.id == jobID }) else {
+            throw EngineError.unknownPipelineJob(jobID)
+        }
+        var step: PipelineStep?
+        if let stepIndex {
+            guard job.steps.indices.contains(stepIndex) else { throw EngineError.unknownPipelineJob(jobID) }
+            step = job.steps[stepIndex]
+        }
+        guard let record = store.all.first(where: { $0.id == vmID }), let platform = record.platform,
+            let forge = forges[platform]
+        else { return nil }
+        return try await forge.pipelineLog(job: job, step: step)
+    }
+
     /// The runner names a VM registered: its own id, or `<id>-rN` per runner.
     func runnerNames(of record: VMRecord) -> [String] {
         let count = max(1, config.runnersPerVM)

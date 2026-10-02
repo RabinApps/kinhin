@@ -226,6 +226,10 @@ struct AzureDevOpsTimelineRecord: Decodable, Sendable, Equatable {
     let startTime: String?
     let finishTime: String?
     let workerName: String?
+    /// The record's log, when it has one.
+    let log: LogRef?
+
+    struct LogRef: Decodable, Sendable, Equatable { let id: Int? }
 }
 
 struct AzureDevOpsTimeline: Decodable, Sendable, Equatable {

@@ -54,6 +54,16 @@ public struct RPCClient: Sendable {
         return try JSONDecoder().decode(PipelineDetail.self, from: data)
     }
 
+    /// The output of a step (or job, with no `stepIndex`) of `vmID`'s pipeline;
+    /// nil when there is none to show.
+    public func pipelineLog(vmID: String, jobID: String, stepIndex: Int?) throws -> PipelineLog? {
+        let payload = try JSONEncoder().encode(
+            Daemon.PipelineLogRequest(id: vmID, jobID: jobID, stepIndex: stepIndex))
+        let response = try command(.pipelineLog, payload: payload)
+        guard let data = response.payload else { return nil }
+        return try JSONDecoder().decode(PipelineLog.self, from: data)
+    }
+
     /// Ask the daemon to swap its PAT (it must already be in the Keychain).
     public func replaceToken(pat: String) throws {
         try command(.replaceToken, payload: JSONEncoder().encode(TokenReplaceRequest(pat: pat)))

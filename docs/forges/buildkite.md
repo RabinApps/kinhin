@@ -50,6 +50,8 @@ Buildkite's docs agree for each call kinhin makes: list agents `read_agents`, st
 whose running script job has this agent's name is shown, with every script job (waiter, block and trigger steps left
 out) and the build's `web_url`. Buildkite exposes jobs, not steps within a job, so the view is job-level.
 
+Output is `GET /organizations/{org}/pipelines/{slug}/builds/{n}/jobs/{id}/log`, which needs the token's `read_build_logs` scope.
+
 ## Registration flow
 
 - Registration mode `sharedLongLived`, exit semantics `deregisters` (`BuildkiteForge.swift:24-25`).

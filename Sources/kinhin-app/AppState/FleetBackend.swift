@@ -18,6 +18,8 @@ protocol FleetServing: Sendable {
     func deleteVM(id: String) async throws
     /// The live pipeline (jobs and steps) a VM is running; nil when it runs none.
     func pipelineDetail(vmID: String) async throws -> PipelineDetail?
+    /// The output of a step (or job, with no `stepIndex`) of a VM's pipeline.
+    func pipelineLog(vmID: String, jobID: String, stepIndex: Int?) async throws -> PipelineLog?
     /// Hand a token already saved in the Keychain to the fleet.
     func rotate(_ target: CredentialRotation.Target, token: String) async throws
     /// A short name for log lines.
@@ -79,6 +81,14 @@ enum FleetBackend: Sendable {
         switch self {
         case .inProcess(let engine): return try await engine.pipelineDetail(vmID: vmID)
         case .daemon(let client): return try await client.perform { try $0.pipelineDetail(vmID: vmID) }
+        }
+    }
+
+    func pipelineLog(vmID: String, jobID: String, stepIndex: Int?) async throws -> PipelineLog? {
+        switch self {
+        case .inProcess(let engine): return try await engine.pipelineLog(vmID: vmID, jobID: jobID, stepIndex: stepIndex)
+        case .daemon(let client):
+            return try await client.perform { try $0.pipelineLog(vmID: vmID, jobID: jobID, stepIndex: stepIndex) }
         }
     }
 

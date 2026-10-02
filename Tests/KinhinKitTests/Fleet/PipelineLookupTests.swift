@@ -80,3 +80,73 @@ final class PipelineLookupTests: XCTestCase {
         XCTAssertFalse(bad.ok)
     }
 }
+
+/// The engine's per-step output lookup and its daemon RPC.
+final class PipelineLogLookupTests: XCTestCase {
+    private func makeEngine(github: FakeGitHub) -> FleetEngine {
+        FleetEngine(
+            config: makeTestConfig(), github: github, tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
+            host: testHost)
+    }
+
+    private func setUpBusyVM(_ github: FakeGitHub) -> FleetEngine {
+        let steps = [
+            PipelineStep(name: "Checkout", state: .succeeded, startedAt: PipelineParsing.date("2026-10-02T10:00:01Z")),
+            PipelineStep(name: "Test", state: .running, startedAt: PipelineParsing.date("2026-10-02T10:00:05Z")),
+        ]
+        github.pipeline = PipelineDetail(
+            forge: .github, title: "CI", state: .running,
+            jobs: [
+                PipelineJob(
+                    id: "11", name: "build", state: .running, steps: steps, isCurrent: true,
+                    logRef: "acme/widgets|11")
+            ])
+        github.jobLogs["acme/widgets|11"] = """
+            2026-10-02T10:00:01.1000000Z checkout output
+            2026-10-02T10:00:06.0000000Z test output
+            """
+        let engine = makeEngine(github: github)
+        var record = VMRecord(id: "kinhin-vm-1", phase: .busy)
+        record.platform = "github"
+        record.job = "build"
+        engine.store.upsert(record)
+        return engine
+    }
+
+    func testStepOutputIsSlicedFromTheJobLog() async throws {
+        let engine = setUpBusyVM(FakeGitHub())
+        let step = try await engine.pipelineLog(vmID: "kinhin-vm-1", jobID: "11", stepIndex: 1)
+        XCTAssertEqual(step?.text, "2026-10-02T10:00:06.0000000Z test output")
+        let job = try await engine.pipelineLog(vmID: "kinhin-vm-1", jobID: "11", stepIndex: nil)
+        XCTAssertEqual(job?.scope, .job)
+    }
+
+    func testUnknownJobStepAndVMThrow() async throws {
+        let engine = setUpBusyVM(FakeGitHub())
+        do {
+            _ = try await engine.pipelineLog(vmID: "kinhin-vm-1", jobID: "nope", stepIndex: nil)
+            XCTFail("expected unknownPipelineJob")
+        } catch EngineError.unknownPipelineJob {}
+        do {
+            _ = try await engine.pipelineLog(vmID: "kinhin-vm-1", jobID: "11", stepIndex: 9)
+            XCTFail("expected unknownPipelineJob")
+        } catch EngineError.unknownPipelineJob {}
+        do {
+            _ = try await engine.pipelineLog(vmID: "kinhin-gone", jobID: "11", stepIndex: nil)
+            XCTFail("expected unknownVM")
+        } catch EngineError.unknownVM {}
+    }
+
+    func testRPCRoundTrip() async throws {
+        let engine = setUpBusyVM(FakeGitHub())
+        let ask = try JSONEncoder().encode(Daemon.PipelineLogRequest(id: "kinhin-vm-1", jobID: "11", stepIndex: 0))
+        let response = await Daemon.handle(RPCRequest(id: 1, method: .pipelineLog, payload: ask), engine: engine)
+        XCTAssertTrue(response.ok)
+        let log = try JSONDecoder().decode(PipelineLog.self, from: XCTUnwrap(response.payload))
+        XCTAssertTrue(log.text.contains("checkout output"))
+        XCTAssertFalse(log.text.contains("test output"))
+
+        let bad = await Daemon.handle(RPCRequest(id: 2, method: .pipelineLog, payload: Data("{}".utf8)), engine: engine)
+        XCTAssertFalse(bad.ok)
+    }
+}

@@ -29,6 +29,7 @@ final class RPCWireTests: XCTestCase {
         case .resume: return "resume"
         case .deleteVM: return "delete_vm"
         case .pipelineDetail: return "pipeline_detail"
+        case .pipelineLog: return "pipeline_log"
         case .replaceToken: return "replace_token"
         case .replaceGiteaToken: return "replace_gitea_token"
         case .replaceForgejoToken: return "replace_forgejo_token"
@@ -43,7 +44,7 @@ final class RPCWireTests: XCTestCase {
         // The daemon and old CLI binaries must agree on these strings forever.
         for method in [
             RPCMethod.status, .start, .stop, .pause, .resume,
-            .deleteVM, .pipelineDetail, .replaceToken, .replaceGiteaToken, .replaceAccountToken,
+            .deleteVM, .pipelineDetail, .pipelineLog, .replaceToken, .replaceGiteaToken, .replaceAccountToken,
             .reloadConfig, .logs, .ping,
         ] {
             XCTAssertEqual(method.rawValue, wireName(method), "\(method) must keep its wire name")

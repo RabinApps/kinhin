@@ -143,10 +143,16 @@ public protocol Forge: Sendable {
     /// their state), or nil when it runs no job or the forge can't tell.
     /// `repository` narrows the lookup where the forge needs it.
     func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail?
+    /// The output of `step` of `job` (the whole job when `step` is nil) as the
+    /// forge has it so far, or nil when the forge can't provide it. `job` and
+    /// `step` come from this forge's own `pipelineDetail`.
+    func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog?
 }
 
 extension Forge {
     public func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? { nil }
+
+    public func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? { nil }
 
     public var account: String { id.rawValue }
 

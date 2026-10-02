@@ -124,7 +124,8 @@ struct BuildkiteForge: Forge {
             PipelineJob(
                 id: job.id, name: job.name ?? job.id, state: Self.state(job.state),
                 startedAt: PipelineParsing.date(job.startedAt), finishedAt: PipelineParsing.date(job.finishedAt),
-                url: job.webURL, isCurrent: job.agent?.name == runnerName)
+                url: job.webURL, isCurrent: job.agent?.name == runnerName,
+                logRef: build.number.map { "\(build.pipeline.slug)|\($0)|\(job.id)" })
         }
         let number = build.number.map { " #\($0)" } ?? ""
         return PipelineDetail(
@@ -132,6 +133,15 @@ struct BuildkiteForge: Forge {
             repository: build.pipeline.slug, ref: build.branch, sha: build.commit, url: build.webURL,
             state: Self.state(build.state), startedAt: PipelineParsing.date(build.startedAt), jobs: mapped,
             granularity: .job)
+    }
+
+    /// A job's log; Buildkite has no steps below a job, so `step` is ignored.
+    func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? {
+        let parts = job.logRef?.split(separator: "|", omittingEmptySubsequences: false).map(String.init) ?? []
+        guard parts.count == 3, let build = Int(parts[1]) else { return nil }
+        let raw = try await client.jobLog(pipeline: parts[0], build: build, job: parts[2])
+        let (text, truncated) = PipelineLogText.clean(raw)
+        return PipelineLog(text: text, scope: .job, truncated: truncated)
     }
 
     static func state(_ state: String?) -> PipelineStepState {

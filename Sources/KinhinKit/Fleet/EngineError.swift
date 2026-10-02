@@ -17,6 +17,8 @@ public enum EngineError: LocalizedError, Sendable {
     /// A VM id that isn't one of kinhin's own (`kinhin-<ts>-<hex>`) or isn't
     /// in the store; deleting it would touch foreign runners or VMs.
     case unknownVM(String)
+    /// A pipeline job id that isn't in the VM's current pipeline.
+    case unknownPipelineJob(String)
 
     public var errorDescription: String? {
         switch self {
@@ -32,6 +34,8 @@ public enum EngineError: LocalizedError, Sendable {
             return "'\(id)' is not a \(forge.displayName) runner id"
         case .unknownVM(let id):
             return "'\(id)' is not a VM managed by kinhin"
+        case .unknownPipelineJob(let id):
+            return "'\(id)' is not a job of this VM's pipeline"
         }
     }
 }

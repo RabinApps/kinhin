@@ -51,6 +51,8 @@ The running job (`/projects/{id}/jobs?scope[]=running`, matched by runner descri
 then reads `GET /projects/{id}/pipelines/{pid}` and `/pipelines/{pid}/jobs`. GitLab's API has no step list below a job,
 so the view is job-level.
 
+Output is the job trace, `GET /projects/{id}/jobs/{job}/trace` (live while the job runs), cleaned of ANSI and section markers.
+
 ## Registration flow
 
 - Registration mode `perRunner`: one runner is created per VM runner name (`GitLabForge.swift:68-77`). Exit semantics `deregisters`.

@@ -126,12 +126,21 @@ struct GitLabForge: Forge {
             PipelineJob(
                 id: String(job.id), name: job.stage.map { "\($0) › \(job.name)" } ?? job.name,
                 state: Self.state(job.status), startedAt: PipelineParsing.date(job.startedAt),
-                finishedAt: PipelineParsing.date(job.finishedAt), url: job.webURL, isCurrent: job.id == mine.id)
+                finishedAt: PipelineParsing.date(job.finishedAt), url: job.webURL, isCurrent: job.id == mine.id,
+                logRef: "\(projectID)|\(job.id)")
         }
         return PipelineDetail(
             forge: .gitlab, title: "Pipeline #\(pipelineID)", repository: mine.project, ref: info.ref ?? mine.ref,
             sha: info.sha ?? mine.sha, url: info.webURL, state: Self.state(info.status),
             startedAt: PipelineParsing.date(info.startedAt), jobs: mapped, granularity: .job)
+    }
+
+    /// A job's trace; GitLab has no steps below a job, so `step` is ignored.
+    func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? {
+        let parts = job.logRef?.split(separator: "|").compactMap { Int($0) } ?? []
+        guard parts.count == 2 else { return nil }
+        let (text, truncated) = PipelineLogText.clean(try await client.jobTrace(projectID: parts[0], jobID: parts[1]))
+        return PipelineLog(text: text, scope: .job, truncated: truncated)
     }
 
     static func state(_ status: String?) -> PipelineStepState {

@@ -44,3 +44,37 @@ final class PipelineDetailTests: XCTestCase {
         XCTAssertEqual(decoded.currentJob?.id, "j")
     }
 }
+
+/// Live timing text shared by the app and the CLI.
+final class PipelineFormatterTimingTests: XCTestCase {
+    private let t0 = Date(timeIntervalSince1970: 10_000)
+
+    func testAgo() {
+        XCTAssertEqual(PipelineFormatter.ago(t0, now: t0.addingTimeInterval(1)), "just now")
+        XCTAssertEqual(PipelineFormatter.ago(t0, now: t0.addingTimeInterval(-30)), "just now", "clock skew")
+        XCTAssertEqual(PipelineFormatter.ago(t0, now: t0.addingTimeInterval(42)), "42s ago")
+        XCTAssertEqual(PipelineFormatter.ago(t0, now: t0.addingTimeInterval(125)), "2m ago")
+        XCTAssertEqual(PipelineFormatter.ago(t0, now: t0.addingTimeInterval(7_300)), "2h ago")
+        XCTAssertEqual(PipelineFormatter.ago(t0, now: t0.addingTimeInterval(200_000)), "2d ago")
+    }
+
+    func testTimingTicksWithTheClockWhileRunning() {
+        let now1 = t0.addingTimeInterval(10)
+        let now2 = t0.addingTimeInterval(70)
+        XCTAssertEqual(
+            PipelineFormatter.timing(state: .running, startedAt: t0, finishedAt: nil, now: now1),
+            "10s · started 10s ago")
+        XCTAssertEqual(
+            PipelineFormatter.timing(state: .running, startedAt: t0, finishedAt: nil, now: now2),
+            "1m 10s · started 1m ago")
+    }
+
+    func testFinishedTimingFreezesTheDurationAndAgesTheFinish() {
+        let done = t0.addingTimeInterval(30)
+        XCTAssertEqual(
+            PipelineFormatter.timing(
+                state: .succeeded, startedAt: t0, finishedAt: done, now: done.addingTimeInterval(90)),
+            "30s · finished 1m ago")
+        XCTAssertNil(PipelineFormatter.timing(state: .pending, startedAt: nil, finishedAt: nil))
+    }
+}

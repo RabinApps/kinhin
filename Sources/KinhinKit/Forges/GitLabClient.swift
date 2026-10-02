@@ -188,6 +188,12 @@ public struct GitLabClient: Sendable {
         return (info, jobs.sorted { $0.id < $1.id })
     }
 
+    /// A job's trace (its log so far; live while the job runs).
+    func jobTrace(projectID: Int, jobID: Int) async throws -> String {
+        let (data, _) = try await send("GET", "/projects/\(projectID)/jobs/\(jobID)/trace", accept: "text/plain")
+        return String(decoding: data, as: UTF8.self)
+    }
+
     /// The projects whose jobs a scope's demand comes from. Groups list
     /// recently active projects (subgroups included), cached briefly.
     func projects(in scope: GitLabScope) async throws -> [GitLabProjectRef] {
@@ -269,11 +275,12 @@ public struct GitLabClient: Sendable {
     }
 
     /// Sends with retry on transient failures (network errors, 429, 5xx).
-    func send(_ method: String, _ path: String, _ query: [URLQueryItem] = [], body: Data? = nil) async throws
-        -> (Data, HTTPURLResponse)
-    {
+    func send(
+        _ method: String, _ path: String, _ query: [URLQueryItem] = [], body: Data? = nil,
+        accept: String = "application/json"
+    ) async throws -> (Data, HTTPURLResponse) {
         try await withTransientRetry(isTransient: Self.isTransient) {
-            try await sendOnce(method, path, query, body: body)
+            try await sendOnce(method, path, query, body: body, accept: accept)
         }
     }
 
@@ -299,13 +306,13 @@ public struct GitLabClient: Sendable {
         return url
     }
 
-    private func sendOnce(_ method: String, _ path: String, _ query: [URLQueryItem], body: Data?) async throws
-        -> (Data, HTTPURLResponse)
-    {
+    private func sendOnce(
+        _ method: String, _ path: String, _ query: [URLQueryItem], body: Data?, accept: String
+    ) async throws -> (Data, HTTPURLResponse) {
         var req = URLRequest(url: try url(path, query))
         req.httpMethod = method
         req.setValue(credentials.token, forHTTPHeaderField: "PRIVATE-TOKEN")
-        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue(accept, forHTTPHeaderField: "Accept")
         req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
         if let body {
             req.httpBody = body

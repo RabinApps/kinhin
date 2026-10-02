@@ -31,12 +31,19 @@ public struct PipelineStep: Codable, Sendable, Equatable {
     public let state: PipelineStepState
     public let startedAt: Date?
     public let finishedAt: Date?
+    /// Where the forge keeps this step's own output (opaque to everything but
+    /// that forge); nil when the output is only available per job, or at all.
+    public let logRef: String?
 
-    public init(name: String, state: PipelineStepState, startedAt: Date? = nil, finishedAt: Date? = nil) {
+    public init(
+        name: String, state: PipelineStepState, startedAt: Date? = nil, finishedAt: Date? = nil,
+        logRef: String? = nil
+    ) {
         self.name = name
         self.state = state
         self.startedAt = startedAt
         self.finishedAt = finishedAt
+        self.logRef = logRef
     }
 }
 
@@ -54,11 +61,15 @@ public struct PipelineJob: Codable, Sendable, Equatable, Identifiable {
     public let steps: [PipelineStep]
     /// True for the job this VM's runner is executing.
     public let isCurrent: Bool
+    /// Where the forge keeps the job's output (opaque to everything but that
+    /// forge); nil when it can't be read.
+    public let logRef: String?
 
     public init(
         id: String, name: String, state: PipelineStepState, startedAt: Date? = nil, finishedAt: Date? = nil,
-        url: String? = nil, steps: [PipelineStep] = [], isCurrent: Bool = false
+        url: String? = nil, steps: [PipelineStep] = [], isCurrent: Bool = false, logRef: String? = nil
     ) {
+        self.logRef = logRef
         self.id = id
         self.name = name
         self.state = state
@@ -117,6 +128,31 @@ public struct PipelineDetail: Codable, Sendable, Equatable {
         if states.contains(.failed) { return .failed }
         if states.contains(.cancelled) { return .cancelled }
         return states.isEmpty ? .pending : .succeeded
+    }
+}
+
+// MARK: - Output
+
+/// What a log covers.
+public enum PipelineLogScope: String, Codable, Sendable, Equatable {
+    case step
+    case job
+}
+
+/// A step's (or job's) output so far, cleaned of terminal escapes and bounded
+/// to its most recent part.
+public struct PipelineLog: Codable, Sendable, Equatable {
+    public let text: String
+    public let scope: PipelineLogScope
+    /// The output was longer than `PipelineLogText.limit` and its start is cut.
+    public let truncated: Bool
+    public let fetchedAt: Date
+
+    public init(text: String, scope: PipelineLogScope, truncated: Bool = false, fetchedAt: Date = Date()) {
+        self.text = text
+        self.scope = scope
+        self.truncated = truncated
+        self.fetchedAt = fetchedAt
     }
 }
 

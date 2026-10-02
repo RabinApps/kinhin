@@ -38,7 +38,7 @@ jobs:
           echo "xcode-select: $(xcode-select -p 2>&1)"
           echo "xcode found:  ${xcode:-none}"
           ls -d /Applications/Xcode*.app 2>&1 || true
-          find /Library/Developer/CommandLineTools /Applications/Xcode*.app -maxdepth 8 -name 'XCTest.framework' 2>/dev/null | head -5 || true
+          find /Library/Developer/CommandLineTools /Applications/Xcode*.app "$HOME/.local/share/mise/installs/swift" -maxdepth 8 -name 'XCTest*' 2>/dev/null | head -10 || true
           true
 
       - name: Run tests

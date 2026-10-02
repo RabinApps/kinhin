@@ -12,6 +12,8 @@ public enum RPCMethod: String, Codable, Sendable {
     case deleteVM = "delete_vm"
     /// The live pipeline (jobs and steps) one VM is running.
     case pipelineDetail = "pipeline_detail"
+    /// The output of one step (or job) of that pipeline.
+    case pipelineLog = "pipeline_log"
     case replaceToken = "replace_token"
     case replaceGiteaToken = "replace_gitea_token"
     case replaceForgejoToken = "replace_forgejo_token"

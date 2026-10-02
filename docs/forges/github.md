@@ -61,6 +61,8 @@ The app's live pipeline view reads `GET /repos/{repo}/actions/runs?status=in_pro
 `/actions/runs/{id}/jobs`. The job payload already carries `steps[]` (name, status, conclusion, number, timestamps) and
 `html_url`, so it costs no request beyond the running-attribution poll. The runner's job is found by `runner_name`.
 
+Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirect to a signed URL, fetched without the token) by each line's timestamp and the step start times.
+
 ## Registration flow
 
 - Registration mode `sharedShortLived`, exit semantics `deregisters` (`GitHubForge.swift`).

@@ -16,6 +16,7 @@ final class FakeFleetServing: FleetServing {
         var gate: CheckedContinuation<Void, Never>?
         var gated = false
         var pipeline: PipelineDetail?
+        var pipelineLog: PipelineLog?
     }
 
     private let state: Mutex<State>
@@ -120,6 +121,17 @@ final class FakeFleetServing: FleetServing {
     func pipelineDetail(vmID: String) async throws -> PipelineDetail? {
         try record("pipelineDetail(\(vmID))")
         return state.withLock { $0.pipeline }
+    }
+
+    /// What `pipelineLog` answers (nil: no output available).
+    var pipelineLogResult: PipelineLog? {
+        get { state.withLock { $0.pipelineLog } }
+        set { state.withLock { $0.pipelineLog = newValue } }
+    }
+
+    func pipelineLog(vmID: String, jobID: String, stepIndex: Int?) async throws -> PipelineLog? {
+        try record("pipelineLog(\(vmID),\(jobID),\(stepIndex.map(String.init) ?? "-"))")
+        return state.withLock { $0.pipelineLog }
     }
 
     func rotate(_ target: CredentialRotation.Target, token: String) async throws {

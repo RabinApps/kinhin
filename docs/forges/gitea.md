@@ -44,6 +44,8 @@ The running task (`/actions/tasks?status=running`, matched by `runner_name`) is 
 title and start time where the server reports them. Gitea and Forgejo have no stable public step list, so the view is
 job-level.
 
+No output is shown: there is no stable public log endpoint across Gitea and Forgejo releases.
+
 ## Registration flow
 
 - Registration mode `sharedLongLived`, exit semantics `idleGrace` (`GiteaForge.swift`).

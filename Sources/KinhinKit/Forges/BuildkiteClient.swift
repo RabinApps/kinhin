@@ -152,6 +152,16 @@ public struct BuildkiteClient: Sendable {
             what: "builds")
     }
 
+    /// A job's log so far (needs the token's `read_build_logs` scope).
+    func jobLog(pipeline: String, build: Int, job: String) async throws -> String {
+        struct Log: Decodable { let content: String? }
+        let path =
+            "\(organizationPath)/pipelines/\(Self.encodePathSegment(pipeline))/builds/\(build)/jobs/\(Self.encodePathSegment(job))/log"
+        let (data, _) = try await send("GET", path)
+        let log: Log = try decode(data, "job log")
+        return log.content ?? ""
+    }
+
     // MARK: - Plumbing
 
     /// `a b` → `a%20b`, safe as one URL path segment.

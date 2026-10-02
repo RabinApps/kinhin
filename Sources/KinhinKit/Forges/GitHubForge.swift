@@ -62,6 +62,20 @@ struct GitHubForge: Forge {
         try await client.pipelineDetail(runnerName: runnerName)
     }
 
+    func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? {
+        guard let ref = job.logRef, let bar = ref.lastIndex(of: "|"), let jobID = Int(ref[ref.index(after: bar)...]),
+            let raw = try await client.jobLog(repository: String(ref[..<bar]), jobID: jobID)
+        else { return nil }
+        guard let step else {
+            let (text, truncated) = PipelineLogText.clean(raw)
+            return PipelineLog(text: text, scope: .job, truncated: truncated)
+        }
+        guard let index = job.steps.firstIndex(of: step) else { return nil }
+        let (text, truncated) = PipelineLogText.clean(
+            PipelineLogText.slice(jobLog: raw, steps: job.steps, index: index))
+        return PipelineLog(text: text, scope: .step, truncated: truncated)
+    }
+
     func runningJobs() async throws -> [ForgeJob] {
         try await client.runningJobs(matching: Set(labels)).map {
             ForgeJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
