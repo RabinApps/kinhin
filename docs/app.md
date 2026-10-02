@@ -15,7 +15,7 @@ Everything kinhin does happens in a single main window. A segmented control swit
 
 | Tab          | Contents                                                                                                                                                                                                                                                                                |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fleet**    | Live status, Start/Stop/Pause, the VM list, and buttons for Logs and Diagnostics. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason) rather than sending you back to Setup.                                                         |
+| **Fleet**    | Live status, Start/Stop/Pause, the VM list (a busy VM opens its live pipeline), and buttons for Logs and Diagnostics. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason) rather than sending you back to Setup.                                                         |
 | **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps and Bitbucket — select every one to serve), pick the repo or org, get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a short wizard.                                                  |
 | **Advanced** | **Accounts** (forges and this Mac), **Capacity** (VM counts and sizes, with Apply), **Routing** (runtimes, budget, labels), **Containers** (containers and volumes), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, config file).                           |
 
@@ -36,6 +36,39 @@ virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple c
 
 Additional accounts (another org, a second server) are not part of first-run setup; add them under
 **Advanced → Accounts → More accounts…**, which opens by itself when extra accounts already exist.
+
+## Live pipeline view
+
+Click a busy VM in the Fleet tab (or its **Pipeline…** button) to see the pipeline it is running. A sheet lists the
+pipeline's jobs with their state and elapsed time, the job on this VM marked *this VM*. Click a job to see just its
+steps; **‹ All jobs** goes back. The view refreshes every two seconds while it is open, shows the last state when the
+job finishes, and **Open in browser** jumps to the run on the forge.
+
+What a forge exposes decides how deep it goes (the sheet says so when a forge reports jobs only):
+
+| Forge        | Jobs                         | Steps within a job                          |
+| ------------ | ---------------------------- | ------------------------------------------- |
+| GitHub       | every job of the run         | yes                                         |
+| Azure DevOps | the build timeline's jobs    | yes (the job's tasks)                       |
+| GitLab       | the pipeline's jobs          | no (GitLab's API has no steps below a job) |
+| Buildkite    | the build's script jobs      | no                                          |
+| Bitbucket    | the pipeline's steps         | no (every running step is marked as yours) |
+| Gitea, Forgejo | the running task           | no                                          |
+
+The CLI shows the same thing:
+
+```bash
+kinhin pipeline                          # every busy VM: its jobs, and the steps of this VM's job
+kinhin pipeline kinhin-1700000000-ab12   # one VM
+kinhin pipeline kinhin-1700000000-ab12 --job build   # just that job's steps (id, name, or a unique part of it)
+kinhin pipeline --watch                  # refresh every 2s
+kinhin pipeline --json                   # machine-readable: [{"vm": …, "pipeline": …}]
+```
+
+It reads from the running daemon, so it needs `kinhin daemon install` (or `kinhin daemon`) and fails without one.
+
+The data comes from the forge APIs your token already uses, so no extra permission is needed beyond reading jobs
+(Azure DevOps also reads the build timeline). Lookups are cached for two seconds per VM to spare the API budget.
 
 ## Live CPU and RAM usage
 

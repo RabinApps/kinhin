@@ -40,6 +40,9 @@ public final class FleetEngine: Sendable {
     let statusBox: FleetStatusBox
     let capacity: Capacity.Plan
     let usageSampler: UsageSampler
+    /// Briefly caches pipeline lookups so open pipeline views (polling every
+    /// couple of seconds) cost the forge one call per few seconds per VM.
+    let pipelineCache = PipelineDetailCache()
 
     // MARK: - Collaborators (fixed for the engine's lifetime)
 

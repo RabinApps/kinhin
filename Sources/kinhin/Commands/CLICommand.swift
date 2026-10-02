@@ -19,6 +19,7 @@ enum CLICommand: Equatable {
     case resume
     case status
     case watch
+    case pipeline
     case logs
     case daemon
     case cleanup
@@ -63,6 +64,8 @@ enum CLICommand: Equatable {
             return .status
         case "watch":
             return .watch
+        case "pipeline", "pipelines":
+            return .pipeline
         case "logs":
             return .logs
         case "daemon":

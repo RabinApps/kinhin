@@ -133,6 +133,42 @@ extension GitHubClient {
         }
     }
 
+    /// The run `runnerName`'s in-progress job belongs to, with all of the
+    /// run's jobs and their steps. The jobs payload already carries
+    /// `steps[]`, so this costs no request beyond the runs/jobs reads the
+    /// running-attribution poll makes.
+    public func pipelineDetail(runnerName: String) async throws -> PipelineDetail? {
+        for run in try await runs(status: "in_progress") {
+            let jobs = try await fetchJobs(runID: run.id, repository: run.scopedRepository)
+            guard jobs.contains(where: { $0.runnerName == runnerName && $0.status == "in_progress" }) else {
+                continue
+            }
+            return Self.detail(jobs: jobs, run: run, runnerName: runnerName)
+        }
+        return nil
+    }
+
+    static func detail(jobs: [GHJob], run: RunRef, runnerName: String) -> PipelineDetail {
+        let mapped = jobs.map { job -> PipelineJob in
+            let steps = (job.steps ?? []).sorted { ($0.number ?? 0) < ($1.number ?? 0) }.map {
+                PipelineStep(
+                    name: $0.name, state: PipelineParsing.state(status: $0.status, conclusion: $0.conclusion),
+                    startedAt: PipelineParsing.date($0.startedAt), finishedAt: PipelineParsing.date($0.completedAt))
+            }
+            return PipelineJob(
+                id: String(job.id), name: job.name,
+                state: PipelineParsing.state(status: job.status, conclusion: job.conclusion),
+                startedAt: PipelineParsing.date(job.startedAt), url: job.htmlURL, steps: steps,
+                isCurrent: job.runnerName == runnerName)
+        }
+        let first = jobs.first
+        return PipelineDetail(
+            forge: .github, title: first?.workflowName ?? first?.name ?? "Workflow run",
+            repository: run.attributedRepository, ref: run.ref, sha: run.sha, url: first?.htmlURL,
+            state: PipelineDetail.aggregate(mapped.map(\.state)),
+            startedAt: mapped.compactMap(\.startedAt).min(), jobs: mapped, granularity: .step)
+    }
+
     /// One workflow run plus the repository it was read from (nil in org
     /// mode, where the run payload itself carries the repository).
     struct RunRef: Codable {

@@ -15,6 +15,7 @@ final class FakeFleetServing: FleetServing {
         var calls: [String] = []
         var gate: CheckedContinuation<Void, Never>?
         var gated = false
+        var pipeline: PipelineDetail?
     }
 
     private let state: Mutex<State>
@@ -108,6 +109,17 @@ final class FakeFleetServing: FleetServing {
     func deleteVM(id: String) async throws {
         try record("deleteVM(\(id))")
         state.withLock { $0.status.records.removeAll { $0.id == id } }
+    }
+
+    /// What `pipelineDetail` answers (nil: the VM runs no job).
+    var pipeline: PipelineDetail? {
+        get { state.withLock { $0.pipeline } }
+        set { state.withLock { $0.pipeline = newValue } }
+    }
+
+    func pipelineDetail(vmID: String) async throws -> PipelineDetail? {
+        try record("pipelineDetail(\(vmID))")
+        return state.withLock { $0.pipeline }
     }
 
     func rotate(_ target: CredentialRotation.Target, token: String) async throws {

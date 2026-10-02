@@ -58,6 +58,10 @@ struct GitHubForge: Forge {
         try await client.projectFile(repository: repository, ref: ref)
     }
 
+    func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? {
+        try await client.pipelineDetail(runnerName: runnerName)
+    }
+
     func runningJobs() async throws -> [ForgeJob] {
         try await client.runningJobs(matching: Set(labels)).map {
             ForgeJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)

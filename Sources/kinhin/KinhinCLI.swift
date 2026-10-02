@@ -88,6 +88,9 @@ struct KinhinCLI {
             case .watch:
                 await RunCommands.watch(args)
 
+            case .pipeline:
+                try await PipelineCommand.run(args)
+
             case .logs:
                 RunCommands.logs(args)
 

@@ -116,9 +116,23 @@ public struct BuildkiteAgent: Decodable, Sendable, Equatable {
 struct BuildkiteBuild: Decodable, Sendable, Equatable {
     let pipeline: Pipeline
     let jobs: [Job]
+    /// Shown by the app's pipeline view; absent from older fixtures.
+    let number: Int?
+    let state: String?
+    let webURL: String?
+    let branch: String?
+    let commit: String?
+    let startedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case pipeline, jobs, number, state, branch, commit
+        case webURL = "web_url"
+        case startedAt = "started_at"
+    }
 
     struct Pipeline: Decodable, Sendable, Equatable {
         let slug: String
+        let name: String?
     }
 
     /// A build step. Only `script` jobs run on agents; waiters, block and
@@ -132,6 +146,9 @@ struct BuildkiteBuild: Decodable, Sendable, Equatable {
         let agent: Agent?
         /// The cluster the job runs in, when the API reports it.
         let clusterID: String?
+        let webURL: String?
+        let startedAt: String?
+        let finishedAt: String?
 
         struct Agent: Decodable, Sendable, Equatable {
             let name: String?
@@ -139,6 +156,9 @@ struct BuildkiteBuild: Decodable, Sendable, Equatable {
 
         enum CodingKeys: String, CodingKey {
             case id, type, name, state, agent
+            case webURL = "web_url"
+            case startedAt = "started_at"
+            case finishedAt = "finished_at"
             case agentQueryRules = "agent_query_rules"
             case clusterID = "cluster_id"
         }
@@ -154,6 +174,9 @@ struct BuildkiteBuild: Decodable, Sendable, Equatable {
             self.agentQueryRules = agentQueryRules
             self.agent = agentName.map { Agent(name: $0) }
             self.clusterID = clusterID
+            self.webURL = nil
+            self.startedAt = nil
+            self.finishedAt = nil
         }
 
         init(from decoder: Decoder) throws {
@@ -165,6 +188,9 @@ struct BuildkiteBuild: Decodable, Sendable, Equatable {
             agentQueryRules = try container.decodeIfPresent([String].self, forKey: .agentQueryRules) ?? []
             agent = try container.decodeIfPresent(Agent.self, forKey: .agent)
             clusterID = try container.decodeIfPresent(String.self, forKey: .clusterID)
+            webURL = try container.decodeIfPresent(String.self, forKey: .webURL)
+            startedAt = try container.decodeIfPresent(String.self, forKey: .startedAt)
+            finishedAt = try container.decodeIfPresent(String.self, forKey: .finishedAt)
         }
     }
 }

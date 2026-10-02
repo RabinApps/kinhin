@@ -16,6 +16,8 @@ protocol FleetServing: Sendable {
     func stop() async throws
     func setPaused(_ paused: Bool) async throws
     func deleteVM(id: String) async throws
+    /// The live pipeline (jobs and steps) a VM is running; nil when it runs none.
+    func pipelineDetail(vmID: String) async throws -> PipelineDetail?
     /// Hand a token already saved in the Keychain to the fleet.
     func rotate(_ target: CredentialRotation.Target, token: String) async throws
     /// A short name for log lines.
@@ -70,6 +72,13 @@ enum FleetBackend: Sendable {
         case .daemon(let client):
             let payload = try JSONEncoder().encode(Daemon.VMDeleteRequest(id: id))
             try await client.perform { try $0.command(.deleteVM, payload: payload) }
+        }
+    }
+
+    func pipelineDetail(vmID: String) async throws -> PipelineDetail? {
+        switch self {
+        case .inProcess(let engine): return try await engine.pipelineDetail(vmID: vmID)
+        case .daemon(let client): return try await client.perform { try $0.pipelineDetail(vmID: vmID) }
         }
     }
 

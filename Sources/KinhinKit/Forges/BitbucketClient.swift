@@ -106,6 +106,19 @@ public struct BitbucketClient: Sendable {
     /// suffices). Workspace scopes poll the recently active repos the caller
     /// passes; repository scopes poll their one repo.
     func activeJobs(scope: BitbucketScope, repos: [String]) async throws -> [BitbucketJob] {
+        try await activePipelines(scope: scope, repos: repos).flatMap(\.steps).map(BitbucketJob.init)
+    }
+
+    /// A pending or in-progress pipeline with its steps.
+    struct ActivePipeline: Sendable, Equatable {
+        let pipeline: BitbucketPipeline
+        /// "workspace/repo" the pipeline was read from.
+        let repository: String
+        let steps: [BitbucketStep]
+    }
+
+    /// The scope's active pipelines with their steps (see `activeJobs`).
+    func activePipelines(scope: BitbucketScope, repos: [String]) async throws -> [ActivePipeline] {
         let targets: [(repo: String, path: String)]
         switch scope {
         case .workspace:
@@ -113,22 +126,24 @@ public struct BitbucketClient: Sendable {
         case .repository(let workspace, let slug):
             targets = [("\(workspace)/\(slug)", "/2.0/repositories/\(workspace)/\(slug)/pipelines/")]
         }
-        var steps: [BitbucketStep] = []
+        var active: [ActivePipeline] = []
         for target in targets {
             let pipelines: [BitbucketPipeline] = try await paged(
                 target.path, [URLQueryItem(name: "sort", value: "-created_on")], what: "pipelines", pageLimit: 1)
             for pipeline in pipelines where pipeline.stateName == "PENDING" || pipeline.stateName == "IN_PROGRESS" {
                 let pipelineSteps: [BitbucketStep] = try await paged(
                     "\(target.path)\(pipeline.uuid)/steps", [], what: "steps")
-                steps.append(
-                    contentsOf: pipelineSteps.map { step in
-                        var step = step
-                        step.repository = target.repo
-                        return step
-                    })
+                active.append(
+                    ActivePipeline(
+                        pipeline: pipeline, repository: target.repo,
+                        steps: pipelineSteps.map { step in
+                            var step = step
+                            step.repository = target.repo
+                            return step
+                        }))
             }
         }
-        return steps.map(BitbucketJob.init)
+        return active
     }
 
     /// The workspace's repositories by last activity (newest first), for the

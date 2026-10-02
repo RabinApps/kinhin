@@ -110,6 +110,41 @@ struct BuildkiteForge: Forge {
         }
     }
 
+    /// The build whose job `runnerName`'s agent is running, with every script
+    /// job of the build. Buildkite's API exposes jobs, not steps within a job.
+    func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? {
+        let builds = try await client.activeBuilds()
+        guard
+            let build = builds.first(where: { build in
+                build.jobs.contains { $0.type == "script" && $0.agent?.name == runnerName && $0.state == "running" }
+            })
+        else { return nil }
+        let scripts = build.jobs.filter { $0.type == "script" }
+        let mapped = scripts.map { job in
+            PipelineJob(
+                id: job.id, name: job.name ?? job.id, state: Self.state(job.state),
+                startedAt: PipelineParsing.date(job.startedAt), finishedAt: PipelineParsing.date(job.finishedAt),
+                url: job.webURL, isCurrent: job.agent?.name == runnerName)
+        }
+        let number = build.number.map { " #\($0)" } ?? ""
+        return PipelineDetail(
+            forge: .buildkite, title: "\(build.pipeline.name ?? build.pipeline.slug)\(number)",
+            repository: build.pipeline.slug, ref: build.branch, sha: build.commit, url: build.webURL,
+            state: Self.state(build.state), startedAt: PipelineParsing.date(build.startedAt), jobs: mapped,
+            granularity: .job)
+    }
+
+    static func state(_ state: String?) -> PipelineStepState {
+        switch state ?? "" {
+        case "running", "failing", "canceling": return .running
+        case "passed", "finished": return .succeeded
+        case "failed", "timed_out", "expired": return .failed
+        case "canceled": return .cancelled
+        case "skipped", "broken", "not_run", "blocked": return .skipped
+        default: return .pending  // scheduled, assigned, accepted, waiting, limited
+        }
+    }
+
     private func jobs() async throws -> [BuildkiteJob] {
         try await jobList.elements { try await client.activeJobs() }
     }

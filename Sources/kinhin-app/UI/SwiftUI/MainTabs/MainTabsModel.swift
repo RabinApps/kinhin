@@ -2,11 +2,19 @@ import KinhinKit
 import Observation
 
 /// A sheet over the main window.
-enum MainSheet: String, Identifiable {
+enum MainSheet: Hashable, Identifiable {
     case logs
     case diagnostics
+    /// The live pipeline of one VM.
+    case pipeline(vmID: String)
 
-    var id: String { rawValue }
+    var id: String {
+        switch self {
+        case .logs: return "logs"
+        case .diagnostics: return "diagnostics"
+        case .pipeline(let vmID): return "pipeline:\(vmID)"
+        }
+    }
 }
 
 /// Which tab, Advanced section and sheet the main window shows. The pure
@@ -32,6 +40,7 @@ final class MainTabsModel {
         models.fleetModel.onNeedsSetup = { [weak self] in self?.showSetup() }
         models.fleetModel.onShowLogs = { [weak self] in self?.present(.logs) }
         models.fleetModel.onShowDiagnostics = { [weak self] in self?.present(.diagnostics) }
+        models.fleetModel.onShowPipeline = { [weak self] in self?.present(.pipeline(vmID: $0)) }
     }
 
     /// Set while first-run onboarding is up (or no usable config exists): the
@@ -162,7 +171,7 @@ final class MainTabsModel {
 
     // MARK: - Sheets
 
-    /// Ignored while setup gates the window: Logs and Diagnostics stay hidden.
+    /// Ignored while setup gates the window: the sheets stay hidden.
     func present(_ sheet: MainSheet) {
         guard !isGatedBySetup else { return }
         switch sheet {
@@ -170,6 +179,11 @@ final class MainTabsModel {
             models.ensureLogsModel().refresh()
         case .diagnostics:
             let model = models.ensureDiagnosticsModel()
+            Task { await model.load() }
+        case .pipeline(let vmID):
+            // A fresh model per opening: it starts on the job list, not on
+            // whatever job the last sheet had drilled into.
+            let model = models.makePipelineModel(vmID: vmID)
             Task { await model.load() }
         }
         self.sheet = sheet

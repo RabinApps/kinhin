@@ -44,6 +44,12 @@ Buildkite's docs agree for each call kinhin makes: list agents `read_agents`, st
 | PUT | `/v2/organizations/{org}/agents/{id}/stop` | Stop an agent (`{force: true}`) | `BuildkiteClient.swift:127` |
 | GET | `/v2/organizations/{org}/builds?state[]=scheduled&state[]=running&state[]=failing` | Demand and running jobs | `BuildkiteClient.swift:139` |
 
+## Pipeline view
+
+`GET /organizations/{org}/builds?state[]=scheduled,running,failing` returns each build with its `jobs[]`. The build
+whose running script job has this agent's name is shown, with every script job (waiter, block and trigger steps left
+out) and the build's `web_url`. Buildkite exposes jobs, not steps within a job, so the view is job-level.
+
 ## Registration flow
 
 - Registration mode `sharedLongLived`, exit semantics `deregisters` (`BuildkiteForge.swift:24-25`).

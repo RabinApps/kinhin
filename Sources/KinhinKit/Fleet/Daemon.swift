@@ -190,6 +190,13 @@ public enum Daemon {
                 }
                 try await engine.deleteVM(id: id)
                 return RPCResponse(id: request.id, ok: true)
+            case .pipelineDetail:
+                guard let id = decodePayload(VMDeleteRequest.self)?.id else {
+                    return RPCResponse(id: request.id, ok: false, error: "expected {\"id\": \"...\"}")
+                }
+                // No job running is a valid answer: an ok response with no payload.
+                let detail = try await engine.pipelineDetail(vmID: id)
+                return RPCResponse(id: request.id, ok: true, payload: try detail.map { try encoder.encode($0) })
             case .replaceGiteaToken, .replaceForgejoToken:
                 // Gitea/Forgejo tokens are account tokens under the accounts
                 // schema; the legacy RPC cases stay on the wire but route to

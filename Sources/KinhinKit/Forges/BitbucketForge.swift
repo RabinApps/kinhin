@@ -194,6 +194,53 @@ struct BitbucketForge: Forge {
         }
     }
 
+    /// The in-progress pipeline (preferring `repository`) with its steps as
+    /// jobs. Which runner took a step is not public, so every running step is
+    /// marked as this VM's; the API has no list of commands within a step.
+    func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? {
+        let repos = try await detailRepositories()
+        let pipelines = try await client.activePipelines(scope: scope, repos: repos)
+        guard
+            let active =
+                pipelines.first(where: { $0.repository == repository && $0.steps.contains(where: \.isRunning) })
+                ?? pipelines.first(where: { $0.steps.contains(where: \.isRunning) })
+        else { return nil }
+        let mapped = active.steps.map { step in
+            PipelineJob(
+                id: step.uuid, name: step.name ?? "step", state: Self.state(step),
+                startedAt: PipelineParsing.date(step.startedOn), finishedAt: PipelineParsing.date(step.completedOn),
+                isCurrent: step.isRunning)
+        }
+        let number = active.pipeline.buildNumber
+        return PipelineDetail(
+            forge: .bitbucket, title: number.map { "Pipeline #\($0)" } ?? "Pipeline", repository: active.repository,
+            ref: active.pipeline.refName, sha: active.pipeline.commit,
+            url: number.map { "https://bitbucket.org/\(active.repository)/pipelines/results/\($0)" },
+            state: PipelineDetail.aggregate(mapped.map(\.state)),
+            startedAt: PipelineParsing.date(active.pipeline.createdOn), jobs: mapped, granularity: .job)
+    }
+
+    static func state(_ step: BitbucketStep) -> PipelineStepState {
+        switch step.stateName {
+        case "IN_PROGRESS": return .running
+        case "COMPLETED":
+            switch step.resultName ?? "" {
+            case "SUCCESSFUL": return .succeeded
+            case "STOPPED": return .cancelled
+            case "SKIPPED", "NOT_RUN": return .skipped
+            default: return .failed  // FAILED, ERROR, EXPIRED
+            }
+        default: return .pending
+        }
+    }
+
+    private func detailRepositories() async throws -> [String] {
+        switch scope {
+        case .workspace: return Array(try await client.activeRepositories(scope: scope).prefix(20))
+        case .repository: return [scope.description]
+        }
+    }
+
     /// A step is this fleet's when the API does not say its `runs-on` (no
     /// filtering is possible yet) or when its `runs-on` includes every
     /// label — the same subset rule GitHub's `runs-on:` matching uses.

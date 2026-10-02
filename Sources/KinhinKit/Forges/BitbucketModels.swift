@@ -168,6 +168,22 @@ struct BitbucketPipeline: Decodable, Sendable, Equatable {
     let uuid: String
     let repository: String
     let stateName: String
+    /// Shown by the pipeline view; nil on payloads without them.
+    let buildNumber: Int?
+    let refName: String?
+    let commit: String?
+    let createdOn: String?
+
+    struct Target: Decodable, Sendable, Equatable {
+        let refName: String?
+        let commit: Commit?
+        struct Commit: Decodable, Sendable, Equatable { let hash: String? }
+
+        enum CodingKeys: String, CodingKey {
+            case refName = "ref_name"
+            case commit
+        }
+    }
 
     struct Repository: Decodable, Sendable, Equatable {
         let fullName: String
@@ -181,10 +197,16 @@ struct BitbucketPipeline: Decodable, Sendable, Equatable {
         self.uuid = uuid
         self.repository = repository
         self.stateName = stateName
+        self.buildNumber = nil
+        self.refName = nil
+        self.commit = nil
+        self.createdOn = nil
     }
 
     enum CodingKeys: String, CodingKey {
-        case uuid, repository, state
+        case uuid, repository, state, target
+        case buildNumber = "build_number"
+        case createdOn = "created_on"
     }
 
     enum StateKeys: String, CodingKey {
@@ -198,8 +220,14 @@ struct BitbucketPipeline: Decodable, Sendable, Equatable {
         stateName =
             try container.nestedContainer(keyedBy: StateKeys.self, forKey: .state)
             .decodeIfPresent(String.self, forKey: .name) ?? ""
+        buildNumber = try container.decodeIfPresent(Int.self, forKey: .buildNumber)
+        createdOn = try container.decodeIfPresent(String.self, forKey: .createdOn)
+        let target = try? container.decodeIfPresent(Target.self, forKey: .target)
+        refName = target?.refName
+        commit = target?.commit?.hash
     }
 }
+
 /// A step of a pipeline, with the `runs-on` labels it asked for. The public
 /// API does not expose `runs_on` yet (the runner itself matches on the forge
 /// side), so it decodes empty; `repository` is not part of the payload — the
@@ -211,8 +239,15 @@ struct BitbucketStep: Decodable, Sendable, Equatable {
     let runsOn: [String]
     /// "workspace/repo" the step's pipeline belongs to (set by the client).
     var repository: String?
+    /// `state.result.name` once completed (SUCCESSFUL, FAILED, STOPPED, …).
+    let resultName: String?
+    let startedOn: String?
+    let completedOn: String?
 
     init(uuid: String, name: String? = nil, stateName: String, runsOn: [String] = [], repository: String? = nil) {
+        self.resultName = nil
+        self.startedOn = nil
+        self.completedOn = nil
         self.uuid = uuid
         self.name = name
         self.stateName = stateName
@@ -223,11 +258,15 @@ struct BitbucketStep: Decodable, Sendable, Equatable {
     enum CodingKeys: String, CodingKey {
         case uuid, name, state
         case runsOn = "runs_on"
+        case startedOn = "started_on"
+        case completedOn = "completed_on"
     }
 
     enum StateKeys: String, CodingKey {
-        case name
+        case name, result
     }
+
+    struct Result: Decodable { let name: String? }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -238,6 +277,11 @@ struct BitbucketStep: Decodable, Sendable, Equatable {
             .decodeIfPresent(String.self, forKey: .name) ?? ""
         runsOn = try container.decodeIfPresent([String].self, forKey: .runsOn) ?? []
         repository = nil
+        resultName =
+            try? container.nestedContainer(keyedBy: StateKeys.self, forKey: .state)
+            .decodeIfPresent(Result.self, forKey: .result)?.name
+        startedOn = try container.decodeIfPresent(String.self, forKey: .startedOn)
+        completedOn = try container.decodeIfPresent(String.self, forKey: .completedOn)
     }
 
     var isQueued: Bool { stateName == "PENDING" }

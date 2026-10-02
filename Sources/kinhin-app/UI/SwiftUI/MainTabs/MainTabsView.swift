@@ -38,6 +38,10 @@ struct MainTabsView: View {
                     close: { model.dismissSheet() })
             case .diagnostics:
                 DiagnosticsView(model: model.models.ensureDiagnosticsModel(), onClose: { model.dismissSheet() })
+            case .pipeline(let vmID):
+                if let pipeline = model.models.pipelineModel, pipeline.vmID == vmID {
+                    PipelineView(model: pipeline, onClose: { model.dismissSheet() })
+                }
             }
         }
     }

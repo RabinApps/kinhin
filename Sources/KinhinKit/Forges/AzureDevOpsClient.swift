@@ -84,6 +84,18 @@ public struct AzureDevOpsClient: Sendable {
         return requests.filter { $0.isQueued || $0.isRunning }
     }
 
+    /// The build's timeline (stages, jobs, tasks) and its summary. `project`
+    /// is the project id the job request reports.
+    func timeline(project: String, buildID: Int) async throws -> AzureDevOpsTimeline {
+        let (data, _) = try await send("GET", "/\(project)/_apis/build/builds/\(buildID)/timeline")
+        return try decode(data, "build timeline")
+    }
+
+    func build(project: String, buildID: Int) async throws -> AzureDevOpsBuildInfo {
+        let (data, _) = try await send("GET", "/\(project)/_apis/build/builds/\(buildID)")
+        return try decode(data, "build")
+    }
+
     // MARK: - Plumbing
 
     private func list<T: Decodable>(_ path: String, _ query: [URLQueryItem], what: String) async throws -> [T] {

@@ -114,6 +114,37 @@ struct GitLabForge: Forge {
         }
     }
 
+    /// The pipeline of the job `runnerName` is running, with its jobs. GitLab
+    /// exposes no steps below a job, so the detail is job-level.
+    func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? {
+        let running = try await client.jobs(.running, in: gitlabScope)
+        guard let mine = running.first(where: { $0.runnerDescription == runnerName }),
+            let projectID = mine.projectID, let pipelineID = mine.pipelineID
+        else { return nil }
+        let (info, jobs) = try await client.pipeline(projectID: projectID, pipelineID: pipelineID)
+        let mapped = jobs.map { job in
+            PipelineJob(
+                id: String(job.id), name: job.stage.map { "\($0) › \(job.name)" } ?? job.name,
+                state: Self.state(job.status), startedAt: PipelineParsing.date(job.startedAt),
+                finishedAt: PipelineParsing.date(job.finishedAt), url: job.webURL, isCurrent: job.id == mine.id)
+        }
+        return PipelineDetail(
+            forge: .gitlab, title: "Pipeline #\(pipelineID)", repository: mine.project, ref: info.ref ?? mine.ref,
+            sha: info.sha ?? mine.sha, url: info.webURL, state: Self.state(info.status),
+            startedAt: PipelineParsing.date(info.startedAt), jobs: mapped, granularity: .job)
+    }
+
+    static func state(_ status: String?) -> PipelineStepState {
+        switch status ?? "" {
+        case "running": return .running
+        case "success": return .succeeded
+        case "failed": return .failed
+        case "canceled", "canceling": return .cancelled
+        case "skipped", "manual": return .skipped
+        default: return .pending  // created, pending, waiting_for_resource, preparing, scheduled
+        }
+    }
+
     /// A job targets this fleet when its tags include every account label.
     /// Untagged jobs never do (kinhin's runners do not run untagged jobs).
     func isOurs(_ job: GitLabJob) -> Bool {

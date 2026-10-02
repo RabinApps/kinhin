@@ -34,6 +34,9 @@ final class FakeGitHub: GitHubServing, Sendable {
         var runningJobsCallCount = 0
         /// The API budget the fake reports (nil: unknown, like other forges).
         var rateLimit: ForgeRateLimit?
+        /// What `pipelineDetail` answers, and the runner names it was asked for.
+        var pipeline: PipelineDetail?
+        var pipelineRunnerNames: [String] = []
         /// Branch/tag, sha and fork flag cycled through the queued jobs.
         var queueRefs: [String] = []
         var queueShas: [String] = []
@@ -93,6 +96,20 @@ final class FakeGitHub: GitHubServing, Sendable {
     }
 
     var projectFileCalls: [String] { state.withLock { $0.projectFileCalls } }
+
+    var pipeline: PipelineDetail? {
+        get { state.withLock { $0.pipeline } }
+        set { state.withLock { $0.pipeline = newValue } }
+    }
+
+    var pipelineRunnerNames: [String] { state.withLock { $0.pipelineRunnerNames } }
+
+    func pipelineDetail(runnerName: String) async throws -> PipelineDetail? {
+        state.withLock { state in
+            state.pipelineRunnerNames.append(runnerName)
+            return state.pipeline
+        }
+    }
 
     func projectFile(repository: String, ref: String?) async throws -> Data? {
         state.withLock { state in

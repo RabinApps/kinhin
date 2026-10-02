@@ -48,6 +48,13 @@ Per-operation reference pages for Azure DevOps Server exist for 6.0, 7.0 and 7.1
 | DELETE | `/_apis/distributedtask/pools/{id}/agents/{aid}` | Remove an agent (a 404 is treated as already gone) | `AzureDevOpsClient.swift:70` |
 | GET | `/_apis/distributedtask/pools/{id}/jobrequests?completedRequestCount=0` | Demand and running jobs | `AzureDevOpsClient.swift:82` |
 
+## Pipeline view
+
+The running job request names its build (`owner.id`), project (`scopeId`) and timeline job (`jobId`). The view reads
+`GET /{project}/_apis/build/builds/{id}/timeline` (Job records are the jobs, their Task children the steps) and
+`/builds/{id}` for the title, branch and link. This request-to-build link is undocumented (like the job requests
+endpoint itself); a request without it shows no detail.
+
 ## Registration flow
 
 - Registration mode `sharedLongLived`, exit semantics `deregisters` (`AzureDevOpsForge.swift:28-29`).

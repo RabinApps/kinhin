@@ -55,6 +55,12 @@ GitHub supports each version for 24 months after the next one ships, signals ret
 
 GitHub's supported autoscaling path is runner scale sets plus JIT runner configuration (see [`actions/scaleset`](https://github.com/actions/scaleset)). The scale-set message API is Public Preview and, like the endpoint removed above, is not in any published OpenAPI description. kinhin keeps polling documented per-repository endpoints until the message API is documented. JIT stays out of scope (audit finding 2 is unchanged).
 
+## Pipeline view
+
+The app's live pipeline view reads `GET /repos/{repo}/actions/runs?status=in_progress` and each run's
+`/actions/runs/{id}/jobs`. The job payload already carries `steps[]` (name, status, conclusion, number, timestamps) and
+`html_url`, so it costs no request beyond the running-attribution poll. The runner's job is found by `runner_name`.
+
 ## Registration flow
 
 - Registration mode `sharedShortLived`, exit semantics `deregisters` (`GitHubForge.swift`).

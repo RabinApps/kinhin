@@ -32,11 +32,22 @@ public struct GiteaTask: Sendable, Equatable {
     /// Branch/tag and commit the task runs at, when the instance reports them.
     public let ref: String?
     public let sha: String?
+    /// The run's page, its display title and number, and when it started,
+    /// when the instance reports them.
+    let url: String?
+    let title: String?
+    let runNumber: Int?
+    let startedAt: String?
 
     public init(
         id: Int?, name: String?, repository: String?, status: String?, runnerName: String? = nil, ref: String? = nil,
-        sha: String? = nil
+        sha: String? = nil, url: String? = nil, title: String? = nil, runNumber: Int? = nil,
+        startedAt: String? = nil
     ) {
+        self.url = url
+        self.title = title
+        self.runNumber = runNumber
+        self.startedAt = startedAt
         self.id = id
         self.name = name
         self.repository = repository

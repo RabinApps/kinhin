@@ -135,17 +135,21 @@ public struct BuildkiteClient: Sendable {
     /// Script jobs of the organization's active builds, each attributed to
     /// its pipeline. Waiter, block and trigger steps are left out.
     func activeJobs() async throws -> [BuildkiteJob] {
-        let builds: [BuildkiteBuild] = try await paged(
-            "\(organizationPath)/builds",
-            ["scheduled", "running", "failing"].map { URLQueryItem(name: "state[]", value: $0) },
-            what: "builds")
-        return builds.flatMap { build in
+        try await activeBuilds().flatMap { build in
             build.jobs.filter { $0.type == "script" }.map { job in
                 BuildkiteJob(
                     id: job.id, name: job.name ?? job.id, state: job.state ?? "", agentQueryRules: job.agentQueryRules,
                     pipeline: build.pipeline.slug, agentName: job.agent?.name, clusterID: job.clusterID)
             }
         }
+    }
+
+    /// The organization's active builds with all their jobs.
+    func activeBuilds() async throws -> [BuildkiteBuild] {
+        try await paged(
+            "\(organizationPath)/builds",
+            ["scheduled", "running", "failing"].map { URLQueryItem(name: "state[]", value: $0) },
+            what: "builds")
     }
 
     // MARK: - Plumbing

@@ -94,11 +94,17 @@ public struct GitLabJob: Sendable, Equatable {
     /// Branch/tag and commit the job runs at.
     public let ref: String?
     public let sha: String?
+    /// The numeric project and pipeline the job belongs to (the pipeline's
+    /// job list is read through them).
+    let projectID: Int?
+    let pipelineID: Int?
 
     public init(
         id: Int, name: String, tags: [String], project: String, runnerDescription: String?, ref: String? = nil,
-        sha: String? = nil
+        sha: String? = nil, projectID: Int? = nil, pipelineID: Int? = nil
     ) {
+        self.projectID = projectID
+        self.pipelineID = pipelineID
         self.id = id
         self.name = name
         self.tags = tags
@@ -106,6 +112,43 @@ public struct GitLabJob: Sendable, Equatable {
         self.runnerDescription = runnerDescription
         self.ref = ref
         self.sha = sha
+    }
+}
+
+/// `GET /projects/:id/pipelines/:id`, the fields the pipeline view shows.
+struct GitLabPipelineInfo: Decodable, Sendable, Equatable {
+    let id: Int
+    let status: String?
+    let ref: String?
+    let sha: String?
+    let webURL: String?
+    let startedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, status, ref, sha
+        case webURL = "web_url"
+        case startedAt = "started_at"
+    }
+}
+
+/// One entry of `GET /projects/:id/pipelines/:id/jobs`.
+struct GitLabPipelineJob: Decodable, Sendable, Equatable {
+    let id: Int
+    let name: String
+    let stage: String?
+    let status: String?
+    let webURL: String?
+    let startedAt: String?
+    let finishedAt: String?
+    let runner: Runner?
+
+    struct Runner: Decodable, Sendable, Equatable { let description: String? }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, stage, status, runner
+        case webURL = "web_url"
+        case startedAt = "started_at"
+        case finishedAt = "finished_at"
     }
 }
 

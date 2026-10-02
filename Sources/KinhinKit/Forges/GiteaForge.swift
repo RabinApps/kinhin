@@ -106,6 +106,23 @@ struct GiteaForge: Forge {
         try await client.projectFile(repository: repository, ref: ref)
     }
 
+    /// The task `runnerName` is running. Gitea and Forgejo expose no stable
+    /// public step list, so the detail is the one task (job-level).
+    func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? {
+        guard let task = try await client.runningTasks().first(where: { $0.runnerName == runnerName }) else {
+            return nil
+        }
+        let name = task.name ?? taskName
+        let started = PipelineParsing.date(task.startedAt)
+        let job = PipelineJob(
+            id: task.id.map(String.init) ?? name, name: name, state: .running, startedAt: started, url: task.url,
+            isCurrent: true)
+        return PipelineDetail(
+            forge: id, title: task.title ?? task.runNumber.map { "Run #\($0)" } ?? name,
+            repository: task.repository, ref: task.ref, sha: task.sha, url: task.url, state: .running,
+            startedAt: started, jobs: [job], granularity: .job)
+    }
+
     func runningJobs() async throws -> [ForgeJob] {
         // Preferred: running tasks keyed by runner_name (repo attribution
         // when the instance exposes it) — mirrors GitHub's running jobs.

@@ -23,10 +23,17 @@ jobs:
       - name: Prefer mise toolchains
         # The runner's job PATH has Xcode's Swift (6.3.x) ahead of the baked
         # mise-managed one, but Package.swift needs the 6.4 tools. Put the mise
-        # shims first; a no-op where mise isn't installed.
+        # shims first; a no-op where mise isn't installed. The mise toolchain
+        # carries no XCTest and would otherwise fall back to the Command Line
+        # Tools SDK (which has none either), so point it at Xcode's SDK.
         run: |
           shims="$HOME/.local/share/mise/shims"
-          [ -d "$shims" ] && echo "$shims" >> "$GITHUB_PATH" || true
+          if [ -d "$shims" ]; then
+            echo "$shims" >> "$GITHUB_PATH"
+            xcode="/Applications/Xcode.app/Contents/Developer"
+            [ -d "$xcode" ] && echo "DEVELOPER_DIR=$xcode" >> "$GITHUB_ENV"
+          fi
+          true
 
       - name: Run tests
         # Never publish from a red tree: CI should have caught this already,

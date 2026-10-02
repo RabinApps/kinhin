@@ -145,8 +145,9 @@ final class GitLabClientTests: XCTestCase {
         XCTAssertEqual(
             jobs,
             [
-                GitLabJob(id: 1, name: "build", tags: ["macos"], project: "acme/api", runnerDescription: nil),
-                GitLabJob(id: 2, name: "lint", tags: [], project: "acme/web", runnerDescription: nil),
+                GitLabJob(
+                    id: 1, name: "build", tags: ["macos"], project: "acme/api", runnerDescription: nil, projectID: 10),
+                GitLabJob(id: 2, name: "lint", tags: [], project: "acme/web", runnerDescription: nil, projectID: 11),
             ])
     }
 

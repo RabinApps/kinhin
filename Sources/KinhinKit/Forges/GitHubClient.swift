@@ -86,10 +86,13 @@ public protocol GitHubServing: Sendable {
     /// `.kinhin.yml` of `repository` at `ref` (nil = default branch), or nil
     /// when the repository has none.
     func projectFile(repository: String, ref: String?) async throws -> Data?
+    /// The in-progress job `runnerName` is executing, with its steps.
+    func pipelineDetail(runnerName: String) async throws -> PipelineDetail?
 }
 
 extension GitHubServing {
     public var rateLimit: ForgeRateLimit? { nil }
+    public func pipelineDetail(runnerName: String) async throws -> PipelineDetail? { nil }
     public func projectFile(repository: String, ref: String?) async throws -> Data? { nil }
 }
 

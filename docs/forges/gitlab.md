@@ -45,6 +45,12 @@ The server release decides what exists. The code requires **GitLab 16.0 or later
 
 The `POST /user/runners` body is `{description, tag_list, run_untagged: false, runner_type: project_type|group_type, project_id|group_id}`. GitLab's docs list the same fields and add `instance_type`.
 
+## Pipeline view
+
+The running job (`/projects/{id}/jobs?scope[]=running`, matched by runner description) names its pipeline; the view
+then reads `GET /projects/{id}/pipelines/{pid}` and `/pipelines/{pid}/jobs`. GitLab's API has no step list below a job,
+so the view is job-level.
+
 ## Registration flow
 
 - Registration mode `perRunner`: one runner is created per VM runner name (`GitLabForge.swift:68-77`). Exit semantics `deregisters`.

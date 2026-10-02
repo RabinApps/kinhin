@@ -57,6 +57,7 @@ final class WindowModels {
     private(set) var runtimesModel: RuntimesModel?
     private(set) var logsModel: LogsModel?
     private(set) var diagnosticsModel: DiagnosticsModel?
+    private(set) var pipelineModel: PipelineModel?
 
     // MARK: - Setup wizard
 
@@ -149,6 +150,14 @@ final class WindowModels {
         if let logsModel { return logsModel }
         let model = LogsModel()
         logsModel = model
+        return model
+    }
+
+    /// The pipeline sheet's model; one per opening, kept until the next so the
+    /// sheet's view reads the same instance for as long as it is up.
+    func makePipelineModel(vmID: String) -> PipelineModel {
+        let model = PipelineModel(vmID: vmID, controller: fleet)
+        pipelineModel = model
         return model
     }
 

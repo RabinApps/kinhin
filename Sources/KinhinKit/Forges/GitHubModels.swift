@@ -25,11 +25,36 @@ public struct GHJob: Codable, Sendable, Equatable {
     /// The runner executing (or slated to execute) this job — the key that
     /// maps a running job back to one of our VMs.
     let runnerName: String?
+    /// Detail the jobs payload already carries; nil on payloads without it.
+    let conclusion: String?
+    let htmlURL: String?
+    let startedAt: String?
+    let workflowName: String?
+    let steps: [GHStep]?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, status, labels
+        case id, name, status, labels, conclusion, steps
         case runID = "run_id"
         case runnerName = "runner_name"
+        case htmlURL = "html_url"
+        case startedAt = "started_at"
+        case workflowName = "workflow_name"
+    }
+}
+
+/// One step of a job, as the jobs endpoint reports it.
+public struct GHStep: Codable, Sendable, Equatable {
+    public let name: String
+    public let status: String
+    public let conclusion: String?
+    public let number: Int?
+    let startedAt: String?
+    let completedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, status, conclusion, number
+        case startedAt = "started_at"
+        case completedAt = "completed_at"
     }
 }
 

@@ -38,6 +38,12 @@ Because the request carries no version, the **server release decides what exists
 | GET | `{actionsBase}/tasks?status=running&page=1&limit=50` | Running tasks, attributed by `runner_name` | `GiteaClient.swift:218` |
 | GET | `/api/v1/repos/search?limit=50&private=true&sorted=updated&page=N` | Repository picker | `GiteaClient.swift:91` |
 
+## Pipeline view
+
+The running task (`/actions/tasks?status=running`, matched by `runner_name`) is shown as one job with its run link,
+title and start time where the server reports them. Gitea and Forgejo have no stable public step list, so the view is
+job-level.
+
 ## Registration flow
 
 - Registration mode `sharedLongLived`, exit semantics `idleGrace` (`GiteaForge.swift`).

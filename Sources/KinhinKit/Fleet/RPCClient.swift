@@ -45,6 +45,15 @@ public struct RPCClient: Sendable {
         return try JSONDecoder().decode(FleetStatus.self, from: payload)
     }
 
+    /// The live pipeline `vmID` is running, or nil when it runs none (or the
+    /// daemon predates the call: it answers a decode error, never a payload).
+    public func pipelineDetail(vmID: String) throws -> PipelineDetail? {
+        let payload = try JSONEncoder().encode(Daemon.VMDeleteRequest(id: vmID))
+        let response = try command(.pipelineDetail, payload: payload)
+        guard let data = response.payload else { return nil }
+        return try JSONDecoder().decode(PipelineDetail.self, from: data)
+    }
+
     /// Ask the daemon to swap its PAT (it must already be in the Keychain).
     public func replaceToken(pat: String) throws {
         try command(.replaceToken, payload: JSONEncoder().encode(TokenReplaceRequest(pat: pat)))

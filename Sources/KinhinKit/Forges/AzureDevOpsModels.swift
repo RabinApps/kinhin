@@ -107,6 +107,36 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
     public let demands: [String]
     let reservedAgent: AgentRef?
     let definition: Owner?
+    /// What the pipeline view needs to find the build's timeline: the job
+    /// record's id, the project, and the owning build. Optional throughout,
+    /// since API versions differ.
+    let jobId: String?
+    let scopeId: String?
+    let buildOwner: BuildOwner?
+
+    /// The request's owner: for pipeline runs, the build.
+    struct BuildOwner: Decodable, Sendable, Equatable {
+        let id: Int?
+        let name: String?
+
+        init(id: Int?, name: String?) {
+            self.id = id
+            self.name = name
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: Keys.self)
+            // `id` is a number for builds; tolerate a numeric string.
+            if let number = try? container.decodeIfPresent(Int.self, forKey: .id) {
+                id = number
+            } else {
+                id = (try? container.decodeIfPresent(String.self, forKey: .id)).flatMap { Int($0) }
+            }
+            name = try? container.decodeIfPresent(String.self, forKey: .name)
+        }
+
+        private enum Keys: String, CodingKey { case id, name }
+    }
 
     struct AgentRef: Decodable, Sendable, Equatable {
         let name: String?
@@ -118,6 +148,8 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case requestId, jobName, assignTime, result, finishTime, demands, reservedAgent, definition
+        case jobId, scopeId
+        case buildOwner = "owner"
     }
 
     init(
@@ -132,6 +164,9 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
         self.demands = demands
         self.reservedAgent = reservedAgent.map { AgentRef(name: $0) }
         self.definition = definition.map { Owner(name: $0) }
+        self.jobId = nil
+        self.scopeId = nil
+        self.buildOwner = nil
     }
 
     public init(from decoder: Decoder) throws {
@@ -143,6 +178,9 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
         finishTime = try container.decodeIfPresent(String.self, forKey: .finishTime)
         reservedAgent = try container.decodeIfPresent(AgentRef.self, forKey: .reservedAgent)
         definition = try container.decodeIfPresent(Owner.self, forKey: .definition)
+        jobId = try? container.decodeIfPresent(String.self, forKey: .jobId)
+        scopeId = try? container.decodeIfPresent(String.self, forKey: .scopeId)
+        buildOwner = try? container.decodeIfPresent(BuildOwner.self, forKey: .buildOwner)
         demands = try container.decodeIfPresent([Demand].self, forKey: .demands)?.map(\.text) ?? []
     }
 
@@ -171,6 +209,47 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
     var isRunning: Bool { assignTime != nil && result == nil && finishTime == nil }
     /// The pipeline the request belongs to.
     var pipeline: String? { definition?.name }
+}
+
+// MARK: - Build timeline
+
+/// One record of `GET /{project}/_apis/build/builds/{id}/timeline`: a stage,
+/// job or task (step). Records nest through `parentId`.
+struct AzureDevOpsTimelineRecord: Decodable, Sendable, Equatable {
+    let id: String
+    let parentId: String?
+    let type: String?
+    let name: String?
+    let state: String?
+    let result: String?
+    let order: Int?
+    let startTime: String?
+    let finishTime: String?
+    let workerName: String?
+}
+
+struct AzureDevOpsTimeline: Decodable, Sendable, Equatable {
+    let records: [AzureDevOpsTimelineRecord]
+}
+
+/// `GET /{project}/_apis/build/builds/{id}`: the fields the pipeline view shows.
+struct AzureDevOpsBuildInfo: Decodable, Sendable, Equatable {
+    let buildNumber: String?
+    let sourceBranch: String?
+    let sourceVersion: String?
+    let definition: Definition?
+    let links: Links?
+
+    struct Definition: Decodable, Sendable, Equatable { let name: String? }
+    struct Links: Decodable, Sendable, Equatable {
+        let web: Link?
+        struct Link: Decodable, Sendable, Equatable { let href: String? }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case buildNumber, sourceBranch, sourceVersion, definition
+        case links = "_links"
+    }
 }
 
 // MARK: - Errors

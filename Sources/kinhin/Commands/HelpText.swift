@@ -91,6 +91,9 @@ func helpText() -> String {
         stop                        Stop the fleet (works on daemon or in-process)
         logs [-n N]                 Show recent log lines
         watch                       Live status view (refreshes every 2s)
+        pipeline [VM] [--job NAME|ID] [--watch] [--json]
+                                    Show the live pipeline a busy VM is running: its jobs and steps.
+                                    No VM: every busy VM. --job: just that job's steps. Needs the daemon
 
     OTHER:
         support                     Show ways to donate or sponsor kinhin

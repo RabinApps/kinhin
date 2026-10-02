@@ -102,6 +102,59 @@ struct AzureDevOpsForge: Forge {
         }
     }
 
+    /// The build `runnerName`'s agent is running a job of, from the build
+    /// timeline: Job records are the jobs, their Task children the steps. The
+    /// job-request → build link (`owner.id`, `scopeId`) is undocumented, so a
+    /// request without it yields no detail.
+    func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? {
+        guard
+            let request = try await requests().first(where: { $0.isRunning && $0.reservedAgent?.name == runnerName }),
+            let buildID = request.buildOwner?.id, let project = request.scopeId
+        else { return nil }
+        let timeline = try await client.timeline(project: project, buildID: buildID)
+        // Cosmetic header data: the timeline alone is enough to show the steps.
+        let info = try? await client.build(project: project, buildID: buildID)
+        let records = timeline.records
+        let jobs = records.filter { $0.type == "Job" }.sorted { ($0.order ?? 0) < ($1.order ?? 0) }
+        let mapped = jobs.map { job -> PipelineJob in
+            let steps = records.filter { $0.parentId == job.id && $0.type == "Task" }
+                .sorted { ($0.order ?? 0) < ($1.order ?? 0) }
+                .map {
+                    PipelineStep(
+                        name: $0.name ?? "task", state: Self.state(state: $0.state, result: $0.result),
+                        startedAt: PipelineParsing.date($0.startTime), finishedAt: PipelineParsing.date($0.finishTime))
+                }
+            let isCurrent = request.jobId.map { $0.caseInsensitiveCompare(job.id) == .orderedSame } ?? false
+            return PipelineJob(
+                id: job.id, name: job.name ?? "job", state: Self.state(state: job.state, result: job.result),
+                startedAt: PipelineParsing.date(job.startTime), finishedAt: PipelineParsing.date(job.finishTime),
+                steps: steps, isCurrent: isCurrent || job.workerName == runnerName)
+        }
+        guard !mapped.isEmpty else { return nil }
+        return PipelineDetail(
+            forge: .azuredevops,
+            title: [info?.definition?.name ?? request.pipeline, info?.buildNumber.map { "#\($0)" }]
+                .compactMap { $0 }.joined(separator: " "),
+            repository: request.pipeline, ref: info?.sourceBranch, sha: info?.sourceVersion,
+            url: info?.links?.web?.href, state: PipelineDetail.aggregate(mapped.map(\.state)),
+            startedAt: mapped.compactMap(\.startedAt).min(), jobs: mapped, granularity: .step)
+    }
+
+    static func state(state: String?, result: String?) -> PipelineStepState {
+        switch (state ?? "").lowercased() {
+        case "inprogress": return .running
+        case "pending": return .pending
+        default: break
+        }
+        switch (result ?? "").lowercased() {
+        case "succeeded", "succeededwithissues": return .succeeded
+        case "failed": return .failed
+        case "canceled", "abandoned": return .cancelled
+        case "skipped": return .skipped
+        default: return .pending
+        }
+    }
+
     private func requests() async throws -> [AzureDevOpsJobRequest] {
         try await requestList.elements { try await client.jobRequests(pool: pool) }
     }

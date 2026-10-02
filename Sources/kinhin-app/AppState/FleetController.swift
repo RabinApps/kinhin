@@ -210,6 +210,13 @@ final class FleetController {
         return try await service.status()
     }
 
+    /// The live pipeline a VM is running, straight from the backend (the
+    /// pipeline sheet polls this while it is open).
+    func fetchPipelineDetail(vmID: String) async throws -> PipelineDetail? {
+        guard let service else { throw EngineError.fleetNotSetUp }
+        return try await service.pipelineDetail(vmID: vmID)
+    }
+
     /// Deletes a VM without asking first; entry points confirm in their own
     /// UX (menu shows an alert; the App Intent relies on Shortcuts' confirm).
     func deleteVM(id: String) async throws {

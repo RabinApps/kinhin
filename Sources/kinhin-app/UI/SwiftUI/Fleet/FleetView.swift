@@ -109,7 +109,14 @@ struct FleetView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(record.error != nil ? StatusStyle.error.color : StatusStyle.secondary.color)
             }
+            .contentShape(Rectangle())
+            .onTapGesture { if model.hasPipeline(record) { model.pipelineClicked(record.id) } }
             Spacer(minLength: 12)
+            if model.hasPipeline(record) {
+                Button("Pipeline…") { model.pipelineClicked(record.id) }
+                    .controlSize(.small)
+                    .accessibilityLabel("Show pipeline of \(record.id)")
+            }
             Button("Delete") { model.deleteClicked(record.id) }
                 .controlSize(.small)
                 .accessibilityLabel("Delete \(record.id)")

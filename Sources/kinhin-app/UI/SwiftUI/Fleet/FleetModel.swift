@@ -12,6 +12,7 @@ final class FleetModel {
     @ObservationIgnored var onNeedsSetup: () -> Void = {}
     @ObservationIgnored var onShowLogs: () -> Void = {}
     @ObservationIgnored var onShowDiagnostics: () -> Void = {}
+    @ObservationIgnored var onShowPipeline: (String) -> Void = { _ in }
 
     @ObservationIgnored let controller: FleetController
 
@@ -65,6 +66,13 @@ final class FleetModel {
     func togglePause() {
         guard !isBusy else { return }
         controller.userSetPaused(!paused)
+    }
+
+    /// Whether a VM row opens the pipeline view: only while it holds a job.
+    func hasPipeline(_ record: VMRecord) -> Bool { record.phase == .busy || record.job != nil }
+
+    func pipelineClicked(_ id: String) {
+        onShowPipeline(id)
     }
 
     func deleteClicked(_ id: String) {

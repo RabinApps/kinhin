@@ -153,6 +153,8 @@ public struct GitLabClient: Sendable {
             let runner: Runner?
             let ref: String?
             let commit: Commit?
+            let pipeline: Pipeline?
+            struct Pipeline: Decodable { let id: Int? }
             struct Runner: Decodable { let description: String? }
             struct Commit: Decodable { let id: String? }
         }
@@ -164,12 +166,26 @@ public struct GitLabClient: Sendable {
             return jobs.map {
                 GitLabJob(
                     id: $0.id, name: $0.name, tags: $0.tag_list ?? [], project: project.path,
-                    runnerDescription: $0.runner?.description, ref: $0.ref, sha: $0.commit?.id)
+                    runnerDescription: $0.runner?.description, ref: $0.ref, sha: $0.commit?.id,
+                    projectID: project.id, pipelineID: $0.pipeline?.id)
             }
         } catch GitLabError.notFound, GitLabError.forbidden {
             Log.warn("gitlab", "skipping jobs of \(project.path): not readable with this token")
             return []
         }
+    }
+
+    /// A pipeline's jobs (stage order) and its page, for the app's live
+    /// pipeline view. GitLab's API has no step list below the job.
+    func pipeline(projectID: Int, pipelineID: Int) async throws -> (info: GitLabPipelineInfo, jobs: [GitLabPipelineJob])
+    {
+        let (infoData, _) = try await send("GET", "/projects/\(projectID)/pipelines/\(pipelineID)")
+        let info: GitLabPipelineInfo = try decode(infoData, "pipeline")
+        let (jobsData, _) = try await send(
+            "GET", "/projects/\(projectID)/pipelines/\(pipelineID)/jobs",
+            [URLQueryItem(name: "per_page", value: "100")])
+        let jobs: [GitLabPipelineJob] = try decode(jobsData, "pipeline jobs")
+        return (info, jobs.sorted { $0.id < $1.id })
     }
 
     /// The projects whose jobs a scope's demand comes from. Groups list

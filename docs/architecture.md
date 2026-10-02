@@ -38,7 +38,7 @@ Inside the targets, code is organized by domain:
 | `kinhin-app/AppDelegate/`   | Lifecycle and composition root: builds the controllers, installs the status item and menus, and re-renders them from controller state through one `withObservationTracking` observer |
 | `kinhin-app/Intents/`       | App Intents (Shortcuts): fleet start/stop/pause, status, delete VM, diagnose, auto-resume; the testable `FleetIntentBridge`                     |
 | `kinhin-app/UI/`            | `MainTabsWindowController` (an `NSWindow` shell that hosts `MainTabsView` and forwards window events), `AlertKit`, and shared AppKit plumbing |
-| `kinhin-app/UI/SwiftUI/`    | SwiftUI: `MainTabs/` (`MainTabsView`, `MainTabsModel` for tab/section/sheet navigation, `WindowModels` for the per-tab form models) plus models (`@Observable`) + views for Fleet, Connect, This Mac, Routing, Capacity, Toolchains, Containers, the wizard, Diagnostics, Logs |
+| `kinhin-app/UI/SwiftUI/`    | SwiftUI: `MainTabs/` (`MainTabsView`, `MainTabsModel` for tab/section/sheet navigation, `WindowModels` for the per-tab form models) plus models (`@Observable`) + views for Fleet, Connect, This Mac, Routing, Capacity, Toolchains, Containers, the wizard, Diagnostics, Logs, and the per-VM pipeline sheet (`Pipeline/`) |
 
 ### App state flow
 

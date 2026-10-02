@@ -43,6 +43,12 @@ The published spec marks runner reads with the OAuth scope `runner`, runner writ
 
 All six runner operations (list, create, get, update, delete, at workspace and repository level) are in the published spec with the paths above.
 
+## Pipeline view
+
+The active pipeline (`PENDING` or `IN_PROGRESS`, from `/pipelines/?sort=-created_on`) and its `/steps` are shown, each
+Bitbucket step as one job with its state and result. Which runner took a step is not public, so every running step is
+marked as this VM's, and the API has no list of commands within a step (job-level).
+
 ## Registration flow
 
 - Registration mode `perRunner`, exit semantics `idleGrace` (`BitbucketForge.swift:51-52`): the Bitbucket runner has no single-job mode, so it idles out.

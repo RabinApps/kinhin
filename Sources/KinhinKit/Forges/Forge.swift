@@ -139,9 +139,15 @@ public protocol Forge: Sendable {
     /// default branch), or nil when the repo has none. Forges without a file
     /// API return nil.
     func projectFile(repository: String, ref: String?) async throws -> Data?
+    /// The live pipeline the runner named `runnerName` is executing (steps and
+    /// their state), or nil when it runs no job or the forge can't tell.
+    /// `repository` narrows the lookup where the forge needs it.
+    func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail?
 }
 
 extension Forge {
+    public func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? { nil }
+
     public var account: String { id.rawValue }
 
     /// The scope this forge serves ("owner/name" or an org).

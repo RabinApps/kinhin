@@ -302,6 +302,11 @@ struct TaskQueueWrapper: Decodable {
         let repository: String?
         let head_branch: String?
         let head_sha: String?
+        // Pipeline-view extras; all optional like the rest.
+        let url: String?
+        let display_title: String?
+        let run_number: Int?
+        let run_started_at: String?
         // Nested attribution shape: {"repository":{"full_name":...}}.
         let repositoryObject: RepoObject?
 
@@ -322,6 +327,10 @@ struct TaskQueueWrapper: Decodable {
             // `repository` field takes; either being absent is expected, not an error.
             head_branch = try? c.decodeIfPresent(String.self, forKey: .head_branch)
             head_sha = try? c.decodeIfPresent(String.self, forKey: .head_sha)
+            url = try? c.decodeIfPresent(String.self, forKey: .url)
+            display_title = try? c.decodeIfPresent(String.self, forKey: .display_title)
+            run_number = try? c.decodeIfPresent(Int.self, forKey: .run_number)
+            run_started_at = try? c.decodeIfPresent(String.self, forKey: .run_started_at)
             repository = try? c.decodeIfPresent(String.self, forKey: .repository)
             repositoryObject = try? c.decodeIfPresent(RepoObject.self, forKey: .repository)
         }
@@ -331,6 +340,7 @@ struct TaskQueueWrapper: Decodable {
             case repo_full_name = "repo_full_name"
             case repository
             case head_branch, head_sha
+            case url, display_title, run_number, run_started_at
         }
     }
 
@@ -351,7 +361,8 @@ struct TaskQueueWrapper: Decodable {
             let name = entry.name ?? entry.title
             return GiteaTask(
                 id: entry.id, name: name, repository: repository, status: entry.status,
-                runnerName: entry.runner_name, ref: entry.head_branch, sha: entry.head_sha)
+                runnerName: entry.runner_name, ref: entry.head_branch, sha: entry.head_sha, url: entry.url,
+                title: entry.display_title, runNumber: entry.run_number, startedAt: entry.run_started_at)
         }
         // When entries are absent but the instance reports a count (older
         // shapes), fall back to count-only placeholders so demand survives.
