@@ -205,6 +205,7 @@ extension AppDelegate {
             var title = "  \(record.id) — \(record.phase.rawValue)"
             if let repos = FleetStatusFormatter.repos(of: record) { title += " — \(repos)" }
             if let job = record.job { title += " (\(job))" }
+            if let usage = FleetStatusFormatter.usage(of: record) { title += " · \(usage)" }
             if let err = record.error { title += " ⚠︎ \(err.prefix(40))" }
             let item = menu.addItem(withTitle: title, action: #selector(deleteVM(_:)), keyEquivalent: "")
             item.target = self

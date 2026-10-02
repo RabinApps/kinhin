@@ -42,6 +42,9 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     /// attribution, stamped by the reconcile loop from in-progress jobs;
     /// nil when nothing is running or the scope is a single repo).
     public var repos: [String]?
+    /// Live CPU/RAM, stamped onto status reads only (never persisted). Nil
+    /// when not measurable or from a daemon predating the field.
+    public var usage: ResourceUsage?
     /// Forge response bodies and guest stderr end up here; they are masked on
     /// assignment so status RPCs, the UI and Shortcuts never carry a token.
     public var error: String? {

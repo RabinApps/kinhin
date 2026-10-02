@@ -37,6 +37,26 @@ virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple c
 Additional accounts (another org, a second server) are not part of first-run setup; add them under
 **Advanced → Accounts → More accounts…**, which opens by itself when extra accounts already exist.
 
+## Live CPU and RAM usage
+
+kinhin shows how busy the Mac and each running instance are, so you can tell whether the configured sizes fit
+(see [Hardware](hardware.md#watching-real-usage)). It is a current reading, not a history.
+
+- **Menu bar.** The status lines gain a host line, `🖥 Host CPU 34% · RAM 21.0/64 GB`, and each VM row ends with
+  ` · CPU 120% · RAM 3.2/8 GB`.
+- **Fleet tab.** The same host line and per-VM suffix appear in the VM list.
+- **Advanced → Containers.** Rows for running containers show their usage.
+- **CLI.** `kinhin status` and `kinhin watch` print a `host:` line and per-VM usage. `kinhin status --json` carries it
+  as `fleet.host` and `fleet.records[].usage`.
+
+Host CPU is a percentage of the whole machine; per-VM and per-container CPU is a percentage of **one core**, so it can
+exceed 100%. Only active instances are measured. A number that cannot be read is left out (and a warning is logged)
+rather than failing the status. CPU needs two samples, so it appears on the second refresh. Usage is never written to
+disk. An older daemon simply reports none, and the app shows no usage. How each runtime is measured is in
+[Runtimes](runtimes.md#how-usage-is-measured).
+
+Not included: history or graphs, alerts, metrics from inside the guest, and per-job attribution.
+
 ## Quitting
 
 With the in-process engine, quitting kinhin waits (up to 30 seconds) for the engine to stop and tear its VMs down

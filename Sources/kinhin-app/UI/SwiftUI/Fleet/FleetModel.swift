@@ -79,6 +79,7 @@ final class FleetModel {
         var parts: [String] = []
         if let repos = FleetStatusFormatter.repos(of: record) { parts.append(repos) }
         if let job = record.job { parts.append(job) }
+        if let usage = FleetStatusFormatter.usage(of: record) { parts.append(usage) }
         if let err = record.error { parts.append("⚠︎ \(err)") }
         return parts.joined(separator: " · ")
     }

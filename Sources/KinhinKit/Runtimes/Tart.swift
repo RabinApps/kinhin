@@ -62,6 +62,10 @@ public protocol TartControlling: Sendable {
     /// Boots the VM with `isoPath` attached as a second disk
     /// (`tart run --disk <iso>`), for one-time OS installs.
     func runWithDisk(name: String, isoPath: String) async throws
+    /// Host-side resource use of each named VM's `tart run` process: resident
+    /// memory and cumulative CPU time. Names with no live process are absent.
+    /// The default reports nothing (fakes, stand-ins).
+    func processSamples(of names: [String]) async throws -> [String: ProcessSample]
 }
 
 public extension TartControlling {
@@ -71,6 +75,7 @@ public extension TartControlling {
 
     func installGuestSSHKey(vm: String, user: String) async throws {}
     func allowKeys(_ key: String) async throws {}
+    func processSamples(of names: [String]) async throws -> [String: ProcessSample] { [:] }
 }
 
 /// Real implementation that shells out to the tart binary.

@@ -89,6 +89,16 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertTrue(tart.cloneCalls.isEmpty)
     }
 
+    /// Softnet VMs briefly answer "Host is down" (no ARP reply yet) while booting.
+    func testTartRegistrationRetriesHostIsDown() async throws {
+        let ssh = FlakySSH(failures: 2, stderr: "ssh: connect to host 10.0.0.2 port 22: Host is down")
+        let runtime = TartRuntime(
+            tart: FakeTart(), bootTimeout: { 300 }, ssh: ssh, sshReadyWindow: 30, sshRetryInterval: .milliseconds(1))
+        let result = try await runtime.execRegistration("vm-1", ip: "10.0.0.2", "true", timeout: 5)
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(ssh.calls, 3)
+    }
+
     /// `tart ip` answers before sshd listens: registration retries the
     /// "nothing listening yet" errors, but not a genuine script failure.
     func testTartRegistrationRetriesUntilSSHListens() async throws {

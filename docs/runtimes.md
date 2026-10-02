@@ -137,6 +137,21 @@ kinhin image prepare --source <name>
 Guests need an apt-based distro with passwordless `sudo` (the published Cirrus Labs images have both). macOS-only
 toolchain entries (Homebrew, CocoaPods) are skipped on Linux guests.
 
+## How usage is measured
+
+The app and `kinhin status` show live CPU and RAM per instance (see
+[Live CPU and RAM usage](app.md#live-cpu-and-ram-usage)). Each runtime is read from the host side:
+
+| Runtime              | Source                                   | CPU                                        | RAM                             |
+| -------------------- | ---------------------------------------- | ------------------------------------------ | ------------------------------- |
+| **Tart** (macOS, Linux VMs) | `ps` on the VM's `tart run` process | Percent of one core, from the change in CPU time between samples (can exceed 100%) | Resident memory of that process, against the configured `vm.memory_gb` |
+| **Docker**           | `docker stats --no-stream`               | Percent of one core                        | Used / limit                    |
+| **apple/container**  | `container stats`                        | Not shown (the CLI only exposes a cumulative counter) | Used / limit         |
+
+For tart these are the host's view of the VM process, not metrics from inside the guest. CPU appears from the second
+sample. Samples are cached for about 5 seconds, so the app's refresh does not run a stats command every tick. Only
+active instances are measured.
+
 ## Per-repo and per-workflow routing
 
 One fleet can mix runtimes. Add a `runtimes:` section to route by repo, and override per workflow with labels:

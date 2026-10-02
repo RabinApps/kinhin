@@ -135,6 +135,11 @@ extension FleetEngine {
         // Records live in the store and the run flags in `runState`; derive
         // them on read so a snapshot can never disagree with either.
         status.records = store.all
+        let usage = await usageSampler.snapshot(for: status.records)
+        status.host = usage.host
+        for index in status.records.indices {
+            status.records[index].usage = usage.byInstance[status.records[index].id]
+        }
         let state = runState.withLock { $0 }
         status.running = state.running
         status.paused = state.paused

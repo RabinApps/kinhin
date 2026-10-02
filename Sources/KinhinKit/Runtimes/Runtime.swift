@@ -229,7 +229,10 @@ struct TartRuntime: Runtime {
     }
 
     static func sshNotListeningYet(_ stderr: String) -> Bool {
-        ["Operation timed out", "Connection refused", "No route to host"].contains { stderr.contains($0) }
+        // "Host is down" is the guest not answering ARP yet, common right after a softnet boot.
+        ["Operation timed out", "Connection refused", "No route to host", "Host is down"].contains {
+            stderr.contains($0)
+        }
     }
 
     func existingInstanceIDs() async throws -> [String] {

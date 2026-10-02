@@ -39,6 +39,7 @@ public final class FleetEngine: Sendable {
     let ssh: SSHExecuting
     let statusBox: FleetStatusBox
     let capacity: Capacity.Plan
+    let usageSampler: UsageSampler
 
     // MARK: - Collaborators (fixed for the engine's lifetime)
 
@@ -145,6 +146,8 @@ public final class FleetEngine: Sendable {
             runtimes[.host] = HostRuntime(shell: shell)
         }
         self.runtimesByRuntime = runtimes
+        self.usageSampler = UsageSampler(
+            tart: tart, shell: shell, tartMemoryMB: { [config] in config.vm.memoryGB * 1024 })
         self.runtime = runtimes[Capacity.primaryRuntime(of: config)] ?? tartRuntime
         self.config = config
         self.tart = tart

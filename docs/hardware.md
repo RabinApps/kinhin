@@ -79,6 +79,16 @@ unusable if you guess low:
   or a single small [Tart Linux VM](runtimes.md#tart-linux-vms) — or, for repositories you fully
   trust, [host mode](runtimes.md#host-mode-run-jobs-directly-on-your-mac).
 
+## Watching real usage
+
+The figures above are configured capacity; kinhin also shows what is actually used. The menu bar, Fleet tab and
+`kinhin status` show host CPU and RAM and per-VM usage (see
+[Live CPU and RAM usage](app.md#live-cpu-and-ram-usage)). Host RAM used is active + wired + compressed memory, the same
+as **Memory Used** in Activity Monitor, against the Mac's total. A VM's RAM is shown against its configured
+`vm.memory_gb`, so a VM sitting near its limit is a sign to raise it, and a host near its total is a sign to lower
+concurrency or `vm.memory_gb`. VM CPU is a percentage of one core: 400% means about four vCPUs
+busy. It is a live reading only, with no history.
+
 ## Storage
 
 What kinhin puts on disk, and how much to plan for:

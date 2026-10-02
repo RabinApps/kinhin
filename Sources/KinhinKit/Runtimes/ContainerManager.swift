@@ -165,7 +165,7 @@ public struct ContainerManager: Sendable {
 
     // MARK: - Plumbing
 
-    private func run(_ args: [String], what: String) async throws -> String {
+    func run(_ args: [String], what: String) async throws -> String {
         guard let binary else { throw ContainerManagerError.toolMissing(tool) }
         let result = try await shell.run([binary] + args, cwd: nil, timeout: 60)
         guard result.succeeded else {

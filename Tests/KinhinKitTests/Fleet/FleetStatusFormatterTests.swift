@@ -188,3 +188,28 @@ final class FleetStatusFormatterTests: XCTestCase {
         XCTAssertNil(FleetStatusFormatter.rateLimitNote(status), "a passed reset is no longer news")
     }
 }
+
+final class FleetStatusUsageFormattingTests: XCTestCase {
+    func testHostLineOmitsCPUUntilMeasured() {
+        XCTAssertEqual(
+            FleetStatusFormatter.hostLine(HostUsage(cpuPercent: nil, memoryUsedGB: 21, memoryTotalGB: 64)),
+            "Host RAM 21.0/64 GB")
+        XCTAssertEqual(
+            FleetStatusFormatter.hostLine(HostUsage(cpuPercent: 33.6, memoryUsedGB: 21, memoryTotalGB: 64)),
+            "Host CPU 34% · RAM 21.0/64 GB")
+    }
+
+    func testRecordUsage() {
+        var record = VMRecord(id: "kinhin-1-a")
+        XCTAssertNil(FleetStatusFormatter.usage(of: record))
+        record.usage = ResourceUsage(cpuPercent: 120, memoryUsedMB: 3277, memoryLimitMB: 8192)
+        XCTAssertEqual(FleetStatusFormatter.usage(of: record), "CPU 120% · RAM 3.2/8 GB")
+    }
+
+    func testStatusWithoutUsageFieldsStillDecodes() throws {
+        let data = try JSONEncoder().encode(FleetStatus(records: [VMRecord(id: "kinhin-1-a")]))
+        let decoded = try JSONDecoder().decode(FleetStatus.self, from: data)
+        XCTAssertNil(decoded.host)
+        XCTAssertNil(decoded.records.first?.usage)
+    }
+}

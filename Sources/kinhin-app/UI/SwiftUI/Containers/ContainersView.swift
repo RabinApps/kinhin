@@ -87,6 +87,8 @@ struct ContainersView: View {
     }
 
     private func detail(_ item: ManagedContainer) -> String {
-        [item.image, item.status.isEmpty ? item.state : item.status].filter { !$0.isEmpty }.joined(separator: " · ")
+        let usage = model.usage[item.name].flatMap(FleetStatusFormatter.describe)
+        return [item.image, item.status.isEmpty ? item.state : item.status, usage ?? ""]
+            .filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }

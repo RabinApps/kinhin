@@ -38,6 +38,35 @@ public enum FleetStatusFormatter {
         return "\(age)s old\(stale)\(slowed)"
     }
 
+    /// "Host CPU 34% · RAM 21.0/64 GB". CPU is omitted until a second sample exists.
+    public static func hostLine(_ host: HostUsage) -> String {
+        var parts: [String] = []
+        if let cpu = host.cpuPercent { parts.append("CPU \(Int(cpu.rounded()))%") }
+        parts.append("RAM \(String(format: "%.1f", host.memoryUsedGB))/\(Int(host.memoryTotalGB.rounded())) GB")
+        return "Host " + parts.joined(separator: " · ")
+    }
+
+    /// "CPU 120% · RAM 3.2/8 GB" for one VM or container; nil when nothing was measured.
+    /// CPU is percent of one core, so it can exceed 100.
+    public static func usage(of record: VMRecord) -> String? {
+        record.usage.flatMap(describe)
+    }
+
+    /// The same rendering for a bare `ResourceUsage` (the Containers tab).
+    public static func describe(_ usage: ResourceUsage) -> String? {
+        var parts: [String] = []
+        if let cpu = usage.cpuPercent { parts.append("CPU \(Int(cpu.rounded()))%") }
+        if let used = usage.memoryUsedMB {
+            let usedGB = String(format: "%.1f", Double(used) / 1024)
+            if let limit = usage.memoryLimitMB, limit > 0 {
+                parts.append("RAM \(usedGB)/\(String(format: "%g", (Double(limit) / 1024 * 10).rounded() / 10)) GB")
+            } else {
+                parts.append("RAM \(usedGB) GB")
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     // MARK: - Summary (menu bar, Fleet tab)
 
     /// The state line with counters, plus indented notes: auto-resume while
@@ -54,6 +83,7 @@ public enum FleetStatusFormatter {
             line += "\n  ⏳ auto-resume: \(status.autoResumeCadence ?? "releases when the queue is empty")"
         }
         if let age = queueAge(status) { line += "\n  ⏱ queue age: \(age)" }
+        if let host = status.host { line += "\n  🖥 \(hostLine(host))" }
         if let note = rateLimitNote(status) { line += "\n  ⚠ \(note)" }
         if let byRepo = status.queueByRepo, status.queueDepth > 0, !byRepo.isEmpty {
             line += "\n  ↳ \(repoBreakdown(byRepo, limit: 2))"
@@ -75,6 +105,7 @@ public enum FleetStatusFormatter {
             lines.append("auto-resume: on — \(release)")
         }
         if let age = queueAge(status) { lines.append("queue age:  \(age)") }
+        if let host = status.host { lines.append("host:      \(hostLine(host).dropFirst(5))") }
         if let note = rateLimitNote(status) { lines.append("rate limit: \(note)") }
         lines.append(
             "repo:      (see config)   queue: \(status.queueDepth)   desired: \(status.desired)   capacity cap: \(status.capacityCap)"
@@ -100,6 +131,7 @@ public enum FleetStatusFormatter {
                 line += "  up=\(Int(now.timeIntervalSince(record.createdAt)))s"
                 if let job = record.job { line += "  job=\(job)" }
                 if let repos = record.repos, !repos.isEmpty { line += "  repos=\(repos.joined(separator: ","))" }
+                if let usage = usage(of: record) { line += "  \(usage)" }
                 if let err = record.error { line += "  error=\(err.prefix(120))" }
                 lines.append(line)
             }

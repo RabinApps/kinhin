@@ -52,6 +52,8 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     /// Set while a per-project image bakes: "baking image for acme/api
     /// (go@1.22.5), using base meanwhile". Nil when nothing is baking.
     public var imageNotice: String?
+    /// Live host CPU/RAM. Nil when unmeasurable or from a daemon predating the field.
+    public var host: HostUsage?
     /// Per-runtime capacity caps (mixed fleets: the weighted partition;
     /// nil for single-runtime fleets). Keys are RuntimeID raw values.
     var capacityByRuntime: [String: String]?

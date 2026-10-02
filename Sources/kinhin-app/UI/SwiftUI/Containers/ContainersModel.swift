@@ -29,6 +29,8 @@ final class ContainersModel {
     private(set) var tool: ContainerTool = .docker
     private(set) var containers: [ManagedContainer] = []
     private(set) var volumes: [ManagedVolume] = []
+    /// Live CPU/RAM of running containers, keyed by container name.
+    private(set) var usage: [String: ResourceUsage] = [:]
     private(set) var status = StatusLine(text: "")
     private(set) var busy = false
     private var installed: [ContainerTool] = []
@@ -55,6 +57,7 @@ final class ContainersModel {
         guard tool.isInstalled else {
             containers = []
             volumes = []
+            usage = [:]
             status = StatusLine(
                 text:
                     "\(tool.title) isn't installed on this Mac. Install Docker Desktop, OrbStack or colima, or Apple's container CLI.",
@@ -76,9 +79,12 @@ final class ContainersModel {
             containers = try await manager.containers()
             volumes = try await manager.volumes()
             status = StatusLine(text: "")
+            // Best effort: a stats failure must not hide the container list.
+            usage = (try? await manager.stats()) ?? [:]
         } catch {
             containers = []
             volumes = []
+            usage = [:]
             status = StatusLine(text: error.localizedDescription, style: .error)
         }
     }
