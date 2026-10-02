@@ -89,3 +89,6 @@ jobs:
 
       - name: Docs lint (stale strings)
         run: bash scripts/docs-lint.sh
+
+      - name: Docs sync (code-derived blocks)
+        run: bash scripts/docs-sync.sh --check

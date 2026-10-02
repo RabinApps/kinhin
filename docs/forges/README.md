@@ -6,6 +6,10 @@ What kinhin assumes about each forge's API, checked against the forge's own docu
 
 [Forge support](../forges.md) tells you how to set a forge up. These pages record what kinhin sends, which endpoints it calls, and how that compares with each forge's current API docs or published spec. Each page ends with audit findings and a "Verified" date. Re-run the audit when a forge ships a new API version, and update the date.
 
+<!-- docs-sync:begin forges -->
+Forge IDs recognized by the config and the CLI (`ForgeID`): `github`, `gitlab`, `gitea`, `forgejo`, `buildkite`, `azuredevops`, `bitbucket`.
+<!-- docs-sync:end forges -->
+
 | Forge | Page | API versioning | Self-hosted | Live-tested |
 |---|---|---|---|---|
 | GitHub | [github.md](github.md) | `X-GitHub-Api-Version` header (`2022-11-28`, `2026-03-10`) | Not supported (GHES uses `/api/v3`) | Yes |

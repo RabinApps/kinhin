@@ -91,7 +91,19 @@ The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--p
 
 Keep mechanical changes (moves, renames, formatting) in separate commits from behavior changes. `swift build` and `swift test` must pass on every commit.
 
-Before opening a PR, also run `bash scripts/docs-lint.sh` if you touched docs.
+Before opening a PR, also run `bash scripts/docs-lint.sh` and `bash scripts/docs-sync.sh --check` if you touched docs or any code they are generated from.
+
+## Generated doc blocks
+
+Some docs are derived from code, so they are generated instead of hand-copied: the forge IDs (`docs/forges/README.md`), the daemon RPC methods (`docs/architecture.md`), and the CLI exit codes and `kinhin help` screen (`website/cli/commands.md`). Each sits between `<!-- docs-sync:begin NAME -->` and `<!-- docs-sync:end NAME -->` markers. Never edit between the markers; change the Swift source (`ForgeID`, `RPCMethod`, `CLIExit`, `helpText()`), then run:
+
+```sh
+scripts/docs-sync.sh           # rewrite stale blocks in place
+scripts/docs-sync.sh --check   # change nothing, diff and exit 1 if stale (CI runs this)
+scripts/docs-sync.sh --list    # show each block and the file that holds it
+```
+
+To add a block, write a `gen_<name>` function in `scripts/docs-sync.sh`, add a `<name>|<file>` row to its `blocks` list, and put the marker pair in that file. The generators read Swift with grep/sed/awk, so they need no toolchain. If one reports no output, the Swift source changed shape; update the generator. Facts the script can't derive (defaults quoted in prose, config keys) are still hand-maintained; `scripts/docs-lint.sh` catches known-stale strings only.
 
 ## Add your project to the list
 

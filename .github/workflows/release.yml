@@ -146,7 +146,24 @@ jobs:
           spctl -a -vv -t exec "$MOUNT/kinhin.app"
 
       - name: Stage installer
-        run: cp scripts/install.sh dist/install.sh
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          # Pin the installer to the Developer ID Team ID the shipped app is
+          # actually signed with. Without it install.sh falls back to "any
+          # valid signature", and the only anchor left is a checksum served
+          # from this same release.
+          DMG="dist/kinhin-$VERSION-arm64.dmg"
+          MOUNT="$(mktemp -d)"
+          hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet
+          trap 'hdiutil detach "$MOUNT" -quiet || true' EXIT
+          TEAM_ID="$(codesign -dv --verbose=4 "$MOUNT/kinhin.app" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+          [[ "$TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo "::error::could not read the Team ID from the signed app ('$TEAM_ID')"; exit 1; }
+          sed "s/@TEAM_ID@/$TEAM_ID/" scripts/install.sh > dist/install.sh
+          if grep -q '@TEAM_ID@' dist/install.sh; then
+            echo "::error::install.sh still carries the @TEAM_ID@ placeholder"; exit 1
+          fi
+          grep -q "^TEAM_ID=\"$TEAM_ID\"" dist/install.sh || { echo "::error::Team ID was not stamped into install.sh"; exit 1; }
 
       - name: Checksums
         run: |

@@ -48,6 +48,30 @@ buttons, App Intents) act through the controller (`perform`, `setPaused`, `delet
 shows fleet state reads the controller: `FleetModel` for the Fleet tab, and the delegate's observer for the status
 item, menu items and VM rows. AppKit menus aren't observable, so that observer is the only menu render path.
 
+## Daemon RPC methods
+
+The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Fleet/RPC.swift`).
+
+<!-- docs-sync:begin rpc-methods -->
+| Method | Notes |
+|---|---|
+| `status` | — |
+| `start` | — |
+| `stop` | — |
+| `pause` | — |
+| `resume` | — |
+| `delete_vm` | — |
+| `pipeline_detail` | The live pipeline (jobs and steps) one VM is running. |
+| `pipeline_log` | The output of one step (or job) of that pipeline. |
+| `replace_token` | — |
+| `replace_gitea_token` | — |
+| `replace_forgejo_token` | — |
+| `replace_account_token` | Swap the token of one named account (multi-account configs). |
+| `reload_config` | Reload the routing config from disk (the Advanced → Routing tab's edit hook). |
+| `logs` | — |
+| `ping` | — |
+<!-- docs-sync:end rpc-methods -->
+
 ## Tests
 
 `swift test` runs ~1200 tests across three targets, all against fakes — no VMs or network required:

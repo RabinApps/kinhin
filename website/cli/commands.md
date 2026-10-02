@@ -1,60 +1,123 @@
 # CLI commands
 
+<!-- docs-sync:begin cli-help -->
+```text
+kinhin — autoscaling CI runners on your Mac: GitHub Actions, GitLab CI/CD, Gitea/Forgejo Actions, Buildkite, Azure Pipelines, and Bitbucket Pipelines.
+macOS jobs run on Tart VMs; Linux jobs on apple/container microVMs, Docker, or Tart Linux VMs
+
+USAGE:
+    kinhin <command> [options]
+
+SETUP:
+    config init                 Write a starter config file
+    config validate             Check the config file without starting anything (exit 3 when invalid)
+    auth [set]                  Store (or replace) your GitHub PAT in the Keychain (or: auth set --token)
+    auth set --gitea            Store (or replace) your Gitea access token (auth set --gitea --token X)
+    auth set --account NAME     Store the token for a named account (--token X to skip the prompt)
+    auth add NAME --github|--gitlab|--gitea|--forgejo|--buildkite|--azuredevops|--bitbucket --scope S [--instance URL] [--token X]
+                                Add another account (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps or Bitbucket) to the config
+    auth list                   List every account and whether its token is stored
+    auth remove NAME            Remove an account from the config and delete its token
+    auth status [--json]        Show whether a token is stored and valid (--json: all forges, machine output, exit 1 until ready)
+    auth clear                  Remove the stored token
+    doctor [--json]             Check prerequisites and print the computed capacity (--json: merged machine-readable diagnostics document)
+    doctor --bundle [FILE]      Write a redacted support bundle (doctor report, config, recent log) to attach to a bug report
+    setup-status [--json]       First-run checklist (pass --json for machine output)
+    setup repair host-agent     Install the GitHub + Gitea runner agents for host runs (unisolated, on this Mac);
+                                gitlab-runner / buildkite-agent / the Azure Pipelines agent / the Bitbucket runner are added only when a GitLab / Buildkite / Azure DevOps / Bitbucket account is configured
+    setup repair docker [--method desktop|orbstack|colima]
+                                Install Docker (default: the first method this Mac supports)
+    setup repair container      Install Apple container and its system service (Apple silicon, macOS 26+)
+    setup repair tart           Install tart for macOS VMs
+    runtimes [--json]           Pools, capacity, budget, health, and routes (--no-health skips probes)
+    runtimes route add <pat> <rt>   Route a repo (owner/repo) or workflow (owner/repo@Name) to tart|appleContainer|docker|host
+                                (host runs unisolated on this Mac and needs --consent)
+    runtimes route remove <pat>     Delete that route; a running daemon reloads routing live
+    image prepare [--provision-script <file>]
+                                Build the runner base image (slow, once): the runner
+                                agents plus your provision script. Toolchains are
+                                per project (see --project). Uses the shared host
+                                download cache (auto-pruned). Starts from base_image:
+                                (a pre-configured tart image or a local VM name)
+                                instead of the default macOS base
+    image prepare --image <name>  Build one named image from the config's images:
+                                list (its own base_image:); --all builds image: and
+                                every images: entry, one after another
+    image prepare --project <owner/name> [--ref <branch|tag>]
+                                Bake that repo's toolchains (its .kinhin.yml at --ref
+                                when the project sets repo_file, else the project's
+                                own toolchains:) into a derived image now, so its
+                                first job starts warm
+    image prepare --container   Build the Linux container image (apple container):
+                                runner agents only; jobs install toolchains with
+                                `kinhin-toolchain install`
+    image prepare --docker      Build the Linux container image (Docker Desktop /
+                                OrbStack / colima), agents only, the same way.
+                                --platform linux/amd64 bakes an x86_64 image that runs
+                                under emulation (slower; see docs)
+    image prepare --linux --target <name> [--iso <file>] [--from <ref>]
+                                Create a Linux tart VM from scratch (tart create
+                                --linux) instead of cloning a prepared image: the VM
+                                boots with the arm64 ISO attached once, you install the
+                                OS by hand, then `image prepare --source <name>` bakes
+                                the agents into it. --from starts from a pre-configured
+                                image instead (tart.run's VM images; bare --from shows
+                                the menu)
+    toolchains                  Toolchain catalog, per-project selections, and cache state
+    toolchains --project <owner/name> [--ref <branch|tag>]
+                                Show which toolchains that repo resolves to, where they
+                                come from, and the derived image they bake into
+    toolchains detect [path] [--json] [--write] [--force]
+                                Scan a checkout and print the .kinhin.yml toolchains it
+                                needs, with the evidence (--write saves it; --force
+                                overwrites an existing file)
+    toolchains list-images      Derived per-project images: size and last used
+    toolchains prune [--dry-run]   Expire stale host-cache entries and unused derived images now
+    image digest <registry>/<repo>:<tag>
+                                Print the digest the registry currently serves, so
+                                base_image: can be pinned to ref@sha256:… and every
+                                bake gets identical bits (a :latest tag may drift)
+    toolchains helper [--linux]    Print the per-job `kinhin-toolchain` helper baked into images
+
+RUNNING:
+    start                       Start the fleet in this terminal (Ctrl-C to stop)
+    daemon                      Run the headless daemon in this terminal
+    cleanup [--vms] [--image] [--cache] [--all] [--yes]
+                                Reclaim disk: leftover runner VMs, the base image, the toolchain cache.
+                                Reports only unless --yes is given (stop the fleet first)
+    daemon install              Install and start a LaunchAgent daemon
+    daemon uninstall            Stop and remove the LaunchAgent
+    status [--json]             Show fleet status (attach to daemon if running; --json: machine-readable document with daemon/paused/autoResume fields)
+    pause | resume              Hold the fleet / let it scale again
+    stop                        Stop the fleet (works on daemon or in-process)
+    logs [-n N]                 Show recent log lines
+    watch                       Live status view (refreshes every 2s)
+    pipeline [VM] [--job NAME|ID] [--watch] [--json]
+                                Show the live pipeline a busy VM is running: its jobs and steps, with live
+                                timing. No VM: every busy VM. --job: just that job's steps. Needs the daemon
+    pipeline [VM] [--job NAME|ID] --step N|NAME | --log [--follow] [--json]
+                                Print one step's (or the whole job's) output; --follow keeps streaming it
+
+OTHER:
+    support                     Show ways to donate or sponsor kinhin
+    version                     Print version
+    help                        Show this help
 ```
-kinhin config init          Write the starter config
-kinhin config validate      Check the config file without starting anything (exit 3 when invalid)
-kinhin auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
-kinhin auth set --gitea     Store/replace the Gitea access token
-kinhin auth add NAME --github|--gitlab|--gitea|--forgejo|--buildkite|--azuredevops|--bitbucket --scope S [--instance URL] [--token X]   Add another account (any forge) to config.yaml
-kinhin auth set --account NAME   Store/replace that account's token (also: status/clear --account NAME)
-kinhin auth list            Every account and whether its token is stored
-kinhin auth remove NAME     Remove an account and its token
-kinhin auth status --json   All forges' stored-token state in one machine-readable document (exit 1 until ready)
-kinhin doctor [--json]      Prerequisites + computed capacity (--json: host, runtime health, stored tokens, checklist,
-                            and capacity in one machine-readable document; ready=false until every half passes)
-kinhin doctor --bundle [FILE]  Write a redacted support bundle (doctor report, config, recent log) to attach to a bug report
-kinhin setup-status [--json] First-run checklist; exit 1 until ready (--json for scripts)
-kinhin runtimes [--json]    Pools, capacity, budget split, live health, and routes (--no-health skips probes)
-kinhin runtimes route add <pattern> <tart|appleContainer|docker>
-                            Route a repo (`RabinApps/repo`) or workflow (`RabinApps/repo@Name`) — same validated
-                            editor as the Advanced → Routing tab; a running daemon reloads routing live
-kinhin runtimes route remove <pattern>
-                            Delete that route (e.g. `acme/api` or `acme/web@Nightly`)
-kinhin image prepare        Build the runner base image (once); --provision-script <file>
-                            bakes your toolchains in; `toolchains:` config entries are baked
-                            automatically and downloads go through a shared host cache (auto-pruned);
-                            starts from top-level `base_image:` when set (a pre-configured tart
-                            image or a local VM name; default macOS base otherwise)
-kinhin image prepare --toolchain <spec> [--stack <name>]
-                            Override the config's toolchains for this prepare
-kinhin image prepare --container
-                            Build the Linux container image (apple container)
-kinhin image prepare --docker
-                            Build the Linux container image (Docker Desktop / OrbStack / colima)
-kinhin image prepare --linux --target <name> [--from <ref>]
-                            Create a Linux tart VM from scratch; --from starts it from a
-                            pre-configured image (bare --from shows the menu) instead of an ISO
-kinhin image digest <registry>/<repo>:<tag>
-                            Print the digest the registry currently serves, so base_image: can
-                            be pinned to ref@sha256:… and every bake gets identical bits
-kinhin toolchains           Managed-toolchain catalog, selections, shared-cache state
-kinhin toolchains prune [--dry-run]
-                            Expire stale host-cache entries now
-kinhin start                Run the fleet in the foreground
-kinhin daemon               Run the daemon in the foreground
-kinhin cleanup [--vms] [--image] [--cache] [--all] [--yes]
-                            Reclaim disk: leftover runner VMs, the base image, the toolchain cache. Reports only
-                            unless --yes is given (stop the fleet first)
-kinhin daemon install       Install + start the LaunchAgent
-kinhin daemon uninstall     Remove the LaunchAgent
-kinhin status --json        Fleet status as a machine-readable document (daemon/paused/autoResume fields; watch streams prose)
-kinhin pause|resume         Hold the fleet / resume scaling
-kinhin stop                 Stop the fleet
-kinhin logs [-n N]          Recent log lines
-kinhin support              Show ways to donate or sponsor kinhin
-kinhin version              Print version
-kinhin help                 Show help
-```
+<!-- docs-sync:end cli-help -->
+
+## Exit codes
+
+Scripts can branch on the exit code.
+
+<!-- docs-sync:begin exit-codes -->
+| Code | Meaning |
+|---|---|
+| 1 | Anything unclassified |
+| 2 | Bad command line |
+| 3 | Invalid or unreadable config |
+| 4 | Runtime or engine failure |
+| 5 | Missing or rejected token |
+<!-- docs-sync:end exit-codes -->
 
 ## How scaling works
 

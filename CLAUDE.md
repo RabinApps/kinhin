@@ -8,7 +8,8 @@ exactly; do not duplicate its rules here.
 
 - Before saying a change is done, run `swift build`, `swift test` and `swift format lint --strict -r Sources Tests`. Run
   `scripts/tsan.sh` when touching shared state, actors, locks or anything `nonisolated(unsafe)`.
-- Run `bash scripts/docs-lint.sh` and `cd website && npx vitepress build` after editing `docs/` or `website/`.
+- Run `bash scripts/docs-lint.sh`, `bash scripts/docs-sync.sh` (regenerates code-derived doc blocks; don't hand-edit between
+  `docs-sync` markers) and `cd website && npx vitepress build` after editing `docs/` or `website/`.
 - The test suite takes about 2 minutes and needs no VMs or network. Never run `swift test --parallel` under TSan.
 - Build the release app with `swift build -c release --product kinhin-app`; `KinhinTestSupport` is testable-only.
 - Use `scripts/dev-run.sh` to run the debug app; it signs with a stable identity so Keychain "Always Allow" survives

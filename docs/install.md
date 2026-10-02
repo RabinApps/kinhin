@@ -29,7 +29,7 @@ Open-Anyway dance only applies to old releases or locally built copies (clear it
 
 ## How updates and installs are verified
 
-- **Install script:** it refuses a download without `checksums.txt`, fetches over https only, checks the app's code signature before copying it, and never strips the quarantine attribute. A local DMG is checked against `DMG.sha256` when one sits next to it.
+- **Install script:** it refuses a download without `checksums.txt`, fetches over https only, and never strips the quarantine attribute. The copy attached to a release is stamped with the Developer ID Team ID of the shipped app, so it refuses an app that is not signed by that team or not accepted by Gatekeeper. A copy run from a checkout or a fork has no Team ID and can only verify that the signature is valid. A local DMG is checked against `DMG.sha256` when one sits next to it.
 - **Update check:** besides the checksum, a Developer ID build requires the DMG to be signed by the **same Team ID as the running app** and accepted by Gatekeeper (notarized, not revoked). A DMG that fails either check is deleted. Downloads must come from the project's GitHub releases. Builds without a Developer ID (forks, local builds) fall back to the checksum alone, with a warning in the log.
 
 ## Full uninstall
