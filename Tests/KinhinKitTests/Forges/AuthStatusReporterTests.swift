@@ -2,7 +2,6 @@ import Synchronization
 import XCTest
 
 @testable import KinhinKit
-@testable import kinhin
 
 /// The `auth status` report contract: per-forge stored-token state, masked
 /// prefixes, config-aware scope/instance fields, and the allGood rule that
