@@ -35,4 +35,15 @@ extension XCTestCase {
         }
         XCTFail("condition not met within \(timeout)s")
     }
+
+    /// Throwing variant of `waitForCondition` for call sites that already
+    /// `try` (10 ms tick, so a condition that holds quickly costs ~10 ms).
+    func waitUntil(timeout: TimeInterval = 15, _ condition: () async -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await condition() { return }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("condition not met within \(timeout)s")
+    }
 }

@@ -40,11 +40,16 @@ extension RunnerBootstrap {
     }
 
     /// Starts one single-job GitLab runner per name. Each runner was already
-    /// created through the API; its authentication token is written to a
-    /// private file (never on a command line) and handed to `gitlab-runner
-    /// run-single` through `CI_SERVER_TOKEN`. After its one job the runner
-    /// deletes itself (`DELETE /api/v4/runners`), which is the "deregistered"
-    /// signal the engine's ephemeral watch waits for.
+    /// created through the API; its authentication token reaches the runner's
+    /// shell on a pipe (never on a command line, never in a file) and is handed
+    /// to `gitlab-runner run-single` through `CI_SERVER_TOKEN`. After its one
+    /// job the runner deletes itself (`DELETE /api/v4/runners`, token on curl's
+    /// stdin), which is the "deregistered" signal the engine's ephemeral watch
+    /// waits for.
+    ///
+    /// Residual exposure: `run-single` itself needs the token for its whole
+    /// life, so it stays in that process's environment, which the shell
+    /// executor's job inherits. It is not on disk and not in `ps` argv.
     ///
     /// `binary` and `baseDir` are shell words (already quoted, or `$HOME/…`);
     /// each runner lives in `baseDir/<name>` with its builds, cache, log and
@@ -60,15 +65,19 @@ extension RunnerBootstrap {
                 # GitLab runner \(index + 1) of \(runners.count)
                 mkdir -p \(baseDir)/\(shellQuote(runner.name))
                 cd \(baseDir)/\(shellQuote(runner.name))
-                (umask 077 && printf '%s' \(shellQuote(runner.token)) > token)
-                nohup /bin/bash -c '
-                  export CI_SERVER_URL="$1"
-                  CI_SERVER_TOKEN="$(cat token)"
+                printf '%s' \(shellQuote(runner.token)) | nohup /bin/bash -c '
+                  IFS= read -r CI_SERVER_TOKEN || true
                   export CI_SERVER_TOKEN
+                  export CI_SERVER_URL="$1"
                   "$0" run-single --description "$2" --executor shell \\
-                    --builds-dir "$PWD/builds" --cache-dir "$PWD/cache" --max-builds 1
-                  curl -fsS --retry 5 -X DELETE "$1/api/v4/runners" -F "token=<token" >/dev/null
-                ' \(binary) \(shellQuote(url)) \(shellQuote(runner.name)) > runner.log 2>&1 < /dev/null &
+                    --builds-dir "$PWD/builds" --cache-dir "$PWD/cache" --max-builds 1 < /dev/null
+                  # The token is still in this shell: hand it to curl on stdin, so no file holds it.
+                  for attempt in 1 2 3 4 5; do
+                    printf %s "$CI_SERVER_TOKEN" |
+                      curl -fsS -X DELETE "$1/api/v4/runners" -F "token=<-" >/dev/null && break
+                    sleep 2
+                  done
+                ' \(binary) \(shellQuote(url)) \(shellQuote(runner.name)) > runner.log 2>&1 &
                 echo $! > runner.pid
 
                 """

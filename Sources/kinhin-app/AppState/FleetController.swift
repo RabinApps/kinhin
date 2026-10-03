@@ -46,16 +46,47 @@ final class FleetController {
     @ObservationIgnored var configURL: URL = Paths.config
     /// How a rebuilt in-process engine gets its forge token and is built;
     /// production defaults hit the Keychain and the real runtimes.
-    @ObservationIgnored var engineToken: (KinhinConfig) throws -> String? = { try ConfigLoader.engineToken(for: $0) }
+    /// The blocking seams (Keychain, a daemon ping, host probes) are
+    /// `@Sendable` so the controller runs them off the main actor.
+    @ObservationIgnored var engineToken: @Sendable (KinhinConfig) throws -> String? = {
+        try ConfigLoader.engineToken(for: $0)
+    }
     @ObservationIgnored var makeEngine: (KinhinConfig, String) throws -> FleetEngine = {
         try FleetEngine.production(config: $0, token: $1)
     }
-    @ObservationIgnored var hostSnapshot: () -> HostResources = { ResourceProbe().snapshot() }
+    @ObservationIgnored var hostSnapshot: @Sendable () -> HostResources = { ResourceProbe().snapshot() }
     /// Whether a daemon is serving this Mac, and how to talk to it. Checked
     /// only while the app has no backend of its own.
-    @ObservationIgnored var daemonProbe: () -> Bool = { RPCClient.isDaemonAlive() }
+    @ObservationIgnored var daemonProbe: @Sendable () -> Bool = { RPCClient.isDaemonAlive() }
     @ObservationIgnored var makeDaemonBackend: () -> any FleetServing = { FleetBackend.daemon(RPCClient()) }
     @ObservationIgnored private var pollTask: Task<Void, Never>?
+    /// Wakes the poll loop's sleep (a surface opened, so look now).
+    @ObservationIgnored private let pollWake = WakeSignal()
+
+    // MARK: - Visibility (adaptive polling)
+
+    /// Poll cadence while a surface that shows live data (the main window or
+    /// the open menu) is up, and while nothing is looking.
+    @ObservationIgnored var activeInterval: Duration = .seconds(3)
+    @ObservationIgnored var idleInterval: Duration = .seconds(12)
+    @ObservationIgnored private(set) var isMainWindowVisible = false
+    @ObservationIgnored private(set) var isMenuOpen = false
+    /// Something on screen shows live fleet data (including CPU/RAM).
+    var isUIActive: Bool { isMainWindowVisible || isMenuOpen }
+    /// The interval the poll loop waits before its next look.
+    var currentPollInterval: Duration { isUIActive ? activeInterval : idleInterval }
+
+    func setMainWindowVisible(_ visible: Bool) {
+        let before = isUIActive
+        isMainWindowVisible = visible
+        if isUIActive != before { pollWake.signal() }
+    }
+
+    func setMenuOpen(_ open: Bool) {
+        let before = isUIActive
+        isMenuOpen = open
+        if isUIActive != before { pollWake.signal() }
+    }
     /// Notifications for state changes nobody is watching for, and the sleep guard
     /// held while the fleet serves jobs. Both are driven from `refresh()`.
     @ObservationIgnored var alerts = FleetAlerts()
@@ -75,8 +106,13 @@ final class FleetController {
 
     /// Polls the backend until `stopPolling()`. Started by the app delegate
     /// at launch, so tests that build a controller never poll.
-    func startPolling(every interval: Duration = .seconds(3)) {
+    /// `interval` pins both cadences (tests); nil keeps the adaptive ones.
+    func startPolling(every interval: Duration? = nil) {
         guard pollTask == nil else { return }
+        if let interval {
+            activeInterval = interval
+            idleInterval = interval
+        }
         // After a wake the picture on screen is stale and the daemon connection may have
         // dropped: look again straight away instead of waiting out the interval.
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -87,8 +123,11 @@ final class FleetController {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh()
+                guard let wait = self?.currentPollInterval, let wake = self?.pollWake else { return }
+                // Sleep until the next look — or until a surface opens and
+                // the cadence (and the usage sampling) should step up now.
                 do {
-                    try await Task.sleep(for: interval)
+                    try await wake.sleep(for: wait)
                 } catch {
                     return
                 }
@@ -120,24 +159,25 @@ final class FleetController {
             // No backend of our own: adopt a daemon that has started since
             // launch (with an engine of our own we never do — two fleets
             // would fight over the same VMs).
-            if daemonProbe() {
+            // Off the main actor: the probe pings a socket with a deadline.
+            let probe = daemonProbe
+            let daemonAlive = await Task.detached { probe() }.value
+            guard service == nil else { return }  // a backend appeared while the probe ran
+            if daemonAlive {
                 Log.info("app", "a daemon is now serving this Mac — attaching to it")
                 service = makeDaemonBackend()
                 setupIncomplete = false
                 await refresh()
                 return
             }
-            status = nil
-            unreachableReason = nil
+            publish(status: nil, unreachableReason: nil, sideEffects: false)
             return
         }
         let generation = serviceGeneration
         do {
-            let fresh = try await polled.status()
+            let fresh = try await polled.status(includeUsage: isUIActive)
             guard generation == serviceGeneration else { return }  // the backend was swapped mid-poll
-            status = fresh
-            unreachableReason = nil
-            publishSideEffects()
+            publish(status: fresh, unreachableReason: nil)
         } catch is CancellationError {
             return
         } catch {
@@ -147,10 +187,18 @@ final class FleetController {
             guard generation == serviceGeneration else { return }
             // Log the transition only: the poll repeats every few seconds.
             if unreachableReason == nil { Log.warn("app", "fleet poll failed: \(error.localizedDescription)") }
-            status = nil
-            unreachableReason = error.localizedDescription
-            publishSideEffects()
+            publish(status: nil, unreachableReason: error.localizedDescription)
         }
+    }
+
+    /// Assigns the poll's answer only where it changed: an @Observable setter
+    /// notifies on every write, which would re-render the menu and the
+    /// SwiftUI views on each poll even when nothing differs.
+    private func publish(status newStatus: FleetStatus?, unreachableReason newReason: String?, sideEffects: Bool = true)
+    {
+        if status != newStatus { status = newStatus }
+        if unreachableReason != newReason { unreachableReason = newReason }
+        if sideEffects { publishSideEffects() }
     }
 
     private func publishSideEffects() {

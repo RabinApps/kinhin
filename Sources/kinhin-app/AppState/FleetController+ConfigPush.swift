@@ -7,9 +7,10 @@ import KinhinKit
 extension FleetController {
     /// Config writes (Runtimes pane, Config tab) reach whoever owns the
     /// engine so the running fleet picks up the change. Routing-only edits
-    /// apply live; anything else (scope, bounds, VM shape, images, forge
-    /// sections) restarts the engine automatically — the old behavior was
-    /// to silently keep the stale config until a manual daemon restart.
+    /// (including `images:` entries and `projects:` rules) apply live; anything
+    /// else (scope, bounds, VM shape, forge sections) restarts the engine
+    /// automatically — the old behavior was to silently keep the stale config
+    /// until a manual daemon restart.
     /// Edits are debounced: a save burst (e.g. a stepper drag) flushes once.
     func pushConfigToEngine() {
         pendingConfigEdits = true
@@ -49,7 +50,9 @@ extension FleetController {
         if let engine {
             let cfg: KinhinConfig
             do {
-                cfg = try ConfigLoader.load(from: configURL)
+                // Off the main actor: loading reads and parses the file.
+                let url = configURL
+                cfg = try await Task.detached { try ConfigLoader.load(from: url) }.value
             } catch {
                 Log.warn(
                     "app",
@@ -60,7 +63,9 @@ extension FleetController {
             if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
                 await rebuildInProcessEngine(from: engine, config: cfg)
             } else {
-                engine.applyReloaded(config: cfg, host: hostSnapshot())
+                let snapshot = hostSnapshot
+                let host = await Task.detached { snapshot() }.value  // a statfs/sysctl probe
+                engine.applyReloaded(config: cfg, host: host)
                 Log.info("app", "routing reloaded into in-process engine")
             }
         } else if case .daemon(let client)? = backend {
@@ -82,7 +87,9 @@ extension FleetController {
     private func rebuildInProcessEngine(from old: FleetEngine, config cfg: KinhinConfig) async {
         let enginePAT: String?
         do {
-            enginePAT = try engineToken(cfg)
+            // Detached: the Keychain read can block on an access prompt.
+            let loadToken = engineToken
+            enginePAT = try await Task.detached { try loadToken(cfg) }.value
         } catch {
             Log.error(
                 "app",

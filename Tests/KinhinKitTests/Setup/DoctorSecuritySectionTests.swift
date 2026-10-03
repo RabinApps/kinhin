@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -26,8 +27,32 @@ final class DoctorSecuritySectionTests: XCTestCase {
         await DoctorReportBuilder(
             host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
             config: .loaded(cfg), authLoad: { _ in "tok" }, accountLoad: { _, _ in "tok" },
-            softnetInstalled: softnetInstalled
+            softnetInstalled: softnetInstalled,
+            hostKeyMarker: FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-no-marker-\(UUID())")
         ).build()
+    }
+
+    /// The checklist and the auth half share one Keychain read per account
+    /// token, and the doctor probes the Linux runtimes once (the section
+    /// reuses the checklist's answers).
+    func testDoctorReadsEachAccountTokenOnceAndProbesEachRuntimeOnce() async {
+        let reads = Mutex<[String: Int]>([:])
+        var cfg = config()
+        cfg.docker = KinhinConfig.DockerForgeConfig(image: "kinhin-ci-linux")
+        let report = await DoctorReportBuilder(
+            host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
+            config: .loaded(cfg), authLoad: { _ in "tok" },
+            accountLoad: { forge, name in
+                reads.withLock { $0["\(forge.rawValue):\(name)", default: 0] += 1 }
+                return "tok"
+            },
+            dockerHealth: .ready, dockerImages: ["kinhin-ci-linux:latest"], softnetInstalled: true
+        ).build()
+        XCTAssertFalse(reads.withLock { $0 }.isEmpty, "the accounts were read")
+        XCTAssertTrue(reads.withLock { $0 }.values.allSatisfy { $0 == 1 }, "\(reads.withLock { $0 })")
+        XCTAssertEqual(report.docker?.state, "ready")
+        XCTAssertEqual(report.docker?.imageFound, true)
+        XCTAssertEqual(report.checks.first { $0.id == "docker-image" }?.ok, true)
     }
 
     func testDefaultConfigAdvisesAboutTheSharedNetwork() throws {

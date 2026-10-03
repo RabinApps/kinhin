@@ -16,8 +16,12 @@ public struct ImagePreparer {
     let ssh: SSHExecuting
     /// How long to wait for the guest agent to accept the SSH key (it starts a
     /// little after the VM has an IP). Tests shorten these.
-    var guestKeyAttempts = 12
-    var guestKeyRetryDelay: Duration = .seconds(5)
+    var guestKeyAttempts = 60
+    var guestKeyRetryDelay: Duration = .seconds(1)
+    /// How long to ask the guest agent for a fresh SSH host key before the
+    /// bake connects without host key verification; tests shorten these.
+    var hostKeyWindow: TimeInterval = 30
+    var hostKeyInterval: Duration = .seconds(2)
 
     public init(tart: TartControlling, ssh: SSHExecuting) {
         self.tart = tart
@@ -139,12 +143,14 @@ public struct ImagePreparer {
             // exits right after, which would kill a fire-and-forget task and
             // leave the scratch VM behind (seen live: a failed toolchain bake
             // left kinhin-prepare-tmp-* on disk).
+            await ssh.forgetHostKey(vm: tmp)
             await bestEffortAsync(tmp, "stopping scratch VM") { try await tart.stop(name: tmp) }
             await bestEffortAsync(tmp, "deleting scratch VM") { try await tart.delete(name: tmp) }
             throw error
         }
         // Success: the scratch VM was already stopped for the commit, and its
         // disk is an APFS clone peer of the target's — deleting it is safe.
+        await ssh.forgetHostKey(vm: tmp)
         await bestEffortAsync(tmp, "deleting scratch VM") { try await tart.delete(name: tmp) }
     }
 
@@ -152,11 +158,6 @@ public struct ImagePreparer {
     /// Throws on the first failure; `run` owns the scratch VM's cleanup.
     private func prepareScratchVM(_ options: Options, scratch tmp: String) async throws {
         let tart = self.tart
-
-        // Resolve agent versions from the release feeds (pinned fallback
-        // when offline) so images pick up new runner releases without an
-        // kinhin update.
-        let versions = await RunnerVersionResolver().resolve()
 
         // Token-gated provisioning: an agent is baked in ONLY when the user
         // has a credential for that platform. No GitHub PAT → no GitHub
@@ -180,6 +181,19 @@ public struct ImagePreparer {
             )
         }
 
+        // Resolve agent versions from the release feeds (pinned fallback
+        // when offline) so images pick up new runner releases without a
+        // kinhin update. Only the platforms with a token are looked up, and
+        // the lookup overlaps the pull and clone below.
+        var bakedForges: Set<ForgeID> = []
+        if hasGitHubToken { bakedForges.insert(.github) }
+        if hasGiteaToken { bakedForges.formUnion([.gitea, .forgejo]) }
+        if hasGitLabToken { bakedForges.insert(.gitlab) }
+        if hasBuildkiteToken { bakedForges.insert(.buildkite) }
+        if hasAzureDevOpsToken { bakedForges.insert(.azuredevops) }
+        let wantedForges = bakedForges
+        async let resolvedVersions = RunnerVersionResolver().resolve(including: wantedForges)
+
         // Validate the user provision script up front: a broken path must
         // fail before the multi-gigabyte image download, not after it.
         let provisionScript = try Self.resolveProvisionScript(options.provisionScriptPath)
@@ -200,10 +214,12 @@ public struct ImagePreparer {
         Log.info("image", "cloning to scratch VM \(tmp)")
         try await tart.clone(source: options.source, to: tmp)
 
+        let versions = await resolvedVersions
+
         // Cache upkeep: sweep stale entries before this prepare writes
         // through the cache (noop unless age/size limits trip).
         let policy = ToolchainCachePolicy(from: options.cachePolicy)
-        ToolchainCachePruner().prune(policy: policy)
+        ToolchainCachePruner().prune(policy: policy, minInterval: 3600)
 
         // Always share the host toolchain cache into the scratch VM: every
         // prepare write-through (brew, mise, npm, fvm) lands in one cache
@@ -235,6 +251,31 @@ public struct ImagePreparer {
         // only if the SSH call below then fails too.
         let keyInstallFailure = try await installGuestSSHKey(
             vm: tmp, user: options.user, attempts: guestKeyAttempts, delay: guestKeyRetryDelay)
+
+        // The curated images ship admin/admin with SSH on and the scratch VM
+        // sits on a network other VMs share, so close password login now,
+        // through the same guest-agent channel, before any SSH connection and
+        // before the long downloads below. The prepare script still applies and
+        // verifies the hardening (`sshd -T`) over SSH, so a failure here only
+        // narrows the protection to the old window instead of failing the bake.
+        if keyInstallFailure == nil {
+            do {
+                try await tart.hardenGuestSSH(vm: tmp)
+                Log.info("image", "SSH password login turned off in the scratch VM")
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                Log.warn(
+                    "image",
+                    "could not turn off SSH password login through the guest agent (\(error.localizedDescription)); the prepare script retries it over SSH"
+                )
+            }
+        }
+        // Give the scratch VM its own SSH host key, learned over the agent
+        // channel, so the SSH calls below cannot be answered by another VM.
+        try await GuestHostKeyPinning.pin(
+            vm: tmp, tart: tart, ssh: ssh, window: keyInstallFailure == nil ? hostKeyWindow : 0,
+            interval: hostKeyInterval)
 
         // Detect the guest OS (unless overridden) so a tart Linux base VM
         // gets the Linux agent binaries and the Linux toolchain path. The

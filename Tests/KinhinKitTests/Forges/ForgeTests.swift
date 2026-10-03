@@ -75,8 +75,8 @@ final class ForgeTests: XCTestCase {
         do {
             _ = try await makeGiteaClient(scope: "acme").fetchRegistrationToken()
             XCTFail("should throw")
-        } catch let error as GiteaError {
-            XCTAssertEqual(error, .unauthorized)
+        } catch let error as ForgeAPIError {
+            XCTAssertEqual(error, .unauthorized(forge: .gitea))
         } catch {
             XCTFail("wrong error type: \(error)")
         }
@@ -219,7 +219,7 @@ final class ForgeTests: XCTestCase {
         do {
             _ = try await makeStubbedGiteaForge().queuedJobs()
             XCTFail("expected the endpoint failure to propagate")
-        } catch let error as GiteaError {
+        } catch let error as ForgeAPIError {
             guard case .decoding = error else { return XCTFail("wrong error: \(error)") }
         }
     }

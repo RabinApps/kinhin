@@ -15,6 +15,8 @@ final class UsageSampler: Sendable {
         var cached: (at: ContinuousClock.Instant, snapshot: Snapshot)?
         /// Last cumulative CPU reading per Tart VM, for rate calculation.
         var processCPU: [String: (seconds: Double, at: ContinuousClock.Instant)] = [:]
+        /// The sample being taken, joined by every caller that arrives meanwhile.
+        var inFlight: Task<Snapshot, Never>?
     }
 
     private let tart: TartControlling
@@ -22,24 +24,49 @@ final class UsageSampler: Sendable {
     private let hostProbe: HostUsageProbe
     private let tartMemoryMB: @Sendable () -> Int
     private let minInterval: Duration
+    /// Past this age a snapshot is no longer served stale: the caller waits.
+    private let maxStale: Duration
     private let state = Mutex(State())
 
     init(
         tart: TartControlling, shell: ShellRunning, hostProbe: HostUsageProbe = HostUsageProbe(),
-        tartMemoryMB: @escaping @Sendable () -> Int, minInterval: Duration = .seconds(2)
+        tartMemoryMB: @escaping @Sendable () -> Int, minInterval: Duration = .seconds(2),
+        maxStale: Duration = .seconds(30)
     ) {
         self.tart = tart
         self.shell = shell
         self.hostProbe = hostProbe
         self.tartMemoryMB = tartMemoryMB
         self.minInterval = minInterval
+        self.maxStale = maxStale
     }
 
     func snapshot(for records: [VMRecord]) async -> Snapshot {
         let now = ContinuousClock.now
-        if let cached = state.withLock({ $0.cached }), now - cached.at < minInterval {
-            return cached.snapshot
+        enum Step {
+            case serve(Snapshot)
+            case wait(Task<Snapshot, Never>)
         }
+        let step = state.withLock { state -> Step in
+            let cached = state.cached
+            if let cached, now - cached.at < minInterval { return .serve(cached.snapshot) }
+            let stale = cached.flatMap { now - $0.at < maxStale ? $0.snapshot : nil }
+            if let running = state.inFlight {
+                return stale.map(Step.serve) ?? .wait(running)
+            }
+            let task = Task { await self.sample(records: records) }
+            state.inFlight = task
+            return stale.map(Step.serve) ?? .wait(task)
+        }
+        switch step {
+        case .serve(let snapshot): return snapshot
+        case .wait(let task): return await task.value
+        }
+    }
+
+    /// One real sampling pass; publishes the result and retires the in-flight record.
+    private func sample(records: [VMRecord]) async -> Snapshot {
+        let now = ContinuousClock.now
         let live = records.filter { $0.phase.isActive }
         let tartIDs = live.filter { ($0.runtime ?? RuntimeID.tart.rawValue) == RuntimeID.tart.rawValue }.map(\.id)
         let tools = Set(live.compactMap { Self.containerTool(for: $0.runtime) })
@@ -54,7 +81,10 @@ final class UsageSampler: Sendable {
             }
         }
         let snapshot = Snapshot(host: hostProbe.sample(), byInstance: byInstance)
-        state.withLock { $0.cached = (now, snapshot) }
+        state.withLock {
+            $0.cached = (now, snapshot)
+            $0.inFlight = nil
+        }
         return snapshot
     }
 

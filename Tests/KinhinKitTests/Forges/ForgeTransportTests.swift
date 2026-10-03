@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -102,5 +103,159 @@ final class ForgeTransportTests: XCTestCase {
     func testGitHubRequestRejectsATraversalScope() {
         let client = GitHubClient(credentials: GitHubCredentials(token: "t", scope: "acme/.."))
         XCTAssertThrowsError(try client.request(method: "GET", path: "/repos/x"))
+    }
+
+    // MARK: - Send pipeline
+
+    private func makeTransport(
+        _ forge: ForgeID, _ authorization: ForgeTransport.Authorization, retries: Int = 0,
+        baseDelay: TimeInterval = 1
+    ) -> ForgeTransport {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        return ForgeTransport(
+            session: URLSession(configuration: config), forge: forge, authorization: authorization,
+            retries: retries, baseDelay: baseDelay)
+    }
+
+    override func tearDown() {
+        StubProtocol.handler = nil
+        super.tearDown()
+    }
+
+    func testEachAuthorizationSchemeWritesItsForgeHeader() async throws {
+        let schemes: [(ForgeTransport.Authorization, String, String)] = [
+            (.bearer("t1"), "Authorization", "Bearer t1"),
+            (.privateToken("t2"), "PRIVATE-TOKEN", "t2"),
+            (.giteaToken("t3"), "Authorization", "token t3"),
+        ]
+        for (authorization, field, value) in schemes {
+            StubProtocol.handler = { request in
+                XCTAssertEqual(request.value(forHTTPHeaderField: field), value)
+                return (200, Data(), [:])
+            }
+            _ = try await makeTransport(.gitlab, authorization).send("GET", url("https://git.example.com/x"))
+        }
+        // The Basic scheme is base64(":<token>") — an empty user.
+        StubProtocol.handler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Basic OjRuZXc=")
+            return (200, Data(), [:])
+        }
+        _ = try await makeTransport(.azuredevops, .basicPassword("4new")).send("GET", url("https://dev.azure.com/x"))
+    }
+
+    func testCommonHeadersAreAppliedAndBodiesCarryJSONContentType() async throws {
+        StubProtocol.handler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "text/plain")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "User-Agent"), "Kinhin/1.0")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            return (200, Data(), [:])
+        }
+        _ = try await makeTransport(.gitlab, .privateToken("t")).send(
+            "POST", url("https://git.example.com/x"), body: Data("{}".utf8), accept: "text/plain")
+    }
+
+    func testStatusesMapToForgeAPIError() async {
+        let transport = makeTransport(.buildkite, .bearer("t"))
+        StubProtocol.handler = { _ in (401, Data(), [:]) }
+        do {
+            _ = try await transport.send("GET", url("https://api.buildkite.com/v2/x"))
+            XCTFail("expected unauthorized")
+        } catch let error as ForgeAPIError {
+            XCTAssertEqual(error, .unauthorized(forge: .buildkite))
+        } catch { XCTFail("unexpected \(error)") }
+
+        StubProtocol.handler = { _ in (403, Data("nope".utf8), [:]) }
+        do {
+            _ = try await transport.send("GET", url("https://api.buildkite.com/v2/x"))
+            XCTFail("expected forbidden")
+        } catch let error as ForgeAPIError {
+            XCTAssertEqual(error, .forbidden(forge: .buildkite, why: "nope"))
+            XCTAssertTrue(error.localizedDescription.contains("member of the organization"))
+        } catch { XCTFail("unexpected \(error)") }
+
+        StubProtocol.handler = { _ in (404, Data(), [:]) }
+        do {
+            _ = try await transport.send("GET", url("https://api.buildkite.com/v2/missing"))
+            XCTFail("expected notFound")
+        } catch let error as ForgeAPIError {
+            XCTAssertEqual(error, .notFound(forge: .buildkite, what: "/v2/missing"))
+        } catch { XCTFail("unexpected \(error)") }
+
+        StubProtocol.handler = { _ in (400, Data("bad".utf8), [:]) }
+        do {
+            _ = try await transport.send("GET", url("https://api.buildkite.com/v2/x"))
+            XCTFail("expected http")
+        } catch let error as ForgeAPIError {
+            XCTAssertEqual(error, .http(forge: .buildkite, code: 400, body: "bad"))
+        } catch { XCTFail("unexpected \(error)") }
+    }
+
+    func testTransientStatusesRetryAndThenSucceed() async throws {
+        let attempts = Mutex<Int>(0)
+        StubProtocol.handler = { _ in
+            let n = attempts.withLock { n -> Int in
+                n += 1; return n
+            }
+            return n < 3 ? (503, Data(), [:]) : (200, Data("{}".utf8), [:])
+        }
+        let transport = makeTransport(.gitea, .giteaToken("t"), retries: 3, baseDelay: 0.001)
+        let (data, _) = try await transport.send("GET", url("https://gitea.example.com/api/v1/x"))
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), "{}")
+        XCTAssertEqual(attempts.withLock { $0 }, 3)
+    }
+
+    func testTransientStatusesExhaustIntoTheirLastError() async {
+        let attempts = Mutex<Int>(0)
+        StubProtocol.handler = { _ in
+            _ = attempts.withLock { $0 += 1 }
+            return (500, Data("down".utf8), [:])
+        }
+        let transport = makeTransport(.gitea, .giteaToken("t"), retries: 1, baseDelay: 0.001)
+        do {
+            _ = try await transport.send("GET", url("https://gitea.example.com/api/v1/x"))
+            XCTFail("expected the last 500 to surface")
+        } catch let error as ForgeAPIError {
+            XCTAssertEqual(error, .http(forge: .gitea, code: 500, body: "down"))
+            XCTAssertEqual(attempts.withLock { $0 }, 2, "the first try plus one retry")
+        } catch { XCTFail("unexpected \(error)") }
+    }
+
+    func testClassifyHookRunsBeforeTheDefaultMapping() async {
+        let transport = makeTransport(.azuredevops, .basicPassword("t"))
+        for (status, headers) in [(203, [String: String]()), (200, ["Content-Type": "text/html"])] {
+            StubProtocol.handler = { _ in (status, Data("<html>Sign in</html>".utf8), headers) }
+            do {
+                _ = try await transport.send(
+                    "GET", url("https://dev.azure.com/x"),
+                    classify: { http, _ in
+                        let html =
+                            http.value(forHTTPHeaderField: "Content-Type")?.lowercased().contains("text/html") == true
+                        switch http.statusCode {
+                        case 203: return .unauthorized(forge: .azuredevops)
+                        case 200...299 where html: return .unauthorized(forge: .azuredevops)
+                        default: return nil
+                        }
+                    })
+                XCTFail("expected unauthorized for \(status)")
+            } catch let error as ForgeAPIError {
+                XCTAssertEqual(error, .unauthorized(forge: .azuredevops))
+            } catch { XCTFail("unexpected \(error)") }
+        }
+    }
+
+    func testForgeAPIErrorMessagesCarryTheForgeNameAndItsHint() {
+        XCTAssertEqual(
+            ForgeAPIError.unauthorized(forge: .gitlab).errorDescription,
+            "GitLab rejected the access token (401): expired, revoked, or wrong instance. Fix: kinhin auth set NAME with a new token"
+        )
+        XCTAssertEqual(
+            ForgeAPIError.forbidden(forge: .azuredevops, why: "no").errorDescription,
+            "Azure DevOps forbidden (403): no. The token needs the Agent Pools (Read & manage) scope")
+        XCTAssertEqual(
+            ForgeAPIError.forbidden(forge: .gitea, why: "no").errorDescription, "Gitea forbidden (403): no")
+        XCTAssertEqual(
+            ForgeAPIError.decoding(forge: .bitbucket, what: "runners: bad JSON").errorDescription,
+            "Could not decode Bitbucket response: runners: bad JSON")
     }
 }

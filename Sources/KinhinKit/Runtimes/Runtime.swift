@@ -157,6 +157,12 @@ struct TartRuntime: Runtime {
     /// live under softnet).
     let sshReadyWindow: TimeInterval
     let sshRetryInterval: Duration
+    /// Pause between TCP probes of the guest's port 22 before ssh is tried.
+    let sshProbeInterval: Duration
+    /// How long to keep asking the guest agent for a fresh SSH host key before
+    /// connecting without host key verification, and the pause between asks.
+    let hostKeyWindow: TimeInterval
+    let hostKeyInterval: Duration
 
     /// Cache envs to export in registration scripts when the route mounts
     /// the shared cache, from the toolchains baked into the route's image.
@@ -166,13 +172,18 @@ struct TartRuntime: Runtime {
 
     init(
         tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, ssh: SSHExecuting = SSHExecutor(),
-        sshReadyWindow: TimeInterval = 120, sshRetryInterval: Duration = .seconds(5)
+        sshReadyWindow: TimeInterval = 120, sshRetryInterval: Duration = .seconds(1),
+        sshProbeInterval: Duration = .milliseconds(500), hostKeyWindow: TimeInterval = 30,
+        hostKeyInterval: Duration = .seconds(2)
     ) {
         self.tart = tart
         self.bootTimeout = bootTimeout
         self.ssh = ssh
         self.sshReadyWindow = sshReadyWindow
         self.sshRetryInterval = sshRetryInterval
+        self.sshProbeInterval = sshProbeInterval
+        self.hostKeyWindow = hostKeyWindow
+        self.hostKeyInterval = hostKeyInterval
     }
 
     func health() async -> RuntimeHealth {
@@ -206,7 +217,13 @@ struct TartRuntime: Runtime {
     }
 
     func awaitReady(id: String, timeout: TimeInterval) async throws -> String? {
-        try await tart.ip(of: id, timeout: timeout)
+        let ip = try await tart.ip(of: id, timeout: timeout)
+        // Before any SSH: give this VM its own host key and learn it over the
+        // guest agent, so the registration script (runner tokens) only reaches
+        // the VM that booted here, not another VM answering on its address.
+        try await GuestHostKeyPinning.pin(
+            vm: id, tart: tart, ssh: ssh, window: min(hostKeyWindow, timeout), interval: hostKeyInterval)
+        return ip
     }
 
     func execRegistration(_ id: String, ip: String?, _ script: String, timeout: TimeInterval) async throws
@@ -217,8 +234,15 @@ struct TartRuntime: Runtime {
         }
         // sshd can lag the DHCP lease; retry only "nothing is listening yet"
         // errors, so a real script failure still fails on the first attempt.
+        // A cheap TCP probe of port 22 gates the real ssh: no process is
+        // spawned until sshd accepts connections (or the window has run out,
+        // when one real attempt produces the error to report).
         let deadline = Date().addingTimeInterval(sshReadyWindow)
         while true {
+            if !(await ssh.isSSHPortOpen(ip: ip)), Date() < deadline {
+                try await Task.sleep(for: sshProbeInterval)
+                continue
+            }
             let result = try await ssh.exec(vm: id, user: "admin", ip: ip, script: script, timeout: timeout)
             if result.succeeded || !Self.sshNotListeningYet(result.stderr) || Date() >= deadline {
                 return result
@@ -311,15 +335,32 @@ struct TartRuntime: Runtime {
     }
 
     func teardown(id: String) async {
-        // Existence check makes teardown genuinely idempotent (double deletes
-        // from racing lifecycle paths must not error or double-charge).
+        // Idempotent without a `tart list` round trip: stop then delete, and a
+        // VM that is already gone (double deletes from racing lifecycle
+        // paths) is success, not a warning.
+        await ssh.forgetHostKey(vm: id)
         do {
-            guard try await tart.list().contains(where: { $0.name == id }) else { return }
+            try await tart.stop(name: id)
+        } catch is CancellationError {
+            return
         } catch {
-            // Unknown state: still attempt the teardown below.
-            Log.warn(id, "could not list VMs before teardown: \(error.localizedDescription)")
+            if Self.vmIsGone(error) { return }
+            Log.warn(id, "stopping VM failed: \(error.localizedDescription)")
         }
-        await bestEffortAsync(id, "stopping VM") { try await tart.stop(name: id) }
-        await bestEffortAsync(id, "deleting VM") { try await tart.delete(name: id) }
+        do {
+            try await tart.delete(name: id)
+        } catch is CancellationError {
+            return
+        } catch {
+            if Self.vmIsGone(error) { return }
+            Log.warn(id, "deleting VM failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Whether a tart failure means the VM does not exist (nothing to tear down).
+    static func vmIsGone(_ error: Error) -> Bool {
+        guard case TartError.commandFailed(_, let stderr) = error else { return false }
+        let text = stderr.lowercased()
+        return text.contains("does not exist") || text.contains("not found") || text.contains("no such")
     }
 }

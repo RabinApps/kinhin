@@ -350,13 +350,21 @@ public struct GitHubClient: GitHubServing {
         _ = try await send(req)
     }
 
+    /// Per-run/per-repository reads in flight at once (bounded: GitHub's
+    /// secondary rate limits punish bursts).
+    var maxConcurrentReads: Int { 5 }
+
     /// Fetch all queued workflow runs, then their jobs, filtering client-side
-    /// to jobs whose label set is a superset of the fleet's labels.
+    /// to jobs whose label set is a superset of the fleet's labels. The
+    /// per-run job reads run concurrently; the result keeps run order.
     public func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] {
+        let runs = try await runs(status: "queued")
+        let perRun = try await boundedMap(runs, limit: maxConcurrentReads) { run in
+            try await self.fetchJobs(runID: run.id, repository: run.scopedRepository)
+        }
         var jobs: [QueuedJob] = []
-        for run in try await runs(status: "queued") {
-            for job in try await fetchJobs(runID: run.id, repository: run.scopedRepository) where job.status == "queued"
-            {
+        for (run, runJobs) in zip(runs, perRun) {
+            for job in runJobs where job.status == "queued" {
                 let jobLabels = Set(job.labels ?? [])
                 if labels.isSubset(of: jobLabels) {
                     jobs.append(
@@ -375,10 +383,13 @@ public struct GitHubClient: GitHubServing {
     /// maps each job back to the VM that registered that runner — the basis
     /// for per-repo attribution of running work.
     public func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] {
+        let runs = try await runs(status: "in_progress")
+        let perRun = try await boundedMap(runs, limit: maxConcurrentReads) { run in
+            try await self.fetchJobs(runID: run.id, repository: run.scopedRepository)
+        }
         var jobs: [RunningJob] = []
-        for run in try await runs(status: "in_progress") {
-            for job in try await fetchJobs(runID: run.id, repository: run.scopedRepository)
-            where job.status == "in_progress" {
+        for (run, runJobs) in zip(runs, perRun) {
+            for job in runJobs where job.status == "in_progress" {
                 let jobLabels = Set(job.labels ?? [])
                 if labels.isSubset(of: jobLabels) {
                     jobs.append(

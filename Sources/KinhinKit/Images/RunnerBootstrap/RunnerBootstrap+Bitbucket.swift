@@ -92,8 +92,9 @@ extension RunnerBootstrap {
     /// OAuth client secret — was captured when the forge created the runner
     /// (the secret is only ever shown then); the bundle is written to a
     /// private file (umask 077, the runner's own directory) and read back
-    /// inside the background job, so the secrets kinhin stores never appear
-    /// in the registration script's own process listing. The runner binary
+    /// inside the background job, which deletes the file straight away, so the
+    /// secrets kinhin stores never appear in the registration script's own
+    /// process listing nor stay on disk for job steps. The runner binary
     /// takes the OAuth secret as a command-line argument — the form
     /// Atlassian's own installation dialog prints — so the inner `exec`
     /// expands it there; the VM (or container) is single-tenant and
@@ -131,6 +132,8 @@ extension RunnerBootstrap {
                 (umask 077 && printf '%s' \(shellQuote(runner.bundle)) > credentials)
                 nohup /bin/bash -c '
                   IFS="|" read -r WORKSPACE_UUID REPOSITORY_UUID RUNNER_UUID OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET < "$1"
+                  # Read once, then gone: job steps must not find the client secret on disk.
+                  rm -f "$1"
                   \(runtimeLine)
                   exec "$2" \\
                     --accountUuid "$WORKSPACE_UUID" --runnerUuid "$RUNNER_UUID" \\

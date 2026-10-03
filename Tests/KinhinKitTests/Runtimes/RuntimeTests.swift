@@ -38,12 +38,13 @@ final class RuntimeTests: XCTestCase {
     func testTeardownStopsAndDeletesIdempotently() async throws {
         let tart = FakeTart()
         tart.vms["kinhin-1"] = TartVM(name: "kinhin-1", source: "s", status: "running")
+        tart.strictMissing = true
         let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
 
         await runtime.teardown(id: "kinhin-1")
         await runtime.teardown(id: "kinhin-1")  // second call must not throw
 
-        XCTAssertTrue(tart.stopCalls.contains("kinhin-1"))
+        XCTAssertEqual(tart.stopCalls, ["kinhin-1"], "no tart list round trip; a missing VM is success")
         XCTAssertEqual(tart.deleteCalls.filter { $0 == "kinhin-1" }.count, 1, "delete runs once; second is a no-op")
         XCTAssertNil(tart.vms["kinhin-1"])
     }
@@ -103,12 +104,4 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(tart.deleteCalls.contains(id), "teardown routed through the runtime (delete)")
     }
 
-    func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if await condition() { return }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        XCTFail("condition not met within \(timeout)s")
-    }
 }

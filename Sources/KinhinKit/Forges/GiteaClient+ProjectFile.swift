@@ -8,7 +8,7 @@ extension GiteaClient {
         guard segments.count == 2, segments.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
             !repository.contains("?"), !repository.contains("#")
         else {
-            throw GiteaError.http(0, "invalid repository \(repository)")
+            throw ForgeAPIError.http(forge: .gitea, code: 0, body: "invalid repository \(repository)")
         }
         var path = "/api/v1/repos/\(repository)/raw/\(ProjectFileLoader.fileName)"
         if let ref {
@@ -20,7 +20,7 @@ extension GiteaClient {
         do {
             let (data, _) = try await send(path: path)
             return data
-        } catch GiteaError.notFound {
+        } catch ForgeAPIError.notFound {
             return nil  // no .kinhin.yml at this ref
         }
     }

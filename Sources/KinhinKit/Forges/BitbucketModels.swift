@@ -326,41 +326,28 @@ struct BitbucketRepoRef: Decodable, Sendable, Equatable {
 
 // MARK: - Errors
 
+/// Bitbucket-specific failures. The HTTP-shaped API errors (401/403/404/5xx,
+/// decoding) come from the shared transport as `ForgeAPIError`.
 enum BitbucketError: LocalizedError, Equatable {
-    case unauthorized
-    case forbidden(String)
-    case notFound(String)
-    case http(Int, String)
-    case decoding(String)
     case invalidScope(String)
     case scopeNotFound(String)
     case missingOAuthClientSecret(String)
-    /// A pagination link that leaves the Bitbucket API host (or is not https).
+    /// A pagination `next` link that leaves the Bitbucket API host (or is not
+    /// https).
     case untrustedPageLink(String)
 
     var errorDescription: String? {
         switch self {
-        case .unauthorized:
-            return "Bitbucket rejected the access token (401): expired, revoked, or mistyped. "
-                + "Fix: kinhin auth set NAME with a new token"
-        case .forbidden(let why):
-            return "Bitbucket forbidden (403): \(why). The token must belong to the workspace the scope names"
-        case .notFound(let what):
-            return "Bitbucket returned 404 for \(what): check the workspace and repository slugs"
-        case .http(let code, let body):
-            return "Bitbucket HTTP \(code): \(body)"
-        case .decoding(let why):
-            return "Could not decode Bitbucket response: \(why)"
         case .invalidScope(let scope):
             return "invalid Bitbucket scope '\(scope)': use '<workspace>' or '<workspace>/<repo-slug>'"
         case .scopeNotFound(let scope):
             return "no Bitbucket workspace or repository '\(scope)': check the slugs and that the token can see them"
-        case .untrustedPageLink(let link):
-            return "Bitbucket returned a pagination link outside its API (\(link)); refusing to send the token there"
         case .missingOAuthClientSecret(let name):
             return
                 "Bitbucket created runner '\(name)' but did not return its OAuth client secret: the secret is shown "
                 + "only once, so delete the runner on the forge and let kinhin create it again"
+        case .untrustedPageLink(let link):
+            return "Bitbucket returned a pagination link outside its API (\(link)); refusing to send the token there"
         }
     }
 }

@@ -2,6 +2,26 @@ import Foundation
 import KinhinKit
 
 enum ImageCommand {
+    /// Which tart images one `image prepare` run bakes: `--all` = the primary
+    /// plus every `images:` entry, `--image NAME` = that entry, bare = the
+    /// primary. Throws a `.usage` error when the flags cannot apply to the
+    /// selection: a `--source`/`--target` names one image (the VM to bake from
+    /// / the result to write), so with `--all` every bake would point at the
+    /// same VM and each successive bake would overwrite the previous one.
+    /// `--runner-version` pins the runner agents fleet-wide, so it deliberately
+    /// applies to every `--all` bake.
+    static func bakeTargets(args: [String], images: [KinhinConfig.ImageConfig]) throws -> [String?] {
+        if args.contains("--all") {
+            if let flag = ["--source", "--target"].first(where: { hasFlag($0, in: args) }) {
+                throw CLIError(
+                    "--all bakes every configured image, so \(flag) (which names one image) cannot be combined with it; run one bake per image instead",
+                    exit: .usage)
+            }
+            return [nil] + images.map { Optional($0.name) }
+        }
+        return [flag("--image", in: args)]
+    }
+
     /// The interactive menu over `TartBaseImage`'s pre-configured Linux
     /// images (bare `--from`). Returns the picked reference.
     static func pickCuratedLinuxImage() throws -> String {
@@ -199,12 +219,10 @@ enum ImageCommand {
             let preparer = ImagePreparer(tart: tart, ssh: SSHExecutor())
             // `--all` bakes `image:` and every `images:` entry, one after another (each bake
             // is disk-heavy); `--image NAME` picks one; neither = the primary `image:`.
-            let names: [String?] =
-                args.contains("--all") ? [nil] + cfg.images.map { Optional($0.name) } : [flag("--image", in: args)]
-            for name in names {
+            for name in try Self.bakeTargets(args: args, images: cfg.images) {
                 var options = try ImageBuildService.tartOptions(config: cfg, image: name)
-                options.source = flag("--source", in: args) ?? options.source
-                options.target = flag("--target", in: args) ?? options.target
+                // --runner-version pins the runner agents across the whole fleet,
+                // so it deliberately applies to every --all bake.
                 options.runnerVersion = flag("--runner-version", in: args) ?? options.runnerVersion
                 // The flag wins over the config key; either may be absent (no
                 // user script is baked in that case).

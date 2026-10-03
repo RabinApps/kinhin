@@ -179,7 +179,7 @@ extension FleetEngine {
                 all = try await forge.runners()
             } catch let error where !(error is CancellationError) && !Task.isCancelled {
                 Log.warn(id, "\(forgeName) runner list failed; retrying: \(error.localizedDescription)")
-                try await Task.sleep(for: .seconds(1))
+                try await Task.sleep(for: exitWatchInterval)
                 continue
             }
             // A detached engine's watcher must not delete or re-phase the instance.
@@ -228,7 +228,7 @@ extension FleetEngine {
                 await deleteVMRecord(id: id, reason: "registration timeout")
                 return
             }
-            try await Task.sleep(for: .seconds(1))
+            try await Task.sleep(for: exitWatchInterval)
         }
         Log.warn(id, "ephemeral watch timed out; deleting VM")
         await deleteVMRecord(id: id, reason: "timeout")

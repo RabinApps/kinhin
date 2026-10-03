@@ -13,13 +13,15 @@ import Foundation
 /// runner endpoints are the recently published public ones (BCLOUD-21309).
 public struct BitbucketClient: Sendable {
     let credentials: BitbucketCredentials
-    let session: URLSession
+    /// The shared send/retry pipeline (headers, status mapping, backoff).
+    let transport: ForgeTransport
     /// Pages read per list (100 items each).
     let maxPages = 20
 
     public init(credentials: BitbucketCredentials, session: URLSession? = nil) {
         self.credentials = credentials
-        self.session = ForgeHTTP.session(session)
+        self.transport = ForgeTransport(
+            session: ForgeHTTP.session(session), forge: .bitbucket, authorization: .bearer(credentials.token))
     }
 
     // MARK: - Scope
@@ -63,7 +65,7 @@ public struct BitbucketClient: Sendable {
         }
         do {
             _ = try await send("GET", path)
-        } catch BitbucketError.notFound {
+        } catch ForgeAPIError.notFound {
             throw BitbucketError.scopeNotFound(what)
         }
     }
@@ -93,7 +95,7 @@ public struct BitbucketClient: Sendable {
     func deleteRunner(scope: BitbucketScope, uuid: String) async throws {
         do {
             _ = try await send("DELETE", "\(scope.runnerPath)/\(uuid)")
-        } catch BitbucketError.notFound {
+        } catch ForgeAPIError.notFound {
             Log.info("bitbucket", "runner \(uuid) is already gone")
         }
     }
@@ -215,7 +217,7 @@ public struct BitbucketClient: Sendable {
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
-            throw BitbucketError.decoding("\(what): \(error.localizedDescription)")
+            throw ForgeAPIError.decoding(forge: .bitbucket, what: "\(what): \(error.localizedDescription)")
         }
     }
 
@@ -249,53 +251,13 @@ public struct BitbucketClient: Sendable {
         return url
     }
 
-    /// Sends with retry on transient failures (network errors, 429, 5xx).
+    /// Sends with the shared transport: retry on transient failures (network
+    /// errors, 429, 5xx) and the common status→error mapping. A `path` that
+    /// already is an absolute URL (a pagination `next` link) is validated by
+    /// `url(_:)` before it is used.
     func send(_ method: String, _ path: String, body: Data? = nil, accept: String = "application/json") async throws
         -> (Data, HTTPURLResponse)
     {
-        try await send(method, try url(path), body: body, accept: accept)
-    }
-
-    private func send(_ method: String, _ url: URL, body: Data?, accept: String = "application/json") async throws
-        -> (Data, HTTPURLResponse)
-    {
-        try await withTransientRetry(isTransient: Self.isTransient) {
-            try await sendOnce(method, url, body: body, accept: accept)
-        }
-    }
-
-    static func isTransient(_ error: Error) -> Bool {
-        if case .http(let code, _) = error as? BitbucketError { return ForgeHTTP.isTransientStatus(code) }
-        return ForgeHTTP.isTransientNetworkError(error)
-    }
-
-    private func sendOnce(_ method: String, _ url: URL, body: Data?, accept: String) async throws -> (
-        Data, HTTPURLResponse
-    ) {
-        var req = URLRequest(url: url)
-        req.httpMethod = method
-        req.setValue("Bearer \(credentials.token)", forHTTPHeaderField: "Authorization")
-        req.setValue(accept, forHTTPHeaderField: "Accept")
-        req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
-        if let body {
-            req.httpBody = body
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-        let (data, response) = try await session.data(for: req)
-        guard let http = response as? HTTPURLResponse else {
-            throw BitbucketError.http(0, "non-HTTP response")
-        }
-        switch http.statusCode {
-        case 200...299:
-            return (data, http)
-        case 401:
-            throw BitbucketError.unauthorized
-        case 403:
-            throw BitbucketError.forbidden(String(decoding: data.prefix(300), as: UTF8.self))
-        case 404:
-            throw BitbucketError.notFound(url.path)
-        default:
-            throw BitbucketError.http(http.statusCode, String(decoding: data.prefix(300), as: UTF8.self))
-        }
+        try await transport.send(method, try url(path), body: body, accept: accept)
     }
 }

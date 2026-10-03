@@ -196,11 +196,15 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let sharedCacheWritable: Bool
         /// Human-readable advisories, ready to print.
         public let warnings: [String]
+        /// Why the guest's SSH host key could not be pinned on the last VM boot
+        /// (connections then skip host key verification); null when pinning works.
+        public let hostKeyUnpinned: String?
 
         public init(
             softnetEnabled: Bool, softnetInstalled: Bool, ok: Bool, fix: String?, insecureHTTPAccounts: [String],
-            sharedCacheWritable: Bool, warnings: [String]
+            sharedCacheWritable: Bool, warnings: [String], hostKeyUnpinned: String? = nil
         ) {
+            self.hostKeyUnpinned = hostKeyUnpinned
             self.softnetEnabled = softnetEnabled
             self.softnetInstalled = softnetInstalled
             self.ok = ok

@@ -59,13 +59,18 @@ enum RunCommands {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             print(String(decoding: try encoder.encode(document), as: UTF8.self))
         }
-        if RPCClient.isDaemonAlive() {
-            let status: FleetStatus
-            do {
-                status = try RPCClient().status()
-            } catch {
-                fail(error.localizedDescription, exit: .runtime)
-            }
+        // Ask for the status directly: a separate ping first doubled the
+        // round trips. "Nobody is listening" is the only failure that means
+        // "not running"; any other error is reported.
+        var daemonStatus: FleetStatus?
+        do {
+            daemonStatus = try RPCClient().status()
+        } catch RPCError.connectionFailed {
+            daemonStatus = nil
+        } catch {
+            fail(error.localizedDescription, exit: .runtime)
+        }
+        if let status = daemonStatus {
             // Machine output only: prose before the JSON line would make the
             // document unparseable (same convention as doctor/setup-status).
             if args.contains("--json") {
@@ -114,7 +119,8 @@ enum RunCommands {
         while true {
             // Reuse the status command's rendering.
             // A dead or failing daemon reads as "not running" on this refresh.
-            if RPCClient.isDaemonAlive(), let status = try? RPCClient().status() {
+            // The status call itself tells whether a daemon answers (no ping first).
+            if let status = try? RPCClient().status() {
                 print("\u{1B}[2J\u{1B}[H")  // clear screen
                 print(FleetStatusFormatter.report(status))
                 print("(refreshing every 2s — Ctrl-C to exit)")

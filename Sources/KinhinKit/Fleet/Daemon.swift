@@ -41,7 +41,7 @@ public enum Daemon {
             Log.error("daemon", error.localizedDescription)
             throw error
         }
-        guard enginePAT != nil else {
+        guard let enginePAT else {
             let message =
                 cfg.githubEnabled
                 ? "no GitHub token in Keychain — run `kinhin auth` first"
@@ -58,7 +58,8 @@ public enum Daemon {
 
         let engineRef = EngineRef()
         do {
-            engineRef.set(try buildEngine(cfg))
+            // The token was just read above; reuse it instead of a second Keychain read.
+            engineRef.set(try FleetEngine.production(config: cfg, token: enginePAT))
         } catch {
             Log.error("daemon", "could not build engine: \(error.localizedDescription)")
             throw error
@@ -182,7 +183,9 @@ public enum Daemon {
             case .ping:
                 return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(["pong": true]))
             case .status:
-                let status = await engine.status()
+                // No payload (older clients) means the full status with usage.
+                let includeUsage = decodePayload(StatusRequest.self)?.includeUsage ?? true
+                let status = await engine.status(includeUsage: includeUsage)
                 return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(status))
             case .start:
                 await engine.start()
@@ -309,6 +312,13 @@ public enum Daemon {
             self.jobID = jobID
             self.stepIndex = stepIndex
         }
+    }
+
+    /// Optional payload of `status`. Absent, `status` samples usage as it
+    /// always did, so older clients and daemons stay compatible.
+    public struct StatusRequest: Codable {
+        public let includeUsage: Bool
+        public init(includeUsage: Bool) { self.includeUsage = includeUsage }
     }
 
     public struct VMDeleteRequest: Codable {

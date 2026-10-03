@@ -129,14 +129,6 @@ final class GitLabForgeTests: XCTestCase {
         XCTAssertTrue(tart.deleteCalls.contains(id), "the VM is deleted once its runner is gone")
     }
 
-    private func waitUntil(timeout: TimeInterval = 15, _ condition: () async -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if await condition() { return }
-            try await Task.sleep(for: .milliseconds(100))
-        }
-        XCTFail("condition not met within \(timeout)s")
-    }
 }
 
 /// A minimal GitLab: runners created through `POST /user/runners`, listed

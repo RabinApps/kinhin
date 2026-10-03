@@ -24,4 +24,21 @@ final class ConditionalGetCacheTests: XCTestCase {
         XCTAssertNil(cache.etag(for: "b"))
         XCTAssertNotNil(cache.etag(for: "c"))
     }
+
+    func testTotalBodyBytesAreCappedEvictingLeastRecentlyUsed() {
+        let cache = ConditionalGetCache(capacity: 100, byteCapacity: 100)
+        cache.store(url: "a", etag: "1", body: Data(count: 40))
+        cache.store(url: "b", etag: "2", body: Data(count: 40))
+        _ = cache.body(for: "a")  // a is now newer than b
+        cache.store(url: "c", etag: "3", body: Data(count: 40))
+        XCTAssertNil(cache.etag(for: "b"), "the least recently used body is evicted past the byte cap")
+        XCTAssertNotNil(cache.etag(for: "a"))
+        XCTAssertNotNil(cache.etag(for: "c"))
+        XCTAssertLessThanOrEqual(cache.totalBytes, 100)
+        cache.store(url: "a", etag: "9", body: Data(count: 10))  // replacing adjusts the total
+        XCTAssertEqual(cache.totalBytes, 50)
+        cache.store(url: "huge", etag: "h", body: Data(count: 500))
+        XCTAssertNil(cache.etag(for: "huge"), "one body over the cap is not retained")
+        XCTAssertLessThanOrEqual(cache.totalBytes, 100)
+    }
 }

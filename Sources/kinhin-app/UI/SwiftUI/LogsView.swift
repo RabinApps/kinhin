@@ -42,7 +42,8 @@ struct LogsView: View {
                     .foregroundStyle(.tertiary)
             }
             LogTextView(
-                text: model.text, revision: model.revision, searchRevision: model.searchRevision,
+                text: model.text, appended: model.appended, revision: model.revision,
+                rebuildRevision: model.rebuildRevision, searchRevision: model.searchRevision,
                 follow: model.follow
             )
             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -58,7 +59,10 @@ struct LogsView: View {
 /// AppKit.
 private struct LogTextView: NSViewRepresentable {
     let text: NSAttributedString
+    /// What the last change appended (valid while `rebuildRevision` holds).
+    let appended: NSAttributedString
     let revision: Int
+    let rebuildRevision: Int
     let searchRevision: Int
     let follow: Bool
 
@@ -90,12 +94,21 @@ private struct LogTextView: NSViewRepresentable {
         if coordinator.revision != revision {
             let wasAtBottom = coordinator.isAtBottom(scroll)
             let grew = text.length > coordinator.length
-            storage.setAttributedString(text)
+            // A pure append (the model's very next revision, same base text)
+            // only adds the new lines; anything else reloads the whole text.
+            if coordinator.rebuildRevision == rebuildRevision, coordinator.revision == revision - 1,
+                storage.length == coordinator.length
+            {
+                storage.append(appended)
+            } else {
+                storage.setAttributedString(text)
+            }
             let searched = coordinator.searchRevision != searchRevision
             if searched || (follow && (grew || wasAtBottom)) {
                 coordinator.scrollToBottom(scroll)
             }
             coordinator.revision = revision
+            coordinator.rebuildRevision = rebuildRevision
             coordinator.searchRevision = searchRevision
             coordinator.length = text.length
         } else if follow, !coordinator.follow {
@@ -108,6 +121,7 @@ private struct LogTextView: NSViewRepresentable {
     final class Coordinator {
         weak var textView: NSTextView?
         var revision = -1
+        var rebuildRevision = -1
         var searchRevision = 0
         var length = 0
         var follow = true

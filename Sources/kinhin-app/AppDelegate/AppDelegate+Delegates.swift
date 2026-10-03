@@ -4,7 +4,15 @@ import KinhinKit
 // MARK: - MainTabsWindowDelegate
 
 @MainActor
-extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation {
+extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation, NSMenuDelegate {
+    // MARK: - NSMenuDelegate
+
+    /// An open menu shows live fleet data (CPU/RAM included): poll at the
+    /// fast cadence while it is up.
+    func menuWillOpen(_ menu: NSMenu) { fleet.setMenuOpen(true) }
+
+    func menuDidClose(_ menu: NSMenu) { fleet.setMenuOpen(false) }
+
     func openLogsFolder() { openLogs() }
 
     func launchModeChanged(_ mode: LaunchMode) {

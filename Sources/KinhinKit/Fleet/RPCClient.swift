@@ -39,8 +39,12 @@ public struct RPCClient: Sendable {
     }
 
     /// The daemon's fleet status.
-    public func status() throws -> FleetStatus {
-        let response = try command(.status)
+    /// `includeUsage: false` asks the daemon to skip CPU/RAM sampling (the
+    /// request then carries a payload; the default sends none, exactly as
+    /// before, so any daemon version understands it).
+    public func status(includeUsage: Bool = true) throws -> FleetStatus {
+        let payload = includeUsage ? nil : try JSONEncoder().encode(Daemon.StatusRequest(includeUsage: false))
+        let response = try command(.status, payload: payload)
         guard let payload = response.payload else { throw RPCError.rejected("daemon returned no status payload") }
         return try JSONDecoder().decode(FleetStatus.self, from: payload)
     }

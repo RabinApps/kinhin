@@ -104,6 +104,40 @@ final class ToolchainCachePrunerTests: XCTestCase {
         XCTAssertFalse(contents.contains("binary"), "empty dirs left by deletions are removed")
     }
 
+    func testRateLimitedSweepSkipsTheWalkUntilTheIntervalPasses() throws {
+        let (root, pruner) = try makeCache()
+        let policy = ToolchainCachePolicy(autoPrune: true, maxAgeDays: 30, maxGB: 0)
+        try writeCacheFile(root: root, relative: "npm/old1.tar", bytes: 10, ageDays: 60)
+        let start = Date()
+
+        let first = pruner.prune(policy: policy, now: start, minInterval: 3600)
+        XCTAssertEqual(first.entries.count, 1)
+
+        try writeCacheFile(root: root, relative: "npm/old2.tar", bytes: 10, ageDays: 60)
+        let skipped = pruner.prune(policy: policy, now: start.addingTimeInterval(600), minInterval: 3600)
+        XCTAssertTrue(skipped.entries.isEmpty, "swept 10 minutes ago: no walk")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("npm/old2.tar").path))
+
+        let forced = pruner.prune(policy: policy, now: start.addingTimeInterval(600))
+        XCTAssertEqual(forced.entries.count, 1, "no minInterval always sweeps")
+
+        try writeCacheFile(root: root, relative: "npm/old3.tar", bytes: 10, ageDays: 60)
+        let later = pruner.prune(policy: policy, now: start.addingTimeInterval(4000), minInterval: 3600)
+        XCTAssertEqual(later.entries.count, 1, "an hour on, the sweep runs again")
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: root.appendingPathComponent(".last-sweep").path),
+            "the marker lives beside the cache, never inside it")
+    }
+
+    func testDryRunIgnoresTheRateLimit() throws {
+        let (root, pruner) = try makeCache()
+        let policy = ToolchainCachePolicy(autoPrune: true, maxAgeDays: 30, maxGB: 0)
+        try writeCacheFile(root: root, relative: "npm/old.tar", bytes: 10, ageDays: 60)
+        _ = pruner.prune(policy: policy, minInterval: 3600)
+        try writeCacheFile(root: root, relative: "npm/old2.tar", bytes: 10, ageDays: 60)
+        XCTAssertEqual(pruner.prune(policy: policy, dryRun: true, minInterval: 3600).entries.count, 1)
+    }
+
     func testCachePolicyDefaultsFromConfig() {
         XCTAssertEqual(
             ToolchainCachePolicy(from: nil), ToolchainCachePolicy(autoPrune: true, maxAgeDays: 30, maxGB: 50))

@@ -20,7 +20,7 @@ final class ExitCodeTests: XCTestCase {
         XCTAssertEqual(CLIExit(ConfigError.notFound("/x")), .config)
         XCTAssertEqual(CLIExit(ConfigEditError.validation("bad")), .config)
         XCTAssertEqual(CLIExit(GitHubError.unauthorized), .auth)
-        XCTAssertEqual(CLIExit(GiteaError.unauthorized), .auth)
+        XCTAssertEqual(CLIExit(ForgeAPIError.unauthorized(forge: .gitea)), .auth)
         XCTAssertEqual(CLIExit(RPCError.connectionFailed("/sock")), .runtime)
         XCTAssertEqual(CLIExit(ImageError.noCredentials("none")), .runtime)
         XCTAssertEqual(CLIExit(TartError.ipNotFound(vm: "vm")), .runtime)

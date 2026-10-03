@@ -17,6 +17,8 @@ actor ProjectToolchainSource {
     private static let maxEntries = 256
 
     private var cache: [String: Entry] = [:]
+    /// Reads under way, so concurrent lookups of the same file share one call.
+    private var inFlight: [String: Task<Data?, Error>] = [:]
     private let now: @Sendable () -> Date
 
     init(now: @escaping @Sendable () -> Date = { Date() }) {
@@ -55,7 +57,11 @@ actor ProjectToolchainSource {
         if let hit = cache[key], hit.permanent || stamp.timeIntervalSince(hit.at) < Self.branchTTL {
             return hit.data
         }
-        let data = try await forge.projectFile(repository: repository, ref: sha ?? ref)
+        if let running = inFlight[key] { return try await running.value }
+        let task = Task { try await forge.projectFile(repository: repository, ref: sha ?? ref) }
+        inFlight[key] = task
+        defer { inFlight[key] = nil }
+        let data = try await task.value
         if cache.count >= Self.maxEntries { cache.removeAll(keepingCapacity: true) }
         cache[key] = Entry(data: data, at: stamp, permanent: sha != nil)
         return data

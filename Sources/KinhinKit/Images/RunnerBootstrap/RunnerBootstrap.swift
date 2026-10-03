@@ -156,7 +156,11 @@ enum RunnerBootstrap {
         instance: String, token: String, labels: [String], name: String, runnerCount: Int = 1
     ) -> String {
         let labelList = labels.joined(separator: ",")
+        // Every runner is registered before any is started: a started daemon is
+        // already executing job code as this user, and `register --token` puts
+        // the registration token in the argv `ps` shows.
         var blocks = ""
+        var starts = ""
         for index in 1...max(1, runnerCount) {
             let runnerName = runnerCount == 1 ? name : "\(name)-r\(index)"
             let dir = runnerCount == 1 ? "$HOME/gitea-runner" : "$HOME/gitea-runner-\(index)"
@@ -173,6 +177,10 @@ enum RunnerBootstrap {
                   --token \(shellQuote(token)) \
                   --name \(shellQuote(runnerName)) \
                   --labels \(shellQuote(labelList)) >/dev/null
+
+                """
+            starts += """
+                cd \(dir)
                 nohup ./gitea-runner daemon > daemon-\(index).log 2>&1 &
 
                 """
@@ -180,7 +188,8 @@ enum RunnerBootstrap {
         return """
             set -euo pipefail
 
-            \(blocks)echo "\(max(1, runnerCount)) gitea runner(s) started"
+            \(blocks)# All registered; now start serving jobs.
+            \(starts)echo "\(max(1, runnerCount)) gitea runner(s) started"
             """
     }
 }

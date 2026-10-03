@@ -58,11 +58,14 @@ public struct GiteaCredentials: Sendable {
 /// thinner than GitHub's; the floor keeps the autoscaler sane regardless).
 public struct GiteaClient: Sendable {
     let credentials: GiteaCredentials
-    let session: URLSession
+    /// The shared send/retry pipeline (headers, status mapping, backoff).
+    /// Forgejo is served by this same client, so the messages say Gitea.
+    let transport: ForgeTransport
 
     public init(credentials: GiteaCredentials, session: URLSession? = nil) {
         self.credentials = credentials
-        self.session = ForgeHTTP.session(session)
+        self.transport = ForgeTransport(
+            session: ForgeHTTP.session(session), forge: .gitea, authorization: .giteaToken(credentials.token))
     }
 
     // MARK: - Endpoints
@@ -75,7 +78,7 @@ public struct GiteaClient: Sendable {
             struct TokenResponse: Decodable { let token: String }
             return try JSONDecoder().decode(TokenResponse.self, from: data).token
         } catch {
-            throw GiteaError.decoding("registration-token: \(error.localizedDescription)")
+            throw ForgeAPIError.decoding(forge: .gitea, what: "registration-token: \(error.localizedDescription)")
         }
     }
 
@@ -148,7 +151,7 @@ public struct GiteaClient: Sendable {
                     batch = try JSONDecoder().decode([GiteaRepo].self, from: data)
                 }
             } catch {
-                throw GiteaError.decoding("repos/search: \(error.localizedDescription)")
+                throw ForgeAPIError.decoding(forge: .gitea, what: "repos/search: \(error.localizedDescription)")
             }
             refs.append(
                 contentsOf: batch.map {
@@ -175,7 +178,7 @@ public struct GiteaClient: Sendable {
             do {
                 return try JSONDecoder().decode([GiteaRunner].self, from: data)
             } catch {
-                throw GiteaError.decoding("runners: \(error.localizedDescription)")
+                throw ForgeAPIError.decoding(forge: .gitea, what: "runners: \(error.localizedDescription)")
             }
         }
     }
@@ -194,7 +197,7 @@ public struct GiteaClient: Sendable {
         do {
             return try JSONDecoder().decode(Wrapper.self, from: data).total_count
         } catch {
-            throw GiteaError.decoding("tasks: \(error.localizedDescription)")
+            throw ForgeAPIError.decoding(forge: .gitea, what: "tasks: \(error.localizedDescription)")
         }
     }
 
@@ -220,27 +223,21 @@ public struct GiteaClient: Sendable {
             let wrapper = try JSONDecoder().decode(TaskQueueWrapper.self, from: data)
             return wrapper.tasks
         } catch {
-            throw GiteaError.decoding("tasks: \(error.localizedDescription)")
+            throw ForgeAPIError.decoding(forge: .gitea, what: "tasks: \(error.localizedDescription)")
         }
     }
 
     // MARK: - Plumbing
 
-    /// Sends with retry on transient failures (network errors, 5xx), matching
-    /// the GitHub client's resilience to blips.
+    /// Sends with the shared transport: retry on transient failures (network
+    /// errors, 429, 5xx), matching the GitHub client's resilience to blips.
     func send(path: String, method: String = "GET") async throws -> (Data, HTTPURLResponse) {
-        try await withTransientRetry(isTransient: Self.isTransient) {
-            try await sendOnce(path: path, method: method)
-        }
+        try await transport.send(method, try url(path))
     }
 
-    static func isTransient(_ error: Error) -> Bool {
-        if case .http(let code, _) = error as? GiteaError { return ForgeHTTP.isTransientStatus(code) }
-        return ForgeHTTP.isTransientNetworkError(error)
-    }
-
-    private func sendOnce(path: String, method: String) async throws -> (Data, HTTPURLResponse) {
-        // validate() already throws the typed GiteaError.invalidInstance.
+    /// The request URL for an endpoint path. `validate()` already throws the
+    /// typed `GiteaError.invalidInstance`.
+    func url(_ path: String) throws -> URL {
         let base = try GiteaCredentials.validate(
             instance: credentials.instance, allowInsecureHTTP: credentials.allowInsecureHTTP)
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
@@ -257,28 +254,7 @@ public struct GiteaClient: Sendable {
         guard let url = components.url else {
             throw GiteaError.invalidInstance(credentials.instance)
         }
-        var req = URLRequest(url: url)
-        req.httpMethod = method
-        req.setValue("token \(credentials.token)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/json", forHTTPHeaderField: "Accept")
-        req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
-
-        let (data, response) = try await session.data(for: req)
-        guard let http = response as? HTTPURLResponse else {
-            throw GiteaError.http(0, "non-HTTP response")
-        }
-        switch http.statusCode {
-        case 200...299:
-            return (data, http)
-        case 401:
-            throw GiteaError.unauthorized
-        case 403:
-            throw GiteaError.forbidden(String(decoding: data.prefix(300), as: UTF8.self))
-        case 404:
-            throw GiteaError.notFound(path)
-        default:
-            throw GiteaError.http(http.statusCode, String(decoding: data.prefix(300), as: UTF8.self))
-        }
+        return url
     }
 }
 

@@ -12,9 +12,33 @@ public enum Log {
         public let level: String
         public let component: String
         public let message: String
+        /// Monotonic per-process sequence number: a consumer that has seen
+        /// entry N only needs the entries after it. 0 when decoded from a
+        /// sender that predates the field.
+        public let seq: UInt64
+
+        init(timestamp: Date, level: String, component: String, message: String, seq: UInt64 = 0) {
+            self.timestamp = timestamp
+            self.level = level
+            self.component = component
+            self.message = message
+            self.seq = seq
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            timestamp = try container.decode(Date.self, forKey: .timestamp)
+            level = try container.decode(String.self, forKey: .level)
+            component = try container.decode(String.self, forKey: .component)
+            message = try container.decode(String.self, forKey: .message)
+            seq = try container.decodeIfPresent(UInt64.self, forKey: .seq) ?? 0
+        }
+
+        private static let nextSeq = Atomic<UInt64>(1)
 
         static func make(level: String, component: String, message: String) -> Entry {
-            Entry(timestamp: Date(), level: level, component: component, message: message)
+            let seq = nextSeq.add(1, ordering: .relaxed).oldValue
+            return Entry(timestamp: Date(), level: level, component: component, message: message, seq: seq)
         }
 
         public var formatted: String {
@@ -124,17 +148,18 @@ public enum Log {
         guard level >= minLevel else { return }
         let entry = Entry.make(level: level.rawValue, component: component, message: LogRedactor.redact(message))
 
+        // Formatted once: the timestamp formatting is the costly part.
+        let line = Data(entry.formatted.appending("\n").utf8)
         if echoToStderr {
-            FileHandle.standardError.write(Data(entry.formatted.appending("\n").utf8))
+            FileHandle.standardError.write(line)
         }
 
-        let entryToStore = entry
-        ring.append(entryToStore)
+        ring.append(entry)
 
         fileTarget.withLock { target in
             guard let logFile = target.file else { return }
             do {
-                try logFile.append(Data(entryToStore.formatted.appending("\n").utf8))
+                try logFile.append(line)
             } catch {
                 reportFileFailure("log file write failed: \(error.localizedDescription)", to: &target)
             }
@@ -142,29 +167,41 @@ public enum Log {
     }
 }
 
-/// A tiny thread-safe ring buffer.
+/// A thread-safe fixed-capacity ring buffer: appends overwrite the oldest
+/// item in O(1).
 final class Runaround<T: Sendable>: Sendable {
     private struct State: Sendable {
         var items: [T] = []
+        /// Index of the oldest item once the buffer is full.
+        var head = 0
         let capacity: Int
     }
 
     private let state: Mutex<State>
 
     init(capacity: Int) {
-        self.state = Mutex(State(capacity: capacity))
+        self.state = Mutex(State(capacity: max(1, capacity)))
     }
 
     func append(_ item: T) {
         state.withLock { s in
-            s.items.append(item)
-            if s.items.count > s.capacity {
-                s.items.removeFirst(s.items.count - s.capacity)
+            if s.items.count < s.capacity {
+                s.items.append(item)
+            } else {
+                s.items[s.head] = item
+                s.head = (s.head + 1) % s.capacity
             }
         }
     }
 
+    /// The newest `limit` items, oldest first.
     func snapshot(limit: Int) -> [T] {
-        state.withLock { Array($0.items.suffix(limit)) }
+        state.withLock { s in
+            let count = s.items.count
+            let take = max(0, min(limit, count))
+            guard take > 0 else { return [] }
+            let start = s.head + (count - take)
+            return (0..<take).map { s.items[(start + $0) % count] }
+        }
     }
 }

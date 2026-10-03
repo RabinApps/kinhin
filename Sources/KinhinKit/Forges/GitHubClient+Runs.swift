@@ -55,18 +55,19 @@ extension GitHubClient {
     /// whole queue read, and it contributes no jobs by definition.
     func runsFromRepos(status: String) async throws -> [RunRef] {
         let repos = try await listScopeRepositories()
-        var runs: [RunRef] = []
-        var readableRepos = 0
-        for repo in repos.prefix(maxReposPerPoll) {
+        // Concurrent per-repo reads; `nil` marks a repository the token
+        // cannot read. Results keep the repos' (most recently pushed) order.
+        let perRepo = try await boundedMap(Array(repos.prefix(maxReposPerPoll)), limit: maxConcurrentReads) {
+            repo -> [RunRef]? in
             do {
-                runs.append(
-                    contentsOf: try await pagedRuns(
-                        path: "/repos/\(repo)/actions/runs", status: status, repository: repo))
-                readableRepos += 1
+                return try await self.pagedRuns(
+                    path: "/repos/\(repo)/actions/runs", status: status, repository: repo)
             } catch GitHubError.notFound {
-                continue  // token has no Actions read on this repository
+                return nil  // token has no Actions read on this repository
             }
         }
+        let runs = perRepo.compactMap { $0 }.flatMap { $0 }
+        let readableRepos = perRepo.compactMap { $0 }.count
         // An empty result must not hide a broken token: when the scope lists
         // repositories but not one of them exposes runs, the autoscaler would
         // silently see an empty queue forever. Fail loudly instead.
@@ -138,13 +139,21 @@ extension GitHubClient {
     /// `steps[]`, so this costs no request beyond the runs/jobs reads the
     /// running-attribution poll makes.
     public func pipelineDetail(runnerName: String) async throws -> PipelineDetail? {
-        for run in try await runs(status: "in_progress") {
-            let jobs = try await fetchJobs(runID: run.id, repository: run.scopedRepository)
-            guard jobs.contains(where: { $0.runnerName == runnerName && $0.status == "in_progress" }) else {
-                continue
+        let runs = try await runs(status: "in_progress")
+        // Look at a few runs at a time, in order: the first run holding the
+        // runner wins (as before) without fetching every run's jobs.
+        var offset = 0
+        while offset < runs.count {
+            let chunk = Array(runs[offset..<min(offset + maxConcurrentReads, runs.count)])
+            offset += chunk.count
+            let jobLists = try await boundedMap(chunk, limit: maxConcurrentReads) { run in
+                try await self.fetchJobs(runID: run.id, repository: run.scopedRepository)
             }
-            let repository = run.attributedRepository ?? (credentials.isOrgScope ? nil : credentials.scope)
-            return Self.detail(jobs: jobs, run: run, runnerName: runnerName, repository: repository)
+            for (run, jobs) in zip(chunk, jobLists)
+            where jobs.contains(where: { $0.runnerName == runnerName && $0.status == "in_progress" }) {
+                let repository = run.attributedRepository ?? (credentials.isOrgScope ? nil : credentials.scope)
+                return Self.detail(jobs: jobs, run: run, runnerName: runnerName, repository: repository)
+            }
         }
         return nil
     }

@@ -63,4 +63,50 @@ final class PipelineLogTextTests: XCTestCase {
         let unstarted = [PipelineStep(name: "Later", state: .pending)]
         XCTAssertEqual(PipelineLogText.slice(jobLog: log, steps: unstarted, index: 0), "")
     }
+
+    /// The hand parser must agree with the ISO-8601 formatter on every
+    /// shape a log line can carry (leap years, month ends, fractions).
+    func testHandParsedTimestampsMatchTheFormatter() throws {
+        let stamps = [
+            "2026-10-02T10:00:01", "2024-02-29T23:59:59", "2000-01-01T00:00:00", "2099-12-31T12:30:45",
+            "2026-03-01T00:00:00", "2100-03-01T01:02:03",
+        ]
+        for stamp in stamps {
+            let parsed = try XCTUnwrap(PipelineLogText.timestamp(of: Substring(stamp + "Z text")), stamp)
+            let reference = try XCTUnwrap(PipelineParsing.date(stamp + "Z"), stamp)
+            XCTAssertEqual(parsed.timeIntervalSince1970, reference.timeIntervalSince1970, accuracy: 0.0001, stamp)
+        }
+        let fractional = try XCTUnwrap(PipelineLogText.timestamp(of: "2026-10-02T10:00:01.123456Zx"))
+        let base = try XCTUnwrap(PipelineParsing.date("2026-10-02T10:00:01Z"))
+        XCTAssertEqual(fractional.timeIntervalSince(base), 0.123456, accuracy: 0.0001)
+        XCTAssertNil(PipelineLogText.timestamp(of: "2026-13-02T10:00:01Z too many months"))
+        XCTAssertNil(PipelineLogText.timestamp(of: "2026-10-02 10:00:01Z not iso"))
+        XCTAssertNil(PipelineLogText.timestamp(of: "2026-10-02T10:00:01+0200 offset"))
+    }
+
+    func testPipelineDateParsesFractionalSecondsAndTimeZones() throws {
+        let plain = try XCTUnwrap(PipelineParsing.date("2026-10-02T10:00:01Z"))
+        let fractional = try XCTUnwrap(PipelineParsing.date("2026-10-02T10:00:01.250Z"))
+        XCTAssertEqual(fractional.timeIntervalSince(plain), 0.25, accuracy: 0.001)
+        let offset = try XCTUnwrap(PipelineParsing.date("2026-10-02T12:00:01+02:00"))
+        XCTAssertEqual(offset, plain)
+        let fractionalOffset = try XCTUnwrap(PipelineParsing.date("2026-10-02T05:00:01.5-05:00"))
+        XCTAssertEqual(fractionalOffset.timeIntervalSince(plain), 0.5, accuracy: 0.001)
+        XCTAssertNil(PipelineParsing.date("yesterday"))
+        XCTAssertNil(PipelineParsing.date(nil))
+    }
+
+    func testHugeRawLogIsTrimmedToItsTailAtLineBoundariesBeforeCleaning() {
+        let raw = (1...5000).map { "\u{1B}[32mline \($0)\u{1B}[0m" }.joined(separator: "\n")
+        let (text, truncated) = PipelineLogText.clean(raw, limit: 1_000_000, rawTailBytes: 4000)
+        XCTAssertTrue(truncated, "head was dropped")
+        XCTAssertTrue(text.hasSuffix("line 5000"))
+        XCTAssertTrue(text.hasPrefix("line "), "whole first line: \(text.prefix(12))")
+        XCTAssertFalse(text.contains("\u{1B}"))
+        XCTAssertLessThan(text.utf8.count, 4000)
+        // A log under the budget is untouched.
+        let small = PipelineLogText.clean("a\nb\n", limit: 100, rawTailBytes: 4000)
+        XCTAssertEqual(small.text, "a\nb\n")
+        XCTAssertFalse(small.truncated)
+    }
 }

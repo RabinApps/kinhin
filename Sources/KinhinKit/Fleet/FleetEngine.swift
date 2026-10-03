@@ -56,6 +56,10 @@ public final class FleetEngine: Sendable {
     /// tasks before handing the fleet over anyway.
     let lifecycleDrainTimeout: Duration
     let spawnStagger: Duration
+    /// How often the ephemeral exit watch polls the instance (default 1s).
+    let exitWatchInterval: Duration
+    /// Wakes a sleeping reconcile loop (`pollSoon()`).
+    let pollWake = WakeSignal()
 
     // MARK: - Mutable state
 
@@ -98,6 +102,10 @@ public final class FleetEngine: Sendable {
     /// Per-project toolchains: the `projects:` rules (hot-reloaded), the
     /// repo-file reader, and the builder of derived per-project images.
     let projectsState: Mutex<[KinhinConfig.ProjectConfig]>
+    /// The named `images:` entries (hot-reloaded): which labels route a job
+    /// to which image, and the labels a cloned instance advertises.
+    let imagesState: Mutex<[KinhinConfig.ImageConfig]>
+    var images: [KinhinConfig.ImageConfig] { imagesState.withLock { $0 } }
     let projectSource = ProjectToolchainSource()
     let projectStore: ProjectImageStore
     let projectImages: ProjectImageBuilder
@@ -122,6 +130,7 @@ public final class FleetEngine: Sendable {
         self.hostProbe = dependencies.hostProbe ?? { [host] in host }
         self.lifecycleDrainTimeout = dependencies.lifecycleDrainTimeout
         self.spawnStagger = dependencies.spawnStagger
+        self.exitWatchInterval = dependencies.exitWatchInterval
         // The primary GitHub account attaches immediately under its account
         // name as an unverified placeholder: demand polling and the reconcile
         // loop work before the fleet starts, while start()'s verified attach
@@ -160,6 +169,7 @@ public final class FleetEngine: Sendable {
         self.ssh = ssh
         self.statusBox = FleetStatusBox()
         self.projectsState = Mutex(config.projects)
+        self.imagesState = Mutex(config.images)
         let projectStore = dependencies.projectImageStore ?? ProjectImageStore()
         self.projectStore = projectStore
         self.projectImages = ProjectImageBuilder(
@@ -220,6 +230,8 @@ extension FleetEngine {
         /// Pause between consecutive instance spawns in one reconcile pass,
         /// so disk I/O does not stampede. Not applied after the last spawn.
         public var spawnStagger: Duration
+        /// Interval of the ephemeral runner exit watch (tests shorten it).
+        public var exitWatchInterval: Duration
         /// Index of derived per-project images; nil → the state directory's.
         var projectImageStore: ProjectImageStore?
         /// Replaces the real image bake (tests); nil → `ImagePreparer`.
@@ -232,13 +244,15 @@ extension FleetEngine {
             },
             hostProbe: (@Sendable () -> HostResources)? = nil,
             lifecycleDrainTimeout: Duration = .seconds(15),
-            spawnStagger: Duration = .milliseconds(1500)
+            spawnStagger: Duration = .milliseconds(1500),
+            exitWatchInterval: Duration = .seconds(1)
         ) {
             self.githubFactory = githubFactory
             self.tokenLoader = tokenLoader
             self.hostProbe = hostProbe
             self.lifecycleDrainTimeout = lifecycleDrainTimeout
             self.spawnStagger = spawnStagger
+            self.exitWatchInterval = exitWatchInterval
         }
 
         /// Production: the Keychain and a live disk probe (the GitHub

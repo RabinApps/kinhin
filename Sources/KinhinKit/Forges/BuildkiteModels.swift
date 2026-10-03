@@ -230,12 +230,9 @@ public struct BuildkiteJob: Sendable, Equatable {
 
 // MARK: - Errors
 
+/// Buildkite-specific failures. The HTTP-shaped API errors (401/403/404/5xx,
+/// decoding) come from the shared transport as `ForgeAPIError`.
 enum BuildkiteError: LocalizedError, Equatable {
-    case unauthorized
-    case forbidden(String)
-    case notFound(String)
-    case http(Int, String)
-    case decoding(String)
     case invalidScope(String)
     case clusterNotFound(organization: String, cluster: String)
     case insufficientScopes([String])
@@ -244,17 +241,6 @@ enum BuildkiteError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .unauthorized:
-            return "Buildkite rejected the API access token (401): expired, revoked, or mistyped. "
-                + "Fix: kinhin auth set NAME with a new token"
-        case .forbidden(let why):
-            return "Buildkite forbidden (403): \(why). The token must belong to a member of the organization"
-        case .notFound(let what):
-            return "Buildkite returned 404 for \(what): check the organization slug and that the token can see it"
-        case .http(let code, let body):
-            return "Buildkite HTTP \(code): \(body)"
-        case .decoding(let why):
-            return "Could not decode Buildkite response: \(why)"
         case .invalidScope(let scope):
             return "invalid Buildkite scope '\(scope)': use 'org-slug/cluster' (the cluster's name or id)"
         case .clusterNotFound(let organization, let cluster):

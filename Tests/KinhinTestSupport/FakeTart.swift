@@ -16,10 +16,18 @@ final class FakeTart: TartControlling, Sendable {
         var stopCalls: [String] = []
         var installKeyCalls: [(vm: String, user: String)] = []
         var createLinuxCalls: [String] = []
+        var hardenCalls: [String] = []
+        var rotateCalls: [String] = []
+        /// Ordered log of the guest-facing calls ("run:vm", "installKey:vm", "harden:vm", "rotate:vm").
+        var events: [String] = []
+        /// What `rotateGuestHostKey` returns; nil models a controller without guest-agent support.
+        var hostKey: String?
         var runWithDiskCalls: [(name: String, isoPath: String)] = []
         var failNextClone = false
         /// Makes every `list()` throw, like `tart list` failing to launch.
         var failList = false
+        /// `stop`/`delete` of an unknown VM fail like real tart ("does not exist").
+        var strictMissing = false
         /// When set, the next (one-shot) call to the named operation fails.
         /// Keys are method nicknames: "clone", "run", "runWithDisk",
         /// "createLinux", "stop", "delete", "pull", "ip".
@@ -51,11 +59,26 @@ final class FakeTart: TartControlling, Sendable {
     var runMounts: [[String]] { state.withLock { $0.runMounts } }
     var stopCalls: [String] { state.withLock { $0.stopCalls } }
     var createLinuxCalls: [String] { state.withLock { $0.createLinuxCalls } }
+    var hardenCalls: [String] { state.withLock { $0.hardenCalls } }
+    var rotateCalls: [String] { state.withLock { $0.rotateCalls } }
+    /// Ordered log of the guest-facing calls ("run:vm", "installKey:vm", "harden:vm", "rotate:vm").
+    var events: [String] { state.withLock { $0.events } }
+    /// What `rotateGuestHostKey` returns (nil: no guest-agent support, the default).
+    var hostKey: String? {
+        get { state.withLock { $0.hostKey } }
+        set { state.withLock { $0.hostKey = newValue } }
+    }
     var runWithDiskCalls: [(name: String, isoPath: String)] { state.withLock { $0.runWithDiskCalls } }
     /// One-shot: the next `clone` fails, the one after succeeds again.
     var failNextClone: Bool {
         get { state.withLock { $0.failNextClone } }
         set { state.withLock { $0.failNextClone = newValue } }
+    }
+
+    /// `stop`/`delete` of a VM that is not in `vms` throw tart's "does not exist".
+    var strictMissing: Bool {
+        get { state.withLock { $0.strictMissing } }
+        set { state.withLock { $0.strictMissing = newValue } }
     }
 
     /// Makes every `list()` throw, like `tart list` failing to launch.
@@ -123,6 +146,7 @@ final class FakeTart: TartControlling, Sendable {
                 throw TartError.commandFailed(what: "run", stderr: stderr)
             }
             state.runCalls.append(name)
+            state.events.append("run:\(name)")
             state.runMounts.append(mounts)
             if let vm = state.vms[name] {
                 state.vms[name] = TartVM(
@@ -146,18 +170,34 @@ final class FakeTart: TartControlling, Sendable {
         }
     }
 
-    func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
-        -> ShellResult
-    {
-        ShellResult(exitCode: 0, stdout: "", stderr: "")
-    }
-
     func installGuestSSHKey(vm: String, user: String) async throws {
         try state.withLock { state in
             state.installKeyCalls.append((vm, user))
+            state.events.append("installKey:\(vm)")
             if let stderr = state.failNext["installKey"] {
                 throw TartError.commandFailed(what: "exec", stderr: stderr)
             }
+        }
+    }
+
+    func hardenGuestSSH(vm: String) async throws {
+        try state.withLock { state in
+            state.hardenCalls.append(vm)
+            state.events.append("harden:\(vm)")
+            if let stderr = state.failNext["harden"] {
+                throw TartError.commandFailed(what: "exec", stderr: stderr)
+            }
+        }
+    }
+
+    func rotateGuestHostKey(vm: String) async throws -> String? {
+        try state.withLock { state in
+            state.rotateCalls.append(vm)
+            state.events.append("rotate:\(vm)")
+            if let stderr = state.failNext["rotate"] {
+                throw TartError.commandFailed(what: "exec", stderr: stderr)
+            }
+            return state.hostKey
         }
     }
 
@@ -170,6 +210,9 @@ final class FakeTart: TartControlling, Sendable {
             if let stderr = state.failNext.removeValue(forKey: "stop") {
                 throw TartError.commandFailed(what: "stop", stderr: stderr)
             }
+            if state.strictMissing, state.vms[name] == nil {
+                throw TartError.commandFailed(what: "stop", stderr: "the VM \(name) does not exist")
+            }
             state.stopCalls.append(name)
         }
     }
@@ -178,6 +221,9 @@ final class FakeTart: TartControlling, Sendable {
         try state.withLock { state in
             if let stderr = state.failNext.removeValue(forKey: "delete") {
                 throw TartError.commandFailed(what: "delete", stderr: stderr)
+            }
+            if state.strictMissing, state.vms[name] == nil {
+                throw TartError.commandFailed(what: "delete", stderr: "the VM \(name) does not exist")
             }
             state.deleteCalls.append(name)
             state.vms.removeValue(forKey: name)

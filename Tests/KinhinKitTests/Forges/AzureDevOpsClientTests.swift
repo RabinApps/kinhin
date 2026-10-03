@@ -100,8 +100,8 @@ final class AzureDevOpsClientTests: XCTestCase {
             do {
                 _ = try await makeClient().resolvePool()
                 XCTFail("expected unauthorized for \(status)")
-            } catch let error as AzureDevOpsError {
-                XCTAssertEqual(error, .unauthorized)
+            } catch let error as ForgeAPIError {
+                XCTAssertEqual(error, .unauthorized(forge: .azuredevops))
             } catch {
                 XCTFail("unexpected \(error)")
             }
@@ -163,9 +163,9 @@ final class AzureDevOpsClientTests: XCTestCase {
     // MARK: - Errors
 
     func testTransienceAndCategory() {
-        XCTAssertTrue(AzureDevOpsClient.isTransient(AzureDevOpsError.http(503, "")))
-        XCTAssertFalse(AzureDevOpsClient.isTransient(AzureDevOpsError.http(400, "")))
-        XCTAssertFalse(AzureDevOpsClient.isTransient(AzureDevOpsError.unauthorized))
-        XCTAssertEqual(ErrorCategory(AzureDevOpsError.unauthorized), .auth)
+        XCTAssertTrue(ForgeTransport.isTransient(ForgeAPIError.http(forge: .azuredevops, code: 503, body: "")))
+        XCTAssertFalse(ForgeTransport.isTransient(ForgeAPIError.http(forge: .azuredevops, code: 400, body: "")))
+        XCTAssertFalse(ForgeTransport.isTransient(ForgeAPIError.unauthorized(forge: .azuredevops)))
+        XCTAssertEqual(ErrorCategory(ForgeAPIError.unauthorized(forge: .azuredevops)), .auth)
     }
 }

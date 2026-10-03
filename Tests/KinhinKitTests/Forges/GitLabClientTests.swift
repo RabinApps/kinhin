@@ -74,8 +74,8 @@ final class GitLabClientTests: XCTestCase {
         do {
             _ = try await makeClient().resolveScope()
             XCTFail("expected notFound")
-        } catch let error as GitLabError {
-            XCTAssertEqual(error, .notFound("project or group 'acme/api'"))
+        } catch let error as ForgeAPIError {
+            XCTAssertEqual(error, .notFound(forge: .gitlab, what: "project or group 'acme/api'"))
         } catch {
             XCTFail("unexpected \(error)")
         }
@@ -167,21 +167,24 @@ final class GitLabClientTests: XCTestCase {
     // MARK: - Errors
 
     func testErrorMapping() async {
-        for (status, expected) in [(401, GitLabError.unauthorized), (404, .notFound("/version"))] {
+        for (status, expected) in [
+            (401, ForgeAPIError.unauthorized(forge: .gitlab)),
+            (404, ForgeAPIError.notFound(forge: .gitlab, what: "/api/v4/version")),
+        ] {
             StubProtocol.handler = { _ in (status, Data(), [:]) }
             do {
                 _ = try await makeClient().version()
                 XCTFail("expected \(expected)")
-            } catch let error as GitLabError {
+            } catch let error as ForgeAPIError {
                 XCTAssertEqual(error, expected)
             } catch {
                 XCTFail("unexpected \(error)")
             }
         }
-        XCTAssertTrue(GitLabClient.isTransient(GitLabError.http(502, "")))
-        XCTAssertTrue(GitLabClient.isTransient(GitLabError.http(429, "")))
-        XCTAssertFalse(GitLabClient.isTransient(GitLabError.unauthorized))
-        XCTAssertEqual(ErrorCategory(GitLabError.unauthorized), .auth)
+        XCTAssertTrue(ForgeTransport.isTransient(ForgeAPIError.http(forge: .gitlab, code: 502, body: "")))
+        XCTAssertTrue(ForgeTransport.isTransient(ForgeAPIError.http(forge: .gitlab, code: 429, body: "")))
+        XCTAssertFalse(ForgeTransport.isTransient(ForgeAPIError.unauthorized(forge: .gitlab)))
+        XCTAssertEqual(ErrorCategory(ForgeAPIError.unauthorized(forge: .gitlab)), .auth)
     }
 }
 

@@ -16,7 +16,8 @@ final class FleetEngineTests: XCTestCase {
             tart: tart,
             store: makeTestStore(),
             ssh: ssh,
-            host: testHost
+            host: testHost,
+            dependencies: .init(exitWatchInterval: .milliseconds(20))
         )
     }
 
@@ -51,7 +52,8 @@ final class FleetEngineTests: XCTestCase {
         let engine = makeEngine(tart: tart, github: github, ssh: FakeSSH())
 
         await engine.start()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        // A pass has run once it has stamped the queue poll.
+        try await waitUntil(timeout: 10) { await engine.status().queuePolledAt != nil }
         await engine.stop()
 
         let status = await engine.status()
@@ -294,14 +296,6 @@ final class FleetEngineTests: XCTestCase {
 
     // MARK: - Helpers
 
-    func waitUntil(timeout: TimeInterval, _ condition: @escaping () async -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if await condition() { return }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        XCTFail("condition not met within \(timeout)s")
-    }
 }
 
 /// Forwards to a FakeGitHub but fails on a cancelled task, the way the live

@@ -10,12 +10,28 @@ import Synchronization
 /// fetches again.
 ///
 /// `invalidate()` bumps a generation, so a fetch that started before the
-/// invalidation cannot store its (now stale) result as fresh.
+/// invalidation cannot store its (now stale) result as fresh, and later
+/// readers start a fresh fetch instead of joining the outdated one.
 final class SharedListCache<Element: Sendable>: Sendable {
+    private struct InFlight: Sendable {
+        let id: UInt64
+        let generation: Int
+        let task: Task<[Element], Error>
+    }
+
     private struct State: Sendable {
         var fetched: Date?
         var elements: [Element] = []
         var generation = 0
+        /// The fetch readers join instead of starting their own (concurrent
+        /// readers after a TTL expiry cost one call, not N).
+        var inFlight: InFlight?
+        var nextID: UInt64 = 0
+    }
+
+    private enum Step {
+        case cached([Element])
+        case join(Task<[Element], Error>)
     }
 
     private let ttl: TimeInterval
@@ -26,23 +42,49 @@ final class SharedListCache<Element: Sendable>: Sendable {
     }
 
     /// The cached list while it is younger than `ttl`, else `fetch()`'s
-    /// result (which then becomes the cached list).
-    func elements(fetch: () async throws -> [Element]) async throws -> [Element] {
+    /// result (which then becomes the cached list). Readers that arrive while
+    /// a fetch is running share its result; a failure reaches all of them and
+    /// is not cached.
+    func elements(fetch: @escaping @Sendable () async throws -> [Element]) async throws -> [Element] {
         let ttl = ttl
-        let lookup = state.withLock { state -> (cached: [Element]?, generation: Int) in
-            guard let fetched = state.fetched, Date().timeIntervalSince(fetched) < ttl else {
-                return (nil, state.generation)
+        let step = state.withLock { state -> Step in
+            if let fetched = state.fetched, Date().timeIntervalSince(fetched) < ttl {
+                return .cached(state.elements)
             }
-            return (state.elements, state.generation)
+            if let inFlight = state.inFlight, inFlight.generation == state.generation {
+                return .join(inFlight.task)
+            }
+            state.nextID += 1
+            let id = state.nextID
+            let generation = state.generation
+            let task = Task<[Element], Error> {
+                do {
+                    let fresh = try await fetch()
+                    self.complete(id: id, generation: generation, result: fresh)
+                    return fresh
+                } catch {
+                    self.complete(id: id, generation: generation, result: nil)
+                    throw error
+                }
+            }
+            state.inFlight = InFlight(id: id, generation: generation, task: task)
+            return .join(task)
         }
-        if let cached = lookup.cached { return cached }
-        let fresh = try await fetch()
+        switch step {
+        case .cached(let cached): return cached
+        case .join(let task): return try await task.value
+        }
+    }
+
+    /// Stores a successful result (unless an invalidation outdated it) and
+    /// retires the in-flight record.
+    private func complete(id: UInt64, generation: Int, result: [Element]?) {
         state.withLock { state in
-            guard state.generation == lookup.generation else { return }
+            if state.inFlight?.id == id { state.inFlight = nil }
+            guard let result, state.generation == generation else { return }
             state.fetched = Date()
-            state.elements = fresh
+            state.elements = result
         }
-        return fresh
     }
 
     /// Forces the next read to fetch (after a write that changes the list).

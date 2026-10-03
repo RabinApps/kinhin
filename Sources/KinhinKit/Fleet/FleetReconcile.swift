@@ -137,16 +137,18 @@ extension FleetEngine {
                 defer { state.pollNow = false }
                 return state.pollNow
             }
-            let remaining = deadline - ContinuousClock.now
-            if requested || remaining <= .zero { return }
-            try await Task.sleep(for: min(remaining, .seconds(1)))
+            if requested || ContinuousClock.now >= deadline { return }
+            // One sleep to the deadline, cut short by `pollSoon()`'s signal:
+            // no periodic polling of the flag. A stale signal (its flag
+            // already consumed above) just loops once more.
+            try await pollWake.sleep(until: deadline)
         }
     }
 
-    /// Cuts the current wait short: the loop runs its next pass within a
-    /// second.
+    /// Cuts the current wait short: the loop runs its next pass now.
     func pollSoon() {
         runState.withLock { $0.pollNow = true }
+        pollWake.signal()
     }
 
     /// What a pass saw, for the loop's cadence.
@@ -214,9 +216,27 @@ extension FleetEngine {
         var demand = Demand()
         var perForgeJobs: [String: (attribution: Bool, jobs: [ForgeJob])] = [:]
         var answeredQueue = false
-        for forge in attached {
-            do {
-                let jobs = try await forge.queuedJobs()
+        // Every forge's queue (and its project-image resolution) is read
+        // concurrently, bounded; the results are folded in account order so
+        // the demand is deterministic whatever finishes first.
+        enum ForgeAnswer: Sendable {
+            case answered(jobs: [ForgeJob], images: ProjectImageDemand)
+            case failed(message: String)
+        }
+        let ordered = attached.sorted { $0.account < $1.account }
+        let answers =
+            (try? await boundedMap(ordered, limit: 4) { forge -> ForgeAnswer in
+                do {
+                    let jobs = try await forge.queuedJobs()
+                    let images = await self.resolveProjectImages(for: jobs, forge: forge)
+                    return .answered(jobs: jobs, images: images)
+                } catch {
+                    return .failed(message: (error as? LocalizedError)?.errorDescription ?? "\(error)")
+                }
+            }) ?? []
+        for (forge, answer) in zip(ordered, answers) {
+            switch answer {
+            case .answered(let jobs, let projectDemand):
                 answeredQueue = true
                 // Org-scope forges contribute repo attribution; repo-scope
                 // forges suppress it (breakdown would carry no info).
@@ -226,11 +246,9 @@ extension FleetEngine {
                 for (poolID, count) in routing.demandByPool(for: jobs, forgeID: forge.id) {
                     demand.byPool[poolID, default: 0] += count
                 }
-                let projectDemand = await resolveProjectImages(for: jobs, forge: forge)
                 for (image, count) in projectDemand.byImage { demand.byImage[image, default: 0] += count }
                 demand.imageNotices.formUnion(projectDemand.notices)
-            } catch {
-                let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            case .failed(let message):
                 Log.warn("engine", "could not fetch \(forge.name) queue: \(message)")
                 await statusBox.modify { $0.lastError = message }
             }
@@ -290,6 +308,9 @@ extension FleetEngine {
             Log.info("engine", "scaling up: \(active) active, want \(desired) (queue \(demand.queueDepth))")
         }
         var diskPressureMessage: String?
+        // The host is probed once per pass (a `statfs` per spawn added up in
+        // a burst); each planned instance then subtracts its own disk share.
+        var freeDisk: Int?
         while toSpawn > 0 {
             var record = VMRecord(id: VMRecord.newName(), phase: .cloning)
             // The forge with the most unmet demand (its queued jobs minus VMs
@@ -305,13 +326,14 @@ extension FleetEngine {
             if chosen == .tart { record.image = chooseImage(demand: demand) }
             if chosen != .host {
                 let diskPerVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: chosen.rawValue)
-                let freeDisk = hostProbe().freeDiskGB
+                let available = freeDisk ?? hostProbe().freeDiskGB
                 let needed = diskPerVM + config.reserve.diskGB
-                if freeDisk < needed {
+                if available < needed {
                     diskPressureMessage =
-                        "disk pressure: \(freeDisk) GB free, a new \(chosen.rawValue) instance needs \(diskPerVM) GB + \(config.reserve.diskGB) GB reserve — holding spawns"
+                        "disk pressure: \(available) GB free, a new \(chosen.rawValue) instance needs \(diskPerVM) GB + \(config.reserve.diskGB) GB reserve — holding spawns"
                     break
                 }
+                freeDisk = available - diskPerVM
             }
             store.upsert(record)
             spawnLifecycle(for: record)

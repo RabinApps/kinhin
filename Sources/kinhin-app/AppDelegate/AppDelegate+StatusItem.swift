@@ -21,6 +21,7 @@ extension AppDelegate {
     /// status bar.
     func buildMenu() -> NSMenu {
         let m = NSMenu()
+        m.delegate = self  // menuWillOpen/menuDidClose drive the poll cadence
 
         m.addItem(withTitle: "kinhin", action: nil, keyEquivalent: "").isEnabled = false
         m.addItem(.separator())
@@ -153,14 +154,55 @@ extension AppDelegate {
         return statusLine(for: status)
     }
 
-    /// Renders the status item and menu from the fleet controller's state.
-    func renderFleetState() {
+    /// Everything the status item and menu show that comes from the fleet
+    /// state. Equal states render identically, so an unchanged poll skips the
+    /// render (rebuilding the VM rows and status lines on every poll was the
+    /// bulk of an idle app's main-thread work).
+    struct MenuViewState: Equatable {
+        struct VMRow: Equatable {
+            let id: String
+            let title: String
+        }
+        var itemTitle: String
+        var statusText: String
+        var visibility: FleetControlVisibility
+        var setupVisible: Bool
+        var rows: [VMRow]
+    }
+
+    func menuViewState() -> MenuViewState {
         let status = fleet.status
         let pending = fleet.pendingFleetAction
+        return MenuViewState(
+            itemTitle: statusItemTitle(pending: pending, status: status),
+            statusText: statusLineText(pending: pending, status: status),
+            visibility: FleetControlVisibility(status: status),
+            setupVisible: setupIncomplete,
+            rows: (status?.records ?? []).map { MenuViewState.VMRow(id: $0.id, title: Self.menuRowTitle(for: $0)) })
+    }
+
+    static func menuRowTitle(for record: VMRecord) -> String {
+        var title = "  \(record.id) — \(record.phase.rawValue)"
+        if let repos = FleetStatusFormatter.repos(of: record) { title += " — \(repos)" }
+        if let job = record.job { title += " (\(job))" }
+        if let usage = FleetStatusFormatter.usage(of: record) { title += " · \(usage)" }
+        if let err = record.error { title += " ⚠︎ \(err.prefix(40))" }
+        return title
+    }
+
+    /// Renders the status item and menu from the fleet controller's state,
+    /// unless nothing they show has changed since the last render.
+    func renderFleetState() {
+        let state = menuViewState()
+        let menuIdentity = menu.map(ObjectIdentifier.init)
+        guard state != lastRenderedMenuState || menuIdentity != lastRenderedMenuIdentity else { return }
+        lastRenderedMenuState = state
+        lastRenderedMenuIdentity = menuIdentity
+        let status = fleet.status
         applyFleetControlVisibility(to: menu, status: status)
         applySetupItemVisibility(to: menu)
-        statusItem?.button?.title = statusItemTitle(pending: pending, status: status)
-        renderStatusLines(statusLineText(pending: pending, status: status))
+        statusItem?.button?.title = state.itemTitle
+        renderStatusLines(state.statusText)
         rebuildVMSection(status: status)
     }
 
@@ -202,12 +244,8 @@ extension AppDelegate {
             return
         }
         for record in status.records {
-            var title = "  \(record.id) — \(record.phase.rawValue)"
-            if let repos = FleetStatusFormatter.repos(of: record) { title += " — \(repos)" }
-            if let job = record.job { title += " (\(job))" }
-            if let usage = FleetStatusFormatter.usage(of: record) { title += " · \(usage)" }
-            if let err = record.error { title += " ⚠︎ \(err.prefix(40))" }
-            let item = menu.addItem(withTitle: title, action: #selector(deleteVM(_:)), keyEquivalent: "")
+            let item = menu.addItem(
+                withTitle: Self.menuRowTitle(for: record), action: #selector(deleteVM(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = record.id
         }

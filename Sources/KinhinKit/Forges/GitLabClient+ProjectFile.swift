@@ -9,7 +9,7 @@ extension GitLabClient {
         guard !repository.isEmpty, !repository.contains(".."),
             let project = repository.addingPercentEncoding(withAllowedCharacters: allowed)
         else {
-            throw GitLabError.http(0, "invalid project \(repository)")
+            throw ForgeAPIError.http(forge: .gitlab, code: 0, body: "invalid project \(repository)")
         }
         let file = ProjectFileLoader.fileName.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
         // The default branch is `HEAD`: the files API requires a ref.
@@ -17,7 +17,7 @@ extension GitLabClient {
         do {
             let (data, _) = try await send("GET", "/projects/\(project)/repository/files/\(file)/raw", query)
             return data
-        } catch GitLabError.notFound {
+        } catch ForgeAPIError.notFound {
             return nil  // no .kinhin.yml at this ref
         }
     }

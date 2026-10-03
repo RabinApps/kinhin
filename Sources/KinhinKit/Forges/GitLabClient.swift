@@ -14,7 +14,8 @@ import Synchronization
 /// project list is cached for a few minutes.
 public struct GitLabClient: Sendable {
     let credentials: GitLabCredentials
-    let session: URLSession
+    /// The shared send/retry pipeline (headers, status mapping, backoff).
+    let transport: ForgeTransport
     /// Projects polled per read of a group's jobs.
     let maxProjectsPerPoll = 50
     /// Concurrent per-project job reads.
@@ -34,7 +35,8 @@ public struct GitLabClient: Sendable {
 
     public init(credentials: GitLabCredentials, session: URLSession? = nil) {
         self.credentials = credentials
-        self.session = ForgeHTTP.session(session)
+        self.transport = ForgeTransport(
+            session: ForgeHTTP.session(session), forge: .gitlab, authorization: .privateToken(credentials.token))
     }
 
     // MARK: - Scope
@@ -47,7 +49,7 @@ public struct GitLabClient: Sendable {
             let (data, _) = try await send("GET", "/projects/\(encoded)")
             let project: GitLabProjectRef = try decode(data, "project")
             return .project(id: project.id, path: project.path)
-        } catch GitLabError.notFound {
+        } catch ForgeAPIError.notFound {
             // Not a project (or not visible as one): try the group below.
         }
         do {
@@ -55,8 +57,8 @@ public struct GitLabClient: Sendable {
             struct Group: Decodable { let id: Int; let full_path: String }
             let group: Group = try decode(data, "group")
             return .group(id: group.id, path: group.full_path)
-        } catch GitLabError.notFound {
-            throw GitLabError.notFound("project or group '\(credentials.scope)'")
+        } catch ForgeAPIError.notFound {
+            throw ForgeAPIError.notFound(forge: .gitlab, what: "project or group '\(credentials.scope)'")
         }
     }
 
@@ -169,7 +171,7 @@ public struct GitLabClient: Sendable {
                     runnerDescription: $0.runner?.description, ref: $0.ref, sha: $0.commit?.id,
                     projectID: project.id, pipelineID: $0.pipeline?.id)
             }
-        } catch GitLabError.notFound, GitLabError.forbidden {
+        } catch ForgeAPIError.notFound, ForgeAPIError.forbidden {
             Log.warn("gitlab", "skipping jobs of \(project.path): not readable with this token")
             return []
         }
@@ -270,23 +272,17 @@ public struct GitLabClient: Sendable {
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
-            throw GitLabError.decoding("\(what): \(error.localizedDescription)")
+            throw ForgeAPIError.decoding(forge: .gitlab, what: "\(what): \(error.localizedDescription)")
         }
     }
 
-    /// Sends with retry on transient failures (network errors, 429, 5xx).
+    /// Sends with the shared transport: retry on transient failures (network
+    /// errors, 429, 5xx) and the common status→error mapping.
     func send(
         _ method: String, _ path: String, _ query: [URLQueryItem] = [], body: Data? = nil,
         accept: String = "application/json"
     ) async throws -> (Data, HTTPURLResponse) {
-        try await withTransientRetry(isTransient: Self.isTransient) {
-            try await sendOnce(method, path, query, body: body, accept: accept)
-        }
-    }
-
-    static func isTransient(_ error: Error) -> Bool {
-        if case .http(let code, _) = error as? GitLabError { return ForgeHTTP.isTransientStatus(code) }
-        return ForgeHTTP.isTransientNetworkError(error)
+        try await transport.send(method, try url(path, query), body: body, accept: accept)
     }
 
     func url(_ path: String, _ query: [URLQueryItem]) throws -> URL {
@@ -304,36 +300,6 @@ public struct GitLabClient: Sendable {
             throw GitLabError.invalidInstance(credentials.instance)
         }
         return url
-    }
-
-    private func sendOnce(
-        _ method: String, _ path: String, _ query: [URLQueryItem], body: Data?, accept: String
-    ) async throws -> (Data, HTTPURLResponse) {
-        var req = URLRequest(url: try url(path, query))
-        req.httpMethod = method
-        req.setValue(credentials.token, forHTTPHeaderField: "PRIVATE-TOKEN")
-        req.setValue(accept, forHTTPHeaderField: "Accept")
-        req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
-        if let body {
-            req.httpBody = body
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-        let (data, response) = try await session.data(for: req)
-        guard let http = response as? HTTPURLResponse else {
-            throw GitLabError.http(0, "non-HTTP response")
-        }
-        switch http.statusCode {
-        case 200...299:
-            return (data, http)
-        case 401:
-            throw GitLabError.unauthorized
-        case 403:
-            throw GitLabError.forbidden(String(decoding: data.prefix(300), as: UTF8.self))
-        case 404:
-            throw GitLabError.notFound(path)
-        default:
-            throw GitLabError.http(http.statusCode, String(decoding: data.prefix(300), as: UTF8.self))
-        }
     }
 }
 

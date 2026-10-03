@@ -24,10 +24,15 @@ final class GitLabRegistrationScriptTests: XCTestCase {
         XCTAssertTrue(script.contains("--max-builds 1"))
         XCTAssertTrue(script.contains("-X DELETE \"$1/api/v4/runners\""), "the runner deregisters itself")
         XCTAssertTrue(script.contains("'https://git.example.com' 'kinhin-1'"), "trailing slash trimmed")
-        XCTAssertTrue(script.contains("printf '%s' 'glrt-secret' > token"))
-        // The token only ever reaches the agent through the private file.
+        // The token reaches the runner's shell on a pipe (stdin of the bash
+        // wrapper) — never on a command line, never in a file, and it appears
+        // exactly once in the script.
+        XCTAssertTrue(script.contains("printf '%s' 'glrt-secret' | nohup /bin/bash"))
+        XCTAssertFalse(script.contains("> token"), "no token file is written")
         XCTAssertEqual(script.components(separatedBy: "glrt-secret").count, 2)
-        XCTAssertTrue(script.contains("umask 077"))
+        // Deregistration also carries the token on curl's stdin, not in a file.
+        XCTAssertTrue(script.contains("printf %s \"$CI_SERVER_TOKEN\" |"))
+        XCTAssertFalse(script.contains("token=<token"))
     }
 
     func testMissingRunnerTokenFailsRegistration() {

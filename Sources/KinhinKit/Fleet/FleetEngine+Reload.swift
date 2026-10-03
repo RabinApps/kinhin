@@ -6,11 +6,12 @@ import Synchronization
 extension FleetEngine {
     /// Which parts of a config edit the *running* engine can adopt without
     /// a rebuild: the routing model (pools/routes/budget), the capacity
-    /// partition, and the GitHub forge's label set — exactly what
-    /// `applyReloaded` swaps under the locks. Everything else (bounds, poll
-    /// cadence, per-VM shape, images, reserve, forge sections, toolchains)
-    /// lives in the frozen `config` the engine was built with, so a change
-    /// there silently does nothing until the engine is rebuilt.
+    /// partition, the GitHub forge's label set, the named `images:` entries
+    /// and the `projects:` rules — exactly what `applyReloaded` swaps under
+    /// the locks. Everything else (bounds, poll cadence, per-VM shape,
+    /// reserve, forge sections, toolchains) lives in the frozen `config` the
+    /// engine was built with, so a change there silently does nothing until
+    /// the engine is rebuilt.
     public static func restartRequired(from old: KinhinConfig, to new: KinhinConfig) -> Bool {
         var a = old
         var b = new
@@ -18,6 +19,8 @@ extension FleetEngine {
         b.runtimes = nil
         a.projects = []
         b.projects = []
+        a.images = []
+        b.images = []
         a.labels = []
         b.labels = []
         return a != b
@@ -144,15 +147,16 @@ extension FleetEngine {
     }
 
     /// Swap in routing state from a freshly loaded config: the routing model
-    /// (pools + routes), the capacity partition, and the pool set. Callable
-    /// while running — the next reconcile demand-buckets and spawns against
-    /// the new shapes without a restart. Existing records keep their assigned
-    /// runtime until they finish (teardown is per-record), so no instance is
-    /// disrupted mid-job.
+    /// (pools + routes), the capacity partition, the pool set, the named
+    /// `images:` entries and the `projects:` rules. Callable while running —
+    /// the next reconcile demand-buckets and spawns against the new shapes
+    /// without a restart. Existing records keep their assigned runtime until
+    /// they finish (teardown is per-record), so no instance is disrupted
+    /// mid-job.
     ///
-    /// Scope: routing only. A container-image change or a runtime's shape
-    /// lives in the runtime instance (fixed per engine) and still needs a
-    /// daemon restart.
+    /// Scope: routing and the label/image/project tables. A container-image
+    /// change or a runtime's shape lives in the runtime instance (fixed per
+    /// engine) and still needs a daemon restart.
     public func applyReloaded(config newConfig: KinhinConfig, host: HostResources) {
         let model = RuntimeConfigModel(
             config: newConfig.runtimes,
@@ -165,6 +169,7 @@ extension FleetEngine {
         )
         let caps = RuntimeCapacity.caps(for: newConfig, host: host)
         projectsState.withLock { $0 = newConfig.projects }
+        imagesState.withLock { $0 = newConfig.images }
         routingState.withLock { $0 = RoutingState(model: model, caps: caps) }
         // Fleet label edits must reach the forge's demand query too —
         // queuedJobs(matching:) filters by the forge's label set.

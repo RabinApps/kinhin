@@ -25,7 +25,17 @@ enum LogRedactor {
         knownSecrets.withLock { $0.removeAll() }
     }
 
-    private static let rules: [(pattern: NSRegularExpression, template: String)] = {
+    /// A redaction rule plus the cheap literals any match must contain. The
+    /// regex only runs on lines that contain one (`caseInsensitive` triggers
+    /// are compared against the lowercased line).
+    private struct Rule {
+        let pattern: NSRegularExpression
+        let template: String
+        let triggers: [String]
+        let caseInsensitive: Bool
+    }
+
+    private static let rules: [Rule] = {
         let specs: [(String, String)] = [
             // GitHub token families: ghp_, gho_, ghu_, ghs_, ghr_ and fine-grained PATs.
             (#"\bgh[pousr]_[A-Za-z0-9]{20,}"#, mask),
@@ -54,23 +64,63 @@ enum LogRedactor {
                 "$1" + mask
             ),
         ]
+        // Literals any match of the rule (same order as `specs`) must contain.
+        let triggers: [(literals: [String], caseInsensitive: Bool)] = [
+            (["ghp_", "gho_", "ghu_", "ghs_", "ghr_"], false),
+            (["github_pat_"], false),
+            (["glpat-", "glrt-", "glcbt-", "glptt-", "gloas-"], false),
+            (["ATCTT", "ATATT"], false),
+            (["bkua_"], false),
+            (["private-token"], true),
+            (["authorization"], true),
+            (["--token", "--pat", "--password"], true),
+            (["bearer"], true),
+            (["ATBB"], false),
+            (["GR1"], false),
+            (["://"], false),
+            (["token", "pat", "password", "secret", "apikey", "api_key"], true),
+        ]
+        precondition(triggers.count == specs.count, "every redaction rule needs its trigger literals")
         // The patterns are constants; a failure to compile is a programmer error.
-        return specs.map { spec in
+        return zip(specs, triggers).map { spec, trigger in
             guard let regex = try? NSRegularExpression(pattern: spec.0) else {
                 preconditionFailure("invalid redaction pattern: \(spec.0)")
             }
-            return (regex, spec.1)
+            return Rule(
+                pattern: regex, template: spec.1, triggers: trigger.literals, caseInsensitive: trigger.caseInsensitive)
         }
     }()
 
     static func redact(_ text: String) -> String {
-        var result = text
-        for rule in rules {
-            let range = NSRange(result.startIndex..., in: result)
-            result = rule.pattern.stringByReplacingMatches(in: result, range: range, withTemplate: rule.template)
-        }
+        var result = applyRules(to: text, gated: true)
         for secret in knownSecrets.withLock({ $0 }) {
             result = result.replacingOccurrences(of: secret, with: mask)
+        }
+        return result
+    }
+
+    /// Every rule, with or without the literal pre-check (the tests prove the
+    /// gate never changes a result).
+    static func applyRules(to text: String, gated: Bool) -> String {
+        var result = text
+        var lowered: String?
+        for rule in rules {
+            if gated {
+                let haystack: String
+                if rule.caseInsensitive {
+                    if lowered == nil { lowered = result.lowercased() }
+                    haystack = lowered ?? result
+                } else {
+                    haystack = result
+                }
+                guard rule.triggers.contains(where: { haystack.contains($0) }) else { continue }
+            }
+            let range = NSRange(result.startIndex..., in: result)
+            let replaced = rule.pattern.stringByReplacingMatches(in: result, range: range, withTemplate: rule.template)
+            if replaced != result {
+                result = replaced
+                lowered = nil
+            }
         }
         return result
     }

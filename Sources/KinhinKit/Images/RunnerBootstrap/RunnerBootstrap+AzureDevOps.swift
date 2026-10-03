@@ -85,6 +85,13 @@ extension RunnerBootstrap {
     /// advertises them; `extraEnvironment` is for the runtime (e.g. allowing
     /// root in containers).
     ///
+    /// Residual exposure (not changed, cannot be verified without a real
+    /// agent): the PAT stays in the agent shell's *unexported* variable `tok`
+    /// until the final `config.sh remove`, because the engine's ephemeral watch
+    /// treats the agent leaving the pool as "job finished", so removal has to
+    /// stay in the guest. `tok` is in no environment and no argv; the file is
+    /// deleted before the agent starts.
+    ///
     /// `template` and `baseDir` are shell words (already quoted, or `$HOME/…`).
     static func azureRegistrationScript(
         organization: String, token: String, pool: String, runnerNames: [String], capabilities: [String],

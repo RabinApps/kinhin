@@ -12,6 +12,9 @@ enum FleetAction: Sendable {
 /// daemon behind it.
 protocol FleetServing: Sendable {
     func status() async throws -> FleetStatus
+    /// `includeUsage: false` skips the CPU/RAM sampling for a poll nobody is
+    /// looking at. Conformers that predate the option get the full status.
+    func status(includeUsage: Bool) async throws -> FleetStatus
     func start() async throws
     func stop() async throws
     func setPaused(_ paused: Bool) async throws
@@ -24,6 +27,10 @@ protocol FleetServing: Sendable {
     func rotate(_ target: CredentialRotation.Target, token: String) async throws
     /// A short name for log lines.
     var logName: String { get }
+}
+
+extension FleetServing {
+    func status(includeUsage: Bool) async throws -> FleetStatus { try await status() }
 }
 
 /// Whoever runs the fleet for this app: an engine in this process, or the
@@ -40,9 +47,13 @@ enum FleetBackend: Sendable {
     }
 
     func status() async throws -> FleetStatus {
+        try await status(includeUsage: true)
+    }
+
+    func status(includeUsage: Bool) async throws -> FleetStatus {
         switch self {
-        case .inProcess(let engine): return await engine.status()
-        case .daemon(let client): return try await client.perform { try $0.status() }
+        case .inProcess(let engine): return await engine.status(includeUsage: includeUsage)
+        case .daemon(let client): return try await client.perform { try $0.status(includeUsage: includeUsage) }
         }
     }
 

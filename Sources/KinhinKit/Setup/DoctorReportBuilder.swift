@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Builds the merged DoctorReport. Every probe is injectable: pass a fixture
 /// to substitute it (tests), or leave nil to probe the real machine (the CLI).
@@ -27,6 +28,8 @@ public struct DoctorReportBuilder: Sendable {
     let osVersion: OperatingSystemVersion?
     /// Whether the `softnet` binary is installed (fixture). nil looks it up on PATH.
     let softnetInstalled: Bool?
+    /// Where the daemon records an unpinned guest SSH host key (tests point it elsewhere).
+    let hostKeyMarker: URL?
     /// The active org-permission check (mints and discards a registration
     /// token): takes the stored token and the org scope, returns the verdict
     /// line. Only the human rendering runs it; tests substitute a fixture.
@@ -50,6 +53,7 @@ public struct DoctorReportBuilder: Sendable {
         dockerInstalled: Bool? = nil,
         osVersion: OperatingSystemVersion? = nil,
         softnetInstalled: Bool? = nil,
+        hostKeyMarker: URL? = nil,
         orgPermissionCheck: @escaping @Sendable (String, String) async -> String = { token, scope in
             await TokenHealthCheck.github(token: token, scope: scope).message
         }
@@ -69,17 +73,25 @@ public struct DoctorReportBuilder: Sendable {
         self.dockerInstalled = dockerInstalled
         self.osVersion = osVersion
         self.softnetInstalled = softnetInstalled
+        self.hostKeyMarker = hostKeyMarker
         self.orgPermissionCheck = orgPermissionCheck
+    }
+
+    /// Memoizes a Keychain read so the checklist and the auth report share one
+    /// read per token (a Keychain read can prompt and is not free).
+    private final class TokenReads: Sendable {
+        private let cache = Mutex<[String: Result<String?, Error>]>([:])
+
+        func read(_ key: String, _ load: () throws -> String?) throws -> String? {
+            if let hit = cache.withLock({ $0[key] }) { return try hit.get() }
+            let result = Result { try load() }
+            cache.withLock { $0[key] = result }
+            return try result.get()
+        }
     }
 
     public func build() async -> DoctorReport {
         let resolvedHost = host ?? ResourceProbe().snapshot()
-        let resolvedCLT: CLTState
-        if let clt {
-            resolvedCLT = clt
-        } else {
-            resolvedCLT = await CLTProbe().check()
-        }
 
         // The tart probe must honor the config's tart_path override, exactly
         // like the checklist does — the scenario is resolved through the same
@@ -87,12 +99,79 @@ public struct DoctorReportBuilder: Sendable {
         let evaluation = SetupStatusComputer.resolve(config)
         var parsed: KinhinConfig?
         if case .parsed(let cfg) = evaluation { parsed = cfg }
-        let resolvedTart: TartHealth
-        if let tartHealth {
-            resolvedTart = tartHealth
-        } else {
-            resolvedTart = await TartHealthProbe(configuredPath: parsed?.tartPath).check()
+
+        // Every probe runs once, here, and its answer is handed to the
+        // checklist and reused by the sections below (they used to probe the
+        // same things again). Independent probes start together.
+        let injectedCLT = clt
+        let injectedTart = tartHealth
+        let tartPath = parsed?.tartPath
+        let wantsContainer = parsed?.container != nil
+        let wantsDocker = parsed?.docker != nil
+        let wantsHost = parsed?.hostRoutesConfigured ?? false
+        let injectedContainer = containerHealth
+        let injectedDocker = dockerHealth
+        let injectedHost = hostHealth
+        async let cltProbe: CLTState = {
+            if let injectedCLT { return injectedCLT }
+            return await CLTProbe().check()
+        }()
+        async let tartProbe: TartHealth = {
+            if let injectedTart { return injectedTart }
+            return await TartHealthProbe(configuredPath: tartPath).check()
+        }()
+        async let containerProbe: RuntimeHealth? = {
+            guard wantsContainer else { return nil }
+            if let injectedContainer { return injectedContainer }
+            return await AppleContainerRuntime().health()
+        }()
+        async let dockerProbe: RuntimeHealth? = {
+            guard wantsDocker else { return nil }
+            if let injectedDocker { return injectedDocker }
+            return await DockerRuntime(image: parsed?.docker?.image ?? "kinhin-ci-linux").health()
+        }()
+        async let hostProbe: RuntimeHealth? = {
+            guard wantsHost else { return nil }
+            if let injectedHost { return injectedHost }
+            return await HostRuntime().health()
+        }()
+        let resolvedCLT = await cltProbe
+        let resolvedTart = await tartProbe
+        let resolvedContainerHealth = await containerProbe
+        let resolvedDockerHealth = await dockerProbe
+        let resolvedHostHealth = await hostProbe
+
+        // Image listings (they need the health verdicts), concurrently.
+        let containerWanted = parsed?.container?.image
+        let dockerConfig = parsed?.docker
+        let injectedContainerImages = containerImages
+        let injectedDockerImages = dockerImages
+        async let containerImagesProbe: [String]? = {
+            if let injectedContainerImages { return injectedContainerImages }
+            guard containerWanted != nil, resolvedContainerHealth?.isReady == true else { return nil }
+            return await AppleContainerRuntime().localImageNames()
+        }()
+        async let dockerImagesProbe: [String]? = {
+            if let injectedDockerImages { return injectedDockerImages }
+            guard let dockerConfig, resolvedDockerHealth?.isReady == true else { return nil }
+            return await DockerRuntime(image: dockerConfig.image).localImageNames()
+        }()
+        let resolvedContainerImages = await containerImagesProbe
+        let resolvedDockerImages = await dockerImagesProbe
+        var dockerArchitecture: String?
+        if let dockerConfig, dockerImages == nil, resolvedDockerHealth?.isReady == true,
+            (resolvedDockerImages ?? []).contains(where: {
+                $0 == dockerConfig.image || $0.hasPrefix("\(dockerConfig.image):")
+            })
+        {
+            dockerArchitecture = await DockerRuntime(image: dockerConfig.image).imageArchitecture(
+                of: dockerConfig.image)
         }
+        // With the health injected the checklist assumes the kernel is
+        // installed; a live run reads it once here.
+        let kernelInstalled: Bool? =
+            (containerHealth == nil && resolvedContainerHealth?.isReady == true)
+            ? AppleContainerRuntime.hasInstalledKernel() : nil
 
         // The checklist sees the same token source as the auth report — one
         // source of truth (live → real Keychain, tests → fixture). A read that
@@ -106,13 +185,18 @@ public struct DoctorReportBuilder: Sendable {
                 return false
             }
         }
+        let tokenReads = TokenReads()
+        let accountLoad = self.accountLoad
+        let sharedAccountLoad: @Sendable (ForgeID, String) throws -> String? = { forge, name in
+            try tokenReads.read("\(forge.rawValue):\(name)") { try accountLoad(forge, name) }
+        }
         var accountStored: [String: Bool] = [:]
         for account in parsed?.accounts ?? [] {
             accountStored[account.name] = stored("account:\(account.name)") {
-                try accountLoad(account.forge, account.name)
+                try sharedAccountLoad(account.forge, account.name)
             }
         }
-        let status = await SetupStatusComputer(
+        let detailed = await SetupStatusComputer(
             host: resolvedHost,
             clt: resolvedCLT,
             tartHealth: resolvedTart,
@@ -120,25 +204,23 @@ public struct DoctorReportBuilder: Sendable {
             config: config,
             accountTokensStored: accountStored,
             tokenReadFailures: tokenFailures,
-            containerHealth: containerHealth,
-            containerImages: containerImages,
-            dockerHealth: dockerHealth,
-            dockerImages: dockerImages,
-            hostHealth: hostHealth
-        ).compute()
+            containerHealth: resolvedContainerHealth,
+            containerImages: resolvedContainerImages,
+            containerKernelInstalled: kernelInstalled,
+            dockerHealth: resolvedDockerHealth,
+            dockerImages: resolvedDockerImages,
+            dockerImageArchitecture: dockerArchitecture,
+            hostHealth: resolvedHostHealth
+        ).computeDetailed()
+        let status = detailed.status
 
-        let authReport = AuthStatusReporter.report(config: parsed, load: authLoad, loadAccount: accountLoad)
+        let authReport = AuthStatusReporter.report(config: parsed, load: authLoad, loadAccount: sharedAccountLoad)
 
         // Apple-container section — present only when the config enables it,
         // with the same image-matching rule the checklist row uses.
         var containerSection: DoctorReport.ContainerSection?
         if let container = parsed?.container {
-            let resolvedHealth: RuntimeHealth
-            if let containerHealth {
-                resolvedHealth = containerHealth
-            } else {
-                resolvedHealth = await AppleContainerRuntime().health()
-            }
+            let resolvedHealth = resolvedContainerHealth ?? .broken("container health was not probed")
             let state: String
             let ok: Bool
             var fix: String?
@@ -151,14 +233,7 @@ public struct DoctorReportBuilder: Sendable {
                 state = "broken"; ok = false; fix = why
             }
             let wanted = container.image
-            let listed: [String]
-            if let containerImages {
-                listed = containerImages
-            } else if resolvedHealth.isReady {
-                listed = await AppleContainerRuntime().localImageNames()
-            } else {
-                listed = []
-            }
+            let listed = resolvedContainerImages ?? []
             let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
             // A working runtime with a missing image gets the prepare command
             // — the same advice the human doctor prints for that case.
@@ -174,13 +249,7 @@ public struct DoctorReportBuilder: Sendable {
         // and prepare-command advice as the container section above.
         var dockerSection: DoctorReport.DockerSection?
         if let docker = parsed?.docker {
-            let runtime = DockerRuntime(image: docker.image)
-            let resolvedHealth: RuntimeHealth
-            if let dockerHealth {
-                resolvedHealth = dockerHealth
-            } else {
-                resolvedHealth = await runtime.health()
-            }
+            let resolvedHealth = resolvedDockerHealth ?? .broken("docker health was not probed")
             let state: String
             let ok: Bool
             var fix: String?
@@ -193,19 +262,9 @@ public struct DoctorReportBuilder: Sendable {
                 state = "broken"; ok = false; fix = why
             }
             let wanted = docker.image
-            let listed: [String]
-            if let dockerImages {
-                listed = dockerImages
-            } else if resolvedHealth.isReady {
-                listed = await runtime.localImageNames()
-            } else {
-                listed = []
-            }
+            let listed = resolvedDockerImages ?? []
             let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
-            var imageArch: String?
-            if imageFound, dockerImages == nil, resolvedHealth.isReady {
-                imageArch = await runtime.imageArchitecture(of: wanted)
-            }
+            let imageArch = dockerArchitecture
             let archMismatch = imageFound && (imageArch.map { $0 != docker.platform.dockerArchitecture } ?? false)
             if ok, !imageFound {
                 fix = "kinhin image prepare --docker --target \(wanted)"
@@ -240,12 +299,7 @@ public struct DoctorReportBuilder: Sendable {
         // unisolated warning is always attached.
         var hostSection: DoctorReport.HostSection?
         if let parsed, parsed.hostRoutesConfigured {
-            let resolvedHealth: RuntimeHealth
-            if let hostHealth {
-                resolvedHealth = hostHealth
-            } else {
-                resolvedHealth = await HostRuntime().health()
-            }
+            let resolvedHealth = resolvedHostHealth ?? .broken("host health was not probed")
             let state: String
             let ok: Bool
             var fix: String?
@@ -277,15 +331,10 @@ public struct DoctorReportBuilder: Sendable {
         // tart is unavailable, which leaves known references green.
         var tartBaseImageSection: DoctorReport.TartBaseImageSection?
         if let cfg = parsed, cfg.baseImage != nil {
-            let localVMs: [TartVM]
-            if let tartList {
-                localVMs = tartList
-            } else {
-                // Best-effort probe: the checklist row already reports list
-                // failures, so an unreachable tart just leaves known
-                // references green and unknown ones unknown.
-                localVMs = (try? await TartController(configuredPath: cfg.tartPath).list()) ?? []
-            }
+            // The checklist's image row already listed tart (and reports a
+            // failed listing): reuse that list. An unreachable tart just
+            // leaves known references green and unknown ones unknown.
+            let localVMs = tartList ?? detailed.tartVMs ?? []
             let verdict = SetupStatusComputer.baseImageState(cfg: cfg, localVMs: localVMs)
             tartBaseImageSection = DoctorReport.TartBaseImageSection(
                 reference: cfg.baseImage ?? "", state: verdict.state, ok: verdict.ok, fix: verdict.fix,
@@ -308,7 +357,9 @@ public struct DoctorReportBuilder: Sendable {
         }
 
         let security = Self.securitySection(
-            config: parsed, softnetInstalled: softnetInstalled, tartHealthy: Self.tartSection(from: resolvedTart).ok)
+            config: parsed, softnetInstalled: softnetInstalled, tartHealthy: Self.tartSection(from: resolvedTart).ok,
+            hostKeyUnpinned: GuestHostKeyPinning.recordedFallback(
+                marker: hostKeyMarker ?? GuestHostKeyPinning.markerURL))
 
         return DoctorReport(
             host: resolvedHost,

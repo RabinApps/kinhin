@@ -165,7 +165,7 @@ struct LinuxImageBaker {
 
         // Cache upkeep: sweep stale entries before this bake writes through
         // the cache (noop unless age/size limits trip).
-        ToolchainCachePruner().prune(policy: ToolchainCachePolicy(from: nil))
+        ToolchainCachePruner().prune(policy: ToolchainCachePolicy(from: nil), minInterval: 3600)
 
         // Always bind-mount the host toolchain cache into the scratch
         // container: every prepare write-through (apt, mise, npm) lands in

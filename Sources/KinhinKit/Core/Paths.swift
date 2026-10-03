@@ -15,6 +15,43 @@ public enum Paths {
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
+    /// Writes `data` to `url` so the file is never readable by anyone but the
+    /// owner, not even for an instant: it goes to a sibling temp file created
+    /// 0600 (`O_EXCL`, so no planted file or symlink is followed) and is then
+    /// renamed over `url`. A plain `write(atomically:)` creates the file with
+    /// the default umask mode and a chmod afterwards leaves a window.
+    public static func writePrivateFile(_ data: Data, to url: URL) throws {
+        let temp = url.deletingLastPathComponent()
+            .appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
+        let fd = open(temp.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o600)
+        guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        do {
+            defer { close(fd) }
+            // Exactly 0600 whatever the process umask is.
+            guard fchmod(fd, 0o600) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            var offset = 0
+            while offset < data.count {
+                let written = data.withUnsafeBytes { buffer in
+                    write(fd, buffer.baseAddress.map { $0 + offset }, buffer.count - offset)
+                }
+                if written < 0 {
+                    if errno == EINTR { continue }
+                    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                }
+                offset += written
+            }
+        } catch {
+            // The temp file exists but is unusable; nothing else can have opened it.
+            bestEffort("paths", "removing \(temp.lastPathComponent)") { try FileManager.default.removeItem(at: temp) }
+            throw error
+        }
+        guard rename(temp.path, url.path) == 0 else {
+            let code = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            bestEffort("paths", "removing \(temp.lastPathComponent)") { try FileManager.default.removeItem(at: temp) }
+            throw code
+        }
+    }
+
     /// The user's `~/Library/<name>` directory. `FileManager` returns it for
     /// every user domain; the home-relative path is only a defensive fallback.
     static func userLibrarySubdirectory(_ directory: FileManager.SearchPathDirectory, fallback: String) -> URL {
@@ -23,10 +60,12 @@ public enum Paths {
     }
 
     /// `~/Library/Application Support/Kinhin`
-    static var appSupport: URL {
+    static var appSupport: URL { cachedAppSupport }
+
+    /// Resolved once: `FileManager.urls(for:in:)` is not free and this path is read on every config/state/log access.
+    private static let cachedAppSupport: URL =
         userLibrarySubdirectory(.applicationSupportDirectory, fallback: "Library/Application Support")
-            .appendingPathComponent("Kinhin", isDirectory: true)
-    }
+        .appendingPathComponent("Kinhin", isDirectory: true)
 
     /// Support directory used by the pre-rename build ("Orchard").
     static var legacyAppSupport: URL {
@@ -107,17 +146,28 @@ public enum Paths {
         }
     }
 
-    /// Locate a binary: explicit override, PATH, then Homebrew prefixes.
-    /// An override is authoritative: a configured path that is not an
-    /// executable is a misconfiguration, so it reports missing instead of
-    /// silently probing PATH/Homebrew behind the user's back.
+    /// Fixed directories searched before anything derived from `PATH`, so a
+    /// writable directory a job or a stray shell profile put early on `PATH`
+    /// cannot shadow `tart`, `docker`, `git` and friends.
+    static let trustedBinaryDirectories = [
+        "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin",
+    ]
+
+    /// Locate a binary: explicit override, then the fixed trusted directories,
+    /// then `PATH`. An override is authoritative: a configured path that is
+    /// not an executable is a misconfiguration, so it reports missing instead
+    /// of silently probing elsewhere behind the user's back.
     public static func findExecutable(named name: String, override: String? = nil) -> String? {
         if let override, !override.isEmpty {
             return FileManager.default.isExecutableFile(atPath: override) ? override : nil
         }
-        // Honor the user's PATH first. PATH entries may be absolute (the
-        // common case) or relative — only prefix a slash for relative ones,
-        // or the resolved path doubles the leading slash ("//usr/local/bin/x").
+        for dir in trustedBinaryDirectories {
+            let candidate = "\(dir)/\(name)"
+            if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
+        }
+        // PATH entries may be absolute (the common case) or relative: only
+        // prefix a slash for relative ones, or the resolved path doubles the
+        // leading slash ("//usr/local/bin/x").
         if let pathVar = ProcessInfo.processInfo.environment["PATH"] {
             for dir in pathVar.split(separator: ":") {
                 let prefix = dir.hasPrefix("/") ? "" : "/"
@@ -127,11 +177,6 @@ public enum Paths {
                 }
             }
         }
-        // Common Homebrew locations on Apple Silicon and Intel.
-        let brewCandidates = [
-            "/opt/homebrew/bin/\(name)",
-            "/usr/local/bin/\(name)",
-        ]
-        return brewCandidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+        return nil
     }
 }

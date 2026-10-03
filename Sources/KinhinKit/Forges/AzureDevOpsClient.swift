@@ -15,11 +15,14 @@ public struct AzureDevOpsClient: Sendable {
     static let apiVersion = "7.0"
 
     let credentials: AzureDevOpsCredentials
-    let session: URLSession
+    /// The shared send/retry pipeline (headers, status mapping, backoff).
+    let transport: ForgeTransport
 
     public init(credentials: AzureDevOpsCredentials, session: URLSession? = nil) {
         self.credentials = credentials
-        self.session = ForgeHTTP.session(session)
+        self.transport = ForgeTransport(
+            session: ForgeHTTP.session(session), forge: .azuredevops,
+            authorization: .basicPassword(credentials.token))
     }
 
     // MARK: - Pools
@@ -68,7 +71,7 @@ public struct AzureDevOpsClient: Sendable {
     func deleteAgent(pool: AzureDevOpsPool, id: Int) async throws {
         do {
             _ = try await send("DELETE", "/_apis/distributedtask/pools/\(pool.id)/agents/\(id)")
-        } catch AzureDevOpsError.notFound {
+        } catch ForgeAPIError.notFound {
             Log.info("azuredevops", "agent \(id) is already gone from pool \(pool.name)")
         }
     }
@@ -115,7 +118,7 @@ public struct AzureDevOpsClient: Sendable {
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
-            throw AzureDevOpsError.decoding("\(what): \(error.localizedDescription)")
+            throw ForgeAPIError.decoding(forge: .azuredevops, what: "\(what): \(error.localizedDescription)")
         }
     }
 
@@ -133,50 +136,28 @@ public struct AzureDevOpsClient: Sendable {
         return url
     }
 
-    /// Sends with retry on transient failures (network errors, 429, 5xx).
+    /// Sends with the shared transport: retry on transient failures (network
+    /// errors, 429, 5xx) and the common status→error mapping. Azure's own
+    /// quirk — a rejected PAT coming back as a sign-in page instead of a 401 —
+    /// rides the transport's `classify` hook.
     func send(
         _ method: String, _ path: String, _ query: [URLQueryItem] = [], accept: String = "application/json"
     ) async throws -> (Data, HTTPURLResponse) {
         let target = try url(path, query)
-        return try await withTransientRetry(isTransient: Self.isTransient) {
-            try await sendOnce(method, target, accept: accept)
-        }
+        return try await transport.send(method, target, accept: accept, classify: Self.rejectSignInPage)
     }
 
-    static func isTransient(_ error: Error) -> Bool {
-        if case .http(let code, _) = error as? AzureDevOpsError { return ForgeHTTP.isTransientStatus(code) }
-        return ForgeHTTP.isTransientNetworkError(error)
-    }
-
-    private func sendOnce(_ method: String, _ url: URL, accept: String) async throws -> (Data, HTTPURLResponse) {
-        var req = URLRequest(url: url)
-        req.httpMethod = method
-        let basic = Data(":\(credentials.token)".utf8).base64EncodedString()
-        req.setValue("Basic \(basic)", forHTTPHeaderField: "Authorization")
-        req.setValue(accept, forHTTPHeaderField: "Accept")
-        req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await session.data(for: req)
-        guard let http = response as? HTTPURLResponse else {
-            throw AzureDevOpsError.http(0, "non-HTTP response")
-        }
-        // A rejected PAT can come back as a sign-in page (203, or a redirect
-        // URLSession followed to an HTML 200) instead of a 401.
+    /// A rejected PAT can come back as a sign-in page (203, or a redirect
+    /// URLSession followed to an HTML 200) instead of a 401.
+    private static func rejectSignInPage(_ http: HTTPURLResponse, _ data: Data) -> ForgeAPIError? {
         let html = http.value(forHTTPHeaderField: "Content-Type")?.lowercased().contains("text/html") == true
         switch http.statusCode {
         case 203:
-            throw AzureDevOpsError.unauthorized
+            return .unauthorized(forge: .azuredevops)
         case 200...299 where html:
-            throw AzureDevOpsError.unauthorized
-        case 200...299:
-            return (data, http)
-        case 401:
-            throw AzureDevOpsError.unauthorized
-        case 403:
-            throw AzureDevOpsError.forbidden(String(decoding: data.prefix(300), as: UTF8.self))
-        case 404:
-            throw AzureDevOpsError.notFound(url.path)
+            return .unauthorized(forge: .azuredevops)
         default:
-            throw AzureDevOpsError.http(http.statusCode, String(decoding: data.prefix(300), as: UTF8.self))
+            return nil
         }
     }
 }

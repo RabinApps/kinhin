@@ -235,7 +235,9 @@ extension RunnerBootstrap {
         instance: String, token: String, labels: [String], name: String, runnerCount: Int = 1
     ) -> String {
         let labelList = labels.joined(separator: ",")
+        // Register every runner before starting any (see `giteaRegistrationScript`).
         var blocks = ""
+        var starts = ""
         for index in 1...max(1, runnerCount) {
             let runnerName = runnerCount == 1 ? name : "\(name)-r\(index)"
             let dir = runnerCount == 1 ? "/opt/gitea-runner" : "/opt/gitea-runner-\(index)"
@@ -252,6 +254,10 @@ extension RunnerBootstrap {
                   --token \(shellQuote(token)) \\
                   --name \(shellQuote(runnerName)) \\
                   --labels \(shellQuote(labelList)) >/dev/null
+
+                """
+            starts += """
+                cd "\(dir)"
                 nohup ./gitea-runner daemon > daemon-\(index).log 2>&1 &
 
                 """
@@ -259,7 +265,8 @@ extension RunnerBootstrap {
         return """
             set -euo pipefail
 
-            \(blocks)echo "\(max(1, runnerCount)) linux gitea runner(s) started"
+            \(blocks)# All registered; now start serving jobs.
+            \(starts)echo "\(max(1, runnerCount)) linux gitea runner(s) started"
             """
     }
 }

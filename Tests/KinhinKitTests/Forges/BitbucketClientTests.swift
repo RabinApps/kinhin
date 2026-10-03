@@ -224,9 +224,9 @@ final class BitbucketClientTests: XCTestCase {
     // MARK: - Errors
 
     func testTransienceAndCategory() {
-        XCTAssertTrue(BitbucketClient.isTransient(BitbucketError.http(503, "")))
-        XCTAssertFalse(BitbucketClient.isTransient(BitbucketError.http(400, "")))
-        XCTAssertFalse(BitbucketClient.isTransient(BitbucketError.unauthorized))
-        XCTAssertEqual(ErrorCategory(BitbucketError.unauthorized), .auth)
+        XCTAssertTrue(ForgeTransport.isTransient(ForgeAPIError.http(forge: .bitbucket, code: 503, body: "")))
+        XCTAssertFalse(ForgeTransport.isTransient(ForgeAPIError.http(forge: .bitbucket, code: 400, body: "")))
+        XCTAssertFalse(ForgeTransport.isTransient(ForgeAPIError.unauthorized(forge: .bitbucket)))
+        XCTAssertEqual(ErrorCategory(ForgeAPIError.unauthorized(forge: .bitbucket)), .auth)
     }
 }

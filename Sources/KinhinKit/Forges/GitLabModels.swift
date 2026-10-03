@@ -161,29 +161,15 @@ struct GitLabCreatedRunner: Decodable, Sendable, Equatable {
 
 // MARK: - Errors
 
+/// GitLab-specific failures. The HTTP-shaped API errors (401/403/404/5xx,
+/// decoding) come from the shared transport as `ForgeAPIError`.
 enum GitLabError: LocalizedError, Equatable {
-    case unauthorized
-    case forbidden(String)
-    case notFound(String)
-    case http(Int, String)
-    case decoding(String)
     case invalidInstance(String)
     case insufficientScopes([String])
     case unsupportedVersion(String)
 
     var errorDescription: String? {
         switch self {
-        case .unauthorized:
-            return "GitLab rejected the access token (401): expired, revoked, or wrong instance. "
-                + "Fix: kinhin auth set NAME with a new token"
-        case .forbidden(let why):
-            return "GitLab forbidden (403): \(why). Creating runners needs Maintainer on a project or Owner on a group"
-        case .notFound(let what):
-            return "GitLab returned 404 for \(what): check the scope path and that the token can see it"
-        case .http(let code, let body):
-            return "GitLab HTTP \(code): \(body)"
-        case .decoding(let why):
-            return "Could not decode GitLab response: \(why)"
         case .invalidInstance(let url):
             return "invalid GitLab instance URL: \(url). Use https://gitlab.example.com (no /api suffix)"
         case .insufficientScopes(let missing):

@@ -46,8 +46,6 @@ public protocol TartControlling: Sendable {
     /// Convenience for callers that never mount host directories.
     func run(name: String) async throws
     func ip(of name: String, timeout: TimeInterval) async throws -> String
-    func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
-        -> ShellResult
     func stop(name: String) async throws
     func delete(name: String) async throws
     func pull(image: String) async throws
@@ -55,6 +53,17 @@ public protocol TartControlling: Sendable {
     /// guest agent (`tart exec`), so the first SSH call can authenticate. The
     /// default does nothing (fakes, stand-ins).
     func installGuestSSHKey(vm: String, user: String) async throws
+    /// Turns off SSH password / keyboard-interactive login in the booted VM
+    /// through the guest agent (`tart exec`), so the curated images' default
+    /// password is never usable over the network. The default does nothing.
+    func hardenGuestSSH(vm: String) async throws
+    /// Replaces the booted VM's sshd host keys with freshly generated ones
+    /// through the guest agent and returns the new ed25519 public key
+    /// (`ssh-ed25519 AAAA...`). Every runner VM is a clone of one image, so
+    /// without this they all share one host key; the agent channel is host-VM
+    /// only, so the returned key cannot be spoofed on the network. nil means
+    /// this controller cannot do it (fakes, stand-ins).
+    func rotateGuestHostKey(vm: String) async throws -> String?
     func allowKeys(_ key: String) async throws
     /// Creates an empty Linux VM (`tart create --linux name`) with no OS —
     /// the starting point of the "Linux VM from scratch" flow.
@@ -74,6 +83,8 @@ public extension TartControlling {
     }
 
     func installGuestSSHKey(vm: String, user: String) async throws {}
+    func hardenGuestSSH(vm: String) async throws {}
+    func rotateGuestHostKey(vm: String) async throws -> String? { nil }
     func allowKeys(_ key: String) async throws {}
     func processSamples(of names: [String]) async throws -> [String: ProcessSample] { [:] }
 }
@@ -201,13 +212,16 @@ public struct TartController: TartControlling {
         let deadline = Date().addingTimeInterval(timeout)
         var lastError: Error = TartError.ipNotFound(vm: name)
         while Date() < deadline {
+            let attemptStart = ContinuousClock.now
             let res = try await exec(["ip", "--wait", "5", name], timeout: 30)
             if res.succeeded {
                 let candidate = res.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
                 if Self.isValidIPv4(candidate) { return candidate }
             }
             lastError = TartError.ipNotFound(vm: name)
-            try await Task.sleep(for: .seconds(2))
+            // `--wait 5` already blocked for its own timeout; only a command
+            // that failed instantly (VM not up yet) needs a pause to avoid a spin.
+            if ContinuousClock.now - attemptStart < .seconds(1) { try await Task.sleep(for: .milliseconds(500)) }
         }
         throw lastError
     }
@@ -219,23 +233,6 @@ public struct TartController: TartControlling {
             guard let v = UInt(p), v <= 255 else { return false }
             return String(p) == p  // no leading zeros / empty
         }
-    }
-
-    public func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
-        -> ShellResult
-    {
-        // The script goes over stdin so it never appears in the process list.
-        let argv = [
-            SSHExecutor.sshPath,
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null",
-            "-o", "LogLevel=ERROR",
-            "-o", "ConnectTimeout=10",
-            "\(user)@\(ip)",
-            "bash -s",
-        ]
-        let res = try await shell.run(argv, input: Data(script.utf8), cwd: nil, timeout: timeout)
-        return res
     }
 
     public func stop(name: String) async throws {
@@ -264,6 +261,20 @@ public struct TartController: TartControlling {
         let script = GuestSSHKey.installScript(publicKey: key, user: user)
         let res = try await exec(["exec", vm, "bash", "-c", script], timeout: 60)
         guard res.succeeded else { throw TartError.commandFailed(what: "exec \(vm)", stderr: res.failureExcerpt) }
+    }
+
+    public func hardenGuestSSH(vm: String) async throws {
+        let res = try await exec(["exec", vm, "bash", "-c", RunnerBootstrap.sshHardeningScript()], timeout: 120)
+        guard res.succeeded else { throw TartError.commandFailed(what: "exec \(vm)", stderr: res.failureExcerpt) }
+    }
+
+    public func rotateGuestHostKey(vm: String) async throws -> String? {
+        let res = try await exec(["exec", vm, "bash", "-c", GuestHostKeyPinning.rotateScript], timeout: 120)
+        guard res.succeeded else { throw TartError.commandFailed(what: "exec \(vm)", stderr: res.failureExcerpt) }
+        guard let key = GuestHostKeyPinning.parseHostKey(res.stdout) else {
+            throw TartError.commandFailed(what: "exec \(vm)", stderr: "the guest returned no ssh-ed25519 host key")
+        }
+        return key
     }
 
     public func createLinux(name: String) async throws {
@@ -299,9 +310,6 @@ struct UnavailableTart: TartControlling {
     func clone(source: String, to name: String) async throws { throw missing }
     func run(name: String, mounts: [String]) async throws { throw missing }
     func ip(of name: String, timeout: TimeInterval) async throws -> String { throw missing }
-    func sshExec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws
-        -> ShellResult
-    { throw missing }
     func stop(name: String) async throws { throw missing }
     func delete(name: String) async throws { throw missing }
     func pull(image: String) async throws { throw missing }

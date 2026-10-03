@@ -77,11 +77,18 @@ public final class ProjectImageStore: Sendable {
         persist()
     }
 
-    func touch(_ name: String, now: Date = Date()) {
-        mutex.withLock { list in
-            if let idx = list.firstIndex(where: { $0.name == name }) { list[idx].lastUsedAt = now }
+    /// Marks `name` used. Writes the index only when the stored stamp is more
+    /// than `minInterval` old: pruning works in days, and a queue of jobs
+    /// asks for the same image on every poll.
+    func touch(_ name: String, now: Date = Date(), minInterval: TimeInterval = 600) {
+        let changed = mutex.withLock { list -> Bool in
+            guard let idx = list.firstIndex(where: { $0.name == name }),
+                now.timeIntervalSince(list[idx].lastUsedAt) > minInterval
+            else { return false }
+            list[idx].lastUsedAt = now
+            return true
         }
-        persist()
+        if changed { persist() }
     }
 
     public func remove(name: String) {

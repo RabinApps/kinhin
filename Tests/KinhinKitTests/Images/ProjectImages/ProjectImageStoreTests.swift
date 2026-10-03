@@ -27,6 +27,23 @@ final class ProjectImageStoreTests: XCTestCase {
         XCTAssertEqual(ProjectImageStore(directory: dir).all.map(\.name), ["a"])
     }
 
+    /// A queue of jobs touches the same image every poll: the index is
+    /// rewritten only when the stamp is more than ~10 minutes old.
+    func testTouchPersistsOnlyWhenTheStampIsStale() {
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        let store = ProjectImageStore(directory: dir)
+        store.upsert(record("a", used: start))
+
+        store.touch("a", now: start.addingTimeInterval(60))
+        XCTAssertEqual(store.record(named: "a")?.lastUsedAt, start, "touched a minute ago: no write")
+        XCTAssertEqual(ProjectImageStore(directory: dir).record(named: "a")?.lastUsedAt, start)
+
+        let later = start.addingTimeInterval(700)
+        store.touch("a", now: later)
+        XCTAssertEqual(store.record(named: "a")?.lastUsedAt, later)
+        XCTAssertEqual(ProjectImageStore(directory: dir).record(named: "a")?.lastUsedAt, later, "persisted")
+    }
+
     func testPruneRemovesLeastRecentlyUsedBeyondLimitAndSkipsProtected() {
         let store = ProjectImageStore(directory: dir)
         for (i, name) in ["old", "mid", "new"].enumerated() {

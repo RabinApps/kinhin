@@ -82,7 +82,8 @@ extension DoctorReportBuilder {
     /// are Softnet-isolated, which accounts send a token over plain http,
     /// and whether the shared cache is writable by every job.
     public static func securitySection(
-        config: KinhinConfig?, softnetInstalled: Bool? = nil, tartHealthy: Bool = true
+        config: KinhinConfig?, softnetInstalled: Bool? = nil, tartHealthy: Bool = true,
+        hostKeyUnpinned: String? = nil
     ) -> DoctorReport.SecuritySection? {
         guard let config else { return nil }
         let enabled = config.tartSoftnet == true
@@ -94,6 +95,11 @@ extension DoctorReportBuilder {
         } else if !enabled, tartHealthy {
             warnings.append(
                 "runner VMs share one virtual network (tart_softnet is off): a job can reach other runner VMs and your LAN. Fine for trusted code; for outside PRs set tart_softnet: true (docs/security.md)"
+            )
+        }
+        if let hostKeyUnpinned {
+            warnings.append(
+                "the last runner VM's SSH host key could not be pinned (\(hostKeyUnpinned)): the host connected without host key verification, so a hostile VM on a shared network could impersonate it. Re-run `kinhin image prepare` to refresh the image's guest agent, or set tart_softnet: true (docs/security.md)"
             )
         }
         let insecure = config.accounts.filter(\.sendsTokenOverPlainHTTP).map(\.name)
@@ -109,7 +115,8 @@ extension DoctorReportBuilder {
         }
         return DoctorReport.SecuritySection(
             softnetEnabled: enabled, softnetInstalled: installed, ok: fix == nil, fix: fix,
-            insecureHTTPAccounts: insecure, sharedCacheWritable: sharedCache, warnings: warnings)
+            insecureHTTPAccounts: insecure, sharedCacheWritable: sharedCache, warnings: warnings,
+            hostKeyUnpinned: hostKeyUnpinned)
     }
 
     /// Maps CLTState to the JSON section, carrying the shared repair lines.

@@ -44,7 +44,7 @@ extension FleetEngine {
         // A tart instance cloned from a named image also advertises that image's labels, so
         // the jobs that ask for them (`runs-on: [..., xcode]`) can land on it.
         guard runtimeID == .tart, let pool, let image = record.image,
-            let extra = config.images.first(where: { $0.name == image })?.labels
+            let extra = images.first(where: { $0.name == image })?.labels
         else { return pool }
         return pool + extra.filter { label in !pool.contains { $0.caseInsensitiveCompare(label) == .orderedSame } }
     }

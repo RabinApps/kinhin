@@ -12,13 +12,15 @@ import Foundation
 /// it where the API says which cluster a job belongs to.
 public struct BuildkiteClient: Sendable {
     let credentials: BuildkiteCredentials
-    let session: URLSession
+    /// The shared send/retry pipeline (headers, status mapping, backoff).
+    let transport: ForgeTransport
     /// Pages read per list (100 items each).
     let maxPages = 20
 
     public init(credentials: BuildkiteCredentials, session: URLSession? = nil) {
         self.credentials = credentials
-        self.session = ForgeHTTP.session(session)
+        self.transport = ForgeTransport(
+            session: ForgeHTTP.session(session), forge: .buildkite, authorization: .bearer(credentials.token))
     }
 
     private var organizationPath: String {
@@ -81,7 +83,7 @@ public struct BuildkiteClient: Sendable {
         for organization in organizations {
             let client = BuildkiteClient(
                 credentials: BuildkiteCredentials(token: credentials.token, scope: "\(organization.slug)/"),
-                session: session)
+                session: transport.session)
             for cluster in try await client.clusters() {
                 refs.append(RepoRef(fullName: "\(organization.slug)/\(cluster.name)"))
             }
@@ -103,7 +105,7 @@ public struct BuildkiteClient: Sendable {
         let (data, _) = try await send("POST", "\(organizationPath)/clusters/\(cluster.id)/tokens", body: json)
         let token: BuildkiteAgentToken = try decode(data, "agent token")
         guard let value = token.token, !value.isEmpty else {
-            throw BuildkiteError.decoding("agent token: the response carried no token value")
+            throw ForgeAPIError.decoding(forge: .buildkite, what: "agent token: the response carried no token value")
         }
         return token
     }
@@ -125,7 +127,7 @@ public struct BuildkiteClient: Sendable {
         let json = try JSONSerialization.data(withJSONObject: ["force": true], options: [.sortedKeys])
         do {
             _ = try await send("PUT", "\(organizationPath)/agents/\(id)/stop", body: json)
-        } catch BuildkiteError.http(400, _) {
+        } catch ForgeAPIError.http(_, 400, _) {
             Log.info("buildkite", "agent \(id) is not connected; nothing to stop")
         }
     }
@@ -215,7 +217,7 @@ public struct BuildkiteClient: Sendable {
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
-            throw BuildkiteError.decoding("\(what): \(error.localizedDescription)")
+            throw ForgeAPIError.decoding(forge: .buildkite, what: "\(what): \(error.localizedDescription)")
         }
     }
 
@@ -230,47 +232,15 @@ public struct BuildkiteClient: Sendable {
         return url
     }
 
-    /// Sends with retry on transient failures (network errors, 429, 5xx).
+    /// Sends with the shared transport: retry on transient failures (network
+    /// errors, 429, 5xx) and the common status→error mapping.
     func send(_ method: String, _ path: String, body: Data? = nil) async throws -> (Data, HTTPURLResponse) {
-        try await send(method, try url(path), body: body)
+        try await transport.send(method, try url(path), body: body)
     }
 
+    /// A direct-URL send for pagination: the `Link: rel="next"` target is an
+    /// absolute URL (checked against the API host before it is followed).
     private func send(_ method: String, _ url: URL, body: Data? = nil) async throws -> (Data, HTTPURLResponse) {
-        try await withTransientRetry(isTransient: Self.isTransient) {
-            try await sendOnce(method, url, body: body)
-        }
-    }
-
-    static func isTransient(_ error: Error) -> Bool {
-        if case .http(let code, _) = error as? BuildkiteError { return ForgeHTTP.isTransientStatus(code) }
-        return ForgeHTTP.isTransientNetworkError(error)
-    }
-
-    private func sendOnce(_ method: String, _ url: URL, body: Data?) async throws -> (Data, HTTPURLResponse) {
-        var req = URLRequest(url: url)
-        req.httpMethod = method
-        req.setValue("Bearer \(credentials.token)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/json", forHTTPHeaderField: "Accept")
-        req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
-        if let body {
-            req.httpBody = body
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-        let (data, response) = try await session.data(for: req)
-        guard let http = response as? HTTPURLResponse else {
-            throw BuildkiteError.http(0, "non-HTTP response")
-        }
-        switch http.statusCode {
-        case 200...299:
-            return (data, http)
-        case 401:
-            throw BuildkiteError.unauthorized
-        case 403:
-            throw BuildkiteError.forbidden(String(decoding: data.prefix(300), as: UTF8.self))
-        case 404:
-            throw BuildkiteError.notFound(url.path)
-        default:
-            throw BuildkiteError.http(http.statusCode, String(decoding: data.prefix(300), as: UTF8.self))
-        }
+        try await transport.send(method, url, body: body)
     }
 }

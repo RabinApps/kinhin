@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 #if canImport(FoundationNetworking)
     import FoundationNetworking
@@ -76,14 +77,40 @@ public struct RunnerVersionResolver: Sendable {
     }
 
     let session: URLSession
+    /// Recent successful lookups, so repeated prepares within the TTL cost
+    /// no network. Only the default (production) resolver shares one; a
+    /// resolver built with its own session (tests) never caches.
+    let cache: Cache?
 
     public init(session: URLSession? = nil) {
         if let session {
             self.session = session
+            self.cache = nil
         } else {
             let config = URLSessionConfiguration.default
             config.timeoutIntervalForRequest = 15
             self.session = URLSession(configuration: config)
+            self.cache = .shared
+        }
+    }
+
+    /// In-memory feed results, keyed by feed name, valid for `ttl`.
+    final class Cache: Sendable {
+        static let shared = Cache(ttl: 3600)
+        private let ttl: TimeInterval
+        private let entries = Mutex<[String: (value: String, at: Date)]>([:])
+
+        init(ttl: TimeInterval) { self.ttl = ttl }
+
+        func value(for feed: String, now: Date = Date()) -> String? {
+            entries.withLock { entries in
+                guard let entry = entries[feed], now.timeIntervalSince(entry.at) < ttl else { return nil }
+                return entry.value
+            }
+        }
+
+        func store(_ value: String, for feed: String, now: Date = Date()) {
+            entries.withLock { $0[feed] = (value, now) }
         }
     }
 
@@ -92,25 +119,40 @@ public struct RunnerVersionResolver: Sendable {
     /// logged. A feed that answers with an unusable payload is also logged (and
     /// falls back); it is surfaced by the throwing ``latestGitHub()``-family
     /// members for callers that need the distinction.
-    public func resolve() async -> Versions {
-        async let githubTask = resolveLoggingFailures(latestGitHub, fallback: Self.fallback.github, feed: "GitHub")
-        async let giteaTask = resolveLoggingFailures(latestGitea, fallback: Self.fallback.gitea, feed: "Gitea")
-        async let gitlabTask = resolveLoggingFailures(latestGitLab, fallback: Self.fallback.gitlab, feed: "GitLab")
+    ///
+    /// `forges` limits the lookups to the platforms an image will actually
+    /// bake (a feed nobody asked about costs a request for nothing and keeps
+    /// its pinned version); nil looks every feed up.
+    public func resolve(including forges: Set<ForgeID>? = nil) async -> Versions {
+        func wants(_ ids: ForgeID...) -> Bool { forges.map { set in ids.contains { set.contains($0) } } ?? true }
+        async let githubTask = resolveLoggingFailures(
+            latestGitHub, fallback: Self.fallback.github, feed: "GitHub", enabled: wants(.github))
+        async let giteaTask = resolveLoggingFailures(
+            latestGitea, fallback: Self.fallback.gitea, feed: "Gitea", enabled: wants(.gitea, .forgejo))
+        async let gitlabTask = resolveLoggingFailures(
+            latestGitLab, fallback: Self.fallback.gitlab, feed: "GitLab", enabled: wants(.gitlab))
         async let buildkiteTask = resolveLoggingFailures(
-            latestBuildkite, fallback: Self.fallback.buildkite, feed: "Buildkite")
+            latestBuildkite, fallback: Self.fallback.buildkite, feed: "Buildkite", enabled: wants(.buildkite))
         async let azureTask = resolveLoggingFailures(
-            latestAzure, fallback: Self.fallback.azure, feed: "Azure Pipelines")
+            latestAzure, fallback: Self.fallback.azure, feed: "Azure Pipelines", enabled: wants(.azuredevops))
         return await Versions(
             github: githubTask, gitea: giteaTask, gitlab: gitlabTask, buildkite: buildkiteTask, azure: azureTask)
     }
 
     /// One feed lookup with its fallback: a thrown error is logged, never
-    /// propagated — pinned versions keep image preparation offline-safe.
+    /// propagated — pinned versions keep image preparation offline-safe. A
+    /// disabled feed answers its pinned version without a request, and a
+    /// real (non-pinned) answer is remembered for an hour.
     private func resolveLoggingFailures(
-        _ lookup: () async throws -> String, fallback: String, feed: String
+        _ lookup: () async throws -> String, fallback: String, feed: String, enabled: Bool = true
     ) async -> String {
+        guard enabled else { return fallback }
+        if let cached = cache?.value(for: feed) { return cached }
         do {
-            return try await lookup()
+            let latest = try await lookup()
+            // The pinned value is also what an unreachable feed yields: do not pin it for an hour.
+            if latest != fallback { cache?.store(latest, for: feed) }
+            return latest
         } catch {
             Log.warn(
                 "image", "\(feed) runner version lookup failed, using pinned \(fallback): \(error.localizedDescription)"

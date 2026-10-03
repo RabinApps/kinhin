@@ -19,17 +19,6 @@ final class RPCDaemonDispatchTests: XCTestCase {
         )
     }
 
-    /// Engine state flips asynchronously (start verification runs in a
-    /// detached task), so observe it the way the sibling suites do: poll.
-    private func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if await condition() { return }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        XCTFail("condition not met within \(timeout)s")
-    }
-
     func testDaemonStartRunsAndStopHaltsTheEngine() async throws {
         let engine = makeEngine()
 

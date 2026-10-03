@@ -50,6 +50,11 @@ extension RunnerBootstrap {
     /// engine's ephemeral watch waits for. A non-ephemeral pool (`ephemeral:
     /// false`) keeps its agents connected across jobs instead.
     ///
+    /// Residual exposure (not changed, cannot be verified without a real
+    /// agent): the agent needs its token for its whole life, so it stays in
+    /// the agent process's environment, which a job running as the same user can
+    /// read with `ps eww`. Use a cluster token scoped to this pool.
+    ///
     /// `binary` and `baseDir` are shell words (already quoted, or `$HOME/…`);
     /// each agent lives in `baseDir/<name>` with its builds, plugins, log and
     /// the pid of its background job.

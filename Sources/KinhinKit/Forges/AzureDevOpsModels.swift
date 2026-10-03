@@ -258,29 +258,15 @@ struct AzureDevOpsBuildInfo: Decodable, Sendable, Equatable {
 
 // MARK: - Errors
 
+/// Azure DevOps-specific failures. The HTTP-shaped API errors (401/403/404/5xx,
+/// decoding) come from the shared transport as `ForgeAPIError`.
 enum AzureDevOpsError: LocalizedError, Equatable {
-    case unauthorized
-    case forbidden(String)
-    case notFound(String)
-    case http(Int, String)
-    case decoding(String)
     case invalidInstance(String)
     case poolNotFound(String)
     case cannotManagePool(String)
 
     var errorDescription: String? {
         switch self {
-        case .unauthorized:
-            return "Azure DevOps rejected the personal access token (401): expired, revoked, or for another "
-                + "organization. Fix: kinhin auth set NAME with a new token"
-        case .forbidden(let why):
-            return "Azure DevOps forbidden (403): \(why). The token needs the Agent Pools (Read & manage) scope"
-        case .notFound(let what):
-            return "Azure DevOps returned 404 for \(what): check the organization URL"
-        case .http(let code, let body):
-            return "Azure DevOps HTTP \(code): \(body)"
-        case .decoding(let why):
-            return "Could not decode Azure DevOps response: \(why)"
         case .invalidInstance(let url):
             return "invalid Azure DevOps organization URL: \(url). Use https://dev.azure.com/ORG "
                 + "(or your server's collection URL)"

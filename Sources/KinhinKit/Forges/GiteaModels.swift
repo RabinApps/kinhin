@@ -58,27 +58,14 @@ public struct GiteaTask: Sendable, Equatable {
     }
 }
 
+/// Gitea-specific failures (Forgejo included). The HTTP-shaped API errors
+/// (401/403/404/5xx, decoding) come from the shared transport as
+/// `ForgeAPIError`.
 enum GiteaError: LocalizedError, Equatable {
-    case unauthorized
-    case forbidden(String)
-    case notFound(String)
-    case http(Int, String)
-    case decoding(String)
     case invalidInstance(String)
 
     var errorDescription: String? {
         switch self {
-        case .unauthorized:
-            return
-                "Gitea rejected the access token (401) — expired, revoked, or wrong instance. Fix: kinhin auth set --gitea"
-        case .forbidden(let why):
-            return "Gitea forbidden (403): \(why)"
-        case .notFound(let what):
-            return "Gitea returned 404 for \(what) — check the scope and that Actions are enabled on the instance"
-        case .http(let code, let body):
-            return "Gitea HTTP \(code): \(body)"
-        case .decoding(let why):
-            return "Could not decode Gitea response: \(why)"
         case .invalidInstance(let url):
             return "invalid Gitea instance URL: \(url) — use https://gitea.example.com (no /api suffix)"
         }

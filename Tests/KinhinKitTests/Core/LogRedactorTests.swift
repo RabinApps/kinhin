@@ -44,6 +44,31 @@ final class LogRedactorTests: XCTestCase {
         assertRedacts("password: hunter2hunter2", secret: "hunter2hunter2")
     }
 
+    /// The literal pre-check must never change a result: every sample that
+    /// exercises a rule, in several casings and surroundings, redacts the
+    /// same with and without the gate.
+    func testGatedRedactionMatchesUngatedOnEveryRuleFamily() {
+        let samples = [
+            "using ghp_abcdefghijklmnopqrstuvwxyz0123456789", "ghu_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345",
+            "github_pat_11ABCDEFG0abcdefghijkl_mnopqrstuvwxyz1234", "runner glrt-abcdefghij0123456789 registered",
+            "got ATCTT3xFfGN0abcdefghijklmnopqrstuvwxyz=12AB", "ATBBabcdefghijklmnopqrstuvwxyz",
+            "api bkua_abcdefghijklmnopqrstuvwx used", "PRIVATE-TOKEN: hunter2hunter2", "private-token hunter2hunter2",
+            "Authorization: token s3cr3tvalue123", "AUTHORIZATION Bearer abc.def.ghi",
+            "./config.sh --TOKEN 'AAAA1111BBBB'", "register --password=hunter2", "x --pat abc123",
+            "BEARER abcdefghijklmnop1234", "GR1348941abcdef0123456789abcd",
+            "clone https://user:s3cret@example.com/x.git", "GITHUB_TOKEN=abc123 ran", #"{"api_key": "abc"}"#,
+            "APIKEY=zzz", "client_secret: topsecretvalue", "plain line with nothing", "",
+        ]
+        for sample in samples {
+            XCTAssertEqual(
+                LogRedactor.applyRules(to: sample, gated: true), LogRedactor.applyRules(to: sample, gated: false),
+                "gate changed the result for: \(sample)")
+        }
+        XCTAssertNotEqual(LogRedactor.redact("AUTHORIZATION Bearer abc.def.ghi"), "AUTHORIZATION Bearer abc.def.ghi")
+        XCTAssertNotEqual(LogRedactor.redact("clone https://user:s3cret@example.com/x.git"), "")
+        XCTAssertFalse(LogRedactor.redact("clone https://user:s3cret@example.com/x.git").contains("s3cret"))
+    }
+
     func testLeavesOrdinaryLinesAndChecksumsAlone() {
         let lines = [
             "starting fleet engine for github (capacity cap: 2)",

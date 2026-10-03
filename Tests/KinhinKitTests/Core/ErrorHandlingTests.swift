@@ -64,13 +64,13 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertEqual(calls, 1)
     }
 
-    func testGiteaTransientClassification() {
-        XCTAssertTrue(GiteaClient.isTransient(GiteaError.http(503, "")))
-        XCTAssertTrue(GiteaClient.isTransient(GiteaError.http(0, "non-HTTP response")))
-        XCTAssertTrue(GiteaClient.isTransient(URLError(.timedOut)))
-        XCTAssertFalse(GiteaClient.isTransient(GiteaError.http(400, "")))
-        XCTAssertFalse(GiteaClient.isTransient(GiteaError.unauthorized))
-        XCTAssertFalse(GiteaClient.isTransient(GiteaError.notFound("x")))
+    func testForgeTransientClassification() {
+        XCTAssertTrue(ForgeTransport.isTransient(ForgeAPIError.http(forge: .gitea, code: 503, body: "")))
+        XCTAssertTrue(ForgeTransport.isTransient(ForgeAPIError.nonHTTPResponse(forge: .gitea)))
+        XCTAssertTrue(ForgeTransport.isTransient(URLError(.timedOut)))
+        XCTAssertFalse(ForgeTransport.isTransient(ForgeAPIError.http(forge: .gitea, code: 400, body: "")))
+        XCTAssertFalse(ForgeTransport.isTransient(ForgeAPIError.unauthorized(forge: .gitea)))
+        XCTAssertFalse(ForgeTransport.isTransient(ForgeAPIError.notFound(forge: .gitea, what: "x")))
     }
 
     // MARK: - Tart runtime
@@ -118,7 +118,30 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertEqual(broken.calls, 1, "a real failure is not retried")
     }
 
-    func testTartTeardownStillAttemptsDeleteWhenListFails() async {
+    /// No ssh process is spawned until the port answers: the cheap probe
+    /// absorbs the boot window.
+    func testRegistrationDoesNotSpawnSSHUntilThePortIsOpen() async throws {
+        let ssh = PortGatedSSH(closedProbes: 4)
+        let runtime = TartRuntime(
+            tart: FakeTart(), bootTimeout: { 300 }, ssh: ssh, sshReadyWindow: 30, sshRetryInterval: .milliseconds(1),
+            sshProbeInterval: .milliseconds(1))
+        let result = try await runtime.execRegistration("vm-1", ip: "10.0.0.2", "true", timeout: 5)
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(ssh.probes, 5)
+        XCTAssertEqual(ssh.execs, 1, "ssh ran once, after the port opened")
+    }
+
+    func testRegistrationTriesSSHOnceTheWindowRunsOutEvenIfThePortStaysClosed() async throws {
+        let ssh = PortGatedSSH(closedProbes: .max)
+        let runtime = TartRuntime(
+            tart: FakeTart(), bootTimeout: { 300 }, ssh: ssh, sshReadyWindow: 0.05,
+            sshRetryInterval: .milliseconds(1), sshProbeInterval: .milliseconds(5))
+        let result = try await runtime.execRegistration("vm-1", ip: "10.0.0.2", "true", timeout: 5)
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(ssh.execs, 1, "one real attempt reports the error when the window is gone")
+    }
+
+    func testTartTeardownDoesNotNeedList() async {
         let tart = FakeTart()
         tart.vms["vm-1"] = TartVM(name: "vm-1", source: "base", status: "running")
         tart.failList = true
@@ -176,4 +199,26 @@ private final class FlakySSH: SSHExecuting, Sendable {
     func allowKeys(_ key: String) async throws {
         // No-op: the real SSH executor ignores this call too.
     }
+}
+
+private final class PortGatedSSH: SSHExecuting, Sendable {
+    private let state = Mutex((probes: 0, execs: 0))
+    let closedProbes: Int
+    init(closedProbes: Int) { self.closedProbes = closedProbes }
+    var probes: Int { state.withLock { $0.probes } }
+    var execs: Int { state.withLock { $0.execs } }
+
+    func isSSHPortOpen(ip: String) async -> Bool {
+        state.withLock { state in
+            state.probes += 1
+            return state.probes > closedProbes
+        }
+    }
+
+    func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
+        state.withLock { $0.execs += 1 }
+        return ShellResult(exitCode: 0, stdout: "ok", stderr: "")
+    }
+
+    func allowKeys(_ key: String) async throws {}
 }

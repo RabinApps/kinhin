@@ -118,7 +118,7 @@ final class BuildkiteClientTests: XCTestCase {
         do {
             _ = try await makeClient().createAgentToken(cluster: cluster, description: "kinhin: work")
             XCTFail("a token without its value cannot register agents")
-        } catch let error as BuildkiteError {
+        } catch let error as ForgeAPIError {
             guard case .decoding = error else { return XCTFail("unexpected \(error)") }
         } catch {
             XCTFail("unexpected \(error)")
@@ -186,12 +186,15 @@ final class BuildkiteClientTests: XCTestCase {
     // MARK: - Errors and plumbing
 
     func testStatusCodesMapToErrors() async {
-        for (status, expected) in [(401, BuildkiteError.unauthorized), (404, .notFound("/v2/access-token"))] {
+        for (status, expected) in [
+            (401, ForgeAPIError.unauthorized(forge: .buildkite)),
+            (404, ForgeAPIError.notFound(forge: .buildkite, what: "/v2/access-token")),
+        ] {
             StubProtocol.handler = { _ in (status, Data(), [:]) }
             do {
                 _ = try await makeClient().tokenScopes()
                 XCTFail("expected \(expected)")
-            } catch let error as BuildkiteError {
+            } catch let error as ForgeAPIError {
                 XCTAssertEqual(error, expected)
             } catch {
                 XCTFail("unexpected \(error)")
@@ -209,11 +212,11 @@ final class BuildkiteClientTests: XCTestCase {
     }
 
     func testTransienceAndCategory() {
-        XCTAssertTrue(BuildkiteClient.isTransient(BuildkiteError.http(503, "")))
-        XCTAssertTrue(BuildkiteClient.isTransient(BuildkiteError.http(429, "")))
-        XCTAssertFalse(BuildkiteClient.isTransient(BuildkiteError.http(400, "")))
-        XCTAssertFalse(BuildkiteClient.isTransient(BuildkiteError.unauthorized))
-        XCTAssertEqual(ErrorCategory(BuildkiteError.unauthorized), .auth)
+        XCTAssertTrue(ForgeTransport.isTransient(ForgeAPIError.http(forge: .buildkite, code: 503, body: "")))
+        XCTAssertTrue(ForgeTransport.isTransient(ForgeAPIError.http(forge: .buildkite, code: 429, body: "")))
+        XCTAssertFalse(ForgeTransport.isTransient(ForgeAPIError.http(forge: .buildkite, code: 400, body: "")))
+        XCTAssertFalse(ForgeTransport.isTransient(ForgeAPIError.unauthorized(forge: .buildkite)))
+        XCTAssertEqual(ErrorCategory(ForgeAPIError.unauthorized(forge: .buildkite)), .auth)
     }
 }
 

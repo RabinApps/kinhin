@@ -230,7 +230,8 @@ final class HostRuntimeTests: XCTestCase {
         // carries a quote seam (`…/kinhin-gl1'/'kinhin-gl1`).
         XCTAssertTrue(
             script.contains("host-instances/kinhin-gl1'/'kinhin-gl1"), "state lives in the scrubbed instance dir")
-        XCTAssertTrue(script.contains("printf '%s' 'glrt-1' > token"))
+        XCTAssertTrue(script.contains("printf '%s' 'glrt-1' | nohup"), "token arrives on a pipe, never a file")
+        XCTAssertFalse(script.contains("> token"))
         XCTAssertTrue(script.contains("runner.pid"), "teardown needs the pid to stop unfinished runners")
     }
 

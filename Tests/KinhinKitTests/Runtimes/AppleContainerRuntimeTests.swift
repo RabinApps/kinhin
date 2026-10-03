@@ -178,7 +178,9 @@ final class AppleContainerRuntimeTests: XCTestCase {
         XCTAssertTrue(script.contains("run-single --description \"$2\" --executor shell"))
         XCTAssertTrue(script.contains("--max-builds 1"))
         XCTAssertTrue(script.contains("-X DELETE \"$1/api/v4/runners\""), "the runner deregisters itself")
-        XCTAssertTrue(script.contains("printf '%s' 'glrt-1' > token"), "each runner gets its own token file")
+        XCTAssertTrue(script.contains("printf '%s' 'glrt-1' | nohup"), "each runner gets its own token, on a pipe")
+        XCTAssertTrue(script.contains("printf '%s' 'glrt-2' | nohup"))
+        XCTAssertFalse(script.contains("> token"), "no token file is written")
         XCTAssertTrue(script.contains("export NPM_CONFIG_CACHE=\"/var/kinhin-cache/npm\""), script)
         XCTAssertTrue(
             script.range(of: "export NPM_CONFIG_CACHE")!.lowerBound < script.range(of: "run-single")!.lowerBound,
@@ -368,14 +370,6 @@ final class AppleContainerRuntimeTests: XCTestCase {
             scope: .project(id: 7, path: "acme/api"))
     }
 
-    func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if await condition() { return }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        XCTFail("condition not met within \(timeout)s")
-    }
 }
 
 /// A shell double that models `container list` as real state: `run --name X`

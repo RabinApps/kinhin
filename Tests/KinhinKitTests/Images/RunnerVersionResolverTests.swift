@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -13,6 +14,30 @@ final class RunnerVersionResolverTests: XCTestCase {
         config.protocolClasses = [StubProtocol.self]
         StubProtocol.handler = handler
         return RunnerVersionResolver(session: URLSession(configuration: config))
+    }
+
+    /// Only the platforms an image bakes are looked up; the rest keep their
+    /// pinned version without a request.
+    func testResolveOnlyAsksTheFeedsOfTheRequestedForges() async {
+        let hosts = Mutex(Set<String>())
+        let resolver = resolverWithStub { request in
+            hosts.withLock { _ = $0.insert(request.url?.host ?? "") }
+            return (200, Data(#"{"tag_name":"v9.9.9"}"#.utf8), [:])
+        }
+        let versions = await resolver.resolve(including: [.github])
+        XCTAssertEqual(versions.github, "9.9.9")
+        XCTAssertEqual(versions.gitea, RunnerVersionResolver.fallback.gitea)
+        XCTAssertEqual(versions.gitlab, RunnerVersionResolver.pinnedGitLab)
+        XCTAssertEqual(hosts.withLock { $0 }, ["api.github.com"])
+    }
+
+    func testFeedResultsAreCachedForTheTTLButPinnedFallbacksAreNot() {
+        let cache = RunnerVersionResolver.Cache(ttl: 3600)
+        let now = Date()
+        cache.store("9.9.9", for: "GitHub", now: now)
+        XCTAssertEqual(cache.value(for: "GitHub", now: now.addingTimeInterval(60)), "9.9.9")
+        XCTAssertNil(cache.value(for: "GitHub", now: now.addingTimeInterval(3601)))
+        XCTAssertNil(cache.value(for: "Gitea", now: now))
     }
 
     override func tearDown() {

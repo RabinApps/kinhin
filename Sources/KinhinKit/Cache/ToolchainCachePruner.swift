@@ -79,15 +79,31 @@ public struct ToolchainCachePruner {
         self.fileManager = fileManager
     }
 
+    /// Records when the last real sweep finished (next to the cache, not in
+    /// it, so it is never mistaken for a cache entry).
+    var sweepMarker: URL {
+        cacheRoot.deletingLastPathComponent().appendingPathComponent(".\(cacheRoot.lastPathComponent)-last-sweep")
+    }
+
     /// Walks the cache tree and prunes it per the policy. Never throws:
     /// individual failures (permissions, vanished files) are skipped and
     /// logged — pruning must never disturb a prepare or the fleet engine.
+    ///
+    /// `minInterval` rate-limits sweeps: when the previous sweep finished
+    /// less than that many seconds ago, nothing is walked (every image
+    /// prepare asks; a full tree walk each time is wasted). `0` always
+    /// sweeps, and a dry run never skips.
     @discardableResult
-    public func prune(policy: ToolchainCachePolicy, dryRun: Bool = false, now: Date = Date()) -> ToolchainPruneReport {
+    public func prune(
+        policy: ToolchainCachePolicy, dryRun: Bool = false, now: Date = Date(), minInterval: TimeInterval = 0
+    ) -> ToolchainPruneReport {
         guard policy.autoPrune || dryRun else {
             return ToolchainPruneReport(entries: [], freedBytes: 0, dryRun: dryRun)
         }
         guard fileManager.fileExists(atPath: cacheRoot.path) else {
+            return ToolchainPruneReport(entries: [], freedBytes: 0, dryRun: dryRun)
+        }
+        if !dryRun, minInterval > 0, let last = lastSweep(), now.timeIntervalSince(last) < minInterval {
             return ToolchainPruneReport(entries: [], freedBytes: 0, dryRun: dryRun)
         }
 
@@ -123,12 +139,13 @@ public struct ToolchainCachePruner {
 
         // Execute (or simulate) the deletions, newest-last for a stable report.
         var entries: [ToolchainPruneEntry] = []
+        let resolvedRoot = Self.resolvedPath(of: cacheRoot)  // once, not per deleted leaf
         let doomedLeaves = leaves.filter { doomed.contains($0.url) }.sorted { $0.url.path < $1.url.path }
         for leaf in doomedLeaves {
             let freed = leaf.size
             if !dryRun {
                 do {
-                    try removeWithoutFollowingLinks(leaf.url, isDirectory: false)
+                    try removeWithoutFollowingLinks(leaf.url, isDirectory: false, resolvedRoot: resolvedRoot)
                 } catch {
                     Log.warn("cache", "could not prune \(leaf.url.path): \(error.localizedDescription)")
                     continue
@@ -142,10 +159,13 @@ public struct ToolchainCachePruner {
                 ))
         }
 
-        // Clean up empty directories left behind (skip the root itself).
-        if !dryRun {
-            removeEmptyDirectories(under: cacheRoot)
+        // Clean up empty directories left behind (skip the root itself) —
+        // only deletions can leave one, so a sweep that removed nothing
+        // skips the second tree walk.
+        if !dryRun, !entries.isEmpty {
+            removeEmptyDirectories(under: cacheRoot, resolvedRoot: resolvedRoot)
         }
+        if !dryRun, minInterval > 0 { recordSweep(at: now) }
 
         let freed = entries.reduce(Int64(0)) { $0 + $1.freedBytes }
         if freed > 0 || !entries.isEmpty {
@@ -167,6 +187,28 @@ public struct ToolchainCachePruner {
     }
 
     // MARK: - Internals
+
+    private func lastSweep() -> Date? {
+        // A missing or unreadable marker just means "sweep now".
+        (try? fileManager.attributesOfItem(atPath: sweepMarker.path))?[.modificationDate] as? Date
+    }
+
+    private func recordSweep(at date: Date) {
+        bestEffort("cache", "recording the sweep time") {
+            let data = Data(ISO8601DateFormatter().string(from: date).utf8)
+            try data.write(to: sweepMarker, options: .atomic)
+            try fileManager.setAttributes([.modificationDate: date], ofItemAtPath: sweepMarker.path)
+        }
+    }
+
+    /// The real (symlink-resolved) form of `url`; `resolvingSymlinksInPath`
+    /// strips /private, so ask realpath.
+    static func resolvedPath(of url: URL) -> String? {
+        realpath(url.path, nil).map { pointer -> String in
+            defer { free(pointer) }
+            return String(cString: pointer)
+        }
+    }
 
     /// Recursively collects regenerable leaf units under `root`. Grace
     /// window: leaves touched within the last hour are skipped entirely —
@@ -205,7 +247,7 @@ public struct ToolchainCachePruner {
     }
 
     /// Removes now-empty directories (deepest first), keeping `root` itself.
-    private func removeEmptyDirectories(under root: URL) {
+    private func removeEmptyDirectories(under root: URL, resolvedRoot: String?) {
         var dirs: [URL] = []
         if let enumerator = fileManager.enumerator(at: root, includingPropertiesForKeys: [.isDirectoryKey]) {
             for case let url as URL in enumerator {
@@ -221,7 +263,7 @@ public struct ToolchainCachePruner {
             let contents = (try? fileManager.contentsOfDirectory(atPath: dir.path)) ?? ["keep"]
             if contents.isEmpty {
                 bestEffort("cache", "removing empty directory \(dir.path)") {
-                    try removeWithoutFollowingLinks(dir, isDirectory: true)
+                    try removeWithoutFollowingLinks(dir, isDirectory: true, resolvedRoot: resolvedRoot)
                 }
             }
         }
@@ -235,14 +277,11 @@ public struct ToolchainCachePruner {
     /// from the cache root one component at a time with `O_NOFOLLOW` and unlinks
     /// the final entry relative to its parent descriptor, so a link anywhere on the
     /// path makes the removal fail instead of escaping the cache.
-    func removeWithoutFollowingLinks(_ url: URL, isDirectory: Bool) throws {
+    func removeWithoutFollowingLinks(_ url: URL, isDirectory: Bool, resolvedRoot: String? = nil) throws {
         // The enumerator may report either the root as given or its resolved form
-        // (/var vs /private/var); both name the same trusted root.
-        // (`resolvingSymlinksInPath` strips /private, so ask realpath for the real form.)
-        let resolvedRoot = realpath(cacheRoot.path, nil).map { pointer -> String in
-            defer { free(pointer) }
-            return String(cString: pointer)
-        }
+        // (/var vs /private/var); both name the same trusted root. Callers
+        // removing many entries resolve it once and pass it in.
+        let resolvedRoot = resolvedRoot ?? Self.resolvedPath(of: cacheRoot)
         let prefixes = ([cacheRoot.path] + [resolvedRoot].compactMap { $0 }).map { $0 + "/" }
         guard let prefix = prefixes.first(where: { url.path.hasPrefix($0) }) else {
             throw CocoaError(.fileWriteInvalidFileName)

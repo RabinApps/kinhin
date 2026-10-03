@@ -17,4 +17,24 @@ final class MultiRunnerRegistrationOrderTests: XCTestCase {
         XCTAssertEqual(lines.filter { $0.contains("nohup ./run.sh") }.count, 3)
         XCTAssertEqual(lines.filter { $0.contains("./config.sh --url") }.count, 3)
     }
+
+    func testAllGiteaRunnersAreRegisteredBeforeAnyIsStarted() throws {
+        let scripts = [
+            RunnerBootstrap.giteaRegistrationScript(
+                instance: "https://gitea.example", token: "TOKEN", labels: ["x"], name: "kinhin-1", runnerCount: 3),
+            RunnerBootstrap.linuxGiteaRegistrationScript(
+                instance: "https://gitea.example", token: "TOKEN", labels: ["x"], name: "kinhin-1", runnerCount: 3),
+        ]
+        for script in scripts {
+            let lines = script.split(separator: "\n").map(String.init)
+            let lastRegister = try XCTUnwrap(lines.lastIndex { $0.contains("gitea-runner register") })
+            let firstStart = try XCTUnwrap(lines.firstIndex { $0.contains("gitea-runner daemon") })
+            XCTAssertLessThan(lastRegister, firstStart, "no daemon may start before the last registration")
+            XCTAssertEqual(lines.filter { $0.contains("gitea-runner register") }.count, 3)
+            XCTAssertEqual(lines.filter { $0.contains("gitea-runner daemon") }.count, 3)
+            // Each daemon starts from its own directory.
+            let starts = lines.enumerated().filter { $0.element.contains("gitea-runner daemon") }.map(\.offset)
+            for start in starts { XCTAssertTrue(lines[start - 1].hasPrefix("cd "), lines[start - 1]) }
+        }
+    }
 }

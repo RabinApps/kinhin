@@ -52,8 +52,8 @@ final class GiteaClientTests: XCTestCase {
         do {
             _ = try await makeClient().listRepositories()
             XCTFail("expected unauthorized")
-        } catch let error as GiteaError {
-            XCTAssertEqual(error, .unauthorized)
+        } catch let error as ForgeAPIError {
+            XCTAssertEqual(error, .unauthorized(forge: .gitea))
         }
     }
 
@@ -127,7 +127,7 @@ final class GiteaClientTests: XCTestCase {
         do {
             _ = try await makeClient(scope: "acme").queuedTasks()
             XCTFail("expected decoding error")
-        } catch let error as GiteaError {
+        } catch let error as ForgeAPIError {
             guard case .decoding = error else { return XCTFail("wrong error: \(error)") }
         }
     }

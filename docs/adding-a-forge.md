@@ -41,14 +41,17 @@ commit. Do not commit or push unless asked.
    - `<Name>Credentials` (token, scope, optional instance, `allowInsecureHTTP`) with `static func isValidScope(_:)`.
      Self-hosted forges also get `validate(instance:allowInsecureHTTP:)`.
    - `Decodable` wire models, and a scope type if scopes have structure (`BitbucketScope`).
-   - `<Name>Error: LocalizedError` with actionable text that names the fix (for example `kinhin auth set ...`). Per
-     CONTRIBUTING, one error enum per domain, and this is the new forge's domain enum.
+   - `<Name>Error: LocalizedError` with actionable text that names the fix (for example `kinhin auth set ...`), carrying
+     only what is forge-specific: a malformed instance URL, missing scopes, an unknown pool. The HTTP-shaped failures
+     (401, 403, 404, other statuses, decoding) come from the shared transport as `ForgeAPIError`, whose per-forge
+     remediation text lives in one table there — extend that table, not a new enum.
 3. **`<Name>Client.swift`**: `struct <Name>Client: Sendable`.
    - Build the session with `ForgeHTTP.session(session)`, which carries the redirect and insecure-http guards. For
      self-hosted forges also use `ForgeHTTP.permitsScheme(of:allowInsecureHTTP:)`.
-   - Wrap sends in `withTransientRetry`, with transient checks from `ForgeHTTP` (`isTransientStatus`,
-     `isTransientNetworkError`).
-   - Map 401, 403, 404 and other statuses to your error enum.
+   - Hold one `ForgeTransport` (session, your `ForgeID`, the forge's `Authorization` scheme) and send every request
+     through it: it applies the auth header, retries transient failures (network errors, 429, 5xx) with backoff, and
+     maps 401, 403, 404 and other statuses to `ForgeAPIError`. The client keeps URL construction, pagination and
+     decoding. A forge-specific response quirk rides the transport's `classify` hook (see Azure's sign-in pages).
    - Validate pagination `next` links against the API host by comparing parsed hosts, not string prefixes
      (`BitbucketClient.isTrustedPageLink`). Never send the token to another host.
    - Methods: verify scope or token, list, create and delete runners, list queued and running jobs, and
@@ -77,7 +80,7 @@ commit. Do not commit or push unless asked.
 6. **`TokenHealthCheck.swift`**: add `public static func <id>(token:scope:...) async -> Report`, then fill in the
    exhaustive switches: `check(forge:config:keychainToken:...)`, `account(_:token:)` and
    `repositories(forge:token:instance:allowInsecureHTTP:)`.
-7. **`Core/ErrorCategory.swift`**: add `is <Name>Error` to the `.auth` case list.
+7. **`Core/ErrorCategory.swift`**: add `is <Name>Error` to the `.auth` case list (`ForgeAPIError` is already there).
 
 ### B. Config (`Sources/KinhinKit/Config/`)
 
@@ -157,7 +160,7 @@ The runner has to be installed (in the base image, or on the host) and started f
 
 25. `Tests/KinhinKitTests/Forges/`
     - `<Name>ClientTests`: against `StubProtocol`. Cover the auth header, list, create and delete runner, 404 on delete,
-      scope verify, demand, pagination, `isTransient`, and `ErrorCategory`.
+      scope verify, demand, pagination, `ForgeTransport.isTransient`, and `ErrorCategory`.
     - `<Name>ForgeTests`: the `Forge` surface and credential-bundle capture.
     - `<Name>PipelineDetailTests`, and a `<Name>` case in `PipelineLogFetchTests`.
     - `ForgeTransportTests` for untrusted page-link hosts, and `TokenRequirementsTests`.

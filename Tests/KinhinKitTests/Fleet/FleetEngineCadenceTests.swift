@@ -45,6 +45,32 @@ final class FleetEngineCadenceTests: XCTestCase {
         XCTAssertFalse(engine.runState.withLock { $0.pollNow }, "the request is consumed")
     }
 
+    /// A wait already in progress is woken at once, not on a poll tick.
+    func testPollSoonWakesASleepingWaitImmediately() async throws {
+        let engine = makeEngine(github: FakeGitHub())
+        let clock = ContinuousClock()
+        let waiter = Task { try await clock.measure { try await engine.waitForNextPass(seconds: 60) } }
+        try await Task.sleep(for: .milliseconds(100))  // let it go to sleep
+        engine.pollSoon()
+        let elapsed = try await waiter.value
+        XCTAssertLessThan(elapsed, .milliseconds(900), "woken immediately, not on a 1s poll tick")
+    }
+
+    func testWaitForNextPassEndsAtItsDeadlineAndHonoursCancellation() async throws {
+        let engine = makeEngine(github: FakeGitHub())
+        let clock = ContinuousClock()
+        let elapsed = try await clock.measure { try await engine.waitForNextPass(seconds: 1) }
+        XCTAssertGreaterThanOrEqual(elapsed, .milliseconds(900))
+
+        let waiter = Task { try await engine.waitForNextPass(seconds: 60) }
+        try await Task.sleep(for: .milliseconds(50))
+        waiter.cancel()
+        do {
+            try await waiter.value
+            XCTFail("a cancelled wait must throw")
+        } catch is CancellationError {}
+    }
+
     func testResumingRequestsAPassNow() async {
         let engine = makeEngine(github: FakeGitHub())
         await engine.setPaused(true)

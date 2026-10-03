@@ -8,12 +8,13 @@ enum CleanupCommand {
     struct Plan: Equatable {
         /// Runner VMs (`kinhin-*`, or the pre-rename `orchard-*`) tart still holds.
         var vms: [String] = []
-        /// The configured base image, when it exists locally and `--image` was given.
-        var image: String?
+        /// The configured base image and any named `images:` entries, when they
+        /// exist locally and `--image` was given.
+        var images: [String] = []
         /// Whether to empty the toolchain cache, and how many bytes it holds.
         var cacheBytes: Int64?
 
-        var isEmpty: Bool { vms.isEmpty && image == nil && cacheBytes == nil }
+        var isEmpty: Bool { vms.isEmpty && images.isEmpty && cacheBytes == nil }
     }
 
     struct Selection: Equatable {
@@ -40,10 +41,20 @@ enum CleanupCommand {
     static func run(_ args: [String]) async throws {
         let selection = Selection(args: args)
         let confirmed = hasFlag("--yes", in: args)
-        let config = (try? ConfigLoader.load()) ?? KinhinConfig.default
+        // Cleanup must work even when the config is broken (that may be why it
+        // is being run), so a broken config degrades to the default — but it
+        // says so, instead of silently guessing which images are configured.
+        let config: KinhinConfig
+        do {
+            config = try ConfigLoader.load()
+        } catch {
+            warn("could not read the config (\(error.localizedDescription)); only the default image name is considered")
+            config = KinhinConfig.default
+        }
         let tart = try? TartController(configuredPath: config.tartPath)
         let plan = try await makePlan(
-            selection: selection, tart: tart, baseImage: config.image, cacheRoot: Paths.toolchainCache)
+            selection: selection, tart: tart, baseImage: config.image,
+            namedImages: config.images.map(\.name), cacheRoot: Paths.toolchainCache)
 
         if plan.isEmpty {
             print("nothing to clean up")
@@ -60,18 +71,22 @@ enum CleanupCommand {
     }
 
     static func makePlan(
-        selection: Selection, tart: (any TartControlling)?, baseImage: String, cacheRoot: URL
+        selection: Selection, tart: (any TartControlling)?, baseImage: String, namedImages: [String] = [],
+        cacheRoot: URL
     ) async throws -> Plan {
         var plan = Plan()
+        // Named `images:` entries are baked tart images too: they are never
+        // runner VMs, and `--image` offers them alongside the base image.
+        let baked = [baseImage] + namedImages
         if selection.vms || selection.image, let tart {
             let local = try await tart.list()
             if selection.vms {
                 plan.vms = local.map(\.name)
-                    .filter { ($0.hasPrefix("kinhin-") || $0.hasPrefix("orchard-")) && $0 != baseImage }
+                    .filter { ($0.hasPrefix("kinhin-") || $0.hasPrefix("orchard-")) && !baked.contains($0) }
                     .sorted()
             }
-            if selection.image, local.contains(where: { $0.name == baseImage }) {
-                plan.image = baseImage
+            if selection.image {
+                plan.images = baked.filter { name in local.contains(where: { $0.name == name }) }
             }
         }
         if selection.cache {
@@ -88,8 +103,9 @@ enum CleanupCommand {
         if !plan.vms.isEmpty {
             lines.append("\(verb) \(plan.vms.count) runner VM(s): \(plan.vms.joined(separator: ", "))")
         }
-        if let image = plan.image {
-            lines.append("\(verb) the base image '\(image)' (re-create it with `kinhin image prepare`)")
+        if !plan.images.isEmpty {
+            lines.append(
+                "\(verb) image(s): \(plan.images.joined(separator: ", ")) (re-create them with `kinhin image prepare`)")
         }
         if let bytes = plan.cacheBytes {
             lines.append(
@@ -105,7 +121,9 @@ enum CleanupCommand {
                 try? await tart.stop(name: vm)  // not running (or already stopped) is exactly what we want
                 try await tart.delete(name: vm)
             }
-            if let image = plan.image { try await tart.delete(name: image) }
+            if !plan.images.isEmpty {
+                for image in plan.images { try await tart.delete(name: image) }
+            }
         }
         if plan.cacheBytes != nil {
             // Remove the contents, not the directory itself: guests mount it.

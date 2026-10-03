@@ -16,8 +16,8 @@ public enum ErrorCategory: Equatable, Sendable {
         switch error {
         case is ConfigError, is ConfigEditError:
             self = .config
-        case is GitHubError, is GiteaError, is GitLabError, is BuildkiteError, is AzureDevOpsError,
-            is BitbucketError, is KeychainTokenStore.TokenError:
+        case is GitHubError, is ForgeAPIError, is GiteaError, is GitLabError, is BuildkiteError,
+            is AzureDevOpsError, is BitbucketError, is KeychainTokenStore.TokenError:
             self = .auth
         case is TartError, is ImageError, is RuntimeWatchError, is ContainerManagerError, is EngineError,
             is Daemon.DaemonError, is RPCError, is ShellError, is RuntimeInstallerError:

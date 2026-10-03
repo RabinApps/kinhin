@@ -1,3 +1,5 @@
+import Observation
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -303,13 +305,13 @@ final class FleetControllerTests: XCTestCase {
     }
 
     func testNeverAdoptsADaemonWhileTheAppHasItsOwnBackend() async {
-        var probes = 0
+        let probes = Mutex(0)
         fleet.daemonProbe = {
-            probes += 1
+            probes.withLock { $0 += 1 }
             return true
         }
         await fleet.refresh()
-        XCTAssertEqual(probes, 0, "an existing backend is never swapped for a daemon")
+        XCTAssertEqual(probes.withLock { $0 }, 0, "an existing backend is never swapped for a daemon")
     }
 
     func testNoDaemonLeavesNeedsSetup() async {
@@ -317,5 +319,65 @@ final class FleetControllerTests: XCTestCase {
         await fleet.refresh()
         XCTAssertNil(fleet.service)
         XCTAssertEqual(fleet.statusLine, "Needs setup — open the Setup tab")
+    }
+
+    // MARK: - Republishing and cadence
+
+    /// An @Observable setter notifies on every write; the controller only
+    /// writes when the answer differs, so an idle fleet re-renders nothing.
+    func testAnEqualStatusIsNotRepublished() async {
+        fake.status = FleetStatus(running: true)
+        let changes = Mutex(0)
+        @MainActor func track(_ fleet: FleetController) {
+            withObservationTracking {
+                _ = fleet.status
+            } onChange: {
+                changes.withLock { $0 += 1 }
+            }
+        }
+        await fleet.refresh()  // nil -> status: a real change
+        track(fleet)
+        await fleet.refresh()
+        await fleet.refresh()
+        XCTAssertEqual(changes.withLock { $0 }, 0, "same status: no observation fires")
+
+        fake.status = FleetStatus(running: false)
+        await fleet.refresh()
+        XCTAssertEqual(changes.withLock { $0 }, 1, "a different status does")
+        XCTAssertEqual(fleet.status?.running, false)
+    }
+
+    func testUsageIsOnlySampledWhileASurfaceIsShowingIt() async {
+        await fleet.refresh()
+        fleet.setMenuOpen(true)
+        await fleet.refresh()
+        fleet.setMenuOpen(false)
+        fleet.setMainWindowVisible(true)
+        await fleet.refresh()
+        fleet.setMainWindowVisible(false)
+        await fleet.refresh()
+        XCTAssertEqual(fake.usageFlagsSeen, [false, true, true, false])
+    }
+
+    func testPollCadenceFollowsVisibility() {
+        XCTAssertEqual(fleet.currentPollInterval, fleet.idleInterval)
+        XCTAssertGreaterThan(fleet.idleInterval, fleet.activeInterval)
+        fleet.setMainWindowVisible(true)
+        XCTAssertEqual(fleet.currentPollInterval, fleet.activeInterval)
+        fleet.setMenuOpen(true)
+        fleet.setMainWindowVisible(false)
+        XCTAssertEqual(fleet.currentPollInterval, fleet.activeInterval, "an open menu keeps it fast")
+        fleet.setMenuOpen(false)
+        XCTAssertEqual(fleet.currentPollInterval, fleet.idleInterval)
+    }
+
+    /// Opening a surface cuts a long idle wait short: it is looked at now.
+    func testOpeningASurfaceWakesTheIdlePollImmediately() async {
+        fleet.idleInterval = .seconds(60)
+        fleet.activeInterval = .seconds(60)
+        fleet.startPolling()
+        await waitUntil("first poll") { self.fake.calls.filter { $0 == "status" }.count == 1 }
+        fleet.setMenuOpen(true)
+        await waitUntil("woken poll") { self.fake.calls.filter { $0 == "status" }.count == 2 }
     }
 }

@@ -18,7 +18,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Tracks the main window's visibility so the activation policy can be
     /// re-evaluated when it opens and closes.
-    var isMainWindowVisible = false
+    var isMainWindowVisible = false {
+        didSet { fleet.setMainWindowVisible(isMainWindowVisible) }
+    }
+    /// The last state `renderFleetState` drew (and into which menu), so an
+    /// unchanged poll renders nothing.
+    var lastRenderedMenuState: MenuViewState?
+    var lastRenderedMenuIdentity: ObjectIdentifier?
     /// A quit is waiting for the engine to stop (a second quit just waits too).
     private var isShuttingDown = false
 
@@ -101,18 +107,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // First-run convenience: materialize the starter config (never
         // overwriting). The checklist still asks for a real repo, so this
         // can't mask an unfinished setup.
-        if ConfigLoader.createIfMissing() {
+        // The probes below read files and ping a socket: off the main actor.
+        let created = await Task.detached { ConfigLoader.createIfMissing() }.value
+        if created {
             Log.info("app", "first run: wrote starter config at \(Paths.config.path)")
         }
         // Attach to daemon when one is running; otherwise run the engine in-process.
-        if RPCClient.isDaemonAlive() {
+        let daemonAlive = await Task.detached { RPCClient.isDaemonAlive() }.value
+        // A broken config stays a broken config for the wizard to surface;
+        // loading it here is only a fast-path gate for "skip onboarding".
+        let loadedConfig: KinhinConfig? =
+            daemonAlive
+            ? nil
+            : await Task.detached { () -> KinhinConfig? in
+                guard FileManager.default.fileExists(atPath: Paths.config.path) else { return nil }
+                return try? ConfigLoader.load()
+            }.value
+        if daemonAlive {
             fleet.backend = .daemon(RPCClient())
             setupIncomplete = false
             Log.info("app", "attaching to running daemon")
-        } else if FileManager.default.fileExists(atPath: Paths.config.path),
-            // A broken config stays a broken config for the wizard to surface;
-            // loading it here is only a fast-path gate for "skip onboarding".
-            let cfg = try? ConfigLoader.load(),
+        } else if let cfg = loadedConfig,
             // A template config (placeholder repo, no gitea:) is not a
             // working config — keep onboarding up instead of booting a
             // fleet against "your-org/your-repo".

@@ -39,25 +39,36 @@ public struct CLTProbe: Sendable {
     public struct Commands: Sendable {
         var selectedDir: String
         var receiptInfo: String
-        var productVersion: String
 
         public init(
             selectedDir: String = "xcode-select -p",
-            receiptInfo: String = "pkgutil --pkg-info=com.apple.pkg.CLTools_Executables",
-            productVersion: String = "sw_vers -productVersion"
+            receiptInfo: String = "pkgutil --pkg-info=com.apple.pkg.CLTools_Executables"
         ) {
             self.selectedDir = selectedDir
             self.receiptInfo = receiptInfo
-            self.productVersion = productVersion
         }
     }
 
     let shell: ShellRunning
     let commands: Commands
+    /// The running macOS version as `sw_vers -productVersion` prints it
+    /// ("27.0", "26.6.1"); read in-process, no spawn.
+    let osVersion: @Sendable () -> String
 
-    public init(shell: ShellRunning = Shell(), commands: Commands = .init()) {
+    public init(
+        shell: ShellRunning = Shell(), commands: Commands = .init(),
+        osVersion: @escaping @Sendable () -> String = CLTProbe.currentOSVersion
+    ) {
         self.shell = shell
         self.commands = commands
+        self.osVersion = osVersion
+    }
+
+    /// `major.minor`, plus `.patch` only when non-zero (sw_vers's shape).
+    public static func currentOSVersion() -> String {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let base = "\(version.majorVersion).\(version.minorVersion)"
+        return version.patchVersion > 0 ? "\(base).\(version.patchVersion)" : base
     }
 
     /// "26.6.0.0.1781586589" → "26.6.0" (strip build suffix).
@@ -118,10 +129,7 @@ public struct CLTProbe: Sendable {
         }
 
         // 3. Compare the receipt version against the running macOS version.
-        let macOS =
-            await run(commands.productVersion).map {
-                $0.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-            } ?? "0.0"
+        let macOS = osVersion()
         let clt = Self.displayVersion(receiptVersion)
         if Self.isVersion(clt, atLeast: macOS) {
             return .ok(version: clt)

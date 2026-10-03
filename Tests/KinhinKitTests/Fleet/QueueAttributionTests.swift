@@ -325,12 +325,4 @@ final class QueueAttributionTests: XCTestCase {
 
     // MARK: - Helpers
 
-    func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if await condition() { return }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        XCTFail("condition not met within \(timeout)s")
-    }
 }

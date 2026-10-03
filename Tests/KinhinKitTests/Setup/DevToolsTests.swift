@@ -12,16 +12,13 @@ final class DevToolsTests: XCTestCase {
     /// Builds a FakeShell whose argv-matched answers cover the probe's
     /// `/bin/bash -c <command>` calls (keyed by a substring of the command).
     private func scriptedShell(
-        receipt: ShellResult, selected: ShellResult, productVersion: String
+        receipt: ShellResult, selected: ShellResult
     ) -> FakeShell {
         let shell = FakeShell()
         shell.scriptedResponses = [
             ScriptedResponse(
                 whenContains: "pkg-info=com.apple.pkg.CLTools_Executables", receipt),
             ScriptedResponse(whenContains: "xcode-select", selected),
-            ScriptedResponse(
-                whenContains: "sw_vers",
-                ShellResult(exitCode: 0, stdout: productVersion + "\n", stderr: "")),
         ]
         return shell
     }
@@ -43,13 +40,20 @@ final class DevToolsTests: XCTestCase {
             shell: scriptedShell(
                 receipt: receiptResult ?? receipt("27.0.0.0.0"),
                 selected: selectedResult
-                    ?? ShellResult(exitCode: 0, stdout: "/Library/Developer/CommandLineTools\n", stderr: ""),
-                productVersion: productVersion
-            )
+                    ?? ShellResult(exitCode: 0, stdout: "/Library/Developer/CommandLineTools\n", stderr: "")
+            ),
+            osVersion: { productVersion }
         )
     }
 
     // MARK: - Version math
+
+    /// The OS version is read in-process (no `sw_vers` spawn) in sw_vers's shape.
+    func testCurrentOSVersionMatchesSwVersShape() {
+        let version = CLTProbe.currentOSVersion()
+        XCTAssertTrue(version.range(of: #"^\d+\.\d+(\.\d+)?$"#, options: .regularExpression) != nil, version)
+        XCTAssertTrue(version.hasPrefix("\(ProcessInfo.processInfo.operatingSystemVersion.majorVersion)."))
+    }
 
     func testDisplayVersionStripsBuildSuffix() {
         XCTAssertEqual(CLTProbe.displayVersion("26.6.0.0.1781586589"), "26.6.0")

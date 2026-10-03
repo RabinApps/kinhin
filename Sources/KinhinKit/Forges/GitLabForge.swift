@@ -173,7 +173,7 @@ final class GitLabRunnerSnapshot: Sendable {
         self.list = SharedListCache(ttl: ttl)
     }
 
-    func runners(fetch: () async throws -> [GitLabRunner]) async throws -> [GitLabRunner] {
+    func runners(fetch: @escaping @Sendable () async throws -> [GitLabRunner]) async throws -> [GitLabRunner] {
         try await list.elements(fetch: fetch)
     }
 

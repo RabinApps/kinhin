@@ -121,6 +121,19 @@ public struct SetupStatusComputer: Sendable {
     /// identically and can never disagree.
 
     public func compute() async -> SetupStatus {
+        await computeDetailed().status
+    }
+
+    /// The checklist plus what its probes learned, so a caller that needs the
+    /// same facts (the doctor's base-image section) does not probe again.
+    struct Detailed: Sendable {
+        let status: SetupStatus
+        /// The local tart VMs the image row listed; nil when tart was not
+        /// listed (unhealthy, no config, or the listing failed).
+        let tartVMs: [TartVM]?
+    }
+
+    func computeDetailed() async -> Detailed {
         // Resolve the config scenario once. Every branch below reads the
         // evaluation — never the real filesystem — so tests stay hermetic.
         let evaluation = Self.resolve(config)
@@ -128,21 +141,38 @@ public struct SetupStatusComputer: Sendable {
         if case .parsed(let cfg) = evaluation { parsed = cfg }
 
         let realHost = host ?? ResourceProbe().snapshot()
-        let realCLT: CLTState
-        if let clt {
-            realCLT = clt
-        } else {
-            realCLT = await CLTProbe().check()
-        }
-        let health: TartHealth
-        if let tartHealth {
-            health = tartHealth
-        } else {
-            health = await TartHealthProbe(configuredPath: parsed?.tartPath).check()
-        }
-
         let facts = HostFacts(
             resources: realHost, osVersion: osVersion ?? ProcessInfo.processInfo.operatingSystemVersion)
+
+        // The probes that depend on nothing else start together: each is a
+        // process spawn or a daemon round trip, so running them in sequence
+        // added their latencies. Rows are still appended in the fixed order
+        // below.
+        let injectedCLT = clt
+        let injectedTartHealth = tartHealth
+        let tartPath = parsed?.tartPath
+        async let cltProbe: CLTState = {
+            if let injectedCLT { return injectedCLT }
+            return await CLTProbe().check()
+        }()
+        async let healthProbe: TartHealth = {
+            if let injectedTartHealth { return injectedTartHealth }
+            return await TartHealthProbe(configuredPath: tartPath).check()
+        }()
+        async let containerProbe: [SetupCheckResult] = {
+            guard case .parsed(let cfg) = evaluation, cfg.container != nil else { return [] }
+            return await containerChecks(cfg, facts: facts)
+        }()
+        async let dockerProbe: [SetupCheckResult] = {
+            guard case .parsed(let cfg) = evaluation, cfg.docker != nil else { return [] }
+            return await dockerChecks(cfg, facts: facts)
+        }()
+        async let hostProbe: [SetupCheckResult] = {
+            guard case .parsed(let cfg) = evaluation, cfg.hostRoutesConfigured else { return [] }
+            return await hostAgentChecks()
+        }()
+        let realCLT = await cltProbe
+        let health = await healthProbe
         var checks: [SetupCheckResult] = []
 
         // 1. Host
@@ -233,6 +263,7 @@ public struct SetupStatusComputer: Sendable {
         var imageOK = false
         var imageDetail = "run after tart is installed"
         var localTartVMs: [TartVM] = []
+        var listedTartVMs: [TartVM]?
         if !tartHealthy {
             imageDetail = health == .missing ? "run after tart is installed" : "could not launch tart"
         } else if let cfg = parsed {
@@ -251,6 +282,7 @@ public struct SetupStatusComputer: Sendable {
             }
             if let images {
                 localTartVMs = images
+                listedTartVMs = images
                 imageOK = images.contains { $0.name == cfg.image || $0.source == cfg.image }
                 imageDetail = imageOK ? "image '\(cfg.image)' found" : "image '\(cfg.image)' not local yet"
             } else {
@@ -277,22 +309,16 @@ public struct SetupStatusComputer: Sendable {
 
         // 7. Apple-container runtime — rows appear only when the config
         // enables the container runtime, mirroring the gitea-token row.
-        if case .parsed(let cfg) = evaluation, cfg.container != nil {
-            checks += await containerChecks(cfg, facts: facts)
-        }
+        checks += await containerProbe
 
         // 8. Docker runtime — rows appear only when the config declares a
         // `docker:` section, mirroring the container rows above.
-        if case .parsed(let cfg) = evaluation, cfg.docker != nil {
-            checks += await dockerChecks(cfg, facts: facts)
-        }
+        checks += await dockerProbe
 
         // 8b. Host runtime — the row appears only when a route targets
         // `host`. The agent must be installed, and the detail keeps the
         // "unisolated" disclosure in front of the user.
-        if case .parsed(let cfg) = evaluation, cfg.hostRoutesConfigured {
-            checks += await hostAgentChecks()
-        }
+        checks += await hostProbe
 
         // 9. Shared toolchain cache — advisory row for the host cache that
         // prepare writes through and runners bind when share_cache is on.
@@ -315,6 +341,7 @@ public struct SetupStatusComputer: Sendable {
         let linuxOnly = health == .missing && (parsed?.hasLinuxRuntime ?? false)
         let macOnlyIDs: Set<String> = ["clt", "tart", "image", "base-image"]
         let gating = checks.filter { !(linuxOnly && macOnlyIDs.contains($0.id)) }
-        return SetupStatus(ready: gating.allSatisfy(\.ok), checks: checks)
+        return Detailed(
+            status: SetupStatus(ready: gating.allSatisfy(\.ok), checks: checks), tartVMs: listedTartVMs)
     }
 }

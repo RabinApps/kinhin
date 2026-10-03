@@ -16,7 +16,14 @@ final class FleetControllerConfigPushTests: XCTestCase {
     private var url: URL!
     private var fleet: FleetController!
     private var builds: BuildLog!
-    private var tokenAnswer: Result<String?, Error> = .success("ghp_test")
+    private final class AnswerBox: Sendable {
+        let value = Mutex<Result<String?, Error>>(.success("ghp_test"))
+    }
+    private let tokenAnswerBox = AnswerBox()
+    private var tokenAnswer: Result<String?, Error> {
+        get { tokenAnswerBox.value.withLock { $0 } }
+        set { tokenAnswerBox.value.withLock { $0 = newValue } }
+    }
 
     override func setUp() async throws {
         try await super.setUp()
@@ -30,7 +37,8 @@ final class FleetControllerConfigPushTests: XCTestCase {
         fleet = FleetController()
         fleet.configURL = url
         fleet.hostSnapshot = { [host] in host }
-        fleet.engineToken = { [unowned self] _ in try tokenAnswer.get() }
+        let answer = tokenAnswerBox
+        fleet.engineToken = { _ in try answer.value.withLock { $0 }.get() }
     }
 
     override func tearDown() async throws {

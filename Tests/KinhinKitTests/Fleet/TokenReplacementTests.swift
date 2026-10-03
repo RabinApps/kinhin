@@ -236,12 +236,4 @@ final class TokenReplacementTests: XCTestCase {
         XCTAssertEqual(status.checks.first { $0.id == "account-token-github" }?.action, "enter_account_token")
     }
 
-    func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if await condition() { return }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        XCTFail("condition not met within \(timeout)s")
-    }
 }

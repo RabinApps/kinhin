@@ -123,7 +123,7 @@ final class OrgPermissionTests: XCTestCase {
         let engine = makeEngine(github: github, tart: tart)
 
         await engine.start()
-        try await Task.sleep(nanoseconds: 500_000_000)
+        try await waitUntil(timeout: 10) { await engine.status().lastError != nil }
 
         let status = await engine.status()
         XCTAssertFalse(status.running, "engine must not run without permission")
@@ -139,7 +139,7 @@ final class OrgPermissionTests: XCTestCase {
         let engine = makeEngine(github: github)
 
         await engine.start()
-        try await Task.sleep(nanoseconds: 500_000_000)
+        try await waitUntil(timeout: 10) { await engine.status().queuePolledAt != nil }
 
         let status = await engine.status()
         XCTAssertTrue(status.running)

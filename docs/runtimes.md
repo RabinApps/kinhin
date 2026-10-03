@@ -42,9 +42,11 @@ images:
 ```
 
 Build them with `kinhin image prepare --image xcode`, or `kinhin image prepare --all` to build `image:` and every
-`images:` entry one after another. In the app, use **More images** in the macOS card: each entry has its own base-image
-picker (including the Xcode images), a status line, **Prepare** / **Rebuild…** and **Remove**, and **Add image** creates
-a new one. Rebuilding an image only discards the per-project images derived from that image.
+`images:` entry one after another (each bake is disk-heavy). A `--source` or `--target` names one image, so it cannot be
+combined with `--all`; `--runner-version` pins the runner agents in every baked image. In the app, use **More images** in
+the macOS card: each entry has its own base-image picker (including the Xcode images), a status line, **Prepare** /
+**Rebuild…** and **Remove**, and **Add image** creates a new one. Rebuilding an image only discards the per-project
+images derived from that image.
 
 Names must be letters, numbers, `.`, `_` or `-`, differ from `image:` and from each other, and must not start with
 `kinhin-` or `orchard-`: those names are how kinhin recognises runner VMs, so it would clean them up. Removing an entry

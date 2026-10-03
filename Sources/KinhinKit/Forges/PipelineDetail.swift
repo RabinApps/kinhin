@@ -162,12 +162,19 @@ enum PipelineParsing {
     /// ISO-8601 with or without fractional seconds (forges differ).
     static func date(_ string: String?) -> Date? {
         guard let string else { return nil }
-        let plain = ISO8601DateFormatter()
-        if let date = plain.date(from: string) { return date }
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return fractional.date(from: string)
+        // Fractional seconds are the common shape in job logs; plain is the fallback.
+        if string.utf8.contains(UInt8(ascii: ".")), let date = fractionalFormatter.date(from: string) { return date }
+        return plainFormatter.date(from: string) ?? fractionalFormatter.date(from: string)
     }
+
+    /// Shared formatters (allocating one per call was visible per log line).
+    /// `ISO8601DateFormatter` is thread-safe for parsing.
+    nonisolated(unsafe) private static let plainFormatter = ISO8601DateFormatter()
+    nonisolated(unsafe) private static let fractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     /// The state for a status/conclusion pair as GitHub-style APIs report it.
     static func state(status: String?, conclusion: String?) -> PipelineStepState {

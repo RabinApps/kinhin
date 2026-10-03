@@ -34,6 +34,7 @@ final class ContainersModel {
     private(set) var status = StatusLine(text: "")
     private(set) var busy = false
     private var installed: [ContainerTool] = []
+    @ObservationIgnored private var refreshingUsage = false
 
     /// The tools the picker offers: the installed ones, or all of them when
     /// none is (so the "isn't installed" message still has a tool to name).
@@ -92,8 +93,12 @@ final class ContainersModel {
     /// Re-reads only the live CPU/RAM numbers (the Containers tab calls this
     /// every few seconds while visible). Best effort; skipped while a reload
     /// or action is in flight and when nothing is running.
+    /// A tick is skipped while the previous one is still running (a slow
+    /// `docker stats` must not pile up overlapping calls).
     func refreshUsage() async {
-        guard !busy, tool.isInstalled, containers.contains(where: \.isRunning) else { return }
+        guard !busy, !refreshingUsage, tool.isInstalled, containers.contains(where: \.isRunning) else { return }
+        refreshingUsage = true
+        defer { refreshingUsage = false }
         usage = (try? await makeManager(tool).stats()) ?? usage
     }
 

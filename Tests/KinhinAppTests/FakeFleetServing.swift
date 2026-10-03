@@ -81,6 +81,15 @@ final class FakeFleetServing: FleetServing {
         }
     }
 
+    /// The `includeUsage` flag of each `status(includeUsage:)` poll, in order.
+    private let usageFlags = Mutex<[Bool]>([])
+    var usageFlagsSeen: [Bool] { usageFlags.withLock { $0 } }
+
+    func status(includeUsage: Bool) async throws -> FleetStatus {
+        usageFlags.withLock { $0.append(includeUsage) }
+        return try await status()
+    }
+
     func status() async throws -> FleetStatus {
         state.withLock { $0.calls.append("status") }
         if gatesStatus { await waitForGate() }

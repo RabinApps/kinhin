@@ -19,17 +19,29 @@ extension FleetEngine {
     func resolveProjectImages(for jobs: [ForgeJob], forge: Forge) async -> ProjectImageDemand {
         var result = ProjectImageDemand()
         let projects = projectsState.withLock { $0 }
-        guard !projects.isEmpty || !config.images.isEmpty else { return result }
+        let images = images
+        guard !projects.isEmpty || !images.isEmpty else { return result }
         let model = routing
+        // Jobs on a named image are counted straight away; the rest need their
+        // repository's toolchains resolved. Those lookups (repo file reads)
+        // run concurrently, bounded, then the results are applied in job
+        // order so the bake requests and notices stay deterministic.
+        var candidates: [ForgeJob] = []
         for job in jobs where model.runtime(for: job) == .tart {
             // A job that requests a named image's labels runs on that image; per-project
             // toolchain images are derived from the main image only, so they do not apply.
-            if let named = ImageRouting.image(for: job.labels, in: config.images) {
+            if let named = ImageRouting.image(for: job.labels, in: images) {
                 result.byImage[named.name, default: 0] += 1
                 continue
             }
-            guard !projects.isEmpty else { continue }
-            let resolution = await projectSource.resolve(job: job, forge: forge, projects: projects)
+            if !projects.isEmpty { candidates.append(job) }
+        }
+        let source = projectSource
+        let resolutions = try? await boundedMap(candidates, limit: 4) { job in
+            await source.resolve(job: job, forge: forge, projects: projects)
+        }
+        guard let resolutions else { return result }  // cancelled mid-lookup
+        for (job, resolution) in zip(candidates, resolutions) {
             if let warning = resolution.warning { Log.warn("engine", warning) }
             guard let toolchains = resolution.toolchains else { continue }
             let availability = await projectImages.request(toolchains: toolchains, shareCache: resolution.shareCache)

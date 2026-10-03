@@ -22,19 +22,11 @@ final class FleetEdgeTests: XCTestCase {
             store: makeTestStore(),
             ssh: ssh,
             host: testHost,
-            dependencies: .init(hostProbe: {
-                HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: freeDisk.value, arm64: true)
-            })
+            dependencies: .init(
+                hostProbe: {
+                    HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: freeDisk.value, arm64: true)
+                }, exitWatchInterval: .milliseconds(20))
         )
-    }
-
-    func waitUntil(timeout: TimeInterval, _ condition: () async -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if await condition() { return }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        XCTFail("condition not met within \(timeout)s")
     }
 
     // MARK: - Disk-pressure guard
@@ -58,6 +50,32 @@ final class FleetEdgeTests: XCTestCase {
         freeDisk.set(200)
         try await engine.reconcileOnce()
         try await waitUntil(timeout: 10) { tart.cloneCalls.count == 2 }
+    }
+
+    /// One host probe per pass, whatever the burst size; each planned VM
+    /// subtracts its own share, so a burst still cannot overrun the disk.
+    func testHostIsProbedOncePerPassAndPlannedVMsConsumeDisk() async throws {
+        let probes = Mutex(0)
+        var cfg = makeTestConfig()
+        cfg.maxRunners = 5
+        cfg.diskGB = 30  // 30 + 10 reserve = 40 needed per spawn
+        let github = FakeGitHub()
+        github.queueDepth = 5
+        let tart = FakeTart()
+        let engine = FleetEngine(
+            config: cfg, github: github, tart: tart, store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            dependencies: .init(
+                hostProbe: {
+                    probes.withLock { $0 += 1 }
+                    // Room for one (needs 40): after it 30 GB remain, short of the next one's 40.
+                    return HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 60, arm64: true)
+                }, spawnStagger: .zero, exitWatchInterval: .milliseconds(20)))
+
+        try await engine.reconcileOnce()
+        XCTAssertEqual(probes.withLock { $0 }, 1, "probed once for the whole pass")
+        XCTAssertEqual(engine.store.all.count, 1, "the first VM's share is subtracted: the second is held")
+        let status = await engine.status()
+        XCTAssertTrue(status.lastError?.contains("disk pressure") ?? false)
     }
 
     func testDiskGuardCountsExplicitDiskGB() async throws {
@@ -241,8 +259,10 @@ final class FleetEdgeTests: XCTestCase {
             return runners?.first { $0.name == id }?.busy == true
         }
 
-        // Long-lived runner: the VM must survive job completion.
-        try await Task.sleep(nanoseconds: 2_000_000_000)
+        // Long-lived runner: the VM must survive job completion. Nothing is
+        // watching it (that is the assertion), so a few ephemeral-watch
+        // intervals of quiet is enough.
+        try await Task.sleep(for: .milliseconds(300))
         let still = await engine.status().records.first { $0.id == id }
         XCTAssertEqual(still?.phase, .ready, "non-ephemeral VM persists beyond job completion")
 
