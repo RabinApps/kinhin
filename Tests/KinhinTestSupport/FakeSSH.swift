@@ -14,10 +14,22 @@ final class FakeSSH: SSHExecuting, Sendable {
         /// call index fails — lets tests fail a later step (e.g. the user
         /// provision script) while earlier steps succeed.
         var failOnCall: Int?
+        /// When set, every exec before this instant fails with `failWith`
+        /// and later execs succeed — models a guest whose sshd comes up
+        /// late (independent of call index).
+        var failUntil: Date?
         /// stdout returned per exec, by zero-based call index; other calls
         /// answer the default ("runner started"). The image bake's first
         /// exec is the `uname -s` guest probe ("Linux"/"Darwin").
         var stdoutByCall: [Int: String] = [:]
+        /// stderr returned per exec, by zero-based call index; takes
+        /// precedence over `failWith`/`failOnCall` — lets a test fail one
+        /// call with a specific error (e.g. a retryable SSH timeout) while
+        /// the others succeed.
+        var stderrByCall: [Int: String] = [:]
+        /// When set, every exec before this instant fails with `failWith`
+        /// and later execs succeed — models a guest whose sshd comes up
+        /// late (independent of call index).
         /// The zero-based exec call index that parks (one-shot) — the hook
         /// tests use to cancel an image bake mid-SSH. Checked continuation:
         /// a cancelled caller stays parked until `releaseBlocked()`.
@@ -48,6 +60,19 @@ final class FakeSSH: SSHExecuting, Sendable {
     /// bake's first exec is the `uname -s` guest-OS probe.
     func setStdout(_ text: String, forCall call: Int) {
         state.withLock { $0.stdoutByCall[call] = text }
+    }
+
+    /// Makes the exec at `call` (zero-based) fail with `text` as stderr;
+    /// other calls keep their normal result.
+    func setStderr(_ text: String, forCall call: Int) {
+        state.withLock { $0.stderrByCall[call] = text }
+    }
+
+    /// Makes every exec before `date` fail with `failWith` and later execs
+    /// succeed — models a guest whose sshd starts answering late.
+    var failUntil: Date? {
+        get { state.withLock { $0.failUntil } }
+        set { state.withLock { $0.failUntil = newValue } }
     }
 
     /// Parks the exec at `call` (zero-based, one-shot) until `releaseBlocked()`
@@ -98,7 +123,11 @@ final class FakeSSH: SSHExecuting, Sendable {
                 state.withLock { $0.blockedExecs.append(continuation) }
             }
         }
-        let failing = state.withLock { state -> String? in
+        let failing: String? = state.withLock { state in
+            if let stderr = state.stderrByCall[callIndex] { return stderr }
+            if let until = state.failUntil {
+                return Date() < until ? (state.failWith ?? "injected failure") : nil
+            }
             if let idx = state.failOnCall, idx == callIndex {
                 return state.failWith ?? "injected failure"
             }

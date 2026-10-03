@@ -237,7 +237,13 @@ struct TartRuntime: Runtime {
         // A cheap TCP probe of port 22 gates the real ssh: no process is
         // spawned until sshd accepts connections (or the window has run out,
         // when one real attempt produces the error to report).
-        let deadline = Date().addingTimeInterval(sshReadyWindow)
+        //
+        // The bring-up window never goes below vm_boot_timeout: that config
+        // key promises "seconds a freshly booted VM has to register", and a
+        // big image's first boot can leave sshd slow to answer for minutes
+        // (seen live: a fresh xcode-image clone timed out at 120s while its
+        // replacement registered 2 seconds after boot).
+        let deadline = Date().addingTimeInterval(max(sshReadyWindow, TimeInterval(bootTimeout())))
         while true {
             if !(await ssh.isSSHPortOpen(ip: ip)), Date() < deadline {
                 try await Task.sleep(for: sshProbeInterval)
