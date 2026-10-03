@@ -111,7 +111,9 @@ final class OrgPermissionTests: XCTestCase {
             tart: tart,
             store: makeTestStore(),
             ssh: FakeSSH(),
-            host: testHost
+            host: testHost,
+            // Hermetic: start() must not read the real Keychain.
+            dependencies: .init(tokenLoader: { _, _ in "test-token" })
         )
     }
 

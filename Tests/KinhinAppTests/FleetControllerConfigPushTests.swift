@@ -69,7 +69,8 @@ final class FleetControllerConfigPushTests: XCTestCase {
     private func makeEngine(_ config: KinhinConfig, github: FakeGitHub = FakeGitHub()) -> FleetEngine {
         FleetEngine(
             config: config, github: github, tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: host,
-            dependencies: .init(lifecycleDrainTimeout: .seconds(5)))
+            // Hermetic: a rebuilt engine's start() must not read the real Keychain.
+            dependencies: .init(tokenLoader: { _, _ in "test-token" }, lifecycleDrainTimeout: .seconds(5)))
     }
 
     /// Installs an engine on the controller; `factory` answers rebuilds.

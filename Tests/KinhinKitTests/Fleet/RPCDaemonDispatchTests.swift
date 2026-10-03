@@ -15,7 +15,9 @@ final class RPCDaemonDispatchTests: XCTestCase {
             tart: FakeTart(),
             store: makeTestStore(),
             ssh: FakeSSH(),
-            host: testHost
+            host: testHost,
+            // Hermetic: start() must not read the real Keychain.
+            dependencies: .init(tokenLoader: { _, _ in "test-token" })
         )
     }
 

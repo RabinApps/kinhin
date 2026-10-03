@@ -17,7 +17,9 @@ final class EngineHandOverTests: XCTestCase {
     ) -> FleetEngine {
         FleetEngine(
             config: config, github: github, tart: tart, store: store, ssh: FakeSSH(), host: host,
-            dependencies: .init(lifecycleDrainTimeout: drainTimeout))
+            // Hermetic: without this, start() reads the real Keychain, so the
+            // tests only pass on a Mac that happens to store kinhin tokens.
+            dependencies: .init(tokenLoader: { _, _ in "test-token" }, lifecycleDrainTimeout: drainTimeout))
     }
 
     func yaml(vmCPU: Int = 4) -> String {

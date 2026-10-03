@@ -23,7 +23,7 @@ final class DaemonRebuildTests: XCTestCase {
             store: store,
             ssh: FakeSSH(),
             host: host,
-            dependencies: .init(lifecycleDrainTimeout: drainTimeout)
+            dependencies: .init(tokenLoader: { _, _ in "test-token" }, lifecycleDrainTimeout: drainTimeout)
         )
     }
 

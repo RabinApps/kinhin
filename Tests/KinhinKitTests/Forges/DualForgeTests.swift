@@ -39,7 +39,10 @@ final class DualForgeTests: XCTestCase {
     private func engine(github: FakeGitHub) throws -> FleetEngine {
         let engine = FleetEngine(
             config: try bothConfig(), github: github, tart: FakeTart(),
-            store: makeTestStore(), ssh: FakeSSH(), host: testHost)
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            // Hermetic: the github account's token must not come from the
+            // real Keychain (gitea's is pre-attached below).
+            dependencies: .init(tokenLoader: { _, _ in "test-token" }))
         // Pre-attached: the engine skips building a real Gitea client.
         engine.forgeState.withLock { $0.byPlatform["gitea"] = FakeGitea() }
         return engine

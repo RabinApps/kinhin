@@ -17,7 +17,7 @@ final class FleetEngineTests: XCTestCase {
             store: makeTestStore(),
             ssh: ssh,
             host: testHost,
-            dependencies: .init(exitWatchInterval: .milliseconds(20))
+            dependencies: .init(tokenLoader: { _, _ in "test-token" }, exitWatchInterval: .milliseconds(20))
         )
     }
 

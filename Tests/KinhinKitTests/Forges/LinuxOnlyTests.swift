@@ -50,7 +50,9 @@ final class LinuxOnlyTests: XCTestCase {
     func testChecklistIsReadyWithoutTartWhenDockerIsConfigured() async {
         let status = await SetupStatusComputer(
             clt: .ok(version: "15"), tartHealth: .missing, config: .loaded(linux),
-            accountTokensStored: ["gitea": true], dockerHealth: .ready, dockerImages: ["kinhin-ci-linux"]
+            // Keyed by account NAME ("github"), not forge — an unlisted
+            // account falls back to probing the real Keychain.
+            accountTokensStored: ["github": true], dockerHealth: .ready, dockerImages: ["kinhin-ci-linux"]
         ).compute()
         XCTAssertFalse(status.checks.first { $0.id == "tart" }!.ok, "tart itself is still reported as missing")
         XCTAssertTrue(
@@ -60,7 +62,7 @@ final class LinuxOnlyTests: XCTestCase {
     func testChecklistStillNeedsTartForAMacOnlyConfig() async {
         let status = await SetupStatusComputer(
             clt: .ok(version: "15"), tartHealth: .missing, config: .loaded(macOnly),
-            accountTokensStored: ["gitea": true]
+            accountTokensStored: ["github": true]
         ).compute()
         XCTAssertFalse(status.ready)
     }
