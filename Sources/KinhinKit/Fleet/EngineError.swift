@@ -6,6 +6,8 @@ public enum EngineError: LocalizedError, Sendable {
     case registrationFailed(vm: String, stderr: String)
     /// An account couldn't be attached (no instance URL, failed verification).
     case accountUnverified(String)
+    /// The requested forge is attached but has no queue implementation.
+    case forgeNotFound(ForgeID)
     /// The app's fleet entry points (menu actions, App Intents) ran before
     /// any backend was reachable — no in-process engine and no daemon.
     case fleetNotSetUp
@@ -17,11 +19,17 @@ public enum EngineError: LocalizedError, Sendable {
     /// A VM id that isn't one of kinhin's own (`kinhin-<ts>-<hex>`) or isn't
     /// in the store; deleting it would touch foreign runners or VMs.
     case unknownVM(String)
+    /// The logged action runs against a forge whose client has no queue
+    /// override (only GitHub supports requeue/skip today).
+    case queueOperationUnavailable
     /// A pipeline job id that isn't in the VM's current pipeline.
     case unknownPipelineJob(String)
 
     public var errorDescription: String? {
         switch self {
+        case .forgeNotFound(let forge): return "no queue implementation for \(forge.displayName)"
+        case .queueOperationUnavailable:
+            return "the logged forge does not support requeue or skip"
         case .registrationFailed(let vm, let stderr):
             return "runner registration failed on \(vm): \(stderr.prefix(300))"
         case .accountUnverified(let reason):

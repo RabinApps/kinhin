@@ -102,6 +102,15 @@ final class FleetController {
     /// The in-process engine, when this app runs the fleet itself.
     var engine: FleetEngine? { backend?.engine }
 
+    /// The attached forges across all accounts, in the order the engine
+    /// attached them (or the daemon reports them). Nil before the first
+    /// status poll, when there is no queue to act on.
+    var attachedForges: [String: Forge] {
+        guard let backend else { return [:] }
+        if let engine { return engine.forges }
+        return [:]  // a daemon currently has no forge-API surface
+    }
+
     // MARK: - Polling
 
     /// Polls the backend until `stopPolling()`. Started by the app delegate
@@ -230,7 +239,16 @@ final class FleetController {
         pendingFleetAction = action
         guard let service else { throw EngineError.fleetNotSetUp }
         do {
-            if action == .start { try await service.start() } else { try await service.stop() }
+            switch action {
+            case .start:
+                try await service.start()
+            case .stop:
+                try await service.stop()
+            case .requeueQueuedJobs(let forge):
+                try await service.requeueQueuedJobs(for: forge)
+            case .skipQueuedJobs(let forge):
+                try await service.skipQueuedJobs(for: forge)
+            }
         } catch {
             // A failed command may still have changed things; don't leave the
             // last poll's picture on screen.
@@ -281,6 +299,20 @@ final class FleetController {
             await refresh()
             throw error
         }
+        await refresh()
+    }
+
+    /// Requeue the queued jobs of one forge. The status refresh replays the
+    /// new queue so the UI shows the work coming back.
+    func requeueQueuedJobs(for forge: ForgeID) async throws {
+        guard let service else { throw EngineError.fleetNotSetUp }
+        try await service.requeueQueuedJobs(for: forge)
+        await refresh()
+    }
+
+    func skipQueuedJobs(for forge: ForgeID) async throws {
+        guard let service else { throw EngineError.fleetNotSetUp }
+        try await service.skipQueuedJobs(for: forge)
         await refresh()
     }
 

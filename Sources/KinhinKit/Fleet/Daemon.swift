@@ -212,6 +212,18 @@ public enum Daemon {
                 // No job running is a valid answer: an ok response with no payload.
                 let detail = try await engine.pipelineDetail(vmID: id)
                 return RPCResponse(id: request.id, ok: true, payload: try detail.map { try encoder.encode($0) })
+            case .requeueQueuedJobs:
+                guard let ask = decodePayload(ForgeJobsRequest.self) else {
+                    return RPCResponse(id: request.id, ok: false, error: "expected {\"forge\": \"github\"}")
+                }
+                try await engine.requeueQueuedJobs(for: ask.forge)
+                return RPCResponse(id: request.id, ok: true)
+            case .skipQueuedJobs:
+                guard let ask = decodePayload(ForgeJobsRequest.self) else {
+                    return RPCResponse(id: request.id, ok: false, error: "expected {\"forge\": \"github\"}")
+                }
+                try await engine.skipQueuedJobs(for: ask.forge)
+                return RPCResponse(id: request.id, ok: true)
             case .pipelineLog:
                 guard let ask = decodePayload(PipelineLogRequest.self) else {
                     return RPCResponse(
@@ -324,6 +336,11 @@ public enum Daemon {
     public struct VMDeleteRequest: Codable {
         public let id: String
         public init(id: String) { self.id = id }
+    }
+
+    public struct ForgeJobsRequest: Codable, Sendable {
+        public let forge: ForgeID
+        public init(forge: ForgeID) { self.forge = forge }
     }
 
     enum DaemonError: LocalizedError, Equatable {

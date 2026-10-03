@@ -13,6 +13,10 @@ public enum ErrorCategory: Equatable, Sendable {
     case other
 
     public init(_ error: Error) {
+        if let categorized = error as? any CategorizedError {
+            self = categorized.category
+            return
+        }
         switch error {
         case is ConfigError, is ConfigEditError:
             self = .config

@@ -82,3 +82,17 @@ struct GitHubForge: Forge {
         }
     }
 }
+
+extension GitHubForge: ForgeWithQueuedJobs {
+    func userRequeueQueuedJobs() async throws {
+        let jobs = try await queuedJobs()
+        guard let queued = jobs as? [QueuedJob] else { throw EngineError.queueOperationUnavailable }
+        _ = try await client.cancelWorkflowRun(ids: queued.map { $0.runID })
+    }
+
+    func userSkipQueuedJobs() async throws {
+        let jobs = try await queuedJobs()
+        guard let queued = jobs as? [QueuedJob] else { throw EngineError.queueOperationUnavailable }
+        _ = try await client.skipWorkflowRun(ids: queued.map { $0.runID })
+    }
+}

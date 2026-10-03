@@ -7,12 +7,15 @@ enum MainSheet: Hashable, Identifiable {
     case diagnostics
     /// The live pipeline of one VM.
     case pipeline(vmID: String)
+    /// The workflow test sheet.
+    case workflowTest
 
     var id: String {
         switch self {
         case .logs: return "logs"
         case .diagnostics: return "diagnostics"
         case .pipeline(let vmID): return "pipeline:\(vmID)"
+        case .workflowTest: return "workflow-test"
         }
     }
 }
@@ -31,6 +34,8 @@ final class MainTabsModel {
     private var requestedTab: MainTab = .fleet
     private(set) var advancedSection: AdvancedSection = .accounts
     var sheet: MainSheet?
+    /// The Fleet detail page's model, created on entry.
+    private(set) var fleetDetailModel: FleetDetailModel?
     /// The Advanced tab has been opened once (its first section is built then).
     @ObservationIgnored private var advancedInstalled = false
 
@@ -41,6 +46,7 @@ final class MainTabsModel {
         models.fleetModel.onShowLogs = { [weak self] in self?.present(.logs) }
         models.fleetModel.onShowDiagnostics = { [weak self] in self?.present(.diagnostics) }
         models.fleetModel.onShowPipeline = { [weak self] in self?.present(.pipeline(vmID: $0)) }
+        models.fleetModel.onShowWorkflowTest = { [weak self] in self?.present(.workflowTest) }
     }
 
     /// Set while first-run onboarding is up (or no usable config exists): the
@@ -57,7 +63,7 @@ final class MainTabsModel {
 
     /// Tabs shown in the tab bar: none while setup gates the window.
     var visibleTabs: [MainTab] {
-        isGatedBySetup ? [] : [.fleet, .advanced]
+        isGatedBySetup ? [] : [.fleet, .detail, .advanced]
     }
 
     /// The tab on screen: the wizard while setup gates the window; afterwards
@@ -86,6 +92,10 @@ final class MainTabsModel {
         switch tab {
         case .setup:
             if models.wizardModel == nil { _ = makeWizard() }
+        case .detail:
+            // A fresh detail model per opening: it starts on the fleet's
+            // current status and the user drills in from there.
+            fleetDetailModel = models.makeFleetDetailModel()
         case .advanced:
             // The first visit builds (and loads) the current section; later
             // tab switches never re-probe.
@@ -185,6 +195,10 @@ final class MainTabsModel {
             // whatever job the last sheet had drilled into.
             let model = models.makePipelineModel(vmID: vmID)
             Task { await model.load() }
+        case .workflowTest:
+            // A fresh model per opening: it starts on the job list, not on
+            // whatever job the last sheet had drilled into.
+            _ = models.makeWorkflowTestModel()
         }
         self.sheet = sheet
     }

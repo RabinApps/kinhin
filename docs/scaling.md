@@ -109,6 +109,15 @@ Things to know:
 - A shared pool (the same labels on both Macs) still works, but a burst can make both Macs spawn.
   Lower `max_runners` on the weaker Mac to limit the waste.
 
+### Requeue and skip
+
+From the Fleet tab, the **Requeue** and **Skip** buttons in the *Requeue / skip queued*
+section cancel or drop the queue's matching jobs. Org-scope forges re-queue/skip the
+fleet-wide queue; repo-scope forges act on that one forge. Both are single-command
+actions behind the same pending-state and AlertKit failure handling as Start/Stop.
+
+See [Requeue and skip queued jobs](requeue-skip.md) for the full behavior.
+
 ## Lifecycle and recovery
 
 Ephemeral runners register with `--ephemeral`, so GitHub removes the registration as soon as the job finishes, and

@@ -42,6 +42,10 @@ struct MainTabsView: View {
                 if let pipeline = model.models.pipelineModel, pipeline.vmID == vmID {
                     PipelineView(model: pipeline, onClose: { model.dismissSheet() })
                 }
+            case .workflowTest:
+                if let model = model.models.workflowTestModel {
+                    WorkflowTestView(model: model, onClose: { self.model.dismissSheet() })
+                }
             }
         }
     }
@@ -51,6 +55,8 @@ struct MainTabsView: View {
         switch model.selectedTab {
         case .fleet:
             FleetView(model: model.models.fleetModel)
+        case .detail:
+            if let detail = model.fleetDetailModel { FleetDetailView(model: detail) }
         case .setup:
             if let wizard = model.models.wizardModel { WizardView(model: wizard) }
         case .advanced:

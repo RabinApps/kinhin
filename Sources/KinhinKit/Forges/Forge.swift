@@ -149,10 +149,30 @@ public protocol Forge: Sendable {
     func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog?
 }
 
+/// Forges whose runner API separates queued from running work, so the engine
+/// can push queued jobs back to the queue or drop them as skipped. The
+/// engine dispatches on the concrete forge type, never on this protocol, so
+/// adding a queue-capable forge only needs an implementation of these two
+/// methods on that type.
+public protocol ForgeWithQueuedJobs: Forge {
+    /// Cancel the queued jobs matching the fleet's labels and re-queue them.
+    func userRequeueQueuedJobs() async throws
+    /// Drop the queued jobs matching the fleet's labels as skipped.
+    func userSkipQueuedJobs() async throws
+}
+
 extension Forge {
     public func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? { nil }
 
     public func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? { nil }
+
+    /// Requeue the forge's queued jobs. The default is a no-op; forges with
+    /// queue semantics override.
+    func requeueQueuedJobs() async {}
+
+    /// Drop the forge's queued jobs as done. The default is a no-op; forges
+    /// with queue semantics override.
+    func skipQueuedJobs() async {}
 
     public var account: String { id.rawValue }
 

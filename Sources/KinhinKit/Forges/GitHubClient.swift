@@ -81,6 +81,12 @@ public protocol GitHubServing: Sendable {
     func deleteRunner(id: Int) async throws
     func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob]
     func runningJobs(matching labels: Set<String>) async throws -> [RunningJob]
+    /// Cancel the queued workflow runs `ids` (their jobs are re-queued
+    /// downstream). Nil when none is found or the caller cannot cancel them.
+    func cancelWorkflowRun(ids: [Int]) async throws -> Bool
+    /// Mark the queued workflow runs `ids` as skipped (their jobs are
+    /// dropped). Nil when none is found or the caller cannot skip them.
+    func skipWorkflowRun(ids: [Int]) async throws -> Bool
     /// The API budget the last response reported; nil when unknown.
     var rateLimit: ForgeRateLimit? { get }
     /// `.kinhin.yml` of `repository` at `ref` (nil = default branch), or nil
@@ -379,6 +385,15 @@ public struct GitHubClient: GitHubServing {
         return jobs
     }
 
+    /// The repository a queued run belongs to, or nil when the run can't be
+    /// read. Org scope fans out per repository, so the scoped runs endpoint
+    /// answers instead of the job payload.
+    func runRepository(for id: Int) async throws -> String? {
+        let runs = try await runs(status: "queued")
+        guard let run = runs.first(where: { $0.id == id }) else { return nil }
+        return run.attributedRepository
+    }
+
     /// Fetch jobs currently executing on this scope's runners. `runnerName`
     /// maps each job back to the VM that registered that runner — the basis
     /// for per-repo attribution of running work.
@@ -401,6 +416,59 @@ public struct GitHubClient: GitHubServing {
             }
         }
         return jobs
+    }
+
+    /// Cancel the queued workflow runs `ids` (their jobs are re-queued
+    /// downstream). Nil when none of the runs is found or the caller cannot
+    /// cancel them.
+    public func cancelWorkflowRun(ids: [Int]) async throws -> Bool {
+        try await withThrowingTaskGroup(of: Bool.self) { group in
+            for id in ids {
+                group.addTask { try await self.cancelWorkflowRun(id: id) }
+            }
+            var allOk = true
+            for try await ok in group {
+                if !ok { allOk = false }
+            }
+            return allOk
+        }
+    }
+
+    /// Mark the queued workflow run `id` as skipped (its jobs are dropped).
+    /// Nil when none of the runs is found or the caller cannot skip them.
+    public func skipWorkflowRun(ids: [Int]) async throws -> Bool {
+        try await withThrowingTaskGroup(of: Bool.self) { group in
+            for id in ids {
+                group.addTask { try await self.skipWorkflowRun(id: id) }
+            }
+            var allOk = true
+            for try await ok in group {
+                if !ok { allOk = false }
+            }
+            return allOk
+        }
+    }
+
+    private func cancelWorkflowRun(id: Int) async throws -> Bool {
+        guard let repository = try await runRepository(for: id) else { return false }
+        let req = try request(method: "POST", path: "/repos/\(repository)/actions/runs/\(id)/cancel")
+        do {
+            let (data, _) = try await send(req)
+            return true
+        } catch GitHubError.notFound {
+            return false
+        }
+    }
+
+    private func skipWorkflowRun(id: Int) async throws -> Bool {
+        guard let repository = try await runRepository(for: id) else { return false }
+        let req = try request(method: "POST", path: "/repos/\(repository)/actions/runs/\(id)/disable")
+        do {
+            let (data, _) = try await send(req)
+            return true
+        } catch GitHubError.notFound {
+            return false
+        }
     }
 }
 

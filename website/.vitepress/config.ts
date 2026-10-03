@@ -113,7 +113,9 @@ export default defineConfig({
           { text: "Runtimes & routing", link: "/guide/runtimes" },
           { text: "Toolchains & shared cache", link: "/guide/toolchains" },
           { text: "Forge support", link: "/guide/forges" },
+          { text: "Test workflows locally", link: "/guide/workflow-testing" },
           { text: "How scaling works", link: "/guide/scaling" },
+          { text: "Requeue and skip queued jobs", link: "/guide/requeue-skip" },
         ],
       },
       {

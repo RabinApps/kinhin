@@ -322,4 +322,8 @@ private final class CancellationCheckingGitHub: GitHubServing, Sendable {
     func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] {
         try await base.runningJobs(matching: labels)
     }
+    func cancelWorkflowRun(ids: [Int]) async throws -> Bool { true }
+    func skipWorkflowRun(ids: [Int]) async throws -> Bool { true }
 }
+
+

@@ -1,0 +1,13 @@
+name: Local smoke test
+
+env:
+  GREETING: Hello
+
+jobs:
+  smoke:
+    name: Local smoke test
+    steps:
+      - name: Check the local runner environment
+        run: |
+          test -d "$GITHUB_WORKSPACE"
+          echo "$GREETING, from $RUNNER_OS ($RUNNER_ARCH)"

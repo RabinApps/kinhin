@@ -26,8 +26,8 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     public let id: String  // tart VM name, e.g. "kinhin-1717000000-a1b2"
     public var phase: VMPhase
     public var createdAt: Date
-    var updatedAt: Date
-    var runnerName: String?
+    public var updatedAt: Date
+    public var runnerName: String?
     public var ip: String?
     /// Forge this VM serves ("github" | "gitea").
     public var platform: String?

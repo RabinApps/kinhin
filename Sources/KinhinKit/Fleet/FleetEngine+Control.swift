@@ -179,4 +179,24 @@ extension FleetEngine {
         Log.info("engine", "manual delete of \(id)")
         await deleteVMRecord(id: id, reason: "manual delete")
     }
+
+    /// Requeue the queued jobs of one forge: drop the pending work and ask
+    /// the forge for a fresh set, so reconcile re-spawns the jobs. `forge` is
+    /// the account name of the target; org-scoped forges fall back to every
+    /// repo the token can see.
+    public func requeueQueuedJobs(for forge: ForgeID) async throws {
+        guard let target = forges[forge.rawValue] as? any ForgeWithQueuedJobs else {
+            throw EngineError.forgeNotFound(forge)
+        }
+        try await target.userRequeueQueuedJobs()
+    }
+
+    /// Mark the queued jobs of one forge as skipped: the reconcile pass
+    /// drops the matching jobs from the re-synced set, so the queue drains.
+    public func skipQueuedJobs(for forge: ForgeID) async throws {
+        guard let target = forges[forge.rawValue] as? any ForgeWithQueuedJobs else {
+            throw EngineError.forgeNotFound(forge)
+        }
+        try await target.userSkipQueuedJobs()
+    }
 }

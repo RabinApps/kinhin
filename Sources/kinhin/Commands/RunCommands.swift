@@ -136,6 +136,64 @@ enum RunCommands {
         }
     }
 
+    // MARK: - Requeue / skip queued jobs
+
+    /// `kinhin requeue <forge>` — cancel the queue's matching jobs and
+    /// re-queue them. Use `--yes` to skip the confirmation.
+    static func requeueQueuedJobs(_ args: [String]) async throws {
+        guard let forgeId = args.first(where: { !hasFlag($0, in: args) && !$0.hasPrefix("--") && $0 != "--help" && $0 != "-h" }) else {
+            fail("usage: kinhin requeue <forge> [--yes]", exit: .usage)
+        }
+        let confirmed = hasFlag("--yes", in: args)
+        guard let forge = ForgeID(rawValue: forgeId) else {
+            fail("unknown forge '\(forgeId)'; available: \(ForgeID.allCases.map(\.rawValue).joined(separator: ", ")), or add one in config first", exit: .usage)
+        }
+        try await runRequeue(for: forge, confirmed: confirmed)
+    }
+
+    /// `kinhin skip <forge>` — mark the queue's matching jobs as skipped.
+    static func skipQueuedJobs(_ args: [String]) async throws {
+        guard let forgeId = args.first(where: { !hasFlag($0, in: args) && !$0.hasPrefix("--") && $0 != "--help" && $0 != "-h" }) else {
+            fail("usage: kinhin skip <forge> [--yes]", exit: .usage)
+        }
+        let confirmed = hasFlag("--yes", in: args)
+        guard let forge = ForgeID(rawValue: forgeId) else {
+            fail("unknown forge '\(forgeId)'; available: \(ForgeID.allCases.map(\.rawValue).joined(separator: ", ")), or add one in config first", exit: .usage)
+        }
+        try await runSkip(for: forge, confirmed: confirmed)
+    }
+
+    /// Driver shared by `requeue` and `skip`: owns the confirmation and
+    /// dispatches to the running daemon. A headless CLI only talks to the daemon;
+    /// there is no in-process backend here (the app manages that).
+    static func runRequeue(for forge: ForgeID, confirmed: Bool) async throws {
+        guard confirmed else {
+            print("would requeue the queued jobs of '\(forge.displayName)' (use --yes to confirm)")
+            return
+        }
+        guard RPCClient.isDaemonAlive() else {
+            fail("no daemon running; requeue/skip works while a daemon is active", exit: .runtime)
+        }
+        let response = try RPCClient().command(
+            .requeueQueuedJobs, payload: try JSONEncoder().encode(Daemon.ForgeJobsRequest(forge: forge)))
+        guard response.ok else { fail(response.error ?? "could not requeue queued jobs", exit: .runtime) }
+        print("requeued queued jobs for '\(forge.displayName)'")
+    }
+
+    static func runSkip(for forge: ForgeID, confirmed: Bool) async throws {
+        guard confirmed else {
+            print("would skip the queued jobs of '\(forge.displayName)' (use --yes to confirm)")
+            return
+        }
+        guard RPCClient.isDaemonAlive() else {
+            fail("no daemon running; requeue/skip works while a daemon is active", exit: .runtime)
+        }
+        let response = try RPCClient().command(
+            .skipQueuedJobs, payload: try JSONEncoder().encode(Daemon.ForgeJobsRequest(forge: forge)))
+        guard response.ok else { fail(response.error ?? "could not skip queued jobs", exit: .runtime) }
+        print("skipped queued jobs for '\(forge.displayName)'")
+    }
+
     static func logs(_ args: [String]) {
         let count = Int(flag("-n", in: args) ?? "50") ?? 50
         let entries = Log.snapshot(limit: count)

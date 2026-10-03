@@ -94,6 +94,38 @@ struct FleetView: View {
                 Button("Logs…") { model.onShowLogs() }
                 Button("Diagnostics…") { model.onShowDiagnostics() }
             }
+            Button("Test Workflow…") { model.onShowWorkflowTest() }
+                .controlSize(.small)
+
+            // Per-forge requeue/skip queued: one row per attached forge, with
+            // the org-only scope and the fleet-wide button.
+            VStack(alignment: .leading, spacing: 6) {
+                SectionHeader("Requeue / skip queued")
+                if model.attachedForges.isEmpty {
+                    secondary("No forges attached — queue will always be empty.")
+                } else {
+                    ForEach(Array(model.attachedForges.enumerated()), id: \.offset) { _, forge in
+                        HStack(spacing: 6) {
+                            Picker("", selection: .constant(forge.keys.sorted().first ?? "")) { ForEach(forge.keys.sorted(), id: \.self) { id in Text(id).tag(id) } }
+                            .pickerStyle(.menu)
+                            .frame(width: 120)
+                            .accessibilityLabel("Forge: \(forge.keys.sorted().first ?? "unknown")")
+                            Button("Requeue") {
+                                let scope = forgeScope(forge)
+                                model.requeueQueuedJobs(for: scope ?? .github, forAll: scope == nil)
+                            }
+                            .disabled(model.isBusy)
+                            .accessibilityLabel("Requeue queued jobs on \(forge.keys.sorted().first ?? "unknown")")
+                            Button("Skip") {
+                                let scope = forgeScope(forge)
+                                model.skipQueuedJobs(for: scope ?? .github, forAll: scope == nil)
+                            }
+                            .disabled(model.isBusy)
+                            .accessibilityLabel("Skip queued jobs on \(forge.keys.sorted().first ?? "unknown")")
+                        }
+                    }
+                }
+            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
@@ -123,6 +155,13 @@ struct FleetView: View {
         }
         .padding(.horizontal, 4)
         .frame(minHeight: 30)
+    }
+
+    /// True when the forge has no slash in its scope (org-wide); a
+    /// single-repo scope (a slash) targets that forge.
+    func forgeScope(_ forge: [String: Forge]) -> ForgeID? {
+        guard let first = forge.keys.sorted().first, let target = forge[first] else { return nil }
+        return target.attributesByRepo ? nil : target.id
     }
 
     private func secondary(_ text: String, mono: Bool = false) -> some View {

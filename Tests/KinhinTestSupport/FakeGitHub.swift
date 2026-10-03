@@ -244,6 +244,9 @@ final class FakeGitHub: GitHubServing, Sendable {
         }
     }
 
+    func cancelWorkflowRun(ids: [Int]) async throws -> Bool { true }
+    func skipWorkflowRun(ids: [Int]) async throws -> Bool { true }
+
     /// Simulate the runner registering on GitHub.
     func register(name: String, busy: Bool = false) {
         state.withLock { state in

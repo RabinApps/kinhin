@@ -13,8 +13,51 @@ final class FleetModel {
     @ObservationIgnored var onShowLogs: () -> Void = {}
     @ObservationIgnored var onShowDiagnostics: () -> Void = {}
     @ObservationIgnored var onShowPipeline: (String) -> Void = { _ in }
+    @ObservationIgnored var onShowWorkflowTest: () -> Void = {}
+
+    /// Requeue the queued jobs in the fleet (per forge). Falls back to a
+    /// fleet-wide action on the forge when the scope is org-only.
+    func requeueQueuedJobs(for forge: ForgeID) {
+        guard !isBusy else { return }
+        controller.userRequeueQueuedJobs(for: forge)
+    }
+
+    /// Mark the queued jobs in the fleet as skipped (per forge). Same
+    /// fallback as `requeueQueuedJobs`.
+    func skipQueuedJobs(for forge: ForgeID) {
+        guard !isBusy else { return }
+        controller.userSkipQueuedJobs(for: forge)
+    }
+
+    /// Requeue/skip both target a single forge; for org scope the faucet is
+    /// fleet-wide, so widen the request to every attached forge.
+    func requeueQueuedJobs(for forge: ForgeID, forAll: Bool) {
+        if forAll {
+            for attached in Set(attachedForges.flatMap(\.values).map(\.id)) {
+                requeueQueuedJobs(for: attached)
+            }
+            return
+        }
+        requeueQueuedJobs(for: forge)
+    }
+
+    func skipQueuedJobs(for forge: ForgeID, forAll: Bool) {
+        if forAll {
+            for attached in Set(attachedForges.flatMap(\.values).map(\.id)) {
+                skipQueuedJobs(for: attached)
+            }
+            return
+        }
+        skipQueuedJobs(for: forge)
+    }
 
     @ObservationIgnored let controller: FleetController
+
+    /// Attached forge accounts while this app owns an in-process engine.
+    /// A daemon does not currently expose its forge list over RPC.
+    var attachedForges: [[String: Forge]] {
+        controller.engine?.forges.map { [$0.key: $0.value] } ?? []
+    }
 
     init(controller: FleetController) {
         self.controller = controller
@@ -73,6 +116,10 @@ final class FleetModel {
 
     func pipelineClicked(_ id: String) {
         onShowPipeline(id)
+    }
+
+    func workflowTestClicked() {
+        onShowWorkflowTest()
     }
 
     func deleteClicked(_ id: String) {

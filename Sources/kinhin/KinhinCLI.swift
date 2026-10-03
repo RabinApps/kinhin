@@ -124,8 +124,20 @@ struct KinhinCLI {
         case .cleanup:
             try await CleanupCommand.run(args)
 
+        case .requeue:
+            try await RunCommands.requeueQueuedJobs(args)
+
+        case .skip:
+            try await RunCommands.skipQueuedJobs(args)
+
         case .support:
             print(SupportLinks.summary())
+
+        case .workflow:
+            guard args.dropFirst().first == "test" else {
+                throw CLIError("unknown workflow subcommand; available: test", exit: .usage)
+            }
+            try await WorkflowTestCommand.run(Array(args.dropFirst(2)))
 
         case .version:
             print("kinhin \(kinhinVersion.current)")

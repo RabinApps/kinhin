@@ -23,9 +23,12 @@ enum CLICommand: Equatable {
     case logs
     case daemon
     case cleanup
+    case requeue
+    case skip
     case support
     case version
     case help
+    case workflow
 
     /// Head-token dispatch, preserving the historical quirks: the two-token
     /// forms `config init` and `image prepare` route identically to their
@@ -72,12 +75,18 @@ enum CLICommand: Equatable {
             return .daemon
         case "cleanup":
             return .cleanup
+        case "requeue":
+            return .requeue
+        case "skip":
+            return .skip
         case "support", "sponsor":
             return .support
         case "version", "--version", "-v":
             return .version
         case "help", "--help", "-h":
             return .help
+        case "workflow", "workflow test":
+            return .workflow
         case nil:
             return .help
         default:
@@ -90,8 +99,9 @@ enum CLICommand: Equatable {
     /// no-ops that must not touch disk (and `toolchains detect`); everything else (including unknown
     /// commands, which print help before failing) auto-creates.
     static func shouldAutoCreateConfig(_ command: CLICommand?, args: [String] = []) -> Bool {
-        // `toolchains detect` only reads a project directory; it needs no config.
+        // `toolchains detect` and `workflow test` only read a repo; they need no config.
         if command == .toolchains, args.dropFirst().first == "detect" { return false }
+        if command == .workflow { return false }
         switch command {
         case .help, .version, .support, .configInit:
             return false

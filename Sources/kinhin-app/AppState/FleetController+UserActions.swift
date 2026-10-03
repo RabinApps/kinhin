@@ -20,6 +20,32 @@ extension FleetController {
         run(.stop, failureTitle: "Couldn't stop the fleet")
     }
 
+    func userRequeueQueuedJobs(for forge: ForgeID) {
+        guard pendingFleetAction == nil else { return }  // a command is already running
+        pendingFleetAction = .requeueQueuedJobs(for: forge)
+        Task { @MainActor in
+            do {
+                try await requeueQueuedJobs(for: forge)
+            } catch {
+                AlertKit.present(error: error, title: "Couldn't requeue the queued jobs")
+            }
+            pendingFleetAction = nil
+        }
+    }
+
+    func userSkipQueuedJobs(for forge: ForgeID) {
+        guard pendingFleetAction == nil else { return }  // a command is already running
+        pendingFleetAction = .skipQueuedJobs(for: forge)
+        Task { @MainActor in
+            do {
+                try await skipQueuedJobs(for: forge)
+            } catch {
+                AlertKit.present(error: error, title: "Couldn't skip the queued jobs")
+            }
+            pendingFleetAction = nil
+        }
+    }
+
     func userSetPaused(_ paused: Bool) {
         let title = paused ? "Couldn't pause the fleet" : "Couldn't resume the fleet"
         Task {

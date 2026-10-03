@@ -79,6 +79,8 @@ final class TokenReplacementTests: XCTestCase {
         func deleteRunner(id: Int) async throws {}
         func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] { [] }
         func runningJobs(matching labels: Set<String>) async throws -> [RunningJob] { [] }
+        func cancelWorkflowRun(ids: [Int]) async throws -> Bool { true }
+        func skipWorkflowRun(ids: [Int]) async throws -> Bool { true }
     }
 
     /// The client serving an account's attached GitHub forge.

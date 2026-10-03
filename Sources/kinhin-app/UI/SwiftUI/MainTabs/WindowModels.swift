@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import KinhinKit
 
@@ -58,6 +59,8 @@ final class WindowModels {
     private(set) var logsModel: LogsModel?
     private(set) var diagnosticsModel: DiagnosticsModel?
     private(set) var pipelineModel: PipelineModel?
+    private(set) var workflowTestModel: WorkflowTestModel?
+    private(set) var fleetDetailModel: FleetDetailModel?
 
     // MARK: - Setup wizard
 
@@ -155,6 +158,27 @@ final class WindowModels {
 
     /// The pipeline sheet's model; one per opening, kept until the next so the
     /// sheet's view reads the same instance for as long as it is up.
+    func makeWorkflowTestModel() -> WorkflowTestModel {
+        let model = WorkflowTestModel(chooseFile: {
+            await MainActor.run {
+                let panel = NSOpenPanel()
+                panel.canChooseFiles = true
+                panel.canChooseDirectories = false
+                panel.allowsMultipleSelection = false
+                panel.allowedContentTypes = [.yaml]
+                return panel.runModal() == .OK ? panel.url : nil
+            }
+        })
+        workflowTestModel = model
+        return model
+    }
+
+    func makeFleetDetailModel() -> FleetDetailModel {
+        let model = FleetDetailModel(controller: fleet)
+        fleetDetailModel = model
+        return model
+    }
+
     func makePipelineModel(vmID: String) -> PipelineModel {
         let model = PipelineModel(vmID: vmID, controller: fleet)
         pipelineModel = model

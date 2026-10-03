@@ -63,6 +63,8 @@ The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Flee
 | `delete_vm` | — |
 | `pipeline_detail` | The live pipeline (jobs and steps) one VM is running. |
 | `pipeline_log` | The output of one step (or job) of that pipeline. |
+| `requeue_queued_jobs` | Requeue the fleet's queued jobs (per forge; org scope covers every repository the token can see). |
+| `skip_queued_jobs` | Mark the fleet's queued jobs as skipped (per forge). |
 | `replace_token` | — |
 | `replace_gitea_token` | — |
 | `replace_forgejo_token` | — |

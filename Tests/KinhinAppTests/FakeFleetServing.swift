@@ -17,6 +17,8 @@ final class FakeFleetServing: FleetServing {
         var gated = false
         var pipeline: PipelineDetail?
         var pipelineLog: PipelineLog?
+        var requeueResult = true
+        var skipResult = true
     }
 
     private let state: Mutex<State>
@@ -119,6 +121,26 @@ final class FakeFleetServing: FleetServing {
     func deleteVM(id: String) async throws {
         try record("deleteVM(\(id))")
         state.withLock { $0.status.records.removeAll { $0.id == id } }
+    }
+
+    /// What `requeueQueuedJobs(for:)` answered (nil: no data).
+    var requeueResult: Bool {
+        get { state.withLock { $0.requeueResult } }
+        set { state.withLock { $0.requeueResult = newValue } }
+    }
+    var skipResult: Bool {
+        get { state.withLock { $0.skipResult } }
+        set { state.withLock { $0.skipResult = newValue } }
+    }
+
+    func requeueQueuedJobs(for forge: ForgeID) async throws {
+        try record("requeueQueuedJobs(\(forge.rawValue))")
+        _ = try? await requeueResult
+    }
+
+    func skipQueuedJobs(for forge: ForgeID) async throws {
+        try record("skipQueuedJobs(\(forge.rawValue))")
+        _ = try? await skipResult
     }
 
     /// What `pipelineDetail` answers (nil: the VM runs no job).

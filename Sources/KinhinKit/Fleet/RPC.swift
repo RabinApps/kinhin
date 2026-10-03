@@ -14,6 +14,11 @@ public enum RPCMethod: String, Codable, Sendable {
     case pipelineDetail = "pipeline_detail"
     /// The output of one step (or job) of that pipeline.
     case pipelineLog = "pipeline_log"
+    /// Requeue the fleet's queued jobs (per forge; org scope covers every
+    /// repository the token can see).
+    case requeueQueuedJobs = "requeue_queued_jobs"
+    /// Mark the fleet's queued jobs as skipped (per forge).
+    case skipQueuedJobs = "skip_queued_jobs"
     case replaceToken = "replace_token"
     case replaceGiteaToken = "replace_gitea_token"
     case replaceForgejoToken = "replace_forgejo_token"
@@ -27,8 +32,8 @@ public enum RPCMethod: String, Codable, Sendable {
     /// Methods that change fleet state; the daemon runs them one at a time.
     var mutatesFleet: Bool {
         switch self {
-        case .start, .stop, .pause, .resume, .deleteVM, .replaceToken, .replaceGiteaToken, .replaceForgejoToken,
-            .replaceAccountToken, .reloadConfig:
+        case .start, .stop, .pause, .resume, .deleteVM, .requeueQueuedJobs, .skipQueuedJobs,
+            .replaceToken, .replaceGiteaToken, .replaceForgejoToken, .replaceAccountToken, .reloadConfig:
             return true
         case .status, .pipelineDetail, .pipelineLog, .logs, .ping:
             return false

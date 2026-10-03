@@ -1,10 +1,13 @@
 import Foundation
 import KinhinKit
 
-/// A fleet start or stop, from any entry point (menu, Fleet tab, App Intent).
-enum FleetAction: Sendable {
+/// A fleet start, stop, requeue, or skip queued job, from any entry point
+/// (menu, Fleet tab, App Intent).
+enum FleetAction: Sendable, Equatable {
     case start
     case stop
+    case requeueQueuedJobs(for: ForgeID)
+    case skipQueuedJobs(for: ForgeID)
 }
 
 /// What `FleetController` needs from whoever runs the fleet. `FleetBackend`
@@ -25,6 +28,10 @@ protocol FleetServing: Sendable {
     func pipelineLog(vmID: String, jobID: String, stepIndex: Int?) async throws -> PipelineLog?
     /// Hand a token already saved in the Keychain to the fleet.
     func rotate(_ target: CredentialRotation.Target, token: String) async throws
+    /// Requeue the queued jobs for one forge (org scope covers every repo).
+    func requeueQueuedJobs(for forge: ForgeID) async throws
+    /// Mark the queued jobs for one forge as skipped.
+    func skipQueuedJobs(for forge: ForgeID) async throws
     /// A short name for log lines.
     var logName: String { get }
 }
@@ -100,6 +107,24 @@ enum FleetBackend: Sendable {
         case .inProcess(let engine): return try await engine.pipelineLog(vmID: vmID, jobID: jobID, stepIndex: stepIndex)
         case .daemon(let client):
             return try await client.perform { try $0.pipelineLog(vmID: vmID, jobID: jobID, stepIndex: stepIndex) }
+        }
+    }
+
+    func requeueQueuedJobs(for forge: ForgeID) async throws {
+        switch self {
+        case .inProcess(let engine): try await engine.requeueQueuedJobs(for: forge)
+        case .daemon(let client):
+            let payload = try JSONEncoder().encode(Daemon.ForgeJobsRequest(forge: forge))
+            try await client.perform { try $0.command(.requeueQueuedJobs, payload: payload) }
+        }
+    }
+
+    func skipQueuedJobs(for forge: ForgeID) async throws {
+        switch self {
+        case .inProcess(let engine): try await engine.skipQueuedJobs(for: forge)
+        case .daemon(let client):
+            let payload = try JSONEncoder().encode(Daemon.ForgeJobsRequest(forge: forge))
+            try await client.perform { try $0.command(.skipQueuedJobs, payload: payload) }
         }
     }
 

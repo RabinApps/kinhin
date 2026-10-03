@@ -2,7 +2,9 @@
 
 ## Unreleased
 
+- Test GitHub Actions workflow scripts locally with `kinhin workflow test` or the Fleet tab's **Test Workflow…** sheet (host-only; matrices and non-checkout actions are skipped).
 - Support and sponsors: `docs/support.md`, GitHub funding links, `kinhin support`, and a Support card and Help menu in the app.
+- CLI queue operations: `kinhin requeue <forge> [--yes]` and `kinhin skip <forge> [--yes]` re-queue or skip the fleet's queued jobs on a forge through the daemon (dry-run intent unless `--yes`); the Fleet tab buttons and status-bar menu keep their pending-state / AlertKit UX.
 
 ## v0.0.1-beta-1
 

@@ -19,7 +19,7 @@ Linux jobs in [apple/container](https://github.com/apple/container) microVMs, in
 containers, or in full Tart Linux VMs — and turns them into ephemeral self-hosted CI runners. It watches your repositories'
 queued jobs and grows or shrinks the fleet to match — a fresh VM (or container) boots for each
 job, runs it, and is deleted. For repos you fully trust, an opt-in **host** mode runs jobs directly
-on your Mac instead — no VM, no isolation (see [Host mode](docs/runtimes.md#host-mode-run-jobs-directly-on-your-mac)).
+on your Mac instead — no VM, no isolation (see [Host mode](docs/runtimes.md#host-mode-run-jobs-directly-on-your-mac)).  
 Your Mac stays usable: host CPU, memory, and disk headroom are always reserved.
 
 ```
@@ -171,7 +171,7 @@ Key fields:
 | `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                                                      |
 | `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                                            |
 | `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                                               |
-| `base_image`                               | What `image prepare` starts from: a pre-configured tart image (`ghcr.io/cirruslabs/…`), digest-pinned (`ref@sha256:…` — see `kinhin image digest`), or a local VM name; absent = the default macOS base |
+| `base_image`                               | What `image prepare` starts from: a pre-configured tart image (`ghcr.io/cirruslabs/...`), digest-pinned (`ref@sha256:…` — see `kinhin image digest`), or a local VM name; absent = the default macOS base |
 | `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](docs/toolchains.md#bake-tools-into-the-base-image))                                                |
 | `projects`                                 | Per-repo toolchains: `repo_file: true` honors the repo's `.kinhin.yml`; `toolchains`, `share_cache` per entry (see [Per-project toolchains](docs/toolchains.md#per-project-toolchains)) |
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                                                 |
@@ -229,6 +229,8 @@ kinhin toolchains prune [--dry-run]
                              Expire stale host-cache entries now
 kinhin toolchains helper [--linux]
                              Print the per-job `kinhin-toolchain` helper present in images
+kinhin workflow test [FILE] [--job NAME] [--list] [--json]
+                             Run GitHub Actions workflow scripts on this Mac (host-only); see docs/workflow-testing.md
 kinhin start                Run the fleet in the foreground
 kinhin daemon               Run the daemon in the foreground
 kinhin daemon install       Install + start the LaunchAgent
@@ -236,6 +238,8 @@ kinhin daemon uninstall     Remove the LaunchAgent
 kinhin status|watch         Fleet status
 kinhin pause|resume         Hold the fleet / resume scaling
 kinhin stop                 Stop the fleet
+kinhin requeue <forge> [--yes]  Re-queue the fleet's queued jobs on a forge (confirm unless --yes)
+kinhin skip <forge> [--yes]     Mark the fleet's queued jobs as skipped on a forge (confirm unless --yes)
 kinhin logs [-n N]          Recent log lines
 kinhin support              Show ways to donate or sponsor kinhin
 ```
@@ -250,17 +254,19 @@ kinhin support              Show ways to donate or sponsor kinhin
 | [The kinhin app](docs/app.md)                       | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together               |
 | [Hardware requirements & sizing](docs/hardware.md)  | Minimum specs and CPU / memory / storage recommendations                              |
 | [How scaling works](docs/scaling.md)                | Capacity cap, the scaling loop, `runners_per_vm`, recovery                            |
+| [Requeue and skip queued jobs](docs/requeue-skip.md) | Per-fleet queue operations: (re)queue, skip, per-forge scope, CLI (`kinhin requeue <forge> [--yes]` / `kinhin skip <forge> [--yes]`), and failure handling |
 | [Toolchains & the shared cache](docs/toolchains.md) | Provision scripts, managed and per-project toolchains, per-job installs, the download cache |
 | [Support & sponsors](docs/support.md)               | Donate, or become a paid sponsor                                                      |
 | [Forge support](docs/forges.md)                     | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, multiple accounts |
 | [Forge API reference](docs/forges/README.md)        | Per-forge endpoints, auth, API versions and an audit against each forge's docs        |
 | [Runtimes & routing](docs/runtimes.md)              | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing             |
+| [Test workflows locally](docs/workflow-testing.md) | Run a supported subset of GitHub Actions scripts on your Mac                          |
 | [Architecture](docs/architecture.md)                | Package targets, source layout, tests, CI                                             |
 
 ## Troubleshooting
 
 - **`kinhin doctor` shows "tart: NOT FOUND"** — install tart with `brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart`, then reopen
-- **"tart: INSTALLED BUT KILLED ON LAUNCH ✗"** — the OpenAI-tap bottle is un-notarized (openai/homebrew-tools#27); Gatekeeper kills it before it runs. Roll back to the notarized Cirrus Labs build — `kinhin doctor` and the setup app print/offer the exact commands:
+- **\"tart: INSTALLED BUT KILLED ON LAUNCH ✗\"** — the OpenAI-tap bottle is un-notarized (openai/homebrew-tools#27); Gatekeeper kills it before it runs. Roll back to the notarized Cirrus Labs build — `kinhin doctor` and the setup app print/offer the exact commands:
   ```bash
   brew uninstall openai/tools/tart openai/tools/softnet
   brew tap cirruslabs/cli
@@ -291,7 +297,6 @@ answer survives rebuilds instead of prompting after every one. Extra arguments g
 
 From the repo root, `swift package --disable-sandbox dev` does the same (the sandbox must be off because it signs and
 launches the app); arguments pass through, e.g. `swift package --disable-sandbox dev --env-tokens`.
-
 To skip the Keychain entirely in a debug build, run `scripts/dev-run.sh --env-tokens`: forge tokens are then read
 from environment variables (`KINHIN_TOKEN_GITHUB`, `KINHIN_TOKEN_GITEA`, …, and `KINHIN_TOKEN_<ACCOUNT>` for named
 accounts, upper-cased with non-alphanumerics as `_`), loaded from a git-ignored `.env.dev` (copy

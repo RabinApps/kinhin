@@ -42,9 +42,6 @@ jobs:
       - name: Lint (swift-format)
         run: swift format lint --strict -r Sources Tests
 
-      - name: Build
-        run: swift build
-
       - name: Build release products
         # Release-only code paths (KinhinTestSupport is testable-only) and the
         # signed-app pipeline both compile from these; catch breakage here

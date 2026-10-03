@@ -79,6 +79,20 @@ SETUP:
                                 bake gets identical bits (a :latest tag may drift)
     toolchains helper [--linux]    Print the per-job `kinhin-toolchain` helper baked into images
 
+WORKFLOW TESTING:
+    workflow test [FILE] [--job NAME] [--list] [--json]
+                                Run a repo's GitHub Actions workflow locally on your
+                                Mac (host execution only). No VM, token or config:
+                                the YAML is parsed, jobs run sequentially in
+                                `needs` order, and each script step runs through
+                                bash. Defaults to `.github/workflows` in the repo;
+                                `--job NAME` runs one job (its needs are not run);
+                                `--list` prints the jobs; `--json` prints the
+                                final report instead of streaming
+    workflow test --list        Print the jobs of the default workflow, then exit
+    workflow test --json        Print the final report as JSON (exit 1 when a job failed)
+
+
 RUNNING:
     start                       Start the fleet in this terminal (Ctrl-C to stop)
     daemon                      Run the headless daemon in this terminal
@@ -88,6 +102,8 @@ RUNNING:
     daemon install              Install and start a LaunchAgent daemon
     daemon uninstall            Stop and remove the LaunchAgent
     status [--json]             Show fleet status (attach to daemon if running; --json: machine-readable document with daemon/paused/autoResume fields)
+    requeue <forge> [--yes]     Re-queue the fleet's queued jobs on a forge (confirm unless --yes)
+    skip <forge> [--yes]        Mark the fleet's queued jobs as skipped on a forge (confirm unless --yes)
     pause | resume              Hold the fleet / let it scale again
     stop                        Stop the fleet (works on daemon or in-process)
     logs [-n N]                 Show recent log lines
