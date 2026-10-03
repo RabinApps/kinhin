@@ -148,6 +148,34 @@ import XCTest
         XCTAssertEqual(try String(contentsOf: configURL, encoding: .utf8), before)
     }
 
+    func testRebuildCanBeCancelledAndSaysTheImageIsUntouched() async throws {
+        let model = try makeModel()
+        model.confirmRebuild = { _ in true }
+        model.rebuild = { _, _ in
+            try await Task.sleep(for: .seconds(10))
+        }
+        XCTAssertNotNil(model.startRebuild(.tart))
+        XCTAssertTrue(model.busy)
+        XCTAssertNotNil(model.runningTask, "the rebuild's task is retained for the Cancel button")
+
+        model.cancelRunning()
+        let deadline = Date().addingTimeInterval(5)
+        while model.busy, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(10))  // bounded poll: the state flips in the rebuild task
+        }
+
+        XCTAssertFalse(model.busy)
+        XCTAssertNil(model.runningTask)
+        XCTAssertEqual(model.status.text, "Cancelled — the previous image is untouched")
+        XCTAssertEqual(model.status.style, .warn)
+    }
+
+    func testCancelWithoutARebuildIsANoop() throws {
+        let model = try makeModel()
+        model.cancelRunning()
+        XCTAssertFalse(model.busy)
+    }
+
     // MARK: - Catalog and examples
 
     func testCatalogListingCoversEveryToolAndStack() {

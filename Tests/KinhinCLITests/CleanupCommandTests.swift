@@ -87,6 +87,34 @@ final class CleanupCommandTests: XCTestCase {
         XCTAssertTrue(CleanupCommand.describe(plan, willDelete: true).contains("removing"))
     }
 
+    func testScratchVMsArePlannedSeparatelyFromRunnerVMs() async throws {
+        let tart = makeTart()
+        tart.vms["kinhin-prepare-tmp-123"] = TartVM(
+            name: "kinhin-prepare-tmp-123", source: "tahoe-base", status: "stopped")
+        let plan = try await CleanupCommand.makePlan(
+            selection: .init(args: ["--vms"]), tart: tart, baseImage: "tahoe-base",
+            namedImages: ["xcode-base"], cacheRoot: cacheRoot)
+        XCTAssertEqual(plan.scratchVMs, ["kinhin-prepare-tmp-123"])
+        XCTAssertEqual(plan.vms, ["kinhin-1", "kinhin-2", "orchard-3"], "scratch VMs are not counted as runner VMs")
+    }
+
+    func testExecuteDeletesScratchVMsToo() async throws {
+        let tart = makeTart()
+        tart.vms["kinhin-prepare-tmp-9"] = TartVM(
+            name: "kinhin-prepare-tmp-9", source: "tahoe-base", status: "stopped")
+        let plan = try await CleanupCommand.makePlan(
+            selection: .init(args: ["--vms"]), tart: tart, baseImage: "tahoe-base", cacheRoot: cacheRoot)
+        try await CleanupCommand.execute(plan, tart: tart, cacheRoot: cacheRoot)
+        XCTAssertTrue(tart.deleteCalls.contains("kinhin-prepare-tmp-9"))
+    }
+
+    func testDescribeCallsBuildScratchOut() {
+        let plan = CleanupCommand.Plan(scratchVMs: ["kinhin-prepare-tmp-1"])
+        let text = CleanupCommand.describe(plan, willDelete: false)
+        XCTAssertTrue(text.contains("image-build scratch"), text)
+        XCTAssertTrue(text.contains("crashed or killed bake"), text)
+    }
+
     func testCleanupIsARoutedCommand() {
         XCTAssertEqual(CLICommand.parse(["cleanup", "--yes"]), .cleanup)
     }

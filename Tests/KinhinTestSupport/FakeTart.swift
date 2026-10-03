@@ -32,6 +32,12 @@ final class FakeTart: TartControlling, Sendable {
         /// Keys are method nicknames: "clone", "run", "runWithDisk",
         /// "createLinux", "stop", "delete", "pull", "ip".
         var failNext: [String: String] = [:]
+        /// Set by `blockNextStop()`: the next `stop` parks (checked
+        /// continuation) until `releaseStop()` resumes it — the hook for the
+        /// cancellation-during-commit scenario (the bake's commit swap stops
+        /// the scratch VM first).
+        var parkNextStop = false
+        var parkedStops: [CheckedContinuation<Void, Error>] = []
         /// Makes `ip(of:)` park (checked-throwing continuation) until
         /// `releaseIP` resumes it — models a runtime call that ignores
         /// cancellation and ends only on its own timeout.
@@ -97,6 +103,37 @@ final class FakeTart: TartControlling, Sendable {
     /// True while at least one `ip(of:)` call is parked in `blockIP`.
     var isBlockedInIP: Bool {
         !state.withLock { $0.parkedIPs.isEmpty }
+    }
+
+    /// Parks the next `stop` call (one-shot) until `releaseStop()` resumes it.
+    func blockNextStop() {
+        state.withLock { $0.parkNextStop = true }
+    }
+
+    /// True while a `stop` call is parked in `blockNextStop`.
+    var isBlockedInStop: Bool {
+        !state.withLock { $0.parkedStops.isEmpty }
+    }
+
+    /// Waits (bounded) until a parked `stop` exists. Polls because the flag is
+    /// flipped from another task; the `try?` is fine — this is a bounded test
+    /// convenience, and a cancelled waiter just returns early.
+    func waitUntilStopParked(timeout: TimeInterval = 5) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, !isBlockedInStop {
+            try? await Task.sleep(for: .milliseconds(10))  // bounded poll helper; cancellation ends it early
+        }
+    }
+
+    /// Resumes every parked `stop` call.
+    func releaseStop() {
+        let parked = state.withLock { state -> [CheckedContinuation<Void, Error>] in
+            let parked = state.parkedStops
+            state.parkedStops.removeAll()
+            state.parkNextStop = false
+            return parked
+        }
+        for continuation in parked { continuation.resume() }
     }
 
     /// Parks the next `ip(of:)` call (after optional one-shot setup) until
@@ -206,6 +243,17 @@ final class FakeTart: TartControlling, Sendable {
     }
 
     func stop(name: String) async throws {
+        // Park (one-shot) before acting: the cancellation-during-commit hook.
+        let shouldPark = state.withLock { state -> Bool in
+            guard state.parkNextStop else { return false }
+            state.parkNextStop = false
+            return true
+        }
+        if shouldPark {
+            try await withCheckedThrowingContinuation { continuation in
+                state.withLock { $0.parkedStops.append(continuation) }
+            }
+        }
         try state.withLock { state in
             if let stderr = state.failNext.removeValue(forKey: "stop") {
                 throw TartError.commandFailed(what: "stop", stderr: stderr)

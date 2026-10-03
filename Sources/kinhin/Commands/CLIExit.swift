@@ -9,9 +9,17 @@ enum CLIExit: Int32 {
     case config = 3
     case runtime = 4
     case auth = 5
+    /// 128+SIGINT: the command was cancelled (Ctrl-C) and cleaned up.
+    case cancelled = 130
 
     /// The exit code for an error thrown anywhere in the engine or CLI.
     init(_ error: Error) {
+        if error is CancellationError {
+            // A cancelled command unwound through its own cleanup paths; the
+            // process is about to exit 130, not report an engine failure.
+            self = .cancelled
+            return
+        }
         if let cliError = error as? CLIError {
             self = cliError.exit
             return

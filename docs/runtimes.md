@@ -94,6 +94,25 @@ kinhin image digest ghcr.io/cirruslabs/macos-sequoia-base:latest
 
 A pin never moves on its own: re-run `image digest` and re-prepare to update it.
 
+### Cancelling a build
+
+A bake can take a long time, and you can stop it at any point: press **Ctrl-C** in `kinhin image prepare`, or the
+**Cancel** button next to the busy line in the app (the macOS card, the setup wizard and the Toolchains tab's rebuild
+all have one). The command exits with code 130.
+
+Cancelling is safe by construction:
+
+- The bake works in a temporary scratch VM (or scratch container for the Linux runtimes) named
+  `kinhin-prepare-tmp-<timestamp>`. A cancelled bake stops it and deletes it, even when the cancel lands mid-download or
+  mid-install.
+- The previous image is only replaced in the final commit, which cancellation cannot interrupt. A cancelled bake always
+  leaves the image that was there before untouched — the app says so next to the busy line.
+
+What is kept, on purpose: the downloaded base image in tart's registry cache (the expensive part — the next bake starts
+from it), toolchain downloads written through the shared cache, and Docker's/container's own build cache. `kinhin
+image prepare` also sweeps up `kinhin-prepare-tmp-*` VMs left by an earlier crashed bake before it starts, and
+`kinhin cleanup --vms` lists and removes them as "image-build scratch VMs".
+
 ### Isolating runner VMs from each other
 
 By default Tart puts every VM on one shared network, so a job can reach other runner VMs and your LAN. If jobs can

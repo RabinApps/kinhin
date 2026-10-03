@@ -18,6 +18,11 @@ final class FakeSSH: SSHExecuting, Sendable {
         /// answer the default ("runner started"). The image bake's first
         /// exec is the `uname -s` guest probe ("Linux"/"Darwin").
         var stdoutByCall: [Int: String] = [:]
+        /// The zero-based exec call index that parks (one-shot) — the hook
+        /// tests use to cancel an image bake mid-SSH. Checked continuation:
+        /// a cancelled caller stays parked until `releaseBlocked()`.
+        var blockOnCall: Int?
+        var blockedExecs: [CheckedContinuation<Void, Error>] = []
     }
 
     private let state = Mutex(State())
@@ -45,12 +50,53 @@ final class FakeSSH: SSHExecuting, Sendable {
         state.withLock { $0.stdoutByCall[call] = text }
     }
 
+    /// Parks the exec at `call` (zero-based, one-shot) until `releaseBlocked()`
+    /// resumes it.
+    func blockOnCall(_ call: Int) {
+        state.withLock { $0.blockOnCall = call }
+    }
+
+    /// True while at least one exec is parked in `blockOnCall`.
+    var isBlocked: Bool { !state.withLock { $0.blockedExecs.isEmpty } }
+
+    /// Waits (bounded) until a parked exec exists. Polls because the flag is
+    /// flipped from another task; the `try?` is fine — this is a bounded test
+    /// convenience, and a cancelled waiter just returns early.
+    func waitUntilBlocked(timeout: TimeInterval = 5) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, !isBlocked {
+            try? await Task.sleep(for: .milliseconds(10))  // bounded poll helper; cancellation ends it early
+        }
+    }
+
+    /// Resumes every parked exec.
+    func releaseBlocked() {
+        let parked = state.withLock { state -> [CheckedContinuation<Void, Error>] in
+            let parked = state.blockedExecs
+            state.blockedExecs.removeAll()
+            state.blockOnCall = nil
+            return parked
+        }
+        for continuation in parked { continuation.resume() }
+    }
+
     func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
         let callIndex = state.withLock { state -> Int in
             let index = state.scripts.count
             state.scripts.append(script)
             state.timeouts.append(timeout)
             return index
+        }
+        // Park (one-shot) before answering: the cancellation-during-bake hook.
+        let shouldPark = state.withLock { state -> Bool in
+            guard state.blockOnCall == callIndex else { return false }
+            state.blockOnCall = nil
+            return true
+        }
+        if shouldPark {
+            try await withCheckedThrowingContinuation { continuation in
+                state.withLock { $0.blockedExecs.append(continuation) }
+            }
         }
         let failing = state.withLock { state -> String? in
             if let idx = state.failOnCall, idx == callIndex {

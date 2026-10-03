@@ -67,8 +67,8 @@ extension LinuxImageOptions {
 /// agents, optionally bake managed toolchains, commit to the target tag, and
 /// remove the scratch container. Only the CLI verbs and the commit step differ
 /// per backend, so those live in `Backend`.
-struct LinuxImageBaker {
-    struct Backend {
+struct LinuxImageBaker: Sendable {
+    struct Backend: Sendable {
         /// Log component, e.g. "docker-image".
         let logTag: String
         /// Human noun for log lines, e.g. "docker".
@@ -78,9 +78,9 @@ struct LinuxImageBaker {
         let removeVerb: String
         /// Given stderr from a failed scratch start, fixes a known, recoverable
         /// cause (returns true, and the start is retried once). nil = none.
-        var recoverStartFailure: ((_ shell: ShellRunning, _ stderr: String) async -> Bool)? = nil
+        var recoverStartFailure: (@Sendable (_ shell: ShellRunning, _ stderr: String) async -> Bool)? = nil
         /// Turns the scratch container into the tagged target image.
-        let commit: (_ shell: ShellRunning, _ scratch: String, _ target: String) async throws -> Void
+        let commit: (@Sendable (_ shell: ShellRunning, _ scratch: String, _ target: String) async throws -> Void)
     }
 
     let shell: ShellRunning
@@ -88,6 +88,10 @@ struct LinuxImageBaker {
 
     func prepare(_ options: LinuxImageOptions, versions: RunnerVersionResolver.Versions) async throws -> String {
         let tag = backend.logTag
+        // Cancel at the first phase boundary; the long shell calls below are
+        // killed by `Shell` when the caller is cancelled, and the scratch
+        // container is then removed by the uncancelled cleanup path.
+        try Task.checkCancellation()
         // Token-gated provisioning: identical policy to the VM path.
         let hasGitHubToken = try options.hasGitHubToken ?? AccountTokens.anyStored(for: .github)
         // Forgejo uses the gitea-runner binary: bake it when either
@@ -178,7 +182,7 @@ struct LinuxImageBaker {
 
         // 1. Boot a scratch container from the base image, with the host
         //    cache bind-mounted (`<bin> run -v host:guest`).
-        let scratch = "kinhin-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
+        let scratch = ImagePreparer.scratchPrefix + String(Int(Date().timeIntervalSince1970))
         Log.info(tag, "starting scratch container from \(options.image) (host toolchain cache bind-mounted)")
         var startArgv = [bin, "run", "--detach"]
         // Native arm64 keeps the argv unchanged; anything else is pinned
@@ -208,6 +212,7 @@ struct LinuxImageBaker {
                 "could not start a container from '\(options.image)': \(reason)")
         }
 
+        let removeVerb = backend.removeVerb
         do {
             // 2. Wait until it answers exec.
             try await waitUntilReady(scratch)
@@ -240,12 +245,22 @@ struct LinuxImageBaker {
             Log.info(tag, "committing target image \(options.target)")
             try await backend.commit(shell, scratch, options.target)
         } catch {
-            await removeScratch(scratch)
+            // Uncancelled (a fresh task): from a cancelled task `Shell` would
+            // refuse the rm, and cancellation must not leak the scratch
+            // container — same rule as the VM bake.
+            if error is CancellationError {
+                Log.info(tag, "bake cancelled — scratch container removed; the previous image was not modified")
+            }
+            try await withoutCancellation {
+                await Self.removeScratch(scratch, tag: tag, binary: bin, verb: removeVerb, shell: shell)
+            }
             throw error
         }
 
-        // 6. Clean up the scratch container.
-        await removeScratch(scratch)
+        // 6. Clean up the scratch container (uncancelled for the same reason).
+        try await withoutCancellation {
+            await Self.removeScratch(scratch, tag: tag, binary: bin, verb: removeVerb, shell: shell)
+        }
         Log.info(tag, "prepared \(backend.displayName) image '\(options.target)' is ready")
         return options.target
     }
@@ -272,9 +287,14 @@ struct LinuxImageBaker {
         Log.info(tag, "managed toolchains baked into the image")
     }
 
-    private func removeScratch(_ scratch: String) async {
-        await bestEffortAsync(backend.logTag, "removing scratch container \(scratch)") {
-            _ = try await shell.run([backend.binary, backend.removeVerb, "--force", scratch])
+    /// Force-removes the scratch container. `tag`, `binary` and `verb` are
+    /// passed explicitly so the call stays `@Sendable` without capturing the
+    /// (non-Sendable) backend.
+    private static func removeScratch(
+        _ scratch: String, tag: String, binary: String, verb: String, shell: ShellRunning
+    ) async {
+        await bestEffortAsync(tag, "removing scratch container \(scratch)") {
+            _ = try await shell.run([binary, verb, "--force", scratch])
         }
     }
 

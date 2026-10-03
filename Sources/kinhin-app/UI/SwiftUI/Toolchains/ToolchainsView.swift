@@ -148,6 +148,11 @@ struct ToolchainsView: View {
                 .lineLimit(3)
                 .textSelection(.enabled)
             Spacer(minLength: 0)
+            if model.busy {
+                Button("Cancel") { model.cancelRunning() }
+                    .controlSize(.small)
+                    .accessibilityIdentifier("toolchains-busy-cancel")
+            }
         }
         .padding(.leading, inset)
         .frame(width: FormMetrics.width, alignment: .leading)

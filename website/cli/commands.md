@@ -117,6 +117,7 @@ Scripts can branch on the exit code.
 | 3 | Invalid or unreadable config |
 | 4 | Runtime or engine failure |
 | 5 | Missing or rejected token |
+| 130 | Cancelled (Ctrl-C); in-progress work was cleaned up |
 <!-- docs-sync:end exit-codes -->
 
 ## How scaling works

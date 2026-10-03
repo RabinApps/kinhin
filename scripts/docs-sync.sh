@@ -83,6 +83,7 @@ gen_exit-codes() {
             config) meaning="Invalid or unreadable config" ;;
             runtime) meaning="Runtime or engine failure" ;;
             auth) meaning="Missing or rejected token" ;;
+            cancelled) meaning="Cancelled (Ctrl-C); in-progress work was cleaned up" ;;
             *) meaning="$name" ;;
         esac
         echo "| $code | $meaning |"

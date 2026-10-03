@@ -174,6 +174,11 @@ final class ToolchainsModel {
 
     // MARK: - Rebuild base image
 
+    /// The in-flight rebuild's task, so the Cancel button can stop it (the
+    /// build then unwinds through its scratch-VM cleanup and keeps the
+    /// previous image).
+    @ObservationIgnored private(set) var runningTask: Task<Void, Never>?
+
     @discardableResult
     func startRebuild(_ runtime: RuntimeID) -> Task<Void, Never>? {
         guard !busy, confirmRebuild(runtime) else { return nil }
@@ -187,17 +192,29 @@ final class ToolchainsModel {
         busy = true
         status = Line(text: "Rebuilding the \(Self.runtimeTitle(runtime))… this can take a while.")
         let rebuild = self.rebuild
-        return Task { [weak self] in
+        let task = Task { [weak self] in
             do {
                 try await rebuild(runtime, cfg)
                 self?.busy = false
                 self?.reload()
                 self?.status = Line(text: "Rebuilt the \(Self.runtimeTitle(runtime)) ✓", style: .ok)
+            } catch is CancellationError {
+                self?.busy = false
+                self?.reload()
+                self?.status = Line(text: "Cancelled — the previous image is untouched", style: .warn)
             } catch {
                 self?.busy = false
                 self?.status = Line(text: "Not rebuilt — \(error.localizedDescription)", style: .error)
             }
+            self?.runningTask = nil
         }
+        runningTask = task
+        return task
+    }
+
+    /// The Cancel button's action: cancels the in-flight rebuild.
+    func cancelRunning() {
+        runningTask?.cancel()
     }
 
     static func runtimeTitle(_ runtime: RuntimeID) -> String {

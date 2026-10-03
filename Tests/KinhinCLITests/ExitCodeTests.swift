@@ -30,4 +30,9 @@ final class ExitCodeTests: XCTestCase {
         struct Other: Error {}
         XCTAssertEqual(CLIExit(Other()), .general)
     }
+
+    func testCancellationExits130() {
+        XCTAssertEqual(CLIExit.cancelled.rawValue, 130, "128+SIGINT convention")
+        XCTAssertEqual(CLIExit(CancellationError()), .cancelled)
+    }
 }

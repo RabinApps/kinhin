@@ -8,13 +8,16 @@ enum CleanupCommand {
     struct Plan: Equatable {
         /// Runner VMs (`kinhin-*`, or the pre-rename `orchard-*`) tart still holds.
         var vms: [String] = []
+        /// Leftover image-build scratch VMs (`kinhin-prepare-tmp-*`) from a
+        /// crashed or killed bake.
+        var scratchVMs: [String] = []
         /// The configured base image and any named `images:` entries, when they
         /// exist locally and `--image` was given.
         var images: [String] = []
         /// Whether to empty the toolchain cache, and how many bytes it holds.
         var cacheBytes: Int64?
 
-        var isEmpty: Bool { vms.isEmpty && images.isEmpty && cacheBytes == nil }
+        var isEmpty: Bool { vms.isEmpty && scratchVMs.isEmpty && images.isEmpty && cacheBytes == nil }
     }
 
     struct Selection: Equatable {
@@ -81,9 +84,14 @@ enum CleanupCommand {
         if selection.vms || selection.image, let tart {
             let local = try await tart.list()
             if selection.vms {
-                plan.vms = local.map(\.name)
+                let ours = local.map(\.name)
                     .filter { ($0.hasPrefix("kinhin-") || $0.hasPrefix("orchard-")) && !baked.contains($0) }
                     .sorted()
+                // Build scratch VMs (`kinhin-prepare-tmp-*`) get their own
+                // line: they are leftovers from a crashed or killed bake, not
+                // runner VMs.
+                plan.scratchVMs = ours.filter { $0.hasPrefix(ImagePreparer.scratchPrefix) }
+                plan.vms = ours.filter { !plan.scratchVMs.contains($0) }
             }
             if selection.image {
                 plan.images = baked.filter { name in local.contains(where: { $0.name == name }) }
@@ -103,6 +111,11 @@ enum CleanupCommand {
         if !plan.vms.isEmpty {
             lines.append("\(verb) \(plan.vms.count) runner VM(s): \(plan.vms.joined(separator: ", "))")
         }
+        if !plan.scratchVMs.isEmpty {
+            lines.append(
+                "\(verb) \(plan.scratchVMs.count) leftover image-build scratch VM(s): "
+                    + "\(plan.scratchVMs.joined(separator: ", ")) (from a crashed or killed bake)")
+        }
         if !plan.images.isEmpty {
             lines.append(
                 "\(verb) image(s): \(plan.images.joined(separator: ", ")) (re-create them with `kinhin image prepare`)")
@@ -116,7 +129,7 @@ enum CleanupCommand {
 
     static func execute(_ plan: Plan, tart: (any TartControlling)?, cacheRoot: URL) async throws {
         if let tart {
-            for vm in plan.vms {
+            for vm in plan.vms + plan.scratchVMs {
                 // A running VM must be stopped before tart will delete it; an already-stopped one is fine.
                 try? await tart.stop(name: vm)  // not running (or already stopped) is exactly what we want
                 try await tart.delete(name: vm)

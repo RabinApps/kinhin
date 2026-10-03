@@ -63,6 +63,12 @@ struct MacToolsView: View {
                     if model.busy { ProgressView().controlSize(.small) }
                     StatusText(text: model.busyLine.text, style: model.busyLine.style)
                         .textSelection(.enabled)
+                    if model.busy {
+                        Spacer(minLength: 0)
+                        Button("Cancel") { model.cancelRunning() }
+                            .controlSize(.small)
+                            .accessibilityIdentifier("mac-busy-cancel")
+                    }
                 }
             }
         }

@@ -20,7 +20,7 @@ jobs:
     # The self-hosted runner shares a Mac with the fleet and its Keychain, so
     # it never runs code from fork PRs (they would execute arbitrary tests).
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, macos, arm64]
+    runs-on: [self-hosted, macos, arm64, xcode]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -61,7 +61,7 @@ jobs:
     # ThreadSanitizer pass over shared state: serial (~5–10 min), so it runs
     # on demand and nightly rather than on every push.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, macos, arm64]
+    runs-on: [self-hosted, macos, arm64, xcode]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 

@@ -67,6 +67,10 @@ final class MacToolsModel: ConfigFormModel {
     /// A long-running action (install, prepare image) is in flight.
     private(set) var busy = false
     private(set) var busyLine = Line(text: "")
+    /// The task behind the current `busy` action, so the Cancel button can
+    /// stop it (an image build then unwinds through its scratch-VM cleanup
+    /// and keeps the previous image).
+    @ObservationIgnored private(set) var runningTask: Task<Void, Never>?
 
     /// The open install-confirmation sheet's inputs: what will run and the
     /// methods to choose from. `MacToolsView` presents the sheet while
@@ -294,20 +298,38 @@ final class MacToolsModel: ConfigFormModel {
 
     /// Runs a long action with the busy spinner/line managed around it
     /// (internal: the install-sheet extension starts installs through it).
+    /// `cancelledLine` is shown when the action is cancelled (default fits
+    /// installs; image builds pass their own reassurance). The task is kept
+    /// in `runningTask` so `cancelRunning()` can stop it.
     @discardableResult
-    func run(_ title: String, _ body: @escaping @Sendable () async throws -> Void) -> Task<Void, Never> {
+    func run(
+        _ title: String, cancelledLine: String = "Cancelled",
+        _ body: @escaping @Sendable () async throws -> Void
+    ) -> Task<Void, Never> {
         busy = true
         busyLine = Line(text: title)
-        return Task { [weak self] in
+        let task = Task { [weak self] in
             do {
                 try await body()
                 self?.busyLine = Line(text: "")
+            } catch is CancellationError {
+                self?.busyLine = Line(text: cancelledLine, style: .warn)
             } catch {
                 self?.busyLine = Line(text: "Failed — \(error.localizedDescription)", style: .error)
             }
             self?.busy = false
+            self?.runningTask = nil
             self?.reload()
         }
+        runningTask = task
+        return task
+    }
+
+    /// The Cancel button's action: cancels the in-flight action. Cancellation
+    /// is cooperative — image builds remove their scratch VM and keep the
+    /// previous image; child processes are killed by `Shell`.
+    func cancelRunning() {
+        runningTask?.cancel()
     }
 
     private static func installLine(installed: Bool, blocked: String?) -> Line {
@@ -372,7 +394,10 @@ final class MacToolsModel: ConfigFormModel {
         {
             return
         }
-        run("Preparing the runner image — this takes a while…") {
+        run(
+            "Preparing the runner image — this takes a while…",
+            cancelledLine: "Cancelled — the previous image is untouched"
+        ) {
             try await ImageBuildService.rebuild(.tart, config: ConfigLoader.load())
         }
     }
@@ -420,7 +445,10 @@ final class MacToolsModel: ConfigFormModel {
         {
             return
         }
-        run("Preparing image “\(name)” — this takes a while…") {
+        run(
+            "Preparing image “\(name)” — this takes a while…",
+            cancelledLine: "Cancelled — the previous image is untouched"
+        ) {
             try await ImageBuildService.rebuild(.tart, config: ConfigLoader.load(), image: name)
         }
     }
@@ -441,7 +469,10 @@ final class MacToolsModel: ConfigFormModel {
     /// configured base image.
     func buildLinuxImage(_ runtime: RuntimeID) {
         guard runtime == .appleContainer || runtime == .docker else { return }
-        run("Building the \(runtime == .docker ? "Docker" : "Apple container") image — this takes a while…") {
+        run(
+            "Building the \(runtime == .docker ? "Docker" : "Apple container") image — this takes a while…",
+            cancelledLine: "Cancelled — the previous image is untouched"
+        ) {
             try await ImageBuildService.rebuild(runtime, config: ConfigLoader.load())
         }
     }

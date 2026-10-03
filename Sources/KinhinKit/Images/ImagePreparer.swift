@@ -1,7 +1,7 @@
 import Foundation
 
 /// Builds the local base image that runner VMs clone from.
-public struct ImagePreparer {
+public struct ImagePreparer: Sendable {
     public static let defaultSource = "ghcr.io/cirruslabs/macos-tahoe-base:latest"
     public static let defaultTarget = "tahoe-base"
     /// GitHub Actions runner agent version baked into the image when no
@@ -28,7 +28,7 @@ public struct ImagePreparer {
         self.ssh = ssh
     }
 
-    public struct Options {
+    public struct Options: Sendable {
         public var source: String
         public var target: String
         public var runnerVersion: String
@@ -132,26 +132,69 @@ public struct ImagePreparer {
         }
     }
 
-    /// Full prepare pipeline. Slow (minutes); progress is logged.
+    /// Full prepare pipeline. Slow (minutes); progress is logged. Cancelling
+    /// the calling task stops the bake at the next phase boundary: the scratch
+    /// VM is stopped and deleted (uncancellable — see below), the previous
+    /// target image is left untouched, and `CancellationError` rethrows.
     public func run(_ options: Options) async throws {
-        let tmp = "kinhin-prepare-tmp-\(Int(Date().timeIntervalSince1970))"
+        await sweepLeftoverScratchVMs()
+        let tmp = Self.scratchPrefix + String(Int(Date().timeIntervalSince1970))
         let tart = self.tart
         do {
             try await prepareScratchVM(options, scratch: tmp)
         } catch {
-            // Clean up before the error reaches the caller: a CLI process
-            // exits right after, which would kill a fire-and-forget task and
-            // leave the scratch VM behind (seen live: a failed toolchain bake
-            // left kinhin-prepare-tmp-* on disk).
-            await ssh.forgetHostKey(vm: tmp)
-            await bestEffortAsync(tmp, "stopping scratch VM") { try await tart.stop(name: tmp) }
-            await bestEffortAsync(tmp, "deleting scratch VM") { try await tart.delete(name: tmp) }
+            // Clean up before the error reaches the caller — cancellation
+            // included. The teardown runs in a fresh task: from a cancelled
+            // task every shell call is refused (`Shell` throws
+            // CancellationError before starting the child), which would skip
+            // the very cleanup that cancellation requires (seen live: a
+            // cancelled bake left kinhin-prepare-tmp-* on disk).
+            try await withoutCancellation {
+                await ssh.forgetHostKey(vm: tmp)
+                await bestEffortAsync(tmp, "stopping scratch VM") { try await tart.stop(name: tmp) }
+                await bestEffortAsync(tmp, "deleting scratch VM") { try await tart.delete(name: tmp) }
+            }
+            if error is CancellationError {
+                Log.info("image", "build cancelled — scratch VM removed; the previous image was not modified")
+            }
             throw error
         }
         // Success: the scratch VM was already stopped for the commit, and its
         // disk is an APFS clone peer of the target's — deleting it is safe.
-        await ssh.forgetHostKey(vm: tmp)
-        await bestEffortAsync(tmp, "deleting scratch VM") { try await tart.delete(name: tmp) }
+        // Uncancelled like the failure path: a cancel landing right here must
+        // not leak the scratch VM.
+        try await withoutCancellation {
+            await ssh.forgetHostKey(vm: tmp)
+            await bestEffortAsync(tmp, "deleting scratch VM") { try await tart.delete(name: tmp) }
+        }
+    }
+
+    // MARK: - Scratch sweep
+
+    /// The name prefix of the temporary scratch VM a bake clones into
+    /// (`kinhin-prepare-tmp-<unix-time>`); the pre-bake sweep and `kinhin
+    /// cleanup` recognize leftovers by it. Container bakes (Docker and Apple
+    /// container) name their scratch container the same way.
+    public static let scratchPrefix = "kinhin-prepare-tmp-"
+
+    /// Removes scratch VMs left behind by earlier bakes that crashed or were
+    /// killed before their cleanup ran. Runs before every bake, so orphans
+    /// never accumulate disk. Best effort: a failed sweep is logged and the
+    /// bake proceeds; a failed listing must never read as "no leftovers".
+    func sweepLeftoverScratchVMs() async {
+        let locals: [TartVM]
+        do {
+            locals = try await tart.list()
+        } catch {
+            Log.warn("image", "could not list VMs for the scratch sweep: \(error.localizedDescription)")
+            return
+        }
+        for name in locals.map(\.name).filter({ $0.hasPrefix(Self.scratchPrefix) }).sorted() {
+            Log.info("image", "removing leftover scratch VM \(name) (from a crashed or killed bake)")
+            await bestEffortAsync(name, "stopping leftover scratch VM") { try await tart.stop(name: name) }
+            await bestEffortAsync(name, "deleting leftover scratch VM") { try await tart.delete(name: name) }
+            await ssh.forgetHostKey(vm: name)
+        }
     }
 
     /// The prepare pipeline body: scratch-VM clone through the final commit.
@@ -201,6 +244,9 @@ public struct ImagePreparer {
             Log.info("image", "user provision script will be baked: \(provisionScript.path)")
         }
 
+        // Phase boundaries are where a cancelled bake stops: each check below
+        // turns Ctrl-C into a clean unwind at the next safe point.
+        try Task.checkCancellation()
         Log.info("image", "ensuring base image \(options.source) is present (this can download gigabytes once)")
         // A locally-created VM (tart create --linux, then OS-installed by
         // hand) is already on disk — `tart pull` would fail on a non-registry
@@ -211,6 +257,7 @@ public struct ImagePreparer {
             Log.info("image", "source \(options.source) is a local VM — skipping the registry pull")
         }
 
+        try Task.checkCancellation()
         Log.info("image", "cloning to scratch VM \(tmp)")
         try await tart.clone(source: options.source, to: tmp)
 
@@ -237,6 +284,7 @@ public struct ImagePreparer {
             }
         }
 
+        try Task.checkCancellation()
         Log.info(
             "image",
             options.shareCache
@@ -371,6 +419,7 @@ public struct ImagePreparer {
         )
         let script = scripts.joined(separator: "\n\n")
 
+        try Task.checkCancellation()
         Log.info("image", "scratch VM at \(ip); injecting runner agent + tweaks")
 
         let result = try await ssh.exec(vm: tmp, user: options.user, ip: ip, script: script, timeout: 900)
@@ -383,6 +432,7 @@ public struct ImagePreparer {
         // catalog, with the cache share mounted. Failure aborts the prepare
         // so the previous target image stays intact. The user provision
         // script still runs afterwards and can layer/override on top.
+        try Task.checkCancellation()
         if let toolchains = options.toolchains {
             let selection = ToolchainCatalog.selection(
                 from: toolchains, platform: guestOS.toolchainPlatform, mountPath: guestOS.toolchainMountPath)
@@ -415,6 +465,7 @@ public struct ImagePreparer {
         // User toolchains: run the provision script verbatim as a second SSH
         // exec, while the scratch VM is still up. Failure aborts the prepare
         // so the previous target image stays intact.
+        try Task.checkCancellation()
         if let provision = provisionScript {
             Log.info("image", "running user provision script: \(provision.path)")
             let wrapper = Self.provisionWrapperScript(contentBase64: Data(provision.content.utf8).base64EncodedString())
@@ -435,15 +486,21 @@ public struct ImagePreparer {
 
         Log.info("image", "provisioning done; stopping scratch VM")
 
-        try await tart.stop(name: tmp)
-
-        // Replace any previous prepared image, then keep the scratch clone
-        // around as the new base (linked clones of it stay cheap).
-        if try await tart.list().contains(where: { $0.name == options.target }) {
-            Log.info("image", "replacing existing image \(options.target)")
-            try await tart.delete(name: options.target)
+        // Cancellation stops HERE: once the commit swap begins it runs to
+        // completion, in a fresh task that inherits no cancellation — a
+        // cancelled caller's shell calls would be refused outright, and stop,
+        // delete-target and clone are separate tart calls, so a cancelled
+        // swap could leave the target image deleted but unreplaced.
+        try Task.checkCancellation()
+        let target = options.target
+        try await withoutCancellation {
+            try await tart.stop(name: tmp)
+            if try await tart.list().contains(where: { $0.name == target }) {
+                Log.info("image", "replacing existing image \(target)")
+                try await tart.delete(name: target)
+            }
+            try await tart.clone(source: tmp, to: target)
         }
-        try await tart.clone(source: tmp, to: options.target)
         Log.info("image", "prepared image '\(options.target)' is ready")
     }
 
