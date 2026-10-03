@@ -199,8 +199,11 @@ extension GitHubClient {
             var signed = URLRequest(url: location)
             signed.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
             let (body, bodyResponse) = try await session.data(for: signed)
-            guard (bodyResponse as? HTTPURLResponse)?.statusCode == 200 else {
-                throw GitHubError.http((bodyResponse as? HTTPURLResponse)?.statusCode ?? 0, "log download failed")
+            switch (bodyResponse as? HTTPURLResponse)?.statusCode {
+            case 200: break
+            case 404, 410: return nil  // not available yet, or expired (e.g. a live job whose log blob is not written)
+            case .some(let code): throw GitHubError.http(code, "log download failed")
+            case .none: throw GitHubError.http(0, "non-HTTP response on log download")
             }
             return String(decoding: body, as: UTF8.self)
         case 401: throw GitHubError.unauthorized

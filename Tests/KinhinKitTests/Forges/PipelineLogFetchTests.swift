@@ -65,6 +65,27 @@ final class PipelineLogFetchTests: XCTestCase {
         XCTAssertNil(raw)
     }
 
+    func testGitHubLogRedirectFollowReturnsNilWhenTheSignedBlobIsNotFound() async throws {
+        // A live job's log blob is not written yet; the signed URL answers 404
+        // and the client returns nil rather than surfacing a hard error.
+        let redirected = Mutex(false)
+        StubProtocol.handler = { request in
+            if request.url?.path == "/repos/acme/widgets/actions/jobs/11/logs" {
+                redirected.withLock { $0 = true }
+                return (302, Data(), ["Location": "https://blob.example.com/logs/missing?sig=1"])
+            }
+            guard request.url?.host == "blob.example.com" else {
+                return (200, Data(), [:])  // not our scenario
+            }
+            return (404, Data(), ["x-blob-error": "BlobNotFound"])
+        }
+        let client = GitHubClient(
+            credentials: GitHubCredentials(token: "t", scope: "acme/widgets"), session: session())
+        let raw = try await client.jobLog(repository: "acme/widgets", jobID: 11)
+        XCTAssertNil(raw)
+        XCTAssertTrue(redirected.withLock { $0 })
+    }
+
     func testGitHubRejectsAMalformedRepositoryRef() async {
         let client = GitHubClient(credentials: GitHubCredentials(token: "t", scope: "acme/widgets"), session: session())
         do {
