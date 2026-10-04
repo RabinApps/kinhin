@@ -29,6 +29,28 @@ struct MainTabsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        // The sponsor star sits in the window's top-right corner, over every
+        // tab (the traffic lights own the top-left). Hidden while first-run
+        // setup gates the window, matching the sheets.
+        .overlay(alignment: .topTrailing) {
+            if !model.isGatedBySetup {
+                Button {
+                    model.present(.sponsor)
+                } label: {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.yellow)
+                        .padding(6)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .help("Sponsor kinhin")
+                .accessibilityLabel("Sponsor kinhin")
+                .accessibilityIdentifier("sponsor-button")
+                .padding(.trailing, 14)
+                .padding(.top, 10)
+            }
+        }
         .sheet(item: $model.sheet) { sheet in
             switch sheet {
             case .logs:
@@ -46,6 +68,8 @@ struct MainTabsView: View {
                 if let model = model.models.workflowTestModel {
                     WorkflowTestView(model: model, onClose: { self.model.dismissSheet() })
                 }
+            case .sponsor:
+                SponsorSheet(close: { model.dismissSheet() })
             }
         }
     }

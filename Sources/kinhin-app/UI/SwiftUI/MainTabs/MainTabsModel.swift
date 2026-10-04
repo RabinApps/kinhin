@@ -9,6 +9,8 @@ enum MainSheet: Hashable, Identifiable {
     case pipeline(vmID: String)
     /// The workflow test sheet.
     case workflowTest
+    /// The sponsor sheet (the star button's modal).
+    case sponsor
 
     var id: String {
         switch self {
@@ -16,6 +18,7 @@ enum MainSheet: Hashable, Identifiable {
         case .diagnostics: return "diagnostics"
         case .pipeline(let vmID): return "pipeline:\(vmID)"
         case .workflowTest: return "workflow-test"
+        case .sponsor: return "sponsor"
         }
     }
 }
@@ -206,6 +209,8 @@ final class MainTabsModel {
             // A fresh model per opening: it starts on the job list, not on
             // whatever job the last sheet had drilled into.
             _ = models.makeWorkflowTestModel()
+        case .sponsor:
+            break  // static content; no model to prepare
         }
         self.sheet = sheet
     }

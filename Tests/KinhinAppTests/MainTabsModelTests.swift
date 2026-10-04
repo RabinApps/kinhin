@@ -196,4 +196,21 @@ final class MainTabsModelTests: MainWindowTestCase {
         let diagnostics = models.ensureDiagnosticsModel()
         XCTAssertTrue(models.ensureDiagnosticsModel() === diagnostics)
     }
+
+    func testSponsorSheetPresentsAndDismisses() {
+        XCTAssertNil(tabs.sheet)
+        tabs.present(.sponsor)
+        XCTAssertEqual(tabs.sheet, .sponsor)
+        tabs.dismissSheet()
+        XCTAssertNil(tabs.sheet)
+    }
+
+    func testSponsorSheetIsRefusedWhileSetupGatesTheWindow() {
+        fleet.setupIncomplete = true
+        tabs.present(.sponsor)
+        XCTAssertNil(tabs.sheet, "no sheets while first-run setup gates the window")
+        fleet.setupIncomplete = false
+        tabs.present(.sponsor)
+        XCTAssertEqual(tabs.sheet, .sponsor)
+    }
 }
