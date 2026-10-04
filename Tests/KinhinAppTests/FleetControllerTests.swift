@@ -380,4 +380,91 @@ final class FleetControllerTests: XCTestCase {
         fleet.setMenuOpen(true)
         await waitUntil("woken poll") { self.fake.calls.filter { $0 == "status" }.count == 2 }
     }
+
+    // MARK: - Stale daemon LaunchAgent plist
+
+    func testDetectStaleDaemonPlistSetsNoticeWhenPlistBinaryIsMissing() {
+        // No plist at all: no notice.
+        fleet.detectStaleDaemonPlist()
+        XCTAssertNil(fleet.staleDaemonPlist)
+    }
+
+    func testStaleDaemonPlistNoticeAppearsInStatusLine() {
+        fleet.staleDaemonPlist =
+            "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it"
+        let line = fleet.statusLine
+        XCTAssertTrue(line.contains("⚠"), "status line carries the stale-daemon warning: \(line)")
+        XCTAssertTrue(line.contains("daemon uninstall"), "status line names the fix: \(line)")
+    }
+
+    func testNoStalePlistNoticeWhenStatusIsSet() {
+        fleet.staleDaemonPlist = nil
+        var status = FleetStatus()
+        status.running = true
+        fleet.status = status
+        let line = fleet.statusLine
+        XCTAssertFalse(line.contains("⚠"), "a running fleet has no stale-daemon warning: \(line)")
+    }
+
+    func testStalePlistNoticeSurvivesAStatusChange() {
+        fleet.staleDaemonPlist =
+            "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it"
+        fleet.status = FleetStatus()
+        XCTAssertTrue(fleet.statusLine.contains("daemon uninstall"), "stale notice persists across status changes")
+    }
+
+    // MARK: - Fleet mode label
+
+    func testFleetModeIsInProcessWhenTheAppOwnsTheEngine() {
+        // The setUp fleet has a FakeFleetServing directly on service, so
+        // backend returns nil. Set an explicit in-process backend to test.
+        let dir = FileManager.default.temporaryDirectory
+        let cfgURL = dir.appendingPathComponent("kinhin-mode-test-\(UUID().uuidString).yaml")
+        let config = "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n"
+        try? config.write(to: cfgURL, atomically: true, encoding: .utf8)
+        let cfg = try! ConfigLoader.load(from: cfgURL)
+        let engine = try! FleetEngine.production(config: cfg, token: "ghp_test")
+        fleet.backend = .inProcess(engine)
+        XCTAssertEqual(fleet.fleetMode, "in-process engine")
+        XCTAssertTrue(fleet.statusLine.contains("in-process engine"))
+        try? FileManager.default.removeItem(at: cfgURL)
+    }
+
+    func testFleetModeIsDaemonWhenAttachedToADaemon() {
+        let dir = FileManager.default.temporaryDirectory
+        let socket = dir.appendingPathComponent("kinhin-mode-test-\(UUID().uuidString).sock")
+        try? FileManager.default.removeItem(at: socket)
+        fleet.backend = .daemon(RPCClient(socketURL: socket))
+        XCTAssertEqual(fleet.fleetMode, "background daemon")
+        XCTAssertTrue(fleet.statusLine.contains("background daemon"))
+        try? FileManager.default.removeItem(at: socket)
+    }
+
+    func testFleetModeIsNilWhenNoBackendIsAttached() {
+        fleet.service = nil
+        fleet.backend = nil
+        XCTAssertNil(fleet.fleetMode)
+        XCTAssertFalse(fleet.statusLine.contains("in-process engine"))
+        XCTAssertFalse(fleet.statusLine.contains("background daemon"))
+        // fleetMode is nil, so no mode line is appended.
+        XCTAssertEqual(fleet.statusLine, FleetStatusFormatter.summary(nil))
+    }
+
+    func testFleetModeLineAppearsAfterTheStatusCounters() {
+        let dir = FileManager.default.temporaryDirectory
+        let cfgURL = dir.appendingPathComponent("kinhin-mode-test-\(UUID().uuidString).yaml")
+        let config = "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n"
+        try? config.write(to: cfgURL, atomically: true, encoding: .utf8)
+        let cfg = try! ConfigLoader.load(from: cfgURL)
+        let engine = try! FleetEngine.production(config: cfg, token: "ghp_test")
+        fleet.service = nil
+        fleet.backend = .inProcess(engine)
+        fleet.status = FleetStatus(running: true, queueDepth: 2, desired: 1, capacityCap: 3, jobCapacity: 4)
+        let line = fleet.statusLine
+        XCTAssertTrue(line.contains("in-process engine"), "mode label present: \(line)")
+        let modeIndex = line.range(of: "in-process engine")!.lowerBound
+        let statusEnd = line.range(of: "job slots")!.upperBound
+        XCTAssertLessThan(statusEnd, modeIndex, "mode label comes after the status counters: \(line)")
+        try? FileManager.default.removeItem(at: cfgURL)
+    }
 }

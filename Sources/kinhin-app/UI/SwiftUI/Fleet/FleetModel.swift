@@ -91,6 +91,24 @@ final class FleetModel {
     }
     var pauseTitle: String { paused ? "Resume" : "Pause" }
     var records: [VMRecord] { status?.records ?? [] }
+
+    /// The fleet mode (in-process engine / background daemon) and any
+    /// stale-daemon LaunchAgent warning, rendered as a compact footer
+    /// under the Fleet tab's status line with distinct styling.
+    var fleetStatusFooter: [StatusLine] {
+        var lines: [StatusLine] = []
+        if let mode = controller.fleetMode {
+            lines.append(StatusLine(text: mode, style: .secondary))
+        }
+        if let stale = controller.staleDaemonPlist {
+            lines.append(StatusLine(text: stale, style: .warn))
+        }
+        return lines
+    }
+
+    /// A short, at-a-glance fleet mode label for the Fleet tab header badge.
+    /// Nil when no backend is attached (setup unfinished, or before the first poll).
+    var fleetModeBadge: String? { controller.fleetMode }
     /// The VMs currently running a workflow.
     var working: [VMRecord] { records.filter { $0.job != nil } }
 

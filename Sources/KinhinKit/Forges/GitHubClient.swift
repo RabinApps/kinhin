@@ -453,7 +453,7 @@ public struct GitHubClient: GitHubServing {
         guard let repository = try await runRepository(for: id) else { return false }
         let req = try request(method: "POST", path: "/repos/\(repository)/actions/runs/\(id)/cancel")
         do {
-            let (data, _) = try await send(req)
+            let (_data, _) = try await send(req)
             return true
         } catch GitHubError.notFound {
             return false
@@ -464,7 +464,7 @@ public struct GitHubClient: GitHubServing {
         guard let repository = try await runRepository(for: id) else { return false }
         let req = try request(method: "POST", path: "/repos/\(repository)/actions/runs/\(id)/disable")
         do {
-            let (data, _) = try await send(req)
+            let (_data, _) = try await send(req)
             return true
         } catch GitHubError.notFound {
             return false

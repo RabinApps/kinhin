@@ -63,7 +63,9 @@ extension ConfigLoader {
         # pick one in the app) instead of the default macOS base. A local VM
         # name (e.g. one made with `image prepare --linux`) also works.
         # A Linux image here turns the whole tart fleet into Tart Linux VMs —
-        # remove `macos` from `labels:` when you do.
+        # when you use named images with distinct labels, Linux-named images
+        # strip the fleet's `macos` label automatically (you do not need to
+        # remove it from `labels:`).
         # base_image: "ghcr.io/cirruslabs/macos-sequoia-base:latest"
 
         # Extra named images beside image:, each baked on its own base (for
@@ -137,10 +139,11 @@ extension ConfigLoader {
 
         # Optional: route repos and workflows to different execution runtimes.
         # macOS jobs need Tart VMs; Linux jobs can run in Apple-container
-        # microVMs, Docker containers, or full Tart Linux VMs (a tart fleet
-        # serves one OS at a time — see docs/runtimes.md for the comparison).
-        # Each runtime's runners carry distinct labels, so a workflow overrides
-        # its repo's route per job via `runs-on:` (e.g. runs-on: [kinhin-container]).
+        # microVMs, Docker containers, or full Tart Linux VMs. A tart fleet can
+        # serve macOS and Linux VMs together when named images have distinct
+        # labels (see docs/runtimes.md for the comparison). Each runtime's
+        # runners carry distinct labels, so a workflow overrides its repo's
+        # route per job via `runs-on:` (e.g. runs-on: [kinhin-container]).
         # runtimes:
         #   default: tart                # runtime for repos with no route
         #   budget: {tart: 0.6, appleContainer: 0.4}   # host-budget split

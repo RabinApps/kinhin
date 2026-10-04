@@ -59,6 +59,8 @@ final class WizardModel {
 
     /// Fired when the user presses Start fleet.
     @ObservationIgnored var onFinished: (() -> Void)?
+    /// Open config.yaml from the Setup wizard's button row.
+    @ObservationIgnored var openConfig: (() -> Void)?
 
     let connect = ConnectModel()
     let mac = MacToolsModel()
@@ -83,6 +85,9 @@ final class WizardModel {
     var header: String { "Step \(step.rawValue + 1) of \(Step.allCases.count) — \(step.title)" }
     /// Steps before the last can be skipped; setup itself cannot be left early.
     var canSkip: Bool { step != .start }
+    /// The Setup wizard shows an Open config.yaml button on every step that has
+    /// the standard Skip / Back / Continue row.
+    var showsOpenConfigButton: Bool { canSkip || step == .start }
     var skipTitle: String { "Skip for now" }
     var nextTitle: String { step == .start ? "Start fleet" : "Continue" }
     var canGoBack: Bool { step != .connect }
@@ -174,4 +179,5 @@ final class WizardModel {
         }
         summaryText = lines.joined(separator: "\n")
     }
+
 }

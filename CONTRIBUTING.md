@@ -34,6 +34,12 @@ scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
 scripts/dev-run.sh                # debug app, signed with a stable identity so Keychain "Always Allow" survives rebuilds
 swift package --disable-sandbox dev   # same, as a SwiftPM command plugin (Plugins/Dev)
 scripts/dev-run.sh --env-tokens   # debug app with tokens from env vars (.env.dev) instead of the Keychain
+
+**Always run the debug app from a terminal.** Do not run `scripts/dev-run.sh` via
+launchd (`launchctl submit`), an Xcode scheme, or any other process supervisor.
+launchd restarts the script every time the app exits, creating an infinite loop.
+The script now detects non-terminal runs (no TTY) and exits with an error instead.
+If a restart loop ever gets going, run `launchctl remove kinhin-dev-app` to stop it.
 swift format lint --strict -r Sources Tests
 swift format format -i -r Sources Tests
 ```

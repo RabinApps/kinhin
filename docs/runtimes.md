@@ -146,7 +146,7 @@ Linux jobs can run three ways:
 | Disk per instance     | 50 GB planning default (`disk_gb`)                 | 8 GB                                | 8 GB                                     |
 | amd64                 | No                                                 | No                                  | Yes, emulated                            |
 | Needs                 | Only tart                                          | The `container` CLI and its service | Docker Desktop, OrbStack or colima       |
-| Mixes with macOS jobs | No (a tart fleet serves one OS at a time)          | Yes                                 | Yes                                      |
+| Mixes with macOS jobs | Yes — a tart fleet can serve macOS and Linux VMs together when using named images with distinct labels | Yes                                 | Yes                                      |
 | Best for              | Full control: your distro, system services, `sudo` | The default for Linux CI            | Teams already running Docker             |
 
 - **Starting fresh?** Use **apple/container**: VM-grade isolation, no daemon, and it shares a fleet with macOS VMs.
@@ -197,7 +197,8 @@ register with an `x64` label instead of `arm64`, and you must rebuild the image 
 ### Tart Linux VMs
 
 Choose **Tart (Linux VM)** under **This Mac → Linux jobs** in the app, or point `base_image:` at a Linux VM. A tart
-fleet serves one OS at a time, so remove `macos` from `labels:`. To make a Linux base VM:
+fleet can serve macOS and Linux VMs at the same time when you use named images with distinct labels — each VM clones
+from its own image and advertises only the labels that image is configured with. To make a Linux base VM:
 
 ```bash
 # from a published image (pick from the menu, or pass --from <ref>)
@@ -210,6 +211,26 @@ kinhin image prepare --source <name>
 
 Guests need an apt-based distro with passwordless `sudo` (the published Cirrus Labs images have both). macOS-only
 toolchain entries (Homebrew, CocoaPods) are skipped on Linux guests.
+
+#### Mixing macOS and Linux Tart VMs in one fleet
+
+Give each named image its own distinct labels so jobs select the right OS. A Linux-named image's runners strip the
+fleet's `macos` label automatically, so they will not attract macOS jobs:
+
+```yaml
+image: "tahoe-base"
+labels: [self-hosted, macos, arm64]
+images:
+  - name: xcode
+    base_image: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest"
+    labels: [xcode]
+  - name: linux
+    base_image: "ghcr.io/cirruslabs/ubuntu:latest"
+    labels: [linux]
+```
+
+Jobs that ask for `[self-hosted, macos, arm64]` run on `image:` (macOS VMs); jobs that ask for `[self-hosted, linux]`
+run on the `linux` image (Linux VMs). The fleet `labels:` may still include `macos` — you do not need to remove it.
 
 ## How usage is measured
 

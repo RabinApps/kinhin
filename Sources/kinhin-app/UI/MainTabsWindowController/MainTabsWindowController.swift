@@ -19,6 +19,11 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
     /// The models behind the tabs.
     let models: WindowModels
 
+    /// Open config.yaml from the Setup wizard button row.
+    func openConfig() {
+        tabs.openConfig()
+    }
+
     init(defaults: UserDefaults = .standard, fleet: FleetController, updates: UpdateController) {
         models = WindowModels(fleet: fleet, updates: updates, prefs: defaults)
         tabs = MainTabsModel(fleet: fleet, models: models)

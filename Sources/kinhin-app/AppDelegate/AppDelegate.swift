@@ -54,6 +54,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             autoStartFleetIfEnabled()
         }
         fleet.startPolling()
+        // Check whether a LaunchAgent plist exists but points at a binary
+        // that no longer exists (app removed without `kinhin daemon uninstall`).
+        Task { @MainActor in fleet.detectStaleDaemonPlist() }
         // Once per day (or on first launch), at most; then hourly.
         updates.startScheduledChecks()
         observeControllers()

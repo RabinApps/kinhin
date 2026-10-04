@@ -29,9 +29,10 @@ virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple c
   checkbox stays off until tart is installed (use the
   **Install…** button beside it). Turning it on sets the tart base image to a Linux image (Ubuntu by default; Debian
   and Fedora are in the picker) and the macOS base-image picker is replaced by a note. Turning it off returns tart to
-  the macOS default. A tart fleet serves one OS at a time, and your fleet `labels:` must match: if they still include
-  `macos`, the card warns you to remove it (and add `linux` if your jobs ask for it). See
-  [Tart Linux VMs](runtimes.md#tart-linux-vms).
+  the macOS default. A tart fleet can serve macOS and Linux VMs at the same time when you use named images with
+  distinct labels — each VM clones from its own image and advertises only that image's labels. A Linux-named image's
+  runners strip the fleet's `macos` label automatically, so they do not attract macOS jobs; you do not need to remove
+  `macos` from your fleet `labels:`. See [Tart Linux VMs](runtimes.md#tart-linux-vms).
 - **Apple container** and **Docker** each have their own base-image picker (Docker also picks an architecture).
 
 Additional accounts (another org, a second server) are not part of first-run setup; add them under
@@ -161,3 +162,34 @@ it should ask first.
 The menu bar app runs the engine in-process when no daemon is active, and attaches read/write to
 the daemon's unix socket when `kinhin daemon install` has been used. Either way there is exactly
 one fleet.
+
+## Troubleshooting: app keeps restarting
+
+If the debug app (`kinhin-app`) keeps launching and exiting in a loop, a launchd job is
+probably restarting it. This happens when `scripts/dev-run.sh` is run under launchd
+(for example via `launchctl submit`, an Xcode scheme, or a misconfigured plugin) instead
+of from a terminal. launchd sees the app exit and restarts the script immediately,
+creating an infinite loop.
+
+**To fix:**
+
+1. Kill the stuck job: `launchctl remove kinhin-dev-app`
+2. Kill any running instances: `pkill -f "kinhin-app" && pkill -f "dev-run.sh"`
+
+**To prevent it:** always run the debug app from a terminal:
+
+```bash
+swift package --disable-sandbox dev
+# or directly:
+bash scripts/dev-run.sh
+```
+
+The `dev-run.sh` script now refuses to run when it detects it is not in a terminal
+(no TTY on stdin/stdout), so it will exit with an error instead of entering a restart
+loop if launched by launchd.
+
+If you need the app to keep running headless, use the daemon instead:
+
+```bash
+kinhin daemon install
+```

@@ -33,6 +33,14 @@ final class FleetController {
         didSet { serviceGeneration &+= 1 }
     }
     @ObservationIgnored private var serviceGeneration = 0
+    /// The production backend: the in-process engine or the daemon. Reads
+    /// and writes go through `service` (so a swap bumps `serviceGeneration`
+    /// and an in-flight poll can't publish a stale answer); tests set it
+    /// directly.
+    @ObservationIgnored var backend: FleetBackend? {
+        get { service as? FleetBackend }
+        set { service = newValue }
+    }
     /// A start/stop is executing (distinct from the UI-visible pending flag,
     /// which the Fleet button sets a tick earlier).
     @ObservationIgnored private var commandInFlight = false
@@ -59,6 +67,11 @@ final class FleetController {
     /// only while the app has no backend of its own.
     @ObservationIgnored var daemonProbe: @Sendable () -> Bool = { RPCClient.isDaemonAlive() }
     @ObservationIgnored var makeDaemonBackend: () -> any FleetServing = { FleetBackend.daemon(RPCClient()) }
+    /// A LaunchAgent plist exists but points at a binary that no longer exists
+    /// on disk (e.g. the app was removed without `kinhin daemon uninstall`).
+    /// Nil when the plist is absent, points at a live binary, or cannot be read.
+    var staleDaemonPlist: String?
+
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     /// Wakes the poll loop's sleep (a surface opened, so look now).
     @ObservationIgnored private let pollWake = WakeSignal()
@@ -94,19 +107,14 @@ final class FleetController {
     @ObservationIgnored private var wakeObserver: (any NSObjectProtocol)?
 
     /// The production backend, when `service` is one.
-    var backend: FleetBackend? {
-        get { service as? FleetBackend }
-        set { service = newValue }
-    }
-
     /// The in-process engine, when this app runs the fleet itself.
-    var engine: FleetEngine? { backend?.engine }
+    var engine: FleetEngine? { (service as? FleetBackend)?.engine }
 
     /// The attached forges across all accounts, in the order the engine
     /// attached them (or the daemon reports them). Nil before the first
     /// status poll, when there is no queue to act on.
     var attachedForges: [String: Forge] {
-        guard let backend else { return [:] }
+        guard let _ = service as? FleetBackend else { return [:] }
         if let engine { return engine.forges }
         return [:]  // a daemon currently has no forge-API surface
     }
@@ -127,7 +135,10 @@ final class FleetController {
         wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in await self?.refresh() }
+            Task { @MainActor in
+                await self?.refresh()
+                await self?.detectStaleDaemonPlist()
+            }
         }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -149,6 +160,15 @@ final class FleetController {
         wakeObserver = nil
         pollTask?.cancel()
         pollTask = nil
+    }
+
+    /// Checks whether a LaunchAgent plist exists but points at a binary that
+    /// no longer exists on disk, and stores a human-readable notice.
+    func detectStaleDaemonPlist() {
+        staleDaemonPlist =
+            Daemon.isPlistStale
+            ? "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it"
+            : nil
     }
 
     /// Quit-time teardown: stop polling and stop the in-process engine (which
@@ -215,12 +235,42 @@ final class FleetController {
         sleepPreventer.update(fleetRunning: status?.running ?? false, paused: status?.paused ?? false)
     }
 
+    /// A short label for who is running the fleet: the in-process engine or
+    /// the background daemon. Nil while no backend is attached (setup
+    /// unfinished, or before the first poll).
+    var fleetMode: String? {
+        switch service {
+        case is FleetBackend: break
+        default: return nil
+        }
+        guard let backend = service as? FleetBackend else { return nil }
+        switch backend {
+        case .inProcess: return "in-process engine"
+        case .daemon: return "background daemon"
+        }
+    }
+
     /// The status line shared by the menu and the Fleet tab.
     var statusLine: String {
-        if let status { return FleetStatusFormatter.summary(status) }
-        if service == nil { return FleetStatusFormatter.summary(nil) }  // setup unfinished
-        if let unreachableReason { return "Fleet not responding — \(unreachableReason)" }
-        return "Checking the fleet…"
+        let base: String
+        if let status {
+            base = FleetStatusFormatter.summary(status)
+        } else if service == nil {
+            base = FleetStatusFormatter.summary(nil)
+        }  // setup unfinished
+        else if let unreachableReason {
+            base = "Fleet not responding — \(unreachableReason)"
+        } else {
+            base = "Checking the fleet…"
+        }
+        var line = base
+        if let mode = fleetMode {
+            line += "\n  \(mode)"
+        }
+        if let stale = staleDaemonPlist {
+            line += "\n  ⚠ \(stale)"
+        }
+        return line
     }
 
     // MARK: - Actions

@@ -3,6 +3,34 @@ import Synchronization
 
 /// Runs the fleet engine headless behind the unix-socket RPC server.
 public enum Daemon {
+    /// The LaunchAgent plist that `kinhin daemon install` wrote, if any.
+    public static var agentPlistURL: URL? {
+        let url = agentPlistPath()
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    /// The binary path stored in the LaunchAgent plist's `ProgramArguments`,
+    /// if the plist exists and declares one. Nil when there is no LaunchAgent
+    /// or the plist cannot be read.
+    public static var plistBinaryPath: String? {
+        guard let url = agentPlistURL else { return nil }
+        guard let plist = try? Data(contentsOf: url),
+            let root = try? PropertyListSerialization.propertyList(
+                from: plist, options: [],
+                format: nil) as? [String: Any],
+            let args = root["ProgramArguments"] as? [String], args.count > 0
+        else { return nil }
+        return args[0]
+    }
+
+    /// Whether the LaunchAgent plist points at a binary that no longer exists
+    /// on disk. True when a LaunchAgent is installed but its `kinhin` binary
+    /// has been moved or deleted (e.g. after `bash scripts/install.sh --uninstall`
+    /// without also running `kinhin daemon uninstall`).
+    public static var isPlistStale: Bool {
+        guard let path = plistBinaryPath else { return false }
+        return !FileManager.default.fileExists(atPath: path)
+    }
     public static let label = "com.kinhin.daemon"
     static let plistName = "com.kinhin.daemon.plist"
 

@@ -131,6 +131,20 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertEqual(models.fleetModel.statusLine, "Checking the fleet…")
     }
 
+    func testStaleDaemonPlistNoticeAppearsInFleetTabStatusLine() {
+        fleet.staleDaemonPlist =
+            "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it"
+        let line = models.fleetModel.statusLine
+        XCTAssertTrue(line.contains("⚠"), "Fleet tab carries the stale-daemon warning: \(line)")
+        XCTAssertTrue(line.contains("daemon uninstall"), "Fleet tab names the fix: \(line)")
+    }
+
+    func testStaleDaemonPlistNoticeDoesNotAppearWhenPlistIsClean() {
+        fleet.staleDaemonPlist = nil
+        let line = models.fleetModel.statusLine
+        XCTAssertFalse(line.contains("⚠"), "no stale-daemon warning when the plist is clean: \(line)")
+    }
+
     // MARK: - Buttons drive the controller
 
     private func calls(_ name: String) -> Int { fake.calls.filter { $0 == name }.count }
@@ -240,6 +254,22 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertTrue(model.updateText.contains("Update check failed: offline"))
     }
 
+    func testAppSectionShowsStaleDaemonNotice() {
+        tabs.showAdvanced(.app)
+        models.appModel.fleetController = fleet
+        fleet.staleDaemonPlist =
+            "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it"
+        XCTAssertNotNil(models.appModel.daemonNotice, "App section reflects the stale-daemon notice")
+        XCTAssertTrue(models.appModel.daemonNotice!.contains("daemon uninstall"))
+    }
+
+    func testAppSectionHidesDaemonNoticeWhenPlistIsClean() {
+        tabs.showAdvanced(.app)
+        models.appModel.fleetController = fleet
+        fleet.staleDaemonPlist = nil
+        XCTAssertNil(models.appModel.daemonNotice, "App section hides the notice when there is no stale plist")
+    }
+
     func testFleetButtonsShowOnlyApplicableActions() {
         fleet.status = FleetStatus()  // stopped
         XCTAssertFalse(models.fleetModel.running, "stopped shows Start only")
@@ -283,5 +313,55 @@ final class FleetTabTests: MainWindowTestCase {
         models.fleetModel.deleteClicked("kinhin-vm-del")
         try? await Task.sleep(for: .milliseconds(50))
         XCTAssertFalse(fake.calls.contains("deleteVM(kinhin-vm-del)"))
+    }
+
+    func testFleetStatusFooterShowsModeAndStaleWarning() {
+        let dir = FileManager.default.temporaryDirectory
+        let cfgURL = dir.appendingPathComponent("kinhin-footer-test-\(UUID().uuidString).yaml")
+        let config = "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n"
+        try? config.write(to: cfgURL, atomically: true, encoding: .utf8)
+        let cfg = try! ConfigLoader.load(from: cfgURL)
+        let engine = try! FleetEngine.production(config: cfg, token: "ghp_test")
+        fleet.service = nil
+        fleet.backend = .inProcess(engine)
+        let footer = models.fleetModel.fleetStatusFooter
+        XCTAssertEqual(footer.map(\.text), ["in-process engine"])
+        XCTAssertEqual(footer.map(\.style), [.secondary])
+
+        fleet.staleDaemonPlist =
+            "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it"
+        let footerWithWarning = models.fleetModel.fleetStatusFooter
+        XCTAssertEqual(
+            footerWithWarning.map(\.text),
+            [
+                "in-process engine",
+                "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it",
+            ])
+        XCTAssertEqual(footerWithWarning.map(\.style), [.secondary, .warn])
+        try? FileManager.default.removeItem(at: cfgURL)
+    }
+
+    func testFleetStatusFooterIsEmptyWhenNoBackend() {
+        fleet.service = nil
+        let footer = models.fleetModel.fleetStatusFooter
+        XCTAssertTrue(footer.isEmpty, "no mode, no stale warning when nothing is running")
+    }
+
+    func testFleetModeBadgeShowsWhenBackendIsAttached() {
+        let dir = FileManager.default.temporaryDirectory
+        let cfgURL = dir.appendingPathComponent("kinhin-badge-test-\(UUID().uuidString).yaml")
+        let config = "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n"
+        try? config.write(to: cfgURL, atomically: true, encoding: .utf8)
+        let cfg = try! ConfigLoader.load(from: cfgURL)
+        let engine = try! FleetEngine.production(config: cfg, token: "ghp_test")
+        fleet.service = nil
+        fleet.backend = .inProcess(engine)
+        XCTAssertEqual(models.fleetModel.fleetModeBadge, "in-process engine")
+        try? FileManager.default.removeItem(at: cfgURL)
+    }
+
+    func testFleetModeBadgeIsHiddenWhenNoBackend() {
+        fleet.service = nil
+        XCTAssertNil(models.fleetModel.fleetModeBadge, "no badge when nothing is running")
     }
 }

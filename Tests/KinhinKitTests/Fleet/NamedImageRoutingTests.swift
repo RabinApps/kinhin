@@ -38,14 +38,76 @@ final class NamedImageRoutingTests: XCTestCase {
 
     // MARK: - Engine
 
-    private func engine(images: [KinhinConfig.ImageConfig]) -> (FleetEngine, FakeGitHub, FakeTart) {
+    private func engine(images: [KinhinConfig.ImageConfig], fleetLabels: [String] = makeTestConfig().labels) -> (
+        FleetEngine, FakeGitHub, FakeTart
+    ) {
         var cfg = makeTestConfig()
+        cfg.labels = fleetLabels
         cfg.images = images
         let github = FakeGitHub()
         let tart = FakeTart()
         let engine = FleetEngine(
             config: cfg, github: github, tart: tart, store: makeTestStore(), ssh: FakeSSH(), host: testHost)
         return (engine, github, tart)
+    }
+
+    // MARK: - Linux named image label hygiene
+
+    /// A Tart VM cloned from a Linux named image must not advertise
+    /// macOS-only fleet labels (`macos`), so it does not attract macOS jobs.
+    func testLinuxNamedImageRunnersDoNotAdvertiseMacos() {
+        let linuxImage = KinhinConfig.ImageConfig(
+            name: "linux",
+            baseImage: "ghcr.io/cirruslabs/ubuntu:latest",
+            labels: ["linux"])
+        let (engine, _, _) = engine(images: [linuxImage], fleetLabels: ["self-hosted", "macos", "arm64"])
+        var record = VMRecord(id: "kinhin-1")
+        record.runtime = RuntimeID.tart.rawValue
+        let base = engine.poolLabels(for: record) ?? []
+        // The base pool carries the fleet labels (including macos).
+        XCTAssertTrue(base.contains { $0.lowercased() == "macos" }, "fleet labels include macos")
+        record.image = "linux"
+        let linuxLabels = engine.poolLabels(for: record) ?? []
+        XCTAssertFalse(
+            linuxLabels.contains { $0.lowercased() == "macos" },
+            "a Linux Tart VM must not advertise macos")
+        XCTAssertTrue(linuxLabels.contains("linux"), "the image's own labels are still advertised")
+        XCTAssertTrue(
+            linuxLabels.contains { $0.lowercased() == "self-hosted" },
+            "non-macos fleet labels are retained")
+    }
+
+    /// A custom/local image name whose OS cannot be reliably detected keeps the
+    /// fleet labels as-is — we only strip `macos` for curated Linux bases.
+    func testUnknownBaseImageKeepsFleetLabels() {
+        let unknownImage = KinhinConfig.ImageConfig(
+            name: "custom", baseImage: "my-local-vm", labels: ["custom"])
+        let (engine, _, _) = engine(images: [unknownImage], fleetLabels: ["self-hosted", "macos", "arm64"])
+        var record = VMRecord(id: "kinhin-1")
+        record.runtime = RuntimeID.tart.rawValue
+        record.image = "custom"
+        let labels = engine.poolLabels(for: record) ?? []
+        XCTAssertTrue(
+            labels.contains { $0.lowercased() == "macos" },
+            "an unidentifiable base keeps fleet labels as-is")
+        XCTAssertTrue(labels.contains("custom"))
+    }
+
+    /// A macOS named image still advertises the fleet's macos label.
+    func testMacOSNamedImageStillAdvertisesMacos() {
+        let macosImage = KinhinConfig.ImageConfig(
+            name: "xcode",
+            baseImage: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest",
+            labels: ["xcode"])
+        let (engine, _, _) = engine(images: [macosImage], fleetLabels: ["self-hosted", "macos", "arm64"])
+        var record = VMRecord(id: "kinhin-1")
+        record.runtime = RuntimeID.tart.rawValue
+        record.image = "xcode"
+        let labels = engine.poolLabels(for: record) ?? []
+        XCTAssertTrue(
+            labels.contains { $0.lowercased() == "macos" },
+            "a macOS Tart VM still advertises macos")
+        XCTAssertTrue(labels.contains("xcode"))
     }
 
     func testLabeledJobsCloneTheNamedImage() async throws {

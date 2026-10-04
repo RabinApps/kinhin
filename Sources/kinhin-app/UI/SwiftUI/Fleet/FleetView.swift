@@ -8,8 +8,25 @@ struct FleetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
                 Text("○  kinhin").font(.system(size: 22, weight: .bold))
+                if let badge = model.fleetModeBadge {
+                    Text(badge)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(nsColor: .controlBackgroundColor))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                        )
+                }
+            }
+            VStack(alignment: .leading, spacing: 6) {
                 Text(model.statusLine)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
@@ -23,6 +40,9 @@ struct FleetView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
                         .accessibilityIdentifier("image-notice")
+                }
+                ForEach(model.fleetStatusFooter, id: \.text) { foot in
+                    StatusText(text: foot.text, style: foot.style)
                 }
             }
 
@@ -106,7 +126,9 @@ struct FleetView: View {
                 } else {
                     ForEach(Array(model.attachedForges.enumerated()), id: \.offset) { _, forge in
                         HStack(spacing: 6) {
-                            Picker("", selection: .constant(forge.keys.sorted().first ?? "")) { ForEach(forge.keys.sorted(), id: \.self) { id in Text(id).tag(id) } }
+                            Picker("", selection: .constant(forge.keys.sorted().first ?? "")) {
+                                ForEach(forge.keys.sorted(), id: \.self) { id in Text(id).tag(id) }
+                            }
                             .pickerStyle(.menu)
                             .frame(width: 120)
                             .accessibilityLabel("Forge: \(forge.keys.sorted().first ?? "unknown")")

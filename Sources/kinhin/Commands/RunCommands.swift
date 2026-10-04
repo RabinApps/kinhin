@@ -226,8 +226,15 @@ enum RunCommands {
             do {
                 _ = try await shell.run(["launchctl", "unload", Daemon.agentPlistPath().path], cwd: nil, timeout: 30)
             } catch {
-                // Unloading an agent that isn't loaded is fine; only a launch failure is worth mentioning.
-                warn("could not run launchctl unload (\(error.localizedDescription)); removing the plist anyway")
+                // Unloading an agent that isn't loaded, or a context where
+                // launchctl isn't available (e.g. non-interactive shells), is
+                // fine: removing the plist is what matters.
+                let msg = error.localizedDescription
+                if msg.contains("doesn't exist") || msg.contains("No such file") {
+                    // launchctl itself or the agent isn't there — silent.
+                } else {
+                    warn("could not run launchctl unload (\(msg)); removing the plist anyway")
+                }
             }
             try Daemon.uninstallAgent()
             print("daemon uninstalled")

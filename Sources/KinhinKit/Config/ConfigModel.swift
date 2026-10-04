@@ -45,9 +45,12 @@ public struct KinhinConfig: Sendable, Equatable {
     /// name (e.g. one created with `image prepare --linux`). nil = the
     /// default macOS base.
     public var baseImage: String? = nil
-    /// Additional named macOS images beside `image:` (for example one baked on a
-    /// Cirrus `-xcode` base). Each is prepared separately with
-    /// `kinhin image prepare --image <name>`. Empty = just `image:`.
+    /// Additional named images beside `image:` (for example one baked on a
+    /// Cirrus `-xcode` base, or a Linux base for Linux jobs). Each is prepared
+    /// separately with `kinhin image prepare --image <name>`. Empty = just
+    /// `image:`. A fleet can run macOS and Linux Tart VMs together when images
+    /// carry distinct labels — Linux-named images strip the fleet's `macos` label
+    /// so they do not attract macOS jobs.
     public var images: [ImageConfig] = []
     /// How long a freshly booted VM may take to join as a registered runner (seconds).
     var vmBootTimeout: Int
@@ -325,9 +328,11 @@ public struct KinhinConfig: Sendable, Equatable {
 
     /// Routing configuration: which execution runtime serves which repo or
     /// workflow. One fleet can mix macOS jobs on Tart VMs and Linux jobs in
-    /// Apple containers, Docker containers, or full Tart Linux VMs (the tart
-    /// pool serves one OS at a time). Each runtime gets its own label pool so
-    /// workflows opt in per job via `runs-on:`.
+    /// Apple containers, Docker containers, or full Tart Linux VMs. Each runtime
+    /// gets its own label pool so workflows opt in per job via `runs-on:`.
+    /// A Tart fleet can serve macOS and Linux VMs together when named images have
+    /// distinct labels — a Linux-named image's runners strip the fleet's `macos`
+    /// label automatically.
     public struct RuntimeConfig: Sendable, Equatable {
         /// Runtime for repos with no matching route.
         public var defaultRuntime: String

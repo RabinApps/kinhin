@@ -6,29 +6,11 @@ import XCTest
 /// Navigation rules behind the main window: tab order, the Setup tab's
 /// lifetime, lazy section building, and the sheets.
 @MainActor
-final class MainTabsModelTests: XCTestCase {
-    private var fleet: FleetController!
-    private var models: WindowModels!
-    private var tabs: MainTabsModel!
-    private var suiteName: String!
+final class MainTabsModelTests: MainWindowTestCase {
 
     override func setUp() async throws {
         try await super.setUp()
-        suiteName = "kinhin-tests.tabs-\(UUID().uuidString)"
-        fleet = FleetController()
-        models = WindowModels(
-            fleet: fleet, updates: UpdateController(defaults: UserDefaults(suiteName: suiteName)!),
-            prefs: UserDefaults(suiteName: suiteName)!)
         models.tokenProbe = { _ in false }  // never touch the Keychain
-        tabs = MainTabsModel(fleet: fleet, models: models)
-    }
-
-    override func tearDown() async throws {
-        UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
-        tabs = nil
-        models = nil
-        fleet = nil
-        try await super.tearDown()
     }
 
     // MARK: - Tabs
@@ -145,6 +127,11 @@ final class MainTabsModelTests: XCTestCase {
         fleet.setupIncomplete = true
         models.fleetModel.onNeedsSetup()
         XCTAssertEqual(tabs.selectedTab, .setup)
+    }
+
+    func testOpenConfigButtonIsWiredThroughTheWindowController() {
+        tabs.openConfig()
+        XCTAssertEqual(delegate.openConfigCalls, 1, "the Setup footer button should reach the window delegate")
     }
 
     // MARK: - Advanced sections

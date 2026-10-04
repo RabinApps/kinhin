@@ -21,7 +21,23 @@
 #                           identity in your keychain; see
 #                           `security find-identity -v -p codesigning`)
 #        KINHIN_BUNDLE_ID   signing identifier (default com.RabinApps.kinhin)
+#
+# WARNING: do not run this script via `launchctl submit` or any other
+# launchd-based runner. launchd will restart the script every time the app
+# exits, creating an infinite restart loop. Always run from a terminal, or
+# via `swift package --disable-sandbox dev`.
 set -euo pipefail
+
+# If running under launchd (not a terminal), refuse to start. launchd will
+# restart this script every time the app exits, creating an infinite loop.
+# launchd jobs have no TTY on stdin/stdout, so we check for that.
+if [ ! -t 0 ] && [ ! -t 1 ]; then
+    echo "ERROR: dev-run.sh does not appear to be running in a terminal." >&2
+    echo "Launching under a process supervisor (launchd, etc.) causes an" >&2
+    echo "infinite restart loop when the app exits. Run from a terminal." >&2
+    echo "Use 'swift package --disable-sandbox dev' or run from a terminal." >&2
+    exit 1
+fi
 
 ENV_TOKENS=0
 if [ "${1:-}" = "--env-tokens" ]; then

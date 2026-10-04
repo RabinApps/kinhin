@@ -15,6 +15,12 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation, NSMenuDeleg
 
     func openLogsFolder() { openLogs() }
 
+    func openConfig() {
+        // Open the config file in the user's editor; no file copy, no editor session.
+        NSWorkspace.shared.open(Paths.config)
+    }
+
+
     func launchModeChanged(_ mode: LaunchMode) {
         applyActivationPolicy()
         // Match the status item to the mode without touching a status item

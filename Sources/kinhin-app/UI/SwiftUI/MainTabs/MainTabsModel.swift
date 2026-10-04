@@ -148,6 +148,11 @@ final class MainTabsModel {
         if setupIncomplete { showSetup() }
     }
 
+    /// Open config.yaml from the Setup wizard button row.
+    func openConfig() {
+        models.delegate?.openConfig()
+    }
+
     /// Refreshes whichever section is visible (called when the window shows
     /// or the user lands on a tab via the menu). Probes and config reads
     /// never run from bare tab switches — tests stay hermetic.
@@ -168,7 +173,7 @@ final class MainTabsModel {
     // MARK: - Setup wizard
 
     private func makeWizard() -> WizardModel {
-        models.makeWizard(
+        let wizard = models.makeWizard(
             onFinished: { [weak self] in
                 // Setup is done: the tab bar appears and the window lands on Fleet.
                 guard let self else { return }
@@ -177,6 +182,8 @@ final class MainTabsModel {
                 requestedTab = .fleet
                 onSetupFinished?()
             })
+        wizard.openConfig = { [weak self] in self?.openConfig() }
+        return wizard
     }
 
     // MARK: - Sheets
@@ -204,4 +211,6 @@ final class MainTabsModel {
     }
 
     func dismissSheet() { sheet = nil }
+
+    private var wizardModel: WizardModel? { models.wizardModel }
 }

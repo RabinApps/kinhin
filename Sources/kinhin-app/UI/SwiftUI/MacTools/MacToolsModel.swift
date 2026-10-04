@@ -267,8 +267,11 @@ final class MacToolsModel: ConfigFormModel {
     /// Tart serves Linux jobs when its base image is a Linux one.
     var tartLinuxOn: Bool { TartBaseImage.isLinux(tartBaseImage) }
 
-    /// Set while tart serves Linux but the fleet still advertises `macos`:
-    /// macOS jobs would be routed to a Linux VM and fail there.
+    /// Set while tart's main base image is Linux and the fleet still
+    /// advertises `macos`: macOS jobs would be routed to a Linux VM and fail
+    /// there. This warning does not apply when you use named images with
+    /// distinct labels — a Linux-named image strips the fleet's `macos` label
+    /// automatically, so macOS and Linux Tart VMs can share one fleet.
     var tartLinuxLabelWarning: String? {
         guard tartLinuxOn, fleetLabels.contains(where: { $0.lowercased() == "macos" }) else { return nil }
         return "Your fleet labels include “macos”, so macOS jobs would be sent to this Linux VM. In config.yaml, "

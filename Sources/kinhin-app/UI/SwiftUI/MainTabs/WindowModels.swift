@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import KinhinKit
+import SwiftUI
 
 /// The models behind the main window's tabs, built on first use (a section's
 /// model exists once it has been shown) and kept for the window's lifetime.
@@ -46,6 +47,7 @@ final class WindowModels {
         model.onLaunchModeChanged = { [weak self] in self?.delegate?.launchModeChanged($0) }
         model.onLaunchAtLoginChanged = { [weak self] in self?.delegate?.launchAtLoginChanged($0) }
         model.onOpenLogs = { [weak self] in self?.delegate?.openLogsFolder() }
+        model.fleetController = fleet
         return model
     }()
 

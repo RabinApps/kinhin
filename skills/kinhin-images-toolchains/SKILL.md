@@ -61,7 +61,7 @@ projects:
 | --- | --- | --- |
 | Apple container | `brew install container && container system start`, `image prepare --container`, a `container:` block, a route | `runs-on: [kinhin-container]` |
 | Docker | Install and start Docker yourself (kinhin never starts it), `image prepare --docker`, a `docker:` block | `runs-on: [kinhin-docker]` |
-| Tart Linux VM | `image prepare --linux ...`, remove `macos` from `labels` | labels |
+| Tart Linux VM | `image prepare --linux ...`, then `--source NAME` to bake the agents in; a Linux-named image strips the fleet's `macos` label automatically so macOS and Linux Tart VMs can share one fleet | labels |
 | Host (unisolated) | `kinhin setup repair host-agent`, route with `consent: true` | `runs-on: [kinhin-host]` |
 
 Route with `kinhin runtimes route add acme/api appleContainer`. Pass `--target <name>` to the container and Docker prepare

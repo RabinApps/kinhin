@@ -40,6 +40,64 @@ struct AppSectionView: View {
                         .accessibilityIdentifier("check-for-updates")
                     HintText(model.updateText).accessibilityIdentifier("update-status")
                 }
+                
+                FormCard(
+                    title: "Files",
+                    subtitle:
+                        "Everything above is saved in config.yaml — open it for settings that have no control here."
+                ) {
+                    HStack {
+                        Button("Open config file") { NSWorkspace.shared.open(Paths.config) }
+                            .accessibilityIdentifier("open-config-file")
+                        Button("Open logs folder") { model.onOpenLogs() }
+                    }
+                }
+                if let notice = model.daemonNotice {
+                    FormCard(title: "Daemon") {
+                        Text(notice)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                FormCard(
+                    title: "Daemon mode",
+                    subtitle:
+                        "The fleet can run inside this app (in-process) or in a background LaunchAgent that survives app restarts and reboots."
+                ) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            statusRow(
+                                title: "Installed",
+                                text: model.isDaemonInstalled ? "Installed" : "Not installed",
+                                style: model.isDaemonInstalled ? .ok : .secondary)
+                            statusRow(
+                                title: "Running",
+                                text: model.isDaemonRunning ? "Serving the fleet" : "Not serving",
+                                style: model.isDaemonRunning ? .ok : .secondary)
+                        }
+                        Spacer(minLength: 0)
+                        Button(model.daemonToggleButtonTitle) { model.toggleDaemon() }
+                            .disabled(model.daemonBusy)
+                            .accessibilityIdentifier("app-daemon-toggle")
+                    }
+                    if model.daemonBusy || !model.daemonLine.text.isEmpty {
+                        HStack(alignment: .top, spacing: 8) {
+                            if model.daemonBusy { ProgressView().controlSize(.small) }
+                            StatusText(text: model.daemonLine.text, style: model.daemonLine.style)
+                                .textSelection(.enabled)
+                            if model.daemonBusy {
+                                Spacer(minLength: 0)
+                                Button("Cancel") { model.cancelDaemonAction() }
+                                    .controlSize(.small)
+                                    .accessibilityIdentifier("app-daemon-cancel")
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("app-daemon-busy")
+                    }
+                }
+
                 FormCard(
                     title: "Support kinhin",
                     subtitle: "kinhin is free and built by one developer. Donations and sponsors keep it going."
@@ -61,21 +119,18 @@ struct AppSectionView: View {
                         ForEach(SupportLinks.projects, id: \.name) { Link($0.name, destination: $0.url) }
                     }
                 }
-                FormCard(
-                    title: "Files",
-                    subtitle:
-                        "Everything above is saved in config.yaml — open it for settings that have no control here."
-                ) {
-                    HStack {
-                        Button("Open config file") { NSWorkspace.shared.open(Paths.config) }
-                            .accessibilityIdentifier("open-config-file")
-                        Button("Open logs folder") { model.onOpenLogs() }
-                    }
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 4)
             .padding(.top, 4)
+        }
+    }
+
+    /// One label/value pair of the daemon card (Installed, Running).
+    private func statusRow(title: String, text: String, style: StatusStyle) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.system(size: 12, weight: .semibold))
+            StatusText(text: text, style: style)
         }
     }
 }

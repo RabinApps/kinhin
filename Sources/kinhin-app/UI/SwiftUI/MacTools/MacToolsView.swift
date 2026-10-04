@@ -74,13 +74,17 @@ struct MacToolsView: View {
         }
     }
 
-    /// Extra named macOS images (for example one baked on an Xcode base). Each is
-    /// prepared on its own; picking which image a job runs on comes later.
+    /// Extra named images (for example one baked on an Xcode base, or a Linux
+    /// base for Linux jobs). Each is prepared on its own; picking which image
+    /// a job runs on comes later. A Linux-named image strips the fleet's
+    /// `macos` label automatically, so macOS and Linux Tart VMs can share one
+    /// fleet.
     private var moreImagesSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("More images").font(.system(size: 12, weight: .semibold))
             HintText(
-                "Extra prepared images, such as one on an Xcode base. Each has its own base and is rebuilt separately.")
+                "Extra prepared images, such as one on an Xcode base or a Linux base. Each has its own base and is rebuilt separately. A Linux-named image strips the fleet's `macos` label automatically."
+            )
             ForEach(model.extraImages) { row in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {

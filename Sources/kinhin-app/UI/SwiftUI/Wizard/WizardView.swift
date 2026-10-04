@@ -26,6 +26,10 @@ struct WizardView: View {
                     Button(model.skipTitle) { model.skip() }
                         .controlSize(.small)
                 }
+                if model.showsOpenConfigButton {
+                    Button("Open config.yaml") { model.openConfig?() }
+                        .controlSize(.small)
+                }
                 Spacer()
                 Button("Back") { model.back() }
                     .disabled(!model.canGoBack)

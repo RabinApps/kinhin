@@ -46,7 +46,23 @@ extension FleetEngine {
         guard runtimeID == .tart, let pool, let image = record.image,
             let extra = images.first(where: { $0.name == image })?.labels
         else { return pool }
-        return pool + extra.filter { label in !pool.contains { $0.caseInsensitiveCompare(label) == .orderedSame } }
+        // A Linux Tart VM must not advertise macOS-only fleet labels — otherwise
+        // it would attract macOS jobs it cannot run. Strip them when the image's
+        // base is a curated Linux image; custom/local names can't be reliably
+        // identified, so they keep the fleet labels as-is.
+        let labels: [String]
+        if TartBaseImage.isLinux(images.first(where: { $0.name == image })?.baseImage) {
+            labels = pool.filter { !macosOnlyLabel($0) }
+        } else {
+            labels = pool
+        }
+        return labels + extra.filter { label in !labels.contains { $0.caseInsensitiveCompare(label) == .orderedSame } }
+    }
+
+    /// Labels in the fleet's default set that are macOS-specific and must not
+    /// be advertised by a Linux Tart runner.
+    private func macosOnlyLabel(_ label: String) -> Bool {
+        label.lowercased() == "macos"
     }
 
     /// Pick the runtime for a new instance: among pools with unmet demand,

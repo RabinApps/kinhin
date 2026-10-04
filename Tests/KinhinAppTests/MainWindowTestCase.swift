@@ -21,6 +21,9 @@ final class RecordingTabsDelegate: MainTabsWindowDelegate {
     func launchAtLoginChanged(_ enabled: Bool) { loginToggles.append(enabled) }
     func mainTabsWindowWillClose() { closeCalls += 1 }
     func setupTabFinished() { setupFinishedCalls += 1; rebootstrapCalls += 1 }
+    func openConfig() { openConfigCalls += 1 }
+
+    var openConfigCalls = 0
 }
 
 /// Shared fixture for the main-window test classes: a window controller on
@@ -92,6 +95,12 @@ class MainWindowTestCase: XCTestCase {
         wizard.connect.hasStoredToken = { _ in false }
         wizard.mac.autoEnableLinuxRuntime = false
         return wizard
+    }
+
+    /// Helper for test subclasses that need the wizard's token handler to be
+    /// hermetic (no Keychain or real config writes).
+    func configureWizardTokenHandler(_ hasToken: @escaping @Sendable (ForgeID) -> Bool) {
+        models.wizardModel?.connect.hasStoredToken = hasToken
     }
 
     /// Drives the wizard's Finish → onFinished → dismiss path.

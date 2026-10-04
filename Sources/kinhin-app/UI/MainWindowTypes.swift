@@ -86,6 +86,8 @@ protocol MainTabsWindowDelegate: AnyObject {
     func mainTabsWindowWillClose()
     /// Setup finished (its Start Fleet was pressed): re-bootstrap the engine.
     func setupTabFinished()
+    /// Open config.yaml from the Setup wizard button row.
+    func openConfig()
 }
 
 // MARK: - Update card state
