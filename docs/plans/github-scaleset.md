@@ -4,6 +4,10 @@
 
 Add a **second demand mode** for GitHub accounts in kinhin: instead of polling the REST workflow-runs API, the engine runs GitHub's **Runner Scale Set message API** (the same API the Go `actions/scaleset` client wraps) — long-polled job messages, JIT runner configs, statistics-driven autoscaling. **Opt-in per account** via a config key; the classic poller stays the default and unchanged.
 
+Status: not started, but scaffolding exists. The environment already has `FleetEngine+Accounts`, `GitHubForge`, `GitHubClient`, `FleetLifecycle`, `RunnerBootstrap`, and `AccountConfig` in place, so the scale-set work is an adapter + listener addition on top of the current GitHub poller path rather than a greenfield build.
+
+Immediate next step: add the scale-set config model and the JIT-registration/registration-script variant first (it reuses `RunnerBootstrap` and `FleetLifecycle`), then add the scale-set client DTOs/HTTP plumbing, then the listener, then wire `FleetEngine+Accounts` to build a `GitHubScaleSetForge` when `account.scaleSet != nil`.
+
 ## Design (from your answers)
 
 - **PAT only** in v1 — reuses kinhin's existing Keychain PAT and the registration-token call it already makes. GitHub App auth is a follow-up.
@@ -35,22 +39,24 @@ accounts:
 
 Validation: `scale_set` requires `vm.ephemeral: true` (scale-set runners deregister after one job — persistent VMs are contradictory); name must be a valid label; per-pool derived names validated the same way.
 
-## Changes
+## Changes (adapted to the existing layout)
+
+The env already owns the pieces this plan touches, so the work is additive on top of them.
 
 **New files**
 
 - `Forges/GitHubScaleSetModels.swift` — Codable DTOs (scale set, statistics, session, messages, JIT config) with explicit `CodingKeys`.
-- `Forges/GitHubScaleSetClient.swift` — admin-token exchange + refresh, scale-set ensure/patch, session create/refresh/delete, `getMessage`/`deleteMessage`/`acquireJobs`, `generateJitConfig`, agents lookup. Built on `ForgeHTTP` with an injectable session (matches `GitHubClient`, testable via `StubProtocol`). New cases on `GitHubError`, user-readable messages (401 on runner-registration → PAT guidance).
-- `Fleet/ScaleSetListener.swift` — actor owning one session: ensure scale set → poll loop → update a `Mutex`-guarded snapshot (statistics, tracked pending jobs, repo attribution) → `engine.pollSoon()` on every message; backoff + session recreate on repeated failures; `maxCapacity` = `Autoscaler.jobCapacity(...)` refreshed per poll.
+- `Forges/GitHubScaleSetClient.swift` — admin-token exchange + refresh, scale-set ensure/patch, session create/refresh/delete, `getMessage`/`deleteMessage`/`acquireJobs`, `generateJitConfig`, agents lookup. Built on `ForgeHTTP` with an injectable session (matches `GitHubClient`, testable via the existing stubbing patterns in `Tests/KinhinKitTests/Forges/`).
+- `Fleet/GitHubScaleSetListener.swift` — actor owning one session: ensure scale set → poll loop → update a `Mutex`-guarded snapshot (statistics, tracked pending jobs, repo attribution) → `engine.pollSoon()` on every message; backoff + session recreate on repeated failures; `maxCapacity` = `Autoscaler.jobCapacity(...)` refreshed per poll.
 
-**Modified**
+**Modified in place**
 
-- `Forges/Forge.swift` — `ForgeRegistration` gains `.jitConfig`; `Forge` gains `jitRunnerConfig(name:labels:) async throws -> String` (default `unimplemented`-style guard; only jitConfig forges implement it).
+- `Forges/Forge.swift` — `ForgeRegistration` gains `.jitConfig`; `Forge` gains `jitRunnerConfig(name:labels:) async throws -> String` (default no-op guard; only jitConfig forges override it).
 - `Forges/GitHubScaleSetForge.swift` — the `Forge` adapter: `queuedJobs()` served from the listener snapshot (synthesizing placeholder jobs when tracked < `TotalAssignedJobs` so counts always meet statistics; per-pool routing via the existing `RuntimeRouter`), `runners()`/`deleteRunner()`/`pipelineDetail`/`pipelineLog`/`projectFile` delegated to the existing REST `GitHubClient` unchanged, `registration = .jitConfig`.
-- `Fleet/FleetLifecycle.swift` — credentials switch gains the `.jitConfig` case (calls `forge.jitRunnerConfig`, passes it to the script).
-- `Images/RunnerBootstrap/RunnerBootstrap.swift` (+ Linux flavor) — `jitconfig` registration-script variant (`--jitconfig`, no URL/labels/name; JIT config is secret-treated like tokens today: never logged, `LogRedactor` pattern for it).
+- `Fleet/FleetLifecycle.swift` — registration-script selection gains the `.jitConfig` branch (calls `forge.jitRunnerConfig`, passes it to the script).
+- `Images/RunnerBootstrap/RunnerBootstrap.swift` — `jitconfig` registration-script variant (`--jitconfig`, no URL/labels/name; JIT config is secret-treated like tokens today: never logged, redacted in logs).
 - `Fleet/FleetEngine+Accounts.swift` — `attach(account:)` builds a `GitHubScaleSetForge` when `account.scaleSet != nil`; `launch()` starts one listener per pool scale set; `stop()` cancels listeners and deletes sessions (best-effort).
-- `Config/AccountConfig.swift` — `scaleSet: ScaleSetConfig?` (`name`, `runnerGroup`) with `snake_case` CodingKeys; validation in the loader sections; `ConfigTemplate.swift` commented example; `AccountsConfigEditor.sectionText` serializes the key (so edits never drop it).
+- `Config/AccountConfig.swift` — `scaleSet: ScaleSetConfig?` (`name`, `runnerGroup`) with `snake_case` CodingKeys; validation in the loader sections; `AccountsConfigEditor.sectionText` serializes the key (so edits never drop it).
 - `Fleet/FleetStatus.swift` — optional `scaleSetName` (+ "event-driven" hint) surfaced in the status line / `kinhin status --json`.
 
 **Docs** (edited in place, no new pages → no sidebar changes)
@@ -67,11 +73,15 @@ Validation: `scale_set` requires `vm.ephemeral: true` (scale-set runners deregis
 
 ## Tests (mirror existing layout, fakes only — no network)
 
-- `Tests/KinhinKitTests/Forges/`: client over stubbed URLProtocol — registration exchange, refresh-on-expiry, ensure/patch scale set, session create/401-refresh/delete, 200/202 message parse, ack, JIT config.
+- `Tests/KinhinKitTests/Forges/`: `GitHubScaleSetClient` over stubbed URLProtocol — registration exchange, refresh-on-expiry, ensure/patch scale set, session create/401-refresh/delete, 200/202 message parse, ack, JIT config.
 - `Tests/KinhinKitTests/Fleet/`: listener (statistics-driven demand, redelivery, capacity header, restart), forge adapter (`queuedJobs` meets statistics, routing conversion), engine integration using the existing fake-forge harness (message → spawn → jitconfig register → exit → delete).
 - Bootstrap script assertions (macOS + Linux flavors), config parsing/validation/editor round-trip (editor must not drop the key).
 - Gates per CONTRIBUTING: `swift build`, `swift test`, `swift format lint --strict -r Sources Tests`, `scripts/tsan.sh` (new actor + `Mutex` shared state), docs lint/sync + `vitepress build`.
 
+Test strategy note: the existing `GitHubClient` and `FakeGitHub` plumbing already covers the REST side, so the scale-set tests should focus on the new message-session DTOs, the listener snapshot, and the JIT-config path — not on re-testing GitHub token/auth behavior.
+
 ## Non-goals (explicit follow-ups)
 
 GitHub App credentials; GHES instance support; a Fleet-tab scale-set card / account-form toggle; deleting scale sets on teardown (left in place — cheap and re-attached); porting the same mode to GitLab/Buildkite.
+
+Environment note: do not add a new top-level `Fleet/FleetEngine+Accounts.swift`-style file. Extend the existing `FleetEngine+Accounts` attach switch and the existing `GitHubForge`/`GitHubClient` layering. Do not introduce a second runner-registration path in `RunnerBootstrap` until the JIT config DTO and the listener snapshot are in place — the scripting and lifecycle pieces should be last, after the API plumbing compiles and the unit tests for the DTOs pass.

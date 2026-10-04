@@ -41,7 +41,7 @@ export default defineConfig({
     "{Sources,Tests,Plugins,scripts,dist,shots}/**",
     "**/node_modules/**",
     "docs/plans/**",
-    "docs/{app,architecture,adding-a-forge}.md",
+    "docs/{app,adding-a-forge}.md",
     "skills/**",
   ],
   rewrites: {
@@ -53,7 +53,19 @@ export default defineConfig({
     "docs/forges/:page.md": "guide/forges/:page.md",
     "docs/:page.md": "guide/:page.md",
   },
-  markdown: { config: (md) => md.use(docsLinks) },
+  markdown: {
+    config: (md) => {
+      md.use(docsLinks);
+      const defaultFence = md.renderer.rules.fence!;
+      md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+        const token = tokens[idx];
+        if (token.info.trim() === "mermaid") {
+          return `<pre class="mermaid">${md.utils.escapeHtml(token.content)}</pre>`;
+        }
+        return defaultFence(tokens, idx, options, env, self);
+      };
+    },
+  },
   vite: {
     // Read by the theme to show an "old version" banner on snapshot builds.
     define: {
@@ -110,6 +122,7 @@ export default defineConfig({
       {
         text: "Run your fleet",
         items: [
+          { text: "Architecture", link: "/guide/architecture" },
           { text: "Runtimes & routing", link: "/guide/runtimes" },
           { text: "Toolchains & shared cache", link: "/guide/toolchains" },
           { text: "Forge support", link: "/guide/forges" },

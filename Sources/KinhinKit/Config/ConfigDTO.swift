@@ -46,10 +46,12 @@ public struct PartialConfig: Decodable {
         var instance: String?
         var labels: [String]?
         var allowInsecureHTTP: Bool?
+        var scaleSet: [String: String]?
 
         enum CodingKeys: String, CodingKey {
             case name, forge, scope, instance, labels
             case allowInsecureHTTP = "allow_insecure_http"
+            case scaleSet = "scale_set"
         }
     }
 

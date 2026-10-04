@@ -82,6 +82,11 @@ public enum ForgeRegistration: Sendable {
     /// A runner is created on the forge per runner name, each with its own
     /// authentication token (GitLab): see `Forge.registrationTokens`.
     case perRunner
+    /// GitHub Runner Scale Set runners authenticate with a generated JIT
+    /// config (the scale-set message API path). The config is generated per
+    /// runner and passed to the in-VM bootstrap; the listener owns the
+    /// scale-set session, not this registration method.
+    case jitConfig
 }
 
 /// What tells the engine that an ephemeral instance's jobs are done.
@@ -122,10 +127,16 @@ public protocol Forge: Sendable {
     /// Gitea: instance URL).
     func registrationURL() -> String
     /// The shared registration token (`sharedShortLived`/`sharedLongLived`).
+    /// Scale-set (`.jitConfig`) forges do not use this path.
     func mintRegistrationToken() async throws -> String
     /// Per-runner credentials (`perRunner`): creates each named runner with
     /// the given labels and returns name → token.
     func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String]
+    /// A JIT config string for one scale-set runner (`.jitConfig` forges).
+    /// The default no-op is overridden by the GitHub scale-set forge; other
+    /// forge types keep the no-op and the lifecycle layer never calls it for
+    /// non-scale-set accounts.
+    func jitRunnerConfig(name: String, labels: [String]) async throws -> String?
     /// This scope's runners (name/id/status/busy), unified shape.
     func runners() async throws -> [ForgeRunner]
     func deleteRunner(id: String) async throws
@@ -197,6 +208,23 @@ extension Forge {
     public func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String] {
         let token = try await mintRegistrationToken()
         return Dictionary(uniqueKeysWithValues: runnerNames.map { ($0, token) })
+    }
+
+    /// Non-scale-set forges do not provide JIT configs; the lifecycle layer
+    /// only calls this for `.jitConfig` accounts.
+    public func jitRunnerConfig(name: String, labels: [String]) async throws -> String? { nil }
+
+    /// JIT configs for several named runners (`.jitConfig` forges). The default
+    /// no-op is overridden by the GitHub scale-set forge; other forge types keep
+    /// the no-op and the lifecycle layer never calls it for non-scale-set accounts.
+    public func jitRunnerTokens(names: [String], labels: [String]) async throws -> [String: String] {
+        var out: [String: String] = [:]
+        for name in names {
+            if let config = try await jitRunnerConfig(name: name, labels: labels) {
+                out[name] = config
+            }
+        }
+        return out
     }
 }
 

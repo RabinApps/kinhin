@@ -24,10 +24,14 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     /// Self-hosted forges only: allow an `http://` instance URL (the token
     /// then crosses the network in cleartext). Nil/false requires https.
     public var allowInsecureHTTP: Bool?
+    /// Opt-in GitHub Runner Scale Set mode for this account. Absent means the
+    /// classic REST workflow-runs poller (today's default); present enables the
+    /// actions/scaleset-style message API path.
+    public var scaleSet: ScaleSetConfig?
 
     public init(
         name: String, forge: ForgeID, scope: String, instance: String? = nil, labels: [String]? = nil,
-        allowInsecureHTTP: Bool? = nil
+        allowInsecureHTTP: Bool? = nil, scaleSet: ScaleSetConfig? = nil
     ) {
         self.name = name
         self.forge = forge
@@ -35,6 +39,7 @@ public struct AccountConfig: Sendable, Equatable, Codable {
         self.instance = instance
         self.labels = labels
         self.allowInsecureHTTP = allowInsecureHTTP
+        self.scaleSet = scaleSet
     }
 
     /// True when this account's instance is a plain `http://` URL to a host
@@ -47,6 +52,7 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     enum CodingKeys: String, CodingKey {
         case name, forge, scope, instance, labels
         case allowInsecureHTTP = "allow_insecure_http"
+        case scaleSet = "scale_set"
     }
 
     /// Names the app treats specially (the primary per-forge cards). GitLab
@@ -54,6 +60,34 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     public static let reservedNames: Set<String> = [
         ForgeID.github.rawValue, ForgeID.gitea.rawValue, ForgeID.forgejo.rawValue,
     ]
+
+    /// Opt-in GitHub Runner Scale Set config for one account.
+    public struct ScaleSetConfig: Sendable, Equatable, Codable {
+        /// Base name for the scale set. Per-pool suffixes are derived from it
+        /// (for example `kinhin`, `kinhin-container`, `kinhin-docker`).
+        public var name: String
+        /// Runner group to create/use; nil falls back to the default group.
+        public var runnerGroup: String?
+
+        public init(name: String, runnerGroup: String? = nil) {
+            self.name = name
+            self.runnerGroup = runnerGroup
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case runnerGroup = "runner_group"
+        }
+
+        /// A scale-set name must be a valid `runs-on` label segment the fleet
+        /// can request and GitHub can use as a label.
+        public static func isValidName(_ name: String) -> Bool {
+            return AccountConfig.isValidScope(name)
+        }
+    }
+
+    /// True when this account is configured for GitHub Runner Scale Set mode.
+    public var isScaleSet: Bool { scaleSet != nil }
 
     /// Account names are used in Keychain items and CLI flags: keep them tame.
     public static func isValidName(_ name: String) -> Bool {
@@ -76,6 +110,10 @@ public struct AccountConfig: Sendable, Equatable, Codable {
         case .github, .gitea, .forgejo: return isValidScope(scope)
         }
     }
+
+    /// Scale sets require ephemeral runners (scale-set runners are one-job
+    /// ephemeral by design).
+    public var requiresEphemeral: Bool { true }
 
     /// `owner/name` or a bare org name.
     static func isValidScope(_ scope: String) -> Bool {

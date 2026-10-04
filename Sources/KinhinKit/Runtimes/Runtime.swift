@@ -282,6 +282,33 @@ struct TartRuntime: Runtime {
             mounted: route.cacheMount, selection: cachedToolchainSelection(for: route))
         switch forge.credentials.forge {
         case .github:
+            if case .jitConfig = forge.registration {
+                let runnerNames = FleetEngine.runnerNames(for: name, count: runnerCount)
+                guard runnerNames.allSatisfy({ runnerTokens[$0] != nil }), runnerTokens.count == runnerNames.count else {
+                    throw EngineError.registrationFailed(vm: name, stderr: "forge returned incomplete JIT configs")
+                }
+                let orderedConfigs = runnerNames.compactMap { runnerName in
+                    runnerTokens[runnerName].map { (runnerName, $0) }
+                }
+                let scripts = orderedConfigs.enumerated().map { index, config in
+                    let directory: String
+                    let workFolder: String
+                    if runnerCount == 1 {
+                        directory = "~/actions-runner"
+                        workFolder = "_work"
+                    } else {
+                        directory = "~/actions-runner-\(index + 1)"
+                        workFolder = "_work-\(index + 1)"
+                    }
+                    return RunnerBootstrap.jitRegistrationScript(
+                        encodedJitConfig: config.1,
+                        name: config.0,
+                        workFolder: workFolder,
+                        agentDirectory: directory
+                    )
+                }.joined(separator: "\n")
+                return cachePrefix + scripts
+            }
             return cachePrefix
                 + RunnerBootstrap.registrationScript(
                     configureURL: forge.registrationURL(),

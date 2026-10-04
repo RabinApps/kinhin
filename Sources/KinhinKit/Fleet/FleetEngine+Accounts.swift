@@ -29,6 +29,11 @@ extension FleetEngine {
         for cache in caches { cache.invalidate() }
     }
 
+    /// The scale-set listeners attached to running accounts.
+    func scaleSetListeners() -> [String: GitHubScaleSetListener] {
+        forgeState.withLock { state in state.scaleSetListeners }
+    }
+
     /// Attach every account that isn't attached yet. One failing account
     /// (no token, bad scope, unreachable instance) is logged and surfaced in
     /// `lastError` without affecting the others.
@@ -65,9 +70,17 @@ extension FleetEngine {
                         throw EngineError.accountUnverified(verification.message)
                     }
                 }
-                forge = GitHubForge(
-                    credentials: .github(token: token, scope: account.scope), labels: config.labels, client: client,
-                    account: account.name)
+                if let scaleSet = account.scaleSet {
+                    let listener = await makeGitHubScaleSetListener(
+                        account: account, token: token, client: client, scaleSet: scaleSet)
+                    forge = GitHubScaleSetForge(
+                        account: account, token: token, client: client,
+                        labels: account.labels ?? config.labels, listener: listener)
+                } else {
+                    forge = GitHubForge(
+                        credentials: .github(token: token, scope: account.scope), labels: config.labels, client: client,
+                        account: account.name)
+                }
             case .gitea, .forgejo:
                 guard let instance = account.instance else {
                     throw EngineError.accountUnverified("no instance URL configured")
@@ -113,11 +126,28 @@ extension FleetEngine {
                     account: account.name
                 )
             }
-            forgeState.withLock { $0.byPlatform[account.name] = forge }
+            let previousListener = forgeState.withLock { state -> GitHubScaleSetListener? in
+                let previous = state.scaleSetListeners[account.name]
+                state.byPlatform[account.name] = forge
+                if let scaleSetForge = forge as? GitHubScaleSetForge {
+                    state.scaleSetListeners[account.name] = scaleSetForge.listener
+                } else {
+                    state.scaleSetListeners[account.name] = nil
+                }
+                if account.scaleSet == nil { state.scaleSetAdminTokens[account.name] = nil }
+                return previous
+            }
+            let currentListener = (forge as? GitHubScaleSetForge)?.listener
+            if let previousListener, previousListener !== currentListener {
+                await previousListener.stop()
+            }
             registrationCache(for: account.name).invalidate()
             Log.info("engine", "account '\(account.name)' attached (\(account.forge.rawValue): \(account.scope))")
             await statusBox.modify {
                 if $0.lastError?.hasPrefix("account '\(account.name)'") == true { $0.lastError = nil }
+            }
+            if running, let currentListener {
+                await currentListener.start()
             }
             return true
         } catch {
@@ -137,6 +167,130 @@ extension FleetEngine {
             return
         }
         await attach(account: account, token: token, verify: false)
+    }
+
+    // MARK: - GitHub scale-set listener builder
+
+    /// Build a listener whose privileged requests obtain an Actions JWT from
+    /// this account's GitHub registration-token flow.
+    private func makeGitHubScaleSetListener(
+        account: AccountConfig, token: String, client: GitHubServing, scaleSet: AccountConfig.ScaleSetConfig
+    ) async -> GitHubScaleSetListener {
+        let credentials = GitHubCredentials(token: token, scope: account.scope)
+        let poolCapacity = Autoscaler.jobCapacity(
+            maxRunners: config.maxRunners,
+            capacityCap: capacity.maxConcurrent,
+            runnersPerVM: config.runnersPerVM
+        )
+        let scaleSetClient = GitHubScaleSetClient(
+            credentials: credentials,
+            adminJwtProvider: { [self] in
+                try await self.adminJwtForAttach(account: account, token: token, client: client)
+            },
+            actionsServiceURL: { [self] in
+                forgeState.withLock { $0.scaleSetAdminTokens[account.name]?.actionsURL }
+            })
+        return GitHubScaleSetListener(
+            client: scaleSetClient,
+            scaleSetIdSupplier: {
+                try await self.scaleSetIdForAttach(
+                    account: account,
+                    token: token,
+                    githubClient: client,
+                    scaleSet: scaleSet
+                )
+            },
+            ownerName: credentials.owner,
+            fallbackRepository: account.scope.contains("/") ? account.scope : nil,
+            pollInterval: .seconds(2),
+            maxCapacity: poolCapacity,
+            onDemandUpdate: { [weak self] in self?.pollSoon() }
+        )
+    }
+
+    /// Mint and exchange a registration token, caching the Actions JWT until
+    /// shortly before expiry. Each privileged request uses this supplier so
+    /// token expiry is refreshed transparently.
+    private func adminJwtForAttach(
+        account: AccountConfig, token: String, client: GitHubServing
+    ) async throws -> String {
+        if let cached = forgeState.withLock({ $0.scaleSetAdminTokens[account.name] }),
+            cached.sourceToken == token, cached.expiresAt.timeIntervalSinceNow > 60
+        {
+            return cached.token
+        }
+        do {
+            let registration = try await client.fetchRegistrationToken()
+            let exchangeClient = GitHubScaleSetClient(
+                credentials: GitHubCredentials(token: token, scope: account.scope))
+            let exchange = try await exchangeClient.exchangeRegistrationToken(
+                registrationToken: registration.token)
+            forgeState.withLock {
+                $0.scaleSetAdminTokens[account.name] = ScaleSetAdminToken(
+                    token: exchange.token, actionsURL: exchange.actionsUrl,
+                    expiresAt: exchange.expiresAt, sourceToken: token)
+            }
+            return exchange.token
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw ScaleSetError.adminTokenFailure(reason: error.localizedDescription)
+        }
+    }
+
+    /// Ensure the configured scale set exists before exposing its id to the
+    /// listener's session, statistics, and JIT-registration paths.
+    private func scaleSetIdForAttach(
+        account: AccountConfig,
+        token: String,
+        githubClient: GitHubServing,
+        scaleSet: AccountConfig.ScaleSetConfig
+    ) async throws -> Int {
+        let labels = account.labels ?? config.labels
+        do {
+            let setupClient = GitHubScaleSetClient(
+                credentials: GitHubCredentials(token: token, scope: account.scope),
+                adminJwtProvider: { [self] in
+                    try await self.adminJwtForAttach(account: account, token: token, client: githubClient)
+                },
+                actionsServiceURL: { [self] in
+                    forgeState.withLock { $0.scaleSetAdminTokens[account.name]?.actionsURL }
+                })
+            let fullLabels = Array(Set(labels + [scaleSet.name])).sorted()
+            let scaleSet = try await setupClient.ensureScaleSet(
+                name: scaleSet.name,
+                labels: fullLabels,
+                runnerGroup: scaleSet.runnerGroup
+            )
+            return scaleSet.id
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw ScaleSetError.scaleSetIdFailure(reason: error.localizedDescription)
+        }
+    }
+
+    // MARK: - Lifecycle hooks for scale-set forges
+
+    /// Start any scale-set listeners that were attached with their forge.
+    /// Classic forges have no listener to start.
+    func startAttachedListeners() async {
+        let forges = forgeState.withLock { Array($0.byPlatform.values) }
+        for forge in forges {
+            if let scaleSetForge = forge as? GitHubScaleSetForge {
+                await scaleSetForge.listener.start()
+            }
+        }
+    }
+
+    /// Stop any scale-set listeners that were attached with their forge.
+    func stopAttachedListeners() async {
+        let forges = forgeState.withLock { Array($0.byPlatform.values) }
+        for forge in forges {
+            if let scaleSetForge = forge as? GitHubScaleSetForge {
+                await scaleSetForge.listener.stop()
+            }
+        }
     }
 
     /// True when any attached GitHub forge is org-scoped (an org fleet

@@ -32,13 +32,18 @@ extension RunnerBootstrap {
         set -euo pipefail
         \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("tar", "tar"), ("gzip", "gzip")]))
         mkdir -p /opt/actions-runner
-        cd /opt/actions-runner
+        if [ ! -x /opt/actions-runner/config.sh ]; then
         if [ ! -x ./config.sh ]; then
           \(githubRunnerDownloadScript(version: runnerVersion, platform: "linux-\(arch)", file: "runner.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
           tar xzf runner.tar.gz
           rm runner.tar.gz
           ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
         fi
+        cd /opt/actions-runner
+        for index in 2 3 4 5 6 7 8 9 10; do
+          mkdir -p "/opt/actions-runner-$index"
+          cp -a /opt/actions-runner/. "/opt/actions-runner-$index/"
+        done
         echo "linux actions-runner v\(runnerVersion) installed"
         """
     }
@@ -218,7 +223,7 @@ extension RunnerBootstrap {
                             --unattended \\
                             --replace \\
                             \(ephemeralFlag)--work /opt/work-\(index) >/dev/null
-                nohup ./run.sh > run-\(index).log 2>&1 &
+                nohup ./run.sh > run-\(index).log 2>&1 < /dev/null &
 
                 """
         }

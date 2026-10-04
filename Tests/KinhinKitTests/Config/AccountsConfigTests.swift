@@ -71,6 +71,35 @@ final class AccountsConfigTests: XCTestCase {
         }
     }
 
+    func testParsesScaleSetAndRejectsItOnNonGitHubAccounts() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            accounts:
+              - name: github
+                forge: github
+                scope: acme/widgets
+                scale_set:
+                  name: kinhin
+                  runner_group: default
+            labels: [kinhin]
+            """)
+        XCTAssertEqual(cfg.accounts.first?.scaleSet, .init(name: "kinhin", runnerGroup: "default"))
+
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                accounts:
+                  - name: work
+                    forge: gitea
+                    scope: acme/widgets
+                    instance: https://git.example.com
+                    scale_set: {name: kinhin}
+                labels: [kinhin]
+                """)) { error in
+                XCTAssertTrue("\(error.localizedDescription)".contains("scale_set is github-only"), "\(error)")
+            }
+    }
+
     func testEngineTokenCountsExtraAccountTokens() throws {
         let cfg = try ConfigLoader.parse(
             """

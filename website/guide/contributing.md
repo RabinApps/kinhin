@@ -32,8 +32,8 @@ also run `scripts/tsan.sh` (serial, ~5–10 min).
 
 ## Where to start
 
-- The [Architecture guide](https://github.com/RabinApps/kinhin/blob/main/docs/architecture.md)
-  has the package layout and folder map.
+- The [Architecture guide](/guide/architecture) has the package layout, folder map and diagrams.
+  On GitHub, read [docs/architecture.md](https://github.com/RabinApps/kinhin/blob/main/docs/architecture.md).
 - [CONTRIBUTING.md](https://github.com/RabinApps/kinhin/blob/main/CONTRIBUTING.md) has the
   contributor conventions (Swift, error handling, logging, tests).
 - The [Issue tracker](https://github.com/RabinApps/kinhin/issues) has a list of

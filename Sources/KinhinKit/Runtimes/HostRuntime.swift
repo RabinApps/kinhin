@@ -84,7 +84,35 @@ final class HostRuntime: Runtime {
     ) async throws -> String {
         switch forge.credentials.forge {
         case .github:
-            break
+            if case .jitConfig = forge.registration {
+                let workDir = workDirectory(for: name)
+                try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
+                let names = FleetEngine.runnerNames(for: name, count: runnerCount)
+                guard names.allSatisfy({ runnerTokens[$0] != nil }), runnerTokens.count == names.count else {
+                    throw EngineError.registrationFailed(vm: name, stderr: "forge returned incomplete JIT configs")
+                }
+                let blocks = names.enumerated().map { index, runnerName in
+                    let runnerDirectory = runnerCount == 1
+                        ? agentDir
+                        : agentDir.deletingLastPathComponent().appendingPathComponent("host-runner-\(index + 1)")
+                    let pidFile = workDir.appendingPathComponent(runnerName).appendingPathComponent("runner.pid")
+                    return """
+                        set -euo pipefail
+                        mkdir -p \(RunnerBootstrap.shellQuote(runnerDirectory.path))
+                        mkdir -p \(RunnerBootstrap.shellQuote(pidFile.deletingLastPathComponent().path))
+                        if [ ! -x \(RunnerBootstrap.shellQuote(runnerDirectory.appendingPathComponent("config.sh").path)) ]; then
+                          cp -a \(RunnerBootstrap.shellQuote(agentDir.path + "/.")) \(RunnerBootstrap.shellQuote(runnerDirectory.path + "/"))
+                        fi
+                        \(RunnerBootstrap.jitRegistrationScript(
+                            encodedJitConfig: runnerTokens[runnerName] ?? "", name: runnerName,
+                            workFolder: workDir.appendingPathComponent(runnerName).path,
+                            agentDirectory: runnerDirectory.path,
+                            pidFile: pidFile.path
+                        ))
+                        """
+                }
+                return blocks.joined(separator: "\n")
+            }
         case .gitea, .forgejo:
             // Forgejo shares Gitea's runner binary and registration flow.
             return giteaRegistrationScript(
@@ -133,6 +161,7 @@ final class HostRuntime: Runtime {
         await stopGiteaDaemons(id: id)
         await stopGitLabRunners(id: id)
         await stopBuildkiteAgents(id: id)
+        await stopGitHubRunners(id: id)
         await stopAzureAgents(id: id)
         await stopBitbucketRunners(id: id)
         await bestEffortAsync(id, "removing host work directory") {
@@ -144,6 +173,12 @@ final class HostRuntime: Runtime {
 
     // MARK: - Helpers
 
+    /// Stops scale-set runner processes recorded in the instance work dir.
+    func stopGitHubRunners(id: String) async {
+        await stopRecordedAgents(
+            id: id, pidFile: "runner.pid", command: "Runner.Listener", what: "GitHub runners")
+    }
+
     /// Stops the background agents an instance recorded in
     /// `<work dir>/<runner>/<pidFile>` (GitLab runners, Buildkite agents) and
     /// their children. A pid is only signalled while its command line still
@@ -152,22 +187,22 @@ final class HostRuntime: Runtime {
         let workDir = workDirectory(for: id)
         let fm = FileManager.default
         // A missing or unreadable dir holds no agents to stop.
-        let entries = (try? fm.contentsOfDirectory(atPath: workDir.path)) ?? []
+        let runnerDirs = (try? fm.contentsOfDirectory(atPath: workDir.path)) ?? []
         // No pid file means no such agent was started here (another forge's
         // instance), so there is nothing to stop.
-        guard
-            entries.contains(where: {
-                fm.fileExists(atPath: workDir.appendingPathComponent($0).appendingPathComponent(pidFile).path)
-            })
-        else { return }
+        let pidPaths = runnerDirs.map { workDir.appendingPathComponent($0).appendingPathComponent(pidFile).path }
+            .filter { fm.fileExists(atPath: $0) }
+        guard !pidPaths.isEmpty else { return }
+        let pidList = pidPaths.map(RunnerBootstrap.shellQuote).joined(separator: " ")
         let script = """
-            for f in \(RunnerBootstrap.shellQuote(workDir.path))/*/\(pidFile); do
+            for f in \(pidList); do
               [ -f "$f" ] || continue
               pid="$(cat "$f")"
               if ps -p "$pid" -o command= | grep -q \(RunnerBootstrap.shellQuote(command)); then
                 pkill -TERM -P "$pid" || true
                 kill "$pid" || true
               fi
+              rm -f "$f"
             done
             """
         await bestEffortAsync(id, "stopping \(what)") {

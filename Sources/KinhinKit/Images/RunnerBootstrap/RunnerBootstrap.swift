@@ -9,6 +9,35 @@ enum RunnerBootstrap {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
+    /// Register and start one runner using an already-generated scale-set JIT config.
+    /// The config is secret material and is shell-quoted so it never becomes executable syntax.
+    static func jitRegistrationScript(
+        encodedJitConfig: String,
+        name: String,
+        workFolder: String = "_work",
+        agentDirectory: String = "~/actions-runner",
+        pidFile: String? = nil
+    ) -> String {
+        let agentDirectoryCommand = agentDirectory.hasPrefix("~/")
+            ? "agent_dir=\"$HOME\"/\(shellQuote(String(agentDirectory.dropFirst(2))))"
+            : "agent_dir=\(shellQuote(agentDirectory))"
+        let pidSetup = pidFile.map {
+            "mkdir -p \(shellQuote(URL(fileURLWithPath: $0).deletingLastPathComponent().path)); echo $! > \(shellQuote($0))"
+        } ?? ""
+        return """
+            set -euo pipefail
+            \(agentDirectoryCommand)
+            cd "$agent_dir"
+            ./config.sh --jitconfig \(shellQuote(encodedJitConfig)) \\
+                        --unattended \\
+                        --replace \\
+                        --work \(shellQuote(workFolder)) >/dev/null
+            nohup ./run.sh > run.log 2>&1 &
+            \(pidSetup)
+            echo "runner started"
+            """
+    }
+
     /// Register and start `runnerCount` runner processes in the VM. GitHub's
     /// model is one job per runner process, so density (many-to-one) comes
     /// from registering several runners, each with its own agent directory
@@ -86,6 +115,35 @@ enum RunnerBootstrap {
             \(registrations)# All registered; now start serving jobs.
             \(starts)echo "\(runnerCount) runners started"
             """
+    }
+
+    static func linuxJitRegistrationScript(
+        encodedJitConfig: String,
+        name: String,
+        workFolder: String = "/opt/work",
+        agentDirectory: String = "/opt/actions-runner",
+        agentTemplate: String = "/opt/actions-runner",
+        workRoot: String = "/opt",
+        pidFile: String? = nil
+    ) -> String {
+        """
+        set -euo pipefail
+        mkdir -p \(shellQuote(workRoot))
+        if [ ! -x \(shellQuote(agentDirectory + "/config.sh")) ]; then
+          mkdir -p \(shellQuote(agentDirectory))
+          cp -a \(shellQuote(agentTemplate + "/.")) \(shellQuote(agentDirectory + "/"))
+        fi
+        cd \(shellQuote(agentDirectory))
+        ./config.sh --jitconfig \(shellQuote(encodedJitConfig)) \\
+                    --unattended \\
+                    --replace \\
+                    --work \(shellQuote(workFolder)) >/dev/null
+        nohup ./run.sh > run.log 2>&1 < /dev/null &
+        \(pidFile.map {
+            "mkdir -p \(shellQuote(URL(fileURLWithPath: $0).deletingLastPathComponent().path)); echo $! > \(shellQuote($0))"
+        } ?? "")
+        echo "linux runner started"
+        """
     }
 
     /// Installs the GitHub Actions runner agent into a base image (used by

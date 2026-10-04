@@ -91,22 +91,46 @@ extension FleetEngine {
             // forge and executes it through its own transport (SSH for VMs,
             // exec for containers) — the engine is transport-agnostic.
             let labels = poolLabels(for: probe)
+            let isScaleSet = if case .jitConfig = forge.registration { true } else { false }
             let token: String
             var runnerTokens: [String: String] = [:]
             switch forge.registration {
             case .sharedShortLived:
                 // Registration tokens expire hourly; each account has its own cache.
+                guard !isScaleSet else {
+                    throw EngineError.registrationFailed(vm: id, stderr: "scale-set forge requires JIT registration")
+                }
                 token = try await registrationCache(for: account).token {
                     try await forge.mintRegistrationToken()
                 }
             case .sharedLongLived:
                 // Long-lived (Gitea family): captured at forge construction.
+                guard !isScaleSet else {
+                    throw EngineError.registrationFailed(vm: id, stderr: "scale-set forge requires JIT registration")
+                }
                 token = try await forge.mintRegistrationToken()
             case .perRunner:
                 // Each runner is created on the forge now, with its own token.
+                guard !isScaleSet else {
+                    throw EngineError.registrationFailed(vm: id, stderr: "scale-set forge requires JIT registration")
+                }
                 token = ""
                 runnerTokens = try await forge.registrationTokens(
                     runnerNames: Self.runnerNames(for: id, count: runnerCount), labels: labels ?? [])
+            case .jitConfig:
+                guard isScaleSet else {
+                    throw EngineError.registrationFailed(vm: id, stderr: "JIT registration requires a scale-set forge")
+                }
+                // GitHub Runner Scale Set runners authenticate with a JIT config
+                // generated per runner by the scale-set message API. The engine
+                // asks the forge for one config per named runner and passes each
+                // encoded config to the in-VM bootstrap.
+                token = ""
+                runnerTokens = try await forge.jitRunnerTokens(
+                    names: Self.runnerNames(for: id, count: runnerCount), labels: labels ?? [])
+                guard runnerTokens.count == runnerCount else {
+                    throw EngineError.registrationFailed(vm: id, stderr: "forge returned incomplete JIT configs")
+                }
             }
             try Task.checkCancellation()
             let script = try await recordRuntime.registrationScript(
@@ -124,8 +148,9 @@ extension FleetEngine {
             // Phase: ready (or straight to busy if it picked up a job immediately)
             updateRecord(id) { $0.phase = .ready }
 
-            // If ephemeral, watch until the runner deregisters itself, then delete.
-            if config.vm.ephemeral {
+            // Scale-set runners are always one-job ephemeral, independent of
+            // the fleet-wide classic-runner setting.
+            if config.vm.ephemeral || isScaleSet {
                 try await awaitRunnerExit(id: id, forge: forge)
             }
         } catch is CancellationError {

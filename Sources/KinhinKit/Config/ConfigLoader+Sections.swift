@@ -1,4 +1,5 @@
 import Foundation
+import Yams
 
 // MARK: - Section validators (base_image, accounts)
 
@@ -135,8 +136,20 @@ extension ConfigLoader {
                 if entry.instance != nil || entry.labels != nil {
                     throw ConfigError.invalid("account '\(name)': instance and labels apply to gitea accounts only")
                 }
-                result.append(AccountConfig(name: name, forge: forge, scope: scope))
+                let scaleSet: AccountConfig.ScaleSetConfig?
+                if let raw = entry.scaleSet, !raw.isEmpty {
+                    let doc = try YAMLDecoder().decode(
+                        PartialScaleSet.self,
+                        from: raw.map { "\($0.key): \($0.value)" }.joined(separator: "\n"))
+                    scaleSet = try parseScaleSet(doc, account: name)
+                } else {
+                    scaleSet = nil
+                }
+                result.append(AccountConfig(name: name, forge: forge, scope: scope, scaleSet: scaleSet))
             case .gitea, .forgejo:
+                if entry.scaleSet != nil {
+                    throw ConfigError.invalid("account '\(name)': scale_set is github-only")
+                }
                 guard let instance = entry.instance, !instance.isEmpty else {
                     throw ConfigError.invalid(
                         "account '\(name)': instance is required (e.g. https://gitea.example.com)")
@@ -155,6 +168,9 @@ extension ConfigLoader {
                         name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels,
                         allowInsecureHTTP: entry.allowInsecureHTTP))
             case .gitlab:
+                if entry.scaleSet != nil {
+                    throw ConfigError.invalid("account '\(name)': scale_set is github-only")
+                }
                 if let instance = entry.instance {
                     do {
                         _ = try GitLabCredentials.validate(instance: instance, allowInsecureHTTP: allowInsecureHTTP)
@@ -171,6 +187,9 @@ extension ConfigLoader {
                         name: name, forge: forge, scope: scope, instance: entry.instance, labels: entry.labels,
                         allowInsecureHTTP: entry.allowInsecureHTTP))
             case .buildkite:
+                if entry.scaleSet != nil {
+                    throw ConfigError.invalid("account '\(name)': scale_set is github-only")
+                }
                 if entry.instance != nil {
                     throw ConfigError.invalid("account '\(name)': Buildkite is hosted only; remove instance")
                 }
@@ -182,6 +201,9 @@ extension ConfigLoader {
                 }
                 result.append(AccountConfig(name: name, forge: forge, scope: scope, labels: entry.labels))
             case .azuredevops:
+                if entry.scaleSet != nil {
+                    throw ConfigError.invalid("account '\(name)': scale_set is github-only")
+                }
                 guard let instance = entry.instance, !instance.isEmpty else {
                     throw ConfigError.invalid(
                         "account '\(name)': instance is required (the organization URL, e.g. https://dev.azure.com/acme)"
@@ -205,6 +227,9 @@ extension ConfigLoader {
                         name: name, forge: forge, scope: scope, instance: instance, labels: entry.labels,
                         allowInsecureHTTP: entry.allowInsecureHTTP))
             case .bitbucket:
+                if entry.scaleSet != nil {
+                    throw ConfigError.invalid("account '\(name)': scale_set is github-only")
+                }
                 if entry.instance != nil {
                     throw ConfigError.invalid("account '\(name)': Bitbucket is hosted only; remove instance")
                 }
@@ -226,5 +251,36 @@ extension ConfigLoader {
             }
         }
         return result
+    }
+
+    // MARK: - scale_set partial decoding
+
+    /// The minimal shape the loader decodes from a `scale_set:` YAML block.
+    private struct PartialScaleSet: Decodable {
+        var name: String?
+        var runnerGroup: String?
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case runnerGroup = "runner_group"
+        }
+    }
+
+    /// Validates and builds a `ScaleSetConfig` from the parsed partial.
+    private static func parseScaleSet(_ partial: PartialScaleSet, account: String) throws -> AccountConfig.ScaleSetConfig {
+        guard let name = partial.name, !name.isEmpty else {
+            throw ConfigError.invalid("account '\(account)': scale_set.name is required")
+        }
+        guard AccountConfig.ScaleSetConfig.isValidName(name) else {
+            throw ConfigError.invalid(
+                "account '\(account)': scale_set.name '\(name)' is not a valid runs-on label"
+            )
+        }
+        if let group = partial.runnerGroup {
+            guard !group.isEmpty else {
+                throw ConfigError.invalid("account '\(account)': scale_set.runner_group must not be empty")
+            }
+        }
+        return AccountConfig.ScaleSetConfig(name: name, runnerGroup: partial.runnerGroup)
     }
 }

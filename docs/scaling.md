@@ -118,11 +118,66 @@ actions behind the same pending-state and AlertKit failure handling as Start/Sto
 
 See [Requeue and skip queued jobs](requeue-skip.md) for the full behavior.
 
-## Lifecycle and recovery
+## Scale set mode (opt-in)
 
-Ephemeral runners register with `--ephemeral`, so GitHub removes the registration as soon as the job finishes, and
-kinhin then deletes the VM. If the engine crashes or restarts, it compares `tart list` with its saved state, adopts
-orphaned VMs, and drops records whose VMs vanished.
+A GitHub account can opt in to GitHub's Runner Scale Set message API instead of the classic REST workflow-runs poll.
+This is one account at a time, in `config.yaml`:
 
-Registration tokens last an hour and are refreshed automatically. Your PAT lives in the login Keychain. Config edits
-from **Advanced → Routing** reach a running fleet without a restart.
+```yaml
+accounts:
+  - name: github
+    forge: github
+    scope: your-org # org or owner/name
+    scale_set: # absent → classic poller (default)
+      name: kinhin
+      # runner_group: default
+```
+
+`scale_set.name` is the scale-set name base. The engine derives per-pool names from it (for example `kinhin`,
+`kinhin-container`, `kinhin-docker`), so one fleet can run a scale set per runtime pool. The scale-set name is also a
+valid `runs-on:` label, so a workflow can target it directly.
+
+When an account has `scale_set:` set, kinhin does the following for that account:
+
+- Mints runner-registration material through the Actions service, then ensures the scale set and runner group exist.
+- Opens a long-poll message session and drives demand from the scale-set statistics and job messages instead of polling
+  workflow runs.
+- Registers each spawned runner with a JIT config rather than a shared runner token.
+
+This mode is useful when you want event-driven pickup instead of poll latency, or when you'd rather avoid repeated REST
+reads against the rate-limit budget. The autoscaler still works the same way: scale-set mode still uses
+`TotalAssignedJobs` for demand, and pause/auto-resume, `max_runners`, `min_runners`, `runners_per_vm`, budget caps and
+disk-pressure holds are unchanged. `poll_interval` still paces reconcile passes and scale-downs.
+
+A few things to know:
+
+- The scale-set message API is **opt-in and not documented in GitHub's published REST API descriptions**. kinhin
+  implemented it from the actions/scaleset client and its API surface; treat it as preview-grade as long as GitHub
+  keeps that API in preview.
+- The scale-set listener replaces where demand comes from; it does not change provisioning. Spawning, cloning, boot,
+  SSH, runner registration and teardown still follow the same runtime path.
+- Scale-set runners are one-job ephemeral by design. The engine still deletes idle instances when demand drops.
+- When the listener cannot refresh statistics, it keeps serving the last known snapshot so the fleet does not read zero
+  demand from a transient failure.
+
+### Scale set config
+
+`scale_set:` requires `vm.ephemeral: true`. Scale-set runners deregister after one job, so persistent VMs are
+contradictory. The scale-set name must be a valid `runs-on:` label segment. If `runner_group` is omitted, kinhin uses the
+default runner group.
+
+### JIT registration
+
+In scale-set mode, spawned runners register with `./config.sh --jitconfig '<config>' --unattended --replace --work _work`
+and do not receive a shared runner token. Registration material is treated like other secrets: it is not logged and is
+redacted in logs.
+
+### Limitations
+
+- GitHub Enterprise Server is not supported; the Actions service path kinhin uses is github.com-only.
+- Deleting scale sets on teardown is not in scope; they are left in place and re-attached.
+- There is currently no Fleet-tab card or account-form toggle for scale sets; the only control is the `scale_set:` key in
+  config. If you add one, the app and CLI must not drop the key when rewriting the `accounts:` block.
+
+See [GitHub API notes](forges/github.md#scale-set-mode-in-kinhin) for the endpoint path kinhin uses and the current
+preview/API-version caveats.

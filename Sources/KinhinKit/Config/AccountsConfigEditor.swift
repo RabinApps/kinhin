@@ -67,6 +67,13 @@ public enum AccountsConfigEditor {
                 lines.append("    labels: [\(labels.map(YAMLText.quoted).joined(separator: ", "))]")
             }
             if account.allowInsecureHTTP == true { lines.append("    allow_insecure_http: true") }
+            if let scaleSet = account.scaleSet {
+                lines.append("    scale_set:")
+                lines.append("      name: \(YAMLText.quoted(scaleSet.name))")
+                if let runnerGroup = scaleSet.runnerGroup {
+                    lines.append("      runner_group: \(YAMLText.quoted(runnerGroup))")
+                }
+            }
         }
         return lines.joined(separator: "\n")
     }

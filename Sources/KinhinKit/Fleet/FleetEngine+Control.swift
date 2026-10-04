@@ -77,6 +77,7 @@ extension FleetEngine {
         let served = forgeState.withLock { $0.byPlatform.keys.sorted().joined(separator: " + ") }
         Log.info("engine", "starting fleet engine for \(served) (capacity cap: \(capacity.maxConcurrent))")
         await recoverIfNeeded()
+        await startAttachedListeners()
         startCachePruneSweepIfNeeded()
         let task = Task { [weak self] () -> Void in
             guard let self else { return }
@@ -95,6 +96,7 @@ extension FleetEngine {
         // A token replaced while stopped must not survive into the next run
         // via the cache (minted under the old PAT's authority).
         invalidateRegistrationTokens()
+        await stopAttachedListeners()
         await pauseAllVMs()
     }
 

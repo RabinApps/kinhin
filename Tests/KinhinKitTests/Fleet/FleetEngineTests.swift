@@ -294,8 +294,378 @@ final class FleetEngineTests: XCTestCase {
         XCTAssertEqual(fake.deletedRunnerIDs.count, 1, "the lifecycle's own delete must deregister its runner")
     }
 
+    // MARK: - Scale-set attach path
+
+    func testScaleSetAccountBuildsScaleSetForge() async throws {
+        var cfg = makeTestConfig()
+        cfg.accounts.append(makeScaleSetAccount())
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        let engine = FleetEngine(
+            config: cfg, github: github, tart: tart,
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            dependencies: .init(
+                tokenLoader: { _, _ in "test-token" },
+                exitWatchInterval: .milliseconds(20)))
+        await engine.attach(account: cfg.accounts.last!, token: "token", verify: false)
+        let attached = engine.forgeState.withLock { $0.byPlatform["scale"] }
+        XCTAssertNotNil(attached, "scale-set account should attach")
+        XCTAssertTrue(attached is GitHubScaleSetForge, "should be a scale-set forge")
+        let forge = attached as? GitHubScaleSetForge
+        XCTAssertEqual(forge?.labels, ["kinhin"])
+        XCTAssertEqual(forge?.account, "scale")
+        XCTAssertNotNil(engine.forgeState.withLock { $0.scaleSetListeners["scale"] })
+    }
+
+    func testScaleSetAccountOverridesGlobalLabels() async {
+        var cfg = makeTestConfig()
+        cfg.accounts.append(
+            AccountConfig(
+                name: "scale", forge: .github, scope: "acme/widgets", labels: ["pool-label"],
+                scaleSet: .init(name: "kinhin")))
+        let engine = makeEngine(tart: FakeTart(), github: FakeGitHub(), ssh: FakeSSH())
+        _ = await engine.attach(account: cfg.accounts.last!, token: "token", verify: false)
+        let forge = engine.forgeState.withLock { $0.byPlatform["scale"] as? GitHubScaleSetForge }
+        XCTAssertEqual(forge?.labels, ["pool-label"])
+    }
+
+    func testClassicGitHubAccountStillBuildsGitHubForge() async throws {
+        var cfg = makeTestConfig()
+        cfg.accounts.append(
+            AccountConfig(name: "extra", forge: .github, scope: "acme/widgets", labels: ["kinhin"]))
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        let engine = FleetEngine(
+            config: cfg, github: github, tart: tart,
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            dependencies: .init(
+                tokenLoader: { _, _ in "test-token" },
+                exitWatchInterval: .milliseconds(20)))
+      await engine.attach(account: cfg.accounts.last!, token: "token", verify: false)
+        let attached = engine.forgeState.withLock { $0.byPlatform["extra"] }
+        XCTAssertTrue(attached is GitHubForge, "classic github should stay classic")
+        XCTAssertNil(engine.forgeState.withLock { $0.scaleSetListeners["extra"] })
+    }
+
+    func testScaleSetForgeDelegatesRunnersToListClient() async throws {
+        var cfg = makeTestConfig()
+        cfg.accounts.append(makeScaleSetAccount())
+        let fake = FakeGitHub()
+        fake.register(name: "runner-one", busy: false)
+        let engine = FleetEngine(
+            config: cfg, github: fake, tart: FakeTart(),
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            dependencies: .init(
+                tokenLoader: { _, _ in "test-token" },
+                exitWatchInterval: .milliseconds(20)))
+        await engine.attach(account: cfg.accounts.last!, token: "token", verify: false)
+        let forge = engine.forgeState.withLock { $0.byPlatform["scale"] } as? GitHubScaleSetForge
+        let runners = try await forge?.runners()
+        XCTAssertEqual(runners?.count, 1)
+        XCTAssertEqual(runners?.first?.name, "runner-one")
+        XCTAssertFalse(runners?.first?.busy ?? true)
+    }
+
+    func testScaleSetForgeExposesJitRegistrationTokens() async throws {
+        let listener = makeTestListener()
+        let forge = GitHubScaleSetForge(
+            account: makeScaleSetAccount(), token: "token", client: FakeGitHub(), listener: listener)
+        let jit = try await forge.jitRunnerTokens(names: ["vm"], labels: [])
+        XCTAssertEqual(jit, ["vm": "jit-vm"])
+    }
+
+    func testScaleSetForgeRejectsSharedTokenRegistration() async throws {
+        var cfg = makeTestConfig()
+        cfg.accounts.append(makeScaleSetAccount())
+        let fake = FakeGitHub()
+        let engine = FleetEngine(
+            config: cfg, github: fake, tart: FakeTart(),
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            dependencies: .init(
+                tokenLoader: { _, _ in "test-token" },
+                exitWatchInterval: .milliseconds(20)))
+        await engine.attach(account: cfg.accounts.last!, token: "token", verify: false)
+        let forge = engine.forgeState.withLock { $0.byPlatform["scale"] } as? GitHubScaleSetForge
+        do {
+            _ = try await forge?.mintRegistrationToken()
+            XCTFail("scale-set registration must throw")
+        } catch EngineError.scaleSetRegistrationUnsupported {
+        } catch {
+            XCTFail("expected EngineError.scaleSetRegistrationUnsupported, got \(error)")
+        }
+    }
+
+    func testScaleSetListenerSnapshotIsEmptyBeforeStart() async throws {
+        let listener = makeTestListener()
+        let snap = await listener.snapshot()
+        XCTAssertNil(snap)
+        let empty = try await listener.queuedJobs()
+        XCTAssertTrue(empty.isEmpty)
+        // snapshot() is actor-isolated; assert it through await.
+        let snap2 = await listener.snapshot()
+        XCTAssertNil(snap2)
+    }
+
+    func testScaleSetListenerSnapshotDerivesJobsFromTrackedEvents() async throws {
+        let listener = makeTestListener()
+        let event = GitHubScaleSetJobEvent(
+            ownerName: "acme", repositoryName: "widgets",
+            jobDisplayName: "build", requestLabels: ["macos"], runnerRequestId: "r-1",
+            eventType: .jobAssigned)
+        await listener.updateSnapshot(
+            statistics: .init(totalAssignedJobs: 1, activeNodesCount: 0), pendingActions: ["m-1": event])
+        let snap = await listener.snapshot()
+        XCTAssertEqual(snap?.statistics.totalAssignedJobs, 1)
+        XCTAssertEqual(snap?.trackedJobs.count, 1)
+        XCTAssertEqual(snap?.attributedRepos, ["acme/widgets"])
+        let jobs = try await listener.queuedJobs()
+        XCTAssertEqual(jobs.count, 1)
+        XCTAssertEqual(jobs.first?.name, "build")
+        XCTAssertEqual(jobs.first?.repository, "acme/widgets")
+        XCTAssertEqual(jobs.first?.labels, ["macos"])
+        let snap2 = await listener.snapshot()
+        XCTAssertEqual(snap2?.statistics.totalAssignedJobs, 1)
+    }
+
+    func testScaleSetListenerSynthesizesPlaceholdersWhenTrackedBelowStatistics() async throws {
+        let listener = makeTestListener()
+        await listener.updateSnapshot(
+            statistics: .init(totalAssignedJobs: 3, activeNodesCount: 0),
+            pendingActions: [:]
+        )
+        // No attributed repos yet, so placeholders cannot be synthesized.
+        let jobs = try await listener.queuedJobs()
+        XCTAssertTrue(jobs.isEmpty, "no attributed repos means no placeholders yet")
+
+        let event = GitHubScaleSetJobEvent(
+            ownerName: "acme", repositoryName: "widgets",
+            jobDisplayName: "build", requestLabels: [], runnerRequestId: "r-1",
+            eventType: .jobAssigned)
+        await listener.updateSnapshot(
+            statistics: .init(totalAssignedJobs: 3, activeNodesCount: 0),
+            pendingActions: ["m-1": event]
+        )
+        let jobs2 = try await listener.queuedJobs()
+        XCTAssertEqual(jobs2.count, 3, "tracked 1 vs statistics 3 should yield 1 real + 2 placeholders")
+        XCTAssertEqual(jobs2.first?.name, "build")
+        let placeholders = jobs2.filter { $0.name.hasPrefix("scale-set placeholder") }
+        XCTAssertEqual(placeholders.count, 2)
+        XCTAssertEqual(placeholders.map { $0.repository }, ["acme/widgets", "acme/widgets"])
+        let snap = await listener.snapshot()
+        XCTAssertEqual(snap?.trackedJobs.count, 1)
+    }
+
+    func testScaleSetListenerAppliesJobEventsAndAcknowledgesMessage() async throws {
+        let client = RecordingScaleSetClient()
+        let listener = GitHubScaleSetListener(
+            client: client, scaleSetIdSupplier: { 17 }, ownerName: "acme", fallbackRepository: "acme/widgets")
+        let event = GitHubScaleSetJobEvent(
+            ownerName: "acme", repositoryName: "widgets", jobDisplayName: "build", requestLabels: [],
+            runnerRequestId: "17", eventType: .jobAvailable)
+        let message = GitHubScaleSetMessage(
+            messageId: "9", statistics: .init(totalAssignedJobs: 1, activeNodesCount: 0), events: [event])
+        try await listener.handleMessage(message, session: makeSession())
+        let firstAcknowledgements = await client.acknowledged
+        XCTAssertEqual(firstAcknowledgements, ["9"])
+        let assignedJobs = try await listener.queuedJobs()
+        XCTAssertEqual(assignedJobs.first?.name, "build")
+
+        let completed = GitHubScaleSetMessage(
+            messageId: "10", statistics: .init(totalAssignedJobs: 0, activeNodesCount: 0),
+            events: [GitHubScaleSetJobEvent(
+                ownerName: "acme", repositoryName: "widgets", jobDisplayName: "build", requestLabels: [],
+                runnerRequestId: "17", eventType: .jobCompleted)])
+        try await listener.handleMessage(completed, session: makeSession())
+        let allAcknowledgements = await client.acknowledged
+        XCTAssertEqual(allAcknowledgements, ["9", "10"])
+        let remainingJobs = try await listener.queuedJobs()
+        XCTAssertTrue(remainingJobs.isEmpty)
+    }
+
+    func testScaleSetListenerReplacesDuplicateMessageWithLatestEvent() async throws {
+        let listener = makeTestListener()
+        let first = GitHubScaleSetJobEvent(
+            ownerName: "acme", repositoryName: "widgets",
+            jobDisplayName: "first", requestLabels: [], runnerRequestId: "r-1",
+            eventType: .jobAvailable)
+        let second = GitHubScaleSetJobEvent(
+            ownerName: "acme", repositoryName: "widgets",
+            jobDisplayName: "second", requestLabels: [], runnerRequestId: "r-1",
+            eventType: .jobAssigned)
+        await listener.updateSnapshot(
+            statistics: .init(totalAssignedJobs: 1, activeNodesCount: 0), pendingActions: ["m-1": first])
+        let before = try await listener.queuedJobs()
+        XCTAssertEqual(before.first?.name, "first")
+        await listener.updateSnapshot(
+            statistics: .init(totalAssignedJobs: 1, activeNodesCount: 0), pendingActions: ["m-1": second])
+        let after = try await listener.queuedJobs()
+        XCTAssertEqual(after.first?.name, "second")
+        let snap = await listener.snapshot()
+        XCTAssertEqual(snap?.trackedJobs.first?.jobDisplayName, "second")
+    }
+
+    func testScaleSetListenerReturnsCachedScaleSetId() async throws {
+        let listener = makeTestListener()
+        let id = try await listener.currentScaleSetId()
+        XCTAssertEqual(id, 17)
+        let snap = await listener.snapshot()
+        XCTAssertNil(snap)
+    }
+
+    func testScaleSetListenerLoadsLiveStatisticsForDemand() async throws {
+        let listener = makeTestListener()
+        let statistics = try await listener.scaleSetStatistics()
+        XCTAssertEqual(statistics.totalAssignedJobs, 2)
+        XCTAssertEqual(statistics.activeNodesCount, 1)
+    }
+
+    func testScaleSetForgeUsesCachedListenerStatistics() async throws {
+        let listener = makeTestListener()
+        let forge = GitHubScaleSetForge(
+            account: makeScaleSetAccount(), token: "token", client: FakeGitHub(), listener: listener)
+        let statistics = try await forge.scaleSetStatistics()
+        XCTAssertEqual(statistics.totalAssignedJobs, 2)
+    }
+
+    func testScaleSetJitBootstrapUsesJitConfigWithoutSharedTokenFlags() {
+        let script = RunnerBootstrap.jitRegistrationScript(encodedJitConfig: "secret'$(bad)", name: "vm")
+        XCTAssertTrue(script.contains("--jitconfig 'secret'\\''$(bad)'"))
+        XCTAssertFalse(script.contains("--token"))
+        XCTAssertFalse(script.contains("--labels"))
+        XCTAssertFalse(script.contains("--url"))
+    }
+
+    func testScaleSetListenerClearsStateOnStop() async throws {
+        let listener = makeTestListener()
+        let event = GitHubScaleSetJobEvent(
+            ownerName: "acme", repositoryName: "widgets",
+            jobDisplayName: "build", requestLabels: [], runnerRequestId: "r-1",
+            eventType: .jobAssigned)
+        await listener.updateSnapshot(
+            statistics: .init(totalAssignedJobs: 1, activeNodesCount: 0), pendingActions: ["m-1": event])
+        let before = try await listener.queuedJobs()
+        XCTAssertFalse(before.isEmpty)
+        await listener.stop()
+        let after = try await listener.queuedJobs()
+        XCTAssertTrue(after.isEmpty)
+        let snap = await listener.snapshot()
+        XCTAssertNil(snap)
+        let snap2 = await listener.snapshot()
+        XCTAssertNil(snap2)
+    }
+
     // MARK: - Helpers
 
+    func makeSession() -> GitHubScaleSetSession {
+        GitHubScaleSetSession(
+            sessionId: "s-test", messageQueueUrl: URL(string: "https://example.invalid/msgs")!,
+            messageQueueAccessToken: "mq-token")
+    }
+
+    func makeTestListener(runners: [GitHubActionsRunner] = []) -> GitHubScaleSetListener {
+        let client = StubScaleSetClient(runners: runners)
+        return GitHubScaleSetListener(
+            client: client,
+            scaleSetIdSupplier: { 17 },
+            ownerName: "acme",
+            pollInterval: .seconds(99)
+        )
+    }
+
+    func makeScaleSetAccount(name: String = "scale", labels: [String] = ["kinhin"], scaleSetName: String = "kinhin")
+        -> AccountConfig
+    {
+        AccountConfig(
+            name: name, forge: .github, scope: "acme/widgets",
+            labels: labels, scaleSet: .init(name: scaleSetName))
+    }
+
+    /// Minimal scale-set client double for listener tests; the lifecycle paths
+    /// that need HTTP behavior get explicit deterministic responses.
+    private final class StubScaleSetClient: GitHubScaleSetServing, Sendable {
+        private let runners: [GitHubActionsRunner]
+        init(runners: [GitHubActionsRunner] = []) {
+            self.runners = runners
+        }
+
+        func exchangeRegistrationToken(registrationToken: String) async throws -> GitHubScaleSetRegistrationToken {
+            GitHubScaleSetRegistrationToken(
+                token: "admin-jwt", expiresAt: .now + 3600, actionsUrl: URL(string: "https://example.invalid")!)
+        }
+
+        func ensureScaleSet(name: String, labels: [String], runnerGroup: String?) async throws -> GitHubScaleSet {
+            GitHubScaleSet(id: 17, name: name, runnerGroupName: runnerGroup ?? "default", labels: labels)
+        }
+
+        func patchScaleSet(id: Int, labels: [String]) async throws {
+        }
+
+        func createSession(scaleSetId: Int, ownerName: String) async throws -> GitHubScaleSetSession {
+            GitHubScaleSetSession(
+                sessionId: "s-1",
+                messageQueueUrl: URL(string: "https://example.invalid/msgs")!,
+                messageQueueAccessToken: "mq-token"
+            )
+        }
+
+        func refreshSession(scaleSetId: Int, sessionId: String) async throws -> GitHubScaleSetSession {
+            GitHubScaleSetSession(
+                sessionId: sessionId, messageQueueUrl: URL(string: "https://example.invalid/msgs")!,
+                messageQueueAccessToken: "mq-token")
+        }
+
+        func deleteSession(scaleSetId: Int, sessionId: String) async throws {
+        }
+
+        func pollMessages(session: GitHubScaleSetSession, lastMessageId: String?, maxCapacity: Int) async throws
+            -> [GitHubScaleSetMessage]
+        {
+            []
+        }
+
+        func ackMessage(session: GitHubScaleSetSession, messageId: String) async throws {
+        }
+
+        func generateJitConfig(scaleSetId: Int, name: String, workFolder: String) async throws
+            -> GitHubScaleSetJitConfig
+        {
+            GitHubScaleSetJitConfig(encodedJitConfig: "jit-\(name)")
+        }
+
+        func scaleSetStatistics(scaleSetId: Int) async throws -> GitHubScaleSetStatistics {
+            GitHubScaleSetStatistics(totalAssignedJobs: 2, activeNodesCount: 1)
+        }
+
+        func runnerByName(name: String) async throws -> GitHubActionsRunner? {
+            runners.first(where: { $0.name == name })
+        }
+    }
+
+    private actor RecordingScaleSetClient: GitHubScaleSetServing {
+        private(set) var acknowledged: [String] = []
+
+        func exchangeRegistrationToken(registrationToken: String) async throws -> GitHubScaleSetRegistrationToken {
+            GitHubScaleSetRegistrationToken(
+                token: "jwt", expiresAt: .now + 3600, actionsUrl: URL(string: "https://actions.invalid")!)
+        }
+
+        func ensureScaleSet(name: String, labels: [String], runnerGroup: String?) async throws -> GitHubScaleSet {
+            GitHubScaleSet(id: 17, name: name, runnerGroupName: runnerGroup ?? "default", labels: labels)
+        }
+
+        func patchScaleSet(id: Int, labels: [String]) async throws {}
+        func createSession(scaleSetId: Int, ownerName: String) async throws -> GitHubScaleSetSession { fatalError() }
+        func refreshSession(scaleSetId: Int, sessionId: String) async throws -> GitHubScaleSetSession { fatalError() }
+        func deleteSession(scaleSetId: Int, sessionId: String) async throws {}
+        func pollMessages(session: GitHubScaleSetSession, lastMessageId: String?, maxCapacity: Int) async throws -> [GitHubScaleSetMessage] { [] }
+        func ackMessage(session: GitHubScaleSetSession, messageId: String) async throws { acknowledged.append(messageId) }
+        func generateJitConfig(scaleSetId: Int, name: String, workFolder: String) async throws -> GitHubScaleSetJitConfig {
+            GitHubScaleSetJitConfig(encodedJitConfig: "jit-\(name)")
+        }
+        func scaleSetStatistics(scaleSetId: Int) async throws -> GitHubScaleSetStatistics {
+            GitHubScaleSetStatistics(totalAssignedJobs: 0, activeNodesCount: 0)
+        }
+    }
 }
 
 /// Forwards to a FakeGitHub but fails on a cancelled task, the way the live
@@ -325,5 +695,3 @@ private final class CancellationCheckingGitHub: GitHubServing, Sendable {
     func cancelWorkflowRun(ids: [Int]) async throws -> Bool { true }
     func skipWorkflowRun(ids: [Int]) async throws -> Bool { true }
 }
-
-

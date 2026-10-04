@@ -86,6 +86,19 @@ final class AccountsConfigEditorTests: XCTestCase {
         XCTAssertEqual(try AccountsConfigEditor.accounts(at: url), [odd])
     }
 
+    func testScaleSetConfigurationRoundTripsThroughEditor() throws {
+        let account = AccountConfig(
+            name: "github", forge: .github, scope: "acme/widgets",
+            scaleSet: .init(name: "kinhin", runnerGroup: "builds"))
+        try AccountsConfigEditor.add(account, to: url)
+        XCTAssertEqual(try AccountsConfigEditor.accounts(at: url), [account])
+        let saved = try text()
+        XCTAssertTrue(saved.contains("scale_set:"), "file should contain scale_set block")
+        XCTAssertTrue(saved.contains("runner_group: \"builds\""), "file should contain runner_group on its own line")
+        let roundTripped = try AccountsConfigEditor.accounts(at: url)
+        XCTAssertEqual(roundTripped, [account])
+    }
+
     func testMissingFileThrowsNotFound() {
         let missing = url.appendingPathExtension("nope")
         XCTAssertThrowsError(try AccountsConfigEditor.accounts(at: missing)) { error in

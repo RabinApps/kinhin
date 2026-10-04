@@ -79,6 +79,21 @@ struct LinuxContainerCLI: Sendable {
             mounted: route.cacheMount, selection: selection, mountPath: ToolchainCacheMount.linuxGuestPath)
         switch forge.credentials.forge {
         case .github:
+            if case .jitConfig = forge.registration {
+                let names = FleetEngine.runnerNames(for: name, count: runnerCount)
+                guard names.allSatisfy({ runnerTokens[$0] != nil }), runnerTokens.count == names.count else {
+                    throw EngineError.registrationFailed(vm: name, stderr: "forge returned incomplete JIT configs")
+                }
+                let scripts = names.enumerated().map { index, runnerName in
+                    let directory = runnerCount == 1 ? "/opt/actions-runner" : "/opt/actions-runner-\(index + 1)"
+                    let workFolder = runnerCount == 1 ? "/opt/work" : "/opt/work-\(index + 1)"
+                    return RunnerBootstrap.linuxJitRegistrationScript(
+                        encodedJitConfig: runnerTokens[runnerName] ?? "", name: runnerName,
+                        workFolder: workFolder, agentDirectory: directory,
+                        pidFile: "/var/run/kinhin-\(name)-r\(index + 1).pid")
+                }
+                return cachePrefix + scripts.joined(separator: "\n")
+            }
             return cachePrefix
                 + RunnerBootstrap.linuxGitHubRegistrationScript(
                     configureURL: forge.registrationURL(), token: token, labels: labels ?? forge.labels,

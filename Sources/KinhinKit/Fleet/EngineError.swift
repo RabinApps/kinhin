@@ -24,6 +24,10 @@ public enum EngineError: LocalizedError, Sendable {
     case queueOperationUnavailable
     /// A pipeline job id that isn't in the VM's current pipeline.
     case unknownPipelineJob(String)
+    /// A scale-set forge method was called that the fleet does not support yet.
+    case scaleSetRegistrationUnsupported
+    /// A scale-set session or statistics read reached an unrecoverable state.
+    case scaleSetUnreachable(account: String, reason: String)
 
     public var errorDescription: String? {
         switch self {
@@ -44,6 +48,12 @@ public enum EngineError: LocalizedError, Sendable {
             return "'\(id)' is not a VM managed by kinhin"
         case .unknownPipelineJob(let id):
             return "'\(id)' is not a job of this VM's pipeline"
+        case .scaleSetRegistrationUnsupported:
+            return "GitHub scale-set registration is not supported in this build yet"
+        case .scaleSetUnreachable(let account, let reason):
+            return "GitHub scale-set account '\(account)' is unreachable: \(reason)"
         }
     }
 }
+
+extension EngineError: Equatable {}

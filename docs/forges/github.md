@@ -55,6 +55,24 @@ GitHub supports each version for 24 months after the next one ships, signals ret
 
 GitHub's supported autoscaling path is runner scale sets plus JIT runner configuration (see [`actions/scaleset`](https://github.com/actions/scaleset)). The scale-set message API is Public Preview and, like the endpoint removed above, is not in any published OpenAPI description. kinhin keeps polling documented per-repository endpoints until the message API is documented. JIT stays out of scope (audit finding 2 is unchanged).
 
+### Scale set mode in kinhin
+
+kinhin has an opt-in scale-set mode for GitHub accounts. It is not the default and does not replace the documented REST
+poll. When a GitHub account has `scale_set:` set, kinhin uses the Actions-service message path for demand instead of
+polling workflow runs, and registers spawned runners with JIT configs.
+
+Implementation notes:
+
+- Admin exchange goes through `POST /actions/runner-registration` and returns an Actions-service URL plus a JWT.
+- Scale-set and runner-group state is managed under `api-version=6.0-preview`.
+- Demand comes from a long-poll message session plus scale-set statistics, not from `GET .../workflow-runs`.
+- Runner registration uses `POST .../generatejitconfig` and the in-VM `config.sh --jitconfig` path.
+- The listener service, client, and JIT adapter live in `Sources/KinhinKit/Fleet/` and `Sources/KinhinKit/Forges/`
+  (see [architecture](architecture.md) for the layout).
+
+Caveat: because the message API is still preview and not in GitHub's published OpenAPI descriptions, the endpoint set
+and versioning should be re-verified when GitHub updates the API. GitHub Enterprise Server is not supported in this mode.
+
 ## Pipeline view
 
 The app's live pipeline view reads `GET /repos/{repo}/actions/runs?status=in_progress` and each run's
