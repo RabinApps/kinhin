@@ -166,6 +166,58 @@ public enum KeychainTokenStore {
         ]
         SecItemDelete(query as CFDictionary)
     }
+
+    // MARK: - Reset (bulk delete)
+
+    /// Every account that currently has an item under `service`. Attribute
+    /// reads only: the secrets themselves are never copied out.
+    /// `accounts(service:)` with a nil argument reads the store's own service
+    /// (and honors `serviceOverride`, so tests never enumerate the real one).
+    public static func accounts(service: String? = nil) throws -> [String] {
+        let target = service ?? self.service
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: target,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+            kSecReturnAttributes as String: true,
+        ]
+        var items: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &items)
+        if status == errSecItemNotFound { return [] }
+        guard status == errSecSuccess else {
+            throw TokenError.unhandled(status)
+        }
+        let list = items as? [[String: Any]] ?? []
+        return list.compactMap { $0[kSecAttrAccount as String] as? String }.sorted()
+    }
+
+    /// Deletes every item stored under one service. Returns the accounts that
+    /// were removed (an enumeration-and-delete race just deletes nothing).
+    @discardableResult
+    public static func deleteAll(service: String? = nil) throws -> [String] {
+        let target = service ?? self.service
+        let accounts = try accounts(service: target)
+        for account in accounts {
+            delete(from: target, account: account)
+        }
+        return accounts
+    }
+
+    /// The reset wipe: every token for every account, under kinhin's current
+    /// service and the pre-rename legacy one. Returns the deleted account
+    /// names (legacy items are labeled `legacy:<account>` in the result).
+    @discardableResult
+    public static func deleteAll() throws -> [String] {
+        var removed = try deleteAll(service: service)
+        // The legacy service only exists in a real Keychain: `serviceOverride`
+        // points tests at a throwaway service, and touching the real legacy
+        // items from a test would delete the developer's actual token.
+        if serviceOverride == nil {
+            removed += try deleteAll(service: legacyService).map { "legacy:\($0)" }
+        }
+        forgetSessionTokens()
+        return removed
+    }
 }
 
 // MARK: - Dev-only environment token source
@@ -243,6 +295,11 @@ extension KeychainTokenStore {
             _ = sessionTokens.withLock { $0.removeValue(forKey: environmentVariableName(for: name)) }
         }
 
+        /// Clears every session token (reset's bulk wipe; environment mode only).
+        static func forgetSessionTokens() {
+            _ = sessionTokens.withLock { $0.removeAll() }
+        }
+
         /// Clears per-process state (tests).
         static func resetEnvironmentModeForTesting() {
             sessionTokens.withLock { $0.removeAll() }
@@ -256,6 +313,7 @@ extension KeychainTokenStore {
         static func environmentToken(name: String) -> String? { nil }
         static func saveForSession(_ token: String, name: String) {}
         static func forgetSessionToken(name: String) {}
+        static func forgetSessionTokens() {}
     #endif
 }
 

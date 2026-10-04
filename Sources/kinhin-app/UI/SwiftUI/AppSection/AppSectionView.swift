@@ -99,6 +99,24 @@ struct AppSectionView: View {
                 }
 
                 FormCard(
+                    title: "Reset",
+                    subtitle:
+                        "Erase kinhin's local state — you choose how much: credentials only, the daemon, or everything. This cannot be undone."
+                ) {
+                    HStack {
+                        Button("Reset kinhin…", role: .destructive) { model.resetClicked() }
+                            .disabled(model.resetBusy)
+                            .accessibilityIdentifier("app-reset-button")
+                        if model.resetBusy { ProgressView().controlSize(.small) }
+                    }
+                    if !model.resetLine.text.isEmpty {
+                        StatusText(text: model.resetLine.text, style: model.resetLine.style)
+                            .textSelection(.enabled)
+                            .accessibilityIdentifier("app-reset-status")
+                    }
+                }
+
+                FormCard(
                     title: "Support kinhin",
                     subtitle: "kinhin is free and built by one developer. Donations and sponsors keep it going."
                 ) {

@@ -23,6 +23,7 @@ enum CLICommand: Equatable {
     case logs
     case daemon
     case cleanup
+    case reset
     case requeue
     case skip
     case support
@@ -75,6 +76,8 @@ enum CLICommand: Equatable {
             return .daemon
         case "cleanup":
             return .cleanup
+        case "reset":
+            return .reset
         case "requeue":
             return .requeue
         case "skip":
@@ -104,6 +107,10 @@ enum CLICommand: Equatable {
         if command == .workflow { return false }
         switch command {
         case .help, .version, .support, .configInit:
+            return false
+        case .reset:
+            // Auto-creating a starter config seconds before deleting it would
+            // be absurd (and would print the creation note mid-reset).
             return false
         default:
             return true

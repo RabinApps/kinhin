@@ -15,6 +15,7 @@ final class RecordingTabsDelegate: MainTabsWindowDelegate {
     var closeCalls = 0
     var setupFinishedCalls = 0
     var rebootstrapCalls = 0
+    var resetFinishedScopes: [ResetScope] = []
 
     func openLogsFolder() { logsCalls += 1 }
     func launchModeChanged(_ mode: LaunchMode) { changedModes.append(mode) }
@@ -22,6 +23,7 @@ final class RecordingTabsDelegate: MainTabsWindowDelegate {
     func mainTabsWindowWillClose() { closeCalls += 1 }
     func setupTabFinished() { setupFinishedCalls += 1; rebootstrapCalls += 1 }
     func openConfig() { openConfigCalls += 1 }
+    func resetFinished(scope: ResetScope) { resetFinishedScopes.append(scope) }
 
     var openConfigCalls = 0
 }

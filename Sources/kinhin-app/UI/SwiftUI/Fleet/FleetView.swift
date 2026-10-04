@@ -33,6 +33,9 @@ struct FleetView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     FormCard(title: "Fleet") {
                         VStack(alignment: .leading, spacing: 6) {
+                            if let notice = model.diskPressureNotice {
+                                diskPressureBanner(notice)
+                            }
                             Text(model.statusLine)
                                 .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
@@ -199,6 +202,35 @@ struct FleetView: View {
     func forgeScope(_ forge: [String: Forge]) -> ForgeID? {
         guard let first = forge.keys.sorted().first, let target = forge[first] else { return nil }
         return target.attributesByRepo ? nil : target.id
+    }
+
+    /// Dismissible warning while the engine holds spawns for disk pressure.
+    /// Dismissing hides it for the session; it returns only with a new
+    /// pressure episode (or a relaunch).
+    private func diskPressureBanner(_ notice: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(StatusStyle.warn.color)
+            Text(notice)
+                .font(.system(size: 11))
+                .foregroundStyle(StatusStyle.warn.color)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button("Dismiss") { model.dismissDiskPressureNotice() }
+                .controlSize(.small)
+                .accessibilityLabel("Dismiss the disk pressure warning")
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(StatusStyle.warn.color.opacity(0.12))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .strokeBorder(StatusStyle.warn.color.opacity(0.5), lineWidth: 1)
+        )
+        .accessibilityIdentifier("disk-pressure-banner")
     }
 
     private func secondary(_ text: String, mono: Bool = false) -> some View {

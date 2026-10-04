@@ -47,6 +47,7 @@ final class WindowModels {
         model.onLaunchModeChanged = { [weak self] in self?.delegate?.launchModeChanged($0) }
         model.onLaunchAtLoginChanged = { [weak self] in self?.delegate?.launchAtLoginChanged($0) }
         model.onOpenLogs = { [weak self] in self?.delegate?.openLogsFolder() }
+        model.onResetFinished = { [weak self] in self?.delegate?.resetFinished(scope: $0) }
         model.fleetController = fleet
         return model
     }()

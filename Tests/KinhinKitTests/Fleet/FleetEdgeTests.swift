@@ -45,11 +45,15 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertTrue(tart.cloneCalls.isEmpty, "no VM may spawn under disk pressure")
         let lastError = status.lastError ?? ""
         XCTAssertTrue(lastError.contains("disk pressure"), "\(lastError)")
+        XCTAssertTrue(status.diskPressureNotice?.contains("disk pressure") ?? false,
+            "the Fleet tab banner rides the same episode")
 
         // Freeing disk lets the next pass spawn again (desired = 2 → both clone).
         freeDisk.set(200)
         try await engine.reconcileOnce()
         try await waitUntil(timeout: 10) { tart.cloneCalls.count == 2 }
+        let eased = await engine.status()
+        XCTAssertNil(eased.diskPressureNotice, "the banner clears once pressure eases")
     }
 
     /// One host probe per pass, whatever the burst size; each planned VM

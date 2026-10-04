@@ -46,6 +46,19 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation, NSMenuDeleg
         }
     }
 
+    /// "Reset kinhin…" wiped the chosen scope. Config-scoped resets also
+    /// cleared the launch-at-login preference: remove the system registration
+    /// to match. Then re-bootstrap — with the config gone the wizard comes
+    /// back; a daemon-scoped reset just re-probes without forcing a window.
+    func resetFinished(scope: ResetScope) {
+        if scope != .daemon {
+            LaunchAtLoginService.apply(enabled: false)
+        }
+        Task {
+            await bootstrapEngine(reopenSetupOnFailure: scope != .daemon)
+        }
+    }
+
     /// The setup checklist's Start Fleet was pressed: rebuild the engine
     /// from the now-complete config and hand the window back to the Fleet tab.
     func setupTabFinished() {

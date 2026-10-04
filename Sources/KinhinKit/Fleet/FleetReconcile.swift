@@ -345,12 +345,16 @@ extension FleetEngine {
         }
         if let diskPressureMessage {
             Log.warn("engine", diskPressureMessage)
-            await statusBox.modify { $0.lastError = diskPressureMessage }
+            await statusBox.modify { status in
+                status.lastError = diskPressureMessage
+                status.diskPressureNotice = diskPressureMessage
+            }
         } else {
             // Spawns resumed: clear a stale disk-pressure message (other
             // errors belong to their own flows).
-            await statusBox.modify {
-                if $0.lastError?.contains("disk pressure") == true { $0.lastError = nil }
+            await statusBox.modify { status in
+                if status.lastError?.contains("disk pressure") == true { status.lastError = nil }
+                status.diskPressureNotice = nil
             }
         }
     }

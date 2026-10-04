@@ -1,0 +1,276 @@
+import XCTest
+
+@testable import KinhinKit
+@testable import KinhinTestSupport
+
+/// The reset core: per-scope planning, the ordered wipe, and the guarantees
+/// the double confirmation leans on (the plan describes exactly what
+/// execution removes; nothing outside the plan is touched).
+final class ResetEverythingTests: XCTestCase {
+    private var supportRoot: URL!
+    private var configURL: URL!
+    private var configBody: String {
+        """
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
+        labels: [self-hosted]
+        base_image: "tahoe-base"
+        images:
+          - name: xcode-base
+        """
+    }
+
+    override func setUpWithError() throws {
+        supportRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kinhin-reset-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: supportRoot, withIntermediateDirectories: true)
+        configURL = supportRoot.appendingPathComponent("config.yaml")
+        try configBody.write(to: configURL, atomically: true, encoding: .utf8)
+        // Tokens land on a throwaway keychain service; legacy items are never
+        // touched while the override is set.
+        KeychainTokenStore.serviceOverride = "com.kinhin.runner.tests.\(UUID().uuidString)"
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: supportRoot)
+        KeychainTokenStore.serviceOverride = nil
+    }
+
+    private func makeTart() -> FakeTart {
+        let tart = FakeTart()
+        tart.vms = [
+            "kinhin-1": TartVM(name: "kinhin-1", source: "tahoe-base", status: "stopped"),
+            "kinhin-prepare-tmp-7": TartVM(name: "kinhin-prepare-tmp-7", source: "tahoe-base", status: "stopped"),
+            "tahoe-base": TartVM(name: "tahoe-base", source: "", status: "stopped"),
+            "xcode-base": TartVM(name: "xcode-base", source: "tahoe-base", status: "stopped"),
+            "my-own-vm": TartVM(name: "my-own-vm", source: "", status: "stopped"),
+        ]
+        return tart
+    }
+
+    /// Lays out a realistic support directory: logs, state, toolchain cache,
+    /// plus a foreign file reset must not invent a reason to keep.
+    private func populateSupportDirectory() throws {
+        try FileManager.default.createDirectory(at: supportRoot.appendingPathComponent("logs"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: supportRoot.appendingPathComponent("state"), withIntermediateDirectories: true)
+        let cache = supportRoot.appendingPathComponent("toolchain-cache")
+        try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+        try Data("log".utf8).write(to: supportRoot.appendingPathComponent("logs/kinhin.log"))
+        try Data("{}".utf8).write(to: supportRoot.appendingPathComponent("state/fleet.json"))
+        try Data(repeating: 9, count: 4096).write(to: cache.appendingPathComponent("brew"))
+        let backup = configURL.appendingPathExtension("bak")
+        try configBody.write(to: backup, atomically: true, encoding: .utf8)
+    }
+
+    private func saveTokens() throws {
+        try KeychainTokenStore.save("token-a", forge: .github)
+        try KeychainTokenStore.save("token-b", forge: .gitea)
+        try KeychainTokenStore.save("token-c", forge: .github, name: "work")
+    }
+
+    // MARK: - Planning
+
+    func testConfigScopePlansFilesTokensAndNotTheDaemon() async throws {
+        try populateSupportDirectory()
+        try saveTokens()
+        let plan = await ResetEverything.plan(
+            scope: .config, configURL: configURL, supportRoot: supportRoot,
+            isDaemonAlive: { true })
+        XCTAssertEqual(plan.scope, .config)
+        XCTAssertEqual(plan.configFiles, [configURL, configURL.appendingPathExtension("bak")])
+        XCTAssertEqual(plan.keychainAccounts, ["github-pat", "github-pat:work", "gitea-pat"])
+        XCTAssertFalse(plan.daemonInstalled, "the config scope never touches the daemon")
+        XCTAssertFalse(plan.daemonRunning)
+        XCTAssertNil(plan.cleanup)
+        XCTAssertFalse(plan.configBroken)
+    }
+
+    func testMissingConfigIsNotBrokenButUnreadableOneIs() async throws {
+        try FileManager.default.removeItem(at: configURL)
+        let missing = await ResetEverything.plan(
+            scope: .config, configURL: configURL, supportRoot: supportRoot)
+        XCTAssertFalse(missing.configBroken, "no config yet is the normal first-run state")
+        XCTAssertFalse(missing.configFiles.contains(configURL))
+
+        try "accounts: [oops".write(to: configURL, atomically: true, encoding: .utf8)
+        let broken = await ResetEverything.plan(
+            scope: .config, configURL: configURL, supportRoot: supportRoot)
+        XCTAssertTrue(broken.configBroken, "bad YAML is flagged so the plan can say image names are guesses")
+    }
+
+    func testDaemonScopePlansStopAndUninstallOnly() async throws {
+        let plan = await ResetEverything.plan(
+            scope: .daemon, configURL: configURL, supportRoot: supportRoot,
+            isDaemonAlive: { true })
+        XCTAssertTrue(plan.daemonRunning)
+        XCTAssertNil(plan.cleanup)
+        XCTAssertTrue(plan.configFiles.isEmpty, "the daemon scope keeps the config")
+        XCTAssertTrue(plan.keychainAccounts.isEmpty, "the daemon scope keeps the tokens")
+    }
+
+    func testAllScopePlansVMsImagesCacheAndEverythingElse() async throws {
+        try populateSupportDirectory()
+        try saveTokens()
+        let tart = makeTart()
+        let plan = await ResetEverything.plan(
+            scope: .all, configURL: configURL, supportRoot: supportRoot,
+            isDaemonAlive: { false }, tart: tart)
+        let cleanup = try XCTUnwrap(plan.cleanup)
+        XCTAssertEqual(cleanup.vms, ["kinhin-1"], "only kinhin's runner VMs, never a foreign one")
+        XCTAssertEqual(cleanup.scratchVMs, ["kinhin-prepare-tmp-7"])
+        XCTAssertEqual(cleanup.images, ["tahoe-base", "xcode-base"])
+        XCTAssertEqual(cleanup.cacheBytes, 4096)
+        XCTAssertEqual(plan.configFiles.count, 2, "config and its backup")
+        XCTAssertEqual(plan.keychainAccounts.count, 3)
+    }
+
+    func testPlanDescribeListsExactlyWhatExecutionRemoves() async throws {
+        try populateSupportDirectory()
+        try saveTokens()
+        let plan = await ResetEverything.plan(
+            scope: .all, configURL: configURL, supportRoot: supportRoot,
+            isDaemonAlive: { true }, tart: makeTart())
+        let text = plan.describe()
+        XCTAssertTrue(text.contains("kinhin reset — Everything"), text)
+        XCTAssertTrue(text.contains("stop the fleet"), text)
+        XCTAssertTrue(text.contains("LaunchAgent"), text)
+        XCTAssertTrue(text.contains("kinhin-1"), text)
+        XCTAssertTrue(text.contains("xcode-base"), text)
+        XCTAssertTrue(text.contains("toolchain cache"), text)
+        XCTAssertTrue(text.contains("3 keychain token(s)"), text)
+        XCTAssertTrue(text.contains("this cannot be undone"), text)
+
+        let configPlan = await ResetEverything.plan(
+            scope: .config, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { true })
+        let configText = configPlan.describe()
+        XCTAssertTrue(configText.contains("Config & credentials"), configText)
+        XCTAssertTrue(configText.contains("are kept"), configText)
+        XCTAssertTrue(configText.contains("the running daemon keeps serving"), configText)
+    }
+
+    // MARK: - Execution
+
+    /// A hermetic execute: recording seams for everything that could leave
+    /// the test process (fleet stop, LaunchAgent removal, support dirs).
+    private func executeHermetically(
+        _ plan: ResetPlan, tart: (any TartControlling)? = nil,
+        uninstallCalls: inout Int, stopCalls: inout Int
+    ) async throws -> [String] {
+        let uninstall = Mutex(0)
+        let stop = Mutex(0)
+        let report = try await ResetEverything.execute(
+            plan, tart: tart, shell: FakeShell(),
+            stopFleet: { stop.withLock { $0 += 1 } },
+            uninstallDaemon: { uninstall.withLock { $0 += 1 } },
+            ensureDirs: {})
+        uninstallCalls = uninstall.withLock { $0 }
+        stopCalls = stop.withLock { $0 }
+        return report
+    }
+
+    func testConfigScopeExecutionRemovesFilesAndTokensButKeepsTheRest() async throws {
+        try populateSupportDirectory()
+        try saveTokens()
+        try Data("keep".utf8).write(to: supportRoot.appendingPathComponent("foreign.txt"))
+        let plan = await ResetEverything.plan(
+            scope: .config, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { true })
+        var uninstallCalls = 0, stopCalls = 0
+        let report = try await executeHermetically(plan, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+
+        XCTAssertEqual(stopCalls, 0, "the config scope never stops the fleet")
+        XCTAssertEqual(uninstallCalls, 0, "the config scope never uninstalls the daemon")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: configURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: configURL.appendingPathExtension("bak").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: supportRoot.appendingPathComponent("logs").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: supportRoot.appendingPathComponent("state").path))
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: supportRoot.appendingPathComponent("foreign.txt").path),
+            "only kinhin's own files go")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: supportRoot.path), "the directory itself survives")
+        XCTAssertTrue(try KeychainTokenStore.load(forge: .github) == nil)
+        XCTAssertTrue(try KeychainTokenStore.load(forge: .gitea) == nil)
+        XCTAssertTrue(try KeychainTokenStore.load(forge: .github, name: "work") == nil)
+        XCTAssertTrue(report.contains("removed config, logs and state"), report.joined(separator: "\n"))
+        XCTAssertTrue(report.contains("removed 3 keychain token(s)"), report.joined(separator: "\n"))
+    }
+
+    func testDaemonScopeExecutionOnlyStopsAndUninstalls() async throws {
+        try populateSupportDirectory()
+        try saveTokens()
+        let plan = await ResetEverything.plan(
+            scope: .daemon, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { true })
+        var uninstallCalls = 0, stopCalls = 0
+        let report = try await executeHermetically(plan, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+
+        XCTAssertEqual(stopCalls, 1, "a running daemon's fleet is stopped first")
+        XCTAssertEqual(uninstallCalls, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: configURL.path), "the config stays")
+        XCTAssertEqual(try KeychainTokenStore.load(forge: .github), "token-a", "the tokens stay")
+        XCTAssertTrue(report.contains("stopped the fleet"), report.joined(separator: "\n"))
+        XCTAssertTrue(report.contains("removed the daemon LaunchAgent"), report.joined(separator: "\n"))
+    }
+
+    func testDaemonScopeWithoutARunningDaemonSkipsTheStop() async throws {
+        let plan = await ResetEverything.plan(
+            scope: .daemon, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false })
+        var uninstallCalls = 0, stopCalls = 0
+        let report = try await executeHermetically(plan, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+        XCTAssertEqual(stopCalls, 0)
+        XCTAssertEqual(uninstallCalls, 1)
+        XCTAssertFalse(report.contains("stopped the fleet"))
+    }
+
+    func testAllScopeExecutionWipesEverythingUnderTheSupportRoot() async throws {
+        try populateSupportDirectory()
+        try saveTokens()
+        let tart = makeTart()
+        let plan = await ResetEverything.plan(
+            scope: .all, configURL: configURL, supportRoot: supportRoot,
+            isDaemonAlive: { true }, tart: tart)
+        var uninstallCalls = 0, stopCalls = 0
+        let report = try await executeHermetically(
+            plan, tart: tart, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+
+        XCTAssertEqual(stopCalls, 1)
+        XCTAssertEqual(uninstallCalls, 1)
+        // VMs: kinhin's only — the scratch VM included, the foreign one never.
+        XCTAssertEqual(
+            Set(tart.deleteCalls), ["kinhin-1", "kinhin-prepare-tmp-7", "tahoe-base", "xcode-base"])
+        XCTAssertFalse(tart.deleteCalls.contains("my-own-vm"))
+        // The support root is emptied but kept.
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: supportRoot.path), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: supportRoot.path))
+        XCTAssertTrue(try KeychainTokenStore.load(forge: .github) == nil)
+        XCTAssertTrue(report.contains("removed 2 VM(s) and 2 image(s)"), report.joined(separator: "\n"))
+        XCTAssertTrue(report.contains("emptied \(supportRoot.path)"), report.joined(separator: "\n"))
+    }
+
+    func testOneFailedVMDoesNotStrandTheOthers() async throws {
+        try populateSupportDirectory()
+        let tart = makeTart()
+        tart.failNext("delete", stderr: "injected failure")  // kinhin-1 (sorted first) fails once
+        let plan = await ResetEverything.plan(
+            scope: .all, configURL: configURL, supportRoot: supportRoot,
+            isDaemonAlive: { false }, tart: tart)
+        var uninstallCalls = 0, stopCalls = 0
+        _ = try await executeHermetically(plan, tart: tart, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+        XCTAssertTrue(
+            tart.deleteCalls.contains("kinhin-prepare-tmp-7") && tart.deleteCalls.contains("tahoe-base"),
+            "a failed delete must not strand the rest: \(tart.deleteCalls)")
+    }
+
+    func testAllScopeWithoutTartWarnsInsteadOfThrowing() async throws {
+        try populateSupportDirectory()
+        var plan = await ResetEverything.plan(
+            scope: .all, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false })
+        plan.cleanup = CleanupPlan(vms: ["kinhin-1"], images: ["tahoe-base"], cacheBytes: nil)
+        var uninstallCalls = 0, stopCalls = 0
+        let report = try await executeHermetically(plan, tart: nil, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+        XCTAssertTrue(
+            report.contains(where: { $0.hasPrefix("warning:") }),
+            "a missing tart is reported, not fatal: \(report.joined(separator: "\n"))")
+        XCTAssertTrue(report.contains("removed 1 VM(s) and 1 image(s)"))
+    }
+}

@@ -80,6 +80,10 @@ func helpText() -> String {
                                     base_image: can be pinned to ref@sha256:… and every
                                     bake gets identical bits (a :latest tag may drift)
         toolchains helper [--linux]    Print the per-job `kinhin-toolchain` helper baked into images
+        reset [--scope config|daemon|all] [--yes]
+                                    Reset kinhin: config & credentials, the daemon install, or everything
+                                    (VMs, images, cache and logs included). Asks twice; --yes skips the
+                                    prompts. There is no undo
 
     WORKFLOW TESTING:
         workflow test [FILE] [--job NAME] [--list] [--json]

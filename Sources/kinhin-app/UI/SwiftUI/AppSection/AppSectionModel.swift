@@ -164,6 +164,95 @@ final class AppSectionModel {
         fleetController?.detectStaleDaemonPlist()
     }
 
+    // MARK: - Reset
+
+    /// "Reset kinhin…": scope pick, then the exact plan, then a typed
+    /// `reset` — three gates before the irreversible wipe runs (the plan and
+    /// the typed word are the double confirmation). Every gate and the wipe
+    /// itself are injectable so tests drive the whole flow without a modal or
+    /// real state.
+    @ObservationIgnored var chooseResetScope: () -> ResetScope? = {
+        AlertKit.chooseResetScope(
+            title: "Reset kinhin",
+            message:
+                "Pick what to erase. The next screen lists exactly what will be deleted — this cannot be undone.")
+    }
+    @ObservationIgnored var confirmResetPlan: (ResetPlan) -> Bool = { plan in
+        AlertKit.confirm(
+            title: "Reset kinhin — \(plan.scope.label)?",
+            message: plan.describe(),
+            confirmTitle: "Continue",
+            style: .critical,
+            destructive: true)
+    }
+    @ObservationIgnored var confirmResetWord: () -> Bool = {
+        AlertKit.confirmWithTypedWord(
+            title: "Type reset to confirm",
+            message:
+                "kinhin will permanently delete everything listed above. There is no undo and nothing is kept.",
+            word: "reset",
+            confirmTitle: "Erase")
+    }
+    /// Builds the plan (reads only). Injectable so tests never touch real state.
+    @ObservationIgnored var resetPlanner: (ResetScope) async -> ResetPlan = {
+        await ResetEverything.plan(scope: $0)
+    }
+    /// Runs the wipe. Injectable ditto.
+    @ObservationIgnored var resetRunner: (ResetPlan) async throws -> [String] = {
+        try await ResetEverything.execute($0)
+    }
+    /// Called after a successful reset, so the app can clear the login item
+    /// and re-bootstrap (the wizard reappears when the config was erased).
+    @ObservationIgnored var onResetFinished: (ResetScope) -> Void = { _ in }
+
+    /// A reset is in flight (the button disables).
+    private(set) var resetBusy = false
+    /// The last thing the reset said (progress, success, failure).
+    private(set) var resetLine = StatusLine(text: "")
+
+    /// The card's entry point: pick a scope, then confirm twice.
+    func resetClicked() {
+        guard !resetBusy else { return }
+        guard let scope = chooseResetScope() else { return }
+        Task { await runReset(scope) }
+    }
+
+    private func runReset(_ scope: ResetScope) async {
+        resetBusy = true
+        resetLine = StatusLine(text: "Preparing the reset…")
+        defer { resetBusy = false }
+        do {
+            let plan = await resetPlanner(scope)
+            guard confirmResetPlan(plan) else {
+                resetLine = StatusLine(text: "")
+                return
+            }
+            guard confirmResetWord() else {
+                resetLine = StatusLine(text: "")
+                return
+            }
+            // The app's own fleet must stop before the wipe: the core only
+            // stops a daemon over RPC, never this process's in-process engine.
+            // Nothing running (or a command in flight) is fine — the wipe's
+            // stop-before-delete catches a survivor.
+            if scope != .config { try? await fleetController?.perform(.stop) }  // best-effort; the wipe below handles leftovers
+            resetLine = StatusLine(text: "Resetting — deleting files, tokens and VMs…")
+            let report = try await resetRunner(plan)
+            if scope.includesConfig {
+                // Preferences belong to the app, not the wipe core (the CLI
+                // has none): clear them in the injected suite and re-read.
+                AppPreferences.reset(in: prefs)
+                launchMode = AppPreferences.launchMode(in: prefs)
+                launchAtLogin = AppPreferences.launchAtLogin(in: prefs)
+                autoStartFleet = AppPreferences.autoStartFleet(in: prefs)
+            }
+            resetLine = StatusLine(text: report.joined(separator: " · "), style: .ok)
+            onResetFinished(scope)
+        } catch {
+            resetLine = StatusLine(text: "reset failed — \(error.localizedDescription)", style: .error)
+        }
+    }
+
     // MARK: - Updates
 
     /// What the update card says, and whether its button can be pressed.

@@ -71,6 +71,10 @@ final class FleetController {
     /// on disk (e.g. the app was removed without `kinhin daemon uninstall`).
     /// Nil when the plist is absent, points at a live binary, or cannot be read.
     var staleDaemonPlist: String?
+    /// The disk-pressure banner was dismissed this session: keep it hidden while
+    /// the same pressure episode persists. Re-armed once the engine reports
+    /// pressure has eased, so the next episode shows the banner again.
+    @ObservationIgnored private var diskPressureDismissed = false
 
     @ObservationIgnored private var pollTask: Task<Void, Never>?
     /// Wakes the poll loop's sleep (a surface opened, so look now).
@@ -225,9 +229,24 @@ final class FleetController {
     /// SwiftUI views on each poll even when nothing differs.
     private func publish(status newStatus: FleetStatus?, unreachableReason newReason: String?, sideEffects: Bool = true)
     {
-        if status != newStatus { status = newStatus }
+        let polled = suppressingDismissedDiskPressure(newStatus)
+        if status != polled { status = polled }
         if unreachableReason != newReason { unreachableReason = newReason }
         if sideEffects { publishSideEffects() }
+    }
+
+    /// Applies the session's disk-pressure dismissal to a polled status: the
+    /// banner stays hidden while the dismissed episode persists (the engine
+    /// keeps reporting it every pass), and the latch re-arms — showing the
+    /// banner again — once the engine reports pressure has eased.
+    private func suppressingDismissedDiskPressure(_ newStatus: FleetStatus?) -> FleetStatus? {
+        guard var polled = newStatus else { return newStatus }
+        if polled.diskPressureNotice == nil {
+            diskPressureDismissed = false
+        } else if diskPressureDismissed {
+            polled.diskPressureNotice = nil
+        }
+        return polled
     }
 
     private func publishSideEffects() {
@@ -376,5 +395,15 @@ final class FleetController {
             Log.info("app", "stored token for '\(target.accountName)' (no engine running yet)")
         }
         await refresh()
+    }
+
+    /// Clears the session-scoped disk-pressure banner from the Fleet tab. The
+    /// dismissal holds while the same pressure episode persists — the engine
+    /// keeps reporting it every poll and the app keeps suppressing it — so a
+    /// dismiss is "not now" rather than "fixed it for good": the next episode
+    /// (or the next launch) shows the banner again.
+    func clearDiskPressureNotice() {
+        diskPressureDismissed = true
+        status?.diskPressureNotice = nil
     }
 }

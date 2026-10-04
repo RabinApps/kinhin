@@ -95,6 +95,18 @@ enum AppPreferences {
     static func setAutoStartFleet(_ enabled: Bool, in defaults: UserDefaults) {
         defaults.set(enabled, forKey: autoStartFleetKey)
     }
+
+    /// Erases every kinhin preference — the config-reset scope of "Reset
+    /// kinhin…" clears these along with the config file and the tokens, so
+    /// the next launch behaves like a first run. The update-check stamp is
+    /// included (it is kinhin state, not a user choice to preserve).
+    static func reset(in defaults: UserDefaults) {
+        for key in [launchModeKey, launchAtLoginKey, autoStartFleetKey, updateCheckKey] {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    private static let updateCheckKey = "kinhin.lastUpdateCheck"
 }
 
 /// Applies/removes the login item through SMAppService. Kept out of the

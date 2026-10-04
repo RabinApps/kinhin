@@ -222,21 +222,9 @@ enum RunCommands {
             guard res.succeeded else { fail("launchctl load failed: \(res.stderr)", exit: .runtime) }
             print("daemon installed and started")
         } else if args.contains("uninstall") {
-            let shell = Shell()
-            do {
-                _ = try await shell.run(["launchctl", "unload", Daemon.agentPlistPath().path], cwd: nil, timeout: 30)
-            } catch {
-                // Unloading an agent that isn't loaded, or a context where
-                // launchctl isn't available (e.g. non-interactive shells), is
-                // fine: removing the plist is what matters.
-                let msg = error.localizedDescription
-                if msg.contains("doesn't exist") || msg.contains("No such file") {
-                    // launchctl itself or the agent isn't there — silent.
-                } else {
-                    warn("could not run launchctl unload (\(msg)); removing the plist anyway")
-                }
-            }
-            try Daemon.uninstallAgent()
+            // Shared with reset's daemon scope: bootout/unload best-effort,
+            // then both plists (current and pre-rename label) removed.
+            try await Daemon.stopAndUninstall()
             print("daemon uninstalled")
         } else {
             // Foreground daemon.

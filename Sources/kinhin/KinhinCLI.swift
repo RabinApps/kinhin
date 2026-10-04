@@ -124,6 +124,9 @@ struct KinhinCLI {
         case .cleanup:
             try await CleanupCommand.run(args)
 
+        case .reset:
+            try await ResetCommand.run(args)
+
         case .requeue:
             try await RunCommands.requeueQueuedJobs(args)
 

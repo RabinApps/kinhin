@@ -52,6 +52,12 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     /// Set while a per-project image bakes: "baking image for acme/api
     /// (go@1.22.5), using base meanwhile". Nil when nothing is baking.
     public var imageNotice: String?
+    /// A session-scoped warning the user can dismiss from the Fleet tab. Set
+    /// while the engine holds spawns due to disk pressure; cleared when the
+    /// condition eases. The app hides it once dismissed until the episode ends —
+    /// the next episode (or a relaunch) shows it again, so a dismiss is "not now"
+    /// rather than "fixed it for good".
+    public var diskPressureNotice: String?
     /// Live host CPU/RAM. Nil when unmeasurable or from a daemon predating the field.
     public var host: HostUsage?
     /// Per-runtime capacity caps (mixed fleets: the weighted partition;
@@ -63,7 +69,7 @@ public struct FleetStatus: Codable, Sendable, Equatable {
         queuePolledAt: Date? = nil, queueDepth: Int = 0, desired: Int = 0, capacityCap: Int = 0,
         jobCapacity: Int = 0, queueByRepo: [String: Int]? = nil, runningByRepo: [String: Int]? = nil,
         records: [VMRecord] = [], lastError: String? = nil, updatedAt: Date = Date(), runtime: String? = nil,
-        capacityByRuntime: [String: String]? = nil
+        capacityByRuntime: [String: String]? = nil, diskPressureNotice: String? = nil
     ) {
         self.running = running
         self.paused = paused
@@ -81,6 +87,7 @@ public struct FleetStatus: Codable, Sendable, Equatable {
         self.updatedAt = updatedAt
         self.runtime = runtime
         self.capacityByRuntime = capacityByRuntime
+        self.diskPressureNotice = diskPressureNotice
     }
 
     public var activeCount: Int { records.filter { $0.phase.isActive }.count }

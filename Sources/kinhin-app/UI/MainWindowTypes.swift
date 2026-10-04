@@ -88,6 +88,10 @@ protocol MainTabsWindowDelegate: AnyObject {
     func setupTabFinished()
     /// Open config.yaml from the Setup wizard button row.
     func openConfig()
+    /// "Reset kinhin…" finished wiping (App section): clear the login item
+    /// for config-scoped resets and re-bootstrap (the wizard reappears when
+    /// the config was erased).
+    func resetFinished(scope: ResetScope)
 }
 
 // MARK: - Update card state

@@ -76,6 +76,8 @@ final class FleetModel {
     /// Set while a per-project image bakes (jobs use the base image meanwhile).
     /// Informational, not an error.
     var imageNotice: String? { status?.imageNotice }
+    /// Session-scoped disk-pressure warning the user can dismiss from the Fleet tab.
+    var diskPressureNotice: String? { status?.diskPressureNotice }
     var running: Bool { status?.running ?? false }
     var paused: Bool { status?.paused ?? false }
     /// Non-nil while the fleet is paused with auto-resume on: shown on the
@@ -142,6 +144,12 @@ final class FleetModel {
 
     func deleteClicked(_ id: String) {
         controller.userDeleteVM(id: id)
+    }
+
+    /// Hides the disk-pressure banner for this session ("not now"): the
+    /// controller keeps it hidden while the same pressure episode persists.
+    func dismissDiskPressureNotice() {
+        controller.clearDiskPressureNotice()
     }
 
     // MARK: - Row text

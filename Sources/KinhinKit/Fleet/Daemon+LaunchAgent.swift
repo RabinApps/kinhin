@@ -51,11 +51,39 @@ extension Daemon {
 
     public static func uninstallAgent() throws {
         let fm = FileManager.default
-        // Pre-rename builds installed under the com.orchard.daemon label.
+        // Pre-rename builds installed under the com.kinhin.daemon label.
         let legacy = Paths.userLibrarySubdirectory(.libraryDirectory, fallback: "Library")
-            .appendingPathComponent("LaunchAgents/com.orchard.daemon.plist")
+            .appendingPathComponent("LaunchAgents/\(plistName)")
         for url in [agentPlistPath(), legacy] where fm.fileExists(atPath: url.path) {
             try fm.removeItem(at: url)
         }
+    }
+
+    /// Stops the LaunchAgent daemon and removes its plist — both labels.
+    /// Shared by `kinhin daemon uninstall` and the reset's daemon scope.
+    /// Tolerant of an agent that is not loaded or already gone (that is the
+    /// normal case for a reset); the plist removal is the part that matters
+    /// and may throw.
+    public static func stopAndUninstall(shell: ShellRunning = Shell()) async throws {
+        let plist = agentPlistPath()
+        // Modern bootout first; the legacy unload verb is the fallback for
+        // older macOS wording. Either is enough to stop a loaded agent, and
+        // both no-op on an unloaded one.
+        let uid = getuid()
+        await bestEffortAsync("daemon", "launchctl bootout") {
+            _ = try await shell.run(["launchctl", "bootout", "gui/\(uid)", plist.path], cwd: nil, timeout: 30)
+        }
+        do {
+            _ = try await shell.run(["launchctl", "unload", plist.path], cwd: nil, timeout: 30)
+        } catch {
+            // Unloading an agent that isn't loaded, or a context where
+            // launchctl isn't available (e.g. non-interactive shells), is
+            // fine: removing the plist is what matters.
+            let msg = error.localizedDescription
+            if !(msg.contains("doesn't exist") || msg.contains("No such file")) {
+                Log.warn("daemon", "could not run launchctl unload (\(msg)); removing the plist anyway")
+            }
+        }
+        try uninstallAgent()
     }
 }
