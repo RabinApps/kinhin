@@ -229,7 +229,8 @@ struct HarnessMain {
         let suite = UserDefaults(suiteName: "kinhin-harness-\(UUID().uuidString)")!
         for dark in [false, true] {
             let tag = dark ? "dark" : "light"
-            let main = MainTabsWindowController(defaults: suite)
+            let main = MainTabsWindowController(
+                defaults: suite, fleet: FleetController(), updates: UpdateController(defaults: suite))
             var status = FleetStatus()
             status.running = true
             status.queueDepth = 3

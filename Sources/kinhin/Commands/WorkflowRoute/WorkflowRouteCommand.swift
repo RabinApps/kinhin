@@ -151,8 +151,19 @@ enum WorkflowRouteCommand {
         let originalYAML: String
         do { originalYAML = try String(contentsOf: file, encoding: .utf8) }
         catch { throw WorkflowRouteCLIError.usage("cannot read \(file.path) for the planned diff") }
-        let plannedEdits = plannedEditsText(planned: planned, originalYAML: originalYAML)
-        let plannedEditsText = plannedEdits
+
+        /// Apply the planned label edits to a copy of the original YAML and return
+        /// the result — used for the dry-run "diff of planned runs-on: edits" text
+        /// and the JSON `diff` field. Only the jobs whose plan changed are applied;
+        /// everything else (comments, formatting, other keys) is preserved byte-for-byte.
+        func editedYAML(for planned: [PlannedEdit], originalYAML: String) -> String {
+            var edited = originalYAML
+            for plan in planned where plan.changed {
+                edited = try! WorkflowRouteEditor.applyLabelEdit(jobID: plan.jobID, labels: plan.after, in: edited)
+            }
+            return edited
+        }
+        let plannedEditsText = editedYAML(for: planned, originalYAML: originalYAML)
 
         // 5. The config route first, when routing precedence needs one: a
         //    route that lands first still carries the jobs (it outranks
@@ -535,7 +546,7 @@ extension WorkflowRouteCommand {
         }
         if dryRun {
             if !plannedEdits.isEmpty {
-                payload["diff"] = plannedEdits.joined(separator: "\n")
+                payload["diff"] = plannedEdits
             }
         }
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])

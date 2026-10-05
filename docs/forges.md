@@ -11,7 +11,7 @@ its job finishes.
 
 | Forge               | Status         | Runner agent                       | Scope                                    |
 | ------------------- | -------------- | ---------------------------------- | ---------------------------------------- |
-| GitHub Actions      | ✅ live-tested | actions-runner                     | `owner/name` repo or org                 |
+| GitHub Actions      | ✅ live-tested | actions-runner                     | `owner/name` repo or org, optional enterprise instance |
 | Gitea Actions       | 🧪 untested    | gitea-runner                       | `owner/name` repo or org, any instance   |
 | Forgejo             | 🧪 untested    | gitea-runner                       | `owner/name` repo or org, any instance   |
 | GitLab CI/CD        | 🧪 untested    | gitlab-runner                      | project or group path (`group/sub/proj`) |
@@ -43,6 +43,20 @@ Agents are baked into the image only when a token for that forge exists, so no c
 ### GitHub
 
 The main path. The [Quick start](../website/guide/quick-start.md) walks through the token and the first fleet.
+
+```yaml
+accounts:
+  - name: github
+    forge: github
+    scope: "acme/widgets" # or an org name
+    instance: "https://github.example.com" # optional; github.com when absent
+    labels: [] # unused for GitHub
+```
+
+Token: a personal or classic personal access token with the permissions in `TokenRequirements.github(scope:instance:)`.
+The account's `instance` is optional: leave it out for github.com. When it is present it must be a base URL —
+GHES (`https://github.example.com`) or GHEC data residency (`https://acme.ghe.com`) — and `allow_insecure_http`
+applies to it the same way as for self-hosted Gitea/Forgejo/GitLab.
 
 ### Gitea and Forgejo
 
@@ -151,9 +165,8 @@ accounts:
 
 ## Plain `http://` instances
 
-Self-hosted Gitea, Forgejo, GitLab and Azure DevOps instances must use `https://`, because the token is sent with
-every request. `localhost`, `127.0.0.1` and `[::1]` are exempt. For an instance on a network you trust, opt in per
-account:
+Self-hosted instances must use `https://` because the token is sent with every request; `localhost`, `127.0.0.1` and
+`[::1]` are exempt. When an instance is http, the account opt-in is `allow_insecure_http: true`:
 
 ```yaml
 accounts:
@@ -164,7 +177,37 @@ accounts:
     allow_insecure_http: true # the token is sent in cleartext
 ```
 
-kinhin logs a warning each time such an account attaches. GitHub, Buildkite and Bitbucket are always https.
+kinhin logs a warning each time such an account attaches.
+
+This flag applies only to self-hosted forges (Gitea, Forgejo, GitLab, Azure DevOps, or any GHES host). GitHub is
+hosted by default, so it must never use `http://`; when a GitHub account does declare `instance: http://...`, the
+account's `allow_insecure_http` opt-in lets the token cross the network in cleartext.
+
+## Enterprise instances
+
+GitHub accounts can carry an optional enterprise host. It is required to use GitHub Enterprise Server or GitHub
+Enterprise Cloud with data residency, but otherwise optional: a blank or absent `instance` means github.com.
+
+```yaml
+accounts:
+  - name: ghes
+    forge: github
+    scope: "bigco"
+    instance: "https://github.example.com" # GHES base URL
+    labels: [] # unused for GitHub
+```
+
+```yaml
+accounts:
+  - name: ghec
+    forge: github
+    scope: "bigco"
+    instance: "https://acme.ghe.com" # GHEC data residency host
+    labels: [] # unused for GitHub
+```
+
+The runner's own registration `--url` is still `https://<host>/<scope>`; only the API and web links change. GitHub
+still requires https: `allow_insecure_http` is accepted for GHES accounts, but https is always expected.
 
 ## Per-project toolchains and forges
 

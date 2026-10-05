@@ -8,10 +8,10 @@ import XCTest
 /// drives the CLI exit code. Pure reporter — no Keychain, network, or
 /// config file is touched (the CLI flow lives in KinhinCLITests).
 final class AuthStatusReporterTests: XCTestCase {
-    private static func config(repo: String = "acme/widgets", gitea: Bool = false) -> KinhinConfig {
+    private static func config(repo: String = "acme/widgets", gitea: Bool = false, githubInstance: String? = nil, scope: String = "acme/widgets") -> KinhinConfig {
         var cfg = KinhinConfig.default
         if !repo.isEmpty {
-            cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: repo)]
+            cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: scope, instance: githubInstance)]
         }
         if gitea {
             cfg.accounts.append(
@@ -59,10 +59,12 @@ final class AuthStatusReporterTests: XCTestCase {
         XCTAssertTrue(forge.stored)
         XCTAssertFalse(forge.prefix!.contains("secret"), "only the 4-character prefix may appear")
         XCTAssertEqual(forge.prefix, "ghp_")
+        XCTAssertEqual(
+            forge.instance, "https://github.example.com", "the example enterprise host is echoed through the report")
         XCTAssertTrue(forge.configured)
         XCTAssertEqual(forge.scope, "acme/widgets")
-        XCTAssertNil(forge.instance, "GitHub has no instance field")
         XCTAssertTrue(forge.detail.contains("acme/widgets"))
+        XCTAssertTrue(forge.detail.contains("https://github.example.com"))
     }
 
     func testGitHubUnconfiguredScopeIsNullAndSaysSo() {
@@ -78,6 +80,12 @@ final class AuthStatusReporterTests: XCTestCase {
         XCTAssertFalse(forge.stored)
         XCTAssertNil(forge.prefix)
         XCTAssertTrue(forge.detail.contains("kinhin auth set"))
+    }
+
+    func testGitHubConfiguredCarriesEmptyInstanceWhenNoInstanceIsConfigured() {
+        let forge = reportWithDefaultConfig().forges[0]
+        XCTAssertNil(forge.instance, "no instance means github.com, so instance stays nil")
+        XCTAssertTrue(forge.detail.contains("acme/widgets"))
     }
 
     // MARK: - Gitea entries
@@ -114,6 +122,21 @@ final class AuthStatusReporterTests: XCTestCase {
     func testAllGoodOnlyWhenEveryRequiredTokenIsStored() {
         XCTAssertTrue(
             report(stored: [.github: "ghp_x"], config: Self.config()).allGood,
+            "GitHub stored + scoped, Gitea unconfigured → all good")
+        XCTAssertFalse(
+            report(stored: [.github: "ghp_x"], config: Self.config(githubInstance: "https://github.example.com")).allGood,
+            "an instance alone still needs a stored token")
+        XCTAssertTrue(
+            report(stored: [.github: "ghp_x"], config: Self.config(githubInstance: "https://github.example.com")).allGood,
+            "an enterprise account with a stored token is still all good")
+        XCTAssertFalse(
+            report(stored: [.github: "ghp_x"], config: Self.config(githubInstance: "https://github.example.com", scope: "")).allGood,
+            "an enterprise account with no scope is not usable")
+        XCTAssertTrue(
+            report(stored: [.github: "ghp_x"], config: Self.config(repo: "", githubInstance: "https://github.example.com")).allGood,
+            "a stored token without a scope is not usable")
+        XCTAssertTrue(
+            report(stored: [.github: "ghp_x"], config: Self.config(repo: "")).allGood,
             "GitHub stored + scoped, Gitea unconfigured → all good")
         XCTAssertFalse(
             report(config: Self.config()).allGood,

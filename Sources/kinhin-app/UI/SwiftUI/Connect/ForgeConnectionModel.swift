@@ -81,12 +81,15 @@ final class ForgeConnectionModel: ConfigFormModel {
 
     // MARK: - Display
 
-    /// Self-hosted forges and GitLab show a server field; GitHub, Buildkite
-    /// and Bitbucket are hosted only.
-    var showsInstance: Bool { forge != .github && forge != .buildkite && forge != .bitbucket }
+    /// Self-hosted forges and GitLab show a server field; GitHub now also
+    /// shows an optional enterprise host. GHES uses your server's base URL;
+    /// GHEC data residency uses the api.*.ghe.com form. Buildkite and
+    /// Bitbucket are hosted only.
+    var showsInstance: Bool { forge != .buildkite && forge != .bitbucket }
     var instancePlaceholder: String {
         switch forge {
-        case .github, .buildkite, .bitbucket: return ""
+        case .github: return "e.g. https://github.example.com or https://acme.ghe.com"
+        case .buildkite, .bitbucket: return ""
         case .gitea, .forgejo: return "https://gitea.example.com"
         case .gitlab: return "https://gitlab.com (optional)"
         case .azuredevops: return "https://dev.azure.com/your-org"
@@ -110,7 +113,7 @@ final class ForgeConnectionModel: ConfigFormModel {
         let trimmedScope = scope.trimmingCharacters(in: .whitespaces)
         switch forge {
         case .github:
-            return TokenRequirements.github(scope: trimmedScope)
+            return TokenRequirements.github(scope: trimmedScope, instance: instanceIfAny)
         case .gitea, .forgejo:
             return TokenRequirements.gitea(scope: trimmedScope, instance: instance.trimmingCharacters(in: .whitespaces))
         case .gitlab:
@@ -189,8 +192,9 @@ final class ForgeConnectionModel: ConfigFormModel {
     private static let storedTokenText = "Token stored in your Keychain ✓ — paste a new one only to replace it."
 
     /// A forge counts as connected once it has a scope — except the
-    /// self-hosted forges, which also need a server address (GitLab defaults
-    /// to gitlab.com and GitHub has no instance field).
+    /// self-hosted forges, which also need a server address. GitHub is
+    /// hosted by default (github.com) but can be given an enterprise host,
+    /// so a stored scope is enough on its own.
     static func countsAsConnected(forge: ForgeID, scope: String, instance: String) -> Bool {
         switch forge {
         case .gitea, .forgejo: return !scope.isEmpty && !instance.isEmpty
@@ -214,7 +218,11 @@ final class ForgeConnectionModel: ConfigFormModel {
 
     func connect() {
         let typed = tokenText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if showsInstance, forge != .gitlab, instance.trimmingCharacters(in: .whitespaces).isEmpty {
+        if showsInstance,
+            forge != .gitlab,
+            forge != .github,
+            instance.trimmingCharacters(in: .whitespaces).isEmpty
+        {
             status = Line(text: "Enter your \(forge.displayName) server address first.", style: .warn)
             return
         }

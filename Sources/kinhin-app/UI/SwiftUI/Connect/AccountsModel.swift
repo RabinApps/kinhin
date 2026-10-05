@@ -72,10 +72,14 @@ final class AccountsModel: ConfigFormModel {
     }
 
     /// The instance field's prompt, or nil when the forge has no field
-    /// (GitHub and Buildkite are hosted only; GitLab defaults to gitlab.com).
+    /// (Buildkite and Bitbucket are hosted only; GitHub and GitLab default
+    /// to their hosted instances). For GitHub, the enterprise host is one of:
+    /// GHES ("https://github.example.com") or GHEC data residency
+    /// ("https://acme.ghe.com").
     func instancePlaceholder(for forge: ForgeID) -> String? {
         switch forge {
-        case .github, .buildkite, .bitbucket: return nil
+        case .github: return "e.g. https://github.example.com or https://acme.ghe.com"
+        case .buildkite, .bitbucket: return nil
         case .gitea, .forgejo: return "https://gitea.example.com"
         case .gitlab: return "https://gitlab.com (optional)"
         case .azuredevops: return "https://dev.azure.com/your-org"
@@ -83,7 +87,8 @@ final class AccountsModel: ConfigFormModel {
     }
 
     /// Self-hosted forges (and Azure DevOps, whose organization is part of the
-    /// URL) need a server address before the account makes sense.
+    /// URL) need a server address before the account makes sense. GitHub is
+    /// hosted by default but can be given an enterprise host.
     func instanceRequired(for forge: ForgeID) -> Bool {
         forge == .gitea || forge == .forgejo || forge == .azuredevops
     }
@@ -94,7 +99,7 @@ final class AccountsModel: ConfigFormModel {
         let filled = (instance ?? "").trimmingCharacters(in: .whitespaces)
         switch forge {
         case .github:
-            return TokenRequirements.github(scope: scope)
+            return TokenRequirements.github(scope: scope, instance: filled.isEmpty ? nil : filled)
         case .gitea, .forgejo:
             return TokenRequirements.gitea(scope: scope, instance: filled.isEmpty ? nil : filled)
         case .gitlab:
@@ -166,12 +171,13 @@ final class AccountsModel: ConfigFormModel {
             addStatus = StatusLine(text: "Not added — enter the \(newForge.displayName) server address.", style: .error)
             return
         }
-        // Only forges with a server address store one; GitHub ignores it, and
-        // a blank GitLab instance means gitlab.com.
-        let usesInstance = newForge != .github
+        // Only forges with a server address store one; a blank GitHub
+        // instance means github.com, and a blank GitLab instance means
+        // gitlab.com.
+        let storesInstance = newForge != .buildkite && newForge != .bitbucket
         let account = AccountConfig(
             name: name, forge: newForge, scope: scope,
-            instance: usesInstance && !instance.isEmpty ? instance : nil)
+            instance: storesInstance && !instance.isEmpty ? instance : nil)
         do {
             try AccountsConfigEditor.add(account, to: configURL)
         } catch {

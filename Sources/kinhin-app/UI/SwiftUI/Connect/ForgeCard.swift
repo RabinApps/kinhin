@@ -63,7 +63,7 @@ struct ForgeCard: View {
             }
             HintText(
                 model.forge == .github
-                    ? "Use owner/name for one repo, or just an org name to serve every repo in it. The token is kept in your Keychain, never in a file."
+                    ? "Use owner/name for one repo, or just an org name to serve every repo in it. The token is kept in your Keychain, never in a file. GitHub is hosted at github.com by default. Add an enterprise host only for GHES (https://github.example.com) or GHEC data residency (https://acme.ghe.com)."
                     : "Use a path for one repository (or project), or a group/org name to serve everything under it. The token is kept in your Keychain, never in a file."
             )
             TokenRequirementsView(

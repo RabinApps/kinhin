@@ -21,7 +21,7 @@ APP_SOURCES="Sources/kinhin-app"
 SOURCES=$(find "$APP_SOURCES" -name '*.swift' | sort | grep -v "/AppMain.swift")
 SOURCES="$SOURCES shots/capture/AppMainLite.swift shots/capture/harness_main.swift"
 
-swiftc -o shots/capture/harness $SOURCES \
+swiftc -swift-version 6 -o shots/capture/harness $SOURCES \
   -I $PROD \
   -I .build/checkouts/Yams/Sources/CYaml/include \
   $PROD/CYaml.o $PROD/Yams.o $PROD/KinhinKit.o \

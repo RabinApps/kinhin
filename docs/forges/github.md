@@ -9,15 +9,15 @@ How kinhin talks to GitHub Actions, and how that compares with GitHub's current 
 | | |
 |---|---|
 | Forge id | `github` |
-| Hosting | github.com only. The client hard-codes `https://api.github.com`; GitHub Enterprise Server (GHES) is **not supported** (see [Self-hosted notes](#self-hosted-notes-and-minimum-versions)). |
+| Hosting | github.com by default. With an `instance` on the account, kinhin uses that host instead: GHES and GHEC data residency are both supported. For GHES the host is your server's base URL; for GHEC data residency it is the `api.*.ghe.com` host. See [Enterprise instance](#enterprise-instance) below. |
 | Scope | `owner/name` (one repository) or an org name. `actionsBase` is `/repos/{scope}/actions` or `/orgs/{scope}/actions`. |
-| `instance` | Unused. |
+| `instance` | Optional. github.com when absent (the default); a GHES base URL (`https://github.example.com`) or a GHEC data-residency host (`https://acme.ghe.com`) otherwise. |
 | Source | `Sources/KinhinKit/Forges/GitHubClient.swift`, `GitHubClient+Runs.swift`, `GitHubForge.swift`, `GitHubModels.swift` |
 | Live-tested | Yes. This is the only forge exercised against the real service. |
 
 ## Auth
 
-`Authorization: Bearer <PAT>` (`GitHubClient.swift:157`). Both fine-grained and classic personal access tokens work. Permission lists live in `TokenRequirements.github(scope:)`.
+`Authorization: Bearer <PAT>` (`GitHubClient.swift:157`). Both fine-grained and classic personal access tokens work. Permission lists live in `TokenRequirements.github(scope:instance:)`.
 
 | Token | Repository scope | Organization scope |
 |---|---|---|
@@ -30,7 +30,7 @@ GitHub's docs agree: runner endpoints need repository `admin` or organization `a
 
 | | We send | GitHub documents (verified 2026-10-01) |
 |---|---|---|
-| Base | `https://api.github.com` | `https://api.github.com`; GHES uses `{protocol}://{hostname}/api/v3` |
+| Base | `https://api.github.com` when `instance` is absent. With an enterprise `instance`, the client derives `apiBase` from the host: `https://api.<host>` for `*.ghe.com`, or `https://<host>/api/v3` for any other host. | `https://api.github.com`; GHES uses `{protocol}://{hostname}/api/v3` and GHEC data residency uses `{protocol}://api.SUB.ghe.com`. |
 | `X-GitHub-Api-Version` | `2022-11-28` (`GitHubClient.swift:160`) | Two supported versions: `2022-11-28` (supported until 2028-03-10) and `2026-03-10` (no end date). An absent header defaults to `2022-11-28`. |
 | `Accept` | `application/vnd.github+json` | Same |
 
@@ -51,15 +51,24 @@ GitHub supports each version for 24 months after the next one ships, signals ret
 | GET | `/user/repos?affiliation=owner,collaborator,organization_member` | Repository picker | `GitHubClient.swift:270` |
 | GET | `/orgs/{org}/repos`, `/users/{owner}/repos` | Repository picker, org and user | `GitHubClient.swift:272-274` |
 
+## Enterprise instance
+
+When an optional `instance` is set on the GitHub account, kinhin targets that host instead of github.com in every surface that has an instance:
+
+- **GHES (GitHub Enterprise Server):** use your server's base URL, for example `https://github.example.com`. The REST base becomes `https://github.example.com/api/v3`.
+- **GHEC data residency:** use the data-region host, for example `https://acme.ghe.com`. The REST base becomes `https://api.acme.ghe.com`.
+
+The runner's own `--url` still uses the `host/<scope>` form (for example `https://github.example.com/acme` or `https://acme.ghe.com/acme`) exactly as for github.com. All token-creation URLs, register/shard addresses, health-check probes and permission checks derive the right host from the account's `instance`, so github.com stays the default when `instance` is absent.
+
+Token-creation and settings links are rendered per instance by `OrgPermissionProbe.settingsURL(for:instance:)`: the `*.ghe.com` form keeps the host as-is, while any other host points at `https://<host>/`.
+
 ## Scale sets (future direction)
 
 GitHub's supported autoscaling path is runner scale sets plus JIT runner configuration (see [`actions/scaleset`](https://github.com/actions/scaleset)). The scale-set message API is Public Preview and, like the endpoint removed above, is not in any published OpenAPI description. kinhin keeps polling documented per-repository endpoints until the message API is documented. JIT stays out of scope (audit finding 2 is unchanged).
 
 ### Scale set mode in kinhin
 
-kinhin has an opt-in scale-set mode for GitHub accounts. It is not the default and does not replace the documented REST
-poll. When a GitHub account has `scale_set:` set, kinhin uses the Actions-service message path for demand instead of
-polling workflow runs, and registers spawned runners with JIT configs.
+kinhin has an opt-in scale-set mode for GitHub accounts. It is not the default and does not replace the documented REST poll. When a GitHub account has `scale_set:` set, kinhin uses the Actions-service message path for demand instead of polling workflow runs, and registers spawned runners with JIT configs.
 
 Implementation notes:
 
@@ -67,32 +76,22 @@ Implementation notes:
 - Scale-set and runner-group state is managed under `api-version=6.0-preview`.
 - Demand comes from a long-poll message session plus scale-set statistics, not from `GET .../workflow-runs`.
 - Runner registration uses `POST .../generatejitconfig` and the in-VM `config.sh --jitconfig` path.
-- The listener service, client, and JIT adapter live in `Sources/KinhinKit/Fleet/` and `Sources/KinhinKit/Forges/`
-  (see [architecture](https://github.com/RabinApps/kinhin/blob/main/docs/architecture.md) for the layout).
+- The listener service, client, and JIT adapter live in `Sources/KinhinKit/Fleet/` and `Sources/KinhinKit/Forges/` (see [architecture](https://github.com/RabinApps/kinhin/blob/main/docs/architecture.md) for the layout).
 
-Caveat: because the message API is still preview and not in GitHub's published OpenAPI descriptions, the endpoint set
-and versioning should be re-verified when GitHub updates the API. GitHub Enterprise Server is not supported in this mode.
+Caveat: because the message API is still preview and not in GitHub's published OpenAPI descriptions, the endpoint set and versioning should be re-verified when GitHub updates the API.
 
 ### Scale-set troubleshooting (kinhin side)
 
 For the error signatures that show up in kinhin logs and how to read them, see [Troubleshooting scale sets](scaling.md#troubleshooting-scale-sets) in *How scaling works*. The two most common are:
 
-- `cd: /Users/admin/actions-runner-N: No such file or directory` (`bash: line …: cd: …: No such file or directory` in
-  the in-VM script) — a per-runner directory is missing on the image; usually a `runners_per_vm` bake/fleet mismatch.
-  Scale-set mode does **not** use a separate image; the same baked image that works for classic mode also boots scale-set
-  VMs. See the density-mismatch section.
-- `could not pin the guest's SSH host key … connecting without host key verification` — a boot/SSH-agent reachability issue,
-  not a registration-material issue. Establish that one VM can boot and register in classic mode before scaling it.
+- `cd: /Users/admin/actions-runner-N: No such file or directory` (`bash: line …: cd: …: No such file or directory` in the in-VM script) — a per-runner directory is missing on the image; usually a `runners_per_vm` bake/fleet mismatch. Scale-set mode does **not** use a separate image; the same baked image that works for classic mode also boots scale-set VMs. See the density-mismatch section.
+- `could not pin the guest's SSH host key … connecting without host key verification` — a boot/SSH-agent reachability issue, not a registration-material issue. Establish that one VM can boot and register in classic mode before scaling it.
 
-If the listener can't refresh statistics or the session drops, the engine keeps the last known snapshot briefly; if that
-keeps failing, re-check the account token and scopes (organization self-hosted-runner permissions) and confirm the account is
-github.com.
+If the listener can't refresh statistics or the session drops, the engine keeps the last known snapshot briefly; if that keeps failing, re-check the account token and scopes (organization self-hosted-runner permissions).
 
 ## Pipeline view
 
-The app's live pipeline view reads `GET /repos/{repo}/actions/runs?status=in_progress` and each run's
-`/actions/runs/{id}/jobs`. The job payload already carries `steps[]` (name, status, conclusion, number, timestamps) and
-`html_url`, so it costs no request beyond the running-attribution poll. The runner's job is found by `runner_name`.
+The app's live pipeline view reads `GET /repos/{repo}/actions/runs?status=in_progress` and each run's `/actions/runs/{id}/jobs`. The job payload already carries `steps[]` (name, status, conclusion, number, timestamps) and `html_url`, so it costs no request beyond the running-attribution poll. The runner's job is found by `runner_name`.
 
 Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirect to a signed URL, fetched without the token) by each line's timestamp and the step start times.
 
@@ -118,22 +117,23 @@ Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirec
 
 ## Self-hosted notes and minimum versions
 
-- **GHES is not supported.** The base URL is a constant and `AccountConfig.instance` is ignored for GitHub. Supporting GHES means a configurable base (`https://{host}/api/v3`) plus a decision on which API-version header values the target GHES release accepts. The GHES OpenAPI descriptions published by GitHub (`ghes-3.14` and `ghes-3.22` checked) contain the same runner, run and job endpoints kinhin uses.
-- The `X-GitHub-Api-Version` values available on a given GHES release were **not verified** here; GitHub's page on API versions says nothing about GHES.
+- GHES and GHEC data residency are supported with an account `instance`: GHES is `https://<hostname>` with a `/api/v3` REST base, and GHEC data residency uses `https://api.<subdomain>.ghe.com`.
+- The `X-GitHub-Api-Version` values a given GHES release accepts were **not verified** here; GitHub's page on API versions says nothing about GHES. Verify the header against a real instance before relying on it.
+- The GHES and GHEC runner endpoints kinhin calls were checked against the published OpenAPI descriptions (`ghes-3.14`, `ghes-3.22`), which contain the same runner, run and job endpoints kinhin uses.
 
 ## Version sensitivity
 
 | Item | Varies by | Detail |
 |---|---|---|
 | `X-GitHub-Api-Version` | github.com | `2022-11-28` and `2026-03-10` are identical for the endpoints kinhin calls. |
-| Base path | github.com vs GHES | `/` vs `/api/v3`. |
+| Base path | github.com vs GHES/GHEC | `/` for github.com, `/api/v3` for GHES, `/api/v3` for GHEC data residency (`api.<subdomain>.ghe.com`). |
 | `/orgs/{org}/actions/runs` | all | Not used (undocumented). |
 
 ## Audit findings
 
 1. **Resolved (2026-10-01): undocumented endpoint.** `GET /orgs/{org}/actions/runs` is absent from the OpenAPI descriptions for both github.com versions and from GHES 3.14 and 3.22. It used to be the classic-token fast path, with a per-repository fallback on 404. kinhin never calls it now: org scope reads each repository's runs via the documented `GET /repos/{repo}/actions/runs`.
 2. **JIT config unused** (see Registration flow). Ephemeral runners with a shared registration token are valid, but JIT is GitHub's recommended path for ephemeral runners.
-3. **No GHES support.** Hard-coded base URL.
+3. **GitHub Enterprise Server and GHEC data residency are supported through the optional `instance` field.** The base URL is no longer hard-coded; it falls back to `https://api.github.com` and github.com for the default case.
 4. **Documented status values are wider than the ones used.** GitHub lists `queued`, `in_progress`, `waiting`, `pending`, `requested` as run statuses. kinhin polls only `queued` and `in_progress`, so a run held in `waiting` (for example on an environment approval) is not counted as demand, which is arguably correct. Recorded here as intent, not a bug.
 
 ## Verified

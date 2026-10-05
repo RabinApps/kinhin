@@ -294,7 +294,8 @@ or a scale-set ensure call that returns 404-style "not found" on the runner grou
   named group, set `runner_group:` explicitly.
 - Scale sets are created through the Actions-service preview path under `api-version=6.0-preview`. If the admin JWT exchange
   or the scale-set ensure calls fail consistently, confirm the account's PAT has the organization self-hosted-runner
-  permissions the GitHub forge doc lists, and that the account is github.com (GHES is not supported in this mode).
+  permissions the GitHub forge doc lists, and that the account is github.com (the Actions-service path is not wired for
+  GHES in this mode yet).
 - Scale sets are left in place on teardown and re-attached; a leftover scale set from a previous fleet is normally fine.
 
 #### Sessions drop / listener can't refresh statistics
@@ -327,7 +328,7 @@ If a GitHub account already ran in classic mode and you add `scale_set:`:
 
 ### Limitations
 
-- GitHub Enterprise Server is not supported; the Actions service path kinhin uses is github.com-only.
+- GitHub Enterprise Server is not supported in scale-set mode yet; the Actions-service path kinhin uses is github.com-only.
 - Deleting scale sets on teardown is not in scope; they are left in place and re-attached.
 - There is currently no Fleet-tab card or account-form toggle for scale sets; the only control is the `scale_set:` key in
   config. If you add one, the app and CLI must not drop the key when rewriting the `accounts:` block.

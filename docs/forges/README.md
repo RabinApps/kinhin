@@ -12,7 +12,7 @@ Forge IDs recognized by the config and the CLI (`ForgeID`): `github`, `gitlab`, 
 
 | Forge | Page | API versioning | Self-hosted | Live-tested |
 |---|---|---|---|---|
-| GitHub | [github.md](github.md) | `X-GitHub-Api-Version` header (`2022-11-28`, `2026-03-10`) | Not supported (GHES uses `/api/v3`) | Yes |
+| GitHub | [github.md](github.md) | `X-GitHub-Api-Version` header (`2022-11-28`, `2026-03-10`) | Optional enterprise instance: GHES `https://<hostname>/api/v3`, GHEC `https://api.<subdomain>.ghe.com` | Yes |
 | Gitea | [gitea.md](gitea.md) | By server release | Yes (`instance`) | No |
 | Forgejo | [gitea.md](gitea.md) | By server release | Yes (`instance`) | No |
 | GitLab | [gitlab.md](gitlab.md) | `/api/v4`, features by server release | Yes (`instance`) | No |
@@ -40,14 +40,16 @@ Highest-impact findings, most severe first. Details and evidence are in each pag
 3. **Gitea and Forgejo runner list and delete** are missing on Gitea before 1.24 and on every released Forgejo checked (through v14).
 4. **GitHub org scope relied on an undocumented endpoint** (`/orgs/{org}/actions/runs`). Resolved (2026-10-01): kinhin no longer calls it and reads each repository's runs via the documented `/repos/{repo}/actions/runs`.
 5. **Azure DevOps demand relies on an undocumented path** (`pools/{id}/jobrequests`) and is pinned to `api-version=7.0`, which Azure DevOps Server 2020 and older reject.
-6. **GitHub has no GHES support and does not use JIT runner config.**
+6. **GitHub is live-tested and now supports GHES and GHEC data residency through the optional `instance` field**; it still does not use JIT runner config.
+
+
 7. **Buildkite and Bitbucket**: no mismatches with the docs or spec; minor efficiency notes only.
 
 ## Where versions matter (input for a version setting)
 
 | Forge | What would vary with a selected version |
 |---|---|
-| GitHub | `X-GitHub-Api-Version` value (no behavior difference for kinhin's endpoints today); base path `/api/v3` for GHES |
+| GitHub | `X-GitHub-Api-Version` value (no behavior difference for kinhin's endpoints today); base path `/api/v3` for GHES, or `api.<subdomain>.ghe.com` for GHEC data residency |
 | Gitea | Registration-token HTTP method, runner list and delete availability, demand endpoint (`/actions/jobs` from 1.25) |
 | Forgejo | Registration-token method (GET), demand endpoint (`/actions/runners/jobs?labels=` from 11), runner list and delete (trunk only) |
 | GitLab | Minimum 16.0; runner API availability |

@@ -133,8 +133,12 @@ extension ConfigLoader {
             }
             switch forge {
             case .github:
+                // Labels are deliberate gitea/forgejo/GitLab labels, so they are
+                // rejected for GitHub (GitHub selects runners with `runs-on:`).
+                // `scale_set` stays github-only here: the scale-set message path
+                // is not wired through GHES accounts in this change.
                 if entry.labels != nil {
-                    throw ConfigError.invalid("account '\(name)': labels apply to gitea accounts only")
+                    throw ConfigError.invalid("account '\(name)': labels select runners with `runs-on:`, which GitHub does not use")
                 }
                 // GitHub enterprise (GHES / GHEC data residency): an optional
                 // instance URL. github.com has no instance, so the field stays
