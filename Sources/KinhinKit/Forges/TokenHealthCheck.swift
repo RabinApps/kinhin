@@ -19,13 +19,19 @@ public enum TokenHealthCheck {
         }
     }
 
-    /// Check the GitHub provider. Requires a config scope; without one the
-    /// probe cannot address any API and reports "not checkable".
+    /// Check the GitHub provider against the account's instance (nil =
+    /// github.com; a GHES host or GHEC data-residency host otherwise).
+    /// Requires a config scope; without one the probe cannot address any API
+    /// and reports "not checkable".
     public static func github(
-        token: String, scope: String,
+        token: String, scope: String, instance: String? = nil, allowInsecureHTTP: Bool = false,
         client github: GitHubServing? = nil
     ) async -> Report {
-        let client = github ?? GitHubClient(credentials: GitHubCredentials(token: token, scope: scope))
+        let client =
+            github
+            ?? GitHubClient(
+                credentials: GitHubCredentials(
+                    token: token, scope: scope, instance: instance, allowInsecureHTTP: allowInsecureHTTP))
         let report = await OrgPermissionProbe.verify(github: client, scope: scope)
         return Report(ok: report.ok, message: report.ok ? "Token works — \(report.message)" : report.message)
     }
@@ -160,10 +166,12 @@ public enum TokenHealthCheck {
         }
         switch forge {
         case .github:
-            guard let scope = config?.primaryGitHub?.scope, !scope.isEmpty else {
+            guard let primary = config?.primaryGitHub, !primary.scope.isEmpty else {
                 return Report(ok: false, message: "No scope to check — add a GitHub account to config.yaml first.")
             }
-            return await Self.github(token: token, scope: scope, client: github)
+            return await Self.github(
+                token: token, scope: primary.scope, instance: primary.instance,
+                allowInsecureHTTP: primary.allowInsecureHTTP ?? false, client: github)
         case .gitea, .forgejo:
             guard let account = config?.accounts.first(where: { $0.forge == forge }) else {
                 return Report(
@@ -209,7 +217,9 @@ public enum TokenHealthCheck {
     public static func account(_ account: AccountConfig, token: String) async -> Report {
         switch account.forge {
         case .github:
-            return await github(token: token, scope: account.scope)
+            return await github(
+                token: token, scope: account.scope, instance: account.instance,
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         case .gitea, .forgejo:
             guard let instance = account.instance, !instance.isEmpty else {
                 return Report(ok: false, message: "This account has no server address in config.yaml.")
@@ -243,7 +253,10 @@ public enum TokenHealthCheck {
     ) async throws -> [RepoRef] {
         switch forge {
         case .github:
-            return try await GitHubClient(credentials: GitHubCredentials(token: token, scope: "")).listRepositories()
+            return try await GitHubClient(
+                credentials: GitHubCredentials(
+                    token: token, scope: "", instance: instance, allowInsecureHTTP: allowInsecureHTTP)
+            ).listRepositories()
         case .gitea, .forgejo:
             return try await GiteaClient(
                 credentials: GiteaCredentials(

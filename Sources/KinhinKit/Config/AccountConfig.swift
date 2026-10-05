@@ -12,8 +12,9 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     /// "owner/name" (one repository) or an org name.
     public var scope: String
     /// Instance base URL. Required for Gitea/Forgejo and Azure DevOps (the
-    /// organization URL), optional for GitLab (gitlab.com when absent),
-    /// unused for GitHub and Buildkite.
+    /// organization URL), optional for GitLab (gitlab.com when absent) and
+    /// GitHub (nil = github.com; a GHES host or GHEC data-residency host
+    /// otherwise). Unused for Buildkite and Bitbucket (hosted only).
     public var instance: String?
     /// Job labels: Gitea-family `runs-on` labels (nil → the host-mode
     /// default), GitLab tags (nil → the top-level `labels:`) or Buildkite
@@ -21,8 +22,10 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     /// capabilities that pipelines demand (nil → none: the pool is kinhin's
     /// alone). Unused for GitHub.
     public var labels: [String]?
-    /// Self-hosted forges only: allow an `http://` instance URL (the token
-    /// then crosses the network in cleartext). Nil/false requires https.
+    /// Instance base URL. Required for Gitea/Forgejo and Azure DevOps (the
+    /// organization URL), optional for GitLab (gitlab.com when absent) and
+    /// GitHub (nil = github.com; a GHES host or GHEC data-residency host
+    /// otherwise). Unused for Buildkite and Bitbucket (hosted only).
     public var allowInsecureHTTP: Bool?
     /// Opt-in GitHub Runner Scale Set mode for this account. Absent means the
     /// classic REST workflow-runs poller (today's default); present enables the

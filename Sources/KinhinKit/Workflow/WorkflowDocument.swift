@@ -22,6 +22,19 @@ public struct WorkflowJob: Sendable, Identifiable, Equatable {
     public let continueOnError: Bool
     public let hasMatrix: Bool
     public let steps: [WorkflowStep]
+    /// The `runs-on:` labels (or token expression / group mapping) this job asks for.
+    public let runsOn: WorkflowRunsOn
+
+    public init(
+        id: String, name: String, needs: [String] = [], env: [String: String] = [:],
+        defaults: WorkflowDefaults? = nil, timeoutMinutes: Int? = nil, continueOnError: Bool = false,
+        hasMatrix: Bool = false, steps: [WorkflowStep] = [], runsOn: WorkflowRunsOn = .absent
+    ) {
+        self.id = id; self.name = name; self.needs = needs; self.env = env
+        self.defaults = defaults; self.timeoutMinutes = timeoutMinutes
+        self.continueOnError = continueOnError; self.hasMatrix = hasMatrix
+        self.steps = steps; self.runsOn = runsOn
+    }
 }
 
 public struct WorkflowDefaults: Sendable, Equatable {
@@ -33,6 +46,68 @@ public struct WorkflowDefaults: Sendable, Equatable {
     }
 
     public init(run: WorkflowRunDefaults? = nil) { self.run = run }
+}
+
+/// What a job's `runs-on:` entry looks like. Kinohin can only reliably route
+/// by explicit labels; a `${{ }}` expression or a `{group:, labels:}` mapping
+/// can be evaluated by the forge only at queue time, so routing a job to a
+/// specific runtime is refused and must go through a config route instead.
+public enum WorkflowRunsOn: Sendable, Equatable, CustomStringConvertible {
+    /// No `runs-on:` key.
+    case absent
+    /// A scalar (GitHub-hosted name, or any single label a user typed).
+    case scalar(String)
+    /// A list of labels: `[self-hosted, macos, arm64]`.
+    case labels([String])
+    /// A token expression the forge evaluates, e.g. `${{ matrix.os }}`.
+    case expression(String)
+    /// A label-group mapping (legacy GitHub host-selection form).
+    case groupMap(group: String?, labels: [String])
+
+    public var description: String {
+        switch self {
+        case .absent: return "absent"
+        case .scalar(let value): return "\(value)"
+        case .labels(let labels): return "[" + labels.joined(separator: ", ") + "]"
+        case .expression(let value): return "\(value)"
+        case .groupMap(let group, let labels):
+            let groupPrefix = group.map { "\($0): " } ?? ""
+            return groupPrefix + "[" + labels.joined(separator: ", ") + "]"
+        }
+    }
+}
+
+/// Parse `runs-on:` across every form GitHub writes. Keeping everything
+/// distinguishable here keeps the routing/editor rules explicit instead of
+/// pretending all jobs are label lists.
+private func parseRunsOn(_ node: Node?) -> WorkflowRunsOn {
+    guard let node else { return .absent }
+    if let scalar = node.string {
+        // A scalar the forge must evaluate is an expression, not a label —
+        // `runs-on: ${{ matrix.os }}` can't be routed by editing labels.
+        return scalar.contains("${{") ? .expression(scalar) : .scalar(scalar)
+    }
+    if let sequence = node.sequence {
+        let labels = sequence.compactMap(\.string)
+        if labels.isEmpty { return .absent }
+        if labels.contains(where: { $0.contains("${{") }) {
+            return .expression(labels.joined(separator: " "))
+        }
+        return .labels(labels)
+    }
+    if let mapping = node.mapping {
+        if mapping["expression"]?.string != nil {
+            return .expression(mapping["expression"]?.string ?? "")
+        }
+        let labels = stringMap(mapping["labels"] ?? mapping["label"] ?? mapping["run"])
+            .mapValues { $0.replacingOccurrences(of: " ", with: "") }
+        let groupKeys = mapping.keys.filter { $0.string != nil && ["os", "labels", "label", "run"].contains($0.string?.lowercased() ?? "") == false }
+        if mapping["labels"] != nil || mapping["label"] != nil || !labels.isEmpty {
+            return .groupMap(group: groupKeys.first?.string, labels: labels.mapValues { $0.split(whereSeparator: \.isWhitespace).map(String.init) }.values.flatMap { $0 })
+        }
+        return .groupMap(group: nil, labels: [])
+    }
+    return .absent
 }
 
 /// One step of a job.
@@ -110,6 +185,7 @@ public func parseWorkflow(_ data: Data, at url: URL) throws -> WorkflowDocument 
         } else {
             needs = job["needs"]?.sequence?.compactMap(\.string) ?? []
         }
+        let runsOn = parseRunsOn(job["runs-on"])
         let runDefaults = job["defaults"]?.mapping?["run"]?.mapping
         let defaults = runDefaults.map {
             WorkflowDefaults(run: WorkflowDefaults.WorkflowRunDefaults(
@@ -147,7 +223,8 @@ public func parseWorkflow(_ data: Data, at url: URL) throws -> WorkflowDocument 
             timeoutMinutes: intValue(job["timeout-minutes"]),
             continueOnError: boolValue(job["continue-on-error"]),
             hasMatrix: job["strategy"]?.mapping?["matrix"] != nil,
-            steps: steps
+            steps: steps,
+            runsOn: runsOn
         )
     }
     guard !jobs.isEmpty else { throw WorkflowError.noJobs(url) }

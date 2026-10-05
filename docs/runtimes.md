@@ -272,6 +272,31 @@ Manage routes in **Advanced → Routing** (pools with a live health chip, a budg
 or with `kinhin runtimes route add|remove`. `kinhin runtimes` prints the same summary. Changes edit only the relevant
 part of `config.yaml`, must pass full validation, and reach a running fleet without a restart.
 
+## Route one workflow with the CLI
+
+`kinhin workflow route` moves a single workflow's jobs to a runtime without hand-editing YAML:
+
+```bash
+kinhin workflow route ".github/workflows/deploy.yml" appleContainer  # or just the workflow name: "Deploy"
+kinhin workflow route ci.yml docker --job build # one job
+kinhin workflow route ci.yml tart --dry-run --json # plan only, machine-readable
+```
+
+It:
+
+- rewrites each job's `runs-on:` **comment-preservingly** — appending the pool's marker (`kinhin-container`,
+  `kinhin-docker`, `kinhin-host`), replacing GitHub-hosted labels the fleet's runners can never satisfy with the
+  target pool's exact labels, and stripping stale markers when targeting tart (tart is markerless);
+- **reconciles the config route only when precedence requires it** — a repo route that outranks the marker, or a
+  markerless target off the default — through the same validated editor `runtimes route add` uses; a running
+  daemon reloads it live;
+- refuses what it can't safely edit (<code v-pre>${{ … }}</code> expressions, `{group:, labels:}` mappings, reusable-workflow jobs)
+  and points at `kinhin runtimes route add <owner/repo>@<Workflow> <runtime>` for those;
+- refuses a runtime whose pool isn't configured, printing its setup commands and [the comparison above](#choosing-a-linux-runtime).
+
+`--consent` is required for `host`, and `kinhin runtimes --json` reports the per-runtime `availability` sweep
+(`ready` / `missing:<tool>` / `broken:<reason>`), so scripts can pick a runtime this Mac can actually run.
+
 ## Host mode: run jobs directly on your Mac
 
 Host mode runs a job as an ephemeral runner process **on your Mac itself**: no VM, no container. It's fast and sees

@@ -97,6 +97,13 @@ func helpText() -> String {
                                     final report instead of streaming
         workflow test --list        Print the jobs of the default workflow, then exit
         workflow test --json        Print the final report as JSON (exit 1 when a job failed)
+        workflow route <FILE|name> <tart|appleContainer|docker|host>
+                                    Route the workflow's jobs to that runtime: edits the
+                                    workflow's runs-on: (comment-preserving; ${{ }} and
+                                    mapping forms are refused) and, when precedence needs
+                                    it, adds an owner/repo@Workflow config route — a
+                                    running daemon reloads it live. Options: --job NAME,
+                                    --dry-run, --json, --consent (host)
 
 
     RUNNING:

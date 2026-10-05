@@ -20,7 +20,6 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation, NSMenuDeleg
         NSWorkspace.shared.open(Paths.config)
     }
 
-
     func launchModeChanged(_ mode: LaunchMode) {
         applyActivationPolicy()
         // Match the status item to the mode without touching a status item

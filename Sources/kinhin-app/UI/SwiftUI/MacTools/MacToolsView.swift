@@ -24,6 +24,9 @@ struct MacToolsView: View {
                 onCancel: { model.cancelInstall() }
             )
         }
+        .sheet(item: $model.linuxSetupOffer) { offer in
+            LinuxRuntimeSetupSheet(offer: offer, model: model)
+        }
         .sheet(item: $model.missingBrewOffer) { offer in
             MissingBrewSheet(
                 offer: offer,
@@ -144,7 +147,10 @@ struct MacToolsView: View {
             title: "Linux jobs (optional)",
             subtitle: "Turn one on to run Linux workflows. Without tart, this is all you need."
         ) {
-            tartLinuxRow
+            if model.activeLinuxRuntimes.isEmpty {
+                linuxSetupRow
+            }
+            tartLinuxRow()
             if model.tartLinuxOn {
                 baseImageRow(value: model.tartBaseImage, runtime: .tart, catalog: .tartLinux)
                 if let warning = model.tartLinuxLabelWarning {
@@ -170,9 +176,31 @@ struct MacToolsView: View {
             if model.dockerOn {
                 baseImageRow(value: model.dockerBaseImage, runtime: .docker)
                 buildImageRow(.docker)
-                platformRow
+                platformRow()
             }
         }
+    }
+
+    /// A repo has Linux jobs but nothing is turned on yet: offer the
+    /// three-way choice as one row that opens the comparison sheet.
+    private var linuxSetupRow: some View {
+        Button {
+            model.chooseLinuxRuntime()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Text("Set up Linux jobs…")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer(minLength: 0)
+                Text("Apple container · Docker · Tart (Linux VM)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.borderless)
+        .accessibilityIdentifier("mac-linux-setup-btn")
     }
 
     private func statusRow(
@@ -213,7 +241,7 @@ struct MacToolsView: View {
 
     /// Tart first: a full Linux VM per job. Needs tart installed, so the
     /// checkbox stays off until it is (the Install… button is right here).
-    private var tartLinuxRow: some View {
+    private func tartLinuxRow() -> some View {
         HStack(spacing: 8) {
             Toggle(
                 "Tart (Linux VM)",
@@ -260,9 +288,7 @@ struct MacToolsView: View {
         }
     }
 
-    /// Native arm64 by default; amd64 is an explicit opt-in that runs under
-    /// emulation, so the trade-off is stated right under the picker.
-    private var platformRow: some View {
+    private func platformRow() -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center, spacing: 8) {
                 Text("Architecture").font(.system(size: 12))

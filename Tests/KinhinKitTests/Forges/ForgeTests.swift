@@ -129,6 +129,20 @@ final class ForgeTests: XCTestCase {
         }
     }
 
+    /// An enterprise account builds a forge whose registration URL and API
+    /// base point at the instance, not github.com.
+    func testEnterpriseAccountForgeRegistersAgainstItsInstance() throws {
+        let account = AccountConfig(
+            name: "ghes", forge: .github, scope: "acme/widgets", instance: "https://github.example.com")
+        let client = GitHubClient(
+            credentials: GitHubCredentials(token: "t", scope: account.scope, instance: account.instance))
+        let forge = GitHubForge(account: account, token: "t", client: client, labels: ["kinhin"])
+
+        XCTAssertEqual(forge.credentials.instance, "https://github.example.com")
+        XCTAssertEqual(forge.registrationURL(), "https://github.example.com/acme/widgets")
+        XCTAssertEqual(client.credentials.apiBase, "https://github.example.com/api/v3")
+    }
+
     // MARK: - Demand merging & assignment
 
     func testMergeQueueByRepoAcrossForges() {

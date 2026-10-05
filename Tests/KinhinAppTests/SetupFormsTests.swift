@@ -43,7 +43,7 @@ final class SetupFormsTests: XCTestCase {
         model.configURL = configURL
         model.hasStoredToken = { stored.contains($0) }
         model.loadToken = { _ in nil }
-        model.checkPermission = { _, _ in nil }
+        model.checkPermission = { _, _, _ in nil }
         if reload { model.reload() }
         return model
     }
@@ -75,7 +75,7 @@ final class SetupFormsTests: XCTestCase {
         // probe's verdict below.
         try await Task.sleep(nanoseconds: 100_000_000)
         var checked: [(scope: String, token: String?)] = []
-        github.checkPermission = { scope, token in
+        github.checkPermission = { scope, token, _ in
             checked.append((scope, token))
             return OrgPermissionProbe.Report(
                 ok: false, message: "PAT lacks runner-management permission for '\(scope)'.")

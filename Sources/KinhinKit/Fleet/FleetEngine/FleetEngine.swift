@@ -150,8 +150,10 @@ public final class FleetEngine: Sendable {
         var initial: [String: Forge] = [:]
         if let primary = config.primaryGitHub {
             initial[primary.name] = GitHubForge(
-                credentials: .github(token: primaryToken, scope: primary.scope), labels: config.labels,
-                client: github, account: primary.name)
+                credentials: .github(
+                    token: primaryToken, scope: primary.scope, instance: primary.instance,
+                    allowInsecureHTTP: primary.allowInsecureHTTP ?? false),
+                labels: config.labels, client: github, account: primary.name)
         }
         self.forgeState = Mutex(ForgeState(byPlatform: initial))
         let shell = containerShell ?? Shell()
@@ -213,9 +215,15 @@ public final class FleetEngine: Sendable {
     ) {
         var resolved = dependencies
         resolved.githubFactory = githubFactory
+        // The primary account's instance decides the client's host: nil stays
+        // api.github.com, an enterprise account targets its own instance.
+        let primary = config.primaryGitHub
         self.init(
             config: config,
-            github: githubFactory.make(GitHubCredentials(token: pat, scope: config.repo)),
+            github: githubFactory.make(
+                GitHubCredentials(
+                    token: pat, scope: config.repo, instance: primary?.instance,
+                    allowInsecureHTTP: primary?.allowInsecureHTTP ?? false)),
             tart: tart, store: store, ssh: ssh, host: host,
             dependencies: resolved, primaryToken: pat)
     }

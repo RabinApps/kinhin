@@ -41,27 +41,29 @@ enum ResetCommand {
     // MARK: - Scope
 
     /// The scope from `--scope config|daemon|all`, or the interactive menu.
-    /// A non-interactive run without `--scope` fails with usage instead of
-    /// hanging on a prompt it could never read.
+    /// A non-interactive run without `--scope` throws usage instead of
+    /// hanging on a prompt it could never read. Throws (rather than exiting
+    /// through `fail`) so tests can exercise it hermetically; the dispatcher
+    /// turns the error into the exit code.
     static func resolveScope(args: [String], interactive: Bool) throws -> ResetScope {
         if let raw = flag("--scope", in: args) {
             guard let scope = ResetScope(rawValue: raw) else {
-                fail(
+                throw CLIError(
                     "--scope must be one of: \(ResetScope.allCases.map(\.rawValue).joined(separator: ", "))",
                     exit: .usage)
             }
             return scope
         }
         guard interactive else {
-            fail(
+            throw CLIError(
                 "kinhin reset needs --scope config|daemon|all when stdin is not a terminal (add --yes to run without prompts)",
                 exit: .usage)
         }
-        return pickScope()
+        return try pickScope()
     }
 
     /// The numbered scope menu (interactive runs without `--scope`).
-    private static func pickScope() -> ResetScope {
+    private static func pickScope() throws -> ResetScope {
         print("What should kinhin reset?")
         for (index, scope) in ResetScope.allCases.enumerated() {
             print("  \(index + 1). \(scope.label) — \(scope.summary)")
@@ -70,7 +72,7 @@ enum ResetCommand {
         guard let line = readLine()?.trimmingCharacters(in: .whitespaces), let pick = Int(line),
             ResetScope.allCases.indices.contains(pick - 1)
         else {
-            fail("pick a number between 1 and \(ResetScope.allCases.count)", exit: .usage)
+            throw CLIError("pick a number between 1 and \(ResetScope.allCases.count)", exit: .usage)
         }
         return ResetScope.allCases[pick - 1]
     }
@@ -110,7 +112,8 @@ enum ResetCommand {
     static func nextSteps(for scope: ResetScope) -> String {
         switch scope {
         case .config, .all:
-            return "kinhin has been reset — the next command re-creates a starter config; store a token with `kinhin auth set`"
+            return
+                "kinhin has been reset — the next command re-creates a starter config; store a token with `kinhin auth set`"
         case .daemon:
             return "daemon removed — `kinhin daemon install` reinstalls it"
         }

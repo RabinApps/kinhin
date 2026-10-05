@@ -103,6 +103,8 @@ enum CLICommand: Equatable {
     /// commands, which print help before failing) auto-creates.
     static func shouldAutoCreateConfig(_ command: CLICommand?, args: [String] = []) -> Bool {
         // `toolchains detect` and `workflow test` only read a repo; they need no config.
+        // `workflow route` needs an *existing* config (it refuses with the setup
+        // command rather than auto-creating a starter the route couldn't use).
         if command == .toolchains, args.dropFirst().first == "detect" { return false }
         if command == .workflow { return false }
         switch command {

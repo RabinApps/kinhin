@@ -57,6 +57,28 @@ public struct ForgeCredentials: Sendable, Equatable {
         ForgeCredentials(forge: .github, token: token, scope: scope)
     }
 
+    public static func github(token: String, scope: String, instance: String?, allowInsecureHTTP: Bool = false)
+        -> ForgeCredentials
+    {
+        ForgeCredentials(
+            forge: .github, token: token, scope: scope,
+            instance: instance)
+    }
+
+    /// A GitHub credential struct that carries enterprise-instance fields the
+    /// way `GitHubCredentials` does, for callers that build both a `Forge`
+    /// credential set and a `GitHubCredentials` from the same account.
+    public static func github(
+        token: String, scope: String, instance: String?, allowInsecureHTTP: Bool = false
+    ) -> (forgeCredentials: ForgeCredentials, clientCredentials: GitHubCredentials) {
+        let clientCredentials = GitHubCredentials(
+            token: token, scope: scope, instance: instance, allowInsecureHTTP: allowInsecureHTTP)
+        return (
+            ForgeCredentials(forge: .github, token: token, scope: scope, instance: instance),
+            clientCredentials
+        )
+    }
+
     public static func gitea(token: String, scope: String, instance: String) -> ForgeCredentials {
         ForgeCredentials(forge: .gitea, token: token, scope: scope, instance: instance)
     }

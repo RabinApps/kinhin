@@ -117,7 +117,7 @@ struct LinuxImageBaker: Sendable {
             Log.info(tag, "GitHub PAT found — baking actions-runner \(versions.github)")
             lines.append(
                 RunnerBootstrap.linuxGitHubAgentInstallScript(
-                    runnerVersion: versions.github, arch: options.platform.githubRunnerArch))
+                    version: versions.github, arch: options.platform.githubRunnerArch))
         } else {
             Log.info(tag, "no GitHub PAT stored — skipping actions-runner install")
         }

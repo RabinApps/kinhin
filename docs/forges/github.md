@@ -68,7 +68,7 @@ Implementation notes:
 - Demand comes from a long-poll message session plus scale-set statistics, not from `GET .../workflow-runs`.
 - Runner registration uses `POST .../generatejitconfig` and the in-VM `config.sh --jitconfig` path.
 - The listener service, client, and JIT adapter live in `Sources/KinhinKit/Fleet/` and `Sources/KinhinKit/Forges/`
-  (see [architecture](architecture.md) for the layout).
+  (see [architecture](https://github.com/RabinApps/kinhin/blob/main/docs/architecture.md) for the layout).
 
 Caveat: because the message API is still preview and not in GitHub's published OpenAPI descriptions, the endpoint set
 and versioning should be re-verified when GitHub updates the API. GitHub Enterprise Server is not supported in this mode.

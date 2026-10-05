@@ -133,8 +133,20 @@ extension ConfigLoader {
             }
             switch forge {
             case .github:
-                if entry.instance != nil || entry.labels != nil {
-                    throw ConfigError.invalid("account '\(name)': instance and labels apply to gitea accounts only")
+                if entry.labels != nil {
+                    throw ConfigError.invalid("account '\(name)': labels apply to gitea accounts only")
+                }
+                // GitHub enterprise (GHES / GHEC data residency): an optional
+                // instance URL. github.com has no instance, so the field stays
+                // nil and the client falls back to api.github.com / github.com.
+                if let instance = entry.instance, !instance.isEmpty {
+                    do {
+                        _ = try GitHubCredentials.validate(instance: instance, allowInsecureHTTP: allowInsecureHTTP)
+                    } catch {
+                        throw ConfigError.invalid(
+                            "account '\(name)': instance must be a base URL like https://github.example.com or https://SUB.ghe.com (no /api path)"
+                        )
+                    }
                 }
                 let scaleSet: AccountConfig.ScaleSetConfig?
                 if let raw = entry.scaleSet, !raw.isEmpty {
@@ -145,7 +157,10 @@ extension ConfigLoader {
                 } else {
                     scaleSet = nil
                 }
-                result.append(AccountConfig(name: name, forge: forge, scope: scope, scaleSet: scaleSet))
+                result.append(
+                    AccountConfig(
+                        name: name, forge: forge, scope: scope, instance: entry.instance,
+                        allowInsecureHTTP: entry.allowInsecureHTTP, scaleSet: scaleSet))
             case .gitea, .forgejo:
                 if entry.scaleSet != nil {
                     throw ConfigError.invalid("account '\(name)': scale_set is github-only")
@@ -267,7 +282,9 @@ extension ConfigLoader {
     }
 
     /// Validates and builds a `ScaleSetConfig` from the parsed partial.
-    private static func parseScaleSet(_ partial: PartialScaleSet, account: String) throws -> AccountConfig.ScaleSetConfig {
+    private static func parseScaleSet(_ partial: PartialScaleSet, account: String) throws
+        -> AccountConfig.ScaleSetConfig
+    {
         guard let name = partial.name, !name.isEmpty else {
             throw ConfigError.invalid("account '\(account)': scale_set.name is required")
         }

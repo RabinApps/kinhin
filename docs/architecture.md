@@ -11,18 +11,22 @@ Contributor conventions (layout, style, error handling, formatting) are in [CONT
 A fleet runs on a Mac. The app or CLI controls it either through an in-process engine or, in daemon mode, over a private Unix socket. The engine gets demand and runner state from forge APIs, then provisions runtime instances within the host's capacity budget.
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
-    operator["Menu bar app or CLI"] -->|commands| frontend["App backend / CLI dispatch"]
-    frontend -->|in-process mode| engine["FleetEngine"]
-    frontend -->|daemon mode: Unix-socket RPC| daemon["kinhin daemon"]
-    daemon -->|dispatches RPC| engine
-    capacity["Mac capacity<br/>CPU, memory, disk"] -->|limits| engine
-    adapters["Forge adapters / scale-set listener"] -->|queue demand and runner state| engine
-    adapters <-->|"API requests, events, runner state"| forge["CI provider APIs"]
-    engine -->|provision, bootstrap, teardown| runtimes["Runtime pools<br/>Tart, Apple container, Docker, host"]
-    runtimes -->|start| runners["Runner instances"]
-    forge -->|dispatches jobs| runners
-    runners -->|job results| forge
+    operator["Menu bar app or CLI"] -- commands --> frontend["App backend / CLI dispatch"]
+    frontend -- "in-process mode" --> engine["FleetEngine"]
+    frontend -- "daemon mode: Unix-socket RPC" --> daemon["kinhin daemon"]
+    daemon -- dispatches RPC --> engine
+    capacity["Mac capacity<br>CPU, memory, disk"] -- limits --> engine
+    adapters["Forge adapters / scale-set listener"] -- queue demand and runner state --> engine
+    adapters <-- API requests, events, runner state --> forge["CI provider APIs"]
+    engine -- provision, bootstrap, teardown --> runtimes["Runtime pools<br>Tart, Apple container, Docker, host"]
+    runtimes -- start --> runners["Runner instances"]
+    forge -- dispatches jobs --> runners
+    runners -- job results --> forge
 ```
 
 Job completion is observed through provider runner state or events; runners do not report completion directly to `FleetEngine`. The engine reconciles demand and runtime state, and removes ephemeral instances when their runners finish. [Scaling details](scaling.md) · [Runtime and routing details](runtimes.md) · [Security model](security.md).
@@ -32,24 +36,36 @@ Job completion is observed through provider runner state or events; runners do n
 The Fleet subsystem reconciles normalized demand, routes jobs to runtime pools, applies autoscaling and capacity limits, and manages instance lifecycles. Forge adapters normalize each provider's queue, runner, and registration APIs. GitHub scale-set accounts use a message listener and per-runner JIT configuration rather than the classic queued-work poll.
 
 ```mermaid
+---
+config:
+  layout: dagre
+---
 flowchart TB
-    subgraph providers["External CI providers"]
+ subgraph providers["External CI providers"]
         apis["Forge APIs and message services"]
         scheduling["Job scheduling"]
-        apis --> scheduling
-    end
-    subgraph kinhin["kinhin control plane"]
+  end
+ subgraph kinhin["kinhin control plane"]
         adapters["Forge adapters / scale-set listener"]
-        reconcile["Reconcile demand"] --> route["Route jobs to pools"] --> scale["Autoscale within capacity"] --> lifecycle["Instance lifecycle"]
-        runtimeProtocol["Runtime protocol"] --> runtimes["Tart, Apple container,<br/>Docker, Host"]
-        adapters <-->|demand queries, responses, and events| reconcile
-        lifecycle -->|registration-token / JIT-config request| adapters
-        adapters -->|registration material| lifecycle
-        lifecycle -->|provision, bootstrap, teardown| runtimeProtocol
-    end
-    adapters <-->|"API calls, queue responses, events"| apis
-    scheduling -->|dispatches job| runners["Runner instance / job environment"]
-    runners -->|job result and runner state| scheduling
+        lifecycle["Instance lifecycle"]
+        scale["Autoscale within capacity"]
+        route["Route jobs to pools"]
+        reconcile["Reconcile demand"]
+        runtimes["Tart, Apple container,<br>Docker, Host"]
+        runtimeProtocol["Runtime protocol"]
+  end
+    apis --> scheduling
+    reconcile --> route
+    route --> scale
+    scale --> lifecycle
+    runtimeProtocol --> runtimes
+    adapters <-- demand queries, responses, and events --> reconcile
+    lifecycle -- "registration-token / JIT-config request" --> adapters
+    adapters -- registration material --> lifecycle
+    lifecycle -- provision, bootstrap, teardown --> runtimeProtocol
+    adapters <-- API calls, queue responses, events --> apis
+    scheduling -- dispatches job --> runners["Runner instance / job environment"]
+    runners -- job result and runner state --> scheduling
 ```
 
 The runtime protocol keeps the fleet independent of whether a job uses a VM, container, Docker instance, or host process. The CI provider schedules work to registered runners; the engine learns runner state and job completion through the provider API or scale-set event flow.
@@ -58,12 +74,12 @@ The runtime protocol keeps the fleet independent of whether a job uses a VM, con
 
 The host, daemon, and engine form the control plane; forge services and runner environments are separate trust domains. Treat job code as untrusted unless its repository is trusted. Key controls and known limitations are documented in the [security guide](security.md).
 
-| Boundary | What crosses it | Design implication |
-| --- | --- | --- |
-| App / CLI ↔ daemon | Fleet commands and status over Unix-socket RPC | The socket is restricted to the current user. Any process running as that user can control the daemon; this is not a boundary against same-user malware. |
-| Engine ↔ forge | API requests, queue/runner state, and runner-registration material | Forge tokens are loaded from Keychain storage; forge API transport and opt-in plain-HTTP exceptions are detailed in [security](security.md). Registration material is delivered to the selected runner environment. |
-| Host ↔ runner environment | Provisioning, bootstrap scripts, and job execution | Tart uses per-instance SSH host-key pinning when guest-agent rotation succeeds; failed pinning falls back to unverified SSH. Containers use their runtime's local execution path. See the [security guide](security.md#known-limits). |
-| Job ↔ host resources | Job code, mounted cache, runtime capabilities | Tart and container isolation differ; host mode runs code directly on the Mac, and shared cache is writable when enabled. Choose a runtime and cache policy for the trust level of the repository. |
+| Boundary                  | What crosses it                                                    | Design implication                                                                                                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App / CLI ↔ daemon        | Fleet commands and status over Unix-socket RPC                     | The socket is restricted to the current user. Any process running as that user can control the daemon; this is not a boundary against same-user malware.                                                                              |
+| Engine ↔ forge            | API requests, queue/runner state, and runner-registration material | Forge tokens are loaded from Keychain storage; forge API transport and opt-in plain-HTTP exceptions are detailed in [security](security.md). Registration material is delivered to the selected runner environment.                   |
+| Host ↔ runner environment | Provisioning, bootstrap scripts, and job execution                 | Tart uses per-instance SSH host-key pinning when guest-agent rotation succeeds; failed pinning falls back to unverified SSH. Containers use their runtime's local execution path. See the [security guide](security.md#known-limits). |
+| Job ↔ host resources      | Job code, mounted cache, runtime capabilities                      | Tart and container isolation differ; host mode runs code directly on the Mac, and shared cache is writable when enabled. Choose a runtime and cache policy for the trust level of the repository.                                     |
 
 Passing fake-based unit tests does not establish live provider compatibility or prove a runtime's isolation boundary. See the [README](../README.md) and [security guide](security.md) for current test coverage, limitations, and safer settings.
 
@@ -87,9 +103,9 @@ Inside the targets, code is organized by domain:
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `KinhinKit/Core/`          | Shell, logging, paths, Keychain token store, error classification, version                                                                                                                                                                                                                                                  |
 | `KinhinKit/Config/`        | YAML config model + loader, validation, every config editor, capacity math, config store                                                                                                                                                                                                                                    |
-| `KinhinKit/Forges/`        | `Forge` protocol and provider clients over shared `ForgeHTTP`; GitHub Scale Set API client, session and message DTOs, and JIT registration adapter; auth status reporting (per-forge API reference: [docs/forges/](forges/README.md))                                                                                                                  |
+| `KinhinKit/Forges/`        | `Forge` protocol and provider clients over shared `ForgeHTTP`; GitHub Scale Set API client, session and message DTOs, and JIT registration adapter; auth status reporting (per-forge API reference: [docs/forges/](forges/README.md))                                                                                       |
 | `KinhinKit/Runtimes/`      | Runtime protocol, Tart, Apple-container, Docker and Host runtimes, routing pools, capacity partition, daemon-side container manager                                                                                                                                                                                         |
-| `KinhinKit/Fleet/`         | FleetEngine (engine / reload / credentials / reconcile / lifecycle splits), status model, records, GitHub Scale Set message listener and per-pool scale-set attach, daemon dispatch + RPC client/server                                                                                                                                                  |
+| `KinhinKit/Fleet/`         | FleetEngine (engine / reload / credentials / reconcile / lifecycle splits), status model, records, GitHub Scale Set message listener and per-pool scale-set attach, daemon dispatch + RPC client/server                                                                                                                     |
 | `KinhinKit/Images/`        | VM and container image preparation (tart macOS and Linux, container), runner bootstrap scripts, toolchain catalog, registry digest pinning and per-project derived images                                                                                                                                                   |
 | `KinhinKit/Setup/`         | Setup checklist computer, doctor report builder, CLT/tart health probes, host agent installer                                                                                                                                                                                                                               |
 | `KinhinKit/Cache/`         | Managed-toolchain cache pruning (auto-expiry)                                                                                                                                                                                                                                                                               |

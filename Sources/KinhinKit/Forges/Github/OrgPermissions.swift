@@ -16,6 +16,18 @@ public enum OrgPermissionProbe {
         }
     }
 
+    /// Resolves the GitHub settings URL for the scope's instance, so callers
+    /// can render it for the user instead of hardcoding github.com.
+    public static func settingsURL(for scope: String, instance: String?) -> String {
+        let base: String
+        if let instance, let url = URL(string: instance), let host = url.host {
+            base = host.hasSuffix(".ghe.com") ? "\(url.scheme ?? "https")://\(host)" : "https://\(host)/"
+        } else {
+            base = "https://github.com"
+        }
+        return base
+    }
+
     /// Checks runner-management permission for the scope. Works for both
     /// repo scopes ("owner/name") and org scopes — org scopes just get a
     /// more specific remediation hint, since they need org-level rights.
@@ -59,7 +71,7 @@ public enum OrgPermissionProbe {
                     return Report(
                         ok: false,
                         message:
-                            "PAT can't reach '\(scope)' — check the repo name and that the token has access to it (github.com/settings/tokens)"
+                            "PAT can't reach '\(scope)' — check the repo name and that the token has access to it (\(settingsURL(for: scope, instance: nil))/settings/tokens)"
                     )
                 }
                 return Report(

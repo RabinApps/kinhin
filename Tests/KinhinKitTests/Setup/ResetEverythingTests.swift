@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -53,8 +54,10 @@ final class ResetEverythingTests: XCTestCase {
     /// Lays out a realistic support directory: logs, state, toolchain cache,
     /// plus a foreign file reset must not invent a reason to keep.
     private func populateSupportDirectory() throws {
-        try FileManager.default.createDirectory(at: supportRoot.appendingPathComponent("logs"), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: supportRoot.appendingPathComponent("state"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: supportRoot.appendingPathComponent("logs"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: supportRoot.appendingPathComponent("state"), withIntermediateDirectories: true)
         let cache = supportRoot.appendingPathComponent("toolchain-cache")
         try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
         try Data("log".utf8).write(to: supportRoot.appendingPathComponent("logs/kinhin.log"))
@@ -80,9 +83,9 @@ final class ResetEverythingTests: XCTestCase {
             isDaemonAlive: { true })
         XCTAssertEqual(plan.scope, .config)
         XCTAssertEqual(plan.configFiles, [configURL, configURL.appendingPathExtension("bak")])
-        XCTAssertEqual(plan.keychainAccounts, ["github-pat", "github-pat:work", "gitea-pat"])
+        XCTAssertEqual(plan.keychainAccounts, ["gitea-pat", "github-pat", "github-pat:work"], "sorted")
         XCTAssertFalse(plan.daemonInstalled, "the config scope never touches the daemon")
-        XCTAssertFalse(plan.daemonRunning)
+        XCTAssertTrue(plan.daemonAlive, "informational: a daemon was alive at plan time")
         XCTAssertNil(plan.cleanup)
         XCTAssertFalse(plan.configBroken)
     }
@@ -104,7 +107,7 @@ final class ResetEverythingTests: XCTestCase {
         let plan = await ResetEverything.plan(
             scope: .daemon, configURL: configURL, supportRoot: supportRoot,
             isDaemonAlive: { true })
-        XCTAssertTrue(plan.daemonRunning)
+        XCTAssertTrue(plan.daemonAlive)
         XCTAssertNil(plan.cleanup)
         XCTAssertTrue(plan.configFiles.isEmpty, "the daemon scope keeps the config")
         XCTAssertTrue(plan.keychainAccounts.isEmpty, "the daemon scope keeps the tokens")
@@ -265,9 +268,14 @@ final class ResetEverythingTests: XCTestCase {
         try populateSupportDirectory()
         var plan = await ResetEverything.plan(
             scope: .all, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false })
+        // A nonexistent tart binary: the controller cannot be built, so the
+        // VM/image steps are skipped with a warning (the same path a machine
+        // without tart takes).
+        plan.tartPath = "/nonexistent/kinhin-test-tart"
         plan.cleanup = CleanupPlan(vms: ["kinhin-1"], images: ["tahoe-base"], cacheBytes: nil)
         var uninstallCalls = 0, stopCalls = 0
-        let report = try await executeHermetically(plan, tart: nil, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+        let report = try await executeHermetically(
+            plan, tart: nil, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
         XCTAssertTrue(
             report.contains(where: { $0.hasPrefix("warning:") }),
             "a missing tart is reported, not fatal: \(report.joined(separator: "\n"))")

@@ -137,10 +137,14 @@ struct KinhinCLI {
             print(SupportLinks.summary())
 
         case .workflow:
-            guard args.dropFirst().first == "test" else {
-                throw CLIError("unknown workflow subcommand; available: test", exit: .usage)
+            switch args.dropFirst().first {
+            case "test":
+                try await WorkflowTestCommand.run(Array(args.dropFirst(2)))
+            case "route":
+                try await WorkflowRouteCommand.run(Array(args.dropFirst(2)))
+            default:
+                throw CLIError("unknown workflow subcommand; available: test, route", exit: .usage)
             }
-            try await WorkflowTestCommand.run(Array(args.dropFirst(2)))
 
         case .version:
             print("kinhin \(kinhinVersion.current)")

@@ -139,6 +139,38 @@ final class MultiAccountEngineTests: XCTestCase {
         await engine.stop()
     }
 
+    /// An enterprise GitHub account (GHES / GHEC data residency) must reach
+    /// the client factory with its instance, and github.com accounts must
+    /// keep a nil one.
+    func testEnterpriseAccountCredentialsCarryTheirInstance() async throws {
+        let config = try ConfigLoader.parse(
+            """
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
+              - {name: work, forge: github, scope: bigco, instance: "https://github.example.com"}
+            labels: [kinhin]
+            poll_interval: 5
+
+            """)
+        let seen = Mutex<[String: String?]>([:])
+        let engine = FleetEngine(
+            config: config, pat: "legacy", tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
+            host: testHost,
+            githubFactory: GitHubClientFactory { credentials in
+                seen.withLock { $0[credentials.scope] = credentials.instance }
+                return FakeGitHub()
+            },
+            dependencies: .init(tokenLoader: { _, name in name == "github" ? "gh" : "w" }))
+
+        await engine.start()
+
+        XCTAssertEqual(seen.withLock { $0["bigco"] } ?? nil, "https://github.example.com")
+        XCTAssertNil(seen.withLock { $0["acme/widgets"] } ?? nil, "github.com keeps api.github.com")
+        await engine.stop()
+    }
+
     func testOldFleetRecordsStillDecodeWithoutAnAccount() throws {
         let json = #"{"id":"kinhin-1","phase":"ready","createdAt":0,"updatedAt":0,"platform":"gitea"}"#
         let record = try? JSONDecoder().decode(VMRecord.self, from: Data(json.utf8))

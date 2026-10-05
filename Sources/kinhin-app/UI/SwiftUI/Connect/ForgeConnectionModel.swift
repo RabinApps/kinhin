@@ -53,10 +53,11 @@ final class ForgeConnectionModel: ConfigFormModel {
     /// Deletes the stored token when the forge is deselected.
     @ObservationIgnored var deleteToken: () -> Void = {}
     /// Checks runner-management permission for a scope (GitHub only).
-    /// `token` nil → use the stored one. nil report = nothing to check.
+    /// `token` nil → use the stored one; `instance` is the enterprise host
+    /// (nil → github.com). nil report = nothing to check.
     @ObservationIgnored var checkPermission:
-        (_ scope: String, _ token: String?) async -> OrgPermissionProbe
-            .Report? = { _, _ in nil }
+        (_ scope: String, _ token: String?, _ instance: String?) async -> OrgPermissionProbe
+            .Report? = { _, _, _ in nil }
     /// Fired after any successful token or config change.
     @ObservationIgnored var onChanged: (() -> Void)?
 
@@ -331,7 +332,7 @@ final class ForgeConnectionModel: ConfigFormModel {
     /// is no repo or org to check yet. GitHub only: the other forges have no
     /// runner-management token probe.
     func verifyPermission(scope: String, token: String?) async {
-        guard let report = await checkPermission(scope, token) else { return }
+        guard let report = await checkPermission(scope, token, instanceIfAny) else { return }
         status = Line(text: report.message, style: report.ok ? .ok : .error)
     }
 

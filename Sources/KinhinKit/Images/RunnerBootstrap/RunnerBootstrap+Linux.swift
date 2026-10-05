@@ -1,5 +1,7 @@
 import Foundation
 
+/// Scripts injected into Linux VMs and containers over SSH to turn them into
+/// GitHub, Gitea, GitLab, Buildkite, Azure DevOps and Bitbucket runners.
 extension RunnerBootstrap {
     // MARK: - Linux (Apple container runtime)
 
@@ -9,7 +11,9 @@ extension RunnerBootstrap {
     /// to look for with the package that provides it. Idempotent: a no-op
     /// once everything is present (containers run as root — no sudo).
     static func linuxPrerequisitesScript(tools: [(command: String, package: String)]) -> String {
-        let checks = tools.map { "command -v \($0.command) >/dev/null 2>&1 || need=\"$need \($0.package)\"" }
+        let checks = tools.map { t in
+            "command -v \(t.command) >/dev/null 2>&1 || need=\"\"$need \"\(t.package)\""
+        }
         return
             ([
                 "# prerequisites (minimal base images lack them)",
@@ -24,152 +28,50 @@ extension RunnerBootstrap {
             ]).joined(separator: "\n")
     }
 
+    // MARK: - Linux runner agent installers (baked into images)
+
     /// Installs the GitHub Actions runner agent into a Linux image for the
     /// Apple-container runtime (baked during `kinhin image prepare` when a
     /// GitHub credential exists). Mirrors installScript but for Linux tarballs.
-    static func linuxGitHubAgentInstallScript(runnerVersion: String, arch: String = "arm64") -> String {
-        """
-        set -euo pipefail
-        \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("tar", "tar"), ("gzip", "gzip")]))
-        mkdir -p /opt/actions-runner
-        if [ ! -x /opt/actions-runner/config.sh ]; then
-        if [ ! -x ./config.sh ]; then
-          \(githubRunnerDownloadScript(version: runnerVersion, platform: "linux-\(arch)", file: "runner.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
-          tar xzf runner.tar.gz
-          rm runner.tar.gz
-          ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
-        fi
-        cd /opt/actions-runner
-        for index in 2 3 4 5 6 7 8 9 10; do
-          mkdir -p "/opt/actions-runner-$index"
-          cp -a /opt/actions-runner/. "/opt/actions-runner-$index/"
-        done
-        echo "linux actions-runner v\(runnerVersion) installed"
-        """
-    }
-
-    /// The managed-toolchains script baked into Linux images by
-    /// `kinhin image prepare --container` when a `toolchains:` section is
-    /// configured. Mirrors managedToolchainsInstallScript for the ubuntu-based
-    /// runner containers: guarded apt installs (running as root — no sudo),
-    /// a mise bootstrap (Linux base images don't ship it), `mise use --global`
-    /// pins, npm globals, and verify-gated completion. Cache exports point at
-    /// the container-side bind mount when present.
-    /// - Parameters:
-    ///   - runsAsRoot: The Linux container bake runs as root (plain apt, no
-    ///     sudo); a tart Linux VM guest runs an admin user and goes through
-    ///     passwordless sudo for apt and /usr/local/bin.
-    static func linuxManagedToolchainsInstallScript(
-        selection: ManagedToolchainSelection, mountPath: String?, runsAsRoot: Bool = true
-    )
-        -> String
-    {
-        // Root (containers) runs everything directly; a tart VM's admin user
-        // elevates with passwordless sudo.
-        let s = runsAsRoot ? "" : "sudo "
-        var lines: [String] = [
-            "set -euo pipefail",
-            // A VM guest's admin user needs sudo for apt; containers run as root.
-            runsAsRoot
-                ? linuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")])
-                : tartLinuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")]),
-        ]
-
-        if let mountPath {
-            lines.append(Self.cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: mountPath))
-        }
-
-        if !selection.aptPackages.isEmpty {
-            let packages = selection.aptPackages.map(shellQuote).joined(separator: " ")
-            lines.append(
-                """
-                # apt packages (guarded so re-runs no-op)
-                export DEBIAN_FRONTEND=noninteractive
-                for p in \(packages); do
-                  if ! dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'install ok installed'; then
-                    \(s)apt-get update -qq
-                    \(s)apt-get install -y --no-install-recommends "$p"
-                  fi
-                done
-                """)
-        }
-
-        if !selection.miseSpecs.isEmpty {
-            lines.append(
-                """
-                # mise bootstrap (Linux base images don't ship it) + shims on PATH
-                if ! command -v mise >/dev/null 2>&1; then
-                  curl --proto-redir '=https' --tlsv1.2 -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+    static func linuxGitHubAgentInstallScript(version: String, arch: String = "arm64", caBundlePath: String? = nil) -> String {
+        let caExport: String
+        if let caBundlePath = caBundlePath {
+            caExport = """
+                if [ -f \(shellQuote(caBundlePath)) ]; then
+                  cp \(shellQuote(caBundlePath)) /etc/ssl/certs/kinhin-ca.pem 2>/dev/null || true
+                  export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/kinhin-ca.pem
+                  export GIT_SSL_CAINFO=/etc/ssl/certs/kinhin-ca.pem
+                  export SSL_CERT_FILE=/etc/ssl/certs/kinhin-ca.pem
                 fi
-                export PATH="$HOME/.local/share/mise/shims:$PATH"
-                # persist it: runners start from a login shell, so job steps only see
-                # the pinned tools if the shims are on PATH there too
-                printf '%s\\n' 'export PATH="$HOME/.local/share/mise/shims:$PATH"' | \(s)tee /etc/profile.d/kinhin-mise.sh > /dev/null
-                """)
-            // mise's rust install writes rustup-init into MISE_CACHE_DIR, which fails on
-            // bind/virtiofs mounts ("Inappropriate ioctl for device"), so rust installs with
-            // mise's default (guest-local) cache — same bypass as the macOS script.
-            let rustSpecs = selection.miseSpecs.filter { ToolchainCatalog.rootTool(of: $0) == "rust" }
-            let otherSpecs = selection.miseSpecs.filter { ToolchainCatalog.rootTool(of: $0) != "rust" }
-            if !otherSpecs.isEmpty {
-                let specs = otherSpecs.map(shellQuote).joined(separator: " ")
-                lines.append(
-                    """
-                    # mise pins — installed AND set globally so every runner shell sees them
-                    mise use --global \(specs)
-                    """)
-            }
-            if !rustSpecs.isEmpty {
-                let specs = rustSpecs.map(shellQuote).joined(separator: " ")
-                lines.append(
-                    """
-                    # rust: guest-local mise cache (see above)
-                    env -u MISE_CACHE_DIR mise use --global \(specs)
-                    """)
-            }
-        }
 
-        if !selection.npmPackages.isEmpty {
-            lines.append("# npm globals (guarded so re-runs no-op)")
-            for package in selection.npmPackages {
-                let spec = shellQuote(package.version.isEmpty ? package.name : "\(package.name)@\(package.version)")
-                lines.append(
-                    """
-                    if ! npm ls -g --depth=0 \(shellQuote(package.name)) >/dev/null 2>&1; then
-                      \(s)npm install -g \(spec)
-                    fi
-                    """)
-            }
-        }
-
-        if !selection.gems.isEmpty {
-            let gems = selection.gems.map(shellQuote).joined(separator: " ")
-            lines.append(
                 """
-                # Ruby gems (system install; guarded so re-runs no-op)
-                for g in \(gems); do
-                  if ! gem list -i "^$g$" >/dev/null 2>&1; then
-                    \(s)gem install "$g"
-                  fi
-                done
-                """)
+        } else {
+            caExport = ""
         }
-
-        if !selection.stackSteps.isEmpty {
-            lines.append("# Stack steps (version-pinned installs)")
-            lines.append(contentsOf: selection.stackSteps)
-        }
-
-        if !selection.verifications.isEmpty {
-            lines.append("# Audit trail: verify every managed tool (output is logged)")
-            lines.append(selection.verifications.joined(separator: " && "))
-        }
-
-        return lines.joined(separator: "\n\n")
+        return """
+            set -euo pipefail
+            \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("tar", "tar"), ("gzip", "gzip")]))
+            mkdir -p /opt/actions-runner
+            if [ ! -x /opt/actions-runner/config.sh ]; then
+              if [ ! -x ./config.sh ]; then
+                \(githubRunnerDownloadScript(version: version, platform: "linux-\(arch)", file: "runner.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
+                tar xzf runner.tar.gz
+                rm runner.tar.gz
+                ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
+              fi
+            fi
+            \(caExport)cd /opt/actions-runner
+            for index in 2...10; do
+              mkdir -p "/opt/actions-runner-\(index)"
+              cp -a /opt/actions-runner/. "/opt/actions-runner-\(index)/"
+            done
+            echo "linux actions-runner v\(version) installed"
+            """
     }
 
-    /// Installs the Gitea runner binary into a Linux image (gitea-runner,
-    /// formerly act_runner — arm64 by default, amd64 for emulated bakes).
+    /// Installs the Gitea runner into a Linux image for the Apple-container
+    /// runtime (baked during `kinhin image prepare` when a Gitea credential
+    /// exists). Mirrors installScript but for Linux xz-compressed runners.
     static func linuxGiteaRunnerInstallScript(version: String, arch: String = "arm64") -> String {
         """
         set -euo pipefail
@@ -186,6 +88,8 @@ extension RunnerBootstrap {
         echo "linux gitea-runner v\(version) installed"
         """
     }
+
+    // MARK: - Linux container registration scripts
 
     /// GitHub registration inside a Linux container. The agent directory is
     /// baked at /opt/actions-runner; registration runs as root (the default
@@ -228,50 +132,86 @@ extension RunnerBootstrap {
                 """
         }
         return """
+
             set -euo pipefail
 
-            \(blocks)echo "\(max(1, runnerCount)) linux runner(s) started"
+            \(blocks)
             """
     }
 
-    /// Gitea registration inside a Linux container (gitea-runner register
-    /// --no-interactive + daemon; no --ephemeral exists upstream).
+    /// Gitea/Forgejo registration inside a Linux container. Hosts in the
+    /// `.gitea`/`.forgejo` cases route to this script; Forgejo shares the
+    /// Gitea runner binary.
     static func linuxGiteaRegistrationScript(
-        instance: String, token: String, labels: [String], name: String, runnerCount: Int = 1
+        instance: String,
+        token: String,
+        labels: [String],
+        name: String,
+        runnerCount: Int = 1
     ) -> String {
         let labelList = labels.joined(separator: ",")
-        // Register every runner before starting any (see `giteaRegistrationScript`).
         var blocks = ""
-        var starts = ""
         for index in 1...max(1, runnerCount) {
             let runnerName = runnerCount == 1 ? name : "\(name)-r\(index)"
-            let dir = runnerCount == 1 ? "/opt/gitea-runner" : "/opt/gitea-runner-\(index)"
+            let dir = runnerCount == 1 ? "/opt/actions-runner" : "/opt/actions-runner-\(index)"
             blocks += """
-                # Gitea runner \(index) of \(max(1, runnerCount))
+                # Gitea/Forgejo runner \(index) of \(max(1, runnerCount))
                 mkdir -p "\(dir)"
                 cd "\(dir)"
-                if [ ! -x gitea-runner ]; then
-                  cp /opt/gitea-runner/gitea-runner gitea-runner
+                if [ ! -x ./config.sh ]; then
+                  cp -a /opt/actions-runner/. "\(dir)" 2>/dev/null || true
                 fi
-                rm -f .runner
-                ./gitea-runner register --no-interactive \\
-                  --instance \(shellQuote(instance)) \\
-                  --token \(shellQuote(token)) \\
-                  --name \(shellQuote(runnerName)) \\
-                  --labels \(shellQuote(labelList)) >/dev/null
-
-                """
-            starts += """
-                cd "\(dir)"
-                nohup ./gitea-runner daemon > daemon-\(index).log 2>&1 &
+                if [ -f .runner ]; then
+                  ./config.sh remove --token \(shellQuote(token)) >/dev/null 2>&1 || true
+                fi
+                ./config.sh --url \(shellQuote(instance)) \\
+                            --token \(shellQuote(token)) \\
+                            --labels \(shellQuote(labelList)) \\
+                            --name \(shellQuote(runnerName)) \\
+                            --unattended \\
+                            --replace \\
+                            --work /opt/work-\(index) >/dev/null
+                nohup ./run.sh > run-\(index).log 2>&1 < /dev/null &
 
                 """
         }
         return """
             set -euo pipefail
 
-            \(blocks)# All registered; now start serving jobs.
-            \(starts)echo "\(max(1, runnerCount)) linux gitea runner(s) started"
+            \(blocks)
+            """
+    }
+
+    // MARK: - Linux JIT registration (GitHub Actions scale-set tokens)
+
+    /// JIT-config registration inside a Linux container (GitHub Actions
+    /// scale-set tokens). Same shape as the VM script but rooted at
+    /// /opt/actions-runner.
+    static func linuxJitRegistrationScript(
+        encodedJitConfig: String,
+        name: String,
+        workFolder: String = "/opt/work",
+        agentDirectory: String = "/opt/actions-runner",
+        pidFile: String? = nil
+    ) -> String {
+        let pidSetup = pidFile.map {
+            "mkdir -p \(shellQuote(URL(fileURLWithPath: $0).deletingLastPathComponent().path)); echo $! > \(shellQuote($0))"
+        } ?? ""
+        return """
+            set -euo pipefail
+            mkdir -p \(shellQuote(agentDirectory))
+            cd \(shellQuote(agentDirectory))
+            if [ ! -x ./config.sh ]; then
+              cp -a /opt/actions-runner/. . 2>/dev/null || true
+            fi
+            ./config.sh --jitconfig \(shellQuote(encodedJitConfig)) \\
+                        --unattended \\
+                        --replace \\
+                        --work \(shellQuote(workFolder)) >/dev/null
+            nohup ./run.sh > run.log 2>&1 &
+            \(pidSetup)
+            echo "runner started"
             """
     }
 }
+

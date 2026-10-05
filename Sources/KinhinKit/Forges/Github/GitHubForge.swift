@@ -21,15 +21,32 @@ struct GitHubForge: Forge {
         self.account = account
     }
 
-    /// Build from a GitHubCredentials (the legacy single-forge path).
+    /// Build from a GitHubCredentials (the legacy single-forge path),
+    /// keeping any enterprise instance the credentials carry.
     init(credentials: GitHubCredentials, labels: [String]) {
         self.init(
-            credentials: .github(token: credentials.token, scope: credentials.scope), labels: labels,
+            credentials: .github(
+                token: credentials.token, scope: credentials.scope,
+                instance: credentials.instance, allowInsecureHTTP: credentials.allowInsecureHTTP),
+            labels: labels,
             client: GitHubClient(credentials: credentials))
     }
 
+    /// Build from an account config and token, wiring enterprise-instance fields
+    /// through to both the wrapped `ForgeCredentials` and the underlying
+    /// `GitHubClient` (the caller's client — it must already target the
+    /// account's instance).
+    init(account: AccountConfig, token: String, client: GitHubServing, labels: [String]) {
+        self.init(
+            credentials: .github(
+                token: token, scope: account.scope,
+                instance: account.instance, allowInsecureHTTP: account.allowInsecureHTTP ?? false),
+            labels: labels, client: client,
+            account: account.name)
+    }
+
     func registrationURL() -> String {
-        GitHubCredentials(token: "", scope: credentials.scope).configureURL
+        client.configureURL
     }
 
     func mintRegistrationToken() async throws -> String {

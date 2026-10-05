@@ -10,7 +10,8 @@ public protocol GitHubScaleSetServing: Sendable {
     func createSession(scaleSetId: Int, ownerName: String) async throws -> GitHubScaleSetSession
     func refreshSession(scaleSetId: Int, sessionId: String) async throws -> GitHubScaleSetSession
     func deleteSession(scaleSetId: Int, sessionId: String) async throws
-    func pollMessages(session: GitHubScaleSetSession, lastMessageId: String?, maxCapacity: Int) async throws -> [GitHubScaleSetMessage]
+    func pollMessages(session: GitHubScaleSetSession, lastMessageId: String?, maxCapacity: Int) async throws
+        -> [GitHubScaleSetMessage]
     func ackMessage(session: GitHubScaleSetSession, messageId: String) async throws
     func generateJitConfig(scaleSetId: Int, name: String, workFolder: String) async throws -> GitHubScaleSetJitConfig
     func scaleSetStatistics(scaleSetId: Int) async throws -> GitHubScaleSetStatistics
@@ -113,10 +114,22 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         try request(method: method, path: path, body: body, headers: headers, baseURL: nil)
     }
 
+    private func restBaseURL(for instance: String?) -> URL {
+        guard let instance, let url = URL(string: instance), let host = url.host else {
+            return URL(string: "https://api.github.com")!
+        }
+        if host.hasSuffix(".ghe.com") {
+            return URL(string: "https://api.\(host)")!
+        }
+        return URL(string: "https://\(host)/api/v3")!
+    }
+
     private func request(
         method: String, path: String, body: Data?, headers: [String: String] = [:], baseURL: URL?
     ) throws -> URLRequest {
-        guard var components = URLComponents(string: "https://api.github.com\(path)") else {
+        let base =
+            credentials.isEnterprise ? restBaseURL(for: credentials.instance) : URL(string: "https://api.github.com")!
+        guard var components = URLComponents(string: base.absoluteString + path) else {
             throw GitHubError.http(0, "invalid request path \(path)")
         }
         let isAdminRequest = path.hasPrefix("/_apis/")
@@ -390,8 +403,10 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         }
         let eventData = Data(messageResponse.body.utf8)
         let events = eventData.isEmpty ? [] : try JSONDecoder().decode([GitHubScaleSetJobEvent].self, from: eventData)
-        return [GitHubScaleSetMessage(
-            messageId: String(messageResponse.messageId), statistics: messageResponse.statistics, events: events)]
+        return [
+            GitHubScaleSetMessage(
+                messageId: String(messageResponse.messageId), statistics: messageResponse.statistics, events: events)
+        ]
     }
 
     public func ackMessage(session: GitHubScaleSetSession, messageId: String) async throws {
@@ -419,7 +434,8 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
             throw GitHubScaleSetClientError.messageQueueTokenExpired
         }
         guard http.statusCode == 204 else {
-            throw ScaleSetError.messageServiceFailure(reason: "message acknowledgement failed (HTTP \(http.statusCode))")
+            throw ScaleSetError.messageServiceFailure(
+                reason: "message acknowledgement failed (HTTP \(http.statusCode))")
         }
     }
 

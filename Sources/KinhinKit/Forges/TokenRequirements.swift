@@ -23,10 +23,20 @@ public struct TokenRequirements: Equatable, Sendable {
 
     /// GitHub. `scope` is "owner/name" (one repository), an org name (every
     /// repo in it), or empty/unknown — then both cases are listed.
-    public static func github(scope: String) -> TokenRequirements {
+    /// `instance` (nil = github.com; a GHES host or GHEC data-residency host)
+    /// controls the token-creation links and the settings base shown in the
+    /// permission list.
+    public static func github(scope: String, instance: String? = nil) -> TokenRequirements {
         let scope = scope.trimmingCharacters(in: .whitespaces)
         let known = !scope.isEmpty && scope != ConfigLoader.templateRepo
         let isRepo = scope.contains("/")
+        let webBase: String
+        if let instance, let url = URL(string: instance), let host = url.host {
+            let scheme = url.scheme?.lowercased() == "http" ? "http" : "https"
+            webBase = "\(scheme)://\(host)/"
+        } else {
+            webBase = "https://github.com/"
+        }
 
         let repoFine = [
             "Repository access: only '\(known ? scope : "owner/name")'",
@@ -41,8 +51,14 @@ public struct TokenRequirements: Equatable, Sendable {
             "Repository permissions → Actions: Read-only (see queued and running jobs — the only fine-grained runs access; GitHub has no organization-level runs permission for tokens)",
             "Repository permissions → Metadata: Read-only (added automatically)",
         ]
-        let fineURL = "https://github.com/settings/personal-access-tokens/new"
-        let classicURL = "https://github.com/settings/tokens/new"
+        let settingsBase: String
+        if webBase.hasSuffix(".ghe.com") {
+            settingsBase = webBase
+        } else {
+            settingsBase = "https://github.com"
+        }
+        let fineURL = "\(settingsBase)/settings/personal-access-tokens/new"
+        let classicURL = "\(settingsBase)/settings/tokens/new"
         // GitHub documents no org-level runs endpoint, so org scopes read each
         // repository's runs separately; org scopes should know about it.
         let orgRunsLimitation =
@@ -56,8 +72,10 @@ public struct TokenRequirements: Equatable, Sendable {
                     permissions: repo
                         ? ["Scope: repo"]
                         : [
-                            "Scopes: admin:org, repo — repo covers runners and jobs for every repository; admin:org manages runners"
-                        ]),
+                            "Scopes: admin:org, repo — repo covers runners and jobs for every repository; "
+                                + "admin:org manages runners"
+                        ],
+                ),
             ]
         }
 

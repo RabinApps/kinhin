@@ -304,7 +304,8 @@ struct TartRuntime: Runtime {
                         encodedJitConfig: config.1,
                         name: config.0,
                         workFolder: workFolder,
-                        agentDirectory: directory
+                        agentDirectory: directory,
+                        agentTemplate: runnerCount > 1 ? "~/actions-runner" : nil
                     )
                 }.joined(separator: "\n")
                 return cachePrefix + scripts
@@ -321,7 +322,7 @@ struct TartRuntime: Runtime {
         case .gitea, .forgejo:
             // Forgejo shares Gitea's runner binary and registration flow.
             return cachePrefix
-                + RunnerBootstrap.giteaRegistrationScript(
+                + RunnerBootstrap.linuxGiteaRegistrationScript(
                     instance: forge.registrationURL(),
                     token: token,
                     labels: forge.labels,

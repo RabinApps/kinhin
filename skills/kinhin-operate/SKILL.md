@@ -47,6 +47,16 @@ Scripts can branch on them: `0` success, `1` general, `2` usage (bad command lin
 - `--all` removes VMs, images and caches. Uninstall order: stop, `cleanup --all --yes`, `daemon uninstall`, then
   `bash install.sh --uninstall`.
 
+## Reset
+
+`kinhin reset [--scope config|daemon|all] [--yes]`
+
+- Wipes local state irreversibly: `config` = config file + tokens + logs + state + app preferences;
+  `daemon` = stops the fleet and removes the LaunchAgent; `all` = everything, including VMs, images
+  and the toolchain cache. There is no undo and no backup.
+- Never run `kinhin reset` without the user explicitly asking for it, and never add `--yes` yourself:
+  interactive runs confirm twice (plan + typed `reset`), and scripts must opt in deliberately.
+
 ## Safety
 
 - Do not run `cleanup --yes`, `stop` or `daemon uninstall` on a fleet serving live jobs without confirming with the user.

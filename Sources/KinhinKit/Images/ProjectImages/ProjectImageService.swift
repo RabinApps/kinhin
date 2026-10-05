@@ -178,8 +178,11 @@ public struct ProjectImageService: Sendable {
             throw ConfigError.invalid("no token stored for account '\(account.name)' (kinhin auth set)")
         }
         return GitHubForge(
-            credentials: .github(token: token, scope: account.scope), labels: config.labels,
-            client: GitHubClient(credentials: GitHubCredentials(token: token, scope: account.scope)),
-            account: account.name)
+            account: account, token: token,
+            client: GitHubClient(
+                credentials: GitHubCredentials(
+                    token: token, scope: account.scope, instance: account.instance,
+                    allowInsecureHTTP: account.allowInsecureHTTP ?? false)),
+            labels: config.labels)
     }
 }

@@ -141,24 +141,36 @@ enum RunCommands {
     /// `kinhin requeue <forge>` — cancel the queue's matching jobs and
     /// re-queue them. Use `--yes` to skip the confirmation.
     static func requeueQueuedJobs(_ args: [String]) async throws {
-        guard let forgeId = args.first(where: { !hasFlag($0, in: args) && !$0.hasPrefix("--") && $0 != "--help" && $0 != "-h" }) else {
+        guard
+            let forgeId = args.first(where: {
+                !hasFlag($0, in: args) && !$0.hasPrefix("--") && $0 != "--help" && $0 != "-h"
+            })
+        else {
             fail("usage: kinhin requeue <forge> [--yes]", exit: .usage)
         }
         let confirmed = hasFlag("--yes", in: args)
         guard let forge = ForgeID(rawValue: forgeId) else {
-            fail("unknown forge '\(forgeId)'; available: \(ForgeID.allCases.map(\.rawValue).joined(separator: ", ")), or add one in config first", exit: .usage)
+            fail(
+                "unknown forge '\(forgeId)'; available: \(ForgeID.allCases.map(\.rawValue).joined(separator: ", ")), or add one in config first",
+                exit: .usage)
         }
         try await runRequeue(for: forge, confirmed: confirmed)
     }
 
     /// `kinhin skip <forge>` — mark the queue's matching jobs as skipped.
     static func skipQueuedJobs(_ args: [String]) async throws {
-        guard let forgeId = args.first(where: { !hasFlag($0, in: args) && !$0.hasPrefix("--") && $0 != "--help" && $0 != "-h" }) else {
+        guard
+            let forgeId = args.first(where: {
+                !hasFlag($0, in: args) && !$0.hasPrefix("--") && $0 != "--help" && $0 != "-h"
+            })
+        else {
             fail("usage: kinhin skip <forge> [--yes]", exit: .usage)
         }
         let confirmed = hasFlag("--yes", in: args)
         guard let forge = ForgeID(rawValue: forgeId) else {
-            fail("unknown forge '\(forgeId)'; available: \(ForgeID.allCases.map(\.rawValue).joined(separator: ", ")), or add one in config first", exit: .usage)
+            fail(
+                "unknown forge '\(forgeId)'; available: \(ForgeID.allCases.map(\.rawValue).joined(separator: ", ")), or add one in config first",
+                exit: .usage)
         }
         try await runSkip(for: forge, confirmed: confirmed)
     }

@@ -29,7 +29,9 @@ struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
         listener: GitHubScaleSetListener
     ) {
         self.account = account.name
-        self.credentials = .github(token: token, scope: account.scope)
+        self.credentials = .github(
+            token: token, scope: account.scope,
+            instance: account.instance, allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         self.labels = account.labels ?? []
         self.client = client
         self.listener = listener
@@ -43,7 +45,9 @@ struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
         listener: GitHubScaleSetListener
     ) {
         self.account = account.name
-        self.credentials = .github(token: token, scope: account.scope)
+        self.credentials = .github(
+            token: token, scope: account.scope,
+            instance: account.instance, allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         self.labels = account.labels ?? labels
         self.client = client
         self.listener = listener
@@ -64,7 +68,7 @@ struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
     // MARK: - Registration URL (delegated to the underlying client path)
 
     func registrationURL() -> String {
-        GitHubCredentials(token: "", scope: credentials.scope).configureURL
+        GitHubCredentials(token: "", scope: credentials.scope, instance: credentials.instance).configureURL
     }
 
     // MARK: - Registration (scale-set uses JIT config, not the shared token path)
@@ -176,5 +180,15 @@ struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
         // The listener produces `ForgeJob` demand; the underlying GitHub REST
         // path operates on queued workflow-run ids. Until the scale-set listener
         // emits run ids, this is intentionally a no-op.
+    }
+}
+
+extension GitHubCredentials {
+    /// A builder that adds enterprise instance fields to a credential struct
+    /// built without them, so the scale-set and classic forge paths can reuse a
+    /// single delegate client when an account carries an instance URL.
+    func withEnterpriseFields(instance: String?, allowInsecureHTTP: Bool) -> GitHubCredentials {
+        GitHubCredentials(
+            token: token, scope: scope, instance: instance, allowInsecureHTTP: allowInsecureHTTP)
     }
 }

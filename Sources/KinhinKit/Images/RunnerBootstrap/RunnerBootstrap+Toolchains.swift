@@ -186,4 +186,100 @@ extension RunnerBootstrap {
         echo "base image prepared"
         """
     }
+
+    /// The managed-toolchains script baked by `image prepare --container` when a
+    /// `toolchains:` section is configured. The Linux container bake runs as root
+    /// (plain apt, no sudo); a tart Linux VM guest runs an admin user and goes
+    /// through passwordless sudo for apt and /usr/local/bin.
+    static func linuxManagedToolchainsInstallScript(
+        selection: ManagedToolchainSelection, mountPath: String?, runsAsRoot: Bool = true
+    ) -> String {
+        let s = runsAsRoot ? "" : "sudo "
+        var lines: [String] = [
+            "set -euo pipefail",
+            runsAsRoot
+                ? linuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")])
+                : tartLinuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")]),
+        ]
+        if let mountPath {
+            lines.append(Self.cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: mountPath))
+        }
+        if !selection.aptPackages.isEmpty {
+            let packages = selection.aptPackages.map(shellQuote).joined(separator: " ")
+            lines.append(
+                """
+                # apt packages (guarded so re-runs no-op)
+                export DEBIAN_FRONTEND=noninteractive
+                for p in \(packages); do
+                  if ! dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'install ok installed'; then
+                    \(s)apt-get update -qq
+                    \(s)apt-get install -y --no-install-recommends "$p"
+                  fi
+                done
+                """)
+        }
+        if !selection.miseSpecs.isEmpty {
+            lines.append(
+                """
+                # mise bootstrap (Linux base images don't ship it) + shims on PATH
+                if ! command -v mise >/dev/null 2>&1; then
+                  curl --proto-redir '=https' --tlsv1.2 -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+                fi
+                export PATH="$HOME/.local/share/mise/shims:$PATH"
+                printf '%s\\n' 'export PATH="$HOME/.local/share/mise/shims:$PATH"' | \(s)tee /etc/profile.d/kinhin-mise.sh > /dev/null
+                """)
+            let rustSpecs = selection.miseSpecs.filter { ToolchainCatalog.rootTool(of: $0) == "rust" }
+            let otherSpecs = selection.miseSpecs.filter { ToolchainCatalog.rootTool(of: $0) != "rust" }
+            if !otherSpecs.isEmpty {
+                let specs = otherSpecs.map(shellQuote).joined(separator: " ")
+                lines.append(
+                    """
+                    # mise pins — installed AND set globally so every runner shell sees them
+                    mise use --global \(specs)
+                    """)
+            }
+            if !rustSpecs.isEmpty {
+                let specs = rustSpecs.map(shellQuote).joined(separator: " ")
+                lines.append(
+                    """
+                    # rust: guest-local mise cache (see above)
+                    env -u MISE_CACHE_DIR mise use --global \(specs)
+                    """)
+            }
+        }
+        if !selection.npmPackages.isEmpty {
+            lines.append("# npm globals (guarded so re-runs no-op)")
+            for package in selection.npmPackages {
+                let spec = shellQuote(package.version.isEmpty ? package.name : "\(package.name)@\(package.version)")
+                lines.append(
+                    """
+                    if ! npm ls -g --depth=0 \(shellQuote(package.name)) >/dev/null 2>&1; then
+                      \(s)npm install -g \(spec)
+                    fi
+                    """)
+            }
+        }
+        if !selection.gems.isEmpty {
+            let gems = selection.gems.map(shellQuote).joined(separator: " ")
+            lines.append(
+                """
+                # Ruby globals (guarded so re-runs no-op)
+                if ! command -v gem >/dev/null 2>&1; then
+                  \(s)apt-get update -qq
+                  \(s)apt-get install -y --no-install-recommends ruby
+                fi
+                if ! gem list --local \(gems) —exact >/dev/null 2>&1; then
+                  \(s)gem install --no-document \(gems)
+                fi
+                """)
+        }
+        let epilogue: String
+        if let mountPath {
+            epilogue = Self.cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: mountPath)
+        } else {
+            epilogue = ""
+        }
+        lines.append(epilogue)
+        return lines.joined(separator: "\n")
+    }
 }

@@ -86,8 +86,8 @@ final class ConnectModel: ConfigFormModel {
         card.hasStoredToken = { [hasStoredToken, forge] in try hasStoredToken(forge) }
         card.loadToken = { [loadToken, forge] in try loadToken(forge) }
         card.deleteToken = { [deleteToken, forge] in deleteToken(forge) }
-        card.checkPermission = { [weak self] scope, token in
-            await self?.checkPermission(scope, token)
+        card.checkPermission = { [weak self] scope, token, instance in
+            await self?.checkPermission(scope, token, instance)
         }
         card.onChanged = { [weak self] in self?.onChanged?() }
         cards[forge] = card
@@ -96,11 +96,12 @@ final class ConnectModel: ConfigFormModel {
     }
 
     /// The GitHub runner-management probe shared by every card (only
-    /// GitHub's card installs it).
+    /// GitHub's card installs it). `instance` is the card's enterprise host
+    /// (nil → github.com).
     @ObservationIgnored var checkPermission:
-        (_ scope: String, _ token: String?) async -> OrgPermissionProbe
+        (_ scope: String, _ token: String?, _ instance: String?) async -> OrgPermissionProbe
             .Report? = {
-                scope, token in
+                scope, token, instance in
                 let resolved: String?
                 do {
                     resolved =
@@ -112,7 +113,9 @@ final class ConnectModel: ConfigFormModel {
                 }
                 guard let resolved, !scope.isEmpty else { return nil }
                 return await OrgPermissionProbe.verify(
-                    github: GitHubClient(credentials: GitHubCredentials(token: resolved, scope: scope)), scope: scope)
+                    github: GitHubClient(
+                        credentials: GitHubCredentials(token: resolved, scope: scope, instance: instance)),
+                    scope: scope)
             }
 
     // MARK: - Selector

@@ -198,6 +198,12 @@ extension GitHubClient {
             else { throw GitHubError.http(http.statusCode, "log redirect without an https location") }
             var signed = URLRequest(url: location)
             signed.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
+            // Log downloads are the one place a cross-host hop is allowed:
+            // github.com and GHES both redirect to their blob storage on
+            // another host, and the signed URL is fetched by hand with no
+            // Authorization header, so no credential rides along. Every other
+            // endpoint still goes through the shared session, whose
+            // RedirectGuard refuses cross-host redirects.
             let (body, bodyResponse) = try await session.data(for: signed)
             switch (bodyResponse as? HTTPURLResponse)?.statusCode {
             case 200: break

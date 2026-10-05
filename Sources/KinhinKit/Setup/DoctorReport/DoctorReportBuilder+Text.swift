@@ -57,7 +57,7 @@ extension DoctorReportBuilder {
                 .split(separator: "\n").map { "  \($0)" }.joined(separator: "\n"))
         do {
             if let token = try accountLoad(.github, account.name) {
-                lines.append("  org perms:  \(await orgPermissionCheck(token, org))")
+                lines.append("  org perms:  \(await orgPermissionCheck(token, org, account.instance))")
             } else {
                 lines.append(
                     "  org perms:  cannot verify — no token stored (run: kinhin auth set --account \(account.name))")

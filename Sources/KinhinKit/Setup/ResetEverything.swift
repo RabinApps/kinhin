@@ -27,11 +27,14 @@ public enum ResetScope: String, CaseIterable, Sendable {
     public var summary: String {
         switch self {
         case .config:
-            return "Delete the config file, every stored token, logs and local state. VMs, images, the toolchain cache and the daemon are kept."
+            return
+                "Delete the config file, every stored token, logs and local state. VMs, images, the toolchain cache and the daemon are kept."
         case .daemon:
-            return "Stop the fleet and remove the background daemon. Everything else is kept; `kinhin daemon install` reinstalls it."
+            return
+                "Stop the fleet and remove the background daemon. Everything else is kept; `kinhin daemon install` reinstalls it."
         case .all:
-            return "A factory reset: config, tokens, logs, state, the daemon, all VMs and images, and the toolchain cache."
+            return
+                "A factory reset: config, tokens, logs, state, the daemon, all VMs and images, and the toolchain cache."
         }
     }
 
@@ -57,7 +60,10 @@ public struct ResetPlan: Equatable, Sendable {
     /// (`legacy:` prefixes the pre-rename service's items).
     public var keychainAccounts: [String] = []
     public var daemonInstalled = false
-    public var daemonRunning = false
+    /// A daemon was alive when the plan was built (any scope — the config
+    /// scope uses this to warn that a running daemon keeps serving with its
+    /// in-memory token; only includesDaemon scopes act on it).
+    public var daemonAlive = false
     /// The "everything" scope's VM/image/cache inventory; nil otherwise.
     public var cleanup: CleanupPlan?
     /// The support directory the `all` scope empties (and where logs/state
@@ -80,7 +86,7 @@ public struct ResetPlan: Equatable, Sendable {
     public func describe() -> String {
         var lines: [String] = ["kinhin reset — \(scope.label)"]
         if scope.includesDaemon {
-            if daemonRunning { lines.append("  stop the fleet (the running daemon)") }
+            if daemonAlive { lines.append("  stop the fleet (the running daemon)") }
             lines.append("  remove the daemon LaunchAgent (com.kinhin.daemon)")
         }
         if let cleanup {
@@ -93,9 +99,10 @@ public struct ResetPlan: Equatable, Sendable {
             lines.append("  (the daemon, VMs, images and the toolchain cache are kept)")
         }
         if !keychainAccounts.isEmpty {
-            lines.append("  delete \(keychainAccounts.count) keychain token(s): \(keychainAccounts.joined(separator: ", "))")
+            lines.append(
+                "  delete \(keychainAccounts.count) keychain token(s): \(keychainAccounts.joined(separator: ", "))")
         }
-        if scope == .config, daemonRunning {
+        if scope == .config, daemonAlive {
             lines.append("  note: the running daemon keeps serving with its in-memory token until restarted")
         }
         if configBroken, scope == .all {
@@ -148,15 +155,16 @@ public enum ResetEverything {
             }
         }
         plan.daemonInstalled = scope.includesDaemon && Daemon.agentPlistURL != nil
-        plan.daemonRunning = scope.includesDaemon && isDaemonAlive()
+        plan.daemonAlive = isDaemonAlive()
         if scope == .all {
             let controller = tart ?? (try? TartController(configuredPath: config.tartPath))
             let cacheRoot = supportRoot.appendingPathComponent(ToolchainCacheMount.hostDirectoryName, isDirectory: true)
             // A tart that cannot be listed contributes no VMs; the cache is
             // still counted and the directory still emptied.
-            plan.cleanup = (try? await CleanupPlan.plan(
-                targets: .all, tart: controller, baseImage: config.image,
-                namedImages: config.images.map(\.name), cacheRoot: cacheRoot)) ?? CleanupPlan()
+            plan.cleanup =
+                (try? await CleanupPlan.plan(
+                    targets: .all, tart: controller, baseImage: config.image,
+                    namedImages: config.images.map(\.name), cacheRoot: cacheRoot)) ?? CleanupPlan()
         }
         if scope.includesConfig {
             plan.keychainAccounts = (try? KeychainTokenStore.accounts()) ?? []
@@ -184,13 +192,13 @@ public enum ResetEverything {
         let fm = FileManager.default
 
         // 1. Stop the fleet so VMs tear down and nothing recreates state.
-        if plan.scope.includesDaemon {
+        if plan.scope.includesDaemon, plan.daemonAlive {
             if let stopFleet {
                 await stopFleet()
             } else {
                 await stopDaemonFleetIfAlive()
             }
-            if plan.daemonRunning { report.append("stopped the fleet") }
+            report.append("stopped the fleet")
         }
 
         // 2. Remove the LaunchAgent before touching anything it could revive.
@@ -222,7 +230,8 @@ public enum ResetEverything {
                 }
             } else if !cleanup.vms.isEmpty || !cleanup.images.isEmpty {
                 report.append(
-                    "warning: tart is not available — \(cleanup.vms.count + cleanup.images.count) VM(s)/image(s) were left on disk (re-run `kinhin cleanup --yes`)")
+                    "warning: tart is not available — \(cleanup.vms.count + cleanup.images.count) VM(s)/image(s) were left on disk (re-run `kinhin cleanup --yes`)"
+                )
             }
             if cleanup.cacheBytes != nil {
                 let cacheRoot = plan.supportRoot.appendingPathComponent(
@@ -267,7 +276,9 @@ public enum ResetEverything {
                     removed.isEmpty ? "no stored tokens found" : "removed \(removed.count) keychain token(s)")
             } catch {
                 Log.warn("reset", "keychain wipe failed: \(error.localizedDescription)")
-                report.append("warning: the keychain could not be wiped (\(error.localizedDescription)) — remove the tokens with `kinhin auth clear`")
+                report.append(
+                    "warning: the keychain could not be wiped (\(error.localizedDescription)) — remove the tokens with `kinhin auth clear`"
+                )
             }
         }
         Log.info("reset", "kinhin was reset (scope: \(plan.scope.rawValue)) — this cannot be undone")

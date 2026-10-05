@@ -252,6 +252,9 @@ enum RuntimesCommand {
         let defaultRuntime: String
         let pools: [PoolJSON]
         let routes: [RouteJSON]
+        /// The availability sweep: every runtime this Mac could use (configured
+        /// or not) and what probing it found — `--no-health` leaves it empty.
+        let availability: [String: String]
     }
 
     static func healthDescription(_ health: RuntimeHealth?) -> String? {
@@ -282,6 +285,9 @@ enum RuntimesCommand {
             },
             routes: vm.routes.map { route in
                 RouteJSON(pattern: route.pattern, runtime: route.runtime.rawValue, isWorkflow: route.isWorkflow)
+            },
+            availability: vm.availability.reduce(into: [:]) { result, entry in
+                result[entry.key.rawValue] = healthDescription(entry.value) ?? "unknown"
             }
         )
         let encoder = JSONEncoder()

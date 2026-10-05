@@ -2,6 +2,110 @@ import AppKit
 import KinhinKit
 import Observation
 
+// MARK: - Linux runtime choice (three-way comparison)
+
+/// The three Linux runtimes a repo's Linux jobs can run on, and the one the
+/// user picks from the "This Mac" form. Mirrors `docs/runtimes.md` choosing-
+/// a-linux-runtime: each option carries its own per-runtime prerequisites, so
+/// the sheet only offers what this Mac can actually run, and the "why" text is
+/// the comparison from the docs (VM-grade isolation / density / amd64 / needs /
+/// best-for), not a paraphrase the reader would have to trust.
+enum LinuxRuntimeSetup: Sendable, CaseIterable {
+    case appleContainer
+    case docker
+    case tartLinux
+
+    var id: String { switch self {
+        case .appleContainer: return "appleContainer"
+        case .docker: return "docker"
+        case .tartLinux: return "tartLinux"
+    } }
+
+    var displayName: String {
+        switch self {
+        case .appleContainer: return "Apple container"
+        case .docker: return "Docker"
+        case .tartLinux: return "Tart (Linux VM)"
+        }
+    }
+
+    /// The installable tool behind the option.
+    var tool: InstallableTool? {
+        switch self {
+        case .appleContainer: return .appleContainer
+        case .docker: return .docker
+        case .tartLinux: return .tart
+        }
+    }
+
+    /// Per-runtime prerequisites the reader can act on. Mirrors the docs:
+    /// apple/container needs the container CLI; Docker needs a Docker provider;
+    /// Tart (Linux VM) needs tart.
+    var prerequisite: String {
+        switch self {
+        case .appleContainer: return "Apple container CLI (brew install container)"
+        case .docker: return "Docker Desktop, OrbStack or colima"
+        case .tartLinux: return "tart (for macOS VMs too)"
+        }
+    }
+
+    /// One-line comparison row from the docs, used as the option's "why" line.
+    var summary: String {
+        switch self {
+        case .appleContainer:
+            return "VM-grade isolation, no daemon, high density, 8 GB/instance — Debian/Ubuntu-based image only, no amd64, beta."
+        case .docker:
+            return "Highest density if a Docker provider already runs; amd64 via emulation with JIT/Go/Java/.NET caveats; shared kernel."
+        case .tartLinux:
+            return "Full control: your distro, kernel modules, long sudo; lowest density, 50 GB/instance, needs an ISO or published image."
+        }
+    }
+
+    /// Options worth showing on this Mac, with any "limited" caveat folded into
+    /// the option's detail (same shape HostRequirements.offeredOptions already builds).
+    static func offeredOptions(on host: HostFacts) -> [LinuxRuntimeSetup] {
+        allCases.filter { unavailableReason(for: $0, on: host) == nil }
+    }
+
+    /// Why the option cannot run here, or nil when at least one install path works.
+    static func unavailableReason(for option: LinuxRuntimeSetup, on host: HostFacts) -> String? {
+        switch option {
+        case .appleContainer:
+            return HostRequirements.blockingReason(for: .appleContainer, on: host)
+        case .docker:
+            return HostRequirements.blockingReason(for: .docker, on: host)
+        case .tartLinux:
+            // tart is supported on every Mac kinhin runs on; the only blocker
+            // is a host that kinhin itself excludes.
+            return HostRequirements.blockingReason(for: .tart, on: host)
+        }
+    }
+
+    /// The sheet's confirm payload: the option the user chose, plus the install
+    /// method they picked (nil = the best available one).
+    struct Offer: Identifiable {
+        let id: String
+        let tool: InstallableTool?
+        let method: String?
+        let onConfirm: (Offer?) -> Void
+
+        init(
+            tool: InstallableTool?,
+            options: [LinuxRuntimeSetup],
+            onConfirm: @escaping (Offer?) -> Void
+        ) {
+            self.id = UUID().uuidString
+            self.tool = tool
+            self.method = nil
+            self.onConfirm = onConfirm
+        }
+
+        static func == (lhs: Offer, rhs: Offer) -> Bool { lhs.id == rhs.id }
+    }
+
+    static var allRuntimes: [LinuxRuntimeSetup] { allCases }
+}
+
 /// State and actions behind the "This Mac" form: what kinhin runs jobs on,
 /// with real actions instead of instructions. macOS jobs need tart and a
 /// prepared base image (both can be fixed here); Linux jobs can optionally
@@ -78,6 +182,9 @@ final class MacToolsModel: ConfigFormModel {
     var installOffer: InstallOffer?
     /// The open missing-Homebrew sheet's inputs, or nil.
     var missingBrewOffer: MissingBrewOffer?
+    /// The open Linux-runtime choice sheet's inputs, or nil. Presenting the sheet
+    /// sets the sheet's model to `self` so it can kick off installs.
+    var linuxSetupOffer: LinuxRuntimeSetup.Offer?
 
     private(set) var containerOn = false
     private(set) var dockerOn = false
@@ -348,6 +455,39 @@ final class MacToolsModel: ConfigFormModel {
     }
 
     func installDocker() { install(.docker) }
+
+    /// Presents the Linux-runtime choice sheet from the form's "Set up Linux jobs…" button.
+    func chooseLinuxRuntime() {
+        let host = hostFacts()
+        guard !LinuxRuntimeSetup.allRuntimes.allSatisfy({ LinuxRuntimeSetup.unavailableReason(for: $0, on: host) != nil }) else {
+            return  // everything is unavailable: the form already says so
+        }
+        linuxSetupOffer = LinuxRuntimeSetup.Offer(
+            tool: nil,
+            options: LinuxRuntimeSetup.offeredOptions(on: host),
+            onConfirm: { [weak self] offer in
+                if let offer { self?.applyLinuxRuntime(offer) }
+            }
+        )
+    }
+
+    /// The user confirmed a Linux runtime in the sheet: install it, then turn
+    /// the matching toggle on so the form keeps the choice.
+    private func applyLinuxRuntime(_ offer: LinuxRuntimeSetup.Offer) {
+        switch offer.tool {
+        case .appleContainer:
+            linuxSetupOffer = nil
+            install(.appleContainer)
+        case .docker:
+            linuxSetupOffer = nil
+            install(.docker)
+        case .tart:
+            linuxSetupOffer = nil
+            installTart()
+        case .none:
+            break
+        }
+    }
 
     private func checkContainerService() {
         let shell = installShell

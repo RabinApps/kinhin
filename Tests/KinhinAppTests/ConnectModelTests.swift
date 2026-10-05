@@ -30,7 +30,7 @@ final class ConnectModelTests: XCTestCase {
         model.configURL = url
         model.hasStoredToken = { stored.contains($0) }
         model.loadToken = { _ in nil }
-        model.checkPermission = { _, _ in nil }
+        model.checkPermission = { _, _, _ in nil }
         if reload { model.reload() }
         return model
     }
@@ -292,7 +292,7 @@ final class ConnectModelTests: XCTestCase {
         // probe's verdict below.
         try await Task.sleep(nanoseconds: 100_000_000)
         var checked: [String] = []
-        card.checkPermission = { scope, _ in
+        card.checkPermission = { scope, _, _ in
             checked.append(scope)
             return OrgPermissionProbe.Report(ok: false, message: "PAT lacks runner-management permission")
         }

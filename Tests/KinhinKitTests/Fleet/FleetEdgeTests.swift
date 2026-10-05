@@ -45,7 +45,8 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertTrue(tart.cloneCalls.isEmpty, "no VM may spawn under disk pressure")
         let lastError = status.lastError ?? ""
         XCTAssertTrue(lastError.contains("disk pressure"), "\(lastError)")
-        XCTAssertTrue(status.diskPressureNotice?.contains("disk pressure") ?? false,
+        XCTAssertTrue(
+            status.diskPressureNotice?.contains("disk pressure") ?? false,
             "the Fleet tab banner rides the same episode")
 
         // Freeing disk lets the next pass spawn again (desired = 2 → both clone).

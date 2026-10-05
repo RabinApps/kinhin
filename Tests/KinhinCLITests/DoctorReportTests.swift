@@ -467,7 +467,7 @@ final class DoctorReportTests: XCTestCase {
             host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
             config: .loaded(Self.config(repo: "acme")),
             authLoad: { _ in "ghp_live" }, accountLoad: { _, _ in "ghp_live" },
-            orgPermissionCheck: { token, scope in
+            orgPermissionCheck: { token, scope, _ in
                 probes.withValue { $0.append("\(token)@\(scope)") }
                 return "ok ✓"
             })

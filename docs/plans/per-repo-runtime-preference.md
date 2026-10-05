@@ -161,7 +161,7 @@ Practical note: the file is fetched per `(repository, ref)` since different jobs
 
 **Files:** `Sources/kinhin-app/UI/SwiftUI/Runtimes/`, `Sources/kinhin-app/UI/SwiftUI/Toolchains/`
 
-- The Runtimes pane shows explicit `config.yaml` routes. Repo-file routes are implicit (opted in by `repo_file: true`); showing them in the pane is a nice-to-have for transparency but not required for the feature. If done, list them under the routes section with a "from .kinhin.yml" source tag, read-only, with a link to the repo file.
+- The Advanced → Routing tab shows explicit `config.yaml` routes. Repo-file routes are implicit (opted in by `repo_file: true`); showing them in the pane is a nice-to-have for transparency but not required for the feature. If done, list them under the routes section with a "from .kinhin.yml" source tag, read-only, with a link to the repo file.
 - The Toolchains pane already shows repo-file status (`.kinhin.yml honored` / ignored). No change required, but the `.kinhin.yml` examples shown could mention `runtime:`/`routes:` as additional allowed keys.
 - Defer UI additions to a follow-up if time is limited; the feature works without them.
 

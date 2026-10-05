@@ -50,7 +50,7 @@ blocks=(
 # `auth add --<forge>` flags.
 gen_forges() {
     local ids
-    ids=$(sed -n '/enum ForgeID/,/^}/p' Sources/KinhinKit/Forges/Forge.swift |
+    ids=$(sed -n '/enum ForgeID/,/^}/p' Sources/KinhinKit/Forges/Forge/Forge.swift |
         sed -nE 's/^[[:space:]]*case ([a-z]+)[[:space:]]*$/`\1`/p' | paste -sd, - | sed 's/,/, /g')
     echo "Forge IDs recognized by the config and the CLI (\`ForgeID\`): $ids."
 }
@@ -59,7 +59,7 @@ gen_forges() {
 gen_rpc-methods() {
     echo "| Method | Notes |"
     echo "|---|---|"
-    sed -n '/enum RPCMethod/,/^    var mutatesFleet/p' Sources/KinhinKit/Fleet/RPC.swift | awk '
+    sed -n '/enum RPCMethod/,/^    var mutatesFleet/p' Sources/KinhinKit/Fleet/RPC/RPC.swift | awk '
         /^[[:space:]]*\/\/\// { sub(/^[[:space:]]*\/\/\/ ?/, ""); note = note (note == "" ? "" : " ") $0; next }
         /^[[:space:]]*case / {
             name = $2

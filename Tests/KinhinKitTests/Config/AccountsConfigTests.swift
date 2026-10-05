@@ -71,6 +71,39 @@ final class AccountsConfigTests: XCTestCase {
         }
     }
 
+    func testGitHubEnterpriseInstanceParsesAndStaysValidated() throws {
+        let yaml = """
+            accounts:
+              - name: ghes
+                forge: github
+                scope: acme/widgets
+                instance: https://github.example.com
+            labels: [self-hosted]
+            """
+        XCTAssertEqual(try ConfigLoader.parse(yaml).accounts.first?.instance, "https://github.example.com")
+
+        // GHEC data residency uses the sub.ghe.com form too.
+        let residency = yaml.replacingOccurrences(of: "https://github.example.com", with: "https://acme.ghe.com")
+        XCTAssertEqual(try ConfigLoader.parse(residency).accounts.first?.instance, "https://acme.ghe.com")
+
+        // An /api path is still rejected…
+        let apiPath = yaml.replacingOccurrences(
+            of: "https://github.example.com", with: "https://github.example.com/api")
+        XCTAssertThrowsError(try ConfigLoader.parse(apiPath)) { error in
+            XCTAssertTrue("\(error.localizedDescription)".contains("instance must be a base URL"), "\(error)")
+        }
+
+        // …and labels stay gitea-only for GitHub accounts.
+        let labelled = """
+            accounts:
+              - {name: ghes, forge: github, scope: acme/widgets, labels: [macos:host]}
+            labels: [self-hosted]
+            """
+        XCTAssertThrowsError(try ConfigLoader.parse(labelled)) { error in
+            XCTAssertTrue("\(error.localizedDescription)".contains("labels apply to gitea accounts only"), "\(error)")
+        }
+    }
+
     func testParsesScaleSetAndRejectsItOnNonGitHubAccounts() throws {
         let cfg = try ConfigLoader.parse(
             """
@@ -95,9 +128,10 @@ final class AccountsConfigTests: XCTestCase {
                     instance: https://git.example.com
                     scale_set: {name: kinhin}
                 labels: [kinhin]
-                """)) { error in
-                XCTAssertTrue("\(error.localizedDescription)".contains("scale_set is github-only"), "\(error)")
-            }
+                """)
+        ) { error in
+            XCTAssertTrue("\(error.localizedDescription)".contains("scale_set is github-only"), "\(error)")
+        }
     }
 
     func testEngineTokenCountsExtraAccountTokens() throws {

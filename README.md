@@ -134,6 +134,8 @@ kinhin start          # foreground, Ctrl-C to stop
 kinhin cleanup [--vms] [--image] [--cache] [--all] [--yes]
                             Reclaim disk: leftover runner VMs, the base image, the toolchain cache. Reports only
                             unless --yes is given (stop the fleet first)
+kinhin reset [--scope config|daemon|all] [--yes]
+                            Start over: credentials only, the daemon, or everything — confirms twice, no undo
 kinhin daemon install # headless LaunchAgent, survives reboots
 ```
 
@@ -231,6 +233,9 @@ kinhin toolchains helper [--linux]
                              Print the per-job `kinhin-toolchain` helper present in images
 kinhin workflow test [FILE] [--job NAME] [--list] [--json]
                              Run GitHub Actions workflow scripts on this Mac (host-only); see docs/workflow-testing.md
+kinhin workflow route <FILE|name> <tart|appleContainer|docker|host>
+                             Route the workflow's runs-on: to that runtime — edits the workflow (comment-preserving)
+                             and reconciles the config route when precedence needs it; see docs/runtimes.md
 kinhin start                Run the fleet in the foreground
 kinhin daemon               Run the daemon in the foreground
 kinhin daemon install       Install + start the LaunchAgent
@@ -240,6 +245,9 @@ kinhin pause|resume         Hold the fleet / resume scaling
 kinhin stop                 Stop the fleet
 kinhin requeue <forge> [--yes]  Re-queue the fleet's queued jobs on a forge (confirm unless --yes)
 kinhin skip <forge> [--yes]     Mark the fleet's queued jobs as skipped on a forge (confirm unless --yes)
+kinhin reset [--scope config|daemon|all] [--yes]
+                            Reset kinhin: config & credentials, the daemon install, or everything (VMs, images,
+                            cache, logs included). Confirms twice; --yes skips the prompts. There is no undo
 kinhin logs [-n N]          Recent log lines
 kinhin support              Show ways to donate or sponsor kinhin
 ```

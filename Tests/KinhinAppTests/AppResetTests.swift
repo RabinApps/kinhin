@@ -1,3 +1,4 @@
+import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -33,7 +34,8 @@ final class AppResetTests: MainWindowTestCase {
         var planned: [ResetScope] = []
         model.resetPlanner = { scope in
             planned.append(scope)
-            return await ResetEverything.plan(scope: scope, configURL: scratchConfig, supportRoot: supportRoot())
+            return await ResetEverything.plan(
+                scope: scope, configURL: self.scratchConfig, supportRoot: self.supportRoot())
         }
 
         model.resetClicked()
@@ -87,9 +89,6 @@ final class AppResetTests: MainWindowTestCase {
             return ["removed config, logs and state"]
         }
         model.fleetController = fleet
-        fleet.stopPolling()
-        await fleet.perform(.stop)  // baseline: a stop before reset is possible
-        _ = stopped
 
         model.resetClicked()
         await waitUntil("the reset finishes") { !self.model.resetBusy && !self.model.resetLine.text.isEmpty }
@@ -166,7 +165,9 @@ final class AppResetTests: MainWindowTestCase {
         let gate = Mutex(false)
         model.resetRunner = { _ in
             // Hold the wipe until the second click has been attempted.
-            while !gate.withLock({ $0 }) { try? await Task.sleep(for: .milliseconds(5)) }
+            while !gate.withLock({ $0 }) {
+                try? await Task.sleep(for: .milliseconds(5))  // released by the test below
+            }
             return []
         }
 

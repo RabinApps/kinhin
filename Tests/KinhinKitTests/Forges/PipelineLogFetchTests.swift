@@ -86,6 +86,33 @@ final class PipelineLogFetchTests: XCTestCase {
         XCTAssertTrue(redirected.withLock { $0 })
     }
 
+    func testGitHubJobLogFollowsTheInstanceBlobRedirectWithoutCredentials() async throws {
+        // GHES answers the log endpoint with a redirect to its own blob
+        // storage on another host; the signed URL must be followed, without
+        // the token riding along.
+        let seen = Mutex<[(String, String?)]>([])
+        StubProtocol.handler = { request in
+            seen.withLock {
+                $0.append((request.url?.absoluteString ?? "", request.value(forHTTPHeaderField: "Authorization")))
+            }
+            if request.url?.host == "github.example.com" {
+                return (302, Data(), ["Location": "https://blob.example.invalid/logs/abc?sig=1"])
+            }
+            return (200, Data("enterprise log line\n".utf8), [:])
+        }
+        let client = GitHubClient(
+            credentials: GitHubCredentials(
+                token: "secret", scope: "acme/widgets", instance: "https://github.example.com"),
+            session: session())
+
+        let raw = try await client.jobLog(repository: "acme/widgets", jobID: 7)
+
+        XCTAssertEqual(raw, "enterprise log line\n")
+        let signed = seen.withLock { $0.first { $0.0.contains("blob.example.invalid") } }
+        XCTAssertNotNil(signed, "the instance's blob redirect must be followed")
+        XCTAssertNil(signed?.1, "the token must not ride to the signed URL")
+    }
+
     func testGitHubRejectsAMalformedRepositoryRef() async {
         let client = GitHubClient(credentials: GitHubCredentials(token: "t", scope: "acme/widgets"), session: session())
         do {

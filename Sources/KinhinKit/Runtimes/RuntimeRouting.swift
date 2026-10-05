@@ -153,8 +153,9 @@ enum RuntimeRouter {
 }
 
 /// The engine-facing routing model: pools by runtime id plus the config
-/// routes, with demand bucketing and spawn selection.
-struct RuntimeConfigModel: Sendable {
+/// routes, with demand bucketing and spawn selection. Public so the CLI can
+/// pre-flight against exactly the table the engine routes with.
+public struct RuntimeConfigModel: Sendable {
     let routes: [KinhinConfig.RuntimeConfig.Route]
     let pools: [RuntimeID: RuntimePool]
     let defaultRuntime: RuntimeID
@@ -229,6 +230,34 @@ struct RuntimeConfigModel: Sendable {
     /// True when the pool exists (its runtime is configured).
     func poolExists(_ runtime: RuntimeID) -> Bool {
         pools[runtime] != nil
+    }
+}
+
+public extension RuntimeConfigModel {
+    /// The labels the pool for `runtime` registers with under `config`, or nil
+    /// when the fleet has no such pool. Built exactly as `FleetEngine` builds
+    /// its table, so a pre-flight check (the CLI's `workflow route`) never
+    /// disagrees with what the engine can actually serve.
+    ///
+    /// `host` is answered as if the route that opts it in already exists:
+    /// the host pool joins the fleet only when a host route does, and callers
+    /// gate that route on consent before asking.
+    static func poolLabels(for runtime: RuntimeID, config: KinhinConfig) -> [String]? {
+        // Host joins only through a consented route (gated before this call),
+        // and a single-pool fleet never builds a host pool on its own — its
+        // labels are the fleet labels plus the marker either way, exactly as
+        // `RuntimePool.labelsFor` builds them once the route exists.
+        if runtime == .host { return RuntimePool.labelsFor(.host, fleetLabels: config.labels) }
+        let model = RuntimeConfigModel(
+            config: config.runtimes,
+            fleetLabels: config.labels,
+            containerLabels: config.container?.labels,
+            containerConfigured: config.container != nil,
+            dockerConfigured: config.docker != nil,
+            dockerPlatform: config.docker?.platform ?? .arm64,
+            hostConfigured: config.hostRoutesConfigured
+        )
+        return model.pools[runtime]?.labels
     }
 }
 

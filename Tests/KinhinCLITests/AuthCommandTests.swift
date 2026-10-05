@@ -195,6 +195,22 @@ final class AuthCommandTests: XCTestCase {
         XCTAssertEqual(recorder.checkedGitHub[0].scope, "acme/widgets")
     }
 
+    func testStatusProbesTheConfiguredEnterpriseInstance() async throws {
+        let recorder = AuthRecorder()
+        var cfg = KinhinConfig.default
+        cfg.accounts = [
+            AccountConfig(
+                name: "github", forge: .github, scope: "acme/widgets",
+                instance: "https://github.example.com")
+        ]
+        let env = makeEnvironment(stored: [.github: "ghp_live"], config: cfg, recorder)
+
+        try await AuthCommand.run(["auth", "status"], environment: env)
+
+        XCTAssertEqual(recorder.checkedGitHub.count, 1)
+        XCTAssertEqual(recorder.checkedGitHub[0].instance, "https://github.example.com")
+    }
+
     func testStatusCheckFailureExits1() async {
         let recorder = AuthRecorder()
         let env = makeEnvironment(

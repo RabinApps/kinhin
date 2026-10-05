@@ -381,7 +381,9 @@ enum AuthCommand {
         if let named = target.named {
             account = named
         } else if target.forge == .github {
-            account = AccountConfig(name: "github", forge: .github, scope: cfg.repo)
+            // The primary account carries the enterprise instance, so a GHES
+            // check hits that host instead of github.com.
+            account = cfg.primaryGitHub ?? AccountConfig(name: "github", forge: .github, scope: cfg.repo)
         } else {
             guard let primary = target.forge == .forgejo ? cfg.forgejo : cfg.gitea else {
                 try environment.fail(
@@ -401,7 +403,10 @@ enum AuthCommand {
         do {
             switch account.forge {
             case .github:
-                try await environment.checkGitHub(GitHubCredentials(token: token, scope: account.scope))
+                try await environment.checkGitHub(
+                    GitHubCredentials(
+                        token: token, scope: account.scope, instance: account.instance,
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false))
             case .gitea, .forgejo:
                 try await environment.checkGitea(
                     GiteaCredentials(

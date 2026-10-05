@@ -6,10 +6,19 @@ public struct GitHubCredentials: Sendable {
     /// single "org" segment (an entire organization — runners register at
     /// the org level and serve every repo's queued jobs).
     public let scope: String
+    /// The GitHub instance base URL. Nil means github.com; a GHES host
+    /// ("https://HOST") or a GHEC data-residency host ("https://HOST")
+    /// changes every API base, the runner registration URL and token-creation
+    /// links. `allowInsecureHTTP` controls the scheme rule for self-hosted
+    /// instances (loopback http is always allowed).
+    public let instance: String?
+    public let allowInsecureHTTP: Bool
 
-    public init(token: String, scope: String) {
+    public init(token: String, scope: String, instance: String? = nil, allowInsecureHTTP: Bool = false) {
         self.token = token
         self.scope = scope
+        self.instance = instance
+        self.allowInsecureHTTP = allowInsecureHTTP
     }
 
     /// True when the scope is an organization, not a single repository.
@@ -18,17 +27,57 @@ public struct GitHubCredentials: Sendable {
     /// The owner segment of the scope ("acme" in "acme/api").
     public var owner: String { String(scope.split(separator: "/").first ?? "") }
 
+    /// The REST base URL for this scope's Actions API. github.com stays at
+    /// api.github.com; a `*.ghe.com` data-residency host uses `api.<host>`;
+    /// any other host uses `<host>/api/v3`.
+    var apiBase: String {
+        guard let instance else { return "https://api.github.com" }
+        guard let url = URL(string: instance), let host = url.host else {
+            return "https://api.github.com"
+        }
+        if host.hasSuffix(".ghe.com") {
+            return "https://api.\(host)"
+        }
+        return "https://\(host)/api/v3"
+    }
+
+    /// The web base for this instance: where token-creation and settings links
+    /// point. github.com stays at github.com; a `*.ghe.com` host uses the
+    /// host as-is; any other host is the instance URL's host.
+    var webBase: String {
+        guard let instance, let url = URL(string: instance), let host = url.host else {
+            return "https://github.com"
+        }
+        if host.hasSuffix(".ghe.com") { return "https://\(host)" }
+        return "https://\(host)"
+    }
+
     /// URL passed to the runner's `config.sh --url`: GitHub's documented form
     /// is `https://github.com/<org>` for org runners and
     /// `https://github.com/<owner>/<repo>` for repo runners (the
     /// `/organizations/<org>` form answers 404 from runner-registration).
-    var configureURL: String { "https://github.com/\(scope)" }
+    var configureURL: String { "\(webBase)/\(scope)" }
 
     /// REST path prefix for the Actions API of this scope.
     var actionsBase: String {
         isOrgScope
             ? "/orgs/\(scope)/actions"
             : "/repos/\(scope)/actions"
+    }
+
+    /// Validates an enterprise instance URL the way `GitLabCredentials` does:
+    /// an http(s) URL with a host, scheme allowed by the account's
+    /// `allowInsecureHTTP`, and no `/api` path suffix (the client appends its
+    /// own prefix where needed).
+    static func validate(instance: String, allowInsecureHTTP: Bool = false) throws -> URL {
+        guard let url = URL(string: instance),
+            ForgeHTTP.permitsScheme(of: url, allowInsecureHTTP: allowInsecureHTTP),
+            let host = url.host, !host.isEmpty,
+            !url.path.split(separator: "/").contains("api")
+        else {
+            throw GitHubError.invalidInstance(instance)
+        }
+        return url
     }
 }
 
@@ -39,6 +88,7 @@ public enum GitHubError: LocalizedError, Equatable, Sendable {
     case rateLimited(resetAt: Date)
     case http(Int, String)
     case decoding(String)
+    case invalidInstance(String)
 
     public var errorDescription: String? {
         switch self {
@@ -58,6 +108,7 @@ public enum GitHubError: LocalizedError, Equatable, Sendable {
                     "GitHub returned 404 for \(what): the token cannot read workflow runs in any repository of the scope. "
                     + "Fine-grained tokens need Repository permissions → Actions: Read-only; a classic token with the repo scope always works."
             }
+
             return "GitHub returned 404 for \(what). Does the repo exist and does the token have access to it?"
         case .rateLimited(let resetAt):
             return "GitHub rate limit exhausted; resets at \(resetAt)"
@@ -65,8 +116,35 @@ public enum GitHubError: LocalizedError, Equatable, Sendable {
             return "GitHub HTTP \(code): \(body)"
         case .decoding(let why):
             return "Could not decode GitHub response: \(why)"
+        case .invalidInstance(let url):
+            return
+                "invalid GitHub enterprise instance URL: \(url). Use the base URL (e.g. https://github.example.com or https://SUB.ghe.com), not an /api path"
         }
     }
+}
+
+extension GitHubCredentials {
+    /// The host the API base for this scope resolves to (nil for github.com).
+    /// Callers that need to pin pagination or validate a redirect target can
+    /// compare against this host, which is the same one `request` builds URLs
+    /// against.
+    var apiHost: String? {
+        guard let instance, let url = URL(string: instance), let host = url.host else { return nil }
+        return host
+    }
+
+    /// An error view that includes the enterprise host, useful for token-check
+    /// and doctor messages that must tell the user *which* GitHub instance the
+    /// token was talking to.
+    var instanceLabel: String {
+        apiBase
+    }
+
+    /// True when this scope is served by a non-github.com instance: any GHES
+    /// host or a GHEC data-residency host. The token-creation URLs used in
+    /// `TokenRequirements` and the runner-registration flow must point at this
+    /// host rather than github.com.
+    var isEnterprise: Bool { instance != nil }
 }
 
 // MARK: - Client
@@ -158,15 +236,23 @@ public struct GitHubClient: GitHubServing {
         else {
             throw GitHubError.http(0, "invalid scope spec \(credentials.scope) — use 'owner/name' or an org name")
         }
-        guard let url = URL(string: "https://api.github.com\(path)") else {
+        let apiBase = credentials.apiBase
+        guard let url = URL(string: apiBase + path) else {
             throw GitHubError.http(0, "invalid request path \(path)")
         }
+        // GHES instances answer on `<host>/api/v3`; pagination and any
+        // redirect targets must stay on that host (the shared
+        // `ForgeHTTP.allowsRedirect` rule already enforces same-host
+        // redirects and blocks https→http downgrades).
         var req = URLRequest(url: url)
         req.httpMethod = method
         req.httpBody = body
         req.setValue("Bearer \(credentials.token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
+        // Every GitHub API flavor (api.github.com, api.<sub>.ghe.com, GHES
+        // `/api/v3`) documents this header; a per-instance override is a
+        // later refinement.
         req.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         return req
     }
@@ -453,7 +539,7 @@ public struct GitHubClient: GitHubServing {
         guard let repository = try await runRepository(for: id) else { return false }
         let req = try request(method: "POST", path: "/repos/\(repository)/actions/runs/\(id)/cancel")
         do {
-            let (_data, _) = try await send(req)
+            let (_, _) = try await send(req)
             return true
         } catch GitHubError.notFound {
             return false
@@ -464,7 +550,7 @@ public struct GitHubClient: GitHubServing {
         guard let repository = try await runRepository(for: id) else { return false }
         let req = try request(method: "POST", path: "/repos/\(repository)/actions/runs/\(id)/disable")
         do {
-            let (_data, _) = try await send(req)
+            let (_, _) = try await send(req)
             return true
         } catch GitHubError.notFound {
             return false

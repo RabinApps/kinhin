@@ -125,6 +125,29 @@ regular app with a Dock icon; in menu-bar-only mode it stays an accessory app ex
 > right-click → **Open** needed. Locally built copies are ad-hoc signed: clear Gatekeeper with
 > `xattr -cr /Applications/kinhin.app`.
 
+## Reset kinhin
+
+**Advanced → App → Reset** wipes kinhin's local state — irreversibly. Nothing goes to the Trash and
+nothing is backed up; the only way back is setting up again (config, `kinhin auth set`, and
+re-baking any image you still want).
+
+The first dialog picks the scope:
+
+| Scope                    | Removes                                                                                                                                          | Keeps                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| **Config & credentials** | `config.yaml` (+ backup), every Keychain token (all accounts, including pre-rename items), logs, local state, the app's preferences and login item | The daemon install, VMs, baked images, the toolchain cache                   |
+| **Daemon**               | The LaunchAgent (the running fleet is stopped first)                                                                                              | Everything else — `kinhin daemon install` reinstalls it                      |
+| **Everything**           | Both of the above **plus** all runner and scratch VMs, every baked image, the toolchain cache, and the whole `Application Support/Kinhin` folder   | Nothing — a factory reset                                                    |
+
+Then it confirms twice: once with the exact plan (the same list the CLI prints — files, VM names,
+image names, cache size, token count), and once by typing `reset`. The button stays disabled until
+the word matches. On a config-scoped reset the setup wizard greets the next launch; forge-side
+runner registrations are not removed (they show as offline runners in the forge's runner list until
+you delete them there).
+
+The CLI does the same thing: `kinhin reset` (interactive, scope menu, two confirmations) or
+`kinhin reset --scope config|daemon|all --yes` for scripts.
+
 ## Siri, Shortcuts & Spotlight
 
 The menu bar app exposes App Intents (in the release `.app`; `scripts/build-app.sh` generates the metadata), so

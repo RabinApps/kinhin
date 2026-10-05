@@ -18,7 +18,8 @@ enum WorkflowTestCommand {
         if options.list {
             print("jobs:")
             for job in document.jobs {
-                print("  \(job.id) — \(job.name) · \(job.steps.count) step(s)\(job.hasMatrix ? " · matrix" : "")")
+                let matrix = job.hasMatrix ? " · matrix" : ""
+                print("  \(job.id) — \(job.name) · \(job.steps.count) step(s)\(matrix) · runs-on: \(job.runsOn)")
             }
             return
         }

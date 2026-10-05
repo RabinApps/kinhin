@@ -62,7 +62,9 @@ extension FleetEngine {
             let forge: Forge
             switch account.forge {
             case .github:
-                let credentials = GitHubCredentials(token: token, scope: account.scope)
+                let credentials = GitHubCredentials(
+                    token: token, scope: account.scope, instance: account.instance,
+                    allowInsecureHTTP: account.allowInsecureHTTP ?? false)
                 let client = githubFactory.make(credentials)
                 if verify {
                     let verification = await OrgPermissionProbe.verify(github: client, scope: account.scope)
@@ -77,9 +79,7 @@ extension FleetEngine {
                         account: account, token: token, client: client,
                         labels: account.labels ?? config.labels, listener: listener)
                 } else {
-                    forge = GitHubForge(
-                        credentials: .github(token: token, scope: account.scope), labels: config.labels, client: client,
-                        account: account.name)
+                    forge = GitHubForge(account: account, token: token, client: client, labels: config.labels)
                 }
             case .gitea, .forgejo:
                 guard let instance = account.instance else {
@@ -176,7 +176,9 @@ extension FleetEngine {
     private func makeGitHubScaleSetListener(
         account: AccountConfig, token: String, client: GitHubServing, scaleSet: AccountConfig.ScaleSetConfig
     ) async -> GitHubScaleSetListener {
-        let credentials = GitHubCredentials(token: token, scope: account.scope)
+        let credentials = GitHubCredentials(
+            token: token, scope: account.scope, instance: account.instance,
+            allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         let poolCapacity = Autoscaler.jobCapacity(
             maxRunners: config.maxRunners,
             capacityCap: capacity.maxConcurrent,
@@ -222,7 +224,9 @@ extension FleetEngine {
         do {
             let registration = try await client.fetchRegistrationToken()
             let exchangeClient = GitHubScaleSetClient(
-                credentials: GitHubCredentials(token: token, scope: account.scope))
+                credentials: GitHubCredentials(
+                    token: token, scope: account.scope, instance: account.instance,
+                    allowInsecureHTTP: account.allowInsecureHTTP ?? false))
             let exchange = try await exchangeClient.exchangeRegistrationToken(
                 registrationToken: registration.token)
             forgeState.withLock {
@@ -249,7 +253,9 @@ extension FleetEngine {
         let labels = account.labels ?? config.labels
         do {
             let setupClient = GitHubScaleSetClient(
-                credentials: GitHubCredentials(token: token, scope: account.scope),
+                credentials: GitHubCredentials(
+                    token: token, scope: account.scope, instance: account.instance,
+                    allowInsecureHTTP: account.allowInsecureHTTP ?? false),
                 adminJwtProvider: { [self] in
                     try await self.adminJwtForAttach(account: account, token: token, client: githubClient)
                 },

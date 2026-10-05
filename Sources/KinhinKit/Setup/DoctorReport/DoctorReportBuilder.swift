@@ -33,7 +33,7 @@ public struct DoctorReportBuilder: Sendable {
     /// The active org-permission check (mints and discards a registration
     /// token): takes the stored token and the org scope, returns the verdict
     /// line. Only the human rendering runs it; tests substitute a fixture.
-    let orgPermissionCheck: @Sendable (String, String) async -> String
+    let orgPermissionCheck: @Sendable (String, String, String?) async -> String
 
     public init(
         host: HostResources? = nil,
@@ -54,8 +54,8 @@ public struct DoctorReportBuilder: Sendable {
         osVersion: OperatingSystemVersion? = nil,
         softnetInstalled: Bool? = nil,
         hostKeyMarker: URL? = nil,
-        orgPermissionCheck: @escaping @Sendable (String, String) async -> String = { token, scope in
-            await TokenHealthCheck.github(token: token, scope: scope).message
+        orgPermissionCheck: @escaping @Sendable (String, String, String?) async -> String = { token, scope, instance in
+            await TokenHealthCheck.github(token: token, scope: scope, instance: instance).message
         }
     ) {
         self.host = host

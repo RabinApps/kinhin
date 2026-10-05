@@ -98,6 +98,9 @@ runtimes:
 
 Or use the CLI: `kinhin runtimes route add <pattern> <tart|appleContainer|docker|host> [--consent]`.
 
+To move **one workflow** to a runtime (editing its `runs-on:` and reconciling the route automatically), use the
+`kinhin-route-workflow` skill — it also decides *which* runtime fits the workflow.
+
 Host mode runs jobs unisolated on the Mac. It needs `consent: true`, `default: host` is rejected, every account must be
 scoped to one `owner/name`, it works for GitHub, Gitea and Forgejo only, and workflows opt in with
 `runs-on: [kinhin-host]` after `kinhin setup repair host-agent`. Warn the user before suggesting it for untrusted code.

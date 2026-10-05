@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Route a workflow to any runtime with `kinhin workflow route <FILE|name> <tart|appleContainer|docker|host>`: comment-preserving `runs-on:` edits (GitHub-hosted labels replaced with the pool's exact labels; `${{ … }}`, mapping and reusable-workflow jobs refused), automatic `owner/repo@Workflow` route reconciliation only when routing precedence needs it, `--job` / `--dry-run` / `--json`, `--consent` for host. `kinhin runtimes --json` now carries the per-runtime availability sweep, `workflow test --list` shows each job's `runs-on`, and a new `kinhin-route-workflow` skill covers the runtime choice.
+
+- Reset kinhin: `kinhin reset [--scope config|daemon|all] [--yes]` and an Advanced → App **Reset** card wipe local state by scope — config & credentials, the daemon install, or everything (VMs, images, cache, logs included). Both surfaces show the exact plan and confirm twice (plan + typed `reset`); `--yes` is the scripts-only bypass. There is no undo.
 - Test GitHub Actions workflow scripts locally with `kinhin workflow test` or the Fleet tab's **Test Workflow…** sheet (host-only; matrices and non-checkout actions are skipped).
 - Support and sponsors: `docs/support.md`, GitHub funding links, `kinhin support`, and a Support card and Help menu in the app.
 - CLI queue operations: `kinhin requeue <forge> [--yes]` and `kinhin skip <forge> [--yes]` re-queue or skip the fleet's queued jobs on a forge through the daemon (dry-run intent unless `--yes`); the Fleet tab buttons and status-bar menu keep their pending-state / AlertKit UX.

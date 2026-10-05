@@ -210,16 +210,19 @@ final class AppSectionModel {
     /// The last thing the reset said (progress, success, failure).
     private(set) var resetLine = StatusLine(text: "")
 
-    /// The card's entry point: pick a scope, then confirm twice.
+    /// The card's entry point: pick a scope, then confirm twice. The busy
+    /// state is set synchronously (before the Task), so a fast second click
+    /// is ignored and observers never see a window where a reset is running
+    /// but the card still looks idle.
     func resetClicked() {
         guard !resetBusy else { return }
         guard let scope = chooseResetScope() else { return }
+        resetBusy = true
+        resetLine = StatusLine(text: "Preparing the reset…")
         Task { await runReset(scope) }
     }
 
     private func runReset(_ scope: ResetScope) async {
-        resetBusy = true
-        resetLine = StatusLine(text: "Preparing the reset…")
         defer { resetBusy = false }
         do {
             let plan = await resetPlanner(scope)
@@ -235,7 +238,10 @@ final class AppSectionModel {
             // stops a daemon over RPC, never this process's in-process engine.
             // Nothing running (or a command in flight) is fine — the wipe's
             // stop-before-delete catches a survivor.
-            if scope != .config { try? await fleetController?.perform(.stop) }  // best-effort; the wipe below handles leftovers
+            if scope != .config {
+                // Best-effort: the wipe below handles leftovers.
+                try? await fleetController?.perform(.stop)
+            }
             resetLine = StatusLine(text: "Resetting — deleting files, tokens and VMs…")
             let report = try await resetRunner(plan)
             if scope.includesConfig {
