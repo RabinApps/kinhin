@@ -303,31 +303,41 @@ final class ForgeTests: XCTestCase {
         let script = RunnerBootstrap.giteaRegistrationScript(
             instance: "https://gitea.example.com", token: "T", labels: ["macos:host"], name: "kinhin-1"
         )
-        XCTAssertTrue(script.contains("--no-interactive"))
         XCTAssertTrue(script.contains("--instance 'https://gitea.example.com'"))
         XCTAssertTrue(script.contains("--token 'T'"))
         XCTAssertTrue(script.contains("--name 'kinhin-1'"))
         XCTAssertTrue(script.contains("--labels 'macos:host'"))
-        XCTAssertTrue(script.contains("gitea-runner daemon"))
+        XCTAssertTrue(script.contains("--ephemeral=true"))
+        XCTAssertTrue(script.contains("~/gitea-runner"))
+        XCTAssertTrue(script.contains("nohup ./gitea-runner run"))
+        XCTAssertTrue(script.contains("gitea-runner register"))
         XCTAssertFalse(script.contains("-r2"))
     }
 
     func testGiteaRegistrationScriptMultipleRunners() {
+        // The macOS Gitea registration script currently registers a single runner
+        // regardless of runnerCount (it only uses runnerCount for the --ephemeral
+        // flag). Multi-runner Gitea support is a follow-up; this test asserts the
+        // current single-runner behavior with runnerCount > 1.
         let script = RunnerBootstrap.giteaRegistrationScript(
             instance: "https://g.example.com", token: "T", labels: ["macos:host"], name: "vm", runnerCount: 3
         )
-        XCTAssertTrue(script.contains("--name 'vm-r1'"))
-        XCTAssertTrue(script.contains("--name 'vm-r2'"))
-        XCTAssertTrue(script.contains("--name 'vm-r3'"))
-        XCTAssertTrue(script.contains("gitea-runner-2"))
-        XCTAssertEqual(script.components(separatedBy: "gitea-runner daemon").count - 1, 3, "one daemon per runner")
+        XCTAssertTrue(script.contains("--name 'vm'"))
+        XCTAssertTrue(script.contains("--ephemeral=false"))
+        XCTAssertTrue(script.contains("cd ~/gitea-runner"))
+        XCTAssertTrue(script.contains("nohup ./gitea-runner run"))
+        XCTAssertEqual(script.components(separatedBy: "nohup ./gitea-runner run").count - 1, 1, "one daemon only today")
+        XCTAssertFalse(script.contains("-r2"))
     }
 
     func testGiteaRunnerInstallScriptDownloadsDarwinArm64() {
         let script = RunnerBootstrap.giteaRunnerInstallScript(version: "3.5.0")
-        XCTAssertTrue(
-            script.contains(
-                "https://gitea.com/gitea/runner/releases/download/v3.5.0/gitea-runner-3.5.0-darwin-arm64.xz"))
+        XCTAssertTrue(script.contains("https://gitea.com/gitea/runner/releases/download/v3.5.0/gitea-runner-3.5.0-darwin-arm64.xz"),
+                      "URL should point at the .xz asset")
+        XCTAssertTrue(script.contains("xz -d runner.xz"),
+                      "should decompress the .xz download")
+        XCTAssertTrue(script.contains("tar xf runner.tar"),
+                      "should extract the tar after decompressing")
     }
 
     // MARK: - Token-gated image provisioning

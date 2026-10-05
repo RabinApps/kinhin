@@ -73,6 +73,21 @@ Implementation notes:
 Caveat: because the message API is still preview and not in GitHub's published OpenAPI descriptions, the endpoint set
 and versioning should be re-verified when GitHub updates the API. GitHub Enterprise Server is not supported in this mode.
 
+### Scale-set troubleshooting (kinhin side)
+
+For the error signatures that show up in kinhin logs and how to read them, see [Troubleshooting scale sets](scaling.md#troubleshooting-scale-sets) in *How scaling works*. The two most common are:
+
+- `cd: /Users/admin/actions-runner-N: No such file or directory` (`bash: line …: cd: …: No such file or directory` in
+  the in-VM script) — a per-runner directory is missing on the image; usually a `runners_per_vm` bake/fleet mismatch.
+  Scale-set mode does **not** use a separate image; the same baked image that works for classic mode also boots scale-set
+  VMs. See the density-mismatch section.
+- `could not pin the guest's SSH host key … connecting without host key verification` — a boot/SSH-agent reachability issue,
+  not a registration-material issue. Establish that one VM can boot and register in classic mode before scaling it.
+
+If the listener can't refresh statistics or the session drops, the engine keeps the last known snapshot briefly; if that
+keeps failing, re-check the account token and scopes (organization self-hosted-runner permissions) and confirm the account is
+github.com.
+
 ## Pipeline view
 
 The app's live pipeline view reads `GET /repos/{repo}/actions/runs?status=in_progress` and each run's

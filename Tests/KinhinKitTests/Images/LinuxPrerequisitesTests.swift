@@ -6,7 +6,7 @@ import XCTest
 final class LinuxPrerequisitesTests: XCTestCase {
     private var scripts: [(name: String, script: String)] {
         [
-            ("github agent", RunnerBootstrap.linuxGitHubAgentInstallScript(runnerVersion: "2.337.0")),
+            ("github agent", RunnerBootstrap.linuxGitHubAgentInstallScript(version: "2.337.0")),
             ("gitea runner", RunnerBootstrap.linuxGiteaRunnerInstallScript(version: "0.2.0")),
             (
                 "toolchains",

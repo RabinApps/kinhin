@@ -102,7 +102,7 @@ final class MacToolsModelTests: XCTestCase {
         model.setDockerForTesting(false)
         // Nothing is on yet, and the host can run at least one Linux runtime
         // (the fake host is arm64 + enough RAM, so the offer opens).
-        let host = HostFacts(arm64: true, memoryGB: 8, osVersion: .current)
+        let host = HostFacts(arm64: true, memoryGB: 8, osVersion: ProcessInfo.processInfo.operatingSystemVersion)
         let offered = LinuxRuntimeSetup.offeredOptions(on: host)
         XCTAssertFalse(offered.isEmpty, "the test host should be able to run at least one Linux runtime")
         // The form's button is visible when nothing is on and at least one option

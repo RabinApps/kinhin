@@ -291,21 +291,32 @@ struct TartRuntime: Runtime {
                     runnerTokens[runnerName].map { (runnerName, $0) }
                 }
                 let scripts = orderedConfigs.enumerated().map { index, config in
+                    // Match the layout `kinhin image prepare` bakes: runner 1 lives in
+                    // ~/actions-runner; runners 2..N live in ~/actions-runner-2..N (the
+                    // classic script and the image-bake step agree on this). The previous
+                    // mapping used ~/actions-runner-(index+1), which produced a missing
+                    // ~/actions-runner-1 for the first multi-runner VM.
+                    let runnerNumber = index + 1
                     let directory: String
                     let workFolder: String
                     if runnerCount == 1 {
                         directory = "~/actions-runner"
                         workFolder = "_work"
                     } else {
-                        directory = "~/actions-runner-\(index + 1)"
-                        workFolder = "_work-\(index + 1)"
+                        directory = runnerNumber == 1
+                            ? "~/actions-runner"
+                            : "~/actions-runner-\(runnerNumber)"
+                        workFolder = runnerNumber == 1
+                            ? "_work"
+                            : "_work-\(runnerNumber)"
                     }
                     return RunnerBootstrap.jitRegistrationScript(
                         encodedJitConfig: config.1,
                         name: config.0,
                         workFolder: workFolder,
                         agentDirectory: directory,
-                        agentTemplate: runnerCount > 1 ? "~/actions-runner" : nil
+                        agentTemplate: runnerCount > 1 ? "~/actions-runner" : nil,
+                        runnerVersion: RunnerVersionResolver.fallback.github
                     )
                 }.joined(separator: "\n")
                 return cachePrefix + scripts

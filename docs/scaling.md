@@ -111,7 +111,7 @@ Things to know:
 
 ### Requeue and skip
 
-From the Fleet tab, the **Requeue** and **Skip** buttons in the *Requeue / skip queued*
+From the Fleet tab, the **Requeue** and **Skip** buttons in the _Requeue / skip queued_
 section cancel or drop the queue's matching jobs. Org-scope forges re-queue/skip the
 fleet-wide queue; repo-scope forges act on that one forge. Both are single-command
 actions behind the same pending-state and AlertKit failure handling as Start/Stop.
@@ -171,6 +171,159 @@ default runner group.
 In scale-set mode, spawned runners register with `./config.sh --jitconfig '<config>' --unattended --replace --work _work`
 and do not receive a shared runner token. Registration material is treated like other secrets: it is not logged and is
 redacted in logs.
+
+### Runner images and per-VM directories
+
+Scale-set mode on Github Runners uses the same baked images as classic mode — there is no separate scale-set image to prepare. The only
+difference is the registration script the engine pushes into a booted VM over SSH: classic runners use
+`config.sh --url ... --token ...`, scale-set runners use `config.sh --jitconfig <config>`.
+
+For GitHub Actions Tart VMs, `kinhin image prepare` bakes the runner agent into `~/actions-runner` (macOS) or
+`/opt/actions-runner` (Linux) and, when the bake was run with `runners_per_vm > 1`, also pre-creates the sibling
+directories `~/actions-runner-2..N` / `/opt/actions-runner-2..N`. The registration scripts (classic and JIT) place:
+
+- the first runner in `~/actions-runner` / `/opt/actions-runner` (the baked template directory), and
+- runners 2..N in `~/actions-runner-2..N` / `/opt/actions-runner-2..N`.
+
+If a scale-set fleet runs `runners_per_vm: 2` but the image was baked with `runners_per_vm: 1` (so only the template
+directory exists), the JIT registration script copies the template into the second runner's directory at registration time
+— the same best-effort fallback the classic multi-runner script already used. To avoid that per-VM copy, bake the image
+with the same `runners_per_vm` you run the fleet at.
+
+If a scale-set VM's base image did not have the runner baked in at all (for example a third-party image), the JIT
+registration script can download the GitHub Actions runner agent from the releases feed into the per-runner directory
+instead of failing. The version it downloads is the pinned fallback from `RunnerVersionResolver` (the same version
+`kinhin image prepare` uses when the feed is unreachable). This fallback is a rescue path only: a properly prepared
+image is still the normal case.
+
+### Troubleshooting scale sets
+
+Most scale-set failures are either the local spawn path (VM won't boot / SSH / runner can't find its directory) or the
+GitHub Actions-service path (no admin token, scale set or runner group missing, session drops). Separate them by where the
+log line is printed.
+
+#### Read the right log surface first
+
+- `kinhin log` and the Fleet tab show the engine log, including the per-instance tag `[kinhin-<uuid>]`.
+- When a VM fails to register, the error is usually on the line that starts with `lifecycle failed:` or `could not pin the
+guest's SSH host key`.
+- The `_work` folder path in the error (`/Users/admin/actions-runner-1`, `/opt/actions-runner-2`, …) tells you the
+  registration script reached the VM but the directory it expected doesn't exist — count the runner index in that path against
+  your bake density (see below).
+
+#### `cd: /Users/admin/actions-runner-N: No such file or directory` (or the Linux equivalent)
+
+This means the JIT registration script was told to register a runner into a per-runner directory that isn't on the image.
+The usual cause is a density mismatch between the baked image and the fleet.
+
+- Scale sets do **not** use a separate image. The same `kinhin image prepare` output that works for classic mode is also
+  what scale-set VMs boot.
+- An image baked with `runners_per_vm: 1` has only the template directory (`~/actions-runner` on macOS, `/opt/actions-runner`
+  on Linux). A scale-set fleet running `runners_per_vm: 2` also needs `~/actions-runner-2` / `/opt/actions-runner-2`. When the
+  second directory is missing, the JIT script copies the template into it at registration time — best-effort, and still
+  needs the template dir to exist.
+- If you see `actions-runner-1` in the error, the script indexed one too high: that is the symptom the density mismatch
+  produces, because runner 1 should land in the template directory, not in `actions-runner-1`.
+
+To fix it, bake the image with the same `runners_per_vm` you run the fleet at, then restart the fleet so it picks up the
+new image. If you cannot re-bake right now, lower `runners_per_vm` on the scale-set account to match the image until you can.
+
+#### SSH host key warning + `connecting without host key verification`
+
+```
+could not pin the guest's SSH host key (tart exec … failed: … is the Tart Guest Agent running?);
+connecting without host key verification. A hostile VM on a shared network could impersonate this one:
+set tart_softnet: true (docs/security.md)
+```
+
+This is a boot connectivity issue, not a registration-material issue. The engine reached the VM over SSH but couldn't pin
+the host key, so it proceeds without verification and logs the warning. Common causes:
+
+- The VM's control socket isn't reachable yet (still booting). The engine retries; if the second attempt succeeds the rest
+  of the line proceeds normally.
+- The Tart Guest Agent isn't running inside the guest, or the guest image doesn't have it. Verify the image boots and
+  responds to SSH on a single-VM test before scaling it in a fleet.
+- Network isolation interferes with the control path. The doc cited in the warning describes the `tart_softnet` escape hatch
+  and the trade-off.
+
+If every instance prints this and then fails with a lifecycle error, treat it as an image/agent problem, not a scale-set
+problem: establish that one VM can boot and register in classic mode first.
+
+#### `runner registration failed … bash: line …: cd: …: No such file or directory`
+
+This is the same family as the directory-not-found error above, surfaced inside the in-VM registration script instead of the
+engine log. The fix is the same: ensure the per-runner directory exists on the image (bake density matches fleet density) or
+that the template directory exists and the script can copy it.
+
+#### Missing runner agent on the image
+
+If the base image had no GitHub Actions runner baked in at all (for example a third-party or hand-rolled image), the JIT
+registration script attempts to download the runner agent from the GitHub releases feed into the per-runner directory instead
+of failing immediately. That download:
+
+- uses the pinned fallback version from `RunnerVersionResolver`, the same version `kinhin image prepare` falls back to when
+  the releases feed is unreachable;
+- is a rescue path, not the normal case — a properly prepared image is still what you want for a scale-set fleet;
+- can still fail if the VM has no outbound HTTPS to `github.com` from the Actions-service network path.
+
+If you see a registration failure that looks like a download failure rather than a missing-directory failure, confirm the
+image actually has the runner (see next section) before re-baking.
+
+#### How to tell whether an image has the runner baked in, and at what density
+
+On a booted VM (or on the host image before booting), check the runner directories:
+
+- macOS Tart guest: look for `~/actions-runner` (the template dir) and, if baked for density, `~/actions-runner-2` …
+  `~/actions-runner-N`.
+- Linux guest: look for `/opt/actions-runner` and, if baked for density, `/opt/actions-runner-2` … `/opt/actions-runner-N`.
+
+If the template directory is present and contains the runner (`config.sh`, `run.sh`, `.runner`, `_work`), the image has the
+agent and can register runner 1 directly. If sibling directories are present too, the image is ready for that density without
+the per-VM copy fallback. If the template directory is absent entirely, the image has no baked runner and the JIT script will
+try the download fallback (or fail if it can't reach the feed).
+
+#### Scale set or runner group not found
+
+```
+runner group '<name>' was not found; create it in GitHub before attaching
+```
+
+or a scale-set ensure call that returns 404-style "not found" on the runner group or scale set.
+
+- `scale_set.runner_group` is optional; when absent, kinhin uses the default runner group. If your org/enterprise requires a
+  named group, set `runner_group:` explicitly.
+- Scale sets are created through the Actions-service preview path under `api-version=6.0-preview`. If the admin JWT exchange
+  or the scale-set ensure calls fail consistently, confirm the account's PAT has the organization self-hosted-runner
+  permissions the GitHub forge doc lists, and that the account is github.com (GHES is not supported in this mode).
+- Scale sets are left in place on teardown and re-attached; a leftover scale set from a previous fleet is normally fine.
+
+#### Sessions drop / listener can't refresh statistics
+
+If the Fleet tab or `kinhin status` shows stale queue numbers, or you see repeated listener reconnect attempts:
+
+- The listener keeps the last known statistics snapshot when it can't refresh, so a transient failure shouldn't read as zero
+  demand. Stale-but-nonzero is expected briefly; stale-and-growing is not.
+- A 401 on the message session triggers a session refresh. If refreshes keep failing, the admin JWT may be expired or the
+  account's token may have lost the needed scopes; re-auth the account (`kinhin auth set --github` or the Connect form).
+- Long-running listeners still respect `poll_interval` for reconcile passes and scale-downs; a quiet period is normal.
+
+#### Switching an existing account to scale set
+
+If a GitHub account already ran in classic mode and you add `scale_set:`:
+
+- No image rebuild is required for the common case: the same baked image works for both modes. The only in-VM difference is
+  the registration script (classic uses `--url/--token`, scale set uses `--jitconfig`).
+- If the account's image was baked for a density the scale-set fleet won't match, see the density-mismatch error above.
+- If the account's image has no baked runner at all, the scale-set JIT path will try the download fallback; classic mode may
+  already have been failing on that image too.
+
+#### Things that are not scale-set-specific
+
+- Ephemeral + `vm.ephemeral: true` is required for scale-set accounts; a persistent-VM config is contradictory with one-job
+  ephemeral scale-set runners. If scale-set attach fails immediately with a config error, check that first.
+- Pause/auto-resume, `max_runners`, `min_runners`, budget caps, disk-pressure holds, and recovery-on-restart behave the same
+  in scale-set mode as in classic mode. If those are misbehaving, the cause is usually the config or the host budget, not the
+  scale-set mode.
 
 ### Limitations
 

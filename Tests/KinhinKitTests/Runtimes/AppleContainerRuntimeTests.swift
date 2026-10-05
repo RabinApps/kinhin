@@ -122,9 +122,10 @@ final class AppleContainerRuntimeTests: XCTestCase {
             route: makeRoute(), labels: nil
         )
         XCTAssertTrue(script.contains("/opt/actions-runner"))
-        XCTAssertTrue(script.contains("actions-runner-2"))
+        XCTAssertTrue(script.contains("/opt/actions-runner-2"))
         XCTAssertTrue(script.contains("--name 'kinhin-1-r1'"))
-        XCTAssertTrue(script.contains("linux runner(s) started"))
+        XCTAssertTrue(script.contains("nohup ./run.sh > run-1.log"))
+        XCTAssertTrue(script.contains("nohup ./run.sh > run-2.log"))
 
         let gitea = GiteaForge(
             credentials: .gitea(token: "t", scope: "acme/widgets", instance: "https://gitea.example.com"),
@@ -138,8 +139,8 @@ final class AppleContainerRuntimeTests: XCTestCase {
             forge: gitea, token: "GT", name: "kinhin-1", runnerCount: 1,
             route: makeRoute(), labels: nil
         )
-        XCTAssertTrue(giteaScript.contains("/opt/gitea-runner"))
-        XCTAssertTrue(giteaScript.contains("linux gitea runner(s) started"))
+        XCTAssertTrue(giteaScript.contains("/opt/actions-runner"))
+        XCTAssertTrue(giteaScript.contains("nohup ./run.sh > run-1.log"))
     }
 
     /// The route image is what the container CLI actually uses; the registration

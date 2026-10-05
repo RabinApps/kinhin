@@ -99,9 +99,6 @@ final class FleetModel {
     /// under the Fleet tab's status line with distinct styling.
     var fleetStatusFooter: [StatusLine] {
         var lines: [StatusLine] = []
-        if let mode = controller.fleetMode {
-            lines.append(StatusLine(text: mode, style: .secondary))
-        }
         if let stale = controller.staleDaemonPlist {
             lines.append(StatusLine(text: stale, style: .warn))
         }

@@ -11,6 +11,21 @@ enum RunnerBootstrap {
 
     /// Register and start one runner using an already-generated scale-set JIT config.
     /// The config is secret material and is shell-quoted so it never becomes executable syntax.
+    ///
+    /// `agentDirectory` is the per-runner agent directory the script `cd`s into before
+    /// running `config.sh --jitconfig`. For GitHub Actions Tart VMs it should match the
+    /// layout `kinhin image prepare` bakes onto the base image: `~/actions-runner` for the
+    /// first runner and `~/actions-runner-2..N` for the rest (the classic script and the
+    /// image-bake step agree on this layout).
+    ///
+    /// `agentTemplate`, when non-nil, is the directory kinhin bakes as the runner template
+    /// (usually `~/actions-runner`). If the target `agentDirectory` does not already contain
+    /// a `config.sh`, the script copies the template into it. When the template copy fails
+    /// (for example because the scale-set base image did not pre-bake `~/actions-runner`)
+    /// *and* a `runnerVersion` is supplied, the script falls back to downloading the runner
+    /// into `agentDirectory` instead of aborting — only the subsequent `config.sh --jitconfig`
+    /// can still fail. When no `runnerVersion` is supplied and the template is missing, the
+    /// script still aborts later at `config.sh`, which is the existing behavior.
     static func jitRegistrationScript(
         encodedJitConfig: String,
         name: String,
@@ -18,17 +33,38 @@ enum RunnerBootstrap {
         agentDirectory: String = "~/actions-runner",
         agentTemplate: String? = nil,
         pidFile: String? = nil,
-        caBundlePath: String? = nil
+        caBundlePath: String? = nil,
+        runnerVersion: String? = nil
     ) -> String {
         let agentDirectoryCommand = agentDirectory.hasPrefix("~/")
             ? "agent_dir=\"$HOME\"/\(shellQuote(String(agentDirectory.dropFirst(2))))"
             : "agent_dir=\(shellQuote(agentDirectory))"
         let agentMaterialization: String
         if let template = agentTemplate {
+            let fallbackBlock: String
+            if let version = runnerVersion {
+                let download = githubRunnerDownloadScript(version: version, platform: "osx", file: "runner.tar.gz")
+                fallbackBlock = """
+                    # The template copy can fail on scale-set base images that did not
+                    # pre-bake ~/actions-runner. When a runner version is available, download
+                    # the runner into the target dir instead of aborting — only the later
+                    # config.sh --jitconfig can still fail.
+                    mkdir -p "$agent_dir"
+                    cd "$agent_dir"
+                    \(download)
+                    tar xzf runner.tar.gz
+                    rm -f runner.tar.gz
+                    cd - >/dev/null
+                """
+            } else {
+                fallbackBlock = ""
+            }
             agentMaterialization = """
                 if [ ! -x "$agent_dir/config.sh" ]; then
                   mkdir -p "$agent_dir"
-                  cp -a \(shellQuote(template) + "/.") "$agent_dir/" 2>/dev/null || true
+                  cp -a \(shellQuote(template) + "/.") "$agent_dir/" 2>/dev/null || {
+                    \(fallbackBlock)
+                  }
                 fi
 
                 """
@@ -85,9 +121,11 @@ enum RunnerBootstrap {
     static func giteaRunnerInstallScript(version: String) -> String {
         """
         set -euo pipefail
-        \(giteaRunnerDownloadScript(version: version, platform: "osx", file: "runner.tar.gz"))
-        tar xzf runner.tar.gz
-        rm runner.tar.gz
+        \(giteaRunnerDownloadScript(version: version, platform: "darwin-arm64", file: "runner.xz"))
+        xz -d runner.xz
+        tar xf runner.tar
+        rm -f runner.tar
+        ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
         """
     }
 

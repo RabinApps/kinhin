@@ -69,7 +69,7 @@ final class RunnerDownloadVerificationTests: XCTestCase {
         let scripts: [(String, String)] = [
             ("macOS GitHub", RunnerBootstrap.installScript(runnerVersion: "2.337.0", runnerCount: 2)),
             ("macOS Gitea", RunnerBootstrap.giteaRunnerInstallScript(version: "4.0.0")),
-            ("Linux GitHub", RunnerBootstrap.linuxGitHubAgentInstallScript(runnerVersion: "2.337.0", arch: "x64")),
+            ("Linux GitHub", RunnerBootstrap.linuxGitHubAgentInstallScript(version: "2.337.0", arch: "x64")),
             ("Linux Gitea", RunnerBootstrap.linuxGiteaRunnerInstallScript(version: "4.0.0", arch: "amd64")),
             ("macOS GitLab", RunnerBootstrap.gitlabRunnerInstallScript(version: "19.4.1")),
             ("Linux GitLab", RunnerBootstrap.linuxGitLabRunnerInstallScript(version: "19.4.1", arch: "amd64")),

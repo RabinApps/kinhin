@@ -93,11 +93,11 @@ final class DockerPlatformTests: XCTestCase {
     // MARK: - Agent scripts
 
     func testAgentScriptsDefaultToArm64AndFollowTheArchitecture() {
-        let github = RunnerBootstrap.linuxGitHubAgentInstallScript(runnerVersion: "2.1.0")
+        let github = RunnerBootstrap.linuxGitHubAgentInstallScript(version: "2.1.0")
         XCTAssertTrue(github.contains("actions-runner-linux-arm64-2.1.0.tar.gz"))
-        XCTAssertEqual(github, RunnerBootstrap.linuxGitHubAgentInstallScript(runnerVersion: "2.1.0", arch: "arm64"))
+        XCTAssertEqual(github, RunnerBootstrap.linuxGitHubAgentInstallScript(version: "2.1.0", arch: "arm64"))
         XCTAssertTrue(
-            RunnerBootstrap.linuxGitHubAgentInstallScript(runnerVersion: "2.1.0", arch: "x64")
+            RunnerBootstrap.linuxGitHubAgentInstallScript(version: "2.1.0", arch: "x64")
                 .contains("actions-runner-linux-x64-2.1.0.tar.gz"))
         XCTAssertTrue(
             RunnerBootstrap.linuxGiteaRunnerInstallScript(version: "0.2.0").contains("-linux-arm64.xz"))

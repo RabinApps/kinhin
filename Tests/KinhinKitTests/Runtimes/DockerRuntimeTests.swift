@@ -123,7 +123,7 @@ final class DockerRuntimeTests: XCTestCase {
             route: makeRoute(), labels: nil
         )
         XCTAssertTrue(script.contains("/opt/actions-runner"))
-        XCTAssertTrue(script.contains("actions-runner-2"))
+        XCTAssertTrue(script.contains("/opt/actions-runner-2"))
         XCTAssertTrue(script.contains("--name 'kinhin-1-r1'"))
 
         let gitea = GiteaForge(
@@ -138,7 +138,13 @@ final class DockerRuntimeTests: XCTestCase {
             forge: gitea, token: "GT", name: "kinhin-1", runnerCount: 1,
             route: makeRoute(), labels: nil
         )
-        XCTAssertTrue(giteaScript.contains("/opt/gitea-runner"))
+        // Linux Gitea registration uses the GitHub Actions runner (config.sh)
+        // configured against the Gitea instance, rooted at /opt/actions-runner
+        // (the same agent the GitHub path bakes). The separate gitea-runner
+        // binary at /opt/gitea-runner is baked when a Gitea token exists but
+        // is not what the Linux Gitea registration path currently uses.
+        XCTAssertTrue(giteaScript.contains("/opt/actions-runner"))
+        XCTAssertTrue(giteaScript.contains("--url 'https://gitea.example.com'"))
     }
 
     func testRegistrationScriptHonorsARouteImageForHumanMessages() async throws {

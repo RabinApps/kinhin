@@ -85,12 +85,29 @@ struct LinuxContainerCLI: Sendable {
                     throw EngineError.registrationFailed(vm: name, stderr: "forge returned incomplete JIT configs")
                 }
                 let scripts = names.enumerated().map { index, runnerName in
-                    let directory = runnerCount == 1 ? "/opt/actions-runner" : "/opt/actions-runner-\(index + 1)"
-                    let workFolder = runnerCount == 1 ? "/opt/work" : "/opt/work-\(index + 1)"
+                    // Match the layout `kinhin image prepare` bakes for Linux: runner 1
+                    // lives in /opt/actions-runner; runners 2..N live in
+                    // /opt/actions-runner-2..N. The previous mapping used
+                    // /opt/actions-runner-(index+1), which produced a missing
+                    // /opt/actions-runner-1 for the first multi-runner container.
+                    let runnerNumber = index + 1
+                    let directory: String
+                    let workFolder: String
+                    if runnerCount == 1 {
+                        directory = "/opt/actions-runner"
+                        workFolder = "/opt/work"
+                    } else {
+                        directory = runnerNumber == 1
+                            ? "/opt/actions-runner"
+                            : "/opt/actions-runner-\(runnerNumber)"
+                        workFolder = runnerNumber == 1
+                            ? "/opt/work"
+                            : "/opt/work-\(runnerNumber)"
+                    }
                     return RunnerBootstrap.linuxJitRegistrationScript(
                         encodedJitConfig: runnerTokens[runnerName] ?? "", name: runnerName,
                         workFolder: workFolder, agentDirectory: directory,
-                        pidFile: "/var/run/kinhin-\(name)-r\(index + 1).pid")
+                        pidFile: "/var/run/kinhin-\(name)-r\(runnerNumber).pid")
                 }
                 return cachePrefix + scripts.joined(separator: "\n")
             }
