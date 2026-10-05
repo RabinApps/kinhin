@@ -45,19 +45,42 @@ enum AlertKit {
         alert.informativeText = message
         alert.addButton(withTitle: "Continue")
         alert.addButton(withTitle: "Cancel")
-        let radios = ResetScope.allCases.map { scope -> NSButton in
-            let button = NSButton(radioButtonWithTitle: scope.label, target: nil, action: nil)
+        let checkboxes = ResetScope.allCases.map { scope -> NSButton in
+            let button = NSButton(checkboxWithTitle: scope.label, target: nil, action: nil)
             button.toolTip = scope.summary
+            button.sizeToFit()
+            
+            // Optional: Set default state (e.g., checked by default)
+            button.state = .off 
+            
             return button
         }
-        radios[0].state = NSControl.StateValue.on
-        let stack = NSStackView(views: radios)
+
+        // 2. Instantiate an empty stack view instead of initializing with views
+        let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 6
+
+        for checkbox in checkboxes {
+            stack.addArrangedSubview(checkbox)
+        }
+
+        // 2. Measure geometry precisely for layout placement
+        let width: CGFloat = 300
+        let itemHeight: CGFloat = checkboxes.first?.frame.height ?? 18
+        let totalSpacing = stack.spacing * CGFloat(checkboxes.count - 1)
+        let totalHeight = (itemHeight * CGFloat(checkboxes.count)) + totalSpacing
+
+        stack.setFrameSize(NSSize(width: width, height: totalHeight))
+        stack.translatesAutoresizingMaskIntoConstraints = true
+
+        // 6. Assign to the alert
         alert.accessoryView = stack
+
+        alert.layout() 
         guard runModal(alert) == .alertFirstButtonReturn else { return nil }
-        return zip(radios, ResetScope.allCases).first { $0.0.state == .on }?.1
+        return zip(checkboxes, ResetScope.allCases).first { $0.0.state == .on }?.1
     }
 
     /// A confirmation that requires typing `word` exactly (reset's second,
