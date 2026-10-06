@@ -61,6 +61,37 @@ final class MacToolsModelTests: XCTestCase {
         XCTAssertFalse(model.offersNamedImages, "without tart there is nothing to bake named images")
     }
 
+    /// `tart_path:` is authoritative, exactly like the CLI, doctor and the
+    /// daemon: a configured binary that is not there reads as missing (even
+    /// when a real tart sits on PATH), so the form never probes the tart the
+    /// fleet will not run.
+    func testConfiguredTartPathThatIsMissingReadsAsNotInstalled() throws {
+        try """
+        labels: [self-hosted]
+        tart_path: "/nonexistent/kinhin-test-tart"
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+        let model = makeModel()
+        XCTAssertFalse(model.tartInstalled, "the configured path overrides the PATH search")
+        XCTAssertEqual(
+            model.tartLine.text, "not installed — tart_path: /nonexistent/kinhin-test-tart does not exist",
+            "the status line names the misconfigured override instead of a bare 'not installed'")
+        XCTAssertEqual(model.imageLine.text, "needs tart first")
+        XCTAssertFalse(model.offersNamedImages)
+    }
+
+    /// The other direction: a configured binary outside the trusted
+    /// directories is found, so an installed tart is never reported missing.
+    func testConfiguredTartPathIsFoundWithoutAskingPath() throws {
+        try """
+        labels: [self-hosted]
+        tart_path: "/usr/bin/true"
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+        let model = makeModel()
+        XCTAssertTrue(model.tartInstalled, "the configured binary answers for tart")
+        XCTAssertEqual(model.tartLine.text, "installed ✓", "a working override never blames the path")
+        XCTAssertTrue(model.offersNamedImages)
+    }
+
     func testRunRetainsItsTaskAndCancelRunningCancelsWithTheBuildLine() async throws {
         let model = makeModel()
         model.run(

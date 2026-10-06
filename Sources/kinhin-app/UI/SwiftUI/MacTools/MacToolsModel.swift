@@ -273,7 +273,12 @@ final class MacToolsModel: ConfigFormModel {
         extraImages = extra.map {
             ImageRow(name: $0.name, baseImage: $0.baseImage, labels: $0.labels ?? [], present: false)
         }
-        let tartInstalled = TartController.isInstalled()
+        // `tart_path:` is authoritative, exactly like the CLI, doctor and the
+        // daemon: a configured binary that is not there reads as missing (the
+        // form offers to install), and a tart outside the trusted directories
+        // is still found when the config points at it.
+        let tartPath = snapshot?.tartPath
+        let tartInstalled = TartController.isInstalled(configuredPath: tartPath)
         if autoEnableLinuxRuntime, configReadable, !tartInstalled, !containerOn, !dockerOn {
             if dockerInstalled {
                 setDocker(true)
@@ -284,7 +289,8 @@ final class MacToolsModel: ConfigFormModel {
             }
         }
         tartLine = Line(
-            text: tartInstalled ? "installed ✓" : "not installed", style: tartInstalled ? .secondary : .warn)
+            text: Self.tartStatus(installed: tartInstalled, configuredPath: tartPath),
+            style: tartInstalled ? .secondary : .warn)
         tartInstallVisible = !tartInstalled
         self.tartInstalled = tartInstalled
         if containerInstalled { checkContainerService() }
@@ -301,7 +307,7 @@ final class MacToolsModel: ConfigFormModel {
                 // A missing tart binary or a failed listing reads as "image
                 // not prepared" — the same state the prepare button offers
                 // to fix; failures are logged rather than hidden.
-                guard let tart = try? TartController() else { return [] }
+                guard let tart = try? TartController(configuredPath: tartPath) else { return [] }
                 do {
                     return Set(try await tart.list().map(\.name))
                 } catch {
@@ -459,6 +465,16 @@ final class MacToolsModel: ConfigFormModel {
         if installed { return Line(text: "installed ✓") }
         if let blocked { return Line(text: "not supported — \(blocked)", style: .warn) }
         return Line(text: "not installed")
+    }
+
+    /// The tart row's status text. A configured `tart_path:` the probe cannot
+    /// find names itself: a bare "not installed" reads like a missing brew
+    /// install, which is not what a misconfigured override needs — the path
+    /// in config.yaml is the thing to fix (installing elsewhere won't help).
+    private static func tartStatus(installed: Bool, configuredPath: String?) -> String {
+        if installed { return "installed ✓" }
+        guard let configuredPath, !configuredPath.isEmpty else { return "not installed" }
+        return "not installed — tart_path: \(configuredPath) does not exist"
     }
 
     func installTart() { install(.tart) }

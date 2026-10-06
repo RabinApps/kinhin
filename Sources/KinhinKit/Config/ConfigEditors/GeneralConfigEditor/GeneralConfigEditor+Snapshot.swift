@@ -18,6 +18,10 @@ extension GeneralConfigEditor {
         public var image: String
         /// What the tart prepare starts from (nil = default macOS base).
         public var tartBaseImage: String?
+        /// The configured tart binary (`tart_path:`; nil = let the probe search
+        /// its trusted directories and PATH), so a form that probes tart can
+        /// report the very binary the fleet will run.
+        public var tartPath: String?
         public var reserveCPU: Int
         public var reserveMemoryGB: Int
         public var container: Container?
@@ -116,6 +120,7 @@ extension GeneralConfigEditor {
             vmEphemeral: vm?.ephemeral ?? d.vm.ephemeral,
             image: partial.image ?? d.image,
             tartBaseImage: partial.baseImage,
+            tartPath: partial.tartPath,
             reserveCPU: reserve?.cpu ?? d.reserve.cpu,
             reserveMemoryGB: reserve?.memoryGB ?? d.reserve.memoryGB,
             container: partial.container.map {

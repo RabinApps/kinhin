@@ -49,6 +49,16 @@ final class ConfigStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.maxRunners, 3)
     }
 
+    /// `tart_path:` reaches the UI through the snapshot, so a form that
+    /// probes tart can honor the override (the same rule the CLI, doctor and
+    /// daemon apply) instead of searching PATH behind the config's back.
+    func testSnapshotCarriesTheConfiguredTartPath() throws {
+        let overridden = try write("tart_path: \"/opt/custom/tart\"\n")
+        XCTAssertEqual(try XCTUnwrap(ConfigStore.snapshot(at: overridden)).tartPath, "/opt/custom/tart")
+        let plain = try write("max_runners: 2\n")
+        XCTAssertNil(try XCTUnwrap(ConfigStore.snapshot(at: plain)).tartPath, "absent = trust the probe's search")
+    }
+
     func testTextOrLogNeverThrows() throws {
         XCTAssertEqual(ConfigStore.textOrLog(at: dir), "")
     }
