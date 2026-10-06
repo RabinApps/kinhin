@@ -79,8 +79,6 @@ struct MainTabsView: View {
         switch model.selectedTab {
         case .fleet:
             FleetView(model: model.models.fleetModel)
-        case .detail:
-            if let detail = model.fleetDetailModel { FleetDetailView(model: detail) }
         case .setup:
             if let wizard = model.models.wizardModel { WizardView(model: wizard) }
         case .advanced:

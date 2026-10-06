@@ -63,7 +63,6 @@ final class WindowModels {
     private(set) var diagnosticsModel: DiagnosticsModel?
     private(set) var pipelineModel: PipelineModel?
     private(set) var workflowTestModel: WorkflowTestModel?
-    private(set) var fleetDetailModel: FleetDetailModel?
 
     // MARK: - Setup wizard
 
@@ -178,12 +177,6 @@ final class WindowModels {
             }
         })
         workflowTestModel = model
-        return model
-    }
-
-    func makeFleetDetailModel() -> FleetDetailModel {
-        let model = FleetDetailModel(controller: fleet)
-        fleetDetailModel = model
         return model
     }
 

@@ -37,8 +37,6 @@ final class MainTabsModel {
     private var requestedTab: MainTab = .fleet
     private(set) var advancedSection: AdvancedSection = .accounts
     var sheet: MainSheet?
-    /// The Fleet detail page's model, created on entry.
-    private(set) var fleetDetailModel: FleetDetailModel?
     /// The Advanced tab has been opened once (its first section is built then).
     @ObservationIgnored private var advancedInstalled = false
 
@@ -66,7 +64,7 @@ final class MainTabsModel {
 
     /// Tabs shown in the tab bar: none while setup gates the window.
     var visibleTabs: [MainTab] {
-        isGatedBySetup ? [] : [.fleet, .detail, .advanced]
+        isGatedBySetup ? [] : [.fleet, .advanced]
     }
 
     /// The tab on screen: the wizard while setup gates the window; afterwards
@@ -95,10 +93,6 @@ final class MainTabsModel {
         switch tab {
         case .setup:
             if models.wizardModel == nil { _ = makeWizard() }
-        case .detail:
-            // A fresh detail model per opening: it starts on the fleet's
-            // current status and the user drills in from there.
-            fleetDetailModel = models.makeFleetDetailModel()
         case .advanced:
             // The first visit builds (and loads) the current section; later
             // tab switches never re-probe.

@@ -23,7 +23,7 @@ final class MainTabsModelTests: MainWindowTestCase {
     }
 
     func testSetupTabFollowsFleetControllerSetupState() {
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .detail, .advanced])
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced])
         fleet.setupIncomplete = true
         XCTAssertEqual(tabs.visibleTabs, [], "no tab bar while setup gates the window")
         XCTAssertTrue(tabs.isGatedBySetup)
@@ -102,7 +102,7 @@ final class MainTabsModelTests: MainWindowTestCase {
         XCTAssertTrue(tabs.isGatedBySetup)
         try XCTUnwrap(models.wizardModel).onFinished?()
         XCTAssertFalse(tabs.isGatedBySetup)
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .detail, .advanced])
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced])
         XCTAssertEqual(tabs.selectedTab, .fleet)
         tabs.select(.advanced)
         XCTAssertEqual(tabs.selectedTab, .advanced, "navigation works again")
@@ -112,7 +112,7 @@ final class MainTabsModelTests: MainWindowTestCase {
         tabs.showSetup()
         XCTAssertFalse(tabs.isGatedBySetup)
         XCTAssertEqual(tabs.selectedTab, .advanced)
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .detail, .advanced])
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced])
     }
 
     func testApplySetupInProgressOnlyActsDuringOnboarding() {

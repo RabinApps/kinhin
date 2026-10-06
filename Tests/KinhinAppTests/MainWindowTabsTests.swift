@@ -43,22 +43,22 @@ final class MainWindowTabsTests: MainWindowTestCase {
     // MARK: - Tab structure
 
     func testTabsAndAdvancedSectionsInDisplayOrder() {
-        XCTAssertEqual(MainTab.allCases, [.fleet, .detail, .setup, .advanced])
+        XCTAssertEqual(MainTab.allCases, [.fleet, .setup, .advanced])
         XCTAssertEqual(
             AdvancedSection.allCases.map(\.label),
             ["Accounts", "Mac & VMs", "Routing", "Containers", "Toolchains", "App"])
     }
 
     func testTabBarIsHiddenWhileSetupIsUnfinished() {
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .detail, .advanced], "a configured app has no Setup tab")
-        XCTAssertEqual(tabs.visibleTabs.map(\.label), ["Fleet", "Detail", "Advanced"])
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced], "a configured app has no Setup tab")
+        XCTAssertEqual(tabs.visibleTabs.map(\.label), ["Fleet", "Advanced"])
 
         tabs.setupIncomplete = true
         XCTAssertEqual(tabs.visibleTabs, [], "only the wizard is shown")
         XCTAssertEqual(tabs.selectedTab, .setup)
 
         tabs.setupIncomplete = false
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .detail, .advanced], "finishing setup reveals the tab bar")
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced], "finishing setup reveals the tab bar")
     }
 
     func testWindowStartsOnTheFleetTab() {
@@ -86,7 +86,7 @@ final class MainWindowTabsTests: MainWindowTestCase {
         // Finishing removes the Setup tab and hands the window to Fleet.
         finishSetupForTesting()
         XCTAssertEqual(tabs.selectedTab, .fleet)
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .detail, .advanced])
+        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced])
         XCTAssertNil(models.wizardModel)
         XCTAssertEqual(delegate.setupFinishedCalls, 1, "the delegate re-bootstraps the engine")
     }

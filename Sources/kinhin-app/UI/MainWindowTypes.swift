@@ -38,14 +38,12 @@ func shouldQuitOnMainWindowClose(launchMode: LaunchMode) -> Bool {
 /// Advanced holds everything you rarely touch.
 enum MainTab: String, CaseIterable {
     case fleet
-    case detail
     case setup
     case advanced
 
     var label: String {
         switch self {
         case .fleet: return "Fleet"
-        case .detail: return "Detail"
         case .setup: return "Setup"
         case .advanced: return "Advanced"
         }

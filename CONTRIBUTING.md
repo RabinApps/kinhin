@@ -32,7 +32,7 @@ scripts/check.sh                  # everything CI runs, in one command, failing 
                                   # format lint, docs lint, docs-sync --check, skills lint)
 scripts/check.sh --fast           # same, skips the ~2 min test run — iterate with this
 swift build
-swift test                        # ~1200 XCTest tests, ~2 min; no VMs or network needed
+swift test                        # ~2300 XCTest tests, ~2 min; no VMs or network needed
 scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
 scripts/dev-run.sh                # debug app, signed with a stable identity so Keychain "Always Allow" survives rebuilds
 swift package --disable-sandbox dev   # same, as a SwiftPM command plugin (Plugins/Dev)

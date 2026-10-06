@@ -312,7 +312,7 @@ kinhin support              Show ways to donate or sponsor kinhin
 
 ## Contributing
 
-`swift build` and `swift test` need no VMs or network. Conventions (layout, style, error handling,
+`swift build` and `swift test` (~2300 tests) need no VMs or network. Conventions (layout, style, error handling,
 formatting) are in [CONTRIBUTING.md](CONTRIBUTING.md); the package layout is in
 [docs/architecture.md](docs/architecture.md). If you touch shared state or concurrency, also run `scripts/tsan.sh`
 ([how to read it](docs/architecture.md#debugging-races-with-threadsanitizer)).
