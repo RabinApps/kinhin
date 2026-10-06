@@ -63,6 +63,25 @@ stage() {
     echo "==> $1"
 }
 
+# Apple's queue outlives this process: a failed or killed step leaves the
+# submission alive server-side, so say how to pick it up instead of leaving
+# the operator to guess. The sidecar (<file>.notary) is written the moment the
+# upload returns, which is why it is still here to point at.
+on_error() {
+    local st=$? sidecar file
+    sidecar="$(ls dist/*.notary 2>/dev/null | head -1 || true)"
+    if [ -n "$sidecar" ]; then
+        file="${sidecar%.notary}"
+        echo "" >&2
+        echo "release: notarization is still running on Apple's side — nothing was lost." >&2
+        echo "  check:   scripts/notarize.sh status '$file'" >&2
+        echo "  resume:  scripts/notarize.sh wait '$file'" >&2
+        echo "  finish:  ./scripts/release-artifacts.sh $VERSION" >&2
+    fi
+    exit "$st"
+}
+trap on_error ERR
+
 # --- Preflight: every failure here costs seconds, every one later costs minutes
 stage "preflight"
 
@@ -112,11 +131,22 @@ fi
 echo "    toolchain: $(xcode-select -p)"
 
 # A release is never ad-hoc signed: an ad-hoc DMG cannot be notarized and
-# Gatekeeper refuses it.
+# Gatekeeper refuses it. Names are resolved to the identity's SHA-1 hash:
+# this keychain holds two certificates with the same "Developer ID
+# Application: …" name, and codesign refuses such a name as ambiguous, while
+# the hash is unique and equally accepted.
+identity_hash() {
+    security find-identity -v -p codesigning |
+        awk -v want="$1" -F'"' '$2 == want { sub(/^.*\) /, "", $1); gsub(/[ \t]/, "", $1); print $1; exit }'
+}
 IDENTITY="${CODESIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ]; then
     IDENTITY="$(security find-identity -v -p codesigning |
         sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)"
+fi
+if [ -n "$IDENTITY" ] && [ "$IDENTITY" != "-" ]; then
+    resolved="$(identity_hash "$IDENTITY" || true)"
+    [ -n "$resolved" ] && IDENTITY="$resolved"
 fi
 if [ -z "$IDENTITY" ]; then
     echo "FATAL: no Developer ID Application certificate in the keychain." >&2

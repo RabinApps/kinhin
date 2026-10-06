@@ -200,7 +200,8 @@ final class DockerPlatformTests: XCTestCase {
         let report = await DoctorReportBuilder(
             host: HostResources(logicalCores: 10, memoryGB: 64, freeDiskGB: 120, arm64: true),
             clt: .ok(version: "27.0"), tartHealth: .healthy, tartList: [],
-            config: .loaded(cfg), authLoad: { _ in "token" }, dockerHealth: .ready, dockerImages: ["ci"]
+            config: .loaded(cfg), authLoad: { _ in "token" }, dockerHealth: .ready,
+            dockerImages: ImageInventory.RuntimeImages(names: ["ci"])
         ).build()
         XCTAssertEqual(report.docker?.platform, "linux/amd64")
         XCTAssertEqual(report.docker?.note, LinuxPlatform.emulationNotice)

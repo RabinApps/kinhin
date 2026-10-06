@@ -33,7 +33,8 @@ carries only command output, so JSON stays parseable.
 ## Scaling
 
 - Tune `max_runners`, `runners_per_vm`, `vm.cpu`, `vm.memory_gb` and `reserve` in the config, then `kinhin config validate`
-  and `kinhin doctor`. Doctor prints the capacity cap and the binding constraint.
+  and `kinhin doctor`. Doctor prints the capacity cap, the binding constraint and each runtime's image disk usage
+  (`imageTotalGB`; `imagePrune` names the reclaimable space and the command when unused images are wasting disk).
 - macOS allows two concurrent macOS VMs per Mac. Beyond that, raise `runners_per_vm` (1 to 8) or add Macs.
 - For several Macs, give each its own label (for example `mac-a`, `mac-b`). Nothing coordinates between Macs.
 - Rough sizing: 16 GB gives 1 to 2 VMs of 3 to 4 CPUs and 6 GB; 24 GB gives 2 x (4 CPU / 8 GB); 32 GB gives

@@ -86,11 +86,48 @@ secrets are only reachable after a reviewer approves.
 | `scripts/release.sh`          | The orchestrator: preflight → gates → build → artifacts → summary                                      |
 | `scripts/build-app.sh`        | Assembles `dist/kinhin.app`: builds both products, hash-verifies every copied binary, generates App Intents metadata, signs inside-out (nested CLI first) |
 | `scripts/make-dmg.sh`         | Wraps `build-app.sh`, packs the DMG with an `/Applications` shortcut, signs it, calls `notarize.sh`     |
-| `scripts/notarize.sh`         | Submits to Apple, waits for the verdict, prints the notary log on rejection, staples DMGs               |
+| `scripts/notarize.sh`         | Submits to Apple, waits for the verdict, prints the notary log on rejection, staples DMGs — as `submit` / `wait` / `staple` / `status` subcommands so an interrupted run resumes (see below) |
 | `scripts/release-artifacts.sh`| CLI zip → Gatekeeper + in-bundle version verification → Team-ID-stamped `install.sh` → `checksums.txt` |
 
 `release-artifacts.sh` pins `checksums.txt` to the version's own files: `dist/` is a workbench, and a
 wildcard would silently checksum whatever older artifacts happen to be lying next to the new ones.
+
+## Apple's queue can take hours
+
+Notarization is not a local step: the upload returns in seconds, then Apple's queue runs server-side.
+A first submission, or a busy day at Apple, can sit at `In Progress` for hours — a recurring, documented
+service problem, not a sign that anything is wrong with the build.
+
+So `scripts/notarize.sh` never holds the verdict in memory. The submission id is written to a sidecar
+next to the artifact the moment the upload returns:
+
+```
+dist/kinhin-0.0.1-beta-1-arm64.dmg.notary   # sha256=… id=… submittedAt=…
+```
+
+Whatever kills the waiting process — a tool-call timeout, a CI job limit, Ctrl-C — the submission
+stays alive on Apple's side and the id survives. Pick it up whenever:
+
+```bash
+scripts/notarize.sh status dist/kinhin-<v>-arm64.dmg   # id + live status
+scripts/notarize.sh wait   dist/kinhin-<v>-arm64.dmg   # poll until it settles, then staple
+scripts/notarize.sh staple dist/kinhin-<v>-arm64.dmg   # staple now, if it is already Accepted
+
+NOTARY_KEYCHAIN_PROFILE=kinhin ./scripts/release-artifacts.sh <v>   # finish the rest of the run
+```
+
+The four subcommands are also how the default form stays honest:
+
+- `notarize.sh <file>` (= submit → wait → staple) **resumes** a recorded submission instead of
+  uploading the same bytes again.
+- The sidecar stores the artifact's `sha256`, so a rebuilt DMG or zip can never be stapled against
+  another build's ticket — it fails with instructions instead.
+- `NOTARY_WAIT_SECONDS` bounds the wait (unset = as long as Apple takes). On expiry the script exits
+  **75** — distinct from a rejection — and prints the resume commands; nothing was lost.
+- `release.sh` prints the same resume hint if it dies with a submission in flight.
+
+A fresh `release.sh` run clears stale sidecars with the rest of `dist/`, so a new release never
+resumes an old submission.
 
 ## After the release
 

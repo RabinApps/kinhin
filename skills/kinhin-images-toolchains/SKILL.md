@@ -57,7 +57,9 @@ projects:
   and remove one by name with
   `kinhin image delete <name> [--yes]` — it reports without `--yes` and refuses images runners are using. Sweep the
   whole machine in one confirmed pass with `kinhin image prune [--yes]` — stale derived records plus unused local
-  images; configured images, the `base_image` and anything in use are never touched. Config
+  images; configured images, the `base_image` and anything in use are never touched. The same numbers come to you
+  without asking: `kinhin doctor` reports per-runtime totals (`imageTotalGB`) and the reclaimable sweep (`imagePrune`),
+  and the app's Diagnostics tab shows both rows. Config
   `toolchain_cache` sets `auto_prune`, `max_age_days` (30) and `max_gb` (50). `max_project_images` defaults to 8.
 
 ## Linux and host runtimes

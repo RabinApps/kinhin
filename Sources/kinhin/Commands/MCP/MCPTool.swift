@@ -84,7 +84,9 @@ extension MCPTool {
     static let doctor = MCPTool(
         name: "doctor",
         description:
-            "Prerequisites, stored tokens, runtime health and the computed capacity cap — the `kinhin doctor --json` document.",
+            "Prerequisites, stored tokens, runtime health, the computed capacity cap, per-runtime image disk usage "
+            + "(`imageTotalGB`), the prune suggestion (`imagePrune`) and the disk-pressure warning "
+            + "(`diskPressure`) — the `kinhin doctor --json` document.",
         inputSchema: InputSchema(),
         run: { _ in
             Paths.ensureSupportDirectories()

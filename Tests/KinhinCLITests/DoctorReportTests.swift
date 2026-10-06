@@ -45,7 +45,7 @@ final class DoctorReportTests: XCTestCase {
         clt: CLTState = .ok(version: "26.6"),
         tartHealth: TartHealth = .healthy,
         containerHealth: RuntimeHealth? = nil,
-        containerImages: [String]? = nil
+        containerImages: ImageInventory.RuntimeImages? = nil
     ) -> DoctorReportBuilder {
         DoctorReportBuilder(
             host: host,
@@ -72,7 +72,7 @@ final class DoctorReportTests: XCTestCase {
             stored: [.github: "ghp_live", .gitea: "gt_live"],
             config: Self.config(gitea: true, container: true),
             containerHealth: .ready,
-            containerImages: ["kinhin-ci-linux:latest"]
+            containerImages: ImageInventory.RuntimeImages(names: ["kinhin-ci-linux:latest"])
         ).build()
 
         XCTAssertEqual(report.host, host, "the host snapshot passes through verbatim")
@@ -93,7 +93,7 @@ final class DoctorReportTests: XCTestCase {
         let found = await builder(
             config: Self.config(container: true),
             containerHealth: .ready,
-            containerImages: ["kinhin-ci-linux:1.2"]
+            containerImages: ImageInventory.RuntimeImages(names: ["kinhin-ci-linux:1.2"])
         ).build()
         XCTAssertEqual(found.container?.state, "ready")
         XCTAssertEqual(found.container?.image, "kinhin-ci-linux")
@@ -103,7 +103,7 @@ final class DoctorReportTests: XCTestCase {
         let absent = await builder(
             config: Self.config(container: true),
             containerHealth: .ready,
-            containerImages: []
+            containerImages: ImageInventory.RuntimeImages()
         ).build()
         XCTAssertFalse(absent.container?.imageFound ?? true)
         XCTAssertNotNil(absent.container?.fix, "a missing image carries the prepare command")
@@ -300,7 +300,7 @@ final class DoctorReportTests: XCTestCase {
             stored: [.github: "ghp_live", .gitea: "gt_live"],
             config: Self.config(gitea: true, container: true),
             containerHealth: .ready,
-            containerImages: ["kinhin-ci-linux:latest"]
+            containerImages: ImageInventory.RuntimeImages(names: ["kinhin-ci-linux:latest"])
         ).build()
 
         let data = try JSONEncoder().encode(report)

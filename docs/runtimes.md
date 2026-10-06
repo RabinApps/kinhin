@@ -119,7 +119,9 @@ image prepare` also sweeps up `kinhin-prepare-tmp-*` VMs left by an earlier cras
 `kinhin image list` shows every image kinhin can find on this Mac, per runtime: the tart base image and any `images:`
 entries (role, size), derived per-project images (size, last used), and the apple-container/Docker images. Each
 runtime section opens with a count and total disk usage — image bloat at a glance — and the `--json` document carries
-the same totals under `totalGB`, keyed by runtime. It also
+the same totals under `totalGB`, keyed by runtime. The diagnostics surface carries them too: `kinhin doctor --json`
+reports the per-runtime totals under `imageTotalGB`, and plain `kinhin doctor` prints them as a single `images:` row.
+It also
 lists what is configured but not built yet, says why a runtime could not be listed, and marks the images runners are
 using right now. A machine with a busy Docker daemon is the reason `--runtime` exists: it narrows the listing — and
 the probes behind it — to one runtime, so only what you asked about is touched.
@@ -143,6 +145,11 @@ is refused until you `kinhin stop` (a runner VM or a leftover bake scratch VM is
 (the index remembers an image tart no longer has) and deletes the local images nothing uses. Configured images, every
 `base_image:`, and anything a runner is using are never candidates — in-use images are listed as kept and the rest of
 the sweep proceeds without them. A runtime whose images could not be listed is skipped and said so, never swept blind.
+
+You don't have to remember that, though: when unused images are wasting disk, `kinhin doctor` says so — a `prune:` row
+under its `images:` row with the count, the reclaimable space and the command, the app's Diagnostics tab shows the
+same line, and `kinhin doctor --json` carries it under `imagePrune` (the selection is the prune plan's own, so the
+doctor never offers a sweep the command would refuse).
 
 ### Isolating runner VMs from each other
 

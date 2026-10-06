@@ -11,7 +11,10 @@ The effective concurrency cap is
 `disk_per_vm` is your `disk_gb` when set, else a runtime default (50 GB for Tart VMs, 8 GB for
 Linux container slots). The scaler re-checks free disk before every spawn and holds new VMs when
 the disk would dip below `reserve.disk_gb` plus one instance's footprint — a queue burst can
-never fill your disk. `kinhin doctor` prints the cap and the binding constraint.
+never fill your disk. `kinhin doctor` prints the cap and the binding constraint, and warns under
+the same rule before the fleet reaches it: `WARNING: disk pressure` (the guard itself is the
+`diskPressure` field of `doctor --json`), stating how much the images hold and what
+`kinhin image prune` would reclaim.
 Not sure how big a Mac you need? See [Hardware requirements & sizing](hardware.md).
 
 When several runtimes are configured, this budget is partitioned across their pools by the

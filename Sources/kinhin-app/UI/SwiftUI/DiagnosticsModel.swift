@@ -92,6 +92,20 @@ final class DiagnosticsModel {
             rows.append(Row(title: "Docker (Linux)", detail: detail, ok: availability.supported))
         }
 
+        // Per-runtime image disk usage — the same line the human doctor
+        // prints (`images:` row), so both surfaces say exactly this much.
+        // Informational: a big number is bloat to prune, not a fault.
+        if let usage = report.imageTotalLine {
+            rows.append(Row(title: "Image disk usage", detail: usage, ok: true))
+        }
+
+        // …and the sweep that would give some of that space back, straight
+        // from the report's prune plan — the same line the doctor's `prune:`
+        // row prints, present only when something is actually wasting disk.
+        if let prune = report.imagePruneLine {
+            rows.append(Row(title: "Unused images", detail: prune, ok: true))
+        }
+
         // Capacity (nil when the config can't parse — nothing to plan against)
         if let capacity = report.capacity {
             rows.append(
@@ -100,6 +114,13 @@ final class DiagnosticsModel {
                     detail:
                         "\(capacity.maxConcurrent) VMs · \(capacity.jobSlots) job slots — \(capacity.bindingConstraint)",
                     ok: capacity.fits))
+        }
+
+        // The engine's disk guard, before the fleet hits it — not ok: the
+        // next spawn is held until disk frees. Same shared line as the
+        // doctor's WARNING, image totals and prune lever included.
+        if let pressure = report.diskPressureLine {
+            rows.append(Row(title: "Disk pressure", detail: pressure, ok: false))
         }
 
         if let security = report.security {

@@ -30,10 +30,29 @@ VERSION="${1:?usage: release-artifacts.sh [--no-notarize] <version>}"
     exit 1
 }
 
-if [ -z "${CODESIGN_IDENTITY:-}" ] || [ "$CODESIGN_IDENTITY" = "-" ]; then
+# Resolved like release.sh does: a resume run has no inherited env, so fall
+# back to the first Developer ID identity in the keychain. Ad-hoc ("-") is
+# never a release — it cannot be notarized and Gatekeeper refuses it.
+# Names are resolved to the identity's SHA-1 hash: this keychain holds two
+# certificates with the same "Developer ID Application: …" name, and codesign
+# refuses a name as ambiguous, while the hash is unique and equally accepted.
+identity_hash() {
+    security find-identity -v -p codesigning |
+        awk -v want="$1" -F'"' '$2 == want { sub(/^.*\) /, "", $1); gsub(/[ \t]/, "", $1); print $1; exit }'
+}
+if [ -z "${CODESIGN_IDENTITY:-}" ]; then
+    CODESIGN_IDENTITY="$(security find-identity -v -p codesigning |
+        sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)"
+fi
+if [ "$CODESIGN_IDENTITY" != "-" ] && [ -n "$CODESIGN_IDENTITY" ]; then
+    resolved="$(identity_hash "$CODESIGN_IDENTITY" || true)"
+    [ -n "$resolved" ] && CODESIGN_IDENTITY="$resolved"
+fi
+if [ -z "$CODESIGN_IDENTITY" ] || [ "$CODESIGN_IDENTITY" = "-" ]; then
     echo "FATAL: CODESIGN_IDENTITY must name a Developer ID identity (ad-hoc is never a release)" >&2
     exit 1
 fi
+echo "==> codesign: $CODESIGN_IDENTITY"
 
 DMG="dist/kinhin-$VERSION-arm64.dmg"
 if [ ! -f "$DMG" ]; then
@@ -54,16 +73,24 @@ stage() {
 # The app bundle carries the CLI at Resources/bin/kinhin; this is the zip for
 # installs that only want the command.
 stage "CLI zip: dist/kinhin-cli-$VERSION-arm64.zip"
-BIN_DIR="$(swift build -c release --show-bin-path --product kinhin)"
-mkdir -p dist/cli
-cp "$BIN_DIR/kinhin" dist/cli/kinhin
-codesign --force --sign "$CODESIGN_IDENTITY" --options runtime --timestamp dist/cli/kinhin
-codesign --verify --strict --verbose=2 dist/cli/kinhin
-# zip updates an existing archive in place, which would keep stale entries.
-rm -f "dist/kinhin-cli-$VERSION-arm64.zip"
-(cd dist/cli && zip ../kinhin-cli-"$VERSION"-arm64.zip kinhin)
+ZIP="dist/kinhin-cli-$VERSION-arm64.zip"
+if [ -f "$ZIP" ] && [ -f "$ZIP.notary" ]; then
+    # A previous run uploaded it and is still waiting on Apple: rebuilding would
+    # produce different bytes (zip embeds mtimes) and force a second submission.
+    echo "    resuming the recorded submission (not rebuilding)"
+else
+    BIN_DIR="$(swift build -c release --show-bin-path --product kinhin)"
+    mkdir -p dist/cli
+    cp "$BIN_DIR/kinhin" dist/cli/kinhin
+    codesign --force --sign "$CODESIGN_IDENTITY" --options runtime --timestamp dist/cli/kinhin
+    codesign --verify --strict --verbose=2 dist/cli/kinhin
+    # zip updates an existing archive in place, which would keep stale entries —
+    # and its notary sidecar would otherwise describe the bytes we just replaced.
+    rm -f "$ZIP" "$ZIP.notary"
+    (cd dist/cli && zip ../kinhin-cli-"$VERSION"-arm64.zip kinhin)
+fi
 if [ "$NO_NOTARIZE" = 0 ]; then
-    ./scripts/notarize.sh "dist/kinhin-cli-$VERSION-arm64.zip"
+    ./scripts/notarize.sh "$ZIP"
 else
     echo "    (notarization skipped: --no-notarize)"
 fi

@@ -4,6 +4,54 @@ import Foundation
 // same report as `--json`, the app's Diagnostics and the Shortcuts intent,
 // so every surface agrees on what is broken and how to fix it.
 extension DoctorReport {
+    /// The per-runtime image totals as one line — "tart 45 GB · container 4 GB
+    /// · docker 65 GB" — in runtime order, with sub-GB totals reading "<1 GB".
+    /// nil when no runtime reported a size (nothing to show). One
+    /// implementation behind the human doctor's `images:` row and the app's
+    /// Diagnostics tab, so the two surfaces cannot drift.
+    public var imageTotalLine: String? {
+        guard let imageTotalGB else { return nil }
+        let parts = ["tart", "container", "docker"].compactMap { runtime -> String? in
+            guard let total = imageTotalGB[runtime] else { return nil }
+            return "\(runtime) \(total > 0 ? "\(total) GB" : "<1 GB")"
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// The prune suggestion as one line — "62 unused image(s) (~68 GB) —
+    /// review with: kinhin image prune" — worded with `image prune`'s own
+    /// report (the count and the `(~N GB)` estimate), so the advice and the
+    /// command's output cannot contradict each other. nil when nothing is
+    /// wasting disk. Shared by the human doctor's `prune:` row and the
+    /// app's Diagnostics row.
+    public var imagePruneLine: String? {
+        guard let imagePrune else { return nil }
+        var line = "\(imagePrune.count) unused image(s)"
+        if let gb = imagePrune.reclaimGB {
+            line += gb > 0 ? " (~\(gb) GB)" : " (<1 GB)"
+        }
+        return line + " — review with: \(imagePrune.command)"
+    }
+
+    /// The disk-pressure advisory as one line: the engine's guard numbers
+    /// (free, per-instance footprint + reserve, the runtime planned next),
+    /// then what the images hold and what a prune would give back. nil when
+    /// free disk covers the next instance. Shared by the doctor's WARNING
+    /// line and the app's Diagnostics row.
+    public var diskPressureLine: String? {
+        guard let diskPressure else { return nil }
+        var line =
+            "\(diskPressure.freeGB) GB free, a new \(diskPressure.runtime) instance needs "
+            + "\(diskPressure.instanceDiskGB) GB + \(diskPressure.reserveGB) GB reserve — the fleet holds spawns"
+        if let images = imageTotalGB?.values.reduce(0, +) {
+            line += "; images hold \(images) GB"
+        }
+        if let reclaim = imagePrune?.reclaimGB, let command = imagePrune?.command {
+            line += "; reclaim \(reclaim > 0 ? "\(reclaim) GB" : "<1 GB") with: \(command)"
+        }
+        return line
+    }
+
     /// The report as aligned "label: value" lines (no trailing newline).
     public var plainText: String {
         var lines = ["kinhin doctor"]
@@ -70,6 +118,15 @@ extension DoctorReport {
                     : "agent NOT INSTALLED ✗ — install with: kinhin setup repair host-agent")
         }
 
+        // Image disk usage per runtime — the bloat number `kinhin image
+        // list` prints under each section title, in the same runtime order.
+        // A runtime whose sizes were not read has no total and is left out
+        // (its own rows above already say whether it could be listed).
+        if let usage = imageTotalLine { row("images", usage) }
+        // …and the sweep that would give some of it back — only when there
+        // is something to sweep (the plan's own selection, not a guess).
+        if let prune = imagePruneLine { row("prune", prune) }
+
         if auth.accounts.isEmpty {
             row("token", "no accounts configured — add one: kinhin auth add NAME --github --scope OWNER/REPO")
         }
@@ -96,6 +153,13 @@ extension DoctorReport {
             if !capacity.fits {
                 lines.append("  WARNING: a single VM does not fit the host within reserved headroom")
             }
+        }
+        // The engine's disk guard, warned before the fleet hits it — the
+        // same numbers as the spawn hold, plus the image totals and the
+        // prune lever (the fleet can only hold spawns; freeing images is
+        // what the user can actually do).
+        if let pressure = diskPressureLine {
+            lines.append("  WARNING: disk pressure — \(pressure)")
         }
         if let security {
             if security.softnetEnabled {

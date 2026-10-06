@@ -135,7 +135,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         let isAdminRequest = path.hasPrefix("/_apis/")
         if isAdminRequest, let actionsURL = baseURL {
             guard let actionsComponents = URLComponents(url: actionsURL, resolvingAgainstBaseURL: false),
-                let scheme = actionsComponents.scheme, let host = actionsComponents.host,
+                let scheme = actionsComponents.scheme, let _ = actionsComponents.host,
                 scheme == "https"
             else {
                 throw GitHubError.http(0, "invalid Actions service URL")

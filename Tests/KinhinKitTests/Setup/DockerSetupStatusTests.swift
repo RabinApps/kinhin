@@ -117,7 +117,7 @@ final class DockerSetupStatusTests: XCTestCase {
             config: .loaded(config(docker: .init(image: "ghcr.io/acme/kinhin-ci-linux"))),
             authLoad: { _ in "token" },
             dockerHealth: .broken("daemon down"),
-            dockerImages: []
+            dockerImages: ImageInventory.RuntimeImages()
         ).build()
         let docker = try XCTUnwrap(report.docker)
         XCTAssertEqual(docker.state, "broken")
@@ -137,7 +137,7 @@ final class DockerSetupStatusTests: XCTestCase {
             config: .loaded(config(docker: .init(image: "ghcr.io/acme/kinhin-ci-linux"))),
             authLoad: { _ in "token" },
             dockerHealth: .ready,
-            dockerImages: ["ubuntu:24.04"]
+            dockerImages: ImageInventory.RuntimeImages(names: ["ubuntu:24.04"])
         ).build()
         let docker = try XCTUnwrap(report.docker)
         XCTAssertEqual(docker.state, "ready")
@@ -154,7 +154,7 @@ final class DockerSetupStatusTests: XCTestCase {
             config: .loaded(config(docker: nil)),
             authLoad: { _ in "token" },
             dockerHealth: .ready,
-            dockerImages: ["whatever"]
+            dockerImages: ImageInventory.RuntimeImages(names: ["whatever"])
         ).build()
         XCTAssertNil(report.docker)
     }

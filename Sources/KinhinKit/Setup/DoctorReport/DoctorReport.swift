@@ -215,6 +215,52 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         }
     }
 
+    /// Unused local images `kinhin image prune` would sweep in one confirmed
+    /// pass — present only when something is actually wasting disk. Pure
+    /// advice: it never affects `ready`. The selection is the prune plan's
+    /// own, computed from the listings this report was built from, so the
+    /// numbers match what `kinhin image prune` prints for the same Mac.
+    public struct ImagePruneSection: Codable, Equatable, Sendable {
+        /// Installed unused images the sweep would remove (stale index
+        /// records are not counted — they waste no disk).
+        public let count: Int
+        /// Whole GB those images occupy; nil when no target reported a size.
+        public let reclaimGB: Int?
+        /// The command that reviews the sweep (deletes only with `--yes`).
+        public let command: String
+
+        public init(count: Int, reclaimGB: Int?, command: String) {
+            self.count = count
+            self.reclaimGB = reclaimGB
+            self.command = command
+        }
+    }
+
+    /// Free disk below what the next instance needs — the engine's own
+    /// pre-spawn guard (one instance's footprint + the reserve vs free
+    /// disk), surfaced by doctor *before* the fleet holds spawns. Advice:
+    /// it never affects `ready`; the rendered line adds how much the images
+    /// hold and what `kinhin image prune` would reclaim.
+    public struct DiskPressureSection: Codable, Equatable, Sendable {
+        /// Free disk on the host right now, in GB.
+        public let freeGB: Int
+        /// The runtime whose next instance is being planned (the config's
+        /// primary runtime — demand decides at spawn time).
+        public let runtime: String
+        /// One instance's disk footprint (config `disk_gb`, else the
+        /// runtime's default estimate).
+        public let instanceDiskGB: Int
+        /// Reserved headroom the scaler never spends.
+        public let reserveGB: Int
+
+        public init(freeGB: Int, runtime: String, instanceDiskGB: Int, reserveGB: Int) {
+            self.freeGB = freeGB
+            self.runtime = runtime
+            self.instanceDiskGB = instanceDiskGB
+            self.reserveGB = reserveGB
+        }
+    }
+
     /// Host snapshot (cores, memory, free disk, arm64).
     public let host: HostResources
     /// Command Line Tools state + repair command.
@@ -246,13 +292,26 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     public let tartBaseImage: TartBaseImageSection?
     /// Isolation/transport posture — present only when the config parsed.
     public let security: SecuritySection?
+    /// Per-runtime disk usage of the local images in GB, keyed "tart" /
+    /// "container" / "docker" — the same totals `kinhin image list --json`
+    /// prints under `totalGB`, so image bloat is visible in diagnostics too.
+    /// A runtime whose sizes could not be read has no key; nil when nothing
+    /// was measured (the config did not parse, so no listing ran).
+    public let imageTotalGB: [String: Int]?
+    /// The prune suggestion — nil when nothing is wasting disk.
+    public let imagePrune: ImagePruneSection?
+    /// The disk-pressure advisory — nil when free disk covers the next
+    /// instance plus the reserve.
+    public let diskPressure: DiskPressureSection?
 
     public init(
         host: HostResources, clt: CLTSection, tart: TartSection, container: ContainerSection?,
         docker: DockerSection?, dockerAvailability: DockerAvailabilitySection? = nil, hostRuntime: HostSection? = nil,
         toolchainCache: ToolchainCacheSection,
         auth: AuthStatusReport, checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?,
-        tartBaseImage: TartBaseImageSection? = nil, security: SecuritySection? = nil
+        tartBaseImage: TartBaseImageSection? = nil, security: SecuritySection? = nil,
+        imageTotalGB: [String: Int]? = nil, imagePrune: ImagePruneSection? = nil,
+        diskPressure: DiskPressureSection? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -268,5 +327,8 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         self.capacity = capacity
         self.tartBaseImage = tartBaseImage
         self.security = security
+        self.imageTotalGB = imageTotalGB
+        self.imagePrune = imagePrune
+        self.diskPressure = diskPressure
     }
 }

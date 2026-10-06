@@ -7,7 +7,9 @@ description: Diagnose kinhin problems - jobs queued but no VMs, runner never reg
 
 ## Diagnose in this order
 
-1. `kinhin doctor` (add `--json` to parse it). It checks Tart, disk, tokens, isolation posture and the capacity cap.
+1. `kinhin doctor` (add `--json` to parse it). It checks Tart, disk, tokens, isolation posture and the capacity cap —
+   and reports each runtime's image disk usage (`imageTotalGB`), with `imagePrune` naming what
+   `kinhin image prune` would reclaim when unused images are wasting disk.
 2. `kinhin setup-status` and `kinhin auth status`.
 3. `kinhin logs -n 200`, and `~/Library/Application Support/Kinhin/logs/kinhin.log`.
 4. `kinhin status` and `kinhin pipeline` to see what the fleet thinks is happening.
@@ -29,7 +31,7 @@ description: Diagnose kinhin problems - jobs queued but no VMs, runner never reg
 | Fleet refuses to start with `tart_softnet: true` | Install `softnet` and make the resolved binary setuid root (`chown root`, `chmod u+s`). Repeat after each `brew upgrade softnet`. |
 | First launch blocked (old or local build) | Right-click Open, or `xattr -cr /Applications/kinhin.app`. Official releases are notarized. |
 | Remote Mac keeps prompting for the Keychain | `security unlock-keychain ~/Library/Keychains/login.keychain-db`, enable auto-login, keep FileVault off. |
-| Disk filling | Stop the fleet, then `kinhin cleanup --all` (review the report), then `--yes`. |
+| Disk filling | Stop the fleet, then `kinhin cleanup --all` (review the report), then `--yes`. For image bloat specifically: the doctor's `prune:` row shows the waste, then `kinhin image prune` (report-only) and `--yes`. |
 | Older images allow SSH passwords | Re-run `kinhin image prepare`. A fresh prepare turns that off. |
 
 ## Rules for the agent

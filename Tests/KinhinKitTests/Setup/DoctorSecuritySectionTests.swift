@@ -46,7 +46,8 @@ final class DoctorSecuritySectionTests: XCTestCase {
                 reads.withLock { $0["\(forge.rawValue):\(name)", default: 0] += 1 }
                 return "tok"
             },
-            dockerHealth: .ready, dockerImages: ["kinhin-ci-linux:latest"], softnetInstalled: true
+            dockerHealth: .ready, dockerImages: ImageInventory.RuntimeImages(names: ["kinhin-ci-linux:latest"]),
+            softnetInstalled: true
         ).build()
         XCTAssertFalse(reads.withLock { $0 }.isEmpty, "the accounts were read")
         XCTAssertTrue(reads.withLock { $0 }.values.allSatisfy { $0 == 1 }, "\(reads.withLock { $0 })")

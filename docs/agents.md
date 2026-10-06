@@ -52,7 +52,7 @@ claude mcp add kinhin -- kinhin mcp     # Claude Code
 | Tool | Returns |
 | --- | --- |
 | `status` | The `kinhin status --json` document: daemon reachability, running/paused, queue depth |
-| `doctor` | Prerequisites, tokens, runtime health and the capacity cap (`kinhin doctor --json`) |
+| `doctor` | Prerequisites, tokens, runtime health, the capacity cap, image disk usage (`imageTotalGB`), prune hint (`imagePrune`) and the disk-pressure warning (`diskPressure`) — `kinhin doctor --json` |
 | `setup_status` | The first-run checklist and its `ready` flag |
 | `runtimes` | Pools, budget split, health, routes (`noHealth: true` skips probes) |
 | `auth_status` | Which forges have a stored token — never the token itself |
@@ -80,7 +80,7 @@ For agents that shell out instead of speaking MCP:
 | Command | Document |
 | --- | --- |
 | `kinhin status --json` | Fleet status, flattened `paused` / `autoResume` / `queueAgeSeconds` fields |
-| `kinhin doctor --json` | Merged diagnostics: host, runtimes, tokens, checklist, capacity |
+| `kinhin doctor --json` | Merged diagnostics: host, runtimes, tokens, checklist, capacity, image disk usage (`imageTotalGB`), prune hint (`imagePrune`), disk pressure (`diskPressure`) |
 | `kinhin setup-status --json` | First-run checklist |
 | `kinhin auth status --json` | Stored-token state across every configured forge |
 | `kinhin runtimes [--json] [--no-health]` | Pools, capacity, budget, health, routes |

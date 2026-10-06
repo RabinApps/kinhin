@@ -17,9 +17,12 @@ public struct DoctorReportBuilder: Sendable {
     /// Same, for the named `accounts:` entries.
     let accountLoad: @Sendable (ForgeID, String) throws -> String?
     let containerHealth: RuntimeHealth?
-    let containerImages: [String]?
+    /// The container listing itself (names *and* sizes) — the one fixture
+    /// for that probe, so tests can exercise the disk-usage breakdown.
+    let containerImages: ImageInventory.RuntimeImages?
     let dockerHealth: RuntimeHealth?
-    let dockerImages: [String]?
+    /// The docker listing, same shape as `containerImages`.
+    let dockerImages: ImageInventory.RuntimeImages?
     let hostHealth: RuntimeHealth?
     /// Whether the docker CLI is installed (fixture). nil infers it from an
     /// injected `dockerHealth`, else looks it up on PATH.
@@ -30,6 +33,14 @@ public struct DoctorReportBuilder: Sendable {
     let softnetInstalled: Bool?
     /// Where the daemon records an unpinned guest SSH host key (tests point it elsewhere).
     let hostKeyMarker: URL?
+    /// The fleet's runner VM records; nil reads the live store — the same
+    /// read `kinhin image list` makes. The prune suggestion needs them so an
+    /// image a runner is on is never counted as wastable.
+    let fleet: [VMRecord]?
+    /// The derived-image index; nil reads the live store. Records classify
+    /// configured-derived tart images (never prunable) and mark stale index
+    /// entries — again, the `image list` read.
+    let projectRecords: [ProjectImageRecord]?
     /// The active org-permission check (mints and discards a registration
     /// token): takes the stored token and the org scope, returns the verdict
     /// line. Only the human rendering runs it; tests substitute a fixture.
@@ -46,9 +57,9 @@ public struct DoctorReportBuilder: Sendable {
             try KeychainTokenStore.load(forge: $0, name: $1)
         },
         containerHealth: RuntimeHealth? = nil,
-        containerImages: [String]? = nil,
+        containerImages: ImageInventory.RuntimeImages? = nil,
         dockerHealth: RuntimeHealth? = nil,
-        dockerImages: [String]? = nil,
+        dockerImages: ImageInventory.RuntimeImages? = nil,
         hostHealth: RuntimeHealth? = nil,
         dockerInstalled: Bool? = nil,
         osVersion: OperatingSystemVersion? = nil,
@@ -56,7 +67,9 @@ public struct DoctorReportBuilder: Sendable {
         hostKeyMarker: URL? = nil,
         orgPermissionCheck: @escaping @Sendable (String, String, String?) async -> String = { token, scope, instance in
             await TokenHealthCheck.github(token: token, scope: scope, instance: instance).message
-        }
+        },
+        fleet: [VMRecord]? = nil,
+        projectRecords: [ProjectImageRecord]? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -75,6 +88,8 @@ public struct DoctorReportBuilder: Sendable {
         self.softnetInstalled = softnetInstalled
         self.hostKeyMarker = hostKeyMarker
         self.orgPermissionCheck = orgPermissionCheck
+        self.fleet = fleet
+        self.projectRecords = projectRecords
     }
 
     /// Memoizes a Keychain read so the checklist and the auth report share one
@@ -155,14 +170,14 @@ public struct DoctorReportBuilder: Sendable {
         // "ask a runtime for its images" the checklist's rows and
         // `kinhin image list` use, so the doctor ships no copy of its own.
         async let containerImagesProbe: ImageInventory.RuntimeImages? = {
-            if let injectedContainerImages { return ImageInventory.RuntimeImages(names: injectedContainerImages) }
+            if let injectedContainerImages { return injectedContainerImages }
             guard containerWanted != nil, resolvedContainerHealth?.isReady == true else { return nil }
-            return await ImageInventory.listing(runtime: .container, config: parsed)
+            return await ImageInventory.listing(runtime: .container, config: parsed, sizes: true)
         }()
         async let dockerImagesProbe: ImageInventory.RuntimeImages? = {
-            if let injectedDockerImages { return ImageInventory.RuntimeImages(names: injectedDockerImages) }
+            if let injectedDockerImages { return injectedDockerImages }
             guard dockerConfig != nil, resolvedDockerHealth?.isReady == true else { return nil }
-            return await ImageInventory.listing(runtime: .docker, config: parsed)
+            return await ImageInventory.listing(runtime: .docker, config: parsed, sizes: true)
         }()
         let resolvedContainerImages = await containerImagesProbe
         let resolvedDockerImages = await dockerImagesProbe
@@ -345,19 +360,77 @@ public struct DoctorReportBuilder: Sendable {
         // The local-VM half of the verdict uses the same tart list the
         // checklist fetched; the fixture (or the live list) may be nil when
         // tart is unavailable, which leaves known references green.
+        let tartImages =
+            tartList.map { ImageInventory.RuntimeImages(tartEntries: $0) }
+            ?? detailed.tartImages
         var tartBaseImageSection: DoctorReport.TartBaseImageSection?
         if let cfg = parsed, cfg.baseImage != nil {
             // The checklist's image row already listed tart (and reports a
             // failed listing): reuse that listing. An unreachable tart just
             // leaves known references green and unknown ones unknown.
-            let localImages =
-                tartList.map { ImageInventory.RuntimeImages(tartEntries: $0) }
-                ?? detailed.tartImages
-            let verdict = SetupStatusComputer.baseImageState(cfg: cfg, localImages: localImages)
+            let verdict = SetupStatusComputer.baseImageState(cfg: cfg, localImages: tartImages)
             tartBaseImageSection = DoctorReport.TartBaseImageSection(
                 reference: cfg.baseImage ?? "", state: verdict.state, ok: verdict.ok, fix: verdict.fix,
                 pinned: TartBaseImage.isDigestPinned(cfg.baseImage ?? ""),
                 warning: SetupStatusComputer.baseImageMutabilityNote(cfg.baseImage))
+        }
+
+        // Image disk usage and the prune suggestion — one build of the same
+        // shared sections `kinhin image list` prints, from the listings this
+        // pass already fetched (one probe set, every surface). The totals are
+        // the sections' `totalGB` (runner VMs and bake scratch VMs are dropped
+        // by name); the suggestion is `ImagePrunePlan.plan` itself, so doctor
+        // can never promise a sweep `kinhin image prune` would refuse. The two
+        // store reads are the ones `image list` makes: they classify
+        // derived images, mark stale records, and (with the fleet) keep
+        // in-use images out of the count.
+        var imageTotalGB: [String: Int]?
+        var imagePrune: DoctorReport.ImagePruneSection?
+        if let cfg = parsed {
+            let fleetRecords = fleet ?? FleetStore().all
+            let imageRecords = projectRecords ?? ProjectImageStore().all
+            var sections: [ImageInventory.Section] = []
+            if let tartImages {
+                sections.append(
+                    ImageInventory.section(
+                        .tart, config: cfg, images: tartImages,
+                        fleet: fleetRecords, projectRecords: imageRecords))
+            }
+            if let resolvedContainerImages {
+                sections.append(ImageInventory.section(.container, config: cfg, images: resolvedContainerImages))
+            }
+            if let resolvedDockerImages {
+                sections.append(ImageInventory.section(.docker, config: cfg, images: resolvedDockerImages))
+            }
+            var totals: [String: Int] = [:]
+            for section in sections {
+                if let gb = section.totalGB { totals[section.runtime.rawValue] = gb }
+            }
+            imageTotalGB = totals.isEmpty ? nil : totals
+
+            let plan = ImagePrunePlan.plan(
+                inventory: ImageInventory(sections: sections), config: cfg, fleet: fleetRecords)
+            let prunable = plan.targets.filter(\.present)
+            if !prunable.isEmpty {
+                imagePrune = DoctorReport.ImagePruneSection(
+                    count: prunable.count, reclaimGB: plan.reclaimGB, command: "kinhin image prune")
+            }
+        }
+
+        // Disk pressure — the engine's own pre-spawn guard, computed the
+        // same way (one instance's footprint + the reserve vs free disk),
+        // so doctor warns under exactly the condition that makes the fleet
+        // hold spawns — and the rendered line pairs it with the image
+        // totals, because freeing images is the lever the user has.
+        var diskPressure: DoctorReport.DiskPressureSection?
+        if let cfg = parsed {
+            let primary = Capacity.primaryRuntime(of: cfg)
+            let instanceDisk = ResourceProbe.effectiveDiskPerVMGB(diskGB: cfg.diskGB, runtime: primary.rawValue)
+            if resolvedHost.freeDiskGB < instanceDisk + cfg.reserve.diskGB {
+                diskPressure = DoctorReport.DiskPressureSection(
+                    freeGB: resolvedHost.freeDiskGB, runtime: primary.rawValue,
+                    instanceDiskGB: instanceDisk, reserveGB: cfg.reserve.diskGB)
+            }
         }
 
         // Capacity — the same math the human doctor prints, plus job slots.
@@ -393,7 +466,10 @@ public struct DoctorReportBuilder: Sendable {
             ready: status.ready && authReport.allGood && (security?.ok ?? true),
             capacity: capacitySection,
             tartBaseImage: tartBaseImageSection,
-            security: security
+            security: security,
+            imageTotalGB: imageTotalGB,
+            imagePrune: imagePrune,
+            diskPressure: diskPressure
         )
     }
 }
