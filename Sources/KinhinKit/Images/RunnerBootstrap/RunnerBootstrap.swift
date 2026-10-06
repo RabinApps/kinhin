@@ -110,28 +110,40 @@ enum RunnerBootstrap {
     }
 
     /// Installer for the GitHub Actions runner on macOS (called by
-    /// `kinhin image prepare` when a GitHub credential exists).
+    /// `kinhin image prepare` when a GitHub credential exists). The bake runs
+    /// one SSH session that starts in `$HOME`, so the download cd's into the
+    /// agent directory registration later uses — extracted at `$HOME` the
+    /// runner lands *beside* `~/actions-runner`, not in it.
     static func installScript(runnerVersion: String, runnerCount: Int = 1) -> String {
         """
         set -euo pipefail
         # Download and install the GitHub Actions runner
-        \(githubRunnerDownloadScript(version: runnerVersion, platform: "osx-arm64", file: "runner.tar.gz"))
-        tar xzf runner.tar.gz
-        rm runner.tar.gz
-        ./bin/installdependencies.sh
+        if [ ! -x "$HOME/actions-runner/config.sh" ]; then
+          mkdir -p "$HOME/actions-runner"
+          cd "$HOME/actions-runner"
+          \(githubRunnerDownloadScript(version: runnerVersion, platform: "osx-arm64", file: "runner.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
+          tar xzf runner.tar.gz
+          rm runner.tar.gz
+          ./bin/installdependencies.sh
+        fi
         """
     }
 
     /// Installer for the Gitea runner on macOS (called by
-    /// `kinhin image prepare` when a Gitea credential exists).
+    /// `kinhin image prepare` when a Gitea credential exists). Same contract
+    /// as `installScript`: into the directory `giteaRegistrationScript` cd's.
     static func giteaRunnerInstallScript(version: String) -> String {
         """
         set -euo pipefail
-        \(giteaRunnerDownloadScript(version: version, platform: "darwin-arm64", file: "runner.xz"))
-        xz -d runner.xz
-        tar xf runner.tar
-        rm -f runner.tar
-        ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
+        if [ ! -x "$HOME/gitea-runner/gitea-runner" ]; then
+          mkdir -p "$HOME/gitea-runner"
+          cd "$HOME/gitea-runner"
+          \(giteaRunnerDownloadScript(version: version, platform: "darwin-arm64", file: "runner.xz").replacingOccurrences(of: "\n", with: "\n  "))
+          xz -d runner.xz
+          tar xf runner.tar
+          rm -f runner.tar
+          ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
+        fi
         """
     }
 
@@ -183,18 +195,27 @@ enum RunnerBootstrap {
         var starts = ""
         for index in 1...runnerCount {
             let runnerName = "\(name)-r\(index)"
-            let dir = "~/actions-runner-\(index)"
+            // Runner 1 registers in the baked template; runners 2..N in their
+            // own copies — the layout the JIT script and the Linux scripts use.
+            // `~/actions-runner-1` is never created anywhere, so indexing
+            // straight into a numbered directory fails at the very first `cd`.
+            let dir = index == 1 ? "~/actions-runner" : "~/actions-runner-\(index)"
+            // Materialize *before* the cd: the numbered copies only come into
+            // existence by being copied out of the template, so `cd` first
+            // aborts the whole script (`cd: …-2: No such file or directory`).
+            let materialize =
+                index == 1
+                ? "mkdir -p ~/actions-runner"
+                : """
+                if [ ! -x \(dir)/config.sh ]; then
+                  mkdir -p \(dir)
+                  cp -a ~/actions-runner/. \(dir)/ 2>/dev/null || true
+                fi
+                """
             registrations += """
                 # Runner \(index) of \(runnerCount).
+                \(materialize)
                 cd \(dir)
-                # Materialize the per-runner agent directory from the baked template — `kinhin image prepare` creates `$HOME/actions-runner` plus `$HOME/actions-runner-2..N` only, so `$HOME/actions-runner-N` for N<=1 is missing.
-
-                # no Swift interpolation here: this is literal bash, not a Swift
-                # string; the '(' and ')' are from the bash variable $dir.
-                if [ ! -x "$dir/config.sh" ]; then
-                  mkdir -p "$dir"
-                  cp -a ~/actions-runner/. "$dir" 2>/dev/null || true
-                fi
                 if [ -f .runner ]; then
                   ./config.sh remove --token \(shellQuote(token)) >/dev/null 2>&1 || true
                 fi

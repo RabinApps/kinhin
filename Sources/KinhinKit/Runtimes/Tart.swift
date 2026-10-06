@@ -98,13 +98,29 @@ public struct TartController: TartControlling {
     /// Where the guest SSH key lives; overridden by tests.
     var guestKeyDirectory = GuestSSHKey.defaultDirectory
 
-    public init(configuredPath: String? = nil, shell: ShellRunning = Shell(), softnet: Bool = false) throws {
+    /// - Parameters:
+    ///   - configuredPath: The tart binary to run — almost always the
+    ///   config's `tart_path:`, so the controller and every health probe
+    ///   answer for the same binary the fleet runs. Explicit `nil` only
+    ///   when no config was read (PATH is then the honest answer). Never
+    ///   defaulted: a bare init would silently search PATH.
+    ///   - shell: How to launch tart (tests inject fakes).
+    ///   - softnet: Boot VMs with `--net-softnet`.
+    public init(configuredPath: String?, shell: ShellRunning = Shell(), softnet: Bool = false) throws {
         guard let found = Paths.findExecutable(named: "tart", override: configuredPath) else {
             throw TartError.missingBinary(path: configuredPath ?? "PATH")
         }
         self.binary = found
         self.shell = shell
         self.softnet = softnet
+    }
+
+    /// A bare controller cannot be constructed — see the designated init.
+    @available(
+        *, unavailable, message: "pass configuredPath: the config's tart_path (nil only when no config was read)"
+    )
+    public init(shell: ShellRunning = Shell(), softnet: Bool = false) throws {
+        try self.init(configuredPath: nil, shell: shell, softnet: softnet)
     }
 
     /// The `tart run` argument list; separate from `run` so it can be tested
@@ -132,8 +148,18 @@ public struct TartController: TartControlling {
         return env
     }
 
-    public static func isInstalled(configuredPath: String? = nil) -> Bool {
+    /// - Parameter configuredPath: The config's `tart_path:`; explicit
+    ///   `nil` only to check PATH deliberately (an environment gate with no
+    ///   config in scope). Never defaulted: a bare check would silently
+    ///   answer for a binary the fleet may not run.
+    public static func isInstalled(configuredPath: String?) -> Bool {
         Paths.findExecutable(named: "tart", override: configuredPath) != nil
+    }
+
+    /// A bare check cannot be constructed — see `isInstalled(configuredPath:)`.
+    @available(*, unavailable, message: "pass configuredPath: the config's tart_path (nil to check PATH deliberately)")
+    public static func isInstalled() -> Bool {
+        isInstalled(configuredPath: nil)
     }
 
     func exec(_ args: [String], timeout: TimeInterval = 120) async throws -> ShellResult {

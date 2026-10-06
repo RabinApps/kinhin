@@ -52,8 +52,13 @@ projects:
 - A repo `.kinhin.yml` accepts only catalog `toolchains.specs` and `stacks`, capped at 16 KB. It is honored only on
   GitHub, Gitea/Forgejo and GitLab. Other forges use `projects[].toolchains`.
 - Per-job install, and the only option on container and Docker runtimes: `run: kinhin-toolchain install node@22 pnpm`.
-- Housekeeping: `kinhin toolchains list-images`, `kinhin toolchains prune [--dry-run]`. Config `toolchain_cache` sets
-  `auto_prune`, `max_age_days` (30) and `max_gb` (50). `max_project_images` defaults to 8.
+- Housekeeping: `kinhin toolchains list-images`, `kinhin toolchains prune [--dry-run]`. See every installed image
+  (tart, container, docker) with `kinhin image list [--json]` — `--runtime tart|container|docker` narrows it to one —
+  and remove one by name with
+  `kinhin image delete <name> [--yes]` — it reports without `--yes` and refuses images runners are using. Sweep the
+  whole machine in one confirmed pass with `kinhin image prune [--yes]` — stale derived records plus unused local
+  images; configured images, the `base_image` and anything in use are never touched. Config
+  `toolchain_cache` sets `auto_prune`, `max_age_days` (30) and `max_gb` (50). `max_project_images` defaults to 8.
 
 ## Linux and host runtimes
 

@@ -63,7 +63,8 @@ extension RunnerBootstrap {
             set -euo pipefail
             \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("tar", "tar"), ("gzip", "gzip")]))
             mkdir -p /opt/actions-runner
-            if [ ! -x /opt/actions-runner/config.sh ]; then
+            cd /opt/actions-runner
+            if [ ! -x config.sh ]; then
               if [ ! -x ./config.sh ]; then
                 \(githubRunnerDownloadScript(version: version, platform: "linux-\(arch)", file: "runner.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
                 tar xzf runner.tar.gz

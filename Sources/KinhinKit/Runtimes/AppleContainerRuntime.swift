@@ -57,7 +57,8 @@ public struct AppleContainerRuntime: Runtime {
             shell: shell, bin: bin,
             dialect: .init(
                 tag: "container", listVerb: "list", removeVerb: "delete",
-                listNameArguments: ["--quiet"], imageListArguments: ["image", "list", "--quiet"], runFlags: [],
+                listNameArguments: ["--quiet"], imageListArguments: ["image", "list", "--quiet"],
+                imageRemoveArguments: ["image", "delete"], runFlags: [],
                 shapeNote: nil),
             image: image, cpus: cpus, memoryBytes: memoryBytes)
     }
@@ -124,6 +125,69 @@ public struct AppleContainerRuntime: Runtime {
     /// row and the doctor).
     public func localImageNames() async -> [String] {
         await cli.localImageNames()
+    }
+
+    /// Disk usage of every local image, in whole GB — the shared inventory's
+    /// size column and per-runtime total. Empty when the CLI can't say: the
+    /// rows then read "—", never a wrong number.
+    public func localImageSizes() async -> [String: Int] {
+        do {
+            let result = try await run([bin, "image", "list", "--format", "json"])
+            guard result.succeeded else { return [:] }
+            return Self.parseImageSizes(result.stdout)
+        } catch {
+            Log.warn("container", "could not list image sizes: \(error.localizedDescription)")
+            return [:]
+        }
+    }
+
+    /// `container image list --format json` as whole GB: each entry's
+    /// `variants[].size` (bytes — the FULL SIZE column) summed is the local
+    /// disk the image occupies. Keyed by every name form the `-q` listing
+    /// may print (`alpine:3.20` vs the JSON's fully qualified
+    /// `docker.io/library/alpine:3.20`). Pure so tests pin the parsing.
+    static func parseImageSizes(_ text: String) -> [String: Int] {
+        guard let data = text.data(using: .utf8),
+            let images = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else { return [:] }
+        var sizes: [String: Int] = [:]
+        for image in images {
+            guard let configuration = image["configuration"] as? [String: Any],
+                let name = configuration["name"] as? String
+            else { continue }
+            let bytes = ((image["variants"] as? [[String: Any]]) ?? [])
+                .compactMap { $0["size"] as? Int }
+                .reduce(0, +)
+            guard bytes > 0 else { continue }
+            let gigabytes = max(1, Int((Double(bytes) / 1_000_000_000).rounded()))
+            for form in nameForms(of: name) { sizes[form] = gigabytes }
+        }
+        return sizes
+    }
+
+    /// The name forms one image can be listed under: the JSON's fully
+    /// qualified reference plus what `container image list -q` prints for
+    /// it (registry — and then the default `library/` — prefix dropped).
+    static func nameForms(of reference: String) -> [String] {
+        var forms = [reference]
+        var path = reference.split(separator: "/")
+        guard path.count > 1 else { return forms }
+        let first = path[0]
+        if first.contains(".") || first.contains(":") || first == "localhost" {
+            path.removeFirst()
+            forms.append(path.joined(separator: "/"))
+        }
+        if path.count > 1, path[0] == "library" {
+            path.removeFirst()
+            forms.append(path.joined(separator: "/"))
+        }
+        return forms
+    }
+
+    /// Removes one local image (`container image delete`); an image that is
+    /// already gone is success.
+    public func deleteImage(named name: String) async throws {
+        try await cli.deleteImage(name)
     }
 
     func run(_ argv: [String], timeout: TimeInterval = 120) async throws -> ShellResult {

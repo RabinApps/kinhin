@@ -78,8 +78,17 @@ struct KinhinCLI {
         case .imagePrepare:
             try await ImageCommand.run(args)
 
+        case .imageList:
+            try await ImageListCommand.run(afterImageSubcommand(args))
+
+        case .imageDelete:
+            try await ImageDeleteCommand.run(afterImageSubcommand(args))
+
+        case .imagePrune:
+            try await ImagePruneCommand.run(afterImageSubcommand(args))
+
         case .imageDigest:
-            try await ImageCommand.runDigest(args)
+            try await ImageCommand.runDigest(afterImageSubcommand(args))
 
         case .toolchains:
             do {
@@ -158,5 +167,16 @@ struct KinhinCLI {
             printHelp()
 
         }
+    }
+
+    /// The arguments after the `image <subcommand>` head tokens, for the
+    /// subcommands that parse their own operands (`digest`, `list`,
+    /// `delete`, `prune`). Handles both spellings: `image digest ref` (two tokens) and
+    /// the quoted `"image digest" ref` form the head switch also accepts.
+    nonisolated static func afterImageSubcommand(_ args: [String]) -> [String] {
+        guard let first = args.first else { return [] }
+        if first == "image" { return Array(args.dropFirst(2)) }
+        if first.hasPrefix("image ") { return Array(args.dropFirst()) }
+        return args
     }
 }

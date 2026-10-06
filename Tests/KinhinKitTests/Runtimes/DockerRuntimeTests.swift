@@ -230,6 +230,49 @@ final class DockerRuntimeTests: XCTestCase {
         } catch {}
     }
 
+    // MARK: - Image sizes
+
+    func testLocalImageSizesParsesListing() async {
+        let shell = FakeShell()
+        shell.defaultResult = ShellResult(
+            exitCode: 0,
+            stdout: "kinhin-ci-linux:latest\t743MB\nghcr.io/acme/api:v2\t4.18GB\n<none>:<none>\t700MB\n",
+            stderr: "")
+        let runtime = DockerRuntime(
+            shell: shell, image: "img", cpus: 2, memoryGB: 4,
+            binPath: bin
+        )
+        let sizes = await runtime.localImageSizes()
+        XCTAssertEqual(sizes["kinhin-ci-linux:latest"], 1)
+        XCTAssertEqual(sizes["ghcr.io/acme/api:v2"], 4)
+        XCTAssertEqual(sizes["<none>:<none>"], 1)
+        // The listing asks `docker images` for name + size in one call.
+        XCTAssertEqual(shell.calls.first?.first, bin)
+        XCTAssertTrue(shell.calls.first?.contains("--format") == true)
+    }
+
+    func testLocalImageSizesEmptyWhenListingFails() async {
+        let shell = FakeShell()
+        shell.defaultResult = ShellResult(exitCode: 1, stdout: "", stderr: "Cannot connect to the Docker daemon")
+        let runtime = DockerRuntime(
+            shell: shell, image: "img", cpus: 2, memoryGB: 4,
+            binPath: bin
+        )
+        let sizes = await runtime.localImageSizes()
+        XCTAssertTrue(sizes.isEmpty, "a dead daemon must read as 'no sizes', never wrong numbers")
+    }
+
+    func testGigabytesParsesHumanUnits() {
+        XCTAssertEqual(DockerRuntime.gigabytes(from: "4.18GB"), 4)
+        XCTAssertEqual(DockerRuntime.gigabytes(from: "743MB"), 1)
+        XCTAssertEqual(DockerRuntime.gigabytes(from: "1.5TB"), 1500)
+        // Tiny images still earn 1 GB: a "0 GB" row reads as broken.
+        XCTAssertEqual(DockerRuntime.gigabytes(from: "1.22kB"), 1)
+        XCTAssertEqual(DockerRuntime.gigabytes(from: "500B"), 1)
+        XCTAssertNil(DockerRuntime.gigabytes(from: ""))
+        XCTAssertNil(DockerRuntime.gigabytes(from: "n/a"))
+    }
+
     // MARK: - Config
 
     // MARK: - Helpers

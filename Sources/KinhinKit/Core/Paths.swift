@@ -153,11 +153,24 @@ public enum Paths {
         "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin",
     ]
 
+    /// Well-known locations a tool's own installer uses that `PATH` can miss
+    /// (Docker Desktop keeps its CLI in `~/.docker/bin`), consulted only
+    /// after the trusted directories and `PATH`. The list lives here, not in
+    /// each caller, so every probe — engine health, setup checklist, doctor,
+    /// app, image inventory, usage stats — agrees on which binary exists and
+    /// on which one wins when a choice is possible.
+    static let extraCandidateDirectories: [String: [String]] = [
+        "docker": [NSHomeDirectory() + "/.docker/bin"]
+    ]
+
     /// Locate a binary: explicit override, then the fixed trusted directories,
-    /// then `PATH`. An override is authoritative: a configured path that is
-    /// not an executable is a misconfiguration, so it reports missing instead
-    /// of silently probing elsewhere behind the user's back.
-    public static func findExecutable(named name: String, override: String? = nil) -> String? {
+    /// then `PATH`, then the tool's well-known installer locations. An
+    /// override is authoritative: a configured path that is not an executable
+    /// is a misconfiguration, so it reports missing instead of silently
+    /// probing elsewhere behind the user's back.
+    public static func findExecutable(
+        named name: String, override: String? = nil, extraDirectories: [String]? = nil
+    ) -> String? {
         if let override, !override.isEmpty {
             return FileManager.default.isExecutableFile(atPath: override) ? override : nil
         }
@@ -172,10 +185,12 @@ public enum Paths {
             for dir in pathVar.split(separator: ":") {
                 let prefix = dir.hasPrefix("/") ? "" : "/"
                 let candidate = "\(prefix)\(dir)/\(name)"
-                if FileManager.default.isExecutableFile(atPath: candidate) {
-                    return candidate
-                }
+                if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
             }
+        }
+        for dir in extraDirectories ?? extraCandidateDirectories[name] ?? [] {
+            let candidate = "\(dir)/\(name)"
+            if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
         }
         return nil
     }

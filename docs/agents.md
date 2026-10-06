@@ -90,12 +90,15 @@ For agents that shell out instead of speaking MCP:
 | `kinhin workflow test … --json` | Local workflow-run report (exit 1 when a job failed) |
 | `kinhin workflow route … --json` | What the route edit did or would do |
 | `kinhin toolchains detect … --json` | Detected toolchains and the evidence, with `--write` to save |
+| `kinhin image list --json [--runtime <name>]` | Installed images per runtime: name, role, size, last used, who uses them |
 
 ## Safety rules for agents
 
 - **Never run `kinhin reset`.** There is no undo and no backup.
-- **Ask before `kinhin cleanup --yes`, `kinhin stop` or `kinhin daemon uninstall`** on a fleet that may be
-  serving jobs; `kinhin cleanup --json` is the safe way to show a human what would go first.
+- **Ask before `kinhin cleanup --yes`, `kinhin image delete --yes`, `kinhin image prune --yes`, `kinhin stop` or
+  `kinhin daemon uninstall`** on a fleet that may be serving jobs; `kinhin cleanup --json` and
+  `kinhin image list --json` are the safe ways to show a human what would go first (plain `kinhin image prune` is the
+  same report without the deletion).
 - **Host routes are unisolated** — `runtimes route add <pattern> host` requires `--consent` and runs repo code
   directly on the Mac. Don't add one without the user asking.
 - **Tokens never appear in any document.** `auth status --json` reports presence and validity only.

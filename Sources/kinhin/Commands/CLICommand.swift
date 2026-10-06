@@ -11,6 +11,9 @@ enum CLICommand: Equatable {
     case setupRepair
     case runtimes
     case imagePrepare
+    case imageList
+    case imageDelete
+    case imagePrune
     case imageDigest
     case toolchains
     case start
@@ -32,12 +35,28 @@ enum CLICommand: Equatable {
     case workflow
     case mcp
 
+    /// `"<head> <subcommand>"` pairs that are commands of their own. Only the
+    /// `image` head needs this: `image prepare` still means bare `image`, but
+    /// `image list`, `image delete`, `image prune` and `image digest` must not
+    /// fall through to it (routing them to prepare would start a bake).
+    private static let twoTokenHeads: [String: CLICommand] = [
+        "image list": .imageList,
+        "image ls": .imageList,
+        "image delete": .imageDelete,
+        "image rm": .imageDelete,
+        "image prune": .imagePrune,
+        "image digest": .imageDigest,
+    ]
+
     /// Head-token dispatch, preserving the historical quirks: the two-token
     /// forms `config init` and `image prepare` route identically to their
     /// bare heads, `--help`/`-h` are aliases of `help`, and an empty argument
     /// list behaves like `help` (with the unknown-command case handled by the
     /// caller when this returns nil).
     static func parse(_ args: [String]) -> CLICommand? {
+        if args.count >= 2, let matched = twoTokenHeads["\(args[0]) \(args[1])"] {
+            return matched
+        }
         switch args.first {
         case "config", "config init":
             return .configInit
@@ -53,6 +72,8 @@ enum CLICommand: Equatable {
             return .runtimes
         case "image", "image prepare":
             return .imagePrepare
+        // A quoted two-token head (`kinhin "image digest"`); the split form
+        // is handled by `twoTokenHeads` above.
         case "image digest":
             return .imageDigest
         case "toolchains":

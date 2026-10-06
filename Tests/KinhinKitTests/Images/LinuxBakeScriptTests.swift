@@ -14,6 +14,32 @@ final class LinuxBakeScriptTests: XCTestCase {
         XCTAssertFalse(script.contains("(Function)"), "Swift interpolated Darwin's index(): \\(script)")
     }
 
+    /// The bake execs with the base image's WORKDIR (ubuntu's `/`), so each
+    /// tarball must be extracted *inside* its `/opt` directory. The GitHub
+    /// script used to extract at `/`: the runner's `bin/` replaced the
+    /// usr-merge `/bin` symlink, and the committed image had no `/bin/sh` —
+    /// it could not start a container at all.
+    func testEveryAgentIsDownloadedInsideItsOptDirectory() throws {
+        let scripts: [(String, String)] = [
+            ("GitHub", RunnerBootstrap.linuxGitHubAgentInstallScript(version: "2.337.0")),
+            ("Gitea", RunnerBootstrap.linuxGiteaRunnerInstallScript(version: "0.2.0")),
+            ("GitLab", RunnerBootstrap.linuxGitLabRunnerInstallScript(version: "19.4.1")),
+            ("Buildkite", RunnerBootstrap.linuxBuildkiteAgentInstallScript(version: "3.100.0")),
+            ("Azure", RunnerBootstrap.linuxAzureAgentInstallScript(version: "5.279.0")),
+            (
+                "Bitbucket",
+                RunnerBootstrap.linuxBitbucketRunnerInstallScript(version: "6.0.8", jdkVersion: "25.0.4.1+1")
+            ),
+        ]
+        for (label, script) in scripts {
+            let cd = try XCTUnwrap(script.range(of: "cd /opt/"), "\(label): no cd into its install directory")
+            let download = try XCTUnwrap(script.range(of: "curl --proto-redir"), "\(label): no verified download")
+            XCTAssertLessThan(
+                cd.lowerBound, download.lowerBound,
+                "\(label): the download must land inside /opt, not in the image's WORKDIR")
+        }
+    }
+
     /// Runs the loop itself (paths redirected into a temp root): the baked
     /// image must hold the template plus copies `-2` … `-10`, which
     /// registration for `runners_per_vm > 1` copies from.

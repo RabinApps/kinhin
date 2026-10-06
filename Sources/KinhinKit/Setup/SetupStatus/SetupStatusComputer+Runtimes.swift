@@ -64,15 +64,22 @@ extension SetupStatusComputer {
         }
 
         let wanted = cfg.container?.image ?? "kinhin-ci-linux"
-        let listed: [String]
+        // The listing and the presence rule come from the shared image
+        // inventory — one implementation for the checklist, the doctor and
+        // `kinhin image list`. Health decides whether we may ask at all.
+        let listed: ImageInventory.RuntimeImages?
         if let containerImages {
-            listed = containerImages
+            listed = ImageInventory.RuntimeImages(names: containerImages)
         } else if resolvedHealth.isReady {
-            listed = await AppleContainerRuntime().localImageNames()
+            listed = await ImageInventory.listing(runtime: .container, config: cfg)
         } else {
-            listed = []
+            listed = nil
         }
-        let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
+        let imageFound =
+            listed.map { images in
+                ImageInventory.section(.container, config: cfg, images: images)
+                    .entries.contains { $0.role == .base && $0.present }
+            } ?? false
         checks.append(
             SetupCheckResult(
                 id: "container-image",
@@ -130,15 +137,21 @@ extension SetupStatusComputer {
         }
 
         let wanted = cfg.docker?.image ?? "kinhin-ci-linux"
-        let listed: [String]
+        // Same shared inventory as the container row above: one listing
+        // implementation, one presence rule.
+        let listed: ImageInventory.RuntimeImages?
         if let dockerImages {
-            listed = dockerImages
+            listed = ImageInventory.RuntimeImages(names: dockerImages)
         } else if resolvedHealth.isReady {
-            listed = await docker.localImageNames()
+            listed = await ImageInventory.listing(runtime: .docker, config: cfg)
         } else {
-            listed = []
+            listed = nil
         }
-        let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
+        let imageFound =
+            listed.map { images in
+                ImageInventory.section(.docker, config: cfg, images: images)
+                    .entries.contains { $0.role == .base && $0.present }
+            } ?? false
         // The image must match docker.platform: a stale arm64 image under
         // a linux/amd64 config (or the reverse) would run the wrong agent.
         let platform = cfg.docker?.platform ?? .arm64

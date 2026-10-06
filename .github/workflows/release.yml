@@ -12,7 +12,7 @@ jobs:
     # Belt and braces: the push trigger is already tag-filtered, so this only
     # matters if another trigger is added later — skip instead of releasing.
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: [self-hosted, macos, arm64]
+    runs-on: [self-hosted, macos, arm64, xcode]
     # Protected environment: configure required reviewers (and move the signing
     # secrets into it) in the repo settings so a pushed tag alone cannot reach them.
     environment: release
@@ -117,58 +117,15 @@ jobs:
           KINHIN_VERSION: ${{ steps.ver.outputs.version }}
         run: ./scripts/make-dmg.sh
 
-      - name: Sign and notarize CLI zip
-        timeout-minutes: 30
+      # CLI zip, Gatekeeper verification, the Team-ID-stamped installer and
+      # checksums live in scripts/release-artifacts.sh: a local
+      # `scripts/release.sh` run executes the same code, so a checkout release
+      # and a tag publish cannot drift apart.
+      - name: Release artifacts (CLI zip, verify, installer, checksums)
+        timeout-minutes: 40
         env:
           VERSION: ${{ steps.ver.outputs.version }}
-        run: |
-          BIN_DIR="$(swift build -c release --show-bin-path --product kinhin)"
-          mkdir -p dist/cli
-          cp "$BIN_DIR/kinhin" dist/cli/
-          codesign --force --sign "$CODESIGN_IDENTITY" --options runtime --timestamp dist/cli/kinhin
-          codesign --verify --strict --verbose=2 dist/cli/kinhin
-          (cd dist/cli && zip ../kinhin-cli-$VERSION-arm64.zip kinhin)
-          ./scripts/notarize.sh "dist/kinhin-cli-$VERSION-arm64.zip"
-
-      - name: Verify Gatekeeper acceptance
-        env:
-          VERSION: ${{ steps.ver.outputs.version }}
-        run: |
-          DMG="dist/kinhin-$VERSION-arm64.dmg"
-          xcrun stapler validate "$DMG"
-          spctl -a -vv -t open --context context:primary-signature "$DMG"
-          MOUNT="$(mktemp -d)"
-          hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet
-          trap 'hdiutil detach "$MOUNT" -quiet || true' EXIT
-          codesign --verify --deep --strict --verbose=2 "$MOUNT/kinhin.app"
-          reported="$("$MOUNT/kinhin.app/Contents/Resources/bin/kinhin" version)"
-          [ "$reported" = "kinhin $VERSION" ] || { echo "::error::CLI reports '$reported', expected 'kinhin $VERSION'"; exit 1; }
-          spctl -a -vv -t exec "$MOUNT/kinhin.app"
-
-      - name: Stage installer
-        env:
-          VERSION: ${{ steps.ver.outputs.version }}
-        run: |
-          # Pin the installer to the Developer ID Team ID the shipped app is
-          # actually signed with. Without it install.sh falls back to "any
-          # valid signature", and the only anchor left is a checksum served
-          # from this same release.
-          DMG="dist/kinhin-$VERSION-arm64.dmg"
-          MOUNT="$(mktemp -d)"
-          hdiutil attach "$DMG" -mountpoint "$MOUNT" -nobrowse -quiet
-          trap 'hdiutil detach "$MOUNT" -quiet || true' EXIT
-          TEAM_ID="$(codesign -dv --verbose=4 "$MOUNT/kinhin.app" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
-          [[ "$TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo "::error::could not read the Team ID from the signed app ('$TEAM_ID')"; exit 1; }
-          sed "s/@TEAM_ID@/$TEAM_ID/" scripts/install.sh > dist/install.sh
-          if grep -q '@TEAM_ID@' dist/install.sh; then
-            echo "::error::install.sh still carries the @TEAM_ID@ placeholder"; exit 1
-          fi
-          grep -q "^TEAM_ID=\"$TEAM_ID\"" dist/install.sh || { echo "::error::Team ID was not stamped into install.sh"; exit 1; }
-
-      - name: Checksums
-        run: |
-          cd dist
-          shasum -a 256 kinhin-*.dmg kinhin-cli-*.zip install.sh > checksums.txt
+        run: ./scripts/release-artifacts.sh "$VERSION"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2

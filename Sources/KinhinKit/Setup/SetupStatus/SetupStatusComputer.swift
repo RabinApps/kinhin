@@ -128,9 +128,10 @@ public struct SetupStatusComputer: Sendable {
     /// same facts (the doctor's base-image section) does not probe again.
     struct Detailed: Sendable {
         let status: SetupStatus
-        /// The local tart VMs the image row listed; nil when tart was not
-        /// listed (unhealthy, no config, or the listing failed).
-        let tartVMs: [TartVM]?
+        /// The tart listing the image row fetched, as inventory data; nil
+        /// when tart was not listed (unhealthy, no config, or the listing
+        /// failed).
+        let tartImages: ImageInventory.RuntimeImages?
     }
 
     func computeDetailed() async -> Detailed {
@@ -259,34 +260,30 @@ public struct SetupStatusComputer: Sendable {
             }
         }
 
-        // 6. Runner image
+        // 6. Runner image — the listing and the "is it here?" rule both come
+        // from the shared image inventory, the same code `kinhin doctor` and
+        // `kinhin image list` use: one way to ask tart, one way to decide, so
+        // the three surfaces cannot disagree.
         var imageOK = false
         var imageDetail = "run after tart is installed"
-        var localTartVMs: [TartVM] = []
-        var listedTartVMs: [TartVM]?
+        var localTartImages: ImageInventory.RuntimeImages?
         if !tartHealthy {
             imageDetail = health == .missing ? "run after tart is installed" : "could not launch tart"
         } else if let cfg = parsed {
-            let images: [TartVM]?
-            var listFailure: String?
+            let listed: ImageInventory.RuntimeImages
             if let tartList {
-                images = tartList
+                listed = ImageInventory.RuntimeImages(tartEntries: tartList)
             } else {
-                do {
-                    images = try await TartController(configuredPath: cfg.tartPath).list()
-                } catch {
-                    listFailure = error.localizedDescription
-                    Log.warn("setup", "could not list tart images: \(error.localizedDescription)")
-                    images = nil
-                }
+                listed = await ImageInventory.listing(runtime: .tart, config: cfg)
+                if let reason = listed.unavailable { Log.warn("setup", reason) }
             }
-            if let images {
-                localTartVMs = images
-                listedTartVMs = images
-                imageOK = images.contains { $0.name == cfg.image || $0.source == cfg.image }
+            if listed.unavailable == nil {
+                localTartImages = listed
+                let entries = ImageInventory.section(.tart, config: cfg, images: listed).entries
+                imageOK = entries.contains { $0.present && ($0.name == cfg.image || $0.source == cfg.image) }
                 imageDetail = imageOK ? "image '\(cfg.image)' found" : "image '\(cfg.image)' not local yet"
             } else {
-                imageDetail = listFailure.map { "could not list tart images: \($0)" } ?? "could not launch tart"
+                imageDetail = listed.unavailable ?? "could not launch tart"
             }
         }
         checks.append(
@@ -304,7 +301,7 @@ public struct SetupStatusComputer: Sendable {
         // row explains the fix instead of blocking onboarding. Reuses the
         // tart list the image row just fetched — no second probe.
         if case .parsed(let cfg) = evaluation, cfg.baseImage != nil {
-            checks.append(Self.baseImageCheck(cfg: cfg, localVMs: localTartVMs))
+            checks.append(Self.baseImageCheck(cfg: cfg, localImages: localTartImages))
         }
 
         // 7. Apple-container runtime — rows appear only when the config
@@ -342,6 +339,6 @@ public struct SetupStatusComputer: Sendable {
         let macOnlyIDs: Set<String> = ["clt", "tart", "image", "base-image"]
         let gating = checks.filter { !(linuxOnly && macOnlyIDs.contains($0.id)) }
         return Detailed(
-            status: SetupStatus(ready: gating.allSatisfy(\.ok), checks: checks), tartVMs: listedTartVMs)
+            status: SetupStatus(ready: gating.allSatisfy(\.ok), checks: checks), tartImages: localTartImages)
     }
 }

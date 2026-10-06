@@ -75,6 +75,7 @@ public struct DockerRuntime: Runtime {
                 tag: "docker", listVerb: "ps", removeVerb: "rm",
                 listNameArguments: ["--format", "{{.Names}}"],
                 imageListArguments: ["images", "--format", "{{.Repository}}:{{.Tag}}"],
+                imageRemoveArguments: ["image", "rm"],
                 // The pids limit stops a fork bomb in one job from starving the host. Capabilities
                 // and no-new-privileges stay at Docker's defaults: jobs apt-get and sudo.
                 runFlags: ["--platform", platform.rawValue, "--pids-limit", "4096"], shapeNote: platform.rawValue),
@@ -171,6 +172,65 @@ public struct DockerRuntime: Runtime {
     /// row and the doctor).
     public func localImageNames() async -> [String] {
         await cli.localImageNames()
+    }
+
+    /// Disk usage of every local image, in whole GB — the shared inventory's
+    /// size column and per-runtime total. Empty when the CLI can't say: the
+    /// rows then read "—", never a wrong number.
+    public func localImageSizes() async -> [String: Int] {
+        do {
+            let result = try await run([bin, "images", "--format", "{{.Repository}}:{{.Tag}}\t{{.Size}}"])
+            guard result.succeeded else { return [:] }
+            return Self.parseImageSizes(result.stdout)
+        } catch {
+            Log.warn("docker", "could not list image sizes: \(error.localizedDescription)")
+            return [:]
+        }
+    }
+
+    /// `docker images` rows (`<repo>:<tag>\t<size>`) as whole GB. Pure so
+    /// tests pin the unit handling.
+    static func parseImageSizes(_ text: String) -> [String: Int] {
+        var sizes: [String: Int] = [:]
+        for line in text.split(separator: "\n") {
+            let parts = line.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2, let size = gigabytes(from: String(parts[1])) else { continue }
+            let name = String(parts[0]).trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { continue }
+            sizes[name] = size
+        }
+        return sizes
+    }
+
+    /// A human byte count (`4.18GB`, `700MB`, `1.22kB`) in whole GB —
+    /// rounded to nearest, but never 0 for an image that exists (a row that
+    /// says "0 GB" reads as broken, not small).
+    static func gigabytes(from human: String) -> Int? {
+        let text = human.trimmingCharacters(in: .whitespaces)
+        var digits = ""
+        var index = text.startIndex
+        while index < text.endIndex, text[index].isNumber || text[index] == "." {
+            digits.append(text[index])
+            index = text.index(after: index)
+        }
+        guard !digits.isEmpty, let value = Double(digits) else { return nil }
+        let unit = String(text[index...]).trimmingCharacters(in: .whitespaces).lowercased()
+        let scale: Double
+        switch unit {
+        case "b": scale = 1
+        case "kb", "kib": scale = 1_000
+        case "mb", "mib": scale = 1_000_000
+        case "gb", "gib": scale = 1_000_000_000
+        case "tb", "tib": scale = 1_000_000_000_000
+        default: return nil
+        }
+        return max(1, Int((value * scale / 1_000_000_000).rounded()))
+    }
+
+    /// Removes one local image (`docker image rm`); an image that is already
+    /// gone is success.
+    public func deleteImage(named name: String) async throws {
+        try await cli.deleteImage(name)
     }
 
     func run(_ argv: [String], timeout: TimeInterval = 120) async throws -> ShellResult {

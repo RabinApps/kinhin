@@ -97,8 +97,13 @@ public struct DoctorReportBuilder: Sendable {
         // like the checklist does — the scenario is resolved through the same
         // shared code, so doctor and checklist can never disagree.
         let evaluation = SetupStatusComputer.resolve(config)
-        var parsed: KinhinConfig?
-        if case .parsed(let cfg) = evaluation { parsed = cfg }
+        // Immutable: the probes below capture it in concurrent `async let`s.
+        let parsed: KinhinConfig?
+        if case .parsed(let cfg) = evaluation {
+            parsed = cfg
+        } else {
+            parsed = nil
+        }
 
         // Every probe runs once, here, and its answer is handed to the
         // checklist and reused by the sections below (they used to probe the
@@ -146,26 +151,31 @@ public struct DoctorReportBuilder: Sendable {
         let dockerConfig = parsed?.docker
         let injectedContainerImages = containerImages
         let injectedDockerImages = dockerImages
-        async let containerImagesProbe: [String]? = {
-            if let injectedContainerImages { return injectedContainerImages }
+        // The listings come from the shared image inventory — the same
+        // "ask a runtime for its images" the checklist's rows and
+        // `kinhin image list` use, so the doctor ships no copy of its own.
+        async let containerImagesProbe: ImageInventory.RuntimeImages? = {
+            if let injectedContainerImages { return ImageInventory.RuntimeImages(names: injectedContainerImages) }
             guard containerWanted != nil, resolvedContainerHealth?.isReady == true else { return nil }
-            return await AppleContainerRuntime().localImageNames()
+            return await ImageInventory.listing(runtime: .container, config: parsed)
         }()
-        async let dockerImagesProbe: [String]? = {
-            if let injectedDockerImages { return injectedDockerImages }
-            guard let dockerConfig, resolvedDockerHealth?.isReady == true else { return nil }
-            return await DockerRuntime(image: dockerConfig.image).localImageNames()
+        async let dockerImagesProbe: ImageInventory.RuntimeImages? = {
+            if let injectedDockerImages { return ImageInventory.RuntimeImages(names: injectedDockerImages) }
+            guard dockerConfig != nil, resolvedDockerHealth?.isReady == true else { return nil }
+            return await ImageInventory.listing(runtime: .docker, config: parsed)
         }()
         let resolvedContainerImages = await containerImagesProbe
         let resolvedDockerImages = await dockerImagesProbe
         var dockerArchitecture: String?
-        if let dockerConfig, dockerImages == nil, resolvedDockerHealth?.isReady == true,
-            (resolvedDockerImages ?? []).contains(where: {
-                $0 == dockerConfig.image || $0.hasPrefix("\(dockerConfig.image):")
-            })
+        if let cfg = parsed, let dockerConfig = cfg.docker, dockerImages == nil,
+            resolvedDockerHealth?.isReady == true, let listed = resolvedDockerImages
         {
-            dockerArchitecture = await DockerRuntime(image: dockerConfig.image).imageArchitecture(
-                of: dockerConfig.image)
+            let found = ImageInventory.section(.docker, config: cfg, images: listed)
+                .entries.contains { $0.role == .base && $0.present }
+            if found {
+                dockerArchitecture = await DockerRuntime(image: dockerConfig.image).imageArchitecture(
+                    of: dockerConfig.image)
+            }
         }
         // With the health injected the checklist assumes the kernel is
         // installed; a live run reads it once here.
@@ -205,10 +215,10 @@ public struct DoctorReportBuilder: Sendable {
             accountTokensStored: accountStored,
             tokenReadFailures: tokenFailures,
             containerHealth: resolvedContainerHealth,
-            containerImages: resolvedContainerImages,
+            containerImages: resolvedContainerImages?.names,
             containerKernelInstalled: kernelInstalled,
             dockerHealth: resolvedDockerHealth,
-            dockerImages: resolvedDockerImages,
+            dockerImages: resolvedDockerImages?.names,
             dockerImageArchitecture: dockerArchitecture,
             hostHealth: resolvedHostHealth
         ).computeDetailed()
@@ -219,7 +229,7 @@ public struct DoctorReportBuilder: Sendable {
         // Apple-container section — present only when the config enables it,
         // with the same image-matching rule the checklist row uses.
         var containerSection: DoctorReport.ContainerSection?
-        if let container = parsed?.container {
+        if let cfg = parsed, let container = cfg.container {
             let resolvedHealth = resolvedContainerHealth ?? .broken("container health was not probed")
             let state: String
             let ok: Bool
@@ -233,8 +243,11 @@ public struct DoctorReportBuilder: Sendable {
                 state = "broken"; ok = false; fix = why
             }
             let wanted = container.image
-            let listed = resolvedContainerImages ?? []
-            let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
+            let imageFound =
+                resolvedContainerImages.map { images in
+                    ImageInventory.section(.container, config: cfg, images: images)
+                        .entries.contains { $0.role == .base && $0.present }
+                } ?? false
             // A working runtime with a missing image gets the prepare command
             // — the same advice the human doctor prints for that case.
             if ok, !imageFound {
@@ -248,7 +261,7 @@ public struct DoctorReportBuilder: Sendable {
         // Docker section — same presence rule, health mapping, image matching,
         // and prepare-command advice as the container section above.
         var dockerSection: DoctorReport.DockerSection?
-        if let docker = parsed?.docker {
+        if let cfg = parsed, let docker = cfg.docker {
             let resolvedHealth = resolvedDockerHealth ?? .broken("docker health was not probed")
             let state: String
             let ok: Bool
@@ -262,8 +275,11 @@ public struct DoctorReportBuilder: Sendable {
                 state = "broken"; ok = false; fix = why
             }
             let wanted = docker.image
-            let listed = resolvedDockerImages ?? []
-            let imageFound = listed.contains { $0 == wanted || $0.hasPrefix("\(wanted):") }
+            let imageFound =
+                resolvedDockerImages.map { images in
+                    ImageInventory.section(.docker, config: cfg, images: images)
+                        .entries.contains { $0.role == .base && $0.present }
+                } ?? false
             let imageArch = dockerArchitecture
             let archMismatch = imageFound && (imageArch.map { $0 != docker.platform.dockerArchitecture } ?? false)
             if ok, !imageFound {
@@ -332,10 +348,12 @@ public struct DoctorReportBuilder: Sendable {
         var tartBaseImageSection: DoctorReport.TartBaseImageSection?
         if let cfg = parsed, cfg.baseImage != nil {
             // The checklist's image row already listed tart (and reports a
-            // failed listing): reuse that list. An unreachable tart just
+            // failed listing): reuse that listing. An unreachable tart just
             // leaves known references green and unknown ones unknown.
-            let localVMs = tartList ?? detailed.tartVMs ?? []
-            let verdict = SetupStatusComputer.baseImageState(cfg: cfg, localVMs: localVMs)
+            let localImages =
+                tartList.map { ImageInventory.RuntimeImages(tartEntries: $0) }
+                ?? detailed.tartImages
+            let verdict = SetupStatusComputer.baseImageState(cfg: cfg, localImages: localImages)
             tartBaseImageSection = DoctorReport.TartBaseImageSection(
                 reference: cfg.baseImage ?? "", state: verdict.state, ok: verdict.ok, fix: verdict.fix,
                 pinned: TartBaseImage.isDigestPinned(cfg.baseImage ?? ""),

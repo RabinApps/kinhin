@@ -30,6 +30,19 @@ func notifyDaemonTokenReplaced(_ target: CredentialRotation.Target, token: Strin
     }
 }
 
+/// The config for a housekeeping command (`image list`, `image delete`): a
+/// broken config degrades to the defaults with a warning — the command may be
+/// run precisely because the config is broken. `cleanup` says the same thing
+/// in its own wording (it names the file it could not read).
+func loadConfigLeniently() -> KinhinConfig {
+    do {
+        return try ConfigLoader.load()
+    } catch {
+        warn("could not read the config (\(error.localizedDescription)); using the defaults")
+        return KinhinConfig.default
+    }
+}
+
 func loadConfigOrExit() -> KinhinConfig {
     do {
         let cfg = try ConfigLoader.load()

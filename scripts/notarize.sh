@@ -5,31 +5,47 @@
 #
 # Usage: scripts/notarize.sh <file>
 #
-# Credentials (App Store Connect API key), all required:
-#   NOTARY_KEY_PATH   path to the AuthKey_XXXX.p8 file
-#   NOTARY_KEY_ID     the key ID
-#   NOTARY_ISSUER_ID  the issuer ID
+# Credentials — one of the two forms, never both:
 #
-# When none are set the script exits 0 without notarizing, so local and fork
+#   NOTARY_KEYCHAIN_PROFILE  a stored notarytool profile, the preferred form:
+#       xcrun notarytool store-credentials kinhin --key AuthKey_XXXX.p8 \
+#         --key-id <id> --issuer <issuer>
+#     Nothing on disk, nothing in the environment, no .p8 file to guard.
+#
+#   App Store Connect API key, all three required:
+#       NOTARY_KEY_PATH   path to the AuthKey_XXXX.p8 file
+#       NOTARY_KEY_ID     the key ID
+#       NOTARY_ISSUER_ID  the issuer ID
+#
+# When neither is set the script exits 0 without notarizing, so local and fork
 # builds keep working. A partial set is an error.
 set -euo pipefail
 
 FILE="${1:?usage: notarize.sh <file>}"
 
-set_count=0
-for name in NOTARY_KEY_PATH NOTARY_KEY_ID NOTARY_ISSUER_ID; do
-    if [ -n "${!name:-}" ]; then set_count=$((set_count + 1)); fi
-done
-if [ "$set_count" -eq 0 ]; then
-    echo "==> notarization skipped (NOTARY_* not set): $FILE"
-    exit 0
-fi
-if [ "$set_count" -ne 3 ]; then
-    echo "FATAL: set all of NOTARY_KEY_PATH, NOTARY_KEY_ID and NOTARY_ISSUER_ID, or none" >&2
-    exit 1
+if [ -n "${NOTARY_KEYCHAIN_PROFILE:-}" ]; then
+    if [ -n "${NOTARY_KEY_PATH:-}${NOTARY_KEY_ID:-}${NOTARY_ISSUER_ID:-}" ]; then
+        echo "FATAL: set NOTARY_KEYCHAIN_PROFILE or the NOTARY_KEY_PATH/NOTARY_KEY_ID/NOTARY_ISSUER_ID trio, not both" >&2
+        exit 1
+    fi
+    AUTH=(--keychain-profile "$NOTARY_KEYCHAIN_PROFILE")
+    echo "==> notarytool profile: $NOTARY_KEYCHAIN_PROFILE"
+else
+    set_count=0
+    for name in NOTARY_KEY_PATH NOTARY_KEY_ID NOTARY_ISSUER_ID; do
+        if [ -n "${!name:-}" ]; then set_count=$((set_count + 1)); fi
+    done
+    if [ "$set_count" -eq 0 ]; then
+        echo "==> notarization skipped (NOTARY_* not set): $FILE"
+        exit 0
+    fi
+    if [ "$set_count" -ne 3 ]; then
+        echo "FATAL: set all of NOTARY_KEY_PATH, NOTARY_KEY_ID and NOTARY_ISSUER_ID, or none" >&2
+        exit 1
+    fi
+    AUTH=(--key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
 fi
 
-AUTH=(--key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
 RESULT="$(mktemp)"
 trap 'rm -f "$RESULT"' EXIT
 

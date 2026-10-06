@@ -118,20 +118,23 @@ extension SetupStatusComputer {
     /// The base-image verdict shared by the checklist row and doctor's JSON
     /// section, so the two surfaces can never disagree. Only called for
     /// configs that set the top-level `base_image:`; absent means the default
-    /// and there is nothing to say about it. `localVMs` is the tart list the
-    /// caller already fetched (empty when tart is unavailable — a known
-    /// reference must not depend on tart being up). States: "known" (a
+    /// and there is nothing to say about it. `localImages` is the tart
+    /// listing the caller already fetched through `ImageInventory` (nil when
+    /// tart is unavailable — a known reference must not depend on tart being
+    /// up). States: "known" (a
     /// pre-configured image, possibly digest-pinned), "local" (a local VM),
     /// "unknown" (neither — the next prepare would fail). Public because the
     /// CLI's human doctor prints the same verdict.
     public static func baseImageState(
-        cfg: KinhinConfig, localVMs: [TartVM]
+        cfg: KinhinConfig, localImages: ImageInventory.RuntimeImages?
     ) -> (state: String, ok: Bool, fix: String?) {
         let reference = cfg.baseImage ?? ""
         if TartBaseImage.isKnownSource(reference) {
             return ("known", true, nil)
         }
-        if localVMs.contains(where: { $0.name == reference }) {
+        // Raw listing names on purpose: `base_image:` may name any local VM
+        // the user created, image or not.
+        if localImages?.names.contains(reference) == true {
             return ("local", true, nil)
         }
         // Not curated and not a local VM: prepare would fail mid-clone after
@@ -155,8 +158,10 @@ extension SetupStatusComputer {
     /// untouched — the row is about the *next* prepare.) A mutable tag is
     /// still ok: it works, it just may drift, so the warning rides in the
     /// detail rather than the ok flag.
-    static func baseImageCheck(cfg: KinhinConfig, localVMs: [TartVM]) -> SetupCheckResult {
-        let verdict = baseImageState(cfg: cfg, localVMs: localVMs)
+    static func baseImageCheck(
+        cfg: KinhinConfig, localImages: ImageInventory.RuntimeImages?
+    ) -> SetupCheckResult {
+        let verdict = baseImageState(cfg: cfg, localImages: localImages)
         let reference = cfg.baseImage ?? ""
         let detail: String
         switch verdict.state {

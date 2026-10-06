@@ -121,6 +121,15 @@ Before opening a PR, run `scripts/check.sh`; it includes `bash scripts/docs-lint
 --check`, which you must also run if you touched docs or any code they are generated from. When you edit `docs/` or
 `website/`, verify the site with `cd website && npx vitepress build` (fails on dead links).
 
+## Cutting a release
+
+The full procedure — Developer ID signing, notarization credentials, the local rehearsal run, and the
+tag publish — is in [docs/releasing.md](docs/releasing.md). In short: bump
+`Sources/KinhinKit/Core/Version.swift` and add the `## v<version>` CHANGELOG heading in a commit,
+run `scripts/check.sh`, then `scripts/release.sh <version>`; it builds and verifies everything a tag
+publish would, and prints the tag commands when you are ready. The script never commits, tags or
+pushes.
+
 ## Generated doc blocks
 
 Some docs are derived from code, so they are generated instead of hand-copied: the forge IDs (`docs/forges/README.md`), the daemon RPC methods (`docs/architecture.md`), and the CLI exit codes and `kinhin help` screen (`website/cli/commands.md`). Each sits between `<!-- docs-sync:begin NAME -->` and `<!-- docs-sync:end NAME -->` markers. Never edit between the markers; change the Swift source (`ForgeID`, `RPCMethod`, `CLIExit`, `helpText()`), then run:

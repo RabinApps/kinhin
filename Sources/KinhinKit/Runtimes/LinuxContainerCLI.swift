@@ -20,6 +20,8 @@ struct LinuxContainerCLI: Sendable {
         let listNameArguments: [String]
         /// Lists local image references, one per line.
         let imageListArguments: [String]
+        /// Removes one local image (`docker image rm` / `container image delete`).
+        let imageRemoveArguments: [String]
         /// Extra `run` flags (Docker's `--platform`).
         let runFlags: [String]
         /// Shown in the provision log line (Docker's platform).
@@ -215,6 +217,20 @@ struct LinuxContainerCLI: Sendable {
         } catch {
             Log.warn(dialect.tag, "could not list images: \(error.localizedDescription)")
             return []
+        }
+    }
+
+    /// Removes one local image reference. An image that is already gone is
+    /// success — deleting is idempotent, like `teardown`.
+    func deleteImage(_ name: String) async throws {
+        let result = try await run([bin] + dialect.imageRemoveArguments + [name])
+        let gone =
+            result.stderr.localizedCaseInsensitiveContains("no such image")
+            || result.stderr.localizedCaseInsensitiveContains("not found")
+            || result.stderr.localizedCaseInsensitiveContains("does not exist")
+        guard result.succeeded || gone else {
+            throw ContainerManagerError.commandFailed(
+                what: "\(dialect.tag): removing image \(name)", stderr: result.failureExcerpt)
         }
     }
 

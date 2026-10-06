@@ -19,6 +19,9 @@ public enum ImageError: LocalizedError {
     case notConfigured(section: String)
     /// `--image NAME` named neither `image:` nor an `images:` entry.
     case unknownImage(String)
+    /// An image operation needs a runtime (tart, container, docker) whose
+    /// binary or service is not there. The message is the whole remedy.
+    case runtimeUnavailable(String)
 
     public var errorDescription: String? {
         switch self {
@@ -33,6 +36,8 @@ public enum ImageError: LocalizedError {
             return "no \(section).image is set — add a \(section): section first"
         case .unknownImage(let name):
             return "no image named '\(name)': it must be the image: value or an images: entry in the config"
+        case .runtimeUnavailable(let why):
+            return why
         }
     }
 }

@@ -43,9 +43,25 @@ public struct TartHealthProbe {
     let shell: ShellRunning
     let configuredPath: String?
 
-    public init(shell: ShellRunning = Shell(), configuredPath: String? = nil) {
+    /// - Parameters:
+    ///   - shell: The shell used to launch the binary (tests inject fakes).
+    ///   - configuredPath: The tart binary to probe — almost always the
+    ///   config's `tart_path:`, so every surface answers for the same binary
+    ///   the fleet runs. Explicit `nil` only when no config was read (PATH
+    ///   is then the honest answer). Never defaulted: a bare init would
+    ///   silently search PATH and disagree with the fleet.
+    public init(shell: ShellRunning = Shell(), configuredPath: String?) {
         self.shell = shell
         self.configuredPath = configuredPath
+    }
+
+    /// A bare probe cannot be constructed — see the designated init.
+    @available(
+        *, unavailable, message: "pass configuredPath: the config's tart_path (nil only when no config was read)"
+    )
+    public init(shell: ShellRunning = Shell()) {
+        self.shell = shell
+        self.configuredPath = nil
     }
 
     /// Runs `tart --version` and classifies the outcome. When the launch fails

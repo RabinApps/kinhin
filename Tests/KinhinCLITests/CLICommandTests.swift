@@ -19,6 +19,15 @@ final class CLICommandTests: XCTestCase {
         XCTAssertEqual(CLICommand.parse(["image"]), .imagePrepare)
         XCTAssertEqual(CLICommand.parse(["image", "prepare"]), .imagePrepare)
         XCTAssertEqual(CLICommand.parse(["image", "prepare", "--container"]), .imagePrepare)
+        XCTAssertEqual(CLICommand.parse(["image", "list"]), .imageList)
+        XCTAssertEqual(CLICommand.parse(["image", "ls"]), .imageList)
+        XCTAssertEqual(CLICommand.parse(["image", "delete", "tahoe-base"]), .imageDelete)
+        XCTAssertEqual(CLICommand.parse(["image", "rm", "tahoe-base"]), .imageDelete)
+        XCTAssertEqual(CLICommand.parse(["image", "prune"]), .imagePrune)
+        XCTAssertEqual(CLICommand.parse(["image", "prune", "--yes"]), .imagePrune)
+        // `image digest` used to fall through to prepare (the head switch
+        // only saw "image") and started a bake; the two-token table routes it.
+        XCTAssertEqual(CLICommand.parse(["image", "digest", "ghcr.io/x:latest"]), .imageDigest)
         XCTAssertEqual(CLICommand.parse(["start"]), .start)
         XCTAssertEqual(CLICommand.parse(["stop"]), .stop)
         XCTAssertEqual(CLICommand.parse(["pause"]), .pause)
@@ -52,6 +61,21 @@ final class CLICommandTests: XCTestCase {
         // `configInit` before this refactor and still does — pinned so the
         // surface cannot silently change meaning.
         XCTAssertEqual(CLICommand.parse(["config", "bogus-subcommand"]), .configInit)
+        // An unknown `image` subcommand still means prepare (bare `image`
+        // and `image prepare` are the same command), only the listed pairs
+        // in `twoTokenHeads` route elsewhere.
+        XCTAssertEqual(CLICommand.parse(["image", "frobnicate"]), .imagePrepare)
+    }
+
+    /// The subcommands that parse their own operands get the head tokens
+    /// stripped, in both spellings the router accepts.
+    func testImageSubcommandArgumentsAreStripped() {
+        XCTAssertEqual(KinhinCLI.afterImageSubcommand(["image", "digest", "ghcr.io/x"]), ["ghcr.io/x"])
+        XCTAssertEqual(KinhinCLI.afterImageSubcommand(["image", "list"]), [])
+        XCTAssertEqual(KinhinCLI.afterImageSubcommand(["image", "delete", "a", "--yes"]), ["a", "--yes"])
+        XCTAssertEqual(KinhinCLI.afterImageSubcommand(["image", "prune", "--yes"]), ["--yes"])
+        XCTAssertEqual(KinhinCLI.afterImageSubcommand(["image digest", "ghcr.io/x"]), ["ghcr.io/x"])
+        XCTAssertEqual(KinhinCLI.afterImageSubcommand([]), [])
     }
 
     func testUnknownCommandReturnsNil() {
@@ -74,7 +98,7 @@ final class CLICommandTests: XCTestCase {
 
     func testWorkingCommandsAutoCreate() {
         let working: [CLICommand] = [
-            .auth, .doctor, .setupStatus, .setupRepair, .imagePrepare, .start, .stop,
+            .auth, .doctor, .setupStatus, .setupRepair, .imagePrepare, .imageList, .imageDelete, .start, .stop,
             .pause, .resume, .status, .watch, .logs, .daemon,
         ]
         for command in working {

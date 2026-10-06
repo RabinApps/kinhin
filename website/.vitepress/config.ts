@@ -152,6 +152,7 @@ export default defineConfig({
           { text: "Support & sponsors", link: "/guide/support" },
           { text: "Who uses kinhin", link: "/guide/used-by" },
           { text: "Contributing", link: "/guide/contributing" },
+          { text: "Cutting a release", link: "/guide/releasing" },
           { text: "Debugging races (TSan)", link: "/guide/debugging-races" },
         ],
       },

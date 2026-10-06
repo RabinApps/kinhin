@@ -65,6 +65,19 @@ func helpText() -> String {
                                     the agents into it. --from starts from a pre-configured
                                     image instead (tart.run's VM images; bare --from shows
                                     the menu)
+        image list [--json] [--runtime <tart|container|docker>]
+                                    Show every installed image (tart, apple container, Docker):
+                                    its role, size, last used, and who is using it. --runtime
+                                    lists only that runtime (--json: machine-readable output)
+        image delete <name>… [--yes]
+                                    Delete installed images by name, in every runtime that holds
+                                    them. Reports only unless --yes is given; refuses images
+                                    runners are using (stop the fleet first)
+        image prune [--yes]
+                                    One pass: sweep stale derived-image records (the tart image
+                                    is gone) and delete local images nothing uses. Reports only
+                                    unless --yes; configured images, the base_image and anything
+                                    in use are never touched
         toolchains                  Toolchain catalog, per-project selections, and cache state
         toolchains --project <owner/name> [--ref <branch|tag>]
                                     Show which toolchains that repo resolves to, where they

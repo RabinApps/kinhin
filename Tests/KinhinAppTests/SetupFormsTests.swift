@@ -203,8 +203,9 @@ final class SetupFormsTests: XCTestCase {
     }
 
     func testWizardTurnsOnAnInstalledLinuxRuntimeWhenTartIsMissing() throws {
-        // Only meaningful on a host with Docker but without tart.
-        guard !TartController.isInstalled(), Paths.findExecutable(named: "docker") != nil,
+        // Only meaningful on a host with Docker but without tart. PATH
+        // gate: no config is in scope here, so the check says so explicitly.
+        guard !TartController.isInstalled(configuredPath: nil), Paths.findExecutable(named: "docker") != nil,
             Paths.findExecutable(named: "container") == nil
         else { return }
         let model = MacToolsModel()
@@ -486,7 +487,7 @@ final class SetupFormsTests: XCTestCase {
 
     func testEveryInstallableToolHasAnInstallButtonWhenMissing() {
         let model = installModel(shell: FakeShell())
-        XCTAssertTrue(model.tartInstallVisible || TartController.isInstalled())
+        XCTAssertTrue(model.tartInstallVisible || TartController.isInstalled(configuredPath: nil))
         XCTAssertTrue(model.containerInstallVisible || Paths.findExecutable(named: "container") != nil)
         XCTAssertTrue(model.dockerInstallVisible || Paths.findExecutable(named: "docker") != nil)
     }

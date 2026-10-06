@@ -55,7 +55,7 @@ final class ConfigInitAndHelpTests: XCTestCase {
         let help = helpText()
         for needle in [
             "config init", "auth", "doctor", "setup-status", "setup repair host-agent", "runtimes route add",
-            "runtimes route remove", "image prepare",
+            "runtimes route remove", "image prepare", "image list", "image delete", "image prune",
             "start", "stop", "pause", "resume", "status", "watch", "logs",
             "daemon", "support", "mcp", "version", "help",
         ] {

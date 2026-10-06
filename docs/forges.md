@@ -9,15 +9,15 @@ runners, report queued demand), and each platform implements it behind that inte
 them at once**: each VM is assigned to whichever forge has the most pending work, registers there, and is deleted when
 its job finishes.
 
-| Forge               | Status         | Runner agent                       | Scope                                    |
-| ------------------- | -------------- | ---------------------------------- | ---------------------------------------- |
-| GitHub Actions      | ✅ live-tested | actions-runner                     | `owner/name` repo or org, optional enterprise instance |
-| Gitea Actions       | 🧪 untested    | gitea-runner                       | `owner/name` repo or org, any instance   |
-| Forgejo             | 🧪 untested    | gitea-runner                       | `owner/name` repo or org, any instance   |
-| GitLab CI/CD        | 🧪 untested    | gitlab-runner                      | project or group path (`group/sub/proj`) |
-| Buildkite           | 🧪 untested    | buildkite-agent                    | `org/cluster`                            |
-| Azure Pipelines     | 🧪 untested    | Azure Pipelines agent              | an agent pool in an organization         |
-| Bitbucket Pipelines | 🧪 untested    | Bitbucket shell runner (Java)      | a workspace, or `workspace/repo-slug`    |
+| Forge               | Status         | Runner agent                  | Scope                                                  |
+| ------------------- | -------------- | ----------------------------- | ------------------------------------------------------ |
+| GitHub Actions      | ✅ live-tested | actions-runner                | `owner/name` repo or org, optional enterprise instance |
+| Gitea Actions       | 🧪 untested    | gitea-runner                  | `owner/name` repo or org, any instance                 |
+| Forgejo             | 🧪 untested    | gitea-runner                  | `owner/name` repo or org, any instance                 |
+| GitLab CI/CD        | 🧪 untested    | gitlab-runner                 | project or group path (`group/sub/proj`)               |
+| Buildkite           | 🧪 untested    | buildkite-agent               | `org/cluster`                                          |
+| Azure Pipelines     | 🧪 untested    | Azure Pipelines agent         | an agent pool in an organization                       |
+| Bitbucket Pipelines | 🧪 untested    | Bitbucket shell runner (Java) | a workspace, or `workspace/repo-slug`                  |
 
 ## What has been tested
 

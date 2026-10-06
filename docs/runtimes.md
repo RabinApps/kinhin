@@ -114,6 +114,36 @@ from it), toolchain downloads written through the shared cache, and Docker's/con
 image prepare` also sweeps up `kinhin-prepare-tmp-*` VMs left by an earlier crashed bake before it starts, and
 `kinhin cleanup --vms` lists and removes them as "image-build scratch VMs".
 
+### Seeing and removing installed images
+
+`kinhin image list` shows every image kinhin can find on this Mac, per runtime: the tart base image and any `images:`
+entries (role, size), derived per-project images (size, last used), and the apple-container/Docker images. Each
+runtime section opens with a count and total disk usage — image bloat at a glance — and the `--json` document carries
+the same totals under `totalGB`, keyed by runtime. It also
+lists what is configured but not built yet, says why a runtime could not be listed, and marks the images runners are
+using right now. A machine with a busy Docker daemon is the reason `--runtime` exists: it narrows the listing — and
+the probes behind it — to one runtime, so only what you asked about is touched.
+
+```bash
+kinhin image list              # installed images, per runtime
+kinhin image list --runtime docker       # just the Docker images (tart, container: same idea)
+kinhin image list --json       # the same inventory as a document
+kinhin image delete <name>     # report only: what would go, and how to re-bake it
+kinhin image delete <name> --yes
+kinhin image prune             # one pass: stale records + unused local images (report only)
+kinhin image prune --yes
+```
+
+Deletion follows `kinhin cleanup`'s contract: without `--yes` nothing is touched, and an image that runners are using
+is refused until you `kinhin stop` (a runner VM or a leftover bake scratch VM is refused outright — those belong to
+`kinhin cleanup --vms`). Deleting a derived image also clears its index entry, and deleting a configured image means
+`kinhin image prepare` again before the fleet can run from it.
+
+`kinhin image prune` is the whole-machine sweep in one confirmed pass: it clears every stale derived-image record
+(the index remembers an image tart no longer has) and deletes the local images nothing uses. Configured images, every
+`base_image:`, and anything a runner is using are never candidates — in-use images are listed as kept and the rest of
+the sweep proceeds without them. A runtime whose images could not be listed is skipped and said so, never swept blind.
+
 ### Isolating runner VMs from each other
 
 By default Tart puts every VM on one shared network, so a job can reach other runner VMs and your LAN. If jobs can
@@ -134,6 +164,31 @@ Repeat the `chown`/`chmod` after `brew upgrade softnet`. (A passwordless-sudo ru
 works.) kinhin refuses to start with `tart_softnet: true` if `softnet` isn't installed, rather than silently using the
 shared network. Baked images also disable SSH password login; re-run `kinhin image prepare` to apply that to an existing
 image.
+
+### Pointing kinhin at a custom tart binary
+
+`config.yaml` may name the exact tart binary kinhin runs — for a tart installed outside the usual directories, or
+when several tarts coexist on one Mac:
+
+```yaml
+tart_path: "/opt/tart/bin/tart"
+```
+
+`tart_path:` is **authoritative for the whole app**: the CLI (`kinhin image prepare`, `kinhin toolchains`,
+`kinhin cleanup`, the orphaned-VM scan in `kinhin status`), the daemon's fleet, `kinhin doctor`, the setup
+checklist, and the app's probes (This Mac, Toolchains, Runtimes health) all run that exact binary — never a
+different tart found on PATH.
+
+- A configured path that is not executable reads as **not installed everywhere**, even when `which tart` finds one:
+  the override is a decision, not a hint, and kinhin never falls back behind your back. The This Mac card says why
+  — `not installed — tart_path: /opt/tart/bin/tart does not exist` — and `kinhin doctor` reports tart NOT FOUND
+  until the path is fixed.
+- Leave `tart_path:` unset and kinhin searches its fixed trusted directories first (`/opt/homebrew/bin`,
+  `/usr/local/bin`, `/usr/bin`, …) and then `PATH`, so a writable directory a job or shell profile put early on
+  `PATH` cannot shadow `tart`.
+- Every tart action goes through the same binary — VM boots, `tart list`, the GB sizes in the Toolchains tab and
+  `kinhin toolchains list-images` — so a probe and the action it describes can never disagree about which tart
+  you have.
 
 ## Choosing a Linux runtime
 

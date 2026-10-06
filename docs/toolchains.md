@@ -237,6 +237,9 @@ kinhin toolchains --project owner/name [--ref main]     # what a repo resolves t
 kinhin image prepare --project owner/name [--ref main]  # bake its image now
 kinhin toolchains list-images                           # derived images: size, last used
 kinhin toolchains prune [--dry-run]
+kinhin image list                                  # derived images alongside every other installed image
+kinhin image delete <name> [--yes]                  # delete one by name (reports unless --yes)
+kinhin image prune [--yes]                          # one pass: stale records + unused local images
 ```
 
 The app's **Advanced → Toolchains** tab shows the same information read-only: your `projects:` rules with their

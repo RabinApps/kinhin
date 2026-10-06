@@ -238,6 +238,51 @@ final class AppleContainerRuntimeTests: XCTestCase {
         XCTAssertTrue(argv.contains("kinhin-abc"))
     }
 
+    // MARK: - Image sizes
+
+    func testLocalImageSizesParsesJSONListing() async {
+        let shell = FakeShell()
+        shell.defaultResult = ShellResult(
+            exitCode: 0,
+            stdout:
+                #"[{"configuration":{"name":"docker.io/library/alpine:3.20"},"variants":[{"size":4180000000}]},{"configuration":{"name":"kinhin-ci-linux:latest"},"variants":[{"size":743214959}]}]"#,
+            stderr: "")
+        let runtime = AppleContainerRuntime(
+            shell: shell, image: "img", cpus: 2, memoryGB: 4,
+            binPath: "/usr/local/bin/container"
+        )
+        let sizes = await runtime.localImageSizes()
+        // Keyed by every name form the `-q` listing may print.
+        XCTAssertEqual(sizes["alpine:3.20"], 4)
+        XCTAssertEqual(sizes["library/alpine:3.20"], 4)
+        XCTAssertEqual(sizes["docker.io/library/alpine:3.20"], 4)
+        XCTAssertEqual(sizes["kinhin-ci-linux:latest"], 1)
+        XCTAssertTrue(shell.calls.first?.contains("--format") == true)
+    }
+
+    func testLocalImageSizesEmptyWhenListingFails() async {
+        let shell = FakeShell()
+        shell.defaultResult = ShellResult(exitCode: 1, stdout: "", stderr: "container system is not running")
+        let runtime = AppleContainerRuntime(
+            shell: shell, image: "img", cpus: 2, memoryGB: 4,
+            binPath: "/usr/local/bin/container"
+        )
+        let sizes = await runtime.localImageSizes()
+        XCTAssertTrue(sizes.isEmpty)
+        // Unparseable output is "no sizes", never a crash.
+        XCTAssertEqual(AppleContainerRuntime.parseImageSizes("not json"), [:])
+    }
+
+    func testImageNameFormsDropRegistryAndLibraryPrefixes() {
+        XCTAssertEqual(
+            AppleContainerRuntime.nameForms(of: "docker.io/library/alpine:3.20"),
+            ["docker.io/library/alpine:3.20", "library/alpine:3.20", "alpine:3.20"])
+        XCTAssertEqual(
+            AppleContainerRuntime.nameForms(of: "ghcr.io/acme/api:v2"),
+            ["ghcr.io/acme/api:v2", "acme/api:v2"])
+        XCTAssertEqual(AppleContainerRuntime.nameForms(of: "kinhin-ci-linux:latest"), ["kinhin-ci-linux:latest"])
+    }
+
     // MARK: - Config
 
     func testContainerConfigParsingAndValidation() throws {

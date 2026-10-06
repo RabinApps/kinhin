@@ -165,20 +165,20 @@ preparing the image — then starts the fleet. The main window has **Fleet**, **
 `~/Library/Application Support/Kinhin/config.yaml` — full template via `kinhin config init`.
 Key fields:
 
-| Field                                      | Meaning                                                                                                                                                                                                 |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `repo`                                     | GitHub scope to serve: `owner/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization** (PAT needs org runner-admin permission)                        |
-| `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                                        |
-| `min_runners` / `max_runners`              | Scaling bounds (in VMs)                                                                                                                                                                                 |
-| `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                                              |
-| `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                                                      |
-| `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                                            |
-| `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                                               |
+| Field                                      | Meaning                                                                                                                                                                                                   |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repo`                                     | GitHub scope to serve: `owner/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization** (PAT needs org runner-admin permission)                          |
+| `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                                          |
+| `min_runners` / `max_runners`              | Scaling bounds (in VMs)                                                                                                                                                                                   |
+| `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                                                |
+| `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                                                        |
+| `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                                              |
+| `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                                                 |
 | `base_image`                               | What `image prepare` starts from: a pre-configured tart image (`ghcr.io/cirruslabs/...`), digest-pinned (`ref@sha256:…` — see `kinhin image digest`), or a local VM name; absent = the default macOS base |
-| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](docs/toolchains.md#bake-tools-into-the-base-image))                                                |
-| `projects`                                 | Per-repo toolchains: `repo_file: true` honors the repo's `.kinhin.yml`; `toolchains`, `share_cache` per entry (see [Per-project toolchains](docs/toolchains.md#per-project-toolchains)) |
-| `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                                                 |
-| `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                                   |
+| `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Baking toolchains](docs/toolchains.md#bake-tools-into-the-base-image))                                                         |
+| `projects`                                 | Per-repo toolchains: `repo_file: true` honors the repo's `.kinhin.yml`; `toolchains`, `share_cache` per entry (see [Per-project toolchains](docs/toolchains.md#per-project-toolchains))                   |
+| `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                                                   |
+| `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                                     |
 
 The effective concurrency cap is the smallest of `max_runners` and what your Mac's CPU, memory,
 and disk can hold after the `reserve` headroom; `kinhin doctor` prints the cap and the binding
@@ -187,6 +187,8 @@ Serving the same repo from more than one Mac? Give each Mac its own label so onl
 job: [Running on multiple Macs](docs/scaling.md#running-on-multiple-macs).
 
 ## Commands
+
+<!-- docs-sync:begin cli-help -->
 
 ```
 kinhin config init          Write the starter config
@@ -220,6 +222,16 @@ kinhin image prepare --linux --target <name> [--from <ref>]
 kinhin image digest <registry>/<repo>:<tag>
                              Print the digest the registry currently serves, so base_image:
                              can be pinned to ref@sha256:… and bakes stay reproducible
+kinhin image list [--json] [--runtime tart|container|docker]
+                             Show every installed image (tart, apple container, Docker):
+                             role, size, last used, and who is using it; --runtime narrows
+                             the listing to one runtime
+kinhin image delete <name>… [--yes]
+                             Delete installed images by name, in every runtime that holds
+                             them; reports only unless --yes is given
+kinhin image prune [--yes]   One pass: sweep stale derived-image records and delete local
+                             images nothing uses; reports only unless --yes is given, and
+                             never touches configured images, the base_image or images in use
 kinhin image prepare --project <owner/name> [--ref <ref>]
                              Bake the derived image (macOS/tart) for a repo's resolved toolchains now
 kinhin toolchains           Managed-toolchain catalog, selections, shared-cache state
@@ -256,25 +268,27 @@ kinhin mcp                  Serve MCP over stdio for AI agents: tools/list + too
 kinhin support              Show ways to donate or sponsor kinhin
 ```
 
+<!-- docs-sync:end cli-help -->
+
 ## Documentation
 
-| Doc                                                 | Covers                                                                                |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [Why kinhin](docs/why.md)                           | The one-job-per-runner problem and how kinhin solves it, with sources                 |
-| [Install](docs/install.md)                          | Install script, air-gapped installs, update checks                                    |
-| [Security](docs/security.md)                        | Threat model, hardening for untrusted PRs, what kinhin enforces                       |
-| [The kinhin app](docs/app.md)                       | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together               |
-| [Hardware requirements & sizing](docs/hardware.md)  | Minimum specs and CPU / memory / storage recommendations                              |
-| [How scaling works](docs/scaling.md)                | Capacity cap, the scaling loop, `runners_per_vm`, recovery                            |
+| Doc                                                  | Covers                                                                                                                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Why kinhin](docs/why.md)                            | The one-job-per-runner problem and how kinhin solves it, with sources                                                                                      |
+| [Install](docs/install.md)                           | Install script, air-gapped installs, update checks                                                                                                         |
+| [Security](docs/security.md)                         | Threat model, hardening for untrusted PRs, what kinhin enforces                                                                                            |
+| [The kinhin app](docs/app.md)                        | Main window tabs, launch modes, Siri & Shortcuts, app + daemon together                                                                                    |
+| [Hardware requirements & sizing](docs/hardware.md)   | Minimum specs and CPU / memory / storage recommendations                                                                                                   |
+| [How scaling works](docs/scaling.md)                 | Capacity cap, the scaling loop, `runners_per_vm`, recovery                                                                                                 |
 | [Requeue and skip queued jobs](docs/requeue-skip.md) | Per-fleet queue operations: (re)queue, skip, per-forge scope, CLI (`kinhin requeue <forge> [--yes]` / `kinhin skip <forge> [--yes]`), and failure handling |
-| [Toolchains & the shared cache](docs/toolchains.md) | Provision scripts, managed and per-project toolchains, per-job installs, the download cache |
-| [Support & sponsors](docs/support.md)               | Donate, or become a paid sponsor                                                      |
-| [Forge support](docs/forges.md)                     | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, multiple accounts |
-| [Forge API reference](docs/forges/README.md)        | Per-forge endpoints, auth, API versions and an audit against each forge's docs        |
-| [Runtimes & routing](docs/runtimes.md)              | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing             |
-| [Test workflows locally](docs/workflow-testing.md) | Run a supported subset of GitHub Actions scripts on your Mac                          |
-| [AI agents & MCP](docs/agents.md)             | Skills, the MCP server, every `--json` surface, and the safety rules for agents           |
-| [Architecture](docs/architecture.md)                | Package targets, source layout, tests, CI                                             |
+| [Toolchains & the shared cache](docs/toolchains.md)  | Provision scripts, managed and per-project toolchains, per-job installs, the download cache                                                                |
+| [Support & sponsors](docs/support.md)                | Donate, or become a paid sponsor                                                                                                                           |
+| [Forge support](docs/forges.md)                      | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket, multiple accounts                                                                      |
+| [Forge API reference](docs/forges/README.md)         | Per-forge endpoints, auth, API versions and an audit against each forge's docs                                                                             |
+| [Runtimes & routing](docs/runtimes.md)               | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing                                                                                  |
+| [Test workflows locally](docs/workflow-testing.md)   | Run a supported subset of GitHub Actions scripts on your Mac                                                                                               |
+| [AI agents & MCP](docs/agents.md)                    | Skills, the MCP server, every `--json` surface, and the safety rules for agents                                                                            |
+| [Architecture](docs/architecture.md)                 | Package targets, source layout, tests, CI                                                                                                                  |
 
 ## Troubleshooting
 
