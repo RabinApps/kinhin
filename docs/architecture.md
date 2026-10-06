@@ -13,7 +13,7 @@ A fleet runs on a Mac. The app or CLI controls it either through an in-process e
 ```mermaid
 ---
 config:
-  layout: elk
+  layout: dagre
 ---
 flowchart LR
     operator["Menu bar app or CLI"] -- commands --> frontend["App backend / CLI dispatch"]
