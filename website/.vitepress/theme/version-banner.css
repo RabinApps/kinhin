@@ -26,6 +26,9 @@
   position: relative;
   margin: 24px 0;
   overflow: auto;
+  /* One finger scrolls the inline diagram natively; two fingers are handed to
+     the theme's pinch-to-zoom instead of browser page zoom. */
+  touch-action: pan-x pan-y;
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
   background: var(--vp-c-bg-soft);
@@ -71,12 +74,22 @@
 .diagram-fullscreen {
   width: 100vw;
   height: 100vh;
+  /* `dvh` follows the visible viewport on phones, where 100vh sticks out
+     behind the collapsible browser toolbar. */
+  height: 100dvh;
   max-width: none;
   max-height: none;
   padding: 0;
   border: 0;
   color: var(--vp-c-text-1);
   background: var(--vp-c-bg);
+}
+.diagram-fullscreen[open] {
+  /* Column layout sizes the content from the real toolbar height instead of a
+     hard-coded 56px, so a wrapped (narrow-screen) toolbar still fits and the
+     dialog never scrolls sideways to reveal the zoom controls. */
+  display: flex;
+  flex-direction: column;
 }
 .diagram-fullscreen::backdrop {
   background: rgb(0 0 0 / 75%);
@@ -85,11 +98,20 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* Narrow screens: wrap instead of pushing the zoom controls off-screen. */
+  flex: none;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--vp-c-divider);
   font-weight: 600;
   white-space: nowrap;
+}
+.diagram-fullscreen-title {
+  /* The title may shrink to nothing so the zoom controls and Close always fit. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .diagram-zoom-controls {
   display: flex;
@@ -115,8 +137,12 @@
 }
 .diagram-fullscreen-content {
   width: 100%;
-  height: calc(100% - 56px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  /* One finger scrolls the diagram natively; two fingers are handed to the
+     theme's pinch-to-zoom instead of browser page zoom. */
+  touch-action: pan-x pan-y;
   display: grid;
   place-items: center;
   /* `safe` keeps a zoomed-in diagram scrollable instead of clipping its
@@ -169,7 +195,9 @@
   .diagram-zoom-hint {
     display: none;
   }
-  .diagram-zoom-button {
-    padding: 4px 8px;
+  /* Thumb-sized targets: the zoom buttons are the only tap affordance here. */
+  .diagram-zoom-button,
+  .diagram-close-button {
+    padding: 8px 12px;
   }
 }

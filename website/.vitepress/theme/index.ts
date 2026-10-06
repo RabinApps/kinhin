@@ -13,6 +13,17 @@ function addDiagramExpandButtons(): void {
     frame.className = "diagram-frame";
     parent.insertBefore(frame, diagram);
     frame.append(diagram);
+    // Pinch zooms the inline diagram inside its scrollable frame; one finger
+    // keeps native scrolling. The expanded dialog parks `style.zoom` while it
+    // is open and restores it on close.
+    attachPinchZoom(
+      frame,
+      () => inlineZoomLevel(diagram),
+      (zoom, midX, midY) =>
+        anchorZoom(frame, diagram, midX, midY, () => {
+          diagram.style.zoom = String(zoom);
+        }),
+    );
 
     const expand = document.createElement("button");
     expand.className = "diagram-expand-button";
@@ -27,6 +38,73 @@ function addDiagramExpandButtons(): void {
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.25;
+
+function clampZoom(value: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+}
+
+// Resize `box` while pinning the point at (clientX, clientY) — the user's
+// fingers — to the same screen position: remember where that point sits inside
+// the box, run `resize`, then scroll `scroller` back underneath it.
+function anchorZoom(
+  scroller: HTMLElement,
+  box: HTMLElement,
+  clientX: number,
+  clientY: number,
+  resize: () => void,
+): void {
+  const before = box.getBoundingClientRect();
+  const relX = before.width > 0 ? (clientX - before.left) / before.width : 0.5;
+  const relY = before.height > 0 ? (clientY - before.top) / before.height : 0.5;
+  resize();
+  const after = box.getBoundingClientRect();
+  scroller.scrollLeft += after.left + relX * after.width - clientX;
+  scroller.scrollTop += after.top + relY * after.height - clientY;
+}
+
+// The inline diagram keeps its zoom in `style.zoom`: CSS zoom scales the whole
+// box — min-width, padding and the svg's max-width caps included — so the
+// frame simply scrolls around the enlarged diagram.
+function inlineZoomLevel(diagram: HTMLElement): number {
+  return Number.parseFloat(diagram.style.zoom) || 1;
+}
+
+// Two-finger pinch for `container`: `getZoom()` snapshots the level when the
+// second finger lands and `applyZoom(level, midX, midY)` runs for each move.
+// One finger is left to native scrolling; only two-finger moves are claimed,
+// through preventDefault plus `touch-action: pan-x pan-y` in the stylesheet.
+function attachPinchZoom(
+  container: HTMLElement,
+  getZoom: () => number,
+  applyZoom: (zoom: number, midX: number, midY: number) => void,
+): void {
+  let pinch: { distance: number; zoom: number } | null = null;
+  const distance = (touches: TouchList): number =>
+    Math.hypot(
+      touches[0].clientX - touches[1].clientX,
+      touches[0].clientY - touches[1].clientY,
+    );
+  container.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 2) return;
+    pinch = { distance: distance(event.touches), zoom: getZoom() };
+  });
+  container.addEventListener(
+    "touchmove",
+    (event) => {
+      if (event.touches.length !== 2 || !pinch || pinch.distance === 0) return;
+      event.preventDefault();
+      const midX = (event.touches[0].clientX + event.touches[1].clientX) / 2;
+      const midY = (event.touches[0].clientY + event.touches[1].clientY) / 2;
+      applyZoom(clampZoom(pinch.zoom * (distance(event.touches) / pinch.distance)), midX, midY);
+    },
+    { passive: false },
+  );
+  const end = (event: TouchEvent) => {
+    if (event.touches.length < 2) pinch = null;
+  };
+  container.addEventListener("touchend", end);
+  container.addEventListener("touchcancel", end);
+}
 
 function zoomButton(label: string, ariaLabel: string, onClick: () => void): HTMLButtonElement {
   const button = document.createElement("button");
@@ -49,10 +127,11 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
   const toolbar = document.createElement("div");
   toolbar.className = "diagram-fullscreen-toolbar";
   const title = document.createElement("span");
+  title.className = "diagram-fullscreen-title";
   title.textContent = "Architecture diagram";
   const hint = document.createElement("span");
   hint.className = "diagram-zoom-hint";
-  hint.textContent = " drag to pan · + / − keys or Ctrl+scroll to zoom, 0 to reset";
+  hint.textContent = " drag to pan · pinch, double-tap, + / − or Ctrl+scroll to zoom · 0 to reset";
   title.append(hint);
 
   const content = document.createElement("div");
@@ -72,6 +151,10 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
   // restore the inline view exactly as it was.
   const svg = diagram.querySelector("svg");
   const svgOriginalStyle = svg?.getAttribute("style") ?? null;
+  // The inline diagram may carry a pinch zoom; fullscreen sizes the box with
+  // explicit pixels instead, so park `style.zoom` while the dialog is open.
+  const inlineZoomStyle = diagram.style.zoom;
+  diagram.style.removeProperty("zoom");
   diagram.style.boxSizing = "border-box"; // width/height include the 24px padding
   const applyZoom = () => {
     diagram.style.width = `${Math.round(content.clientWidth * zoom)}px`;
@@ -91,12 +174,18 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
     else content.removeAttribute("data-pannable");
   };
   const stepZoom = (direction: number) => {
-    zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom + direction * ZOOM_STEP));
+    zoom = clampZoom(zoom + direction * ZOOM_STEP);
     applyZoom();
   };
   const resetZoom = () => {
     zoom = 1;
     applyZoom();
+  };
+  // Zoom around a fixed screen point — the pinch midpoint or the double-tap —
+  // so the part of the diagram under the fingers stays where they are.
+  const zoomAt = (value: number, clientX: number, clientY: number) => {
+    zoom = clampZoom(value);
+    anchorZoom(content, diagram, clientX, clientY, applyZoom);
   };
 
   const zoomControls = document.createElement("div");
@@ -164,6 +253,73 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
     },
     { passive: false },
   );
+
+  // Touch gestures on the diagram: attachPinchZoom handles two-finger pinch,
+  // and a double-tap here toggles zoom centered on the tapped spot.
+  // `touch-action: pan-x pan-y` on the content (stylesheet) keeps the browser
+  // from page-zooming and double-tap-zooming inside the dialog, so the gestures
+  // reach these handlers instead.
+  const TAP_SLOP = 10; // px of travel that still counts as a tap
+  const DOUBLE_TAP_MS = 300;
+  const DOUBLE_TAP_DISTANCE = 32;
+  let pinchSeen = false; // a two-finger gesture started and a finger may still be down
+  let tap: { x: number; y: number; time: number; moved: boolean } | null = null;
+  let lastTap: { x: number; y: number; time: number } | null = null;
+  attachPinchZoom(content, () => zoom, zoomAt);
+  content.addEventListener("touchstart", (event) => {
+    if (event.touches.length === 2) {
+      pinchSeen = true;
+      tap = null;
+    } else if (event.touches.length === 1 && !pinchSeen) {
+      const touch = event.touches[0];
+      tap = { x: touch.clientX, y: touch.clientY, time: Date.now(), moved: false };
+    }
+  });
+  content.addEventListener("touchmove", (event) => {
+    // Scrolling disqualifies the gesture as a tap, but never blocks the scroll.
+    if (event.touches.length === 1 && tap && !tap.moved) {
+      const touch = event.touches[0];
+      if (Math.hypot(touch.clientX - tap.x, touch.clientY - tap.y) > TAP_SLOP) tap.moved = true;
+    }
+  });
+  content.addEventListener("touchend", (event) => {
+    if (event.touches.length > 0) return; // fingers are still down
+    if (pinchSeen) {
+      // A pinch just ended: its trailing finger-lifts must not count as taps.
+      pinchSeen = false;
+      tap = null;
+      lastTap = null;
+      return;
+    }
+    const now = Date.now();
+    const touch = event.changedTouches[0];
+    if (tap && !tap.moved && touch && now - tap.time <= DOUBLE_TAP_MS) {
+      const { clientX, clientY } = touch;
+      const paired =
+        lastTap !== null &&
+        now - lastTap.time <= DOUBLE_TAP_MS &&
+        Math.hypot(clientX - lastTap.x, clientY - lastTap.y) <= DOUBLE_TAP_DISTANCE;
+      if (paired) {
+        lastTap = null;
+        // Out to 100% when zoomed in, in by 2× otherwise — pinned to the tap.
+        zoomAt(zoom > 1 ? 1 : zoom * 2, clientX, clientY);
+        // Stops iOS from stacking its own double-tap zoom on top of ours.
+        event.preventDefault();
+      } else {
+        lastTap = { x: clientX, y: clientY, time: now };
+      }
+    } else {
+      lastTap = null; // a scroll or a slow press breaks the pair
+    }
+    tap = null;
+  });
+  content.addEventListener("touchcancel", (event) => {
+    if (event.touches.length === 0) {
+      pinchSeen = false;
+      tap = null;
+      lastTap = null;
+    }
+  });
   dialog.append(toolbar, content);
   document.body.append(dialog);
 
@@ -194,6 +350,8 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
     diagram.style.removeProperty("height");
     diagram.style.removeProperty("box-sizing");
     diagram.style.removeProperty("zoom");
+    // Back to the inline view — including any pinch zoom it had before Expand.
+    if (inlineZoomStyle) diagram.style.zoom = inlineZoomStyle;
     if (svg) {
       if (svgOriginalStyle === null) svg.removeAttribute("style");
       else svg.setAttribute("style", svgOriginalStyle);
