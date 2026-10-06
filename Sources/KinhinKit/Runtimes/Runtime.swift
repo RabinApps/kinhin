@@ -284,7 +284,8 @@ struct TartRuntime: Runtime {
         case .github:
             if case .jitConfig = forge.registration {
                 let runnerNames = FleetEngine.runnerNames(for: name, count: runnerCount)
-                guard runnerNames.allSatisfy({ runnerTokens[$0] != nil }), runnerTokens.count == runnerNames.count else {
+                guard runnerNames.allSatisfy({ runnerTokens[$0] != nil }), runnerTokens.count == runnerNames.count
+                else {
                     throw EngineError.registrationFailed(vm: name, stderr: "forge returned incomplete JIT configs")
                 }
                 let orderedConfigs = runnerNames.compactMap { runnerName in
@@ -303,10 +304,12 @@ struct TartRuntime: Runtime {
                         directory = "~/actions-runner"
                         workFolder = "_work"
                     } else {
-                        directory = runnerNumber == 1
+                        directory =
+                            runnerNumber == 1
                             ? "~/actions-runner"
                             : "~/actions-runner-\(runnerNumber)"
-                        workFolder = runnerNumber == 1
+                        workFolder =
+                            runnerNumber == 1
                             ? "_work"
                             : "_work-\(runnerNumber)"
                     }

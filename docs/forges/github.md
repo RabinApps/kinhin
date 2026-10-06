@@ -6,33 +6,33 @@ How kinhin talks to GitHub Actions, and how that compares with GitHub's current 
 
 ## Overview
 
-| | |
-|---|---|
-| Forge id | `github` |
-| Hosting | github.com by default. With an `instance` on the account, kinhin uses that host instead: GHES and GHEC data residency are both supported. For GHES the host is your server's base URL; for GHEC data residency it is the `api.*.ghe.com` host. See [Enterprise instance](#enterprise-instance) below. |
-| Scope | `owner/name` (one repository) or an org name. `actionsBase` is `/repos/{scope}/actions` or `/orgs/{scope}/actions`. |
-| `instance` | Optional. github.com when absent (the default); a GHES base URL (`https://github.example.com`) or a GHEC data-residency host (`https://acme.ghe.com`) otherwise. |
-| Source | `Sources/KinhinKit/Forges/GitHubClient.swift`, `GitHubClient+Runs.swift`, `GitHubForge.swift`, `GitHubModels.swift` |
-| Live-tested | Yes. This is the only forge exercised against the real service. |
+|             |                                                                                                                                                                                                                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Forge id    | `github`                                                                                                                                                                                                                                                                                              |
+| Hosting     | github.com by default. With an `instance` on the account, kinhin uses that host instead: GHES and GHEC data residency are both supported. For GHES the host is your server's base URL; for GHEC data residency it is the `api.*.ghe.com` host. See [Enterprise instance](#enterprise-instance) below. |
+| Scope       | `owner/name` (one repository) or an org name. `actionsBase` is `/repos/{scope}/actions` or `/orgs/{scope}/actions`.                                                                                                                                                                                   |
+| `instance`  | Optional. github.com when absent (the default); a GHES base URL (`https://github.example.com`) or a GHEC data-residency host (`https://acme.ghe.com`) otherwise.                                                                                                                                      |
+| Source      | `Sources/KinhinKit/Forges/GitHubClient.swift`, `GitHubClient+Runs.swift`, `GitHubForge.swift`, `GitHubModels.swift`                                                                                                                                                                                   |
+| Live-tested | Yes. This is the only forge exercised against the real service.                                                                                                                                                                                                                                       |
 
 ## Auth
 
 `Authorization: Bearer <PAT>` (`GitHubClient.swift:157`). Both fine-grained and classic personal access tokens work. Permission lists live in `TokenRequirements.github(scope:instance:)`.
 
-| Token | Repository scope | Organization scope |
-|---|---|---|
+| Token        | Repository scope                                                        | Organization scope                                                                                    |
+| ------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | Fine-grained | Administration: read and write; Actions: read-only; Metadata: read-only | Organization "Self-hosted runners": read and write; repository Actions: read-only on all repositories |
-| Classic | `repo` | `admin:org`, `repo` |
+| Classic      | `repo`                                                                  | `admin:org`, `repo`                                                                                   |
 
 GitHub's docs agree: runner endpoints need repository `admin` or organization `admin:org` (plus `repo` for private repositories).
 
 ## API version and base URL
 
-| | We send | GitHub documents (verified 2026-10-01) |
-|---|---|---|
-| Base | `https://api.github.com` when `instance` is absent. With an enterprise `instance`, the client derives `apiBase` from the host: `https://api.<host>` for `*.ghe.com`, or `https://<host>/api/v3` for any other host. | `https://api.github.com`; GHES uses `{protocol}://{hostname}/api/v3` and GHEC data residency uses `{protocol}://api.SUB.ghe.com`. |
-| `X-GitHub-Api-Version` | `2022-11-28` (`GitHubClient.swift:160`) | Two supported versions: `2022-11-28` (supported until 2028-03-10) and `2026-03-10` (no end date). An absent header defaults to `2022-11-28`. |
-| `Accept` | `application/vnd.github+json` | Same |
+|                        | We send                                                                                                                                                                                                             | GitHub documents (verified 2026-10-01)                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base                   | `https://api.github.com` when `instance` is absent. With an enterprise `instance`, the client derives `apiBase` from the host: `https://api.<host>` for `*.ghe.com`, or `https://<host>/api/v3` for any other host. | `https://api.github.com`; GHES uses `{protocol}://{hostname}/api/v3` and GHEC data residency uses `{protocol}://api.SUB.ghe.com`.            |
+| `X-GitHub-Api-Version` | `2022-11-28` (`GitHubClient.swift:160`)                                                                                                                                                                             | Two supported versions: `2022-11-28` (supported until 2028-03-10) and `2026-03-10` (no end date). An absent header defaults to `2022-11-28`. |
+| `Accept`               | `application/vnd.github+json`                                                                                                                                                                                       | Same                                                                                                                                         |
 
 GitHub supports each version for 24 months after the next one ships, signals retirement with `Deprecation` and `Sunset` headers, and answers `410 Gone` once a version is retired.
 
@@ -40,16 +40,16 @@ GitHub supports each version for 24 months after the next one ships, signals ret
 
 ## Endpoints used
 
-| Method | Path | Purpose | Code |
-|---|---|---|---|
-| POST | `{actionsBase}/runners/registration-token` | Mint a runner registration token (1 h lifetime) | `GitHubClient.swift:243` |
-| GET | `{actionsBase}/runners?per_page=100&page=N` | List runners | `GitHubClient.swift:323` |
-| DELETE | `{actionsBase}/runners/{id}` | Remove a runner | `GitHubClient.swift:344` |
-| GET | `/repos/{repo}/actions/runs?status=queued\|in_progress&per_page=100&page=N` | Demand and running jobs (repo scope; org scope per repository) | `GitHubClient+Runs.swift` |
-| GET | `/orgs/{org}/actions/runs` | Not used (undocumented) | none |
-| GET | `/repos/{repo}/actions/runs/{id}/jobs?per_page=100` (org mode: `{actionsBase}/runs/{id}/jobs`) | Job labels for matching | `GitHubClient+Runs.swift:139-141` |
-| GET | `/user/repos?affiliation=owner,collaborator,organization_member` | Repository picker | `GitHubClient.swift:270` |
-| GET | `/orgs/{org}/repos`, `/users/{owner}/repos` | Repository picker, org and user | `GitHubClient.swift:272-274` |
+| Method | Path                                                                                           | Purpose                                                        | Code                              |
+| ------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------- |
+| POST   | `{actionsBase}/runners/registration-token`                                                     | Mint a runner registration token (1 h lifetime)                | `GitHubClient.swift:243`          |
+| GET    | `{actionsBase}/runners?per_page=100&page=N`                                                    | List runners                                                   | `GitHubClient.swift:323`          |
+| DELETE | `{actionsBase}/runners/{id}`                                                                   | Remove a runner                                                | `GitHubClient.swift:344`          |
+| GET    | `/repos/{repo}/actions/runs?status=queued\|in_progress&per_page=100&page=N`                    | Demand and running jobs (repo scope; org scope per repository) | `GitHubClient+Runs.swift`         |
+| GET    | `/orgs/{org}/actions/runs`                                                                     | Not used (undocumented)                                        | none                              |
+| GET    | `/repos/{repo}/actions/runs/{id}/jobs?per_page=100` (org mode: `{actionsBase}/runs/{id}/jobs`) | Job labels for matching                                        | `GitHubClient+Runs.swift:139-141` |
+| GET    | `/user/repos?affiliation=owner,collaborator,organization_member`                               | Repository picker                                              | `GitHubClient.swift:270`          |
+| GET    | `/orgs/{org}/repos`, `/users/{owner}/repos`                                                    | Repository picker, org and user                                | `GitHubClient.swift:272-274`      |
 
 ## Enterprise instance
 
@@ -82,7 +82,7 @@ Caveat: because the message API is still preview and not in GitHub's published O
 
 ### Scale-set troubleshooting (kinhin side)
 
-For the error signatures that show up in kinhin logs and how to read them, see [Troubleshooting scale sets](scaling.md#troubleshooting-scale-sets) in *How scaling works*. The two most common are:
+For the error signatures that show up in kinhin logs and how to read them, see [Troubleshooting scale sets](/docs/scaling.md#troubleshooting-scale-sets) in _How scaling works_. The two most common are:
 
 - `cd: /Users/admin/actions-runner-N: No such file or directory` (`bash: line …: cd: …: No such file or directory` in the in-VM script) — a per-runner directory is missing on the image; usually a `runners_per_vm` bake/fleet mismatch. Scale-set mode does **not** use a separate image; the same baked image that works for classic mode also boots scale-set VMs. See the density-mismatch section.
 - `could not pin the guest's SSH host key … connecting without host key verification` — a boot/SSH-agent reachability issue, not a registration-material issue. Establish that one VM can boot and register in classic mode before scaling it.
@@ -106,7 +106,7 @@ Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirec
 
 - `queuedJobs(matching:)` and `runningJobs(matching:)` count a job only when the fleet's labels are a subset of `job.labels` and `status` is `queued` or `in_progress`.
 - A running job maps back to a VM through `runner_name`.
-- The client reads workflow *runs* first (`status=queued` and `status=in_progress`), then each run's jobs. It reads at most 50 runs per poll (`maxRunsPerPoll`).
+- The client reads workflow _runs_ first (`status=queued` and `status=in_progress`), then each run's jobs. It reads at most 50 runs per poll (`maxRunsPerPoll`).
 
 ## Pagination, rate limits, retries
 
@@ -123,11 +123,11 @@ Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirec
 
 ## Version sensitivity
 
-| Item | Varies by | Detail |
-|---|---|---|
-| `X-GitHub-Api-Version` | github.com | `2022-11-28` and `2026-03-10` are identical for the endpoints kinhin calls. |
-| Base path | github.com vs GHES/GHEC | `/` for github.com, `/api/v3` for GHES, `/api/v3` for GHEC data residency (`api.<subdomain>.ghe.com`). |
-| `/orgs/{org}/actions/runs` | all | Not used (undocumented). |
+| Item                       | Varies by               | Detail                                                                                                 |
+| -------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------ |
+| `X-GitHub-Api-Version`     | github.com              | `2022-11-28` and `2026-03-10` are identical for the endpoints kinhin calls.                            |
+| Base path                  | github.com vs GHES/GHEC | `/` for github.com, `/api/v3` for GHES, `/api/v3` for GHEC data residency (`api.<subdomain>.ghe.com`). |
+| `/orgs/{org}/actions/runs` | all                     | Not used (undocumented).                                                                               |
 
 ## Audit findings
 
@@ -139,6 +139,7 @@ Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirec
 ## Verified
 
 2026-10-01, against:
+
 - <https://docs.github.com/en/rest/about-the-rest-api/api-versions>
 - <https://docs.github.com/en/rest/actions/self-hosted-runners>
 - <https://docs.github.com/en/rest/actions/workflow-runs>

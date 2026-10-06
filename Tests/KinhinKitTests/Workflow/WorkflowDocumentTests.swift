@@ -6,36 +6,38 @@ import XCTest
 final class WorkflowDocumentTests: XCTestCase {
     func testParsesJobsEnvironmentDefaultsAndStepMetadata() throws {
         let url = URL(fileURLWithPath: "/repo/.github/workflows/ci.yml")
-        let workflow = try parseWorkflow(Data("""
-        name: CI
-        env:
-          GLOBAL: yes
-        defaults:
-          run:
-            shell: bash
-            working-directory: Sources
-        jobs:
-          build:
-            needs: [lint]
-            env:
-              JOB_VALUE: two
-            timeout-minutes: 12
-            continue-on-error: true
-            strategy:
-              matrix:
-                os: [macos-latest, ubuntu-latest]
-            steps:
-              - run: echo hello
-                if: ${{ success() }}
-                timeout-minutes: 2
-                continue-on-error: true
-                working-directory: Tests
-              - uses: actions/checkout@v4
-          lint:
-            steps:
-              - name: Check
-                run: swift test
-        """.utf8), at: url)
+        let workflow = try parseWorkflow(
+            Data(
+                """
+                name: CI
+                env:
+                  GLOBAL: yes
+                defaults:
+                  run:
+                    shell: bash
+                    working-directory: Sources
+                jobs:
+                  build:
+                    needs: [lint]
+                    env:
+                      JOB_VALUE: two
+                    timeout-minutes: 12
+                    continue-on-error: true
+                    strategy:
+                      matrix:
+                        os: [macos-latest, ubuntu-latest]
+                    steps:
+                      - run: echo hello
+                        if: ${{ success() }}
+                        timeout-minutes: 2
+                        continue-on-error: true
+                        working-directory: Tests
+                      - uses: actions/checkout@v4
+                  lint:
+                    steps:
+                      - name: Check
+                        run: swift test
+                """.utf8), at: url)
 
         XCTAssertEqual(workflow.name, "CI")
         XCTAssertEqual(workflow.env["GLOBAL"], "yes")
@@ -74,7 +76,7 @@ final class WorkflowDocumentTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let first = workflows.appendingPathComponent("ci.yml")
         try Data("jobs: {}".utf8).write(to: first)
-        XCTAssertEqual(try locateWorkflow(in: root), first)
+        XCTAssertEqual(canonicalPath(try locateWorkflow(in: root)), canonicalPath(first))
         try Data("jobs: {}".utf8).write(to: workflows.appendingPathComponent("release.yaml"))
         XCTAssertThrowsError(try locateWorkflow(in: root)) { error in
             guard case WorkflowError.ambiguousWorkflow(let names) = error else {
@@ -82,5 +84,13 @@ final class WorkflowDocumentTests: XCTestCase {
             }
             XCTAssertEqual(names, ["ci.yml", "release.yaml"])
         }
+    }
+
+    /// Directory listings report `/private/var/…` while URLs built from
+    /// `temporaryDirectory` stay `/var/…` (Foundation strips the `/private`
+    /// prefix when it standardizes a path), so compare the two forms with the
+    /// prefix removed rather than relying on symlink resolution.
+    private func canonicalPath(_ url: URL) -> String {
+        url.path.hasPrefix("/private") ? String(url.path.dropFirst("/private".count)) : url.path
     }
 }

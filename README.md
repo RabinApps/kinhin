@@ -131,9 +131,10 @@ kinhin image prepare
 # 7. Go
 kinhin start          # foreground, Ctrl-C to stop
 # or
-kinhin cleanup [--vms] [--image] [--cache] [--all] [--yes]
+kinhin cleanup [--vms] [--image] [--cache] [--all] [--yes] [--json]
                             Reclaim disk: leftover runner VMs, the base image, the toolchain cache. Reports only
-                            unless --yes is given (stop the fleet first)
+                            unless --yes is given (stop the fleet first); --json is the dry-run report and
+                            refuses --yes
 kinhin reset [--scope config|daemon|all] [--yes]
                             Start over: credentials only, the daemon, or everything — confirms twice, no undo
 kinhin daemon install # headless LaunchAgent, survives reboots
@@ -189,7 +190,8 @@ job: [Running on multiple Macs](docs/scaling.md#running-on-multiple-macs).
 
 ```
 kinhin config init          Write the starter config
-kinhin config validate      Check the config file without starting anything (exit 3 when invalid)
+kinhin config validate [--json] Check the config file without starting anything (exit 3 when invalid;
+                             --json: machine-readable valid/error document)
 kinhin auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
 kinhin auth add|list|remove    Manage additional accounts (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket; auth set --account NAME stores one's token)
 kinhin auth status --json    All forges' stored-token state in one machine-readable document (exit 1 until ready)
@@ -249,6 +251,8 @@ kinhin reset [--scope config|daemon|all] [--yes]
                             Reset kinhin: config & credentials, the daemon install, or everything (VMs, images,
                             cache, logs included). Confirms twice; --yes skips the prompts. There is no undo
 kinhin logs [-n N]          Recent log lines
+kinhin mcp                  Serve MCP over stdio for AI agents: tools/list + tools/call expose status,
+                            doctor, runtimes, pipeline, logs and pause/resume/stop as JSON
 kinhin support              Show ways to donate or sponsor kinhin
 ```
 
@@ -269,6 +273,7 @@ kinhin support              Show ways to donate or sponsor kinhin
 | [Forge API reference](docs/forges/README.md)        | Per-forge endpoints, auth, API versions and an audit against each forge's docs        |
 | [Runtimes & routing](docs/runtimes.md)              | Tart, Apple `container`, Docker, host mode, per-repo/per-workflow routing             |
 | [Test workflows locally](docs/workflow-testing.md) | Run a supported subset of GitHub Actions scripts on your Mac                          |
+| [AI agents & MCP](docs/agents.md)             | Skills, the MCP server, every `--json` surface, and the safety rules for agents           |
 | [Architecture](docs/architecture.md)                | Package targets, source layout, tests, CI                                             |
 
 ## Troubleshooting

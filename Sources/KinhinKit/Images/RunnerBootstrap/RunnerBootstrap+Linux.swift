@@ -33,7 +33,9 @@ extension RunnerBootstrap {
     /// Installs the GitHub Actions runner agent into a Linux image for the
     /// Apple-container runtime (baked during `kinhin image prepare` when a
     /// GitHub credential exists). Mirrors installScript but for Linux tarballs.
-    static func linuxGitHubAgentInstallScript(version: String, arch: String = "arm64", caBundlePath: String? = nil) -> String {
+    static func linuxGitHubAgentInstallScript(version: String, arch: String = "arm64", caBundlePath: String? = nil)
+        -> String
+    {
         let caExport: String
         if let caBundlePath = caBundlePath {
             caExport = """
@@ -194,9 +196,10 @@ extension RunnerBootstrap {
         agentDirectory: String = "/opt/actions-runner",
         pidFile: String? = nil
     ) -> String {
-        let pidSetup = pidFile.map {
-            "mkdir -p \(shellQuote(URL(fileURLWithPath: $0).deletingLastPathComponent().path)); echo $! > \(shellQuote($0))"
-        } ?? ""
+        let pidSetup =
+            pidFile.map {
+                "mkdir -p \(shellQuote(URL(fileURLWithPath: $0).deletingLastPathComponent().path)); echo $! > \(shellQuote($0))"
+            } ?? ""
         return """
             set -euo pipefail
             mkdir -p \(shellQuote(agentDirectory))
@@ -214,4 +217,3 @@ extension RunnerBootstrap {
             """
     }
 }
-

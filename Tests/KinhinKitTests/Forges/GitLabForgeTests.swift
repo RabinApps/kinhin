@@ -203,8 +203,14 @@ final class FakeGitLabServer: Sendable {
             return (200, Data("[\(rows.joined(separator: ","))]".utf8), [:])
         case ("DELETE", _) where path.hasPrefix("/api/v4/runners/"):
             let id = Int(path.split(separator: "/").last ?? "") ?? -1
-            state.withLock { $0.runners.removeAll { $0.id == id } }
-            return (204, Data(), [:])
+            let removed = state.withLock { state -> Bool in
+                guard state.runners.contains(where: { $0.id == id }) else { return false }
+                state.runners.removeAll { $0.id == id }
+                return true
+            }
+            // Like the real API: a runner that does not exist is a 404, not a
+            // silent success (the client turns it into `ForgeAPIError`).
+            return removed ? (204, Data(), [:]) : (404, Data("404 Not Found".utf8), [:])
         default:
             return (404, Data(), [:])
         }

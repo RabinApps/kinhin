@@ -159,6 +159,7 @@ export default defineConfig({
         text: "Reference",
         items: [
           { text: "CLI commands", link: "/cli/commands" },
+          { text: "AI agents & MCP", link: "/guide/agents" },
           {
             text: "Forge API notes",
             collapsed: true,

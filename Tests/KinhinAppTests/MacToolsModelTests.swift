@@ -96,6 +96,10 @@ final class MacToolsModelTests: XCTestCase {
     // MARK: - Linux runtime choice sheet
 
     func testLinuxSetupOfferOpensWhenNothingIsOnAndSomethingCanRun() {
+        // The model edits a config file on disk (a missing one is not
+        // editable); this minimal file has no container/docker sections, so
+        // nothing is on yet.
+        try? "labels: [kinhin]\n".write(to: configURL, atomically: true, encoding: .utf8)
         let model = makeModel()
         model.setTartInstalledForTesting(false)
         model.setContainerForTesting(false)
@@ -112,9 +116,11 @@ final class MacToolsModelTests: XCTestCase {
     }
 
     func testLinuxRuntimeChoiceWritesTheRightConfigSection() throws {
+        // A blank file reads as "nothing configured yet" and the editors
+        // leave it alone; start from a minimal config so the section is
+        // created from defaults.
+        try "labels: [kinhin]\n".write(to: configURL, atomically: true, encoding: .utf8)
         let model = makeModel()
-        // Start from an empty config so the section is created from defaults.
-        try "".write(to: configURL, atomically: true, encoding: .utf8)
         model.reload()
         model.setDocker(true)
         let cfg = try ConfigLoader.load(from: configURL)
@@ -127,8 +133,9 @@ final class MacToolsModelTests: XCTestCase {
     }
 
     func testLinuxRuntimeChoiceSetsTartLinuxBaseImage() throws {
+        // A blank file is not editable either; start minimal (no base_image).
+        try "labels: [kinhin]\n".write(to: configURL, atomically: true, encoding: .utf8)
         let model = makeModel()
-        try "".write(to: configURL, atomically: true, encoding: .utf8)
         model.reload()
         model.setTartInstalledForTesting(true)
         model.setTartLinux(true)

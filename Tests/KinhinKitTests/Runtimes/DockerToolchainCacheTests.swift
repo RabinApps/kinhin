@@ -1,4 +1,3 @@
-import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -142,56 +141,5 @@ final class DockerToolchainCacheTests: XCTestCase {
         XCTAssertFalse(argvs.contains { $0.contains("commit") }, "no image is committed when a bake step fails")
         XCTAssertTrue(
             argvs.contains { $0.contains("rm") && $0.contains("--force") }, "the scratch container is cleaned up")
-    }
-}
-
-/// A shell double that models `docker ps` as real state: `run --name X`
-/// creates container X, `rm --force X` removes it, and ps returns the current
-/// names — so provision/awaitReady/recovery behave like the real CLI. Other
-/// argvs return success.
-final class DockerFakingShell: ShellRunning, Sendable {
-    private struct State: Sendable {
-        var argvs: [[String]] = []
-        var containers: Set<String> = []
-
-        mutating func handle(_ argv: [String]) -> ShellResult {
-            argvs.append(argv)
-            guard argv.first?.hasSuffix("/docker") == true || argv.first == "docker" else {
-                return ShellResult(exitCode: 0, stdout: "", stderr: "")
-            }
-            switch argv.dropFirst().first {
-            case "ps":
-                return ShellResult(exitCode: 0, stdout: containers.sorted().joined(separator: "\n"), stderr: "")
-            case "run":
-                if let nameIndex = argv.firstIndex(of: "--name"), argv.indices.contains(nameIndex + 1) {
-                    containers.insert(argv[nameIndex + 1])
-                }
-                return ShellResult(exitCode: 0, stdout: "", stderr: "")
-            case "start":
-                if let name = argv.last { containers.insert(name) }
-                return ShellResult(exitCode: 0, stdout: "", stderr: "")
-            case "rm":
-                if let name = argv.last { containers.remove(name) }
-                return ShellResult(exitCode: 0, stdout: "", stderr: "")
-            default:
-                return ShellResult(exitCode: 0, stdout: "", stderr: "")
-            }
-        }
-    }
-
-    private let state = Mutex(State())
-
-    func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
-        state.withLock { $0.handle(argv) }
-    }
-
-    /// Stdin is recorded as a trailing `<stdin>`, text pair so tests can still
-    /// inspect the script an exec delivered.
-    func run(_ argv: [String], input: Data, cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
-        state.withLock { $0.handle(argv + ["<stdin>", String(decoding: input, as: UTF8.self)]) }
-    }
-
-    func argvSnapshot() -> [[String]] {
-        state.withLock { $0.argvs }
     }
 }

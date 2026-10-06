@@ -92,7 +92,8 @@ final class HostRuntime: Runtime {
                     throw EngineError.registrationFailed(vm: name, stderr: "forge returned incomplete JIT configs")
                 }
                 let blocks = names.enumerated().map { index, runnerName in
-                    let runnerDirectory = runnerCount == 1
+                    let runnerDirectory =
+                        runnerCount == 1
                         ? agentDir
                         : agentDir.deletingLastPathComponent().appendingPathComponent("host-runner-\(index + 1)")
                     let pidFile = workDir.appendingPathComponent(runnerName).appendingPathComponent("runner.pid")

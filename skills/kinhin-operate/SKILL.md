@@ -26,8 +26,9 @@ Scripts can branch on them: `0` success, `1` general, `2` usage (bad command lin
 | `kinhin pipeline [VM] [--job NAME\|ID] [--watch] [--json]` | Job and step view. Add `--step N\|NAME` or `--log [--follow]`. Needs the daemon. |
 | `kinhin runtimes [--json] [--no-health]` | Runtime availability and health |
 
-`--json` is supported on `status`, `doctor`, `setup-status`, `auth status`, `runtimes`, `pipeline` and
-`toolchains detect`. Stdout carries only command output, so JSON stays parseable.
+`--json` is supported on `status`, `doctor`, `setup-status`, `auth status`, `runtimes`, `pipeline`, `workflow test`,
+`workflow route`, `toolchains detect`, `config validate` and `cleanup` (report-only; it refuses `--yes`). Stdout
+carries only command output, so JSON stays parseable.
 
 ## Scaling
 
@@ -40,9 +41,10 @@ Scripts can branch on them: `0` success, `1` general, `2` usage (bad command lin
 
 ## Cleanup
 
-`kinhin cleanup [--vms] [--image] [--cache] [--all] [--yes]`
+`kinhin cleanup [--vms] [--image] [--cache] [--all] [--yes] [--json]`
 
 - Without `--yes` it only reports what it would remove. Show the report, then ask before re-running with `--yes`.
+- `--json` is that report as a machine document (empty, targets, would-remove lists, summary); it refuses `--yes`.
 - Stop the fleet first (`kinhin stop`), or it may delete things in use.
 - `--all` removes VMs, images and caches. Uninstall order: stop, `cleanup --all --yes`, `daemon uninstall`, then
   `bash install.sh --uninstall`.

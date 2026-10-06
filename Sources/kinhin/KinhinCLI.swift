@@ -27,11 +27,13 @@ struct KinhinCLI {
         // Dispatch. Bodies live in Commands/ — routing lives in CLICommand.
         do {
             // `kinhin start` parks on its own SIGINT handler (dispatchMain +
-            // engine stop); every other command runs in a task the bridge
-            // holds, so Ctrl-C cancels it cooperatively — an image build then
-            // unwinds through its scratch-VM cleanup instead of being killed
-            // mid-bake with the scratch VM left behind.
-            if command == .start {
+            // engine stop); `kinhin mcp` reads stdin until EOF and needs the
+            // default SIGINT disposition (a cooperative cancel cannot
+            // interrupt a blocked stdin read). Every other command runs in a
+            // task the bridge holds, so Ctrl-C cancels it cooperatively — an
+            // image build then unwinds through its scratch-VM cleanup instead
+            // of being killed mid-bake with the scratch VM left behind.
+            if command == .start || command == .mcp {
                 try await dispatch(command!, args)
             } else {
                 let task = Task { try await dispatch(command!, args) }
@@ -53,7 +55,7 @@ struct KinhinCLI {
         switch command {
         case .configInit:
             if args.dropFirst().first == "validate" {
-                print(try ConfigCommands.validate())
+                try ConfigCommands.runValidate(Array(args.dropFirst(2)))
             } else {
                 try ConfigCommands.configInit(args)
             }
@@ -135,6 +137,9 @@ struct KinhinCLI {
 
         case .support:
             print(SupportLinks.summary())
+
+        case .mcp:
+            try await MCPCommand.run(args)
 
         case .workflow:
             switch args.dropFirst().first {

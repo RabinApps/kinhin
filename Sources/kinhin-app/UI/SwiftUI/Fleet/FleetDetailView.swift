@@ -61,15 +61,18 @@ struct FleetDetailView: View {
                         if model.status?.records.isEmpty == true {
                             secondary("No VMs — the fleet is idle.")
                         } else {
-                            ForEach(model.status?.records ?? [], id: \.id) { record in                                    Button {
-                                        model.selectVM(record.id)
-                                        model.selectedVMID = nil
-                                    } label: {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(title(for: record)).font(.system(size: 12, design: .monospaced))
-                                            Text(record.job ?? detail(for: record))
+                            ForEach(model.status?.records ?? [], id: \.id) { record in
+                                Button {
+                                    model.selectVM(record.id)
+                                    model.selectedVMID = nil
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(title(for: record)).font(.system(size: 12, design: .monospaced))
+                                        Text(record.job ?? detail(for: record))
                                             .font(.system(size: 10))
-                                            .foregroundStyle(record.error != nil ? StatusStyle.error.color : StatusStyle.secondary.color)
+                                            .foregroundStyle(
+                                                record.error != nil
+                                                    ? StatusStyle.error.color : StatusStyle.secondary.color)
                                     }
                                     .contentShape(Rectangle())
                                     .padding(.horizontal, 12)

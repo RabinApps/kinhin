@@ -49,10 +49,10 @@ enum AlertKit {
             let button = NSButton(checkboxWithTitle: scope.label, target: nil, action: nil)
             button.toolTip = scope.summary
             button.sizeToFit()
-            
+
             // Optional: Set default state (e.g., checked by default)
-            button.state = .off 
-            
+            button.state = .off
+
             return button
         }
 
@@ -78,7 +78,7 @@ enum AlertKit {
         // 6. Assign to the alert
         alert.accessoryView = stack
 
-        alert.layout() 
+        alert.layout()
         guard runModal(alert) == .alertFirstButtonReturn else { return nil }
         return zip(checkboxes, ResetScope.allCases).first { $0.0.state == .on }?.1
     }

@@ -78,7 +78,7 @@ final class GuestSSHKeyTests: XCTestCase {
 }
 
 /// Models `ssh-keygen -f <path>`: writes the `.pub` file next to the private key.
-private final class KeygenShell: ShellRunning, @unchecked Sendable {
+final class KeygenShell: ShellRunning, @unchecked Sendable {
     let goodKey: String
     private(set) var argvs: [[String]] = []
     init(goodKey: String) { self.goodKey = goodKey }

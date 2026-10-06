@@ -46,4 +46,52 @@ final class ConfigValidateTests: XCTestCase {
             XCTAssertTrue("\(error.localizedDescription)".contains("no accounts"), "\(error)")
         }
     }
+
+    // MARK: - the --json document
+
+    func testValidationDocumentReportsTheParsedFacts() throws {
+        try """
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
+        labels: [self-hosted, macos]
+        runtimes:
+          routes:
+            - pattern: acme/widgets
+              runtime: tart
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+        let document = ConfigCommands.validationDocument(configURL: configURL)
+        XCTAssertEqual(
+            document,
+            .init(
+                valid: true, path: configURL.path, error: nil,
+                accounts: [.init(name: "github", forge: "github", scope: "acme/widgets")],
+                labels: ["self-hosted", "macos"], runtimeRoutes: 1)
+        )
+    }
+
+    func testValidationDocumentReportsFailuresInsteadOfThrowing() throws {
+        try "poll_interval: 1\n".write(to: configURL, atomically: true, encoding: .utf8)
+        let document = ConfigCommands.validationDocument(configURL: configURL)
+        XCTAssertFalse(document.valid)
+        XCTAssertFalse(document.error?.isEmpty ?? true, "the failure must say why")
+        XCTAssertTrue(document.accounts.isEmpty)
+        // The prose path classifies the same failure as a config error (exit 3).
+        XCTAssertThrowsError(try ConfigCommands.validate(configURL: configURL)) { error in
+            XCTAssertTrue(error is ConfigError, "\(error)")
+        }
+    }
+
+    func testValidationDocumentEncodesTheMachineContract() throws {
+        try "poll_interval: 1\n".write(to: configURL, atomically: true, encoding: .utf8)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let object = try JSONSerialization.jsonObject(
+            with: try encoder.encode(ConfigCommands.validationDocument(configURL: configURL)))
+        let document = try XCTUnwrap(object as? [String: Any])
+        XCTAssertEqual(document["valid"] as? Bool, false)
+        XCTAssertEqual(document["path"] as? String, configURL.path)
+        XCTAssertFalse((document["error"] as? String ?? "").isEmpty)
+    }
 }

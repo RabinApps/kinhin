@@ -18,23 +18,36 @@ final class MultiRunnerRegistrationOrderTests: XCTestCase {
         XCTAssertEqual(lines.filter { $0.contains("./config.sh --url") }.count, 3)
     }
 
-    func testAllGiteaRunnersAreRegisteredBeforeAnyIsStarted() throws {
-        let scripts = [
-            RunnerBootstrap.giteaRegistrationScript(
-                instance: "https://gitea.example", token: "TOKEN", labels: ["x"], name: "kinhin-1", runnerCount: 3),
-            RunnerBootstrap.linuxGiteaRegistrationScript(
-                instance: "https://gitea.example", token: "TOKEN", labels: ["x"], name: "kinhin-1", runnerCount: 3),
-        ]
-        for script in scripts {
-            let lines = script.split(separator: "\n").map(String.init)
-            let lastRegister = try XCTUnwrap(lines.lastIndex { $0.contains("gitea-runner register") })
-            let firstStart = try XCTUnwrap(lines.firstIndex { $0.contains("gitea-runner daemon") })
-            XCTAssertLessThan(lastRegister, firstStart, "no daemon may start before the last registration")
-            XCTAssertEqual(lines.filter { $0.contains("gitea-runner register") }.count, 3)
-            XCTAssertEqual(lines.filter { $0.contains("gitea-runner daemon") }.count, 3)
-            // Each daemon starts from its own directory.
-            let starts = lines.enumerated().filter { $0.element.contains("gitea-runner daemon") }.map(\.offset)
-            for start in starts { XCTAssertTrue(lines[start - 1].hasPrefix("cd "), lines[start - 1]) }
+    /// Gitea's two scripts follow their own contracts, both pinned elsewhere:
+    /// macOS registers a single runner (multi-runner Gitea is a follow-up —
+    /// ForgeTests pins the one-daemon shape) and registers before starting;
+    /// Linux registers each runner in its own `/opt/actions-runner-N` directory
+    /// with the actions-runner `config.sh` the image bake provides (see
+    /// DockerRuntimeTests) and starts it with `run.sh` only after that
+    /// runner's registration completed.
+    func testGiteaRunnersRegisterBeforeTheyStart() throws {
+        let mac = RunnerBootstrap.giteaRegistrationScript(
+            instance: "https://gitea.example", token: "TOKEN", labels: ["x"], name: "kinhin-1", runnerCount: 3)
+        let macLines = mac.split(separator: "\n").map(String.init)
+        let macRegister = try XCTUnwrap(macLines.lastIndex { $0.contains("gitea-runner register") })
+        let macStart = try XCTUnwrap(macLines.firstIndex { $0.contains("nohup ./gitea-runner run") })
+        XCTAssertLessThan(macRegister, macStart, "the runner registers before it starts")
+        XCTAssertEqual(macLines.filter { $0.contains("gitea-runner register") }.count, 1)
+        XCTAssertEqual(macLines.filter { $0.contains("nohup ./gitea-runner run") }.count, 1)
+
+        let linux = RunnerBootstrap.linuxGiteaRegistrationScript(
+            instance: "https://gitea.example", token: "TOKEN", labels: ["x"], name: "kinhin-1", runnerCount: 3)
+        let lines = linux.split(separator: "\n").map(String.init)
+        XCTAssertEqual(lines.filter { $0.contains("./config.sh --url") }.count, 3)
+        XCTAssertEqual(lines.filter { $0.contains("nohup ./run.sh") }.count, 3)
+        // Every start shares its block with its own registration: the nearest
+        // preceding `cd` opens that runner's directory, and that runner's
+        // config.sh follows the cd before anything is started from it.
+        let starts = lines.indices.filter { lines[$0].contains("nohup ./run.sh") }
+        for start in starts {
+            let opened = try XCTUnwrap(lines[..<start].lastIndex { $0.hasPrefix("cd \"") })
+            let registered = try XCTUnwrap(lines[opened..<start].firstIndex { $0.contains("./config.sh --url") })
+            XCTAssertLessThan(opened, registered)
         }
     }
 }

@@ -99,11 +99,28 @@ struct AuthEnvironment: Sendable {
 }
 
 enum AuthCommand {
+    /// The machine-readable status report without printing — shared with the
+    /// MCP `auth_status` tool. Static — no network probes, tolerant of a
+    /// missing config file: the report's job is to report what's missing, not
+    /// fail on it. Defaults read the live Keychain; the CLI path passes its
+    /// injected environment instead.
+    static func statusReport(
+        jsonConfig: KinhinConfig?? = nil,
+        load: @Sendable (ForgeID) throws -> String? = AuthEnvironment.live.load,
+        loadAccount: @Sendable (ForgeID, String) throws -> String? = AuthEnvironment.live.loadAccount
+    ) -> AuthStatusReport {
+        AuthStatusReporter.report(
+            config: jsonConfig ?? AuthEnvironment.loadConfigTolerant(),
+            load: load,
+            loadAccount: loadAccount
+        )
+    }
+
     /// Builds, prints, and returns the machine-readable status document.
     /// Static — no network probes, tolerant of a missing config file.
     static func emitStatusJSON(environment: AuthEnvironment) throws -> (report: AuthStatusReport, data: Data) {
-        let report = AuthStatusReporter.report(
-            config: environment.jsonConfig ?? AuthEnvironment.loadConfigTolerant(),
+        let report = statusReport(
+            jsonConfig: environment.jsonConfig,
             load: environment.load,
             loadAccount: environment.loadAccount
         )

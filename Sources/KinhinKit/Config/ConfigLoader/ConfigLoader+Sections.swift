@@ -138,7 +138,8 @@ extension ConfigLoader {
                 // `scale_set` stays github-only here: the scale-set message path
                 // is not wired through GHES accounts in this change.
                 if entry.labels != nil {
-                    throw ConfigError.invalid("account '\(name)': labels select runners with `runs-on:`, which GitHub does not use")
+                    throw ConfigError.invalid(
+                        "account '\(name)': labels select runners with `runs-on:`, which GitHub does not use")
                 }
                 // GitHub enterprise (GHES / GHEC data residency): an optional
                 // instance URL. github.com has no instance, so the field stays

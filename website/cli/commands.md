@@ -10,7 +10,7 @@ USAGE:
 
 SETUP:
     config init                 Write a starter config file
-    config validate             Check the config file without starting anything (exit 3 when invalid)
+    config validate [--json]    Check the config file without starting anything (exit 3 when invalid)
     auth [set]                  Store (or replace) your GitHub PAT in the Keychain (or: auth set --token)
     auth set --gitea            Store (or replace) your Gitea access token (auth set --gitea --token X)
     auth set --account NAME     Store the token for a named account (--token X to skip the prompt)
@@ -107,7 +107,7 @@ WORKFLOW TESTING:
 RUNNING:
     start                       Start the fleet in this terminal (Ctrl-C to stop)
     daemon                      Run the headless daemon in this terminal
-    cleanup [--vms] [--image] [--cache] [--all] [--yes]
+    cleanup [--vms] [--image] [--cache] [--all] [--yes] [--json]
                                 Reclaim disk: leftover runner VMs, the base image, the toolchain cache.
                                 Reports only unless --yes is given (stop the fleet first)
     daemon install              Install and start a LaunchAgent daemon
@@ -127,6 +127,10 @@ RUNNING:
 
 OTHER:
     support                     Show ways to donate or sponsor kinhin
+    mcp                         Serve MCP over stdio for AI agents: tools/list + tools/call expose status,
+                                doctor, setup-status, auth status, runtimes, pipeline, logs and
+                                pause/resume/stop as JSON (stdout carries protocol only; `reset`,
+                                `cleanup --yes` and token entry are never exposed)
     version                     Print version
     help                        Show this help
 ```

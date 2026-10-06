@@ -29,8 +29,38 @@ enum RuntimesCommand {
             return
         }
 
+        let summary: Summary
+        do {
+            summary = try await loadSummary(noHealth: args.contains("--no-health"))
+        } catch let error as RouteError {
+            fail(error.errorDescription ?? "runtimes command failed", exit: .config)
+        } catch {
+            fail(error)
+        }
+        if args.contains("--json") {
+            print(String(decoding: summary.json, as: UTF8.self))
+        } else {
+            printText(summary.vm, repo: summary.repo, budget: summary.budget)
+        }
+        // Documented contract: no pools at all (nothing set up yet) is a failing status.
+        if summary.vm.pools.isEmpty { exit(CLIExit.general.rawValue) }
+    }
+
+    /// Everything `run` prints or emits, and what the MCP `runtimes` tool
+    /// returns: the view model plus the already-encoded JSON document.
+    struct Summary {
+        let vm: RuntimesPaneViewModel
+        let json: Data
+        let repo: String
+        let budget: [String: Double]
+    }
+
+    /// The read-only summary, without printing or exiting — shared by
+    /// `runtimes` and the MCP `runtimes` tool. Config problems throw
+    /// `RouteError` for the caller to classify.
+    static func loadSummary(noHealth: Bool) async throws -> Summary {
         guard FileManager.default.fileExists(atPath: Paths.config.path) else {
-            fail("no config at \(Paths.config.path) — run: kinhin config init", exit: .config)
+            throw RouteError.usage("no config at \(Paths.config.path) — run: kinhin config init")
         }
         let yaml: String
         let parsed: KinhinConfig
@@ -38,24 +68,23 @@ enum RuntimesCommand {
             yaml = try String(contentsOf: Paths.config, encoding: .utf8)
             parsed = try ConfigLoader.parse(yaml)
         } catch {
-            fail("config.yaml can't be used — \(error.localizedDescription)", exit: .config)
+            throw RouteError.usage("config.yaml can't be used — \(error.localizedDescription)")
         }
         let host = ResourceProbe().snapshot()
-
         let vm = await RuntimesPaneViewModel.load(
             configYAML: yaml,
             host: host,
             reserve: parsed.reserve,
-            loadHealth: !args.contains("--no-health")
+            loadHealth: !noHealth
         )
-
-        if args.contains("--json") {
-            printJSON(vm)
-        } else {
-            printText(vm, repo: parsed.repo, budget: parsed.runtimes?.budget ?? [:])
-        }
-        // Documented contract: no pools at all (nothing set up yet) is a failing status.
-        if vm.pools.isEmpty { exit(CLIExit.general.rawValue) }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return Summary(
+            vm: vm,
+            json: try encoder.encode(jsonPayload(vm: vm, repo: parsed.repo)),
+            repo: parsed.repo,
+            budget: parsed.runtimes?.budget ?? [:]
+        )
     }
 
     // MARK: - Route editing
@@ -266,10 +295,10 @@ enum RuntimesCommand {
         }
     }
 
-    static func printJSON(_ vm: RuntimesPaneViewModel) {
-        // Repo is printed by run() before dispatch; parse it from config here.
-        let repo = (try? ConfigLoader.load())?.repo ?? ""
-        let payload = RuntimesJSON(
+    /// The `runtimes --json` document body — building it is shared with
+    /// `loadSummary`, which encodes it for both the CLI and the MCP tool.
+    static func jsonPayload(vm: RuntimesPaneViewModel, repo: String) -> RuntimesJSON {
+        RuntimesJSON(
             repo: repo,
             routingConfigured: vm.routingConfigured,
             defaultRuntime: vm.defaultRuntime.rawValue,
@@ -290,10 +319,5 @@ enum RuntimesCommand {
                 result[entry.key.rawValue] = healthDescription(entry.value) ?? "unknown"
             }
         )
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? encoder.encode(payload) {
-            print(String(decoding: data, as: UTF8.self))
-        }
     }
 }

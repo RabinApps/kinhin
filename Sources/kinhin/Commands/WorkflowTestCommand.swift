@@ -13,7 +13,8 @@ enum WorkflowTestCommand {
     @MainActor
     static func run(_ args: [String]) async throws {
         let options = try parse(args)
-        let file = try options.file ?? locateWorkflow(in: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
+        let file =
+            try options.file ?? locateWorkflow(in: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
         let document = try load(file)
         if options.list {
             print("jobs:")
@@ -58,7 +59,9 @@ enum WorkflowTestCommand {
             let data = try encoder.encode(report)
             print(String(decoding: data, as: UTF8.self))
         } else {
-            print("summary: \(PipelineFormatter.label(for: report.overallState).lowercased()) · \(report.jobs.count) job(s)")
+            print(
+                "summary: \(PipelineFormatter.label(for: report.overallState).lowercased()) · \(report.jobs.count) job(s)"
+            )
         }
         if report.exitCode != 0 { exit(report.exitCode) }
     }
@@ -110,10 +113,10 @@ enum WorkflowTestCommand {
     }
 
     private static let help = """
-    usage: kinhin workflow test [FILE] [--job NAME] [--list] [--json]
+        usage: kinhin workflow test [FILE] [--job NAME] [--list] [--json]
 
-    Run GitHub Actions workflow scripts on this Mac. No VM, daemon, token or config is used.
-    FILE defaults to the only workflow in .github/workflows; --job runs one job without its needs.
-    --list prints jobs. --json prints the final report instead of step output.
-    """
+        Run GitHub Actions workflow scripts on this Mac. No VM, daemon, token or config is used.
+        FILE defaults to the only workflow in .github/workflows; --job runs one job without its needs.
+        --list prints jobs. --json prints the final report instead of step output.
+        """
 }

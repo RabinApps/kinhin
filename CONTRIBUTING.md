@@ -28,6 +28,9 @@ fails fast with this hint.
 ## Build, test, format
 
 ```bash
+scripts/check.sh                  # everything CI runs, in one command, failing fast (build, test,
+                                  # format lint, docs lint, docs-sync --check, skills lint)
+scripts/check.sh --fast           # same, skips the ~2 min test run — iterate with this
 swift build
 swift test                        # ~1200 XCTest tests, ~2 min; no VMs or network needed
 scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
@@ -42,6 +45,7 @@ The script now detects non-terminal runs (no TTY) and exits with an error instea
 If a restart loop ever gets going, run `launchctl remove kinhin-dev-app` to stop it.
 swift format lint --strict -r Sources Tests
 swift format format -i -r Sources Tests
+bash scripts/skills-lint.sh       # skills/*/SKILL.md frontmatter + command drift (in check.sh too)
 ```
 
 Formatting is configured in `.swift-format` (4 spaces, 120 columns). Run the formatter before committing; CI lints with `--strict`.
@@ -69,8 +73,24 @@ The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--p
 - `KinhinKit` is grouped by domain (`Core`, `Config`, `Fleet`, `Forges`, `Runtimes`, `Images`, `Setup`, `Update`, `Cache`). It has no AppKit dependency. UI code lives only in `kinhin-app`.
 - Docs: `docs/` is the single source for the guides and for the website. The VitePress site (`website/`) reads `docs/` in place (`srcDir` and `rewrites` in `website/.vitepress/config.ts`) and rewrites GitHub-style relative links while rendering. Edit a guide once, in `docs/`. `website/` holds only site-only pages (quick start, config, troubleshooting, CLI, home). A new `docs/` page is published by default (add it to the sidebar), or list it in `srcExclude` and `unpublished` (`docsLinks.ts`) to keep it GitHub-only. Check with `cd website && npx vitepress build`, which fails on dead links. Per-forge API notes live in `docs/forges/`. Adding a forge? Follow [docs/adding-a-forge.md](docs/adding-a-forge.md).
 - Kit tests mirror the source folders (`Tests/KinhinKitTests/Config/…`); one test class per file, named after its subject (no grab-bag `MiscTests`).
-- Shared doubles live in the `KinhinTestSupport` target (`Tests/KinhinTestSupport`): `FakeShell` (queued responses, `failOn`/`failAll`, records `calls`), `FakeTart`, `FakeGitHub`, `FakeSSH`, `StubProtocol`, `makeTestStore()`/`makeTestConfig()`. Import it with `@testable import KinhinTestSupport`. Only keep a private double in a test file when it models behavior specific to that test (e.g. a stateful docker CLI).
+- Shared doubles live in the `KinhinTestSupport` target (`Tests/KinhinTestSupport`): `FakeShell` (queued responses, `failOn`/`failAll`, records `calls`), `FakeTart`, `FakeGitHub`, `FakeGitea`, `FakeGitLab`, `FakeSSH`, `DockerFakingShell` (stateful `docker ps/run/start/rm`, queued `ps`/`exec` answers), `StubProtocol`, `makeTestStore()`/`makeTestConfig()`. Import it with `@testable import KinhinTestSupport`. Only keep a private double in a test file when it models behavior specific to that test (e.g. `KeygenShell`, the recording shell `GuestSSHKeyTests` needs).
+- Every shared double gets a contract test in `Tests/KinhinKitTests/TestSupport/` named `<Double>ContractTests`, pinning the fake to the real implementation it stands in for: forge fakes run against the real client over `StubProtocol` (same requests, same error cases, same read shapes), `FakeShell` against the real `Shell` over `/bin` tools. The point is drift detection — when the real implementation changes behavior, the contract test fails instead of the fake silently staying stale. Adding a new double to `KinhinTestSupport`? Add its `<Double>ContractTests` in the same change. The rule extends to doubles outside `KinhinTestSupport`: any private double that impersonates a real implementation (a faking shell, an app-service fake) gets a `<Double>ContractTests` in its own test target — see `FakeDockerContractTests` and `FakeFleetServingContractTests` (`Tests/KinhinAppTests/`) and `KeygenShellContractTests` (kit). Spies and fault injectors that only observe or break one test stay private and are asserted by the suite they serve.
 - `KinhinTestSupport` is testable-only: release builds must name their products (`swift build -c release --product kinhin-app`).
+
+## Skills
+
+`skills/<name>/SKILL.md` files are shipped product surface — the agent skills for *using* kinhin — published through
+`.claude-plugin/plugin.json`, with `.claude-plugin/marketplace.json` making the repo a one-command Claude Code
+marketplace (`claude plugin marketplace add RabinApps/kinhin`). They are not contributor docs (those live in `docs/`);
+edit them only when the CLI or a workflow an agent needs changes.
+
+- The frontmatter `name:` must equal the directory name, and `description:` must be non-empty: that line is what an
+  agent's skill matcher reads to decide when to load the skill, so it must name the situations, not the commands.
+- Every backticked `kinhin <command>` must be a command the CLI actually routes and the help screen documents.
+  `bash scripts/skills-lint.sh` fails on drift (it runs in `scripts/check.sh` and the CI docs job). A renamed command
+  updates `HelpText.swift` and the skill in the same change.
+- Keep the existing style: defer to `kinhin help` when the page and the CLI disagree, and keep the confirm-before-
+  destructive-op rules (`cleanup --yes`, `reset`) that keep agents from wiping a user's machine.
 
 ## Style
 
@@ -97,7 +117,9 @@ The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--p
 
 Keep mechanical changes (moves, renames, formatting) in separate commits from behavior changes. `swift build` and `swift test` must pass on every commit.
 
-Before opening a PR, also run `bash scripts/docs-lint.sh` and `bash scripts/docs-sync.sh --check` if you touched docs or any code they are generated from.
+Before opening a PR, run `scripts/check.sh`; it includes `bash scripts/docs-lint.sh` and `bash scripts/docs-sync.sh
+--check`, which you must also run if you touched docs or any code they are generated from. When you edit `docs/` or
+`website/`, verify the site with `cd website && npx vitepress build` (fails on dead links).
 
 ## Generated doc blocks
 

@@ -1,0 +1,15 @@
+{
+  "name": "kinhin",
+  "description": "Plugins for kinhin — the mindful CI: autoscaling runners that live on your Mac.",
+  "owner": {
+    "name": "Rabin Apps",
+    "url": "https://github.com/RabinApps"
+  },
+  "plugins": [
+    {
+      "name": "kinhin",
+      "source": "./",
+      "description": "Skills for installing, configuring, operating and troubleshooting kinhin, the autoscaling pool of ephemeral CI runners on an Apple Silicon Mac."
+    }
+  ]
+}

@@ -260,4 +260,3 @@ private struct StateGlyph: View {
         }
     }
 }
-

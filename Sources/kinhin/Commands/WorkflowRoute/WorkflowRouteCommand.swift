@@ -149,8 +149,9 @@ enum WorkflowRouteCommand {
         }
 
         let originalYAML: String
-        do { originalYAML = try String(contentsOf: file, encoding: .utf8) }
-        catch { throw WorkflowRouteCLIError.usage("cannot read \(file.path) for the planned diff") }
+        do { originalYAML = try String(contentsOf: file, encoding: .utf8) } catch {
+            throw WorkflowRouteCLIError.usage("cannot read \(file.path) for the planned diff")
+        }
 
         /// Apply the planned label edits to a copy of the original YAML and return
         /// the result — used for the dry-run "diff of planned runs-on: edits" text
@@ -208,8 +209,9 @@ enum WorkflowRouteCommand {
         if options.json {
             print(
                 try jsonReport(
-                    options, document: document, planned: planned, uneditableJobs: uneditableJobs,                        routeAction: routeAction, dryRun: false,
-                        plannedEdits: plannedEditsText))
+                    options, document: document, planned: planned, uneditableJobs: uneditableJobs,
+                    routeAction: routeAction, dryRun: false,
+                    plannedEdits: plannedEditsText))
         } else {
             print(
                 humanSummary(
@@ -505,7 +507,7 @@ extension WorkflowRouteCommand {
         case .unchanged: break
         case .added(let pattern, let runtime):
             lines.append("")
-            lines.append(                "route: added \(pattern) → \(runtime)")
+            lines.append("route: added \(pattern) → \(runtime)")
         case .replaced(let existing, let runtime):
             lines.append("")
             lines.append("route: replaced \(existing) → \(runtime)")

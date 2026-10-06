@@ -40,7 +40,7 @@ struct AppSectionView: View {
                         .accessibilityIdentifier("check-for-updates")
                     HintText(model.updateText).accessibilityIdentifier("update-status")
                 }
-                
+
                 FormCard(
                     title: "Files",
                     subtitle:

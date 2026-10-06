@@ -120,7 +120,8 @@ extension GitHubScaleSetRegistrationToken: Codable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         token = try c.decode(String.self, forKey: .token)
-        expiresAt = try c.decodeIfPresent(Date.self, forKey: .expiresAt)
+        expiresAt =
+            try c.decodeIfPresent(Date.self, forKey: .expiresAt)
             ?? Self.expirationDate(from: token)
             ?? .now
         let urlString = try c.decode(String.self, forKey: .actionsUrl)
@@ -221,7 +222,8 @@ extension GitHubScaleSetStatistics: Codable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         totalAssignedJobs = try c.decode(Int.self, forKey: .totalAssignedJobs)
-        activeNodesCount = try c.decodeIfPresent(Int.self, forKey: .activeNodesCount)
+        activeNodesCount =
+            try c.decodeIfPresent(Int.self, forKey: .activeNodesCount)
             ?? c.decodeIfPresent(Int.self, forKey: .totalRunningJobs)
             ?? c.decodeIfPresent(Int.self, forKey: .totalBusyRunners)
             ?? 0

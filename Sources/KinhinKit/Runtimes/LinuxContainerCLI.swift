@@ -97,10 +97,12 @@ struct LinuxContainerCLI: Sendable {
                         directory = "/opt/actions-runner"
                         workFolder = "/opt/work"
                     } else {
-                        directory = runnerNumber == 1
+                        directory =
+                            runnerNumber == 1
                             ? "/opt/actions-runner"
                             : "/opt/actions-runner-\(runnerNumber)"
-                        workFolder = runnerNumber == 1
+                        workFolder =
+                            runnerNumber == 1
                             ? "/opt/work"
                             : "/opt/work-\(runnerNumber)"
                     }

@@ -8,4 +8,3 @@ import Foundation
 public protocol CategorizedError: Error {
     var category: ErrorCategory { get }
 }
-

@@ -15,11 +15,13 @@ enum LinuxRuntimeSetup: Sendable, CaseIterable {
     case docker
     case tartLinux
 
-    var id: String { switch self {
+    var id: String {
+        switch self {
         case .appleContainer: return "appleContainer"
         case .docker: return "docker"
         case .tartLinux: return "tartLinux"
-    } }
+        }
+    }
 
     var displayName: String {
         switch self {
@@ -53,11 +55,14 @@ enum LinuxRuntimeSetup: Sendable, CaseIterable {
     var summary: String {
         switch self {
         case .appleContainer:
-            return "VM-grade isolation, no daemon, high density, 8 GB/instance — Debian/Ubuntu-based image only, no amd64, beta."
+            return
+                "VM-grade isolation, no daemon, high density, 8 GB/instance — Debian/Ubuntu-based image only, no amd64, beta."
         case .docker:
-            return "Highest density if a Docker provider already runs; amd64 via emulation with JIT/Go/Java/.NET caveats; shared kernel."
+            return
+                "Highest density if a Docker provider already runs; amd64 via emulation with JIT/Go/Java/.NET caveats; shared kernel."
         case .tartLinux:
-            return "Full control: your distro, kernel modules, long sudo; lowest density, 50 GB/instance, needs an ISO or published image."
+            return
+                "Full control: your distro, kernel modules, long sudo; lowest density, 50 GB/instance, needs an ISO or published image."
         }
     }
 
@@ -459,7 +464,9 @@ final class MacToolsModel: ConfigFormModel {
     /// Presents the Linux-runtime choice sheet from the form's "Set up Linux jobs…" button.
     func chooseLinuxRuntime() {
         let host = hostFacts()
-        guard !LinuxRuntimeSetup.allRuntimes.allSatisfy({ LinuxRuntimeSetup.unavailableReason(for: $0, on: host) != nil }) else {
+        guard
+            !LinuxRuntimeSetup.allRuntimes.allSatisfy({ LinuxRuntimeSetup.unavailableReason(for: $0, on: host) != nil })
+        else {
             return  // everything is unavailable: the form already says so
         }
         linuxSetupOffer = LinuxRuntimeSetup.Offer(

@@ -12,7 +12,7 @@ How kinhin talks to Gitea Actions and Forgejo Actions, and how that compares wit
 | Hosting | Self-hosted (Gitea, Forgejo) or hosted (gitea.com, codeberg.org). `instance` is required. |
 | Scope | `owner/name` or an org. `actionsBase` is `/api/v1/repos/{scope}/actions` or `/api/v1/orgs/{scope}/actions` (`GiteaClient.swift:32-36`). |
 | Source | `Sources/KinhinKit/Forges/GiteaClient.swift`, `GiteaForge.swift`, `GiteaModels.swift` |
-| Live-tested | No. Unit tests stub HTTP (`StubProtocol`); there is no `FakeGitea`. |
+| Live-tested | No. Unit tests stub HTTP (`StubProtocol`); `FakeGitea` in `KinhinTestSupport` is pinned to `GiteaForge` by contract tests. |
 
 ## Auth
 

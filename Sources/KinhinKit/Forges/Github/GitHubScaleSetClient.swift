@@ -140,11 +140,29 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
             else {
                 throw GitHubError.http(0, "invalid Actions service URL")
             }
+            // github.com: the exchanged Actions URL is the endpoint host — the
+            // runtime API lives there, not on api.github.com. Enterprise: admin
+            // calls stay on the instance's API host (data residency) and adopt
+            // only the exchanged URL's path prefix.
+            let authority = credentials.isEnterprise ? restBaseURL(for: credentials.instance) : actionsURL
+            guard let authorityHost = authority.host else {
+                throw GitHubError.http(0, "invalid Actions service URL")
+            }
+            components.scheme = authority.scheme ?? scheme
+            components.host = authorityHost
+            components.port = authority.port
             let basePath = actionsComponents.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            let endpointPath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            components.scheme = scheme
-            components.host = host
-            components.port = actionsComponents.port
+            // The endpoint arrives as one string (path + query); only the
+            // path half is composed here — `components` already parsed the
+            // query. The exchanged URL may also already end in
+            // `_apis/runtime`; appending the full endpoint after it would
+            // double the segment.
+            var endpointPath = path.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)[0]
+                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            if basePath.hasSuffix("_apis/runtime"), endpointPath.hasPrefix("_apis/runtime") {
+                endpointPath = String(endpointPath.dropFirst("_apis/runtime".count))
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            }
             components.path = "/" + [basePath, endpointPath].filter { !$0.isEmpty }.joined(separator: "/")
             components.queryItems = (actionsComponents.queryItems ?? []) + (components.queryItems ?? [])
         }
@@ -265,25 +283,33 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
     }
 
     private func ensureRunnerGroup(name: String) async throws -> GitHubScaleSetRunnerGroup {
-        var groupComponents = URLComponents()
-        groupComponents.queryItems = [URLQueryItem(name: "groupName", value: name)]
-        let groupQuery = groupComponents.percentEncodedQuery ?? ""
-        let listRequest = try await adminRequest(method: "GET", path: "/_apis/runtime/runnergroups/?\(groupQuery)")
-        let (data, _) = try await send(listRequest)
         struct GroupList: Decodable {
             let value: [GitHubScaleSetRunnerGroup]
             let count: Int?
         }
-        let groupList = try JSONDecoder().decode(GroupList.self, from: data)
-        let groups = groupList.value
-        let matchCount = groupList.count ?? groups.count
-        guard matchCount == 1, let existing = groups.first else {
-            throw ScaleSetError.messageServiceFailure(
-                reason: matchCount == 0
-                    ? "runner group '\(name)' was not found; create it in GitHub before attaching"
-                    : "runner group lookup for '\(name)' returned \(matchCount) results")
+        func fetch(query: String?) async throws -> GroupList {
+            let suffix = query.map { "?\($0)" } ?? ""
+            let listRequest = try await adminRequest(method: "GET", path: "/_apis/runtime/runnergroups\(suffix)")
+            let (data, _) = try await send(listRequest)
+            return try JSONDecoder().decode(GroupList.self, from: data)
         }
-        return existing
+        var groupComponents = URLComponents()
+        groupComponents.queryItems = [URLQueryItem(name: "groupName", value: name)]
+        // `groupName` is a best-effort filter (some GHES builds answer an
+        // empty list for it), so an empty filtered answer falls back to the
+        // full list with a local name match before declaring the group
+        // missing — and a filter that comes back unfiltered is matched the
+        // same way instead of erroring on the count.
+        let filtered = try await fetch(query: groupComponents.percentEncodedQuery)
+        if let match = filtered.value.first(where: { $0.name == name }) {
+            return match
+        }
+        let all = try await fetch(query: nil)
+        guard let match = all.value.first(where: { $0.name == name }) else {
+            throw ScaleSetError.messageServiceFailure(
+                reason: "runner group '\(name)' was not found; create it in GitHub before attaching")
+        }
+        return match
     }
 
     private func ensureScaleSet(name: String, labels: [String], runnerGroupId: Int) async throws -> GitHubScaleSet {

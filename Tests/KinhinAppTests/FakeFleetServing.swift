@@ -120,7 +120,15 @@ final class FakeFleetServing: FleetServing {
 
     func deleteVM(id: String) async throws {
         try record("deleteVM(\(id))")
-        state.withLock { $0.status.records.removeAll { $0.id == id } }
+        // The engine refuses an id it doesn't have (`EngineError.unknownVM`)
+        // before touching anything; mirroring that keeps a caller missing its
+        // own pre-check from passing against the fake and failing in production.
+        let removed = state.withLock { state -> Bool in
+            guard VMRecord.isValidID(id), state.status.records.contains(where: { $0.id == id }) else { return false }
+            state.status.records.removeAll { $0.id == id }
+            return true
+        }
+        guard removed else { throw EngineError.unknownVM(id) }
     }
 
     /// What `requeueQueuedJobs(for:)` answered (nil: no data).

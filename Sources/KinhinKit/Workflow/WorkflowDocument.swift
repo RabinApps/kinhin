@@ -101,9 +101,15 @@ private func parseRunsOn(_ node: Node?) -> WorkflowRunsOn {
         }
         let labels = stringMap(mapping["labels"] ?? mapping["label"] ?? mapping["run"])
             .mapValues { $0.replacingOccurrences(of: " ", with: "") }
-        let groupKeys = mapping.keys.filter { $0.string != nil && ["os", "labels", "label", "run"].contains($0.string?.lowercased() ?? "") == false }
+        let groupKeys = mapping.keys.filter {
+            $0.string != nil && ["os", "labels", "label", "run"].contains($0.string?.lowercased() ?? "") == false
+        }
         if mapping["labels"] != nil || mapping["label"] != nil || !labels.isEmpty {
-            return .groupMap(group: groupKeys.first?.string, labels: labels.mapValues { $0.split(whereSeparator: \.isWhitespace).map(String.init) }.values.flatMap { $0 })
+            return .groupMap(
+                group: groupKeys.first?.string,
+                labels: labels.mapValues { $0.split(whereSeparator: \.isWhitespace).map(String.init) }.values.flatMap {
+                    $0
+                })
         }
         return .groupMap(group: nil, labels: [])
     }
@@ -188,10 +194,11 @@ public func parseWorkflow(_ data: Data, at url: URL) throws -> WorkflowDocument 
         let runsOn = parseRunsOn(job["runs-on"])
         let runDefaults = job["defaults"]?.mapping?["run"]?.mapping
         let defaults = runDefaults.map {
-            WorkflowDefaults(run: WorkflowDefaults.WorkflowRunDefaults(
-                workingDirectory: $0["working-directory"]?.string,
-                shell: $0["shell"]?.string
-            ))
+            WorkflowDefaults(
+                run: WorkflowDefaults.WorkflowRunDefaults(
+                    workingDirectory: $0["working-directory"]?.string,
+                    shell: $0["shell"]?.string
+                ))
         }
         let steps = (job["steps"]?.sequence ?? []).enumerated().map { index, node -> WorkflowStep in
             let step = node.mapping ?? [:]
@@ -230,10 +237,11 @@ public func parseWorkflow(_ data: Data, at url: URL) throws -> WorkflowDocument 
     guard !jobs.isEmpty else { throw WorkflowError.noJobs(url) }
     let workflowRunDefaults = mapping["defaults"]?.mapping?["run"]?.mapping
     let defaults = workflowRunDefaults.map {
-        WorkflowDefaults(run: WorkflowDefaults.WorkflowRunDefaults(
-            workingDirectory: $0["working-directory"]?.string,
-            shell: $0["shell"]?.string
-        ))
+        WorkflowDefaults(
+            run: WorkflowDefaults.WorkflowRunDefaults(
+                workingDirectory: $0["working-directory"]?.string,
+                shell: $0["shell"]?.string
+            ))
     }
     return WorkflowDocument(
         name: mapping["name"]?.string ?? url.deletingPathExtension().lastPathComponent,
@@ -246,10 +254,11 @@ public func parseWorkflow(_ data: Data, at url: URL) throws -> WorkflowDocument 
 
 private func stringMap(_ node: Node?) -> [String: String] {
     guard let mapping = node?.mapping else { return [:] }
-    return Dictionary(uniqueKeysWithValues: mapping.compactMap { key, value in
-        guard let key = key.string, let value = value.string else { return nil }
-        return (key, value)
-    })
+    return Dictionary(
+        uniqueKeysWithValues: mapping.compactMap { key, value in
+            guard let key = key.string, let value = value.string else { return nil }
+            return (key, value)
+        })
 }
 
 private func boolValue(_ node: Node?) -> Bool {

@@ -341,7 +341,7 @@ final class FleetEngineTests: XCTestCase {
             dependencies: .init(
                 tokenLoader: { _, _ in "test-token" },
                 exitWatchInterval: .milliseconds(20)))
-      await engine.attach(account: cfg.accounts.last!, token: "token", verify: false)
+        await engine.attach(account: cfg.accounts.last!, token: "token", verify: false)
         let attached = engine.forgeState.withLock { $0.byPlatform["extra"] }
         XCTAssertTrue(attached is GitHubForge, "classic github should stay classic")
         XCTAssertNil(engine.forgeState.withLock { $0.scaleSetListeners["extra"] })
@@ -472,9 +472,11 @@ final class FleetEngineTests: XCTestCase {
 
         let completed = GitHubScaleSetMessage(
             messageId: "10", statistics: .init(totalAssignedJobs: 0, activeNodesCount: 0),
-            events: [GitHubScaleSetJobEvent(
-                ownerName: "acme", repositoryName: "widgets", jobDisplayName: "build", requestLabels: [],
-                runnerRequestId: "17", eventType: .jobCompleted)])
+            events: [
+                GitHubScaleSetJobEvent(
+                    ownerName: "acme", repositoryName: "widgets", jobDisplayName: "build", requestLabels: [],
+                    runnerRequestId: "17", eventType: .jobCompleted)
+            ])
         try await listener.handleMessage(completed, session: makeSession())
         let allAcknowledgements = await client.acknowledged
         XCTAssertEqual(allAcknowledgements, ["9", "10"])
@@ -657,9 +659,15 @@ final class FleetEngineTests: XCTestCase {
         func createSession(scaleSetId: Int, ownerName: String) async throws -> GitHubScaleSetSession { fatalError() }
         func refreshSession(scaleSetId: Int, sessionId: String) async throws -> GitHubScaleSetSession { fatalError() }
         func deleteSession(scaleSetId: Int, sessionId: String) async throws {}
-        func pollMessages(session: GitHubScaleSetSession, lastMessageId: String?, maxCapacity: Int) async throws -> [GitHubScaleSetMessage] { [] }
-        func ackMessage(session: GitHubScaleSetSession, messageId: String) async throws { acknowledged.append(messageId) }
-        func generateJitConfig(scaleSetId: Int, name: String, workFolder: String) async throws -> GitHubScaleSetJitConfig {
+        func pollMessages(session: GitHubScaleSetSession, lastMessageId: String?, maxCapacity: Int) async throws
+            -> [GitHubScaleSetMessage]
+        { [] }
+        func ackMessage(session: GitHubScaleSetSession, messageId: String) async throws {
+            acknowledged.append(messageId)
+        }
+        func generateJitConfig(scaleSetId: Int, name: String, workFolder: String) async throws
+            -> GitHubScaleSetJitConfig
+        {
             GitHubScaleSetJitConfig(encodedJitConfig: "jit-\(name)")
         }
         func scaleSetStatistics(scaleSetId: Int) async throws -> GitHubScaleSetStatistics {

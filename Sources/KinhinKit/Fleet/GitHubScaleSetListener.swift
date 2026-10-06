@@ -368,7 +368,8 @@ public actor GitHubScaleSetListener {
                 throw CancellationError()
             } catch {
                 _lastError = .statisticsUnavailable(reason: error.localizedDescription)
-                Log.warn("scaleset", "statistics refresh failed; serving last known snapshot: \(error.localizedDescription)")
+                Log.warn(
+                    "scaleset", "statistics refresh failed; serving last known snapshot: \(error.localizedDescription)")
                 return cachedSnapshot.statistics
             }
         }

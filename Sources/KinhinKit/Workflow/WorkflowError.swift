@@ -24,7 +24,8 @@ public enum WorkflowError: LocalizedError, Sendable, CategorizedError {
             return "more than one workflow found: \(names.joined(separator: ", ")) — pass a file path"
         case .unknownJob(let name, let jobs):
             return "no job named or keyed '\(name)'; jobs: \(jobs.joined(separator: ", "))"
-        case .cyclicNeeds(let chain): return "circular or invalid `needs:` dependency: \(chain.joined(separator: " → "))"
+        case .cyclicNeeds(let chain):
+            return "circular or invalid `needs:` dependency: \(chain.joined(separator: " → "))"
         case .unsupportedShell(let shell): return "unsupported shell '\(shell)'; only bash, sh and zsh are supported"
         }
     }

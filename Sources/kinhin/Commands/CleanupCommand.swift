@@ -27,9 +27,56 @@ enum CleanupCommand {
         }
     }
 
+    /// The `cleanup --json` report: the plan's contents, the flags that
+    /// selected them, and the prose summary a human would see. Report-only —
+    /// `willDelete` is always false here (see `run`).
+    struct Report: Codable, Equatable {
+        var empty: Bool
+        var willDelete: Bool
+        var targets: Targets
+        var vms: [String]
+        var scratchVMs: [String]
+        var images: [String]
+        var cacheBytes: Int64?
+        var summary: String
+
+        struct Targets: Codable, Equatable {
+            var vms: Bool
+            var image: Bool
+            var cache: Bool
+        }
+    }
+
+    /// The report for a plan: what would be reclaimed, the flags that
+    /// selected it, and the prose summary a human would see. Built by `run`,
+    /// asserted directly by tests.
+    static func report(for plan: CleanupPlan, targets: CleanupPlan.Targets) -> Report {
+        Report(
+            empty: plan.isEmpty,
+            willDelete: false,
+            targets: .init(vms: targets.vms, image: targets.image, cache: targets.cache),
+            vms: plan.vms,
+            scratchVMs: plan.scratchVMs,
+            images: plan.images,
+            cacheBytes: plan.cacheBytes,
+            summary: plan.describe(willDelete: false))
+    }
+
+    /// The report on stdout, pretty and key-sorted like every `--json` document.
+    private static func emitReport(_ plan: CleanupPlan, targets: CleanupPlan.Targets) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        print(String(decoding: try encoder.encode(report(for: plan, targets: targets)), as: UTF8.self))
+    }
+
     static func run(_ args: [String]) async throws {
         let selection = Selection(args: args)
         let confirmed = hasFlag("--yes", in: args)
+        // Report mode is for scripts and agents to *see* what a cleanup would
+        // remove; deleting stays a prose, confirmed act.
+        if hasFlag("--json", in: args), confirmed {
+            fail("--json reports only; drop it to run `kinhin cleanup --yes` for real", exit: .usage)
+        }
         // Cleanup must work even when the config is broken (that may be why it
         // is being run), so a broken config degrades to the default — but it
         // says so, instead of silently guessing which images are configured.
@@ -45,6 +92,10 @@ enum CleanupCommand {
             targets: selection.targets, tart: tart, baseImage: config.image,
             namedImages: config.images.map(\.name), cacheRoot: Paths.toolchainCache)
 
+        if hasFlag("--json", in: args) {
+            try emitReport(plan, targets: selection.targets)
+            return
+        }
         if plan.isEmpty {
             print("nothing to clean up")
             return

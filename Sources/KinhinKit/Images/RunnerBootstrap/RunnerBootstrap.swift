@@ -36,26 +36,31 @@ enum RunnerBootstrap {
         caBundlePath: String? = nil,
         runnerVersion: String? = nil
     ) -> String {
-        let agentDirectoryCommand = agentDirectory.hasPrefix("~/")
+        let agentDirectoryCommand =
+            agentDirectory.hasPrefix("~/")
             ? "agent_dir=\"$HOME\"/\(shellQuote(String(agentDirectory.dropFirst(2))))"
             : "agent_dir=\(shellQuote(agentDirectory))"
         let agentMaterialization: String
         if let template = agentTemplate {
             let fallbackBlock: String
             if let version = runnerVersion {
-                let download = githubRunnerDownloadScript(version: version, platform: "osx", file: "runner.tar.gz")
+                // Apple-silicon guest: `osx-arm64` is the asset GitHub
+                // publishes (a bare `osx` URL 404s, and its digest marker
+                // would never match).
+                let download = githubRunnerDownloadScript(
+                    version: version, platform: "osx-arm64", file: "runner.tar.gz")
                 fallbackBlock = """
-                    # The template copy can fail on scale-set base images that did not
-                    # pre-bake ~/actions-runner. When a runner version is available, download
-                    # the runner into the target dir instead of aborting — only the later
-                    # config.sh --jitconfig can still fail.
-                    mkdir -p "$agent_dir"
-                    cd "$agent_dir"
-                    \(download)
-                    tar xzf runner.tar.gz
-                    rm -f runner.tar.gz
-                    cd - >/dev/null
-                """
+                        # The template copy can fail on scale-set base images that did not
+                        # pre-bake ~/actions-runner. When a runner version is available, download
+                        # the runner into the target dir instead of aborting — only the later
+                        # config.sh --jitconfig can still fail.
+                        mkdir -p "$agent_dir"
+                        cd "$agent_dir"
+                        \(download)
+                        tar xzf runner.tar.gz
+                        rm -f runner.tar.gz
+                        cd - >/dev/null
+                    """
             } else {
                 fallbackBlock = ""
             }
@@ -71,9 +76,10 @@ enum RunnerBootstrap {
         } else {
             agentMaterialization = ""
         }
-        let pidSetup = pidFile.map {
-            "mkdir -p \(shellQuote(URL(fileURLWithPath: $0).deletingLastPathComponent().path)); echo $! > \(shellQuote($0))"
-        } ?? ""
+        let pidSetup =
+            pidFile.map {
+                "mkdir -p \(shellQuote(URL(fileURLWithPath: $0).deletingLastPathComponent().path)); echo $! > \(shellQuote($0))"
+            } ?? ""
         let caEnvExports: String
         if let caBundlePath = caBundlePath {
             caEnvExports = """
@@ -109,7 +115,7 @@ enum RunnerBootstrap {
         """
         set -euo pipefail
         # Download and install the GitHub Actions runner
-        \(githubRunnerDownloadScript(version: runnerVersion, platform: "osx", file: "runner.tar.gz"))
+        \(githubRunnerDownloadScript(version: runnerVersion, platform: "osx-arm64", file: "runner.tar.gz"))
         tar xzf runner.tar.gz
         rm runner.tar.gz
         ./bin/installdependencies.sh
@@ -247,5 +253,3 @@ enum RunnerBootstrap {
     }
 
 }
-
-

@@ -315,7 +315,7 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertFalse(fake.calls.contains("deleteVM(kinhin-vm-del)"))
     }
 
-    func testFleetStatusFooterShowsModeAndStaleWarning() {
+    func testFleetStatusFooterShowsTheStaleWarning() {
         let dir = FileManager.default.temporaryDirectory
         let cfgURL = dir.appendingPathComponent("kinhin-footer-test-\(UUID().uuidString).yaml")
         let config = "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n"
@@ -325,8 +325,9 @@ final class FleetTabTests: MainWindowTestCase {
         fleet.service = nil
         fleet.backend = .inProcess(engine)
         let footer = models.fleetModel.fleetStatusFooter
-        XCTAssertEqual(footer.map(\.text), ["in-process engine"])
-        XCTAssertEqual(footer.map(\.style), [.secondary])
+        // The mode lives in the fleet badge, not the footer; without a
+        // warning the footer has nothing to show.
+        XCTAssertTrue(footer.isEmpty)
 
         fleet.staleDaemonPlist =
             "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it"
@@ -334,10 +335,9 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertEqual(
             footerWithWarning.map(\.text),
             [
-                "in-process engine",
-                "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it",
+                "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it"
             ])
-        XCTAssertEqual(footerWithWarning.map(\.style), [.secondary, .warn])
+        XCTAssertEqual(footerWithWarning.map(\.style), [.warn])
         try? FileManager.default.removeItem(at: cfgURL)
     }
 

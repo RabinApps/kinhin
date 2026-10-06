@@ -332,12 +332,16 @@ final class ForgeTests: XCTestCase {
 
     func testGiteaRunnerInstallScriptDownloadsDarwinArm64() {
         let script = RunnerBootstrap.giteaRunnerInstallScript(version: "3.5.0")
-        XCTAssertTrue(script.contains("https://gitea.com/gitea/runner/releases/download/v3.5.0/gitea-runner-3.5.0-darwin-arm64.xz"),
-                      "URL should point at the .xz asset")
-        XCTAssertTrue(script.contains("xz -d runner.xz"),
-                      "should decompress the .xz download")
-        XCTAssertTrue(script.contains("tar xf runner.tar"),
-                      "should extract the tar after decompressing")
+        XCTAssertTrue(
+            script.contains(
+                "https://gitea.com/gitea/runner/releases/download/v3.5.0/gitea-runner-3.5.0-darwin-arm64.xz"),
+            "URL should point at the .xz asset")
+        XCTAssertTrue(
+            script.contains("xz -d runner.xz"),
+            "should decompress the .xz download")
+        XCTAssertTrue(
+            script.contains("tar xf runner.tar"),
+            "should extract the tar after decompressing")
     }
 
     // MARK: - Token-gated image provisioning

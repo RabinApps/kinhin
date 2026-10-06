@@ -51,6 +51,11 @@ final class FakeFleetIntentBridge: FleetIntentBridge {
     func deleteVM(id: String) async throws {
         if let error { throw error }
         deleteCalls.append(id)
+        // Mirrors the backend's rejection: the real chain ends in the engine's
+        // guard and throws unknownVM instead of silently succeeding.
+        guard VMRecord.isValidID(id), current.records.contains(where: { $0.id == id }) else {
+            throw EngineError.unknownVM(id)
+        }
         if appliesDelete { current.records.removeAll { $0.id == id } }
     }
 

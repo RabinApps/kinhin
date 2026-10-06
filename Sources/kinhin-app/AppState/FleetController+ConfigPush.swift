@@ -69,8 +69,8 @@ extension FleetController {
                 engine.applyReloaded(config: cfg, host: host)
                 Log.info("app", "routing reloaded into in-process engine")
             }
-        } 
-         if case .daemon(let client)? = backend {
+        }
+        if case .daemon(let client)? = backend {
             do {
                 try await client.perform { try $0.reloadConfig() }
                 Log.info("app", "daemon notified: config reloaded (restarted if the change required it)")

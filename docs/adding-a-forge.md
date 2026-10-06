@@ -177,7 +177,9 @@ The runner has to be installed (in the base image, or on the host) and started f
     wire `env.check<Name>`), and a round-trip test in `AuthAccountsCommandTests`.
 31. App: `WizardModelTests` (the forge name string), and `ForgeIconTests` (automatic once the SVG exists).
 32. `KinhinTestSupport` has fakes only for engine-level doubles (`FakeGitHub`, `FakeGitea`, `FakeGitLab`). Add a
-    `Fake<Name>` only if engine-level tests need one. Buildkite, Azure DevOps and Bitbucket use `StubProtocol` stubs.
+    `Fake<Name>` only if engine-level tests need one, and pin any new fake with a `<Fake>ContractTests` file in
+    `Tests/KinhinKitTests/TestSupport/` against the real client over `StubProtocol` (see the shared-doubles rules in
+    `CONTRIBUTING.md`). Buildkite, Azure DevOps and Bitbucket use `StubProtocol` stubs.
     New test globals use a `Mutex`, not `nonisolated(unsafe)`.
 
 ### H. Docs and website

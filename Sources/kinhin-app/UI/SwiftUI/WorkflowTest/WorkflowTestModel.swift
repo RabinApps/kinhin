@@ -108,7 +108,9 @@ final class WorkflowTestModel {
                 let result = try await runner.run(
                     document: document, jobs: selectedJobName(jobName), workingDirectory: workingDirectory)
                 report = result
-                state = result.overallState == .succeeded ? .succeeded : (result.overallState == .failed ? .failed : .cancelled)
+                state =
+                    result.overallState == .succeeded
+                    ? .succeeded : (result.overallState == .failed ? .failed : .cancelled)
             } catch is CancellationError {
                 state = .cancelled
             } catch {
@@ -196,4 +198,3 @@ final class WorkflowTestModel {
         return map
     }
 }
-

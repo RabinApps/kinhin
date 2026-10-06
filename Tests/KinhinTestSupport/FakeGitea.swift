@@ -30,7 +30,10 @@ final class FakeGitea: Forge, Sendable {
     var labels: [String] { state.withLock { $0.labels } }
     var registration: ForgeRegistration { .sharedLongLived }
     var exitSemantics: ForgeExitSemantics { .idleGrace }
-    var attributesByRepo: Bool { true }
+    /// Per-repo attribution only when the scope spans repos: the real Gitea
+    /// forge takes the protocol default (`!scope.contains("/")`), so the fake
+    /// derives it from its scope too instead of hardcoding a flag.
+    var attributesByRepo: Bool { !credentials.scope.contains("/") }
     var rateLimit: ForgeRateLimit? { nil }
     var name: String { "gitea" }
     var id: ForgeID { .gitea }
@@ -72,7 +75,13 @@ final class FakeGitea: Forge, Sendable {
     }
 
     func runners() async throws -> [ForgeRunner] { state.withLock { $0.runnerList } }
-    func deleteRunner(id: String) async throws {}
+
+    /// Like the real forge: validate the id (the engine only passes ids that
+    /// came from `runners()`) before any request, so a malformed one fails
+    /// identically instead of silently succeeding.
+    func deleteRunner(id: String) async throws {
+        _ = try numericRunnerID(id)
+    }
 
     func queuedJobs() async throws -> [ForgeJob] {
         let (depth, _, refs, shas, fork) = state.withLock {
@@ -115,6 +124,8 @@ final class FakeGitLab: Forge, Sendable {
         var runnerList: [ForgeRunner] = []
         var runningJobs: [ForgeJob] = []
         var queueForks = false
+        /// Extra job labels beyond the account's own (pool markers).
+        var queueExtraLabels: [String] = []
         var queueRefs: [String] = []
         var queueShas: [String] = []
         var projectFiles: [String: Data] = [:]
@@ -128,7 +139,11 @@ final class FakeGitLab: Forge, Sendable {
     var labels: [String] { state.withLock { $0.labels } }
     var registration: ForgeRegistration { .perRunner }
     var exitSemantics: ForgeExitSemantics { .deregisters }
-    var attributesByRepo: Bool { true }
+    /// Per-repo attribution only for a scope that spans repos: the real forge
+    /// reports it when the resolved scope is a group, so the fake derives it
+    /// from its scope (a path without a slash is one project) instead of
+    /// hardcoding a flag.
+    var attributesByRepo: Bool { !credentials.scope.contains("/") }
     var rateLimit: ForgeRateLimit? { nil }
     var name: String { "gitlab" }
     var id: ForgeID { .gitlab }
@@ -153,6 +168,15 @@ final class FakeGitLab: Forge, Sendable {
         set { state.withLock { $0.queueForks = newValue } }
     }
 
+    /// Labels the fake's queued jobs carry beyond the account's own. The real
+    /// forge reports the job's tags, which always include every account label
+    /// — that is exactly what `queuedJobs` filters on — so the fake builds
+    /// them the same way and tests can add pool markers on top.
+    var queueExtraLabels: [String] {
+        get { state.withLock { $0.queueExtraLabels } }
+        set { state.withLock { $0.queueExtraLabels = newValue } }
+    }
+
     var projectFiles: [String: Data] {
         get { state.withLock { $0.projectFiles } }
         set { state.withLock { $0.projectFiles = newValue } }
@@ -173,18 +197,28 @@ final class FakeGitLab: Forge, Sendable {
     }
 
     func runners() async throws -> [ForgeRunner] { state.withLock { $0.runnerList } }
-    func deleteRunner(id: String) async throws {}
+
+    /// Like the real forge: validate the id (the engine only passes ids that
+    /// came from `runners()`) before any request, so a malformed one fails
+    /// identically instead of silently succeeding.
+    func deleteRunner(id: String) async throws {
+        _ = try numericRunnerID(id)
+    }
 
     func queuedJobs() async throws -> [ForgeJob] {
-        let (depth, refs, shas, fork) = state.withLock {
-            state -> (Int, [String], [String], Bool) in
+        let (depth, refs, shas, fork, extra) = state.withLock {
+            state -> (Int, [String], [String], Bool, [String]) in
             state.queuedJobsCallCount += 1
-            return (state.queueDepth, state.queueRefs, state.queueShas, state.queueForks)
+            return (state.queueDepth, state.queueRefs, state.queueShas, state.queueForks, state.queueExtraLabels)
         }
+        // Every job a real GitLab reports carries the account labels (the
+        // forge drops the ones that don't), plus whatever tags it asked for.
+        let jobLabels = labels + extra
         return (0..<depth).map { i in
             ForgeJob(
                 name: "job \(i)", runnerName: nil,
                 repository: "acme/api",
+                labels: jobLabels,
                 ref: refs.isEmpty ? nil : refs[i % refs.count],
                 sha: shas.isEmpty ? nil : shas[i % shas.count],
                 isFork: fork

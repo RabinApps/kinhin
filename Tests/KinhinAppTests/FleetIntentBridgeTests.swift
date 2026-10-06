@@ -59,7 +59,9 @@ final class FleetIntentBridgeTests: XCTestCase {
     }
 
     func testPauseDeleteAndStatusUseTheBackend() async throws {
-        fake.status = FleetStatus(running: true)
+        var record = VMRecord(id: "kinhin-vm-1", phase: .ready)
+        record.createdAt = Date()
+        fake.status = FleetStatus(running: true, records: [record])
         try await bridge.setPaused(true)
         try await bridge.deleteVM(id: "kinhin-vm-1")
         let status = try await bridge.status()

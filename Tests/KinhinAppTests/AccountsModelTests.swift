@@ -142,7 +142,10 @@ final class AccountsModelTests: XCTestCase {
         let model = makeModel()
         XCTAssertEqual(model.scopePlaceholder(for: .gitlab), "group/subgroup or group/project")
         XCTAssertEqual(model.scopePlaceholder(for: .github), "owner/name, or an org")
-        XCTAssertNil(model.instancePlaceholder(for: .github))
+        XCTAssertEqual(
+            model.instancePlaceholder(for: .github),
+            "e.g. https://github.example.com or https://acme.ghe.com",
+            "GitHub hosts are enterprise GHES or GHEC data-residency instances")
         XCTAssertEqual(model.instancePlaceholder(for: .gitlab), "https://gitlab.com (optional)")
         XCTAssertFalse(model.instanceRequired(for: .gitlab))
         XCTAssertTrue(model.instanceRequired(for: .forgejo))

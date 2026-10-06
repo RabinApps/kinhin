@@ -273,6 +273,17 @@ extension RunnerBootstrap {
                 fi
                 """)
         }
+        // Same tail as the macOS script: version-pinned stack installs, then
+        // the verification commands that gate the bake (a toolchain that
+        // cannot run fails `image prepare`, not the first job).
+        if !selection.stackSteps.isEmpty {
+            lines.append("# Stack steps (version-pinned installs, e.g. flutter)")
+            lines.append(contentsOf: selection.stackSteps)
+        }
+        if !selection.verifications.isEmpty {
+            lines.append("# Audit trail: verify every managed tool (output is logged)")
+            lines.append(selection.verifications.joined(separator: " && "))
+        }
         let epilogue: String
         if let mountPath {
             epilogue = Self.cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: mountPath)

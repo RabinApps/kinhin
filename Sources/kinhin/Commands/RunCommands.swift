@@ -30,27 +30,57 @@ enum RunCommands {
     }
 
     static func stop(_ args: [String]) throws {
-        if RPCClient.isDaemonAlive() {
-            let response = try RPCClient().send(method: .stop)
-            if response.ok {
-                print("daemon fleet stopped")
-            } else {
-                fail(response.error ?? "unknown error", exit: .runtime)
-            }
-        } else {
-            print("no daemon running; nothing to stop (if `kinhin start` runs elsewhere, Ctrl-C it there)")
+        do {
+            print(try control(.stop))
+        } catch let error as ControlFailure {
+            fail(error.message, exit: error.exit)
         }
     }
 
     static func pauseResume(_ command: String, args: [String]) throws {
         let method: RPCMethod = command == "pause" ? .pause : .resume
-        if RPCClient.isDaemonAlive() {
-            let response = try RPCClient().send(method: method)
-            guard response.ok else { fail(response.error ?? "unknown error", exit: .runtime) }
-            print(command == "pause" ? "fleet paused" : "fleet resumed")
-        } else {
-            fail("no daemon running; pause/resume works while a daemon is active", exit: .runtime)
+        do {
+            print(try control(method))
+        } catch let error as ControlFailure {
+            fail(error.message, exit: error.exit)
         }
+    }
+
+    /// The pause/resume/stop core, shared with the MCP `pause`/`resume`/`stop`
+    /// tools: returns the line the CLI prints, and throws instead of exiting
+    /// so a tool result can carry the failure.
+    static func control(_ method: RPCMethod) throws -> String {
+        guard RPCClient.isDaemonAlive() else {
+            switch method {
+            case .stop:
+                return "no daemon running; nothing to stop (if `kinhin start` runs elsewhere, Ctrl-C it there)"
+            case .pause, .resume:
+                throw ControlFailure("no daemon running; pause/resume works while a daemon is active")
+            default:
+                throw ControlFailure("no daemon running")
+            }
+        }
+        let response = try RPCClient().send(method: method)
+        guard response.ok else { throw ControlFailure(response.error ?? "unknown error") }
+        switch method {
+        case .stop: return "daemon fleet stopped"
+        case .pause: return "fleet paused"
+        case .resume: return "fleet resumed"
+        default: return "done"
+        }
+    }
+
+    /// A control failure carrying the exit code the CLI would use for it.
+    struct ControlFailure: LocalizedError {
+        let message: String
+        var exit: CLIExit
+
+        init(_ message: String, exit: CLIExit = .runtime) {
+            self.message = message
+            self.exit = exit
+        }
+
+        var errorDescription: String? { message }
     }
 
     static func status(_ args: [String]) async throws {
@@ -59,28 +89,23 @@ enum RunCommands {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             print(String(decoding: try encoder.encode(document), as: UTF8.self))
         }
-        // Ask for the status directly: a separate ping first doubled the
-        // round trips. "Nobody is listening" is the only failure that means
-        // "not running"; any other error is reported.
-        var daemonStatus: FleetStatus?
+        let document: StatusDocument
         do {
-            daemonStatus = try RPCClient().status()
-        } catch RPCError.connectionFailed {
-            daemonStatus = nil
+            document = try await statusDocument()
         } catch {
             fail(error.localizedDescription, exit: .runtime)
         }
-        if let status = daemonStatus {
+        if let status = document.fleet {
             // Machine output only: prose before the JSON line would make the
             // document unparseable (same convention as doctor/setup-status).
             if args.contains("--json") {
-                try emitJSON(StatusDocument(daemonRunning: true, fleet: status))
+                try emitJSON(document)
             } else {
                 print(FleetStatusFormatter.report(status))
             }
         } else {
             if args.contains("--json") {
-                try emitJSON(StatusDocument(daemonRunning: false, fleet: nil))
+                try emitJSON(document)
                 return
             }
             print("daemon: not running")
@@ -112,6 +137,20 @@ enum RunCommands {
                 print("orphaned kinhin VMs (daemon not managing them):")
                 for vm in ours { print("  \(vm.name)  \(vm.status)") }
             }
+        }
+    }
+
+    /// The machine-readable status document, shared with the MCP `status`
+    /// tool: "nobody is listening" reads as `daemonRunning: false`; any other
+    /// failure is thrown for the caller to classify.
+    static func statusDocument() async throws -> StatusDocument {
+        // Ask for the status directly: a separate ping first doubled the
+        // round trips. "Nobody is listening" is the only failure that means
+        // "not running"; any other error propagates.
+        do {
+            return StatusDocument(daemonRunning: true, fleet: try RPCClient().status())
+        } catch RPCError.connectionFailed {
+            return StatusDocument(daemonRunning: false, fleet: nil)
         }
     }
 
@@ -216,22 +255,33 @@ enum RunCommands {
         }
     }
 
+    /// The `kinhin daemon install` core, shared with the MCP `daemon_install`
+    /// tool: validates the binary, writes the LaunchAgent and loads it —
+    /// throwing instead of printing or exiting.
+    static func installLaunchAgent() async throws {
+        // The LaunchAgent runs this path at every login: it must be absolute (a relative
+        // argv[0] resolves against whatever the cwd is at launch) and a built release, not a
+        // debug binary that carries development-only token handling.
+        let binary = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.path
+        if binary.contains("/.build/debug/") || binary.contains("/.build/arm64-apple-macosx/debug/") {
+            throw ControlFailure(
+                "refusing to install a LaunchAgent for a debug build (\(binary)); install a release build",
+                exit: .usage)
+        }
+        try Daemon.installAgent(binaryPath: binary)
+        // launchctl load
+        let shell = Shell()
+        let res = try await shell.run(["launchctl", "load", Daemon.agentPlistPath().path], cwd: nil, timeout: 30)
+        guard res.succeeded else { throw ControlFailure("launchctl load failed: \(res.stderr)", exit: .runtime) }
+    }
+
     static func daemon(_ args: [String]) async throws {
         if args.contains("install") {
-            // The LaunchAgent runs this path at every login: it must be absolute (a relative
-            // argv[0] resolves against whatever the cwd is at launch) and a built release, not a
-            // debug binary that carries development-only token handling.
-            let binary = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL.path
-            if binary.contains("/.build/debug/") || binary.contains("/.build/arm64-apple-macosx/debug/") {
-                fail(
-                    "refusing to install a LaunchAgent for a debug build (\(binary)); install a release build",
-                    exit: .usage)
+            do {
+                try await installLaunchAgent()
+            } catch let error as ControlFailure {
+                fail(error.message, exit: error.exit)
             }
-            try Daemon.installAgent(binaryPath: binary)
-            // launchctl load
-            let shell = Shell()
-            let res = try await shell.run(["launchctl", "load", Daemon.agentPlistPath().path], cwd: nil, timeout: 30)
-            guard res.succeeded else { fail("launchctl load failed: \(res.stderr)", exit: .runtime) }
             print("daemon installed and started")
         } else if args.contains("uninstall") {
             // Shared with reset's daemon scope: bootout/unload best-effort,

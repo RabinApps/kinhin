@@ -57,7 +57,7 @@ final class ConfigInitAndHelpTests: XCTestCase {
             "config init", "auth", "doctor", "setup-status", "setup repair host-agent", "runtimes route add",
             "runtimes route remove", "image prepare",
             "start", "stop", "pause", "resume", "status", "watch", "logs",
-            "daemon", "support", "version", "help",
+            "daemon", "support", "mcp", "version", "help",
         ] {
             XCTAssertTrue(help.contains(needle), "help should mention '\(needle)'")
         }

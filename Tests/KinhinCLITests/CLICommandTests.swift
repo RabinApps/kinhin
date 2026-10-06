@@ -42,6 +42,7 @@ final class CLICommandTests: XCTestCase {
         XCTAssertEqual(CLICommand.parse(["help"]), .help)
         XCTAssertEqual(CLICommand.parse(["--help"]), .help)
         XCTAssertEqual(CLICommand.parse(["-h"]), .help)
+        XCTAssertEqual(CLICommand.parse(["mcp"]), .mcp)
         // No arguments behaves like `help`.
         XCTAssertEqual(CLICommand.parse([]), .help)
     }
@@ -66,6 +67,9 @@ final class CLICommandTests: XCTestCase {
         XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.version))
         XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.support))
         XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.configInit))
+        // A stdio server must not touch disk on boot; its tools report a
+        // missing config instead.
+        XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.mcp))
     }
 
     func testWorkingCommandsAutoCreate() {

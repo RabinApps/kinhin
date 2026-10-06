@@ -163,5 +163,3 @@ final class FleetDetailModel {
         selectedVMID = id
     }
 }
-
-

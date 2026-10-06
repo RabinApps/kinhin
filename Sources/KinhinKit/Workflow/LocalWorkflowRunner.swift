@@ -29,7 +29,11 @@ public actor LocalWorkflowRunner {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("kinhin-workflow-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
-        defer { bestEffort("workflow", "remove temporary environment files") { try FileManager.default.removeItem(at: tempDirectory) } }
+        defer {
+            bestEffort("workflow", "remove temporary environment files") {
+                try FileManager.default.removeItem(at: tempDirectory)
+            }
+        }
 
         var results: [LocalJobResult] = []
         var jobOutcomes: [String: PipelineStepState] = [:]
@@ -43,7 +47,11 @@ public actor LocalWorkflowRunner {
         for id in ordered {
             try Task.checkCancellation()
             guard let job = byID[id] else { continue }
-            if failedEarlierJob || job.needs.contains(where: { jobOutcomes[$0] == .failed || jobOutcomes[$0] == .cancelled || jobOutcomes[$0] == .skipped }) {
+            if failedEarlierJob
+                || job.needs.contains(where: {
+                    jobOutcomes[$0] == .failed || jobOutcomes[$0] == .cancelled || jobOutcomes[$0] == .skipped
+                })
+            {
                 let skipped = LocalJobResult(
                     name: job.name, id: job.id, state: .skipped, startedAt: nil, finishedAt: nil,
                     duration: nil, steps: [], notices: ["skipped because a dependency did not succeed"])
@@ -80,7 +88,9 @@ public actor LocalWorkflowRunner {
             jobNotices.append(notice)
             onEvent(.matrixSkipped(job.id))
             onEvent(.jobFinished(job.id, state: .skipped))
-            return LocalJobResult(name: job.name, id: job.id, state: .skipped, startedAt: started, finishedAt: Date(), duration: 0, steps: [], notices: jobNotices)
+            return LocalJobResult(
+                name: job.name, id: job.id, state: .skipped, startedAt: started, finishedAt: Date(), duration: 0,
+                steps: [], notices: jobNotices)
         }
 
         var env = baselineEnvironment(root: root, temp: temp)
@@ -98,13 +108,19 @@ public actor LocalWorkflowRunner {
             let condition = evaluate(step.condition, previousFailure: previousFailure)
             guard condition.shouldRun else {
                 let note = condition.notice ?? "condition is not supported; skipped"
-                stepResults.append(LocalStepResult(name: step.name, state: .skipped, startedAt: nil, finishedAt: nil, duration: nil, notices: [note]))
+                stepResults.append(
+                    LocalStepResult(
+                        name: step.name, state: .skipped, startedAt: nil, finishedAt: nil, duration: nil,
+                        notices: [note]))
                 onEvent(.stepSkipped(step.name, notice: note))
                 continue
             }
             if previousFailure && !condition.forceRun {
                 let note = "skipped after a previous step failed"
-                stepResults.append(LocalStepResult(name: step.name, state: .skipped, startedAt: nil, finishedAt: nil, duration: nil, notices: [note]))
+                stepResults.append(
+                    LocalStepResult(
+                        name: step.name, state: .skipped, startedAt: nil, finishedAt: nil, duration: nil,
+                        notices: [note]))
                 onEvent(.stepSkipped(step.name, notice: note))
                 continue
             }
@@ -140,7 +156,10 @@ public actor LocalWorkflowRunner {
             for notice in stepNotices { onEvent(.stepNotice(step.name, notice: notice)) }
             guard !script.isEmpty else {
                 let state: PipelineStepState = step.uses?.hasPrefix("actions/checkout") == true ? .succeeded : .skipped
-                stepResults.append(LocalStepResult(name: step.name, state: state, startedAt: nil, finishedAt: Date(), duration: 0, notices: stepNotices))
+                stepResults.append(
+                    LocalStepResult(
+                        name: step.name, state: state, startedAt: nil, finishedAt: Date(), duration: 0,
+                        notices: stepNotices))
                 onEvent(.stepFinished(step.name, state: state))
                 continue
             }
@@ -148,7 +167,8 @@ public actor LocalWorkflowRunner {
             let started = Date()
             onEvent(.stepStarted(step.name))
             let directory = resolvedDirectory(
-                step.workingDirectory ?? job.defaults?.run?.workingDirectory ?? workflow.defaults?.run?.workingDirectory,
+                step.workingDirectory ?? job.defaults?.run?.workingDirectory
+                    ?? workflow.defaults?.run?.workingDirectory,
                 relativeTo: root)
             let timeout = TimeInterval(step.timeoutMinutes ?? job.timeoutMinutes ?? 30) * 60
             let command: [String]
@@ -167,14 +187,17 @@ public actor LocalWorkflowRunner {
             } catch {
                 let finished = Date()
                 let message = error.localizedDescription
-                let failed = LocalStepResult(name: step.name, state: .failed, startedAt: started, finishedAt: finished, duration: finished.timeIntervalSince(started), notices: ["shell failed: \(message)"])
+                let failed = LocalStepResult(
+                    name: step.name, state: .failed, startedAt: started, finishedAt: finished,
+                    duration: finished.timeIntervalSince(started), notices: ["shell failed: \(message)"])
                 stepResults.append(failed)
                 previousFailure = !step.continueOnError
                 onEvent(.stepFinished(step.name, state: .failed))
                 continue
             }
             let finished = Date()
-            let output = boundedOutput(shellResult.stdout + (shellResult.stderr.isEmpty ? "" : "\n" + shellResult.stderr))
+            let output = boundedOutput(
+                shellResult.stdout + (shellResult.stderr.isEmpty ? "" : "\n" + shellResult.stderr))
             let failed = !shellResult.succeeded
             let result = LocalStepResult(
                 name: step.name,
@@ -192,11 +215,14 @@ public actor LocalWorkflowRunner {
             onEvent(.stepFinished(step.name, state: result.state))
         }
         let failed = previousFailure
-        let state: PipelineStepState = failed ? (job.continueOnError ? .succeeded : .failed) : (stepResults.isEmpty ? .skipped : .succeeded)
+        let state: PipelineStepState =
+            failed ? (job.continueOnError ? .succeeded : .failed) : (stepResults.isEmpty ? .skipped : .succeeded)
 
         let finished = Date()
         onEvent(.jobFinished(job.id, state: state))
-        return LocalJobResult(name: job.name, id: job.id, state: state, startedAt: started, finishedAt: finished, duration: finished.timeIntervalSince(started), steps: stepResults, notices: jobNotices)
+        return LocalJobResult(
+            name: job.name, id: job.id, state: state, startedAt: started, finishedAt: finished,
+            duration: finished.timeIntervalSince(started), steps: stepResults, notices: jobNotices)
     }
 
     private func topologicalOrder(_ requested: [String], jobs: [String: WorkflowJob]) throws -> [String] {
@@ -254,7 +280,9 @@ public actor LocalWorkflowRunner {
 
     private func expand(_ script: String, env: [String: String], root: URL, notices: inout [String]) -> String {
         var result = script
-        let replacements = ["${{ github.workspace }}": root.path, "${{ runner.os }}": "macOS", "${{ runner.arch }}": "arm64"]
+        let replacements = [
+            "${{ github.workspace }}": root.path, "${{ runner.os }}": "macOS", "${{ runner.arch }}": "arm64",
+        ]
         for (expression, value) in replacements { result = result.replacingOccurrences(of: expression, with: value) }
         let pattern = #"\$\{\{\s*(env|secrets)\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}"#
         if let regex = try? NSRegularExpression(pattern: pattern) {
@@ -265,8 +293,9 @@ public actor LocalWorkflowRunner {
                 let kind = ns.substring(with: match.range(at: 1))
                 let key = ns.substring(with: match.range(at: 2))
                 let replacement: String
-                if kind == "env" { replacement = env[key] ?? "" }
-                else {
+                if kind == "env" {
+                    replacement = env[key] ?? ""
+                } else {
                     replacement = ""
                     if !notices.contains("secrets are unavailable locally; \(key) expanded to an empty string") {
                         notices.append("secrets are unavailable locally; \(key) expanded to an empty string")
@@ -288,7 +317,8 @@ public actor LocalWorkflowRunner {
             .lowercased()
         switch value {
         case "true": return (true, false, nil)
-        case "success()": return (!previousFailure, false, previousFailure ? "condition success() evaluated false" : nil)
+        case "success()":
+            return (!previousFailure, false, previousFailure ? "condition success() evaluated false" : nil)
         case "false": return (false, false, "condition false evaluated; skipped")
         case "always()": return (true, true, nil)
         case "failure()": return (previousFailure, true, nil)
@@ -297,7 +327,9 @@ public actor LocalWorkflowRunner {
         }
     }
 
-    private func applyEnvironmentFiles(temp: URL, values: inout [String: String], paths: inout [String], notices: inout [String]) {
+    private func applyEnvironmentFiles(
+        temp: URL, values: inout [String: String], paths: inout [String], notices: inout [String]
+    ) {
         let envFile = temp.appendingPathComponent("env")
         if let text = try? String(contentsOf: envFile, encoding: .utf8) {
             for line in text.split(separator: "\n") {

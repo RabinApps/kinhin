@@ -4,8 +4,11 @@ import XCTest
 @testable import KinhinKit
 @testable import kinhin_app
 
-/// A tiny stateful Docker: enough to watch create/delete round-trip.
-private final class FakeDocker: ShellRunning, Sendable {
+/// A tiny stateful Docker: enough to watch create/delete round-trip. Lifecycle
+/// verbs on a target it doesn't have fail with docker's own "No such …" stderr
+/// instead of silently succeeding, so a stale list fails against the fake the
+/// way it fails against the real CLI.
+final class FakeDocker: ShellRunning, Sendable {
     private struct State: Sendable {
         var containers: [(id: String, image: String, state: String)] = [
             ("web", "nginx", "running"), ("kinhin-1", "runner", "exited"),
@@ -32,16 +35,28 @@ private final class FakeDocker: ShellRunning, Sendable {
                     exitCode: 0,
                     stdout: volumes.map { "{\"Name\":\"\($0)\",\"Driver\":\"local\"}" }.joined(separator: "\n"),
                     stderr: "")
-            case _ where args.first == "start":
-                if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "running" }
-            case _ where args.first == "stop":
-                if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "exited" }
-            case _ where args.first == "restart":
-                if let i = containers.firstIndex(where: { $0.id == args[1] }) { containers[i].state = "running" }
+            case _ where ["start", "stop", "restart"].contains(args.first ?? ""):
+                let target = args.dropFirst().first ?? ""
+                guard let i = containers.firstIndex(where: { $0.id == target }) else {
+                    return ShellResult(
+                        exitCode: 1, stdout: "",
+                        stderr: "Error response from daemon: No such container: \(target)\n")
+                }
+                containers[i].state = args.first == "stop" ? "exited" : "running"
             case _ where args.first == "rm":
-                containers.removeAll { $0.id == args.last }
+                let target = args.last ?? ""
+                guard containers.contains(where: { $0.id == target }) else {
+                    return ShellResult(exitCode: 1, stdout: "", stderr: "Error: No such container: \(target)\n")
+                }
+                containers.removeAll { $0.id == target }
             case _ where args.starts(with: ["volume", "rm"]):
-                volumes.removeAll { $0 == args[2] }
+                let target = args.dropFirst(2).first ?? ""
+                guard volumes.contains(target) else {
+                    return ShellResult(
+                        exitCode: 1, stdout: "",
+                        stderr: "Error response from daemon: No such volume: \(target)\n")
+                }
+                volumes.removeAll { $0 == target }
             default: break
             }
             return ShellResult(exitCode: 0, stdout: "", stderr: "")

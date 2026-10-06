@@ -105,8 +105,8 @@ final class FleetControllerTests: XCTestCase {
     }
 
     func testDeleteGoesThroughTheServiceAndRefreshes() async throws {
-        fake.status = FleetStatus(records: [VMRecord(id: "vm-1", phase: .ready)])
-        try await fleet.deleteVM(id: "vm-1")
+        fake.status = FleetStatus(records: [VMRecord(id: "kinhin-vm-1", phase: .ready)])
+        try await fleet.deleteVM(id: "kinhin-vm-1")
         XCTAssertEqual(fleet.status?.records.isEmpty, true)
     }
 

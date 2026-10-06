@@ -100,7 +100,8 @@ final class AccountsConfigTests: XCTestCase {
             labels: [self-hosted]
             """
         XCTAssertThrowsError(try ConfigLoader.parse(labelled)) { error in
-            XCTAssertTrue("\(error.localizedDescription)".contains("labels apply to gitea accounts only"), "\(error)")
+            XCTAssertTrue(
+                "\(error.localizedDescription)".contains("labels select runners with `runs-on:`"), "\(error)")
         }
     }
 

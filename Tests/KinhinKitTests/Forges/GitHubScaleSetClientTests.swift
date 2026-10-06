@@ -66,7 +66,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
         XCTAssertEqual(captured[2].url?.path, "/prefix/_apis/runtime/runnerscalesets")
         XCTAssertEqual(captured[3].url?.path, "/prefix/_apis/runtime/runnerscalesets")
         XCTAssertEqual(captured[3].httpMethod, "POST")
-        let body = try XCTUnwrap(captured[3].httpBody)
+        let body = try XCTUnwrap(captured[3].bodyStreamData())
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         XCTAssertEqual(payload["runnerGroupId"] as? Int, 1)
         XCTAssertEqual((payload["labels"] as? [[String: String]])?.first?["type"], "System")
@@ -135,7 +135,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
         XCTAssertEqual(reqs[3].url?.host, "api.acme.ghe.com")
         XCTAssertEqual(reqs[3].url?.path, "/prefix/_apis/runtime/runnerscalesets")
         XCTAssertEqual(reqs[3].httpMethod, "POST")
-        let body = try XCTUnwrap(reqs[3].httpBody)
+        let body = try XCTUnwrap(reqs[3].bodyStreamData())
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         XCTAssertEqual(payload["runnerGroupId"] as? Int, 1)
     }
@@ -166,14 +166,14 @@ final class GitHubScaleSetClientTests: XCTestCase {
         XCTAssertEqual(residency.id, 7)
         let reqs = captured.withLock { $0 }
         XCTAssertEqual(reqs.count, 4)
-        XCTAssertEqual(reqs[0].url?.host, "actions.acme.ghe.com")
+        XCTAssertEqual(reqs[0].url?.host, "api.acme.ghe.com", "enterprise admin calls stay on the instance's API host")
         XCTAssertEqual(reqs[0].url?.path, "/a/_apis/runtime/runnergroups")
         XCTAssertEqual(reqs[1].url?.host, "api.acme.ghe.com")
         XCTAssertEqual(reqs[2].url?.host, "api.acme.ghe.com")
         XCTAssertEqual(reqs[3].url?.host, "api.acme.ghe.com")
         XCTAssertEqual(reqs[3].url?.path, "/a/_apis/runtime/runnerscalesets")
         XCTAssertEqual(reqs[3].httpMethod, "POST")
-        let body = try XCTUnwrap(reqs[3].httpBody)
+        let body = try XCTUnwrap(reqs[3].bodyStreamData())
         let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         XCTAssertEqual(payload["runnerGroupId"] as? Int, 1)
     }
@@ -226,5 +226,23 @@ final class GitHubScaleSetClientTests: XCTestCase {
         GitHubScaleSetSession(
             sessionId: "session-1", messageQueueUrl: URL(string: "https://queue.example.invalid/messages")!,
             messageQueueAccessToken: "queue-token")
+    }
+}
+
+extension URLRequest {
+    /// URLProtocol receives POST bodies as a stream; read it back for asserts.
+    fileprivate func bodyStreamData() -> Data {
+        if let httpBody { return httpBody }
+        guard let stream = httpBodyStream else { return Data() }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while stream.hasBytesAvailable {
+            let read = stream.read(&buffer, maxLength: buffer.count)
+            if read <= 0 { break }
+            data.append(buffer, count: read)
+        }
+        return data
     }
 }

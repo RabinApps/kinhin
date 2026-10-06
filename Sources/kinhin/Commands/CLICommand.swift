@@ -30,6 +30,7 @@ enum CLICommand: Equatable {
     case version
     case help
     case workflow
+    case mcp
 
     /// Head-token dispatch, preserving the historical quirks: the two-token
     /// forms `config init` and `image prepare` route identically to their
@@ -90,6 +91,8 @@ enum CLICommand: Equatable {
             return .help
         case "workflow", "workflow test":
             return .workflow
+        case "mcp":
+            return .mcp
         case nil:
             return .help
         default:
@@ -110,9 +113,12 @@ enum CLICommand: Equatable {
         switch command {
         case .help, .version, .support, .configInit:
             return false
-        case .reset:
-            // Auto-creating a starter config seconds before deleting it would
+        case .reset:  // Auto-creating a starter config seconds before deleting it would
             // be absurd (and would print the creation note mid-reset).
+            return false
+        case .mcp:
+            // A stdio server must not touch disk on boot; its tools report a
+            // missing config instead ("run: kinhin config init").
             return false
         default:
             return true

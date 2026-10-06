@@ -19,7 +19,8 @@ public struct AuthStatusReport: Codable, Equatable, Sendable {
         public let configured: Bool
         /// GitHub: repo/org scope. Gitea: scope. Null when unconfigured.
         public let scope: String?
-        /// Gitea instance URL; null otherwise.
+        /// Instance URL for self-hosted forges (GitHub enterprise, Gitea);
+        /// null when the forge runs on its default host (github.com).
         public let instance: String?
         /// Human-readable one-liner (contains no secret beyond `prefix`).
         public let detail: String
@@ -48,7 +49,8 @@ public struct AuthStatusReport: Codable, Equatable, Sendable {
         /// First four characters of the stored token, or null.
         public let prefix: String?
         public let scope: String
-        /// Gitea instance URL; null for GitHub.
+        /// Instance URL for self-hosted forges (GitHub enterprise, Gitea);
+        /// null when the forge runs on its default host (github.com).
         public let instance: String?
         public let detail: String
 
@@ -129,8 +131,10 @@ public enum AuthStatusReporter {
                 ))
         }
 
-        // Every configured account needs its token, and at least one account
-        // must be configured (each forge is optional on its own).
+        // Every configured account needs its token and a usable scope, and
+        // at least one account must be configured (each forge is optional on
+        // its own). A stored token with an empty scope cannot route a single
+        // job, so it must not satisfy the report.
         let accountRows = accounts.map { account -> AuthStatusReport.Account in
             let accountRead = read { try loadAccount(account.forge, account.name) }
             let token = accountRead.token
@@ -144,7 +148,7 @@ public enum AuthStatusReporter {
                 prefix: token.map { String($0.prefix(4)) }, scope: account.scope, instance: account.instance,
                 detail: detail)
         }
-        let allGood = !accountRows.isEmpty && accountRows.allSatisfy(\.stored)
+        let allGood = !accountRows.isEmpty && accountRows.allSatisfy { $0.stored && !$0.scope.isEmpty }
         return AuthStatusReport(forges: forges, allGood: allGood, accounts: accountRows)
     }
 

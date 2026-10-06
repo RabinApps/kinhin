@@ -47,8 +47,8 @@ final class WizardModel {
                 return
                     "kinhin runs your CI jobs on this Mac. Select the forges to serve — \(WizardModel.forgeNames) — then paste a token and choose the repository, project or group to serve for each."
             case .mac:
-            return
-                "Choose what runs your jobs: Linux (Docker, Apple container, or a full Linux VM), macOS virtual machines (tart), or both. You only need one — the button below walks the comparison."
+                return
+                    "Choose what runs your jobs: Linux (Docker, Apple container, or a full Linux VM), macOS virtual machines (tart), or both. You only need one — the button below walks the comparison."
             case .toolchains:
                 return
                     "Nothing to choose here: every repo declares its own toolchains, and nothing is installed until a job needs it."
