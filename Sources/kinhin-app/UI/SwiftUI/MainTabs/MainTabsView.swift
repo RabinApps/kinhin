@@ -120,11 +120,11 @@ private struct AdvancedView: View {
         let models = model.models
         switch model.advancedSection {
         case .accounts:
-            if let connect = models.connectModel, let mac = models.macToolsModel {
-                AccountsSectionView(connect: connect, mac: mac)
-            }
+            if let connect = models.connectModel { AccountsSectionView(connect: connect) }
         case .capacity:
-            if let capacity = models.capacityModel { CapacityView(model: capacity) }
+            if let capacity = models.capacityModel, let mac = models.macToolsModel {
+                CapacityView(model: capacity, mac: mac)
+            }
         case .routing:
             if let runtimes = models.runtimesModel { RuntimesView(model: runtimes) }
         case .containers:

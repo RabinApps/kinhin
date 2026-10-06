@@ -43,6 +43,24 @@ final class MacToolsModelTests: XCTestCase {
         }
     }
 
+    /// Regression: the "More images" block (named base images for macOS)
+    /// disappeared when tart's primary base image was a Linux one — named
+    /// images with distinct labels are exactly how a mixed macOS + Linux tart
+    /// fleet gets its macOS images back, so tart being installed alone decides.
+    func testNamedImagesStayOfferedWhenTartServesLinux() throws {
+        try """
+        labels: [self-hosted, macos]
+        base_image: "ghcr.io/cirruslabs/ubuntu:latest"
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+        let model = makeModel()
+        model.setTartInstalledForTesting(true)
+        XCTAssertTrue(model.tartLinuxOn, "the fixture really has a Linux primary base")
+        XCTAssertTrue(model.offersNamedImages, "More images must stay available for a mixed fleet")
+
+        model.setTartInstalledForTesting(false)
+        XCTAssertFalse(model.offersNamedImages, "without tart there is nothing to bake named images")
+    }
+
     func testRunRetainsItsTaskAndCancelRunningCancelsWithTheBuildLine() async throws {
         let model = makeModel()
         model.run(

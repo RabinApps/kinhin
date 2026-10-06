@@ -279,6 +279,20 @@ final class SetupFormsTests: XCTestCase {
         XCTAssertTrue(model.extraImages.isEmpty)
     }
 
+    /// Every add re-reads the config the previous one wrote (read → append →
+    /// validate → write), so several named macOS images accumulate instead of
+    /// replacing each other.
+    func testAddingTwoNamedImagesPersistsBoth() throws {
+        let model = MacToolsModel()
+        model.configURL = configURL
+        model.reload()
+        model.addImage(name: "xcode", baseImage: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest")
+        model.addImage(name: "web", baseImage: nil)
+        XCTAssertEqual(try snapshot().images.map(\.name), ["xcode", "web"])
+        XCTAssertEqual(model.extraImages.map(\.name), ["xcode", "web"])
+        XCTAssertNotEqual(model.busyLine.style, .error, model.busyLine.text)
+    }
+
     func testAddingAReservedImageNameIsRefusedAndSaid() throws {
         let model = MacToolsModel()
         model.configURL = configURL

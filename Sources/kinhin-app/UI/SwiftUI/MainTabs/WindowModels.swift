@@ -89,6 +89,8 @@ final class WindowModels {
     /// load once as they are built: `reloadSection` deliberately skips
     /// Capacity (a stale reload would discard unapplied edits), so a fresh
     /// model must fetch its own snapshot or the form renders blank forever.
+    /// The Mac & VMs section (`.capacity`) also builds This Mac's model, so
+    /// that section is self-contained; Accounts keeps only Connect.
     func ensureSection(_ section: AdvancedSection) {
         switch section {
         case .accounts:
@@ -102,14 +104,16 @@ final class WindowModels {
             }
             connect.hasStoredToken = tokenProbe
             connect.onChanged = { [weak self] in self?.runtimesEdited?() }
-            let mac = MacToolsModel()
-            mac.onChanged = { [weak self] in self?.runtimesEdited?() }
             connectModel = connect
-            macToolsModel = mac
             connect.reload()
-            mac.reload()
         case .capacity:
             guard capacityModel == nil else { return }
+            if macToolsModel == nil {
+                let mac = MacToolsModel()
+                mac.onChanged = { [weak self] in self?.runtimesEdited?() }
+                macToolsModel = mac
+                mac.reload()
+            }
             let model = CapacityModel()
             model.configURL = Paths.config
             model.onChanged = { [weak self] in self?.runtimesEdited?() }
@@ -136,17 +140,18 @@ final class WindowModels {
         }
     }
 
-    /// Data-backed sections load when shown (Capacity is skipped: reloading
-    /// it would discard unapplied edits).
+    /// Data-backed sections load when shown (Capacity's own form is skipped:
+    /// reloading it would discard unapplied edits — its This Mac model does
+    /// reload, it has nothing pending).
     func reloadSection(_ section: AdvancedSection) {
         switch section {
         case .routing: runtimesModel?.reload()
         case .containers: containersModel?.reload()
-        case .accounts:
-            connectModel?.reload()
+        case .accounts: connectModel?.reload()
+        case .capacity:
             macToolsModel?.reload()
         case .toolchains: toolchainsModel?.reload()
-        case .capacity, .app: break
+        case .app: break
         }
     }
 

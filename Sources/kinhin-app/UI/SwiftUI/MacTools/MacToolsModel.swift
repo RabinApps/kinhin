@@ -158,6 +158,14 @@ final class MacToolsModel: ConfigFormModel {
     private(set) var tartInstallVisible = false
     /// tart is installed on this Mac (the Linux row's checkbox needs it).
     private(set) var tartInstalled = false
+
+    /// Whether the "More images" (named base images) block is offered. Tart is
+    /// what bakes them, so tart being installed is the only requirement: the
+    /// primary base image being a Linux one must not take the block away —
+    /// named images with distinct labels are exactly how a mixed macOS +
+    /// Linux tart fleet gets its macOS images back.
+    var offersNamedImages: Bool { tartInstalled }
+
     private(set) var imageLine = Line(text: "")
     private(set) var imageButtonVisible = false
     /// The prepared tart image exists, so the button rebuilds it (a changed

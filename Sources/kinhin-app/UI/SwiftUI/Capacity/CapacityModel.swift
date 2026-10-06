@@ -2,8 +2,9 @@ import Foundation
 import KinhinKit
 import Observation
 
-/// State and actions behind Advanced → Capacity: how many VMs the fleet runs
-/// and how big they are.
+/// State and actions behind the VM capacity cards of Advanced → Mac & VMs:
+/// how many VMs the fleet runs and how big they are. (This Mac's own form in
+/// that section is `MacToolsModel`.)
 ///
 /// Nothing is written while the user types or clicks a stepper. Edits collect
 /// as pending changes and are written together, once, when the user presses

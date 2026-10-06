@@ -55,6 +55,10 @@ extension RunnerBootstrap {
         } else {
             caExport = ""
         }
+        // The density copies run in the *guest's* bash, so `{2..10}` and
+        // `$index` must reach it verbatim. Swift's spelling (`2...10`,
+        // `\(index)`) bakes a single `/opt/actions-runner-(Function)`
+        // directory instead: `index` resolves to Darwin's C function.
         return """
             set -euo pipefail
             \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("tar", "tar"), ("gzip", "gzip")]))
@@ -68,9 +72,9 @@ extension RunnerBootstrap {
               fi
             fi
             \(caExport)cd /opt/actions-runner
-            for index in 2...10; do
-              mkdir -p "/opt/actions-runner-\(index)"
-              cp -a /opt/actions-runner/. "/opt/actions-runner-\(index)/"
+            for index in {2..10}; do
+              mkdir -p "/opt/actions-runner-$index"
+              cp -a /opt/actions-runner/. "/opt/actions-runner-$index/"
             done
             echo "linux actions-runner v\(version) installed"
             """

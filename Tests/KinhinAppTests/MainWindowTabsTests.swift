@@ -46,7 +46,7 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertEqual(MainTab.allCases, [.fleet, .detail, .setup, .advanced])
         XCTAssertEqual(
             AdvancedSection.allCases.map(\.label),
-            ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "App"])
+            ["Accounts", "Mac & VMs", "Routing", "Containers", "Toolchains", "App"])
     }
 
     func testTabBarIsHiddenWhileSetupIsUnfinished() {
@@ -118,7 +118,7 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertEqual(tabs.advancedSection, .accounts)
         XCTAssertNil(models.wizardModel)
         XCTAssertNotNil(models.connectModel)
-        XCTAssertNotNil(models.macToolsModel)
+        XCTAssertNil(models.macToolsModel, "This Mac lives in Mac & VMs, not Accounts")
     }
 
     func testWizardWalksFourSteps() {
@@ -164,6 +164,18 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertNotNil(models.capacityModel, "Capacity embeds the form model")
     }
 
+    /// Accounts and Mac & VMs are separate: Accounts keeps the Connect form
+    /// alone; the renamed Capacity section hosts This Mac above the cards.
+    func testMacAndVmSettingsShareTheRenamedCapacitySection() {
+        tabs.showAdvanced(.accounts)
+        XCTAssertNotNil(models.connectModel)
+        XCTAssertNil(models.macToolsModel, "Accounts no longer builds This Mac")
+
+        tabs.showAdvanced(.capacity)
+        XCTAssertNotNil(models.macToolsModel, "Mac & VMs builds This Mac")
+        XCTAssertNotNil(models.capacityModel, "and its own capacity form")
+    }
+
     func testSelectingTheCapacitySectionLoadsIt() {
         // Regression: the form rendered blank because nothing ever loaded the
         // config into it — selectAdvancedSection deliberately skips reloads
@@ -199,7 +211,10 @@ final class MainWindowTabsTests: MainWindowTestCase {
             let models = fresh.models
             switch section {
             case .accounts: XCTAssertNotNil(models.connectModel, "Accounts builds Connect")
-            case .capacity: XCTAssertGreaterThanOrEqual(models.capacityModel?.loads ?? 0, 1)
+            case .capacity:
+                XCTAssertGreaterThanOrEqual(models.capacityModel?.loads ?? 0, 1)
+                XCTAssertNotNil(
+                    models.macToolsModel, "Mac & VMs embeds the This Mac form beside the capacity cards")
             case .routing: XCTAssertGreaterThanOrEqual(models.runtimesModel?.loads ?? 0, 1)
             case .containers: XCTAssertNotNil(models.containersModel)
             case .toolchains: XCTAssertNotNil(models.toolchainsModel)

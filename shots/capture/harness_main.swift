@@ -19,7 +19,7 @@ func render(_ vc: NSViewController, size: NSSize, name: String, appearance: NSAp
         backing: .buffered,
         defer: false
     )
-    window.appearance = NSAppearance(named: appearance) // explicit: light or dark
+    window.appearance = NSAppearance(named: appearance)  // explicit: light or dark
     window.contentView = vc.view
     vc.view.frame = NSRect(origin: .zero, size: size)
     window.layoutIfNeeded()
@@ -28,10 +28,12 @@ func render(_ vc: NSViewController, size: NSSize, name: String, appearance: NSAp
     // fully opaque RGBA spec ("inconsistent set of values") unless an extra
     // row is allocated and then cropped away via the bitmap's own bytesPerRow
     // trick — simplest is a 1px-taller rep and cropping on read.
-    guard let rep = NSBitmapImageRep(
-        bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
-        bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-        colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return }
+    guard
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
+    else { return }
     rep.size = size
     NSGraphicsContext.saveGraphicsState()
     let ctx = NSGraphicsContext(bitmapImageRep: rep)
@@ -42,9 +44,9 @@ func render(_ vc: NSViewController, size: NSSize, name: String, appearance: NSAp
     // of the window's darkAqua, and dark captures come out all-white.
     let backdrop: NSColor
     if appearance == .darkAqua {
-        backdrop = NSColor(calibratedWhite: 0.10, alpha: 1)   // ~ windowBackgroundColor dark
+        backdrop = NSColor(calibratedWhite: 0.10, alpha: 1)  // ~ windowBackgroundColor dark
     } else {
-        backdrop = NSColor(calibratedWhite: 0.93, alpha: 1)   // ~ windowBackgroundColor light
+        backdrop = NSColor(calibratedWhite: 0.93, alpha: 1)  // ~ windowBackgroundColor light
     }
     backdrop.setFill()
     ctx!.cgContext.fill(CGRect(x: 0, y: 0, width: size.width, height: size.height))
@@ -61,24 +63,33 @@ func render(_ vc: NSViewController, size: NSSize, name: String, appearance: NSAp
     func walk(_ v: NSView, depth: Int, into out: inout String) {
         let f = v.frame
         out += String(repeating: "  ", count: depth)
-        out += String(format: "%@ [%.0f,%.0f %.0fx%.0f]\n", String(describing: type(of: v)), f.origin.x, f.origin.y, f.width, f.height)
+        out += String(
+            format: "%@ [%.0f,%.0f %.0fx%.0f]\n", String(describing: type(of: v)), f.origin.x, f.origin.y, f.width,
+            f.height)
         for s in v.subviews { walk(s, depth: depth + 1, into: &out) }
     }
     var tree = ""
     walk(vc.view, depth: 0, into: &tree)
-    try! tree.write(to: URL(fileURLWithPath: outDir).appendingPathComponent("\(name)-frames.txt"), atomically: true, encoding: .utf8)
+    try! tree.write(
+        to: URL(fileURLWithPath: outDir).appendingPathComponent("\(name)-frames.txt"), atomically: true, encoding: .utf8
+    )
 }
 
 /// Canned Docker output so the Containers capture never touches a real daemon.
 struct CannedShell: ShellRunning {
     func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
         if argv.contains("ps") {
-            return ShellResult(exitCode: 0, stdout: """
-            {"ID":"a1","Image":"postgres:16","Names":"db","State":"running","Status":"Up 3 hours"}
-            {"ID":"b2","Image":"kinhin-ci-linux","Names":"kinhin-7f3a","State":"exited","Status":"Exited (0) 1 hour ago"}
-            """, stderr: "")
+            return ShellResult(
+                exitCode: 0,
+                stdout: """
+                    {"ID":"a1","Image":"postgres:16","Names":"db","State":"running","Status":"Up 3 hours"}
+                    {"ID":"b2","Image":"kinhin-ci-linux","Names":"kinhin-7f3a","State":"exited","Status":"Exited (0) 1 hour ago"}
+                    """, stderr: "")
         }
-        return ShellResult(exitCode: 0, stdout: "{\"Name\":\"pgdata\",\"Driver\":\"local\"}\n{\"Name\":\"toolchain-cache\",\"Driver\":\"local\"}", stderr: "")
+        return ShellResult(
+            exitCode: 0,
+            stdout: "{\"Name\":\"pgdata\",\"Driver\":\"local\"}\n{\"Name\":\"toolchain-cache\",\"Driver\":\"local\"}",
+            stderr: "")
     }
 }
 
@@ -99,7 +110,8 @@ func captureWindow(_ controller: MainTabsWindowController, name: String, dark: B
     }
     content.cacheDisplay(in: content.bounds, to: rep)
     let out = ProcessInfo.processInfo.environment["KINHIN_HARNESS_OUT"] ?? "."
-    try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: out).appendingPathComponent("\(name).png"))
+    try! rep.representation(using: .png, properties: [:])!.write(
+        to: URL(fileURLWithPath: out).appendingPathComponent("\(name).png"))
     print("wrote \(name).png")
 }
 
@@ -112,30 +124,30 @@ struct HarnessMain {
 
         // Fixed snapshot via the test seam — no disk access.
         let yaml = """
-        repo: "RabinApps/kinhin"
-        labels: ["self-hosted", "macos", "arm64"]
-        min_runners: 0
-        max_runners: 2
-        runners_per_vm: 1
-        poll_interval: 20
-        vm:
-          cpu: 4
-          memory_gb: 8
-          ephemeral: true
-        image: "tahoe-base"
-        reserve:
-          cpu: 2
-          memory_gb: 4
-        container:
-          image: "kinhin-ci-linux"
-          cpus: 4
-          memory_gb: 8
-        docker:
-          image: "kinhin-ci-linux"
-          cpus: 2
-          memory_gb: 4
-          max_slots: 8
-        """
+            repo: "RabinApps/kinhin"
+            labels: ["self-hosted", "macos", "arm64"]
+            min_runners: 0
+            max_runners: 2
+            runners_per_vm: 1
+            poll_interval: 20
+            vm:
+              cpu: 4
+              memory_gb: 8
+              ephemeral: true
+            image: "tahoe-base"
+            reserve:
+              cpu: 2
+              memory_gb: 4
+            container:
+              image: "kinhin-ci-linux"
+              cpus: 4
+              memory_gb: 8
+            docker:
+              image: "kinhin-ci-linux"
+              cpus: 2
+              memory_gb: 4
+              max_slots: 8
+            """
         let snapshot = try! GeneralConfigEditor.snapshot(from: yaml)
 
         // Scratch config: the forms edit/read this file, never the real one.
@@ -171,25 +183,12 @@ struct HarnessMain {
             wizardModel.refreshSummary()
             render(wizardVC, size: size, name: "cap-wizard5-\(tag)", appearance: appearance)
 
-            // Setup tab (post-onboarding): the same two forms on one page.
+            // Advanced → Accounts (post-onboarding): the Connect form.
             let connectModel = ConnectModel()
             connectModel.configURL = scratch
             connectModel.hasStoredToken = { _ in false }
-            let macModel = MacToolsModel()
-            macModel.configURL = scratch
-            macModel.autoEnableLinuxRuntime = false
             let pageVC = NSViewController()
-            let pageHost = NSHostingView(
-                rootView: ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        SectionHeader("Connect")
-                        ConnectView(model: connectModel)
-                        SectionHeader("This Mac")
-                        MacToolsView(model: macModel)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(4)
-                })
+            let pageHost = NSHostingView(rootView: AccountsSectionView(connect: connectModel))
             pageHost.sizingOptions = []
             pageHost.frame = NSRect(origin: .zero, size: NSSize(width: 620, height: 820))
             pageVC.view = pageHost
@@ -209,18 +208,26 @@ struct HarnessMain {
                 wait.signal()
             }
             while wait.wait(timeout: .now()) == .timedOut { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
-            render(containersVC, size: NSSize(width: 600, height: 620), name: "cap-containers-\(tag)", appearance: appearance)
+            render(
+                containersVC, size: NSSize(width: 600, height: 620), name: "cap-containers-\(tag)",
+                appearance: appearance)
 
-            // Advanced → Capacity (scratch config, no real-file access).
+            // Advanced → Mac & VMs (scratch config, no real-file access):
+            // the This Mac form above the VM capacity cards.
             let capacityModel = CapacityModel()
             capacityModel.configURL = scratch
             capacityModel.reload()
+            let macModel = MacToolsModel()
+            macModel.configURL = scratch
+            macModel.autoEnableLinuxRuntime = false
+            macModel.reload()
             let capacityVC = NSViewController()
-            let capacityHost = NSHostingView(rootView: CapacityView(model: capacityModel))
+            let capacityHost = NSHostingView(rootView: CapacityView(model: capacityModel, mac: macModel))
             capacityHost.sizingOptions = []
-            capacityHost.frame = NSRect(origin: .zero, size: NSSize(width: 600, height: 760))
+            capacityHost.frame = NSRect(origin: .zero, size: NSSize(width: 600, height: 1200))
             capacityVC.view = capacityHost
-            render(capacityVC, size: NSSize(width: 600, height: 760), name: "cap-config-\(tag)", appearance: appearance)
+            render(
+                capacityVC, size: NSSize(width: 600, height: 1200), name: "cap-config-\(tag)", appearance: appearance)
         }
 
         // Whole-window walkthrough with the real MainTabsWindowController.

@@ -115,7 +115,7 @@ struct ToolchainsView: View {
             subtitle: "The image every job starts from. Per-repo images with toolchains are cloned from it."
         ) {
             if model.imageRuntimes.isEmpty {
-                HintText("No runtime is set up yet. Set one up in Advanced → Accounts.")
+                HintText("No runtime is set up yet. Set one up in Advanced → Mac & VMs.")
             }
             ForEach(model.imageRuntimes, id: \.runtime) { item in
                 imageRow(item)

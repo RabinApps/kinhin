@@ -56,11 +56,13 @@ struct MacToolsView: View {
                 model.prepareImage()
             }
             if model.tartLinuxOn {
-                HintText("tart is serving Linux jobs — its base image is chosen under Linux jobs below.")
+                HintText(
+                    "tart is serving Linux jobs — its base image is chosen under Linux jobs below. Add a macOS "
+                        + "image under More images so macOS jobs still have somewhere to run.")
             } else {
                 baseImageRow(value: model.tartBaseImage, runtime: .tart)
             }
-            if model.tartInstalled, !model.tartLinuxOn { moreImagesSection }
+            if model.offersNamedImages { moreImagesSection }
             if model.busy || !model.busyLine.text.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     if model.busy { ProgressView().controlSize(.small) }

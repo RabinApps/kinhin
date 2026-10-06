@@ -85,8 +85,8 @@ final class MainTabsModel {
             if models.wizardModel == nil { _ = makeWizard() }
             return
         }
-        // Setup only exists during onboarding; afterwards its forms live in
-        // Advanced → Accounts.
+        // Setup only exists during onboarding; afterwards its Connect form
+        // lives in Advanced → Accounts (This Mac is under Mac & VMs).
         if tab == .setup {
             showAdvanced(.accounts)
             return
@@ -164,8 +164,11 @@ final class MainTabsModel {
         switch advancedSection {
         case .accounts:
             models.connectModel?.reload()
+        case .capacity:
+            // The capacity form never reloads on its own (unapplied edits),
+            // but This Mac's model has nothing pending and refreshes.
+            models.capacityModel?.reload()
             models.macToolsModel?.reload()
-        case .capacity: models.capacityModel?.reload()
         case .routing: models.runtimesModel?.reload()
         case .containers: models.containersModel?.reload()
         case .toolchains: models.toolchainsModel?.reload()

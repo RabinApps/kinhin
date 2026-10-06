@@ -52,9 +52,11 @@ enum MainTab: String, CaseIterable {
     }
 }
 
-/// Sub-sections of the Advanced tab.
+/// Sub-sections of the Advanced tab. `capacity` is the "Mac & VMs" section:
+/// the This Mac form (its macOS and Linux cards) above the VM capacity steppers.
 enum AdvancedSection: String, CaseIterable {
     case accounts
+    /// "Mac & VMs" — this Mac's runtimes plus the fleet's VM capacity.
     case capacity
     case routing
     case containers
@@ -64,7 +66,7 @@ enum AdvancedSection: String, CaseIterable {
     var label: String {
         switch self {
         case .accounts: return "Accounts"
-        case .capacity: return "Capacity"
+        case .capacity: return "Mac & VMs"
         case .routing: return "Routing"
         case .containers: return "Containers"
         case .toolchains: return "Toolchains"
