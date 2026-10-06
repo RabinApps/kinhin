@@ -12,6 +12,7 @@ import SwiftUI
 
 let scale: CGFloat = 2
 
+@MainActor
 func render(_ vc: NSViewController, size: NSSize, name: String, appearance: NSAppearance.Name) {
     let window = NSWindow(
         contentRect: NSRect(origin: .zero, size: size),
@@ -236,8 +237,9 @@ struct HarnessMain {
         let suite = UserDefaults(suiteName: "kinhin-harness-\(UUID().uuidString)")!
         for dark in [false, true] {
             let tag = dark ? "dark" : "light"
+            let fleet = FleetController()
             let main = MainTabsWindowController(
-                defaults: suite, fleet: FleetController(), updates: UpdateController(defaults: suite))
+                defaults: suite, fleet: fleet, updates: UpdateController(defaults: suite))
             var status = FleetStatus()
             status.running = true
             status.queueDepth = 3
@@ -249,22 +251,22 @@ struct HarnessMain {
             var ready = VMRecord(id: "kinhin-vm-b2", phase: .ready)
             ready.createdAt = Date()
             status.records = [busy, ready]
-            main.render(status: status)
+            fleet.status = status
             main.window?.orderBack(nil)
             captureWindow(main, name: "win-fleet-\(tag)", dark: dark)
-            main.tokenProbe = { _ in false }
-            main.showAdvanced(.accounts)
+            main.models.tokenProbe = { _ in false }
+            main.tabs.showAdvanced(.accounts)
             captureWindow(main, name: "win-advanced-accounts-\(tag)", dark: dark)
-            main.showAdvanced(.capacity)
+            main.tabs.showAdvanced(.capacity)
             captureWindow(main, name: "win-advanced-capacity-\(tag)", dark: dark)
-            main.showAdvanced(.routing)
+            main.tabs.showAdvanced(.routing)
             // The pane loads asynchronously (config read + health probes).
-            for _ in 0..<150 where main.runtimesModel?.hasLoadedForTesting != true {
+            for _ in 0..<150 where main.models.runtimesModel?.hasLoadedForTesting != true {
                 RunLoop.main.run(until: Date().addingTimeInterval(0.05))
             }
             RunLoop.main.run(until: Date().addingTimeInterval(1.0))
             captureWindow(main, name: "win-advanced-routing-\(tag)", dark: dark)
-            main.showAdvanced(.app)
+            main.tabs.showAdvanced(.app)
             captureWindow(main, name: "win-advanced-app-\(tag)", dark: dark)
         }
 
