@@ -36,6 +36,23 @@ final class LinuxPrerequisitesTests: XCTestCase {
         }
     }
 
+    func testAMissingToolAppendsThePackageInsteadOfRunningIt() async throws {
+        // The append must be one assignment word. Split into
+        // `need=""$need "pkg"` bash treats the first word as an assignment
+        // prefix and runs `pkg` — on a bare ubuntu:24.04 that is exactly
+        // `curl: command not found` (exit 127) before apt ever runs.
+        let script = RunnerBootstrap.linuxPrerequisitesScript(
+            tools: [("kinhin-tool-that-does-not-exist", "some-pkg")])
+            .replacingOccurrences(of: "/etc/ssl/certs/ca-certificates.crt", with: "/etc/hosts")
+            .replacingOccurrences(of: "apt-get update -qq", with: "echo '(update)'")
+            .replacingOccurrences(
+                of: "apt-get install -y --no-install-recommends $need", with: "echo \"install:$need\"")
+        let result = try await Shell().run(["/bin/bash", "-c", script], cwd: nil, timeout: 10)
+        XCTAssertTrue(result.succeeded, "\(result.stderr) (exit code follows)")
+        XCTAssertEqual(result.exitCode, 0, result.stderr)
+        XCTAssertTrue(result.stdout.contains("install: some-pkg"), result.stdout)
+    }
+
     func testPrerequisitesAreANoOpWhenEverythingIsPresent() async throws {
         // `true`, `sh`, and `ls` exist everywhere; with the certificate check
         // satisfied the script must not touch apt.

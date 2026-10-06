@@ -10,9 +10,14 @@ extension RunnerBootstrap {
     /// and every download step below needs them. `tools` pairs a command
     /// to look for with the package that provides it. Idempotent: a no-op
     /// once everything is present (containers run as root — no sudo).
+    ///
+    /// The append must stay a *single* assignment word: `need="$need pkg"`.
+    /// Written as two words (`need=""$need "pkg"`) bash reads the first as an
+    /// assignment prefix and runs `pkg` itself — so a bare base image dies with
+    /// `curl: command not found` (127) instead of installing curl.
     static func linuxPrerequisitesScript(tools: [(command: String, package: String)]) -> String {
         let checks = tools.map { t in
-            "command -v \(t.command) >/dev/null 2>&1 || need=\"\"$need \"\(t.package)\""
+            "command -v \(t.command) >/dev/null 2>&1 || need=\"$need \(t.package)\""
         }
         return
             ([
