@@ -37,8 +37,10 @@ final class ToolchainsModel {
     /// The derived images kinhin has recorded.
     @ObservationIgnored var loadImageRecords: () -> [ProjectImageRecord] = { ProjectImageStore().all }
     /// The tart images on disk, for sizes. Throws when tart is not installed.
-    @ObservationIgnored var listTartImages: () async throws -> [TartVM] = {
-        try await TartController(configuredPath: nil).list()
+    /// The configured `tart_path:` travels with the call, so the listing asks
+    /// for the very binary the fleet runs instead of a PATH lookalike.
+    @ObservationIgnored var listTartImages: (_ tartPath: String?) async throws -> [TartVM] = { tartPath in
+        try await TartController(configuredPath: tartPath).list()
     }
     /// Puts text on the clipboard. Injectable so tests leave the real one alone.
     @ObservationIgnored var copyToPasteboard: (String) -> Void = ToolchainsGuide.copyToPasteboard
@@ -53,6 +55,10 @@ final class ToolchainsModel {
     private(set) var imageRuntimes: [ImageRuntime] = []
     private(set) var copiedID: String?
     private var baseImageValues: [RuntimeID: String] = [:]
+    /// The configured tart binary from the last successful load (`tart_path:`;
+    /// nil = let the probe search), so sizes list through it too. The runtime
+    /// row takes it straight from the config it just loaded.
+    private var tartPath: String?
 
     var rows: [ProjectToolchainsRow] { overview?.rows ?? [] }
     var repoFileImages: [ProjectImageRecord] { overview?.repoFileImages ?? [] }
@@ -69,6 +75,7 @@ final class ToolchainsModel {
         do {
             cfg = try ConfigLoader.load(from: configURL)
         } catch {
+            tartPath = nil
             overview = nil
             imageRuntimes = []
             status = Line(
@@ -77,6 +84,7 @@ final class ToolchainsModel {
                 style: .error)
             return
         }
+        tartPath = cfg.tartPath
         overview = ProjectToolchainsOverview.build(config: cfg, images: loadImageRecords())
         refreshRuntimes(cfg)
         if !busy { status = Line(text: "") }
@@ -86,7 +94,7 @@ final class ToolchainsModel {
     /// Fills in image sizes from `tart list`; sizes stay unknown when tart is unavailable.
     func refreshImageSizes() async {
         do {
-            let images = try await listTartImages()
+            let images = try await listTartImages(tartPath)
             imageSizesGB = Dictionary(
                 images.compactMap { image in image.diskGB.map { (image.name, $0) } },
                 uniquingKeysWith: { first, _ in first })
@@ -102,7 +110,9 @@ final class ToolchainsModel {
     /// One image row per runtime that is actually set up.
     private func refreshRuntimes(_ cfg: KinhinConfig) {
         var runtimes: [ImageRuntime] = []
-        if TartController.isInstalled() { runtimes.append(ImageRuntime(runtime: .tart, platform: .macOS)) }
+        if TartController.isInstalled(configuredPath: cfg.tartPath) {
+            runtimes.append(ImageRuntime(runtime: .tart, platform: .macOS))
+        }
         if let container = cfg.container {
             runtimes.append(ImageRuntime(runtime: .appleContainer, platform: .linux))
             baseImageValues[.appleContainer] = container.baseImage

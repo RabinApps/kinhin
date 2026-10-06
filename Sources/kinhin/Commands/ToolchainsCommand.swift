@@ -126,7 +126,11 @@ enum ToolchainsCommand {
             print("No derived project images.")
             return
         }
-        let sizes = ((try? await TartController(configuredPath: nil).list()) ?? []).reduce(into: [String: Int]()) {
+        // Sizes are cosmetic, but they must come from the fleet's tart:
+        // honor `tart_path:` like every other tart call (a config that won't
+        // load only costs the sizes, never the listing).
+        let tartPath = (try? ConfigLoader.load())?.tartPath
+        let sizes = ((try? await TartController(configuredPath: tartPath).list()) ?? []).reduce(into: [String: Int]()) {
             $0[$1.name] = $1.diskGB
         }
         for record in records {

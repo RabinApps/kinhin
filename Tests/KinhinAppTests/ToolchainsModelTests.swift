@@ -44,7 +44,7 @@ import XCTest
         let model = ToolchainsModel()
         model.configURL = configURL
         model.loadImageRecords = { images }
-        model.listTartImages = { tart }
+        model.listTartImages = { _ in tart }
         model.reload()
         return model
     }
@@ -110,9 +110,37 @@ import XCTest
 
     func testImageSizesAreOptionalWhenTartIsUnavailable() async throws {
         let model = try makeModel(images: [record("tahoe-base-pdeadbeef")])
-        model.listTartImages = { throw TartError.missingBinary(path: "tart") }
+        model.listTartImages = { _ in throw TartError.missingBinary(path: "tart") }
         await model.refreshImageSizes()
         XCTAssertFalse(model.imageLine(record("x")).contains("GB"))
+    }
+
+    /// The tart row is offered (or withheld) by the configured `tart_path:`,
+    /// the same authoritative rule This Mac, the CLI and the doctor apply.
+    func testTheTartRowProbesTheConfiguredTartPath() throws {
+        let found = try makeModel(sampleConfig + "\ntart_path: \"/usr/bin/true\"\n")
+        XCTAssertTrue(
+            found.imageRuntimes.contains { $0.runtime == .tart },
+            "a configured binary outside the trusted directories still offers the tart row")
+
+        let missing = try makeModel(sampleConfig + "\ntart_path: \"/nonexistent/kinhin-test-tart\"\n")
+        XCTAssertFalse(
+            missing.imageRuntimes.contains { $0.runtime == .tart },
+            "a configured path that does not exist reads as missing, even with tart on PATH")
+    }
+
+    /// The size listing goes through the configured binary too: `tart list`
+    /// must read the fleet's tart, not whatever sits on PATH.
+    func testImageSizesListThroughTheConfiguredTartPath() async throws {
+        let model = try makeModel(sampleConfig + "\ntart_path: \"/custom/tart\"\n")
+        var asked: [String?] = []
+        model.listTartImages = { path in
+            asked.append(path)
+            return []
+        }
+        await model.refreshImageSizes()
+        XCTAssertFalse(asked.isEmpty, "the listing runs")
+        XCTAssertTrue(asked.allSatisfy { $0 == "/custom/tart" }, "\(asked)")
     }
 
     // MARK: - Read-only
