@@ -149,6 +149,11 @@ extension Runtime {
 struct TartRuntime: Runtime {
     let id: RuntimeID = .tart
     let tart: TartControlling
+    /// The configured tart binary (`tart_path:`; nil = search PATH). The
+    /// health probe must ask the same binary the runtime runs through
+    /// `tart` — a configured-but-broken path reads as missing even when
+    /// another tart sits on PATH, and an unconfigured one reads PATH.
+    let tartPath: String?
     let ssh: SSHExecuting
     let bootTimeout: @Sendable () -> Int
     /// How long registration keeps retrying while the guest's sshd is still
@@ -171,13 +176,14 @@ struct TartRuntime: Runtime {
     }
 
     init(
-        tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, ssh: SSHExecuting = SSHExecutor(),
-        sshReadyWindow: TimeInterval = 120, sshRetryInterval: Duration = .seconds(1),
-        sshProbeInterval: Duration = .milliseconds(500), hostKeyWindow: TimeInterval = 30,
-        hostKeyInterval: Duration = .seconds(2)
+        tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, tartPath: String? = nil,
+        ssh: SSHExecuting = SSHExecutor(), sshReadyWindow: TimeInterval = 120,
+        sshRetryInterval: Duration = .seconds(1), sshProbeInterval: Duration = .milliseconds(500),
+        hostKeyWindow: TimeInterval = 30, hostKeyInterval: Duration = .seconds(2)
     ) {
         self.tart = tart
         self.bootTimeout = bootTimeout
+        self.tartPath = tartPath
         self.ssh = ssh
         self.sshReadyWindow = sshReadyWindow
         self.sshRetryInterval = sshRetryInterval
@@ -187,7 +193,7 @@ struct TartRuntime: Runtime {
     }
 
     func health() async -> RuntimeHealth {
-        let probe = TartHealthProbe()
+        let probe = TartHealthProbe(configuredPath: tartPath)
         let health = await probe.check()
         switch health {
         case .healthy:

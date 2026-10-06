@@ -111,9 +111,9 @@ enum RunCommands {
             print("daemon: not running")
             // Capacity and orphans are extras on a "not running" answer: a
             // broken config or missing tart just leaves them out.
-            if FileManager.default.fileExists(atPath: Paths.config.path),
-                let cfg = try? ConfigLoader.load()
-            {
+            let cfg: KinhinConfig? =
+                FileManager.default.fileExists(atPath: Paths.config.path) ? try? ConfigLoader.load() : nil
+            if let cfg {
                 let host = ResourceProbe().snapshot()
                 let plan = Capacity.plan(for: cfg, host: host)
                 print("capacity: \(plan.maxConcurrent) concurrent VM(s) available (binding: \(plan.bindingConstraint))")
@@ -127,7 +127,9 @@ enum RunCommands {
                 }
             }
             let tarts: [TartVM]
-            if let controller = try? TartController() {
+            // The orphan scan lists through the fleet's tart: honor
+            // `tart_path:` like every other tart call, never a PATH lookalike.
+            if let controller = try? TartController(configuredPath: cfg?.tartPath) {
                 tarts = (try? await controller.list()) ?? []
             } else {
                 tarts = []

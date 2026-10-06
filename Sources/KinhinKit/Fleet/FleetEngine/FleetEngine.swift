@@ -158,7 +158,7 @@ public final class FleetEngine: Sendable {
         self.forgeState = Mutex(ForgeState(byPlatform: initial))
         let shell = containerShell ?? Shell()
         let tartRuntime = TartRuntime(
-            tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, ssh: ssh)
+            tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, tartPath: config.tartPath, ssh: ssh)
         var runtimes: [RuntimeID: any Runtime] = [.tart: tartRuntime]
         if let container = config.container {
             runtimes[.appleContainer] = AppleContainerRuntime(

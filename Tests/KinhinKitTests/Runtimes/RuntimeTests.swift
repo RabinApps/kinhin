@@ -63,6 +63,29 @@ final class RuntimeTests: XCTestCase {
         _ = health.isReady
     }
 
+    func testHealthProbesTheConfiguredTartPath() async throws {
+        // A configured binary that isn't there reads as missing even when a
+        // real tart sits on PATH — the override is authoritative, like every
+        // other tart call in the app.
+        let missing = TartRuntime(
+            tart: FakeTart(), bootTimeout: { 300 }, tartPath: "/nonexistent/kinhin-test-tart")
+        let missingHealth = await missing.health()
+        XCTAssertEqual(
+            missingHealth, .missing(tool: "tart", fix: TartHealthProbe.installCommand))
+
+        // And the probe runs the configured binary: a stub tart answering a
+        // healthy version reads ready, wherever it lives.
+        let stub = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kinhin-test-tart-\(UUID().uuidString)")
+        try "#!/bin/sh\necho tart version 2.32.1\n".write(to: stub, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stub.path)
+        defer { try? FileManager.default.removeItem(at: stub) }  // temp fixture; leftover is harmless
+
+        let found = TartRuntime(tart: FakeTart(), bootTimeout: { 300 }, tartPath: stub.path)
+        let foundHealth = await found.health()
+        XCTAssertEqual(foundHealth, .ready)
+    }
+
     // MARK: - Engine integration
 
     func testEngineStampsRuntimeOnSpawnedRecords() async throws {

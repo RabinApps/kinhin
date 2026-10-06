@@ -164,7 +164,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             if let injected = tartHealth {
                 group.addTask { (.tart, await injected()) }
             } else if let controller = try? TartController(configuredPath: parsed.tartPath) {
-                let runtime = TartRuntime(tart: controller, bootTimeout: { parsed.vmBootTimeout })
+                let runtime = TartRuntime(
+                    tart: controller, bootTimeout: { parsed.vmBootTimeout }, tartPath: parsed.tartPath)
                 group.addTask { (.tart, await runtime.health()) }
             } else {
                 // Construction fails only when the binary is missing, which
@@ -217,7 +218,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
                 if let injected = tartHealth {
                     group.addTask { (.tart, await injected()) }
                 } else if let controller = try? TartController(configuredPath: parsed.tartPath) {
-                    let runtime = TartRuntime(tart: controller, bootTimeout: { parsed.vmBootTimeout })
+                    let runtime = TartRuntime(
+                        tart: controller, bootTimeout: { parsed.vmBootTimeout }, tartPath: parsed.tartPath)
                     group.addTask { (.tart, await runtime.health()) }
                 } else {
                     // Construction fails only when the binary is missing,

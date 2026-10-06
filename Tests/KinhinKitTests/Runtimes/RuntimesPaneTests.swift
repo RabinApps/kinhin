@@ -285,6 +285,28 @@ final class RuntimesPaneTests: XCTestCase {
         )
     }
 
+    func testTartHealthProbesTheConfiguredTartPath() async throws {
+        // A configured tart outside the trusted directories reads ready: the
+        // health probe runs the configured binary, never a PATH lookalike.
+        let stub = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kinhin-test-tart-\(UUID().uuidString)")
+        try "#!/bin/sh\necho tart version 2.32.1\n".write(to: stub, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stub.path)
+        defer { try? FileManager.default.removeItem(at: stub) }  // temp fixture; leftover is harmless
+
+        let yaml = baseConfig + "\ntart_path: \"\(stub.path)\"\nruntimes:\n  default: tart\n"
+        let vm = await RuntimesPaneViewModel.load(
+            configYAML: yaml,
+            host: testHost,
+            reserve: .default,
+            loadHealth: true,
+            tartHealth: nil,  // no injection: real probe against the configured binary
+            containerHealth: { .ready }
+        )
+        let tart = try XCTUnwrap(vm.pools.first { $0.runtime == .tart })
+        XCTAssertEqual(tart.health, .ready)
+    }
+
     // MARK: - Helpers
 
     private func tempConfig(_ contents: String) throws -> URL {
