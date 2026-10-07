@@ -284,6 +284,47 @@ final class ImagePreparerTests: XCTestCase {
         XCTAssertLessThan(mount, agent, "the cache is mounted before anything downloads")
     }
 
+    /// Parity with the container bakes: a tart Linux guest installs git and
+    /// jq before any agent does — `actions/checkout`, `git ls-files` and
+    /// jq-piping workflow steps need both, and no agent download installs
+    /// them. The container baker (`LinuxImageBaker`) installs the same list.
+    func testALinuxGuestInstallsGitAndJqBeforeAnyAgent() async throws {
+        let ssh = FakeSSH()
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false, guestOS: .linux))
+
+        let baked = ssh.scripts[0]
+        XCTAssertTrue(baked.contains("command -v git"), "git must be checked for: \(baked)")
+        XCTAssertTrue(baked.contains("command -v jq"), "jq must be checked for: \(baked)")
+        let common = try XCTUnwrap(baked.range(of: "command -v git"), "no git prerequisite")
+        let agent = try XCTUnwrap(baked.range(of: "actions-runner-linux-arm64-"), "no GitHub agent install")
+        XCTAssertLessThan(common.upperBound, agent.lowerBound, "git installs before the agent does")
+        // A guest runs as an admin user: apt goes through passwordless sudo,
+        // unlike the container bake which runs as root.
+        XCTAssertTrue(baked.contains("sudo -n true"), "the guest apt must go through sudo")
+
+        let syntax = try await Shell().run(["/bin/bash", "-n", "-c", baked], cwd: nil, timeout: 10)
+        XCTAssertTrue(syntax.succeeded, "composed tart Linux bake script: \(syntax.stderr)")
+    }
+
+    /// The macOS bake keeps its classic shape: no apt prerequisite block is
+    /// injected for a Darwin guest (macOS images ship git with the CLT).
+    func testAMacOSGuestInstallsNoAptGitAndJqBlock() async throws {
+        let ssh = FakeSSH()
+        let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
+        try await preparer.run(
+            ImagePreparer.Options(
+                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
+                hasAzureDevOpsToken: false, guestOS: .macOS))
+
+        let baked = ssh.scripts[0]
+        XCTAssertFalse(baked.contains("command -v jq"), "no jq apt block on a macOS guest")
+        XCTAssertFalse(baked.contains("apt-get install"), "no apt on a macOS guest")
+    }
+
     func testAMacOSGuestDoesNotMountVirtiofsByHand() async throws {
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)

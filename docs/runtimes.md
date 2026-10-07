@@ -17,7 +17,10 @@ each job between them.
 
 Each runner is bound to the image its job resolved to: the base image, or a derived image for the project's
 [toolchains](toolchains.md#per-project-toolchains). Neither Linux container runtime bakes toolchains; jobs install them
-with [`kinhin-toolchain install`](toolchains.md#per-job-toolchains).
+with [`kinhin-toolchain install`](toolchains.md#per-job-toolchains). Every baked Linux image (Apple container, Docker and
+a [tart Linux VM](#tart-linux-vms)) carries `git` and `jq` next to the runner agents — what `actions/checkout`,
+`git ls-files` and JSON-piping workflow steps expect on any CI host; an image baked by an older build gains them only
+after a re-bake (`kinhin image prepare --container`, `--docker`, or `--source <name>` for a tart Linux VM).
 
 ## macOS (Tart)
 

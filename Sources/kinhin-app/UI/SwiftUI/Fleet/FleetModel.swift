@@ -73,6 +73,16 @@ final class FleetModel {
     var isBusy: Bool { pendingAction != nil }
 
     var statusLine: String { controller.statusLine }
+    /// The runtime/instance diagram at the top of the tab, derived from the
+    /// same snapshot the status line renders (one renderer, two surfaces).
+    var diagram: FleetDiagramModel { FleetDiagramModel(status: status) }
+    /// The diagram's headline before the first status arrives: the status
+    /// line's state row, so both cards say the same thing ("Checking the
+    /// fleet…", "Needs setup — …", "Fleet not responding — …").
+    var diagramPlaceholder: String? {
+        guard status == nil else { return nil }
+        return String(statusLine.split(separator: "\n").first ?? "")
+    }
     /// Set while a per-project image bakes (jobs use the base image meanwhile).
     /// Informational, not an error.
     var imageNotice: String? { status?.imageNotice }
@@ -128,8 +138,10 @@ final class FleetModel {
         controller.userSetPaused(!paused)
     }
 
-    /// Whether a VM row opens the pipeline view: only while it holds a job.
-    func hasPipeline(_ record: VMRecord) -> Bool { record.phase == .busy || record.job != nil }
+    /// Whether a VM has a pipeline to open: only while it holds a job.
+    /// The rule itself lives with the diagram, so its rows and the
+    /// pipeline sheet can never disagree.
+    func hasPipeline(_ record: VMRecord) -> Bool { FleetDiagramModel.opensPipeline(record) }
 
     func pipelineClicked(_ id: String) {
         onShowPipeline(id)
@@ -150,17 +162,6 @@ final class FleetModel {
     }
 
     // MARK: - Row text
-
-    func title(for record: VMRecord) -> String { "• \(record.id) — \(record.phase.rawValue)" }
-
-    func detail(for record: VMRecord) -> String {
-        var parts: [String] = []
-        if let repos = FleetStatusFormatter.repos(of: record) { parts.append(repos) }
-        if let job = record.job { parts.append(job) }
-        if let usage = FleetStatusFormatter.usage(of: record) { parts.append(usage) }
-        if let err = record.error { parts.append("⚠︎ \(err)") }
-        return parts.joined(separator: " · ")
-    }
 
     func jobLine(for record: VMRecord) -> String {
         let repoText = record.repos?.joined(separator: ", ") ?? ""

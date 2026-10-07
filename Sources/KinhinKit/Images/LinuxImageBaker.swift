@@ -113,6 +113,13 @@ struct LinuxImageBaker: Sendable {
         }
 
         var lines: [String] = []
+        // git and jq every CI job needs — `actions/checkout`, `git ls-files`,
+        // workflow scripts that pipe through jq — even though no agent
+        // download installs them. First, under its own `set -e`, so a failed
+        // apt breaks the bake instead of shipping an image without them.
+        lines.append(
+            "set -euo pipefail\n"
+                + RunnerBootstrap.linuxPrerequisitesScript(tools: RunnerBootstrap.ciPrerequisiteTools))
         if hasGitHubToken {
             Log.info(tag, "GitHub PAT found — baking actions-runner \(versions.github)")
             lines.append(

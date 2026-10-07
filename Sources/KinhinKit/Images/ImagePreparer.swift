@@ -349,6 +349,17 @@ public struct ImagePreparer: Sendable {
         }
 
         var scripts: [String] = [guestOS.prepareScript()]
+        // git and jq every CI job needs — `actions/checkout`, `git ls-files`,
+        // workflow scripts that pipe through jq — even though no agent
+        // download installs them. Same list the container bakes install
+        // (`LinuxImageBaker`), here through the guest's passwordless sudo.
+        // Under its own `set -e`, so a failed apt breaks the bake instead of
+        // shipping an image without them.
+        if guestOS == .linux {
+            scripts.append(
+                "set -euo pipefail\n"
+                    + RunnerBootstrap.tartLinuxPrerequisitesScript(tools: RunnerBootstrap.ciPrerequisiteTools))
+        }
         if hasGitHubToken {
             Log.info("image", "GitHub PAT found — baking actions-runner \(versions.github)")
             switch guestOS {

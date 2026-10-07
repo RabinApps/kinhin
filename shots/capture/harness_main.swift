@@ -250,24 +250,34 @@ struct HarnessMain {
             busy.createdAt = Date(); busy.repos = ["acme/api"]; busy.job = "build"
             var ready = VMRecord(id: "kinhin-vm-b2", phase: .ready)
             ready.createdAt = Date()
+            ready.runtime = RuntimeID.appleContainer.rawValue
             status.records = [busy, ready]
+            // Mixed fleet for the Runtimes diagram: tart and Apple container
+            // hold instances, docker is configured but idle.
+            status.capacityByRuntime = [
+                RuntimeID.tart.rawValue: "2", RuntimeID.appleContainer.rawValue: "2",
+                RuntimeID.docker.rawValue: "1",
+            ]
             fleet.status = status
             main.window?.orderBack(nil)
-            captureWindow(main, name: "win-fleet-\(tag)", dark: dark)
+            // Window captures all use cap-window-*: shots/tools/gallery.py
+            // globs cap-*.png, so any other name never reaches the gallery
+            // and rots as a stale image.
+            captureWindow(main, name: "cap-window-fleet-\(tag)", dark: dark)
             main.models.tokenProbe = { _ in false }
             main.tabs.showAdvanced(.accounts)
-            captureWindow(main, name: "win-advanced-accounts-\(tag)", dark: dark)
+            captureWindow(main, name: "cap-window-advanced-accounts-\(tag)", dark: dark)
             main.tabs.showAdvanced(.capacity)
-            captureWindow(main, name: "win-advanced-capacity-\(tag)", dark: dark)
+            captureWindow(main, name: "cap-window-advanced-capacity-\(tag)", dark: dark)
             main.tabs.showAdvanced(.routing)
             // The pane loads asynchronously (config read + health probes).
             for _ in 0..<150 where main.models.runtimesModel?.hasLoadedForTesting != true {
                 RunLoop.main.run(until: Date().addingTimeInterval(0.05))
             }
             RunLoop.main.run(until: Date().addingTimeInterval(1.0))
-            captureWindow(main, name: "win-advanced-routing-\(tag)", dark: dark)
+            captureWindow(main, name: "cap-window-advanced-routing-\(tag)", dark: dark)
             main.tabs.showAdvanced(.app)
-            captureWindow(main, name: "win-advanced-app-\(tag)", dark: dark)
+            captureWindow(main, name: "cap-window-advanced-app-\(tag)", dark: dark)
         }
 
         exit(0)

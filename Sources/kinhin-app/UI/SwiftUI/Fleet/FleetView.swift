@@ -1,9 +1,11 @@
 import KinhinKit
 import SwiftUI
 
-/// The Fleet tab: the fleet card (live status and the start/stop controls),
-/// the VM list, current jobs and the queued-work controls — all four cards
-/// scroll together — over a support row that stays pinned. State lives in
+/// The Fleet tab: the runtime diagram (each runtime's lanes, each live
+/// instance one icon-led row — the VM list that used to have a card of its
+/// own — or an explicit "idle"), the fleet card (live status and the start/stop
+/// controls), current jobs and the queued-work controls — all of them scroll
+/// together — over a support row that stays pinned. State lives in
 /// `FleetModel`.
 struct FleetView: View {
     let model: FleetModel
@@ -31,6 +33,13 @@ struct FleetView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
+                    FleetDiagramView(
+                        model: model.diagram,
+                        placeholder: model.diagramPlaceholder,
+                        onOpenPipeline: { model.pipelineClicked($0) },
+                        onDelete: { model.deleteClicked($0) }
+                    )
+
                     FormCard(title: "Fleet") {
                         VStack(alignment: .leading, spacing: 6) {
                             if let notice = model.diskPressureNotice {
@@ -59,17 +68,6 @@ struct FleetView: View {
                             Text(note)
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    FormCard(title: "VMs") {
-                        if model.records.isEmpty {
-                            secondary("No VMs — the fleet is idle.")
-                        } else {
-                            VStack(alignment: .leading, spacing: 4) {
-                                ForEach(model.records, id: \.id) { vmRow($0) }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
 
@@ -171,30 +169,6 @@ struct FleetView: View {
                 }
             }
         }
-    }
-
-    private func vmRow(_ record: VMRecord) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(model.title(for: record)).font(.system(size: 11, design: .monospaced))
-                Text(model.detail(for: record))
-                    .font(.system(size: 10))
-                    .foregroundStyle(record.error != nil ? StatusStyle.error.color : StatusStyle.secondary.color)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture { if model.hasPipeline(record) { model.pipelineClicked(record.id) } }
-            Spacer(minLength: 12)
-            if model.hasPipeline(record) {
-                Button("Pipeline…") { model.pipelineClicked(record.id) }
-                    .controlSize(.small)
-                    .accessibilityLabel("Show pipeline of \(record.id)")
-            }
-            Button("Delete") { model.deleteClicked(record.id) }
-                .controlSize(.small)
-                .accessibilityLabel("Delete \(record.id)")
-        }
-        .padding(.horizontal, 4)
-        .frame(minHeight: 30)
     }
 
     /// True when the forge has no slash in its scope (org-wide); a

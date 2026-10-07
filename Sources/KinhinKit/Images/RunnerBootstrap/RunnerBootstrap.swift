@@ -2,6 +2,14 @@ import Foundation
 
 /// Scripts injected into VMs over SSH to turn them into GitHub, Gitea, GitLab, Buildkite, Azure DevOps and Bitbucket runners.
 enum RunnerBootstrap {
+    /// The tools every baked image needs that no agent download installs:
+    /// `actions/checkout` and `git ls-files` run git, workflow scripts pipe
+    /// through jq. Both Linux bake paths install them before any agent —
+    /// `LinuxImageBaker` for the containers (plain apt, root) and the tart
+    /// Linux guest in `ImagePreparer` (passwordless sudo, admin user) — so
+    /// parity between the two lives in this one list.
+    static let ciPrerequisiteTools: [(command: String, package: String)] = [("git", "git"), ("jq", "jq")]
+
     /// POSIX single-quote escaping for values interpolated into the scripts
     /// below (config-supplied URLs, names and labels, and the token). A value
     /// with a quote, space or `$(…)` stays one literal argument.

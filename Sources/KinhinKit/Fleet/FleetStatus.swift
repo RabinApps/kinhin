@@ -62,7 +62,7 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     public var host: HostUsage?
     /// Per-runtime capacity caps (mixed fleets: the weighted partition;
     /// nil for single-runtime fleets). Keys are RuntimeID raw values.
-    var capacityByRuntime: [String: String]?
+    public var capacityByRuntime: [String: String]?
 
     public init(
         running: Bool = false, paused: Bool = false, autoResume: Bool? = nil, pollInterval: Int? = nil,

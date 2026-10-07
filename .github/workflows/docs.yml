@@ -20,8 +20,20 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # kinhin's own Apple-container pool (`kinhin-container` is its exclusive
+    # marker). This workflow triggers on push/tag only — PRs never run it — so
+    # no fork guard is needed; the Pages deploy job stays on ubuntu-latest.
+    runs-on: [self-hosted, kinhin-container]
     steps:
+      - name: Check toolchain
+        # fetch-depth: 0, the per-tag worktrees and the jq loop below need git
+        # and jq baked into the image (Node comes from setup-node below). Fail
+        # with the fix instead of "command not found" after a long build.
+        run: |
+          git --version || { echo "::error::git is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
+          jq --version || { echo "::error::jq is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0 # release tags are built into per-version snapshots below

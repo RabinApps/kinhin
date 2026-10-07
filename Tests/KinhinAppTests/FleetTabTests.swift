@@ -42,8 +42,11 @@ final class FleetTabTests: MainWindowTestCase {
         let model = models.fleetModel
         XCTAssertEqual(model.statusLine, FleetStatusFormatter.summary(status))
         XCTAssertEqual(model.records.map(\.id), ["kinhin-vm-test", "kinhin-vm-idle"], "one row per VM")
-        XCTAssertTrue(model.title(for: busy).contains("kinhin-vm-test — busy"))
-        XCTAssertTrue(model.detail(for: busy).contains("2 repos"))
+        // The VM list now lives inside the diagram's lanes.
+        let instances = model.diagram.lanes.flatMap(\.instances)
+        XCTAssertEqual(instances.map(\.id), ["kinhin-vm-test", "kinhin-vm-idle"], "one row per instance")
+        XCTAssertTrue(instances[0].title.contains("kinhin-vm-test — busy"))
+        XCTAssertTrue(instances[0].detail.contains("2 repos"))
         // Current-jobs section: only the record carrying a job, with repo.
         XCTAssertEqual(model.working.map(\.id), ["kinhin-vm-test"])
         XCTAssertTrue(model.jobLine(for: busy).contains("build — alpha/one, beta/two"))
@@ -117,7 +120,8 @@ final class FleetTabTests: MainWindowTestCase {
         failed.createdAt = Date()
         failed.error = "boot timed out"
         fleet.status = FleetStatus(records: [failed])
-        XCTAssertTrue(models.fleetModel.detail(for: failed).contains("⚠︎ boot timed out"))
+        XCTAssertTrue(
+            models.fleetModel.diagram.lanes[0].instances[0].detail.contains("⚠︎ boot timed out"))
     }
 
     func testConfiguredFleetThatCannotBeReachedIsNotReportedAsNeedingSetup() async {
@@ -129,6 +133,23 @@ final class FleetTabTests: MainWindowTestCase {
 
     func testConfiguredFleetBeforeTheFirstPollSaysItIsChecking() {
         XCTAssertEqual(models.fleetModel.statusLine, "Checking the fleet…")
+    }
+
+    // MARK: - Runtime diagram (top card)
+
+    func testDiagramPlaceholderEchoesTheStatusHeadlineBeforeTheFirstPoll() {
+        let model = models.fleetModel
+        XCTAssertEqual(model.diagramPlaceholder, "Checking the fleet…", "configured, not yet polled")
+        XCTAssertTrue(model.diagram.lanes.isEmpty, "no snapshot, no lanes")
+
+        fleet.service = nil
+        XCTAssertEqual(model.diagramPlaceholder, "Needs setup — open the Setup tab")
+
+        fleet.service = fake
+        fleet.status = FleetStatus()
+        XCTAssertNil(model.diagramPlaceholder, "a polled status draws lanes, not the headline")
+        XCTAssertEqual(model.diagram.lanes.map(\.id), [.tart], "the diagram reads the same snapshot")
+        XCTAssertTrue(model.diagram.lanes[0].isIdle)
     }
 
     func testStaleDaemonPlistNoticeAppearsInFleetTabStatusLine() {

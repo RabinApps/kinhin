@@ -80,9 +80,23 @@ jobs:
         run: scripts/tsan.sh
 
   docs-lint:
-    runs-on: ubuntu-latest
+    # Runs in kinhin's own Apple-container pool (`kinhin-container` is that
+    # pool's exclusive marker). The fleet Mac must have the container runtime
+    # and image prepared, or this job queues. Same fork guard as `test`: the
+    # fleet never runs a fork's scripts — and `test` runs docs lint again on
+    # macOS, so lint coverage survives even if this pool is down.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, kinhin-container]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Check toolchain
+        # `git ls-files` drives docs lint, and jq is the other tool the docs
+        # workflows pipe through; both are baked into the image. Fail with the
+        # fix instead of "command not found" halfway through the job.
+        run: |
+          git --version || { echo "::error::git is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
+          jq --version || { echo "::error::jq is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
 
       - name: Docs lint (stale strings)
         run: bash scripts/docs-lint.sh
