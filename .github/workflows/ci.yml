@@ -86,7 +86,7 @@ jobs:
     # fleet never runs a fork's scripts — and `test` runs docs lint again on
     # macOS, so lint coverage survives even if this pool is down.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, kinhin-container]
+    runs-on: [self-hosted, arm64, kinhin-container]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
