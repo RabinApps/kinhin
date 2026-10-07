@@ -24,7 +24,7 @@ jobs:
     # kinhin's own Apple-container pool (`kinhin-container` is its exclusive
     # marker). This workflow triggers on push/tag only — PRs never run it — so
     # no fork guard is needed; the Pages deploy job stays on ubuntu-latest.
-    runs-on: [self-hosted, kinhin-container]
+    runs-on: [self-hosted, arm64, kinhin-container]
     steps:
       - name: Check toolchain
         # fetch-depth: 0, the per-tag worktrees and the jq loop below need git
@@ -73,7 +73,7 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, arm64, kinhin-container]
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
