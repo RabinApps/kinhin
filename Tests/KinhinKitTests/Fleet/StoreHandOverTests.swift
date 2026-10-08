@@ -41,7 +41,7 @@ final class StoreHandOverTests: XCTestCase {
         let oldStore = FleetStore(directory: directory)
         var created = VMRecord(id: "kinhin-live", phase: .registering)
         created.platform = "github"
-        created.runtime = RuntimeID.tart.rawValue
+        created.runtimeID = .tart
         created.image = "xcode-derived"
         oldStore.upsert(created)
 
@@ -50,7 +50,7 @@ final class StoreHandOverTests: XCTestCase {
         let adopted = replacementStore.all.first { $0.id == "kinhin-live" }
         XCTAssertEqual(adopted?.platform, "github", "the account survives, so the lifecycle does not default it")
         XCTAssertEqual(adopted?.image, "xcode-derived", "the image the instance was cloned from survives")
-        XCTAssertEqual(adopted?.runtime, RuntimeID.tart.rawValue)
+        XCTAssertEqual(adopted?.runtimeID, .tart)
         await replacement.detachKeepingInstances()
         tart.releaseIP("192.168.64.9")
     }

@@ -66,7 +66,7 @@ extension FleetEngine {
     func activeByImage() -> [String: Int] {
         var counts: [String: Int] = [:]
         for record in store.all where record.phase.isActive {
-            let runtime = RuntimeID(rawValue: record.runtime ?? "") ?? routing.defaultRuntime
+            let runtime = record.runtimeID ?? routing.defaultRuntime
             guard runtime == .tart else { continue }
             counts[record.image ?? "", default: 0] += 1
         }

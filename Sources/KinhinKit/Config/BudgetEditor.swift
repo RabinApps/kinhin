@@ -258,7 +258,7 @@ public enum BudgetEditor {
         var warnings: [String] = []
         var seen: Set<String> = []
         for route in routes {
-            guard let runtime = RuntimeID(rawValue: route.runtime) else { continue }
+            let runtime = route.runtime
             // Host runners draw no partitioned budget, so they have no cap
             // entry at all — without this skip they would read as cap 0.
             guard runtime != .host else { continue }

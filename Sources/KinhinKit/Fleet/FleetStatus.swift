@@ -97,6 +97,18 @@ public struct FleetStatus: Codable, Sendable, Equatable {
 
     public var activeCount: Int { records.filter { $0.phase.isActive }.count }
 
+    /// `runtime` as a known `RuntimeID` (nil when absent or unknown to this build; the wire field stays a `String`).
+    public var runtimeID: RuntimeID? { runtime.flatMap(RuntimeID.init(rawValue:)) }
+
+    /// `capacityByRuntime` keyed by known `RuntimeID`; entries naming a runtime this build doesn't know are skipped.
+    public var capacityByRuntimeID: [RuntimeID: String] {
+        var typed: [RuntimeID: String] = [:]
+        for (raw, value) in capacityByRuntime ?? [:] {
+            if let id = RuntimeID(rawValue: raw) { typed[id] = value }
+        }
+        return typed
+    }
+
     /// The countdown-style clause for a paused fleet with auto-resume on:
     /// when the queue is re-checked and what an empty check does. Nil
     /// whenever the hint does not apply — not paused, policy off, or an

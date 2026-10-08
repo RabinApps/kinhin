@@ -230,14 +230,14 @@ final class WorkflowRouteCommandTests: XCTestCase {
         let configRoutes = try routes()
         XCTAssertEqual(configRoutes.count, 1)
         XCTAssertEqual(configRoutes[0].pattern, "acme/widgets@CI")
-        XCTAssertEqual(configRoutes[0].runtime, "tart")
+        XCTAssertEqual(configRoutes[0].runtime, .tart)
 
         let edited = try workflowText()
         XCTAssertTrue(edited.contains("runs-on: [self-hosted, macos, arm64]\n"), edited)
         XCTAssertTrue(edited.contains("runs-on: [self-hosted, macos]\n"), "already correct, untouched")
 
         // The default didn't move as a side effect.
-        XCTAssertEqual(try ConfigLoader.load(from: configURL).runtimes?.defaultRuntime, "appleContainer")
+        XCTAssertEqual(try ConfigLoader.load(from: configURL).runtimes?.defaultRuntime, .appleContainer)
     }
 
     /// A repo route outranks the marker — a workflow route must override it
@@ -257,8 +257,8 @@ final class WorkflowRouteCommandTests: XCTestCase {
         let configRoutes = try routes()
         XCTAssertEqual(configRoutes.count, 2)
         XCTAssertEqual(configRoutes[1].pattern, "acme/widgets@CI")
-        XCTAssertEqual(configRoutes[1].runtime, "tart")
-        XCTAssertEqual(configRoutes[0].runtime, "appleContainer", "the existing repo route stays")
+        XCTAssertEqual(configRoutes[1].runtime, .tart)
+        XCTAssertEqual(configRoutes[0].runtime, .appleContainer, "the existing repo route stays")
     }
 
     /// A `${{ }}` job can't be edited — it's reported SKIPPED, the file stays
@@ -281,7 +281,7 @@ final class WorkflowRouteCommandTests: XCTestCase {
         let configRoutes = try routes()
         XCTAssertEqual(configRoutes.count, 1)
         XCTAssertEqual(configRoutes[0].pattern, "acme/widgets@CI")
-        XCTAssertEqual(configRoutes[0].runtime, "appleContainer")
+        XCTAssertEqual(configRoutes[0].runtime, .appleContainer)
     }
 
     /// `--dry-run` reports the plan — edits *and* route — without touching
@@ -323,9 +323,9 @@ final class WorkflowRouteCommandTests: XCTestCase {
         let configRoutes = try routes()
         XCTAssertEqual(configRoutes.count, 1)
         XCTAssertEqual(configRoutes[0].pattern, "acme/widgets@CI")
-        XCTAssertEqual(configRoutes[0].runtime, "host")
+        XCTAssertEqual(configRoutes[0].runtime, .host)
         XCTAssertEqual(configRoutes[0].consent, true)
-        XCTAssertEqual(try ConfigLoader.load(from: configURL).runtimes?.defaultRuntime, "tart")
+        XCTAssertEqual(try ConfigLoader.load(from: configURL).runtimes?.defaultRuntime, .tart)
 
         XCTAssertTrue(
             try workflowText().contains("runs-on: [self-hosted, macos, arm64, kinhin-host]"),

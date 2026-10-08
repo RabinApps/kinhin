@@ -81,13 +81,12 @@ struct FleetDiagramModel {
         // serves everything through one runtime (nil = tart on old records).
         var caps: [RuntimeID: Int] = [:]
         var configured = Set<RuntimeID>()
-        for (raw, value) in status.capacityByRuntime ?? [:] {
-            guard let id = RuntimeID(rawValue: raw) else { continue }
+        for (id, value) in status.capacityByRuntimeID {
             caps[id] = Int(value)
             configured.insert(id)
         }
         if configured.isEmpty {
-            configured.insert(RuntimeID(rawValue: status.runtime ?? "") ?? .tart)
+            configured.insert(status.runtimeID ?? .tart)
         }
         // Instances grouped by the runtime that serves them. A runtime the
         // config doesn't name but that still holds instances (restart
@@ -95,7 +94,7 @@ struct FleetDiagramModel {
         // ever invisible.
         var grouped: [RuntimeID: [VMRecord]] = [:]
         for record in status.records {
-            let id = RuntimeID(rawValue: record.runtime ?? "") ?? .tart
+            let id = record.runtimeID ?? .tart
             grouped[id, default: []].append(record)
         }
         configured.formUnion(grouped.keys)

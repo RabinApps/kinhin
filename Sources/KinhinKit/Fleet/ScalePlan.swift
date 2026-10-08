@@ -99,7 +99,7 @@ struct ScalePlan: Equatable {
     }
 
     private static func pool(of record: VMRecord, input: Input) -> RuntimeID {
-        RuntimeID(rawValue: record.runtime ?? "") ?? input.defaultRuntime
+        record.runtimeID ?? input.defaultRuntime
     }
 
     /// Unmet instances per pool: for each demand kind (queued-only, or
@@ -167,7 +167,7 @@ struct ScalePlan: Equatable {
             out.append(Slot(account: account, runtime: chosen))
             var record = VMRecord(id: "plan-\(out.count)", phase: .cloning)
             record.platform = account
-            record.runtime = chosen.rawValue
+            record.runtimeID = chosen
             sim.append(record)
         }
         return out

@@ -13,6 +13,12 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     /// Execution runtime backing this instance (a `RuntimeID` raw value:
     /// "tart", "appleContainer", "docker", "host"). Nil on old records → treated as tart on read.
     public var runtime: String?
+    /// `runtime` as a known `RuntimeID`; nil when unrecorded or from a newer daemon's unknown runtime.
+    /// `runtime` stays a `String` on the wire so such records still decode.
+    public var runtimeID: RuntimeID? {
+        get { runtime.flatMap(RuntimeID.init(rawValue:)) }
+        set { runtime = newValue?.rawValue }
+    }
     public var job: String?
     /// The derived per-project image this instance was cloned from (nil =
     /// the fleet's base image). Recovery re-derives the route from it.

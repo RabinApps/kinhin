@@ -138,12 +138,12 @@ struct RuntimesView: View {
                 Picker(
                     "Jobs with no route run on:",
                     selection: Binding(
-                        get: { model.defaultRuntimeID.rawValue },
+                        get: { model.defaultRuntimeID },
                         set: { model.defaultRuntimeChanged(to: $0) }
                     )
                 ) {
                     ForEach(model.budgetRuntimeIDs, id: \.rawValue) { runtime in
-                        Text(runtime.rawValue + MaturityTable.maturity(of: runtime).pickerSuffix).tag(runtime.rawValue)
+                        Text(runtime.rawValue + MaturityTable.maturity(of: runtime).pickerSuffix).tag(runtime)
                     }
                 }
                 .controlSize(.small)

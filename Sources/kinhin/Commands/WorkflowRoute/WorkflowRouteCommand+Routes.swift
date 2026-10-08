@@ -26,7 +26,7 @@ extension WorkflowRouteCommand {
 
         let action: RouteAction
         if let existing = rc?.routes.first(where: { $0.pattern == pattern }) {
-            guard existing.runtime != target else { return .unchanged }
+            guard existing.runtime != targetRuntime else { return .unchanged }
             action = .replaced(existing: pattern, runtime: target)
         } else if routeNeeded(rc: rc, config: config, targetRuntime: targetRuntime, scope: scope, jobs: jobs) {
             // The pattern must be owner/repo@Workflow to match the jobs the
@@ -48,14 +48,14 @@ extension WorkflowRouteCommand {
                 // Creating the section (host on a single-pool fleet): keep the
                 // default the fleet actually serves on, so unrouted jobs
                 // don't change pools as a side effect.
-                updated.defaultRuntime = effectivePrimary(of: config).rawValue
+                updated.defaultRuntime = effectivePrimary(of: config)
             }
             if case .replaced = action {
                 updated.routes.removeAll { $0.pattern == pattern }
             }
             updated.routes.append(
                 KinhinConfig.RuntimeConfig.Route(
-                    pattern: pattern, runtime: target, consent: targetRuntime == .host ? true : nil))
+                    pattern: pattern, runtime: targetRuntime, consent: targetRuntime == .host ? true : nil))
             try applyRoute(updated, to: configURL)
         }
         return action
@@ -75,13 +75,11 @@ extension WorkflowRouteCommand {
             // consented route exists).
             return targetRuntime == .host
         }
-        let target = targetRuntime.rawValue
         // A repo route (no @Workflow) for this scope outranks the marker.
         if let repoRoute = rc.routes.first(where: { !$0.pattern.contains("@") && $0.pattern == scope }) {
-            return repoRoute.runtime != target
+            return repoRoute.runtime != targetRuntime
         }
-        let defaultRuntime = RuntimeID(rawValue: rc.defaultRuntime) ?? .tart
-        if defaultRuntime == targetRuntime { return false }
+        if rc.defaultRuntime == targetRuntime { return false }
         guard let marker = WorkflowRouteEditor.marker(for: targetRuntime) else {
             // tart carries no label marker: only a route can take it off the default.
             return true

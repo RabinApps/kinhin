@@ -183,7 +183,7 @@ final class FleetEdgeTests: XCTestCase {
         let engine = makeEngine(tart: tart, github: github, ssh: FakeSSH())
         for name in ["kinhin-idle1", "kinhin-idle2"] {
             var record = VMRecord(id: name, phase: .ready)
-            record.runtime = RuntimeID.tart.rawValue
+            record.runtimeID = .tart
             engine.store.upsert(record)
             tart.vms[name] = TartVM(name: name, source: "base", status: "running")
         }
@@ -203,7 +203,7 @@ final class FleetEdgeTests: XCTestCase {
         let github = FakeGitHub()
         let engine = makeEngine(tart: tart, github: github, ssh: FakeSSH())
         var record = VMRecord(id: "kinhin-stuck", phase: .ready)
-        record.runtime = RuntimeID.tart.rawValue
+        record.runtimeID = .tart
         engine.store.upsert(record)
         tart.vms["kinhin-stuck"] = TartVM(name: "kinhin-stuck", source: "base", status: "running")
         tart.failNext("delete", stderr: "disk busy")

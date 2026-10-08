@@ -23,7 +23,7 @@ final class BusyDemandTests: XCTestCase {
         for index in 0..<count {
             var record = VMRecord(id: "kinhin-seed-\(phase.rawValue)-\(index)", phase: phase)
             record.platform = "github"
-            record.runtime = RuntimeID.tart.rawValue
+            record.runtimeID = .tart
             engine.store.upsert(record)
         }
     }

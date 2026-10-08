@@ -119,7 +119,7 @@ final class UsageSamplerTests: XCTestCase {
             minInterval: .milliseconds(0), maxStale: .milliseconds(0),
             makeContainer: { ContainerManager(tool: $0, shell: $1, binary: "/usr/bin/container") })
         var record = VMRecord(id: "kinhin-c", phase: .ready, createdAt: Date())
-        record.runtime = RuntimeID.appleContainer.rawValue
+        record.runtimeID = .appleContainer
 
         let first = await sampler.snapshot(for: [record])
         XCTAssertEqual(first.byInstance["kinhin-c"]?.memoryUsedMB, 1024)

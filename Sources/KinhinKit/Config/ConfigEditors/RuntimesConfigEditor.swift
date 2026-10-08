@@ -23,12 +23,22 @@ public enum RuntimesConfigEditor {
     public static func parsed(from yaml: String) throws -> KinhinConfig.RuntimeConfig? {
         let partial = try YAMLDecoder().decode(PartialConfig.self, from: yaml)
         guard let rt = partial.runtimes else { return nil }
+        func resolve(_ name: String) throws -> RuntimeID {
+            guard let id = RuntimeID(rawValue: name) else {
+                let known = RuntimeID.allCases.map(\.rawValue)
+                throw ConfigError.invalid(
+                    "runtimes: unknown runtime '\(name)'\(ConfigSuggestion.hint(for: name, in: known)) "
+                        + "(known: \(known.joined(separator: ", ")))")
+            }
+            return id
+        }
         return KinhinConfig.RuntimeConfig(
-            defaultRuntime: rt.default ?? RuntimeID.tart.rawValue,
+            defaultRuntime: try rt.default.map(resolve) ?? .tart,
             budget: rt.budget ?? [:],
-            routes: (rt.routes ?? []).compactMap { route in
-                guard let pattern = route.pattern, let runtime = route.runtime else { return nil }
-                return KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime, consent: route.consent)
+            routes: try (rt.routes ?? []).compactMap { route in
+                guard let pattern = route.pattern, let name = route.runtime else { return nil }
+                return KinhinConfig.RuntimeConfig.Route(
+                    pattern: pattern, runtime: try resolve(name), consent: route.consent)
             }
         )
     }
@@ -38,7 +48,7 @@ public enum RuntimesConfigEditor {
     /// Serialize the section with stable ordering (the pane's canonical form).
     static func sectionText(_ rc: KinhinConfig.RuntimeConfig) -> String {
         var lines: [String] = ["runtimes:"]
-        lines.append("  default: \(rc.defaultRuntime)")
+        lines.append("  default: \(rc.defaultRuntime.rawValue)")
         if !rc.budget.isEmpty {
             lines.append("  budget:")
             for (name, weight) in rc.budget.sorted(by: { $0.key < $1.key }) {
@@ -49,7 +59,7 @@ public enum RuntimesConfigEditor {
             lines.append("  routes:")
             for route in rc.routes {
                 lines.append("    - pattern: \(YAMLText.quoted(route.pattern))")
-                lines.append("      runtime: \(route.runtime)")
+                lines.append("      runtime: \(route.runtime.rawValue)")
                 if let consent = route.consent {
                     lines.append("      consent: \(consent)")
                 }

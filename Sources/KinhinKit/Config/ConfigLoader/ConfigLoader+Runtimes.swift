@@ -17,32 +17,44 @@ extension ConfigLoader {
                 budget[runtime] = weight
             }
         }
-        var routes: [KinhinConfig.RuntimeConfig.Route] = []
+        var rawRoutes: [RawRoute] = []
         for route in runtimes.routes ?? [] {
-            routes.append(try parseRoute(route))
+            rawRoutes.append(try parseRoute(route))
         }
         var seenPatterns: Set<String> = []
-        for route in routes where !seenPatterns.insert(route.pattern).inserted {
+        for route in rawRoutes where !seenPatterns.insert(route.pattern).inserted {
             throw ConfigError.invalid("duplicate runtimes.routes pattern '\(route.pattern)'")
         }
-        let defaultRuntime = runtimes.default ?? RuntimeID.tart.rawValue
-        let referenced = Set(budget.keys).union(routes.map(\.runtime)).union([defaultRuntime])
+        let defaultName = runtimes.default ?? RuntimeID.tart.rawValue
+        let referencedNames = Set(budget.keys).union(rawRoutes.map(\.runtime)).union([defaultName])
         let known = RuntimeID.allCases.map(\.rawValue)
-        for name in referenced.sorted() where !known.contains(name) {
+        for name in referencedNames.sorted() where !known.contains(name) {
             throw ConfigError.invalid(
                 "runtimes: unknown runtime '\(name)'\(ConfigSuggestion.hint(for: name, in: known)) "
                     + "(known: \(known.joined(separator: ", ")))")
         }
+        // Every name is known past the check above; the throw is unreachable.
+        func resolve(_ name: String) throws -> RuntimeID {
+            guard let id = RuntimeID(rawValue: name) else {
+                throw ConfigError.invalid("runtimes: unknown runtime '\(name)'")
+            }
+            return id
+        }
+        let defaultRuntime = try resolve(defaultName)
+        let routes = try rawRoutes.map {
+            KinhinConfig.RuntimeConfig.Route(pattern: $0.pattern, runtime: try resolve($0.runtime), consent: $0.consent)
+        }
+        let referenced = Set(try referencedNames.map(resolve))
         if runtimes.default == RuntimeID.host.rawValue {
             throw ConfigError.invalid(
                 "runtimes.default cannot be 'host' — host execution is opt-in per route (with consent: true)")
         }
-        if referenced.contains(RuntimeID.appleContainer.rawValue), container == nil {
+        if referenced.contains(.appleContainer), container == nil {
             throw ConfigError.invalid(
                 "runtimes routes reference 'appleContainer' but no container: section is configured (it needs an image)"
             )
         }
-        if referenced.contains(RuntimeID.docker.rawValue), docker == nil {
+        if referenced.contains(.docker), docker == nil {
             throw ConfigError.invalid(
                 "runtimes routes reference 'docker' but no docker: section is configured (it needs an image)")
         }
@@ -58,7 +70,14 @@ extension ConfigLoader {
         )
     }
 
-    private static func parseRoute(_ route: PartialConfig.PartialRoute) throws -> KinhinConfig.RuntimeConfig.Route {
+    /// A route whose runtime name has not yet been checked against `RuntimeID`.
+    private struct RawRoute {
+        let pattern: String
+        let runtime: String
+        let consent: Bool?
+    }
+
+    private static func parseRoute(_ route: PartialConfig.PartialRoute) throws -> RawRoute {
         guard let pattern = route.pattern, !pattern.isEmpty else {
             throw ConfigError.invalid("runtimes.routes entries need a non-empty pattern")
         }
@@ -92,6 +111,6 @@ extension ConfigLoader {
             throw ConfigError.invalid(
                 "runtimes.routes entry '\(pattern)': consent applies to host routes only")
         }
-        return KinhinConfig.RuntimeConfig.Route(pattern: pattern, runtime: runtime, consent: route.consent)
+        return RawRoute(pattern: pattern, runtime: runtime, consent: route.consent)
     }
 }

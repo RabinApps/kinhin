@@ -127,14 +127,14 @@ enum RuntimeRouter {
                 if let workflowName,
                     workflowName.caseInsensitiveCompare(routeWorkflow) == .orderedSame
                 {
-                    if let pool = pools[RuntimeID(rawValue: route.runtime) ?? .tart] {
+                    if let pool = pools[route.runtime] {
                         return Decision(pool: pool, via: "workflow:\(route.pattern)")
                     }
                 }
             }
             for route in config.routes where workflow(of: route.pattern) == nil {
                 if repoPattern(of: route.pattern) == repo {
-                    if let pool = pools[RuntimeID(rawValue: route.runtime) ?? .tart] {
+                    if let pool = pools[route.runtime] {
                         return Decision(pool: pool, via: "repo:\(route.pattern)")
                     }
                 }
@@ -175,7 +175,7 @@ public struct RuntimeConfigModel: Sendable {
             // containers and Docker slots join when configured. The default
             // runtime comes from the config.
             self.routes = config.routes
-            self.defaultRuntime = RuntimeID(rawValue: config.defaultRuntime) ?? .tart
+            self.defaultRuntime = config.defaultRuntime
             var pools: [RuntimeID: RuntimePool] = [:]
             pools[.tart] = RuntimePool(runtime: .tart, labels: RuntimePool.labelsFor(.tart, fleetLabels: fleetLabels))
             if containerConfigured {

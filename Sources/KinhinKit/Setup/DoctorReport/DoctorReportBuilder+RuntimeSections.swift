@@ -83,7 +83,7 @@ extension DoctorReportBuilder {
             health: health ?? .broken("host health was not probed"), missingFix: "kinhin setup repair host-agent")
         return DoctorReport.HostSection(
             state: verdict.state, ok: verdict.ok, fix: verdict.fix,
-            routes: (config.runtimes?.routes ?? []).filter { $0.runtime == RuntimeID.host.rawValue }.map(\.pattern),
+            routes: (config.runtimes?.routes ?? []).filter { $0.runtime == .host }.map(\.pattern),
             warning: "host routes run repo code directly on this Mac with your privileges, unisolated"
         )
     }

@@ -13,7 +13,7 @@ final class HostSetupStatusTests: XCTestCase {
         cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme/widgets")]
         if hostRoute {
             var rc = KinhinConfig.RuntimeConfig()
-            rc.routes = [.init(pattern: "acme/scripts", runtime: RuntimeID.host.rawValue, consent: true)]
+            rc.routes = [.init(pattern: "acme/scripts", runtime: .host, consent: true)]
             cfg.runtimes = rc
         }
         return cfg

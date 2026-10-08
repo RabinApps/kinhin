@@ -73,7 +73,7 @@ extension DoctorReportBuilder {
     {
         guard let cfg else { return nil }
         let primary = Capacity.primaryRuntime(of: cfg)
-        let instanceDisk = ResourceProbe.effectiveDiskPerVMGB(diskGB: cfg.diskGB, runtime: primary.rawValue)
+        let instanceDisk = ResourceProbe.effectiveDiskPerVMGB(diskGB: cfg.diskGB, runtime: primary)
         guard host.freeDiskGB < instanceDisk + cfg.reserve.diskGB else { return nil }
         return DoctorReport.DiskPressureSection(
             freeGB: host.freeDiskGB, runtime: primary.rawValue,

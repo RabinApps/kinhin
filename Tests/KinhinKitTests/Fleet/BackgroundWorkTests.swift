@@ -25,7 +25,7 @@ final class BackgroundWorkTests: XCTestCase {
         _ id: String, phase: VMPhase, to engine: FleetEngine, tart: FakeTart
     ) {
         var record = VMRecord(id: id, phase: phase)
-        record.runtime = RuntimeID.tart.rawValue
+        record.runtimeID = .tart
         engine.store.upsert(record)
         tart.vms[id] = TartVM(name: id, source: "base", status: "running")
     }

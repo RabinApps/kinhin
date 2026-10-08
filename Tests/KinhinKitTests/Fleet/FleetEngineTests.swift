@@ -337,7 +337,7 @@ final class FleetEngineTests: XCTestCase {
         if container { cfg.container = .init(image: "c", cpus: 1, memoryGB: 4, labels: ["kinhin-container"]) }
         if docker { cfg.docker = .init(image: "d", cpus: 1, memoryGB: 2) }
         cfg.images = images
-        cfg.runtimes = .init(defaultRuntime: "appleContainer", budget: [:], routes: [])
+        cfg.runtimes = .init(defaultRuntime: .appleContainer, budget: [:], routes: [])
         return FleetEngine(
             config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
             host: testHost, dependencies: .init(tokenLoader: { _, _ in "t" }, exitWatchInterval: .milliseconds(20)))

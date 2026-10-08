@@ -10,7 +10,7 @@ extension KinhinConfig {
     /// label automatically.
     public struct RuntimeConfig: Sendable, Equatable {
         /// Runtime for repos with no matching route.
-        public var defaultRuntime: String
+        public var defaultRuntime: RuntimeID
         /// Deterministic split of the host budget between runtimes
         /// (fractions of the usable CPU+RAM budget; the remainder, if any,
         /// goes to the default runtime).
@@ -22,14 +22,14 @@ extension KinhinConfig {
         public struct Route: Sendable, Equatable {
             /// "owner/name" or "owner/name@Workflow Name".
             public var pattern: String
-            public var runtime: String
+            public var runtime: RuntimeID
             /// Host-mode consent: routes with `runtime: host` MUST carry
             /// `consent: true` (validated), acknowledging that jobs from this
             /// repo/workflow run directly on the Mac, unisolated. Meaningless
             /// (and rejected) for other runtimes.
             public var consent: Bool?
 
-            public init(pattern: String, runtime: String, consent: Bool? = nil) {
+            public init(pattern: String, runtime: RuntimeID, consent: Bool? = nil) {
                 self.pattern = pattern
                 self.runtime = runtime
                 self.consent = consent
@@ -41,7 +41,7 @@ extension KinhinConfig {
         }
 
         public init(
-            defaultRuntime: String = RuntimeID.tart.rawValue, budget: [String: Double] = [:], routes: [Route] = []
+            defaultRuntime: RuntimeID = .tart, budget: [String: Double] = [:], routes: [Route] = []
         ) {
             self.defaultRuntime = defaultRuntime
             self.budget = budget

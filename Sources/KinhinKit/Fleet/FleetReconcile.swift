@@ -58,7 +58,7 @@ extension FleetEngine {
                 // Records from builds that did not store a runtime.
                 if r.runtime == nil { r.runtime = owner.rawValue }
                 kept.append(r)
-            } else if unlisted.contains(RuntimeID(rawValue: record.runtime ?? "") ?? .tart) {
+            } else if unlisted.contains(record.runtimeID ?? .tart) {
                 kept.append(record)
             } else {
                 Log.warn("engine", "record for \(record.id) has no matching instance; dropping")
@@ -352,7 +352,7 @@ extension FleetEngine {
         if slots.contains(where: { $0.runtime != .host }) {
             let admission = ScalePlan.admitByDisk(
                 slots, freeDiskGB: hostProbe().freeDiskGB, reserveGB: config.reserve.diskGB,
-                diskPerInstanceGB: { ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: $0.rawValue) })
+                diskPerInstanceGB: { ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: $0) })
             slots = admission.admitted
             if let blocked = admission.blocked {
                 diskPressureMessage =
@@ -390,7 +390,7 @@ extension FleetEngine {
 
     /// A failed instance counts against its runtime's spawn backoff.
     func noteSpawnFailure(_ record: VMRecord) {
-        guard let runtime = record.runtime.flatMap(RuntimeID.init(rawValue:)) else { return }
+        guard let runtime = record.runtimeID else { return }
         noteSpawnFailure(runtime: runtime, reason: record.error ?? "unknown")
     }
 

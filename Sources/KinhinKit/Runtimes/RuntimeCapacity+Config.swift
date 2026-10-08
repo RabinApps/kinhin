@@ -30,7 +30,7 @@ extension RuntimeCapacity {
         guard isPartitioned(config), let routing = config.runtimes else { return [:] }
         return partitionedCaps(
             for: config, host: host, weights: routing.budget,
-            defaultRuntime: RuntimeID(rawValue: routing.defaultRuntime) ?? .tart)
+            defaultRuntime: routing.defaultRuntime)
     }
 
     /// Caps at an explicit split (the sliders' candidate budget), always

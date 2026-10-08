@@ -121,8 +121,8 @@ final class RouteToEngineReloadTests: XCTestCase {
         //    (the editor already gated it; parse again to prove it).
         let reloaded = try loadConfig()
         XCTAssertEqual(reloaded.runtimes?.routes.first?.pattern, "acme/api")
-        XCTAssertEqual(reloaded.runtimes?.routes.first?.runtime, "appleContainer")
-        XCTAssertEqual(reloaded.runtimes?.defaultRuntime, "tart", "route add must not disturb the default")
+        XCTAssertEqual(reloaded.runtimes?.routes.first?.runtime, .appleContainer)
+        XCTAssertEqual(reloaded.runtimes?.defaultRuntime, .tart, "route add must not disturb the default")
 
         // 3. A live engine adopts the file — the daemon's reload_config
         //    handler performs exactly this parse + applyReloaded.

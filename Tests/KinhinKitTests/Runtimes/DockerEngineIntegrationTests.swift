@@ -96,9 +96,9 @@ final class DockerEngineIntegrationTests: XCTestCase {
         }
         let status = await engine.status()
         let record = try XCTUnwrap(status.records.first)
-        XCTAssertEqual(record.runtime, RuntimeID.docker.rawValue)
+        XCTAssertEqual(record.runtimeID, .docker)
         XCTAssertEqual(
-            status.runtime, RuntimeID.docker.rawValue, "docker is the primary runtime when only docker: is configured")
+            status.runtimeID, .docker, "docker is the primary runtime when only docker: is configured")
         XCTAssertNil(record.ip, "docker records carry no IP — there is no SSH transport")
 
         // The lifecycle used docker run/exec (provision) and exec (registration).
@@ -124,7 +124,7 @@ final class DockerEngineIntegrationTests: XCTestCase {
             return status.records.first?.phase == .registering || status.records.first?.phase == .ready
         }
         let status = await engine.status()
-        XCTAssertEqual(status.runtime, RuntimeID.tart.rawValue)
+        XCTAssertEqual(status.runtimeID, .tart)
         XCTAssertTrue(!ssh.scripts.isEmpty, "tart lifecycle registers over SSH")
     }
 }

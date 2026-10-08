@@ -81,8 +81,8 @@ final class UsageSampler: Sendable {
     private func sample(records: [VMRecord]) async -> Snapshot {
         let now = ContinuousClock.now
         let live = records.filter { $0.phase.isActive }
-        let tartIDs = live.filter { ($0.runtime ?? RuntimeID.tart.rawValue) == RuntimeID.tart.rawValue }.map(\.id)
-        let tools = Set(live.compactMap { Self.containerTool(for: $0.runtime) })
+        let tartIDs = live.filter { $0.runtime == nil || $0.runtimeID == .tart }.map(\.id)
+        let tools = Set(live.compactMap { Self.containerTool(for: $0.runtimeID) })
 
         var byInstance: [String: ResourceUsage] = [:]
         if !tartIDs.isEmpty { byInstance.merge(await tartUsage(names: tartIDs, now: now)) { $1 } }
@@ -111,10 +111,10 @@ final class UsageSampler: Sendable {
         return snapshot
     }
 
-    private static func containerTool(for runtime: String?) -> ContainerTool? {
+    private static func containerTool(for runtime: RuntimeID?) -> ContainerTool? {
         switch runtime {
-        case RuntimeID.docker.rawValue: return .docker
-        case RuntimeID.appleContainer.rawValue: return .appleContainer
+        case .docker: return .docker
+        case .appleContainer: return .appleContainer
         default: return nil
         }
     }

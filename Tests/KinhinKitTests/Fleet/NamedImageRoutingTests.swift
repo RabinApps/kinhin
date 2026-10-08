@@ -62,7 +62,7 @@ final class NamedImageRoutingTests: XCTestCase {
             labels: ["linux"])
         let (engine, _, _) = engine(images: [linuxImage], fleetLabels: ["self-hosted", "macos", "arm64"])
         var record = VMRecord(id: "kinhin-1")
-        record.runtime = RuntimeID.tart.rawValue
+        record.runtimeID = .tart
         let base = engine.poolLabels(for: record) ?? []
         // The base pool carries the fleet labels (including macos).
         XCTAssertTrue(base.contains { $0.lowercased() == "macos" }, "fleet labels include macos")
@@ -84,7 +84,7 @@ final class NamedImageRoutingTests: XCTestCase {
             name: "custom", baseImage: "my-local-vm", labels: ["custom"])
         let (engine, _, _) = engine(images: [unknownImage], fleetLabels: ["self-hosted", "macos", "arm64"])
         var record = VMRecord(id: "kinhin-1")
-        record.runtime = RuntimeID.tart.rawValue
+        record.runtimeID = .tart
         record.image = "custom"
         let labels = engine.poolLabels(for: record) ?? []
         XCTAssertTrue(
@@ -101,7 +101,7 @@ final class NamedImageRoutingTests: XCTestCase {
             labels: ["xcode"])
         let (engine, _, _) = engine(images: [macosImage], fleetLabels: ["self-hosted", "macos", "arm64"])
         var record = VMRecord(id: "kinhin-1")
-        record.runtime = RuntimeID.tart.rawValue
+        record.runtimeID = .tart
         record.image = "xcode"
         let labels = engine.poolLabels(for: record) ?? []
         XCTAssertTrue(
@@ -134,7 +134,7 @@ final class NamedImageRoutingTests: XCTestCase {
     func testNamedImageRunnersAdvertiseTheImageLabels() {
         let (engine, _, _) = engine(images: [xcode])
         var record = VMRecord(id: "kinhin-1")
-        record.runtime = RuntimeID.tart.rawValue
+        record.runtimeID = .tart
         let base = engine.poolLabels(for: record)
         record.image = "xcode"
         let labels = engine.poolLabels(for: record)

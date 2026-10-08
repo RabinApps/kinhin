@@ -371,7 +371,7 @@ extension FleetEngine {
 
     /// The runtime recorded for `id` (the default pool's when unrecorded).
     func recordedRuntime(of id: String) -> RuntimeID {
-        store.all.first { $0.id == id }?.runtime.flatMap(RuntimeID.init(rawValue:)) ?? routing.defaultRuntime
+        store.all.first { $0.id == id }?.runtimeID ?? routing.defaultRuntime
     }
 
     /// A runner of `id` registered: its runtime's spawn backoff clears.

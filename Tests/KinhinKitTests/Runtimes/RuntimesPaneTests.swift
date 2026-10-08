@@ -48,7 +48,7 @@ final class RuntimesPaneTests: XCTestCase {
             baseConfig
             + "\nruntimes:\n  default: appleContainer\n  budget: {tart: 0.6, appleContainer: 0.4}\n  routes:\n    - pattern: \"acme/api\"\n      runtime: appleContainer\n"
         let rc = try XCTUnwrap(RuntimesConfigEditor.parsed(from: yaml))
-        XCTAssertEqual(rc.defaultRuntime, "appleContainer")
+        XCTAssertEqual(rc.defaultRuntime, .appleContainer)
         XCTAssertEqual(rc.budget["tart"] ?? 0, 0.6, accuracy: 0.0001)
         XCTAssertEqual(rc.routes.count, 1)
         XCTAssertEqual(rc.routes.first?.pattern, "acme/api")
@@ -63,9 +63,9 @@ final class RuntimesPaneTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         let rc = KinhinConfig.RuntimeConfig(
-            defaultRuntime: "tart",
+            defaultRuntime: .tart,
             budget: ["tart": 0.6, "appleContainer": 0.4],
-            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer")]
+            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: .appleContainer)]
         )
         let updated = try RuntimesConfigEditor.apply(rc, to: url)
 
@@ -77,7 +77,7 @@ final class RuntimesPaneTests: XCTestCase {
         XCTAssertTrue(updated.contains("- pattern: \"acme/api\""))
         // Everything parses through the real loader.
         let cfg = try ConfigLoader.load(from: url)
-        XCTAssertEqual(cfg.runtimes?.routes.first?.runtime, "appleContainer")
+        XCTAssertEqual(cfg.runtimes?.routes.first?.runtime, .appleContainer)
     }
 
     func testApplyReplacesExistingSectionInPlace() throws {
@@ -88,7 +88,7 @@ final class RuntimesPaneTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: url) }
 
         let rc = KinhinConfig.RuntimeConfig(
-            defaultRuntime: "appleContainer",
+            defaultRuntime: .appleContainer,
             budget: ["appleContainer": 0.5],
             routes: []
         )
@@ -112,9 +112,9 @@ final class RuntimesPaneTests: XCTestCase {
         // Routes reference appleContainer but the config has no container:
         // section — the engine's own validation must reject the write.
         let rc = KinhinConfig.RuntimeConfig(
-            defaultRuntime: "tart",
+            defaultRuntime: .tart,
             budget: [:],
-            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer")]
+            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: .appleContainer)]
         )
         XCTAssertThrowsError(try RuntimesConfigEditor.apply(rc, to: url)) { error in
             guard case ConfigEditError.validation = error else {
@@ -137,9 +137,9 @@ final class RuntimesPaneTests: XCTestCase {
 
     func testSectionTextIsQuotedAndWeightFormatted() {
         let rc = KinhinConfig.RuntimeConfig(
-            defaultRuntime: "tart",
+            defaultRuntime: .tart,
             budget: ["appleContainer": 0.35, "tart": 0.65],
-            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/x@Build & Test", runtime: "appleContainer")]
+            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/x@Build & Test", runtime: .appleContainer)]
         )
         let text = RuntimesConfigEditor.sectionText(rc)
         XCTAssertTrue(text.contains("budget:"))

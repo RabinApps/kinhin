@@ -333,9 +333,9 @@ final class HostRuntimeTests: XCTestCase {
     }
 
     func testHostPoolJoinsRoutingWhenConfigured() {
-        let routes = [KinhinConfig.RuntimeConfig.Route(pattern: "acme/scripts", runtime: "host", consent: true)]
+        let routes = [KinhinConfig.RuntimeConfig.Route(pattern: "acme/scripts", runtime: .host, consent: true)]
         let model = RuntimeConfigModel(
-            config: KinhinConfig.RuntimeConfig(defaultRuntime: "tart", routes: routes),
+            config: KinhinConfig.RuntimeConfig(defaultRuntime: .tart, routes: routes),
             fleetLabels: ["kinhin"], hostConfigured: true)
         XCTAssertTrue(model.poolExists(.host))
         // A job from the routed repo lands in the host pool.

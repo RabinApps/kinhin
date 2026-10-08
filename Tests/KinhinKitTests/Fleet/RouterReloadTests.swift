@@ -22,7 +22,7 @@ final class RouterReloadTests: XCTestCase {
         cfg.vm.memoryGB = 1
         cfg.container = .init(image: "c", cpus: 1, memoryGB: 4, labels: ["kinhin-container"])
         cfg.images = images
-        cfg.runtimes = .init(defaultRuntime: "appleContainer", budget: budget, routes: [])
+        cfg.runtimes = .init(defaultRuntime: .appleContainer, budget: budget, routes: [])
         return cfg
     }
 
@@ -97,7 +97,7 @@ final class RouterReloadTests: XCTestCase {
     func testReloadedLabelsReachTheNextSpawnsPoolLabels() {
         let engine = makeEngine(Self.mixedConfig(labels: ["self-hosted", "arm64"]))
         var record = VMRecord(id: "kinhin-1", phase: .cloning)
-        record.runtime = RuntimeID.tart.rawValue
+        record.runtimeID = .tart
         XCTAssertEqual(engine.poolLabels(for: record), ["self-hosted", "arm64"])
         engine.applyReloaded(config: Self.mixedConfig(labels: ["self-hosted", "arm64", "gpu"]), host: host)
         XCTAssertEqual(engine.poolLabels(for: record), ["self-hosted", "arm64", "gpu"])

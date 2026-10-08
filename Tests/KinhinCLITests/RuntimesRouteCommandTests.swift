@@ -87,8 +87,8 @@ final class RuntimesRouteCommandTests: XCTestCase {
         let rc = try XCTUnwrap(try routedSection(), "runtimes: section must be created")
         XCTAssertEqual(rc.routes.count, 1)
         XCTAssertEqual(rc.routes.first?.pattern, "acme/api")
-        XCTAssertEqual(rc.routes.first?.runtime, "appleContainer")
-        XCTAssertEqual(rc.defaultRuntime, "tart", "section creation uses the default runtime")
+        XCTAssertEqual(rc.routes.first?.runtime, .appleContainer)
+        XCTAssertEqual(rc.defaultRuntime, .tart, "section creation uses the default runtime")
     }
 
     func testAddPersistsCommentAboveSection() async throws {
@@ -162,7 +162,7 @@ final class RuntimesRouteCommandTests: XCTestCase {
 
         let rc = try XCTUnwrap(try routedSection())
         XCTAssertEqual(rc.routes.first?.pattern, "acme/api")
-        XCTAssertEqual(rc.routes.first?.runtime, "docker")
+        XCTAssertEqual(rc.routes.first?.runtime, .docker)
     }
 
     func testAddHostRouteWithConsentPersistsConsent() async throws {
@@ -170,7 +170,7 @@ final class RuntimesRouteCommandTests: XCTestCase {
         try await runRoute(["add", "acme/scripts", "host", "--consent"])
 
         let rc = try XCTUnwrap(try routedSection())
-        XCTAssertEqual(rc.routes.first?.runtime, "host")
+        XCTAssertEqual(rc.routes.first?.runtime, .host)
         XCTAssertEqual(rc.routes.first?.consent, true)
         XCTAssertTrue(try onDiskText().contains("consent: true"))
         XCTAssertTrue(try ConfigLoader.parse(onDiskText()).hostRoutesConfigured)
@@ -232,7 +232,7 @@ final class RuntimesRouteCommandTests: XCTestCase {
 
         let rc = try XCTUnwrap(try routedSection(), "removing the last route must not drop default/budget")
         XCTAssertTrue(rc.routes.isEmpty)
-        XCTAssertEqual(rc.defaultRuntime, "appleContainer")
+        XCTAssertEqual(rc.defaultRuntime, .appleContainer)
         XCTAssertEqual(rc.budget["tart"] ?? 0, 0.5, accuracy: 0.0001)
     }
 

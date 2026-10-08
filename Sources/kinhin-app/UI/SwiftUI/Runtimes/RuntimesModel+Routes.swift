@@ -95,7 +95,7 @@ extension RuntimesModel {
         var rc = currentRuntimeConfig ?? KinhinConfig.RuntimeConfig()
         rc.routes.append(
             KinhinConfig.RuntimeConfig.Route(
-                pattern: pattern, runtime: runtime.rawValue, consent: runtime == .host && consent ? true : nil))
+                pattern: pattern, runtime: runtime, consent: runtime == .host && consent ? true : nil))
         do {
             try RuntimesConfigEditor.apply(rc, to: configURL)
             routeOffer = nil

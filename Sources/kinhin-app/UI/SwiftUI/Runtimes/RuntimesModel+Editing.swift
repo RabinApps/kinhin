@@ -186,14 +186,13 @@ extension RuntimesModel {
     /// Default switched: only `default:` moves — every pool keeps the share
     /// it already had (the dict is re-derived so the new default's stored
     /// weight matches the remainder the engine will compute).
-    func defaultRuntimeChanged(to rawValue: String) {
+    func defaultRuntimeChanged(to newDefault: RuntimeID) {
         guard let rc = currentRuntimeConfig else { return }
-        let newDefault = RuntimeID(rawValue: rawValue) ?? defaultRuntimeID
         let shares = BudgetEditor.displayShares(current: rc.budget, defaultRuntime: newDefault)
-        commit(budget: shares, defaultRuntime: rawValue)
+        commit(budget: shares, defaultRuntime: newDefault)
     }
 
-    func commit(budget: [String: Double], defaultRuntime: String, refreshPane: Bool = true) {
+    func commit(budget: [String: Double], defaultRuntime: RuntimeID, refreshPane: Bool = true) {
         guard var rc = currentRuntimeConfig else { return }
         // Zero shares are spelled by omission upstream (ConfigLoader
         // rejects an explicit 0); drop any that slip through before the

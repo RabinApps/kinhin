@@ -144,7 +144,7 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
         vm.routes = (rc?.routes ?? []).map { route in
             RouteRow(
                 pattern: route.pattern,
-                runtime: RuntimeID(rawValue: route.runtime) ?? .tart,
+                runtime: route.runtime,
                 isWorkflow: route.pattern.contains("@")
             )
         }

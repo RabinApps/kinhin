@@ -137,7 +137,7 @@ public struct KinhinConfig: Sendable, Equatable {
     /// True when any route targets host execution (the HostRuntime joins the
     /// fleet only then — its agent check and pool never appear otherwise).
     public var hostRoutesConfigured: Bool {
-        runtimes?.routes.contains { $0.runtime == RuntimeID.host.rawValue } ?? false
+        runtimes?.routes.contains { $0.runtime == .host } ?? false
     }
 
     /// Declarative toolchain installs for one project. Every entry installs

@@ -7,7 +7,7 @@ extension FleetEngine {
     /// per-record; legacy: the engine's single runtime). Dispatches through
     /// the runtime map; the fallback is the engine's primary runtime.
     func runtime(for record: VMRecord) -> any Runtime {
-        if let id = RuntimeID(rawValue: record.runtime ?? ""), let instance = runtimesByRuntime[id] {
+        if let id = record.runtimeID, let instance = runtimesByRuntime[id] {
             return instance
         }
         return runtime
@@ -17,7 +17,7 @@ extension FleetEngine {
     /// the right `runs-on` pool (nil for records without a runtime → the
     /// forge's fleet labels).
     func poolLabels(for record: VMRecord) -> [String]? {
-        guard let runtimeID = record.runtime.flatMap(RuntimeID.init(rawValue:)) else { return nil }
+        guard let runtimeID = record.runtimeID else { return nil }
         let routerState = router.snapshot
         let images = routerState.images
         let pool = routerState.model.pools[runtimeID]?.labels

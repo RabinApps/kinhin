@@ -56,7 +56,7 @@ final class ScaleSetTargetsTests: XCTestCase {
 
     func testRuntimeHintOverridesRoutesAndDefaults() {
         let model = RuntimeConfigModel(
-            config: .init(defaultRuntime: "appleContainer", budget: [:], routes: []),
+            config: .init(defaultRuntime: .appleContainer, budget: [:], routes: []),
             fleetLabels: ["self-hosted", "arm64"], containerLabels: nil, containerConfigured: true)
         let job = ForgeJob(name: "ci / test", runnerName: nil, repository: "acme/w", labels: [], runtimeHint: .tart)
         XCTAssertEqual(model.runtime(for: job), .tart, "the set the workflow named wins over the default pool")

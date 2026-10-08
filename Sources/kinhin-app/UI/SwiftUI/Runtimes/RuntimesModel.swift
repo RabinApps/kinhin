@@ -233,7 +233,7 @@ final class RuntimesModel: ConfigFormModel {
     }
 
     var defaultRuntimeID: RuntimeID {
-        RuntimeID(rawValue: currentRuntimeConfig?.defaultRuntime ?? "") ?? .tart
+        currentRuntimeConfig?.defaultRuntime ?? .tart
     }
 
     /// One pool's share as the slider should show it: the default's share

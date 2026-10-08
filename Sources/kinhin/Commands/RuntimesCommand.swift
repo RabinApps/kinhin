@@ -160,7 +160,7 @@ enum RuntimesCommand {
             }
             rc.routes.append(
                 KinhinConfig.RuntimeConfig.Route(
-                    pattern: pattern, runtime: runtime.rawValue, consent: consent ? true : nil))
+                    pattern: pattern, runtime: runtime, consent: consent ? true : nil))
             if !hadRouting {
                 print("note: created the runtimes: section (default: \(rc.defaultRuntime))")
             }
@@ -179,7 +179,9 @@ enum RuntimesCommand {
             throw RouteError.usage(error.errorDescription ?? "config update rejected")
         }
 
-        print(op == "add" ? "✓ routed \(pattern) → \(rc.routes.last?.runtime ?? "")" : "✓ removed route \(pattern)")
+        print(
+            op == "add"
+                ? "✓ routed \(pattern) → \(rc.routes.last?.runtime.rawValue ?? "")" : "✓ removed route \(pattern)")
         let remaining = rc.routes.count
         print(remaining == 0 ? "  routes: (none — every job uses the default pool)" : "  routes: \(remaining)")
 

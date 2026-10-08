@@ -36,7 +36,7 @@ final class FleetRecoveryTests: XCTestCase {
         await engine.recoverIfNeeded()
 
         let adopted = store.all.first { $0.id == "kinhin-t1" }
-        XCTAssertEqual(adopted?.runtime, RuntimeID.tart.rawValue, "a Tart VM must not be adopted as a container")
+        XCTAssertEqual(adopted?.runtimeID, .tart, "a Tart VM must not be adopted as a container")
         await engine.detachKeepingInstances()
     }
 
@@ -46,7 +46,7 @@ final class FleetRecoveryTests: XCTestCase {
     func testRecordsSurviveAFailedListing() async {
         let store = makeTestStore()
         var record = VMRecord(id: "kinhin-t2", phase: .busy)
-        record.runtime = RuntimeID.tart.rawValue
+        record.runtimeID = .tart
         store.upsert(record)
         let (engine, tart) = makeMixedEngine(store: store)
         tart.failList = true
@@ -65,21 +65,21 @@ final class FleetRecoveryTests: XCTestCase {
         await engine.recoverIfNeeded()
 
         let record = store.all.first { $0.id == "kinhin-t1" }
-        XCTAssertEqual(record?.runtime, RuntimeID.tart.rawValue)
+        XCTAssertEqual(record?.runtimeID, .tart)
         await engine.detachKeepingInstances()
     }
 
     func testRecordWithRuntimeIsLeftAsIs() async {
         let store = makeTestStore()
         var record = VMRecord(id: "kinhin-t1", phase: .ready)
-        record.runtime = RuntimeID.tart.rawValue
+        record.runtimeID = .tart
         store.upsert(record)
         let (engine, _) = makeMixedEngine(store: store)
 
         await engine.recoverIfNeeded()
 
         XCTAssertEqual(store.all.map(\.id), ["kinhin-t1"])
-        XCTAssertEqual(store.all.first?.runtime, RuntimeID.tart.rawValue)
+        XCTAssertEqual(store.all.first?.runtimeID, .tart)
         await engine.detachKeepingInstances()
     }
 
@@ -89,7 +89,7 @@ final class FleetRecoveryTests: XCTestCase {
     func testBusyInstanceIsNotReRegisteredOnRecovery() async throws {
         let store = makeTestStore()
         var record = VMRecord(id: "kinhin-t1", phase: .busy)
-        record.runtime = RuntimeID.tart.rawValue
+        record.runtimeID = .tart
         store.upsert(record)
         var config = makeTestConfig()
         config.vm.ephemeral = true

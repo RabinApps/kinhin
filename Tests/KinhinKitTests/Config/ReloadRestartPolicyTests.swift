@@ -13,8 +13,8 @@ final class ReloadRestartPolicyTests: XCTestCase {
         XCTAssertFalse(FleetEngine.restartRequired(from: base, to: base), "identical configs never restart")
         var routes = makeTestConfig()
         routes.runtimes = .init(
-            defaultRuntime: "appleContainer", budget: ["tart": 0.5, "appleContainer": 0.5],
-            routes: [.init(pattern: "acme/api", runtime: "appleContainer")])
+            defaultRuntime: .appleContainer, budget: ["tart": 0.5, "appleContainer": 0.5],
+            routes: [.init(pattern: "acme/api", runtime: .appleContainer)])
         XCTAssertFalse(FleetEngine.restartRequired(from: base, to: routes), "routes/budget/default are hot-reloaded")
         var labels = makeTestConfig()
         labels.labels = ["kinhin", "extra"]

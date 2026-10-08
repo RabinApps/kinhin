@@ -168,7 +168,7 @@ final class RoutingTests: XCTestCase {
     /// The sheet's verdict order (empty → duplicate → consent) and its
     /// trimming rule, pinned without any UI.
     func testPatternProblemVerdicts() {
-        let existing = [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "tart", consent: nil)]
+        let existing = [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: .tart, consent: nil)]
         XCTAssertEqual(
             RuntimesModel.patternProblem("", existing: existing, runtime: .tart, consent: false),
             "Enter a repository (owner/repo) first.")

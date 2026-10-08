@@ -35,9 +35,9 @@ final class DockerLifecycleTests: XCTestCase {
 
         let status = await engine.status()
         let record = try XCTUnwrap(status.records.first)
-        XCTAssertEqual(record.runtime, RuntimeID.docker.rawValue)
+        XCTAssertEqual(record.runtimeID, .docker)
         XCTAssertEqual(
-            status.runtime, RuntimeID.docker.rawValue,
+            status.runtimeID, .docker,
             "docker is the primary runtime when only docker: is configured"
         )
         XCTAssertNil(record.ip, "docker records carry no IP — there is no SSH transport")
@@ -143,7 +143,7 @@ final class DockerLifecycleTests: XCTestCase {
 
         let status = await engine.status()
         let record = try XCTUnwrap(status.records.first(where: { $0.id == "kinhin-stray" }))
-        XCTAssertEqual(record.runtime, RuntimeID.docker.rawValue)
+        XCTAssertEqual(record.runtimeID, .docker)
         let argvs = shell.argvSnapshot()
         XCTAssertTrue(
             argvs.contains { $0.contains("exec") && $0.contains("/bin/bash") },
@@ -448,8 +448,8 @@ final class DockerLifecycleTests: XCTestCase {
             await engine.status().records.first?.phase == .ready
         }
         let status = await engine.status()
-        XCTAssertEqual(status.runtime, RuntimeID.tart.rawValue)
-        XCTAssertEqual(status.records.first?.runtime, RuntimeID.tart.rawValue)
+        XCTAssertEqual(status.runtimeID, .tart)
+        XCTAssertEqual(status.records.first?.runtimeID, .tart)
         XCTAssertNotNil(status.records.first?.ip, "tart records carry the VM IP")
         XCTAssertTrue(!ssh.scripts.isEmpty, "tart lifecycle registers over SSH")
         XCTAssertEqual(tart.cloneCalls.count, 1)

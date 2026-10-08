@@ -60,18 +60,18 @@ public struct ResourceProbe: Sendable {
     /// Assumed disk footprint (GB) of one runner instance when the config
     /// doesn't pin one: a linked-clone Tart VM grows toward tens of GB
     /// (Xcode-class toolchains), while Linux container slots stay small.
-    public static let defaultDiskPerVM: [String: Int] = [
-        RuntimeID.tart.rawValue: 50,
-        RuntimeID.appleContainer.rawValue: 8,
-        RuntimeID.docker.rawValue: 8,
-        RuntimeID.host.rawValue: 0,
+    public static let defaultDiskPerVM: [RuntimeID: Int] = [
+        .tart: 50,
+        .appleContainer: 8,
+        .docker: 8,
+        .host: 0,
     ]
 
     /// The per-instance disk footprint the scaler plans with: the config's
     /// explicit `disk_gb` when set (0 = intentionally none), otherwise the
     /// runtime's default estimate. Keeps `Capacity.plan`, the pre-spawn disk
     /// guard, and `kinhin doctor` on one number.
-    public static func effectiveDiskPerVMGB(diskGB: Int?, runtime: String) -> Int {
+    public static func effectiveDiskPerVMGB(diskGB: Int?, runtime: RuntimeID) -> Int {
         if let diskGB { return max(0, diskGB) }
         return defaultDiskPerVM[runtime] ?? 50
     }

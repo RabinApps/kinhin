@@ -14,14 +14,14 @@ final class RuntimeRoutingTests: XCTestCase {
 
     private func mixedRoutes() -> [KinhinConfig.RuntimeConfig.Route] {
         [
-            KinhinConfig.RuntimeConfig.Route(pattern: "acme/ios-app", runtime: "tart"),
-            KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "appleContainer"),
-            KinhinConfig.RuntimeConfig.Route(pattern: "acme/web@Linux-only checks", runtime: "appleContainer"),
+            KinhinConfig.RuntimeConfig.Route(pattern: "acme/ios-app", runtime: .tart),
+            KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: .appleContainer),
+            KinhinConfig.RuntimeConfig.Route(pattern: "acme/web@Linux-only checks", runtime: .appleContainer),
         ]
     }
 
     private func mixedConfig(
-        defaultRuntime: String = "tart", budget: [String: Double] = ["tart": 0.6, "appleContainer": 0.4]
+        defaultRuntime: RuntimeID = .tart, budget: [String: Double] = ["tart": 0.6, "appleContainer": 0.4]
     ) -> KinhinConfig.RuntimeConfig {
         KinhinConfig.RuntimeConfig(defaultRuntime: defaultRuntime, budget: budget, routes: mixedRoutes())
     }
@@ -31,9 +31,9 @@ final class RuntimeRoutingTests: XCTestCase {
         cfg.accounts = [AccountConfig(name: "github", forge: .github, scope: "acme")]
         cfg.docker = .init(image: "ghcr.io/acme/kinhin-ci-linux", cpus: 2, memoryGB: 4, maxSlots: 8)
         cfg.runtimes = KinhinConfig.RuntimeConfig(
-            defaultRuntime: "tart",
+            defaultRuntime: .tart,
             budget: ["tart": 0.5, "docker": 0.5],
-            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: "docker")]
+            routes: [KinhinConfig.RuntimeConfig.Route(pattern: "acme/api", runtime: .docker)]
         )
         return cfg
     }
@@ -265,7 +265,7 @@ final class RuntimeRoutingTests: XCTestCase {
                   runtime: appleContainer
             """)
         let runtimes = try XCTUnwrap(cfg.runtimes)
-        XCTAssertEqual(runtimes.defaultRuntime, "tart")
+        XCTAssertEqual(runtimes.defaultRuntime, .tart)
         XCTAssertEqual(runtimes.routes.count, 2)
         XCTAssertEqual(runtimes.routes.first?.pattern, "acme/api")
         XCTAssertEqual(runtimes.budget["appleContainer"], 0.4)

@@ -363,8 +363,8 @@ final class AppleContainerRuntimeTests: XCTestCase {
         }
         let status = await engine.status()
         let record = try XCTUnwrap(status.records.first)
-        XCTAssertEqual(record.runtime, RuntimeID.appleContainer.rawValue)
-        XCTAssertEqual(status.runtime, RuntimeID.appleContainer.rawValue)
+        XCTAssertEqual(record.runtimeID, .appleContainer)
+        XCTAssertEqual(status.runtimeID, .appleContainer)
         XCTAssertNil(record.ip, "container records carry no IP — there is no SSH transport")
 
         // The lifecycle used container run/exec (provision) and exec (registration).
@@ -390,8 +390,8 @@ final class AppleContainerRuntimeTests: XCTestCase {
             return status.records.first?.phase == .registering || status.records.first?.phase == .ready
         }
         let status = await engine.status()
-        XCTAssertEqual(status.runtime, RuntimeID.tart.rawValue)
-        XCTAssertEqual(status.records.first?.runtime, RuntimeID.tart.rawValue)
+        XCTAssertEqual(status.runtimeID, .tart)
+        XCTAssertEqual(status.records.first?.runtimeID, .tart)
         XCTAssertNotNil(status.records.first?.ip, "tart records carry the VM IP")
         XCTAssertTrue(!ssh.scripts.isEmpty, "tart lifecycle registers over SSH")
         XCTAssertEqual(tart.cloneCalls.count, 1)

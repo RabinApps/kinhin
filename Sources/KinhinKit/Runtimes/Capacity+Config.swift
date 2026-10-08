@@ -21,7 +21,7 @@ extension Capacity {
             vmMemoryGB: shape.memoryGB,
             reservedCPU: config.reserve.cpu,
             reservedMemoryGB: config.reserve.memoryGB,
-            diskPerVMGB: ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: primary.rawValue),
+            diskPerVMGB: ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: primary),
             userMax: config.maxRunners
         )
     }

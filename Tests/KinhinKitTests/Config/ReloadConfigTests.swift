@@ -27,7 +27,7 @@ final class ReloadConfigTests: XCTestCase {
     func mixedConfig(budget: [String: Double], routes: [KinhinConfig.RuntimeConfig.Route]) -> KinhinConfig {
         var cfg = makeTestConfig()
         cfg.container = .init(image: "kinhin-ci-linux", cpus: 2, memoryGB: 4)
-        cfg.runtimes = .init(defaultRuntime: "tart", budget: budget, routes: routes)
+        cfg.runtimes = .init(defaultRuntime: .tart, budget: budget, routes: routes)
         return cfg
     }
 
@@ -42,7 +42,7 @@ final class ReloadConfigTests: XCTestCase {
 
         let reloaded = mixedConfig(
             budget: ["tart": 0.6, "appleContainer": 0.4],
-            routes: [.init(pattern: "acme/api", runtime: "appleContainer")]
+            routes: [.init(pattern: "acme/api", runtime: .appleContainer)]
         )
         engine.applyReloaded(config: reloaded, host: host)
 
@@ -71,7 +71,7 @@ final class ReloadConfigTests: XCTestCase {
         // One queued job on acme/api, routed to containers after reload.
         github.queueDepth = 1
 
-        let reloaded = mixedConfig(budget: [:], routes: [.init(pattern: "acme/api", runtime: "appleContainer")])
+        let reloaded = mixedConfig(budget: [:], routes: [.init(pattern: "acme/api", runtime: .appleContainer)])
         engine.applyReloaded(config: reloaded, host: host)
 
         // Reconcile is async; demand bucketing uses the reloaded model. We
