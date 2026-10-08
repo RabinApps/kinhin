@@ -9,9 +9,13 @@ Read [CONTRIBUTING.md](../CONTRIBUTING.md) first for the build, test, style and 
 ## How to use this checklist
 
 1. Make the [design decisions](#1-decide-first) before writing code. They drive every later step.
-2. Add the `ForgeID` case first. Every `switch` over `ForgeID` is exhaustive with no `default`, so `swift build` then
-   lists most of the sites you must touch.
-3. Work through sections A to H. Sections marked **manual** contain sites the compiler cannot find.
+2. Add the `ForgeID` case first, then one `<Name>Descriptor` conformance of `ForgeDescriptor` and its one arm in
+   `ForgeID.descriptor` (`Forges/Forge/ForgeDescriptor.swift`, the only exhaustive switch over forges in `KinhinKit`).
+   The compiler then lists what the descriptor still needs. Everything a forge varies on in the kit (display name, scope
+   grammar, account parsing, the runner agent, registration scripts, forge construction, the token-check client) is a
+   member of that one type, so the rest of the engine iterates descriptors instead of switching.
+3. Work through sections A to H. The CLI and app (sections E and F) still have their own exhaustive switches. Sections
+   marked **manual** contain sites the compiler cannot find.
 4. Finish with the [completeness check](#completeness-check) and the [verification](#verification) commands.
 
 Keep each stage in its own commit (see [Commit plan](#commit-plan)). `swift build` and `swift test` must pass on every
@@ -33,7 +37,7 @@ commit. Do not commit or push unless asked.
 ### A. Forge layer (`Sources/KinhinKit/Forges/`)
 
 1. **`Forge.swift`**
-   - Add `case <id>` to `ForgeID` with a doc comment, and the `displayName` arm.
+   - Add `case <id>` to `ForgeID` with a doc comment. The display name comes from the descriptor (step 6).
    - The raw value is load-bearing. It is the Keychain account (`<raw>-pat[:name]`), the `--<raw>` CLI flag, the `forge:`
      value in `config.yaml` and the icon filename. Never rename it later.
    - Case order is the display order in the app pickers, CLI help and config errors.
@@ -77,29 +81,34 @@ commit. Do not commit or push unless asked.
    - Cache runner and job lists with `SharedListCache` (3 s TTL). The exit watch polls every second.
 
 5. **`TokenRequirements.swift`**: add `static func <id>(scope:)`. It is shown in the app and CLI as "token permissions".
-6. **`TokenHealthCheck.swift`**: add `public static func <id>(token:scope:...) async -> Report`, then fill in the
-   exhaustive switches: `check(forge:config:keychainToken:...)`, `account(_:token:)` and
-   `repositories(forge:token:instance:allowInsecureHTTP:)`.
+6. **`<Name>Descriptor.swift`** (next to the forge, `struct <Name>Descriptor: ForgeDescriptor`) is the one place the
+   per-forge facts live. Besides what sections B to D list, it provides:
+   - `displayName`, `isSelfHosted`, `scopeHint`, `isValidScope(_:)`, and `isSingleRepositoryScope(_:)` when the default
+     (`owner/name`) is wrong;
+   - `makeAdmin(account:token:)`, returning a `ForgeAdmin` (`checkToken()` and `listScopes()`) that backs
+     `TokenHealthCheck.check/account/repositories`. Also add `public static func <id>(token:scope:...) async -> Report`
+     to `TokenHealthCheck.swift`; the admin calls it and the CLI's `AuthEnvironment` uses it directly.
 7. **`Core/ErrorCategory.swift`**: add `is <Name>Error` to the `.auth` case list (`ForgeAPIError` is already there).
 
 ### B. Config (`Sources/KinhinKit/Config/`)
 
-8. **`AccountConfig.swift`**: add arms to `isValidScope(_:forge:)` and `isSingleRepositoryScope`. Do not add the forge
-   to `reservedNames`. That set is only `github`, `gitea` and `forgejo`.
-9. **`ConfigLoader+Sections.swift`, `parseAccounts`**
-   - The scope-error `switch`.
-   - **Manual:** the `selfHosted` array literal is not exhaustive. Add the forge only if it supports
-     `allow_insecure_http`, and update that error message's list.
-   - The per-forge `switch forge`: validate `instance` (required or forbidden) and `labels` (non-empty, reserved names,
-     format), then build `AccountConfig`.
+8. **Descriptor scope members.** `AccountConfig.isValidScope(_:forge:)` and `isSingleRepositoryScope` delegate to the
+   descriptor (`isValidScope`, `isSingleRepositoryScope`); `scopeHint` feeds the config error message. Do not add the
+   forge to `reservedNames`. That set is only `github`, `gitea` and `forgejo`.
+9. **`ConfigLoader+Accounts.swift`**
+   - Write `static func parse<Name>Account(_:)`: validate `instance` (required or forbidden) and `labels` (non-empty,
+     reserved names, format), then build `AccountConfig`. The descriptor's `parseAccount(_:)` calls it.
+   - `isSelfHosted` on the descriptor decides whether `allow_insecure_http` and `instance` are accepted, and feeds that
+     error message's list.
    - The "unknown forge" message is derived from `ForgeID.allCases`.
 10. `ConfigDTO`, `ConfigModel`, `ConfigLoader` and `AccountsConfigEditor` need no change. `ConfigTemplate.swift` has
     only commented GitHub, Gitea and GitLab examples. Adding a commented example is optional.
 
 ### C. Engine
 
-11. **`Fleet/FleetEngine+Accounts.swift`, `attach(account:token:verify:)`**: add the arm calling `<Name>Forge.make(...)`.
-    Pass `account.allowInsecureHTTP ?? false` for self-hosted forges.
+11. **Descriptor `makeForge(_ build: ForgeBuild)`**: call `<Name>Forge.make(...)` with the account's credentials, labels
+    and name (`FleetEngine.attach` just asks the descriptor). Pass `account.allowInsecureHTTP ?? false` for self-hosted
+    forges and throw `EngineError.accountUnverified` for a missing required instance.
 12. **`Core/LogRedactor.swift`** (**manual**): add a pattern for the forge's token prefix, and a case in
     `LogRedactorTests`. Register per-runner secrets with `LogRedactor.registerSecret` when they are created.
 13. `FleetLifecycle`, `ForgeDemand`, `FleetReconcile`, the Keychain store and the RPC token swap are generic. Touch them
@@ -109,11 +118,15 @@ commit. Do not commit or push unless asked.
 
 The runner has to be installed (in the base image, or on the host) and started for each runtime.
 
-14. **Registration scripts**: one per runtime. The compiler finds these switches on `forge.credentials.forge`:
-    - `Runtimes/Runtime.swift`, `TartRuntime.registrationScript` (guest may be macOS or Linux, so paths use `$HOME/...`).
-    - `Runtimes/LinuxContainerCLI.swift` (Apple container and Docker, `/opt/<agent>` layout).
-    - `Runtimes/HostRuntime.swift` plus a new `Runtimes/HostRuntime+<Name>.swift`, including a `stop<Name>...` method
-      called from teardown (compare `stopGitLabRunners`) so host runners die with the instance.
+14. **Registration scripts**: the descriptor's `registrationScript(for: RegistrationGuest, _ request:)` switches over
+    the three guests (the compiler enforces all three):
+    - `.tartVM` (guest may be macOS or Linux, so paths use `$HOME/...`).
+    - `.linuxContainer` (Apple container and Docker, `/opt/<agent>` layout).
+    - `.host(HostRuntime)`: add `Runtimes/HostRuntime/HostRuntime+<Name>.swift` with the script builder and a
+      `stop<Name>...` method (compare `stopGitLabRunners`), and name the stop in the agent spec's `host.stop` so host
+      runners die with the instance. Agents recording a pid file must not remove another agent's live pid (see
+      `stopRecordedAgents`).
+    The runtimes prepend the toolchain-cache exports; do not add them yourself.
 15. **`Images/RunnerBootstrap/RunnerBootstrap+<Name>.swift`**
     - Registration script: write credentials to a `umask 077` private file read inside the background job, delete it
       after the agent reads it, and never export secrets into the job environment or put them in `ps`.
@@ -122,15 +135,19 @@ The runner has to be installed (in the base image, or on the host) and started f
       `RunnerBootstrap+Verification.swift`, and pin by digest or vendor checksum.
     - If runner names map to credentials, follow `bitbucketRunners(name:runnerCount:tokens:)` and
       `FleetEngine.runnerNames(for:count:)`.
-16. **`Images/RunnerVersions.swift`**: add the version fields and init parameter defaults, `pinned<Name>` constants (with
-    a digest map if the vendor publishes none), a `fallback` entry, and optionally a `latest<Name>()` feed. Add any
+16. **`Images/RunnerVersions.swift`**: add the version field and init parameter default, a `pinned<Name>` constant (with
+    a digest map if the vendor publishes none), a `fallback` entry, and the `Versions(resolved:)` line. Add any
     architecture token to `Images/LinuxPlatform.swift`.
-17. **Baking and installing** (**manual**: none of these are exhaustive switches, and each is easy to forget):
-    - `Images/ImagePreparer.swift`: add `has<Name>Token` to `Options` and its init, the `AccountTokens.anyStored(for:)`
-      probe, the no-credentials guard, and an install block per `guestOS`.
-    - `Images/LinuxImageBaker.swift`: the same, in `LinuxImageOptions`.
-    - `Setup/HostAgentInstaller.swift`: an `include<Name>` flag, extend the `configured == nil` guard, add
-      `<name>Installed` to `isInstalled`, an install block, an `installedSummary` line, and a post-install check.
+17. **The runner agent: `static let <name> = RunnerAgentSpec(...)`** in the descriptor file, returned by the descriptor's
+    `agent` (forges that run one binary, like Gitea and Forgejo, return the same spec). It is data:
+    - `key`, `forges`, `order` (bake and install order), and the `credential` / `artifact` wording for log lines;
+    - `version` and the optional `feed` (`ReleaseFeed`: URL, name, `excludesDashes`); no feed means the pinned version;
+    - `bake`: the install script for a macOS VM, a Tart Linux VM and a Linux container (`RunnerBootstrap` functions);
+    - `host`: whether it is `required` on the host, the file whose presence means installed, its install script, the
+      missing-file wording and the summary name.
+    `ImagePreparer`, `LinuxImageBaker`, `RunnerVersionResolver` and `HostAgentInstaller` iterate `RunnerAgentSpec.all`, so
+    nothing else changes. Tests that must not probe the Keychain pass `storedTokens: [.<id>]` (a `Set<ForgeID>`) in
+    `ImagePreparer.Options` / `LinuxImageOptions`.
 
 ### E. CLI (`Sources/kinhin/Commands/`)
 
@@ -166,12 +183,11 @@ The runner has to be installed (in the base image, or on the host) and started f
     - `ForgeTransportTests` for untrusted page-link hosts, and `TokenRequirementsTests`.
 26. `Tests/KinhinKitTests/Images/<Name>RegistrationScriptTests`: paths per runtime, the private credential file, start
     flags, install-script digest and platform segments. Extend `ImagePreparerTests` and `TartLinuxBakeScriptTests`.
-    Pass `has<Name>Token: false` alongside the other forges' overrides in `ForgeTests`, `ImagePreparerTests` and
-    `LinuxImageBakerTests`, so no test probes the real Keychain.
+    Tests set `storedTokens` to the forges they bake (never nil), so no test probes the real Keychain.
 27. `Tests/KinhinKitTests/Config/`: a `<Name>AccountConfigTests` file, `InsecureHTTPAccountConfigTests` (hosted forges
     reject `allow_insecure_http`), and `HostScopeValidationTests` if relevant.
-28. `Tests/KinhinKitTests/Setup/HostAgentInstallerTests`: add `<name>:` to the `installer(...)` helper, with tests for
-    the install script, `isInstalled` and the summary.
+28. `Tests/KinhinKitTests/Setup/HostAgentInstallerTests`: add `<name>:` to the `installer(...)` helper (it builds the
+    `including:` set), with tests for the install script, `isInstalled` and the summary.
 29. `Tests/KinhinKitTests/Core/LogRedactorTests`, and `RunnerVersionResolverTests` if you added a feed.
 30. CLI: `ConfigInitAndHelpTests` (flag list and help blurb), `AuthTestSupport` (add `checked<Name>` to the recorder and
     wire `env.check<Name>`), and a round-trip test in `AuthAccountsCommandTests`.
@@ -200,16 +216,13 @@ The runner has to be installed (in the base image, or on the host) and started f
 
 ## What the compiler finds, and what it does not
 
-| `swift build` finds                                                                | Find these yourself (**manual**)                                                                       |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `ForgeID.displayName`, `AccountConfig.isValidScope` and `isSingleRepositoryScope`  | The `selfHosted` array in `parseAccounts`                                                              |
-| `parseAccounts` switches, `FleetEngine.attach`                                     | `AccountTokens.anyStored` probes and the no-credentials guard in `ImagePreparer` and `LinuxImageBaker` |
-| `TokenHealthCheck` switches                                                        | `HostAgentInstaller` flags, install block and summary                                                  |
-| `AuthCommand` switches                                                             | `LogRedactor` patterns                                                                                 |
-| `registrationScript` in Tart, container and host runtimes                          | `HelpText` strings                                                                                     |
-| `ForgeConnectionModel`, `ForgeConnectionModel+Config` and `AccountsModel` switches | `ForgeConnectionModel` and `AccountsModel` booleans                                                    |
-|                                                                                    | `WizardModelTests` hardcoded string, test-helper overrides (`has<Name>Token: false`)                   |
-|                                                                                    | Icon (caught by `ForgeIconTests`), all docs mentions and the website sidebar                           |
+| `swift build` finds                                                                 | Find these yourself (**manual**)                                                                       |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ForgeID.descriptor` has no arm; every `ForgeDescriptor` requirement (display name, scope, agent, registration scripts per guest, `makeForge`, `makeAdmin`, `parseAccount`) | `LogRedactor` patterns                                                                                 |
+| `AuthCommand` switches                                                              | `HelpText` strings                                                                                     |
+| `ForgeConnectionModel`, `ForgeConnectionModel+Config` and `AccountsModel` switches  | `ForgeConnectionModel` and `AccountsModel` booleans                                                    |
+|                                                                                     | `WizardModelTests` hardcoded string, `storedTokens` in bake tests                                      |
+|                                                                                     | Icon (caught by `ForgeIconTests`), all docs mentions and the website sidebar                           |
 
 ## Gotchas
 
