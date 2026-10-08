@@ -24,7 +24,7 @@ final class ConfigTests: XCTestCase {
         let cfg = try ConfigLoader.parse(yaml)
         XCTAssertEqual(cfg.repo, "acme/widgets")
         XCTAssertEqual(cfg.labels, ["kinhin"])
-        XCTAssertEqual(cfg.maxRunners, 1)  // default
+        XCTAssertEqual(cfg.maxRunners, KinhinConfig.default.maxRunners)  // default
         XCTAssertEqual(cfg.runnersPerVM, 1)  // default: classic one-runner-per-VM
         XCTAssertEqual(cfg.vm.cpuCount, 4)
     }

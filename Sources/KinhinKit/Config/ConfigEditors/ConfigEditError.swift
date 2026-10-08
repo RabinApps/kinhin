@@ -33,21 +33,6 @@ extension ConfigEditError {
     /// "data isn't in the correct format".
     static func decoding(_ error: Error) -> ConfigEditError {
         guard let decoding = error as? DecodingError else { return .validation(error.localizedDescription) }
-        func path(_ context: DecodingError.Context) -> String {
-            let keys = context.codingPath.map { $0.intValue.map { "[\($0)]" } ?? $0.stringValue }
-            return keys.isEmpty ? "config" : keys.joined(separator: ".").replacingOccurrences(of: ".[", with: "[")
-        }
-        switch decoding {
-        case .typeMismatch(let type, let context):
-            return .validation("\(path(context)) must be \(type)")
-        case .valueNotFound(let type, let context):
-            return .validation("\(path(context)) must be \(type), found nothing")
-        case .keyNotFound(let key, let context):
-            return .validation("\(path(context)) is missing \(key.stringValue)")
-        case .dataCorrupted(let context):
-            return .validation("\(path(context)): \(context.debugDescription)")
-        @unknown default:
-            return .validation(decoding.localizedDescription)
-        }
+        return .validation(decoding.configDescription)
     }
 }

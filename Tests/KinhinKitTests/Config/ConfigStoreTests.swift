@@ -27,7 +27,11 @@ final class ConfigStoreTests: XCTestCase {
     func testUnreadableFileThrowsInsteadOfReadingAsEmpty() {
         // A directory exists at the path but cannot be read as text.
         XCTAssertThrowsError(try ConfigStore.text(at: dir)) { error in
-            XCTAssertEqual(error as? ConfigError, .unreadable(dir.path))
+            guard case ConfigError.unreadable(let path, let reason) = error else {
+                return XCTFail("expected unreadable, got \(error)")
+            }
+            XCTAssertEqual(path, dir.path)
+            XCTAssertFalse(reason.isEmpty, "the underlying cause must be kept")
         }
     }
 
