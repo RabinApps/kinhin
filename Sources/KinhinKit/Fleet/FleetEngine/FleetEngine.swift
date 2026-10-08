@@ -176,7 +176,8 @@ public final class FleetEngine: Sendable {
         }
         self.runtimesByRuntime = runtimes
         self.usageSampler = UsageSampler(
-            tart: tart, shell: shell, tartMemoryMB: { [config] in config.vm.memoryGB * 1024 })
+            tart: tart, shell: shell, tartMemoryMB: { [config] in config.vm.memoryGB * 1024 },
+            tartCPUCount: { [config] in config.vm.cpuCount })
         self.runtime = runtimes[Capacity.primaryRuntime(of: config)] ?? tartRuntime
         self.config = config
         self.tart = tart

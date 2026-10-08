@@ -26,6 +26,8 @@ final class UsageSampler: Sendable {
     private let shell: ShellRunning
     private let hostProbe: HostUsageProbe
     private let tartMemoryMB: @Sendable () -> Int
+    /// vCPUs per Tart VM; the host process's CPU rate is divided by this.
+    private let tartCPUCount: @Sendable () -> Int
     /// Builds the per-tool container client (tests inject a canned binary).
     private let makeContainer: @Sendable (ContainerTool, ShellRunning) -> ContainerManager
     private let minInterval: Duration
@@ -35,7 +37,8 @@ final class UsageSampler: Sendable {
 
     init(
         tart: TartControlling, shell: ShellRunning, hostProbe: HostUsageProbe = HostUsageProbe(),
-        tartMemoryMB: @escaping @Sendable () -> Int, minInterval: Duration = .seconds(2),
+        tartMemoryMB: @escaping @Sendable () -> Int, tartCPUCount: @escaping @Sendable () -> Int = { 1 },
+        minInterval: Duration = .seconds(2),
         maxStale: Duration = .seconds(30),
         makeContainer: @escaping @Sendable (ContainerTool, ShellRunning) -> ContainerManager = {
             ContainerManager(tool: $0, shell: $1)
@@ -45,6 +48,7 @@ final class UsageSampler: Sendable {
         self.shell = shell
         self.hostProbe = hostProbe
         self.tartMemoryMB = tartMemoryMB
+        self.tartCPUCount = tartCPUCount
         self.makeContainer = makeContainer
         self.minInterval = minInterval
         self.maxStale = maxStale
@@ -138,6 +142,13 @@ final class UsageSampler: Sendable {
             return [:]
         }
         let limit = tartMemoryMB()
+        let cores = Double(max(1, tartCPUCount()))
+        // The host process maps all guest RAM, so ask the guest for its real use.
+        var guestMB: [String: Int] = [:]
+        await withTaskGroup(of: (String, Int?).self) { group in
+            for name in samples.keys { group.addTask { (name, await self.tart.guestMemoryUsedMB(of: name)) } }
+            for await (name, mb) in group { if let mb { guestMB[name] = mb } }
+        }
         return state.withLock { state in
             var out: [String: ResourceUsage] = [:]
             for (name, sample) in samples {
@@ -145,15 +156,17 @@ final class UsageSampler: Sendable {
                 if let before = state.processCPU[name] {
                     let wall = (now - before.at) / .seconds(1)
                     if wall > 0, sample.cpuSeconds >= before.seconds {
-                        cpu = (sample.cpuSeconds - before.seconds) / wall * 100
+                        // Percent of the VM's own cores, like the host line.
+                        cpu = min(100, (sample.cpuSeconds - before.seconds) / wall * 100 / cores)
                     }
                 }
                 state.processCPU[name] = (sample.cpuSeconds, now)
                 // The host process carries its own overhead above the guest:
                 // never report more than the guest is allowed.
-                let rssMB = limit > 0 ? min(sample.rssMB, limit) : sample.rssMB
+                let hostMB = guestMB[name] ?? sample.rssMB
+                let usedMB = limit > 0 ? min(hostMB, limit) : hostMB
                 out[name] = ResourceUsage(
-                    cpuPercent: cpu, memoryUsedMB: rssMB, memoryLimitMB: limit > 0 ? limit : nil)
+                    cpuPercent: cpu, memoryUsedMB: usedMB, memoryLimitMB: limit > 0 ? limit : nil)
             }
             state.processCPU = state.processCPU.filter { samples[$0.key] != nil }
             return out

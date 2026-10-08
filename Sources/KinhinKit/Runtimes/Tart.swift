@@ -75,6 +75,10 @@ public protocol TartControlling: Sendable {
     /// memory and cumulative CPU time. Names with no live process are absent.
     /// The default reports nothing (fakes, stand-ins).
     func processSamples(of names: [String]) async throws -> [String: ProcessSample]
+    /// Memory the guest itself is using (MB), read over the guest agent. The
+    /// host process maps the whole guest RAM, so its RSS cannot show this.
+    /// Nil when the guest cannot answer. The default reports nothing.
+    func guestMemoryUsedMB(of name: String) async -> Int?
 }
 
 public extension TartControlling {
@@ -87,6 +91,7 @@ public extension TartControlling {
     func rotateGuestHostKey(vm: String) async throws -> String? { nil }
     func allowKeys(_ key: String) async throws {}
     func processSamples(of names: [String]) async throws -> [String: ProcessSample] { [:] }
+    func guestMemoryUsedMB(of name: String) async -> Int? { nil }
 }
 
 /// Real implementation that shells out to the tart binary.

@@ -184,7 +184,8 @@ extension FleetEngine {
         guard !state.paused else { return outcome }
 
         // 4. Spawn up to desired, then 5. scale idle surplus down.
-        try await spawn(upTo: desired, active: active, demand: demand, attached: attached)
+        let spawnTarget = spawnTarget(desired: desired, active: active, demand: demand)
+        try await spawn(upTo: spawnTarget, active: active, demand: demand, attached: attached)
         await scaleDown(active: active, desired: desired, demand: demand)
         return outcome
     }
@@ -277,6 +278,22 @@ extension FleetEngine {
         }
         await attributeRunningJobs(attached)
         return demand
+    }
+
+    /// The instance count to spawn up to. `desired` compares total demand with
+    /// total instances, so an idle or busy instance in one pool would hide a job
+    /// waiting on another (a finished container masking a queued Xcode job).
+    /// Each pool's own unmet demand is therefore added on top, within the same cap.
+    func spawnTarget(desired: Int, active: Int, demand: Demand) -> Int {
+        let runnersPerVM = max(1, config.runnersPerVM)
+        let activeByPool = activeByRuntime()
+        var unmetVMs = 0
+        for (pool, jobs) in demand.byPool {
+            let wanted = Int(ceil(Double(jobs) / Double(runnersPerVM)))
+            unmetVMs += max(0, wanted - (activeByPool[pool] ?? 0))
+        }
+        let cap = min(config.maxRunners, capacity.maxConcurrent)
+        return min(cap, max(desired, active + unmetVMs))
     }
 
     /// The desired instance count for `queueDepth`, published with the caps

@@ -3,7 +3,8 @@ import Foundation
 /// Live CPU and RAM use of one VM or container. Every field is optional:
 /// a probe that cannot measure a value leaves it nil rather than reporting 0.
 public struct ResourceUsage: Codable, Sendable, Equatable {
-    /// Percent of one core (Docker's convention), so 250 means 2.5 cores busy.
+    /// Containers: percent of one core (Docker's convention), so 250 means 2.5
+    /// cores busy. Tart VMs: percent of the VM's own cores (0–100).
     public var cpuPercent: Double?
     public var memoryUsedMB: Int?
     /// The configured memory ceiling, when the source reports one.

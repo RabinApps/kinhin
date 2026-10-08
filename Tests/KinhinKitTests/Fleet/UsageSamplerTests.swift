@@ -6,7 +6,11 @@ import XCTest
 
 /// Counts `processSamples` calls (and can park them) behind an otherwise inert tart.
 private final class CountingTart: TartControlling, Sendable {
-    private let state = Mutex((calls: 0, release: true))
+    private let state = Mutex((calls: 0, release: true, cpuStep: 0.0, guestMB: Int?.none))
+    /// CPU seconds added per `processSamples` call (0 = flat).
+    func setCPUStep(_ step: Double) { state.withLock { $0.cpuStep = step } }
+    func setGuestMB(_ mb: Int?) { state.withLock { $0.guestMB = mb } }
+    func guestMemoryUsedMB(of name: String) async -> Int? { state.withLock { $0.guestMB } }
     var calls: Int { state.withLock { $0.calls } }
     func hold() { state.withLock { $0.release = false } }
     func release() { state.withLock { $0.release = true } }
@@ -14,7 +18,9 @@ private final class CountingTart: TartControlling, Sendable {
     func processSamples(of names: [String]) async throws -> [String: ProcessSample] {
         state.withLock { $0.calls += 1 }
         while !state.withLock({ $0.release }) { try await Task.sleep(for: .milliseconds(5)) }
-        return Dictionary(uniqueKeysWithValues: names.map { ($0, ProcessSample(rssMB: 512, cpuSeconds: 1)) })
+        let (calls, step) = state.withLock { ($0.calls, $0.cpuStep) }
+        return Dictionary(
+            uniqueKeysWithValues: names.map { ($0, ProcessSample(rssMB: 512, cpuSeconds: 1 + step * Double(calls))) })
     }
 
     func list() async throws -> [TartVM] { [] }
@@ -64,6 +70,25 @@ final class UsageSamplerTests: XCTestCase {
         XCTAssertNotNil(stale.byInstance["kinhin-1"])
         try await waitUntil { tart.calls == 2 }
         tart.release()
+    }
+
+    func testTartCPUIsPercentOfTheVMsCoresAndMemoryComesFromTheGuest() async throws {
+        let tart = CountingTart()
+        tart.setGuestMB(1800)
+        let sampler = UsageSampler(
+            tart: tart, shell: FakeShell(), tartMemoryMB: { 8192 }, tartCPUCount: { 4 },
+            minInterval: .milliseconds(0), maxStale: .milliseconds(0))
+        _ = await sampler.snapshot(for: records)
+        tart.setCPUStep(1000)  // far more than the wall time: must clamp
+        let second = await sampler.snapshot(for: records)
+        XCTAssertEqual(second.byInstance["kinhin-1"]?.cpuPercent, 100, "clamped to the VM's cores")
+        XCTAssertEqual(second.byInstance["kinhin-1"]?.memoryUsedMB, 1800, "guest figure beats host RSS")
+    }
+
+    func testTartMemoryFallsBackToHostRSSWithoutAGuestReading() async {
+        let sampler = makeSampler(CountingTart())
+        let snapshot = await sampler.snapshot(for: records)
+        XCTAssertEqual(snapshot.byInstance["kinhin-1"]?.memoryUsedMB, 512)
     }
 
     func testAFreshSnapshotCostsNoSample() async {

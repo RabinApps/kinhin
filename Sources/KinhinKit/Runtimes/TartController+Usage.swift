@@ -33,7 +33,36 @@ extension TartController {
         return Self.preferredSamples(clients: clients, hosts: hosts)
     }
 
+    /// Prints the page size, then `vm_stat`, for `parseGuestMemoryUsedMB`.
+    static let guestMemoryScript = "sysctl -n hw.pagesize; vm_stat"
+
+    public func guestMemoryUsedMB(of name: String) async -> Int? {
+        guard let res = try? await exec(["exec", name, "bash", "-c", Self.guestMemoryScript], timeout: 5),
+            res.succeeded
+        else { return nil }
+        return Self.parseGuestMemoryUsedMB(res.stdout)
+    }
+
     // MARK: - Parsing
+
+    /// Page size line + `vm_stat` output → MB in use: active + wired +
+    /// compressor pages (what Activity Monitor counts as used, less cache).
+    static func parseGuestMemoryUsedMB(_ text: String) -> Int? {
+        let rows = text.split(whereSeparator: \.isNewline)
+        guard let first = rows.first, let pageSize = Int(first.trimmingCharacters(in: .whitespaces)), pageSize > 0
+        else { return nil }
+        let wanted = ["Pages active", "Pages wired down", "Pages occupied by compressor"]
+        var pages = 0
+        var found = false
+        for row in rows.dropFirst() {
+            guard let colon = row.firstIndex(of: ":"), wanted.contains(String(row[..<colon])) else { continue }
+            let digits = row[row.index(after: colon)...].filter(\.isNumber)
+            guard let count = Int(digits) else { continue }
+            pages += count
+            found = true
+        }
+        return found ? pages * pageSize / 1_048_576 : nil
+    }
 
     /// One `ps -axo pid=,rss=,time=,command=` line (`rss` in KiB).
     struct PsLine: Equatable {

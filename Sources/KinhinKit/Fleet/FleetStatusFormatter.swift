@@ -47,7 +47,7 @@ public enum FleetStatusFormatter {
     }
 
     /// "CPU 120% · RAM 3.2/8 GB" for one VM or container; nil when nothing was measured.
-    /// CPU is percent of one core, so it can exceed 100.
+    /// Container CPU is percent of one core, so it can exceed 100; a Tart VM's is percent of its cores.
     public static func usage(of record: VMRecord) -> String? {
         record.usage.flatMap(describe)
     }
