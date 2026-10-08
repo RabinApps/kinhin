@@ -135,18 +135,18 @@ extension ConfigLoader {
             throw ConfigError.invalid(
                 "toolchains: is gone — every project declares its own: projects: "
                     + "[{pattern: owner/name, toolchains: {specs: [go@1.23.4]}}], or let the repo declare them in a "
-                    + ".kinhin.yml (projects: [{pattern: owner/name, repo_file: true}]). The cache policy moved to toolchain_cache:"
+                    + ".kinhin.yml (projects: [{pattern: owner/name, repo_file: true}]). The cache policy moved to toolchain_cache:. \(ConfigMigrator.hint)"
             )
         }
         if partial.repo != nil {
             throw ConfigError.invalid(
                 "repo: is gone — declare the forge as an accounts: entry: "
-                    + "accounts: [{name: github, forge: github, scope: owner/name}]")
+                    + "accounts: [{name: github, forge: github, scope: owner/name}]. \(ConfigMigrator.hint)")
         }
         if partial.gitea != nil || partial.forgejo != nil {
             throw ConfigError.invalid(
                 "gitea:/forgejo: are gone — declare each forge as an accounts: entry "
-                    + "(accounts: [{name: gitea, forge: gitea, scope: ..., instance: ...}])")
+                    + "(accounts: [{name: gitea, forge: gitea, scope: ..., instance: ...}]). \(ConfigMigrator.hint)")
         }
     }
 }
