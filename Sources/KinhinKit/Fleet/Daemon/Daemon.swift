@@ -209,7 +209,7 @@ public enum Daemon {
             }
             switch request.method {
             case .ping:
-                return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(["pong": true]))
+                return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(PingReply()))
             case .status:
                 // No payload (older clients) means the full status with usage.
                 let includeUsage = decodePayload(StatusRequest.self)?.includeUsage ?? true

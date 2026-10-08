@@ -66,9 +66,11 @@ extension FleetEngine {
         // id itself; multi-runner VMs register as "<vmid>-r1…rN".
         var reposByVM: [String: [String]] = [:]
         var jobByVM: [String: String] = [:]
+        let records = store.all
+        let ids = Set(records.map(\.id))
         for job in running {
             guard let runnerName = job.runnerName,
-                let vmID = vmID(forRunnerName: runnerName)
+                let vmID = Self.vmID(forRunnerName: runnerName, among: ids, runnersPerVM: config.runnersPerVM)
             else { continue }
             if isOrgScope, let repo = job.repository {
                 reposByVM[vmID, default: []].append(repo)
@@ -81,7 +83,7 @@ extension FleetEngine {
         }
 
         // Stamp VMs that exist; clear the stamp on VMs whose jobs finished.
-        for record in store.all {
+        for record in records {
             let repos = reposByVM[record.id]?.sorted()
             let job = jobByVM[record.id]
             if record.repos != repos || record.job != job {
@@ -93,19 +95,17 @@ extension FleetEngine {
         }
     }
 
-    /// The VM id owning a GitHub runner name, among the VMs we track.
-    func vmID(forRunnerName runnerName: String) -> String? {
-        for record in store.all {
-            if runnerName == record.id { return record.id }
-            let prefix = "\(record.id)-r"
-            if runnerName.hasPrefix(prefix),
-                let index = Int(runnerName.dropFirst(prefix.count)),
-                (1...max(1, config.runnersPerVM)).contains(index)
-            {
-                return record.id
-            }
-        }
-        return nil
+    /// The VM id owning a runner name, among the tracked VM `ids`: the id
+    /// itself, or `<id>-r<N>` for N in 1...runnersPerVM. One set lookup per
+    /// name instead of a scan (and copy) of the whole store.
+    static func vmID(forRunnerName runnerName: String, among ids: Set<String>, runnersPerVM: Int) -> String? {
+        if ids.contains(runnerName) { return runnerName }
+        guard let marker = runnerName.range(of: "-r", options: .backwards),
+            let index = Int(runnerName[marker.upperBound...]),
+            (1...max(1, runnersPerVM)).contains(index)
+        else { return nil }
+        let base = String(runnerName[..<marker.lowerBound])
+        return ids.contains(base) ? base : nil
     }
 
     /// Drop the attribution stamp from every record (pause path).

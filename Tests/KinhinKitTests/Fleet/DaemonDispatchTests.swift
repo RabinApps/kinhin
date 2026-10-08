@@ -19,8 +19,9 @@ final class DaemonDispatchTests: XCTestCase {
         let engine = makeEngine(tart: FakeTart(), github: FakeGitHub(), ssh: FakeSSH())
         let ping = await Daemon.handle(RPCRequest(id: 1, method: .ping), engine: engine)
         XCTAssertTrue(ping.ok)
-        let pong = try JSONDecoder().decode([String: Bool].self, from: XCTUnwrap(ping.payload))
-        XCTAssertEqual(pong["pong"], true)
+        let pong = try JSONDecoder().decode(PingReply.self, from: XCTUnwrap(ping.payload))
+        XCTAssertTrue(pong.pong)
+        XCTAssertEqual(pong.protocolVersion, PingReply.currentProtocol)
 
         let status = await Daemon.handle(RPCRequest(id: 2, method: .status), engine: engine)
         XCTAssertTrue(status.ok)
