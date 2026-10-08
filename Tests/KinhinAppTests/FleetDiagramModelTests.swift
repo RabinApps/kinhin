@@ -24,6 +24,19 @@ final class FleetDiagramModelTests: XCTestCase {
 
     // MARK: - Lanes
 
+    func testEveryPhaseIsDescribedInWordsNotJustColour() {
+        let busy = instance(for: record("kinhin-1", phase: .busy))
+        XCTAssertEqual(busy.accessibilityText, "kinhin-1, busy, running a job")
+        XCTAssertTrue(instance(for: record("a", phase: .ready)).phaseDescription.contains("ready"))
+        XCTAssertTrue(instance(for: record("a", phase: .booting)).phaseDescription.contains("starting up"))
+        XCTAssertEqual(instance(for: record("a", phase: .failed)).phaseDescription, "failed")
+        var broken = record("kinhin-2", phase: .busy)
+        broken.error = "boot timed out"
+        let described = instance(for: broken)
+        XCTAssertTrue(described.phaseDescription.contains("has an error"))
+        XCTAssertTrue(described.accessibilityText.contains("boot timed out"), "the detail follows the phase")
+    }
+
     func testNoStatusYieldsNoLanes() {
         XCTAssertTrue(FleetDiagramModel(status: nil).lanes.isEmpty, "no snapshot, no picture")
     }

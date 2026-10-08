@@ -191,6 +191,7 @@ struct StarvedRoutesStrip: View {
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))
+                    .accessibilityLabel("Warning")
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(warnings, id: \.self) { warning in
                         Text(warning)

@@ -205,7 +205,7 @@ final class StatusRenderingTests: XCTestCase {
 
         // A running fleet would normally enable Stop and Pause — pending
         // disables every fleet control until the command completes.
-        for id in ["startFleet", "stopFleet", "pauseFleet", "resumeFleet"] {
+        for id in ["startFleet", "stopFleet", "pauseResumeFleet"] {
             let item = menu.items.first { $0.identifier?.rawValue == id }
             XCTAssertFalse(delegate.validateMenuItem(item!), "\(id) must disable while pending")
         }
@@ -271,8 +271,12 @@ final class StatusRenderingTests: XCTestCase {
         let before = menu.items.count
         delegate.rebuildVMSection(status: FleetStatus(records: (0..<5).map { _ in record(phase: .ready) }))
         XCTAssertEqual(menu.items.count, before + 5, "rows must stay inside the VM section")
-        // The pre-existing items keep their order; rows land at the tail.
-        XCTAssertEqual(Array(menu.items[..<before]), originalItems)
+        // The items around the VM section keep their order, with Quit still last.
+        let end = menu.items.firstIndex { $0.identifier?.rawValue == "vmSectionEnd" }!
+        let tail = originalItems.firstIndex { $0.identifier?.rawValue == "vmSectionEnd" }!
+        XCTAssertEqual(
+            Array(menu.items[end...]), Array(originalItems[tail...]), "everything after the section is untouched")
+        XCTAssertEqual(menu.items.last?.title, "Quit")
     }
 
     // MARK: - helpers
@@ -283,11 +287,29 @@ final class StatusRenderingTests: XCTestCase {
         return record
     }
 
-    /// Menu rows between the "vmSectionStart" header and the end of the menu.
+    /// Menu rows between the "vmSectionStart" header and the "vmSectionEnd" marker.
     private func vmRows() -> [NSMenuItem] {
-        guard let start = menu.items.firstIndex(where: { $0.identifier?.rawValue == "vmSectionStart" }) else {
+        guard let start = menu.items.firstIndex(where: { $0.identifier?.rawValue == "vmSectionStart" }),
+            let end = menu.items.firstIndex(where: { $0.identifier?.rawValue == "vmSectionEnd" })
+        else {
             return []
         }
-        return Array(menu.items[(start + 1)...])
+        return Array(menu.items[(start + 1)..<end])
+    }
+
+    // MARK: - accessibility label
+
+    func testStatusItemAccessibilityLabelSaysItInWords() {
+        var status = FleetStatus(running: true, paused: true)
+        status.records = [
+            VMRecord(id: "a", phase: .busy, createdAt: Date()), VMRecord(id: "b", phase: .ready, createdAt: Date()),
+        ]
+        XCTAssertEqual(
+            AppDelegate.statusItemAccessibilityLabel(pending: nil, status: status), "kinhin, 2 runners, paused")
+        status.paused = false
+        status.records.removeLast()
+        XCTAssertEqual(AppDelegate.statusItemAccessibilityLabel(pending: nil, status: status), "kinhin, 1 runner")
+        XCTAssertEqual(AppDelegate.statusItemAccessibilityLabel(pending: nil, status: nil), "kinhin, not running")
+        XCTAssertEqual(AppDelegate.statusItemAccessibilityLabel(pending: .start, status: status), "kinhin, starting")
     }
 }

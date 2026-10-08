@@ -77,17 +77,15 @@ extension AppDelegate {
         guard let id = item.identifier?.rawValue else { return true }
         if fleet.pendingFleetAction != nil {
             switch id {
-            case "startFleet", "stopFleet", "pauseFleet", "resumeFleet": return false
+            case "startFleet", "stopFleet", "pauseResumeFleet": return false
             default: break
             }
         }
         let running = fleet.status?.running ?? false
-        let paused = fleet.status?.paused ?? false
         switch id {
         case "startFleet": return !running
         case "stopFleet": return running
-        case "pauseFleet": return running && !paused
-        case "resumeFleet": return running && paused
+        case "pauseResumeFleet": return running
         default: return true
         }
     }

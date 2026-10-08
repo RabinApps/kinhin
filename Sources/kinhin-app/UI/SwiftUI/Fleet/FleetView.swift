@@ -108,7 +108,7 @@ struct FleetView: View {
                     Button {
                     } label: {
                         HStack(spacing: 4) {
-                            ProgressView().controlSize(.small)
+                            ProgressView().controlSize(.small).accessibilityLabel("Working")
                             Text("Stop")
                         }
                     }
@@ -124,7 +124,7 @@ struct FleetView: View {
                 Button {
                 } label: {
                     HStack(spacing: 4) {
-                        ProgressView().controlSize(.small)
+                        ProgressView().controlSize(.small).accessibilityLabel("Working")
                         Text("Start")
                     }
                 }
@@ -186,6 +186,7 @@ struct FleetView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 11))
                 .foregroundStyle(StatusStyle.warn.color)
+                .accessibilityLabel("Warning")
             Text(notice)
                 .font(.system(size: 11))
                 .foregroundStyle(StatusStyle.warn.color)

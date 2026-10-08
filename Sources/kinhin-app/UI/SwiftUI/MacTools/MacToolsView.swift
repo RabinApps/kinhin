@@ -69,7 +69,7 @@ struct MacToolsView: View {
             if model.offersNamedImages { moreImagesSection }
             if model.busy || !model.busyLine.text.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
-                    if model.busy { ProgressView().controlSize(.small) }
+                    if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
                     StatusText(text: model.busyLine.text, style: model.busyLine.style)
                         .textSelection(.enabled)
                     if model.busy {
