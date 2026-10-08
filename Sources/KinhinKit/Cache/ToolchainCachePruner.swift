@@ -186,6 +186,13 @@ public struct ToolchainCachePruner {
         return total
     }
 
+    /// Whether a rate-limited sweep (`prune(minInterval:)`) would walk the
+    /// tree now: no sweep has finished within `minInterval` seconds.
+    public func isSweepDue(minInterval: TimeInterval, now: Date = Date()) -> Bool {
+        guard let last = lastSweep() else { return true }
+        return now.timeIntervalSince(last) >= minInterval
+    }
+
     // MARK: - Internals
 
     private func lastSweep() -> Date? {
