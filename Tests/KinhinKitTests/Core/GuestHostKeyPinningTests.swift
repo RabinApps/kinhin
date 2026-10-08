@@ -221,8 +221,7 @@ final class GuestHostKeyPinningTests: XCTestCase {
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github]))
         let scratch = try XCTUnwrap(tart.cloneCalls.first?.name)
         let expected = ["run:\(scratch)", "installKey:\(scratch)", "harden:\(scratch)", "rotate:\(scratch)"]
         let first = try XCTUnwrap(ssh.eventsAtEachExec.first)
@@ -237,8 +236,7 @@ final class GuestHostKeyPinningTests: XCTestCase {
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github]))
         // The verification stays in the SSH-delivered prepare script either way.
         let prepare = try XCTUnwrap(ssh.scripts.first { $0.contains("000-kinhin-hardening.conf") })
         XCTAssertTrue(prepare.contains("\"$SSHD\" -T"))
@@ -253,8 +251,7 @@ final class GuestHostKeyPinningTests: XCTestCase {
         preparer.guestKeyRetryDelay = .zero
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github]))
         XCTAssertTrue(tart.hardenCalls.isEmpty)
     }
 }

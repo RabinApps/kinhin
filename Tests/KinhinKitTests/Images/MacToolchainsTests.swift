@@ -126,8 +126,7 @@ final class MacToolchainsTests: XCTestCase {
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github]))
         XCTAssertEqual(tart.runMounts.count, 1)
         XCTAssertEqual(
             tart.runMounts[0], [ToolchainCacheMount.tartDirectorySpec], "prepare shares the host cache unconditionally")

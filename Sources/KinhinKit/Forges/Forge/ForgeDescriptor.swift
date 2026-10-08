@@ -28,6 +28,9 @@ protocol ForgeDescriptor: Sendable {
     /// Whether `scope` names one repository on a forge whose runners register
     /// per repository (orgs, groups, clusters and pools cover many).
     func isSingleRepositoryScope(_ scope: String) -> Bool
+    /// The runner agent this forge needs installed (shared by forges that run
+    /// the same binary).
+    var agent: RunnerAgentSpec { get }
     /// Validates one `accounts:` entry (after the checks every forge shares)
     /// and builds its `AccountConfig`.
     func parseAccount(_ entry: ConfigLoader.AccountEntry) throws -> AccountConfig

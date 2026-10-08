@@ -12,26 +12,17 @@ public struct LinuxImageOptions {
     /// Timeout for the managed toolchain install exec (seconds) —
     /// installing heavy toolchains is slow.
     var toolchainTimeout: TimeInterval
-    /// Token presence overrides for tests (nil = probe the Keychain).
-    public var hasGitHubToken: Bool?
-    public var hasGiteaToken: Bool?
-    /// nil → any GitLab account has a stored token.
-    public var hasGitLabToken: Bool?
-    /// nil → any Buildkite account has a stored token.
-    public var hasBuildkiteToken: Bool?
-    /// nil → any Azure DevOps account has a stored token.
-    public var hasAzureDevOpsToken: Bool?
-    /// nil → any Bitbucket account has a stored token.
-    public var hasBitbucketToken: Bool?
+    /// Forges that count as having a stored token, replacing the Keychain
+    /// probe (tests). nil = probe the Keychain for every forge.
+    public var storedTokens: Set<ForgeID>?
     /// Architecture of the image being baked. Anything but arm64 (native on
     /// Apple Silicon) is Docker-only and runs under emulation.
     public var platform: LinuxPlatform
 
     public init(
         image: String, target: String, user: String = "admin", toolchains: KinhinConfig.ToolchainsConfig? = nil,
-        toolchainTimeout: TimeInterval = 1800, hasGitHubToken: Bool? = nil, hasGiteaToken: Bool? = nil,
-        hasGitLabToken: Bool? = nil, hasBuildkiteToken: Bool? = nil, hasAzureDevOpsToken: Bool? = nil,
-        hasBitbucketToken: Bool? = nil, platform: LinuxPlatform = .arm64
+        toolchainTimeout: TimeInterval = 1800, storedTokens: Set<ForgeID>? = nil,
+        platform: LinuxPlatform = .arm64
     ) {
         self.platform = platform
         self.image = image
@@ -39,12 +30,7 @@ public struct LinuxImageOptions {
         self.user = user
         self.toolchains = toolchains
         self.toolchainTimeout = toolchainTimeout
-        self.hasGitHubToken = hasGitHubToken
-        self.hasGiteaToken = hasGiteaToken
-        self.hasGitLabToken = hasGitLabToken
-        self.hasBuildkiteToken = hasBuildkiteToken
-        self.hasAzureDevOpsToken = hasAzureDevOpsToken
-        self.hasBitbucketToken = hasBitbucketToken
+        self.storedTokens = storedTokens
     }
 }
 
@@ -93,24 +79,7 @@ struct LinuxImageBaker: Sendable {
         // container is then removed by the uncancelled cleanup path.
         try Task.checkCancellation()
         // Token-gated provisioning: identical policy to the VM path.
-        let hasGitHubToken = try options.hasGitHubToken ?? AccountTokens.anyStored(for: .github)
-        // Forgejo uses the gitea-runner binary: bake it when either
-        // Gitea-family platform has a token.
-        let hasGiteaToken =
-            try options.hasGiteaToken
-            ?? (AccountTokens.anyStored(for: .gitea) || AccountTokens.anyStored(for: .forgejo))
-        let hasGitLabToken = try options.hasGitLabToken ?? AccountTokens.anyStored(for: .gitlab)
-        let hasBuildkiteToken = try options.hasBuildkiteToken ?? AccountTokens.anyStored(for: .buildkite)
-        let hasAzureDevOpsToken = try options.hasAzureDevOpsToken ?? AccountTokens.anyStored(for: .azuredevops)
-        let hasBitbucketToken = try options.hasBitbucketToken ?? AccountTokens.anyStored(for: .bitbucket)
-        guard
-            hasGitHubToken || hasGiteaToken || hasGitLabToken || hasBuildkiteToken || hasAzureDevOpsToken
-                || hasBitbucketToken
-        else {
-            throw ImageError.noCredentials(
-                "store at least one platform token first (kinhin auth set --account NAME)"
-            )
-        }
+        let selection = try AgentSelection(override: options.storedTokens)
 
         var lines: [String] = []
         // git and jq every CI job needs — `actions/checkout`, `git ls-files`,
@@ -120,53 +89,8 @@ struct LinuxImageBaker: Sendable {
         lines.append(
             "set -euo pipefail\n"
                 + RunnerBootstrap.linuxPrerequisitesScript(tools: RunnerBootstrap.ciPrerequisiteTools))
-        if hasGitHubToken {
-            Log.info(tag, "GitHub PAT found — baking actions-runner \(versions.github)")
-            lines.append(
-                RunnerBootstrap.linuxGitHubAgentInstallScript(
-                    version: versions.github, arch: options.platform.githubRunnerArch))
-        } else {
-            Log.info(tag, "no GitHub PAT stored — skipping actions-runner install")
-        }
-        if hasGiteaToken {
-            Log.info(tag, "Gitea token found — baking gitea-runner \(versions.gitea)")
-            lines.append(
-                RunnerBootstrap.linuxGiteaRunnerInstallScript(
-                    version: versions.gitea, arch: options.platform.giteaRunnerArch))
-        } else {
-            Log.info(tag, "no Gitea token stored — skipping gitea-runner install")
-        }
-        if hasGitLabToken {
-            Log.info(tag, "GitLab token found — baking gitlab-runner \(versions.gitlab)")
-            lines.append(
-                RunnerBootstrap.linuxGitLabRunnerInstallScript(
-                    version: versions.gitlab, arch: options.platform.gitlabRunnerArch))
-        } else {
-            Log.info(tag, "no GitLab token stored — skipping gitlab-runner install")
-        }
-        if hasBuildkiteToken {
-            Log.info(tag, "Buildkite token found — baking buildkite-agent \(versions.buildkite)")
-            lines.append(
-                RunnerBootstrap.linuxBuildkiteAgentInstallScript(
-                    version: versions.buildkite, arch: options.platform.buildkiteAgentArch))
-        } else {
-            Log.info(tag, "no Buildkite token stored — skipping buildkite-agent install")
-        }
-        if hasAzureDevOpsToken {
-            Log.info(tag, "Azure DevOps token found — baking the Azure Pipelines agent \(versions.azure)")
-            lines.append(
-                RunnerBootstrap.linuxAzureAgentInstallScript(
-                    version: versions.azure, platform: options.platform.azureAgentPlatform))
-        } else {
-            Log.info(tag, "no Azure DevOps token stored — skipping the Azure Pipelines agent install")
-        }
-        if hasBitbucketToken {
-            Log.info(tag, "Bitbucket token found — baking the Bitbucket runner \(versions.bitbucket)")
-            lines.append(
-                RunnerBootstrap.linuxBitbucketRunnerInstallScript(
-                    version: versions.bitbucket, jdkVersion: versions.bitbucketJDK))
-        } else {
-            Log.info(tag, "no Bitbucket token stored — skipping the Bitbucket runner install")
+        lines += selection.installScripts(versions: versions, tag: tag) { agent in
+            agent.bake.container(versions, options.platform)
         }
         lines.append(
             try RunnerBootstrap.toolchainHelperInstallScript(

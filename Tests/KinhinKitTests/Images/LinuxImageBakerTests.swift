@@ -6,8 +6,7 @@ import XCTest
 final class LinuxImageBakerTests: XCTestCase {
     private func options() -> LinuxImageOptions {
         LinuxImageOptions(
-            image: "missing-base", target: "out", hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false,
-            hasBuildkiteToken: false, hasAzureDevOpsToken: false)
+            image: "missing-base", target: "out", storedTokens: [.github])
     }
 
     func testFailsImmediatelyWithTheCLIsReasonWhenTheScratchContainerWontStart() async {
@@ -50,9 +49,7 @@ final class LinuxImageBakerTests: XCTestCase {
         // the common block must lead the composed script.
         let shell = FakeShell()
         let opts = LinuxImageOptions(
-            image: "ubuntu:24.04", target: "out", hasGitHubToken: true, hasGiteaToken: false,
-            hasGitLabToken: false, hasBuildkiteToken: false, hasAzureDevOpsToken: false,
-            hasBitbucketToken: false)
+            image: "ubuntu:24.04", target: "out", storedTokens: [.github])
         _ = try await ContainerImagePreparer(shell: shell).prepare(opts, versions: .init(github: "1", gitea: "1"))
 
         let install = try XCTUnwrap(shell.calls.first { $0.contains("-lc") }, "\(shell.calls)")

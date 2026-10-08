@@ -6,13 +6,12 @@ import Synchronization
 #endif
 
 /// Resolves the runner-agent versions to bake into images from the vendors'
-/// release feeds instead of hardcoding: GitHub's actions-runner from
-/// github.com/actions/runner/releases, Gitea's runner from
-/// gitea.com/gitea/runner/releases, GitLab's from the gitlab-org/gitlab-runner
-/// project's releases, Buildkite's agent from github.com/buildkite/agent, and
-/// the Azure Pipelines agent from github.com/microsoft/azure-pipelines-agent. Falls back to the last-known-good pinned
-/// versions when the feed is unreachable (offline hosts, rate limits), and
-/// degrades to pre-release tags only when nothing stable exists.
+/// release feeds instead of hardcoding. Each forge's `RunnerAgentSpec` names
+/// its own feed (GitHub's actions-runner, Gitea's runner, GitLab's runner,
+/// the Buildkite and Azure Pipelines agents); a forge with no feed keeps its
+/// pinned version. Falls back to the last-known-good pinned versions when the
+/// feed is unreachable (offline hosts, rate limits), and degrades to
+/// pre-release tags only when nothing stable exists.
 public struct RunnerVersionResolver: Sendable {
     public struct Versions: Sendable, Equatable {
         public let github: String
@@ -41,6 +40,18 @@ public struct RunnerVersionResolver: Sendable {
             self.bitbucket = bitbucket
             self.bitbucketJDK = bitbucketJDK
         }
+
+        /// The fallback versions with each agent's resolved answer laid over
+        /// them. `resolved` is keyed by `RunnerAgentSpec.key`; an agent
+        /// without an entry keeps its pinned version.
+        init(resolved: [String: String]) {
+            let pinned = RunnerVersionResolver.fallback
+            self.init(
+                github: resolved["github"] ?? pinned.github, gitea: resolved["gitea"] ?? pinned.gitea,
+                gitlab: resolved["gitlab"] ?? pinned.gitlab, buildkite: resolved["buildkite"] ?? pinned.buildkite,
+                azure: resolved["azure"] ?? pinned.azure, bitbucket: resolved["bitbucket"] ?? pinned.bitbucket,
+                bitbucketJDK: pinned.bitbucketJDK)
+        }
     }
 
     public static let pinnedGitLab = "19.4.1"
@@ -61,20 +72,6 @@ public struct RunnerVersionResolver: Sendable {
     static let fallback = Versions(
         github: "2.325.0", gitea: "3.5.0", gitlab: pinnedGitLab, buildkite: pinnedBuildkite, azure: pinnedAzure,
         bitbucket: pinnedBitbucket, bitbucketJDK: pinnedBitbucketJDK)
-
-    /// Release-feed endpoints. Both are string literals, so parsing them
-    /// failing is a programming error rather than a runtime condition.
-    static let githubFeed = feedURL("https://api.github.com/repos/actions/runner/releases/latest")
-    static let giteaFeed = feedURL("https://gitea.com/api/v1/repos/gitea/runner/releases/latest")
-    static let gitlabFeed = feedURL(
-        "https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab-runner/releases/permalink/latest")
-    static let buildkiteFeed = feedURL("https://api.github.com/repos/buildkite/agent/releases/latest")
-    static let azureFeed = feedURL("https://api.github.com/repos/microsoft/azure-pipelines-agent/releases/latest")
-
-    private static func feedURL(_ string: String) -> URL {
-        guard let url = URL(string: string) else { preconditionFailure("invalid release feed URL literal: \(string)") }
-        return url
-    }
 
     let session: URLSession
     /// Recent successful lookups, so repeated prepares within the TTL cost
@@ -124,19 +121,26 @@ public struct RunnerVersionResolver: Sendable {
     /// bake (a feed nobody asked about costs a request for nothing and keeps
     /// its pinned version); nil looks every feed up.
     public func resolve(including forges: Set<ForgeID>? = nil) async -> Versions {
-        func wants(_ ids: ForgeID...) -> Bool { forges.map { set in ids.contains { set.contains($0) } } ?? true }
-        async let githubTask = resolveLoggingFailures(
-            latestGitHub, fallback: Self.fallback.github, feed: "GitHub", enabled: wants(.github))
-        async let giteaTask = resolveLoggingFailures(
-            latestGitea, fallback: Self.fallback.gitea, feed: "Gitea", enabled: wants(.gitea, .forgejo))
-        async let gitlabTask = resolveLoggingFailures(
-            latestGitLab, fallback: Self.fallback.gitlab, feed: "GitLab", enabled: wants(.gitlab))
-        async let buildkiteTask = resolveLoggingFailures(
-            latestBuildkite, fallback: Self.fallback.buildkite, feed: "Buildkite", enabled: wants(.buildkite))
-        async let azureTask = resolveLoggingFailures(
-            latestAzure, fallback: Self.fallback.azure, feed: "Azure Pipelines", enabled: wants(.azuredevops))
-        return await Versions(
-            github: githubTask, gitea: giteaTask, gitlab: gitlabTask, buildkite: buildkiteTask, azure: azureTask)
+        let lookups = RunnerAgentSpec.all.compactMap { agent -> (RunnerAgentSpec, RunnerAgentSpec.ReleaseFeed)? in
+            agent.feed.map { (agent, $0) }
+        }
+        let resolved = await withTaskGroup(of: (String, String).self) { group in
+            for (agent, feed) in lookups {
+                let enabled = forges.map { set in agent.forges.contains { set.contains($0) } } ?? true
+                group.addTask {
+                    (
+                        agent.key,
+                        await resolveLoggingFailures(
+                            { try await latest(agent) }, fallback: agent.version(Self.fallback), feed: feed.name,
+                            enabled: enabled)
+                    )
+                }
+            }
+            var versions: [String: String] = [:]
+            for await (key, version) in group { versions[key] = version }
+            return versions
+        }
+        return Versions(resolved: resolved)
     }
 
     /// One feed lookup with its fallback: a thrown error is logged, never
@@ -161,53 +165,25 @@ public struct RunnerVersionResolver: Sendable {
         }
     }
 
-    /// Latest stable actions-runner tag, e.g. "v2.325.0" → "2.325.0".
-    /// Throws only when the feed answered with an unusable payload; network
-    /// failures surface as the pinned fallback via ``resolve()``.
-    func latestGitHub() async throws -> String {
-        guard let data = await fetchLogged(url: Self.githubFeed) else {
-            return Self.fallback.github
-        }
-        return try Self.stableTag(from: data, feed: "GitHub", fallback: Self.fallback.github)
+    /// Latest stable tag of `feed` with its leading `v` dropped, e.g.
+    /// "v2.325.0" → "2.325.0". Throws only when the feed answered with an
+    /// unusable payload; network failures surface as the pinned fallback.
+    func latest(_ feed: RunnerAgentSpec.ReleaseFeed, fallback: String) async throws -> String {
+        guard let data = await fetchLogged(url: feed.url) else { return fallback }
+        return try Self.stableTag(from: data, feed: feed.name, fallback: fallback, excludesDashes: feed.excludesDashes)
     }
 
-    /// Latest stable Gitea runner tag, e.g. "v3.5.0" → "3.5.0". Same
-    /// failure behavior as ``latestGitHub()``.
-    func latestGitea() async throws -> String {
-        guard let data = await fetchLogged(url: Self.giteaFeed) else {
-            return Self.fallback.gitea
-        }
-        return try Self.stableTag(from: data, feed: "Gitea", fallback: Self.fallback.gitea)
-    }
+    func latestGitHub() async throws -> String { try await latest(RunnerAgentSpec.github) }
+    func latestGitea() async throws -> String { try await latest(RunnerAgentSpec.gitea) }
+    func latestGitLab() async throws -> String { try await latest(RunnerAgentSpec.gitlab) }
+    func latestBuildkite() async throws -> String { try await latest(RunnerAgentSpec.buildkite) }
+    func latestAzure() async throws -> String { try await latest(RunnerAgentSpec.azure) }
 
-    /// Latest stable GitLab runner tag, e.g. "v19.4.1" → "19.4.1". Same
-    /// failure behavior as ``latestGitHub()``.
-    func latestGitLab() async throws -> String {
-        guard let data = await fetchLogged(url: Self.gitlabFeed) else {
-            return Self.fallback.gitlab
-        }
-        return try Self.stableTag(from: data, feed: "GitLab", fallback: Self.fallback.gitlab, excludesDashes: true)
-    }
-
-    /// Latest stable Buildkite agent tag, e.g. "v4.0.9" → "4.0.9" (betas,
-    /// "v4.1.0-beta.1", are skipped). Same failure behavior as
-    /// ``latestGitHub()``.
-    func latestBuildkite() async throws -> String {
-        guard let data = await fetchLogged(url: Self.buildkiteFeed) else {
-            return Self.fallback.buildkite
-        }
-        return try Self.stableTag(
-            from: data, feed: "Buildkite", fallback: Self.fallback.buildkite, excludesDashes: true)
-    }
-
-    /// Latest stable Azure Pipelines agent tag, e.g. "v5.279.0" → "5.279.0".
-    /// Same failure behavior as ``latestGitHub()``.
-    func latestAzure() async throws -> String {
-        guard let data = await fetchLogged(url: Self.azureFeed) else {
-            return Self.fallback.azure
-        }
-        return try Self.stableTag(
-            from: data, feed: "Azure Pipelines", fallback: Self.fallback.azure, excludesDashes: true)
+    /// The latest stable version of `agent`'s own feed (the pinned version
+    /// when the agent has no feed).
+    func latest(_ agent: RunnerAgentSpec) async throws -> String {
+        guard let feed = agent.feed else { return agent.version(Self.fallback) }
+        return try await latest(feed, fallback: agent.version(Self.fallback))
     }
 
     /// Decodes a release-feed payload to its stable tag (`v` prefix, dotted

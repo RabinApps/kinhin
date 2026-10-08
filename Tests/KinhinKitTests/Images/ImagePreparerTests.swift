@@ -42,8 +42,7 @@ final class ImagePreparerTests: XCTestCase {
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.source = "ghcr.io/cirruslabs/macos-tahoe-base:latest"
         options.target = "tahoe-base"
 
@@ -65,8 +64,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github]))
         let scratch = try XCTUnwrap(tart.cloneCalls.first?.name)
         XCTAssertEqual(tart.installKeyCalls.map(\.vm), [scratch])
         XCTAssertEqual(tart.installKeyCalls.map(\.user), ["admin"])
@@ -83,8 +81,7 @@ final class ImagePreparerTests: XCTestCase {
         do {
             try await preparer.run(
                 ImagePreparer.Options(
-                    hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                    hasAzureDevOpsToken: false))
+                    storedTokens: [.github]))
             XCTFail("expected the bake to fail")
         } catch let error as ImageError {
             guard case .provisioningFailed(let why) = error else { return XCTFail("wrong error: \(error)") }
@@ -102,8 +99,7 @@ final class ImagePreparerTests: XCTestCase {
         preparer.guestKeyRetryDelay = .zero
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github]))
         XCTAssertTrue(tart.cloneCalls.contains { $0.name == "tahoe-base" })
     }
 
@@ -112,7 +108,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: false, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: true))
+                storedTokens: [.buildkite]))
 
         let baked = ssh.scripts.joined(separator: "\n")
         XCTAssertTrue(baked.contains("buildkite-agent-darwin-arm64-"), "the agent is baked")
@@ -125,8 +121,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: false, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: true))
+                storedTokens: [.azuredevops]))
 
         let baked = ssh.scripts.joined(separator: "\n")
         XCTAssertTrue(baked.contains("vsts-agent-osx-arm64-"), "the agent is baked")
@@ -141,8 +136,7 @@ final class ImagePreparerTests: XCTestCase {
         let tart = FakeTart()
         let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.source = "ubuntu-scratch"
         options.target = "ubuntu-base"
 
@@ -158,8 +152,7 @@ final class ImagePreparerTests: XCTestCase {
         tart.vms["tahoe-base"] = TartVM(name: "tahoe-base", source: "old-source", status: "stopped")
         let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.target = "tahoe-base"
 
         try await preparer.run(options)
@@ -181,8 +174,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: true, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github, .gitea]))
 
         // First exec is the probe; second is the agent bake.
         XCTAssertEqual(ssh.scripts[0], "uname -s", "the probe is the first exec")
@@ -203,8 +195,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: false, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false, hasBitbucketToken: true))
+                storedTokens: [.bitbucket]))
 
         let baked = ssh.scripts[1]
         XCTAssertTrue(baked.contains("$HOME/bitbucket-runner"), "macOS-style layout: registration needs no change")
@@ -218,8 +209,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github]))
 
         let baked = ssh.scripts[1]
         XCTAssertTrue(baked.contains("/usr/local/bin/kinhin-toolchain"), "the helper is baked")
@@ -234,8 +224,7 @@ final class ImagePreparerTests: XCTestCase {
         ssh.setStdout("Linux", forCall: 0)
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.toolchains = KinhinConfig.ToolchainsConfig(specs: ["node@22"], brew: ["wget"])
 
         try await preparer.run(options)
@@ -257,8 +246,7 @@ final class ImagePreparerTests: XCTestCase {
         do {
             try await preparer.run(
                 ImagePreparer.Options(
-                    hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                    hasAzureDevOpsToken: false))
+                    storedTokens: [.github]))
             XCTFail("expected the unrecognized guest to fail the bake")
         } catch let error as ImageError {
             guard case .provisioningFailed(let why) = error else {
@@ -275,8 +263,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false, guestOS: .linux))
+                storedTokens: [.github], guestOS: .linux))
 
         let baked = ssh.scripts[0]
         let mount = try XCTUnwrap(baked.range(of: "mount -t virtiofs")).lowerBound
@@ -293,8 +280,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false, guestOS: .linux))
+                storedTokens: [.github], guestOS: .linux))
 
         let baked = ssh.scripts[0]
         XCTAssertTrue(baked.contains("command -v git"), "git must be checked for: \(baked)")
@@ -317,8 +303,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false, guestOS: .macOS))
+                storedTokens: [.github], guestOS: .macOS))
 
         let baked = ssh.scripts[0]
         XCTAssertFalse(baked.contains("command -v jq"), "no jq apt block on a macOS guest")
@@ -330,8 +315,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false, guestOS: .macOS))
+                storedTokens: [.github], guestOS: .macOS))
         XCTAssertFalse(ssh.scripts[0].contains("mount -t virtiofs"))
     }
 
@@ -340,8 +324,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false, guestOS: .linux))
+                storedTokens: [.github], guestOS: .linux))
 
         XCTAssertEqual(ssh.scripts.count, 1, "no probe exec when the guest OS is overridden: just the bake")
         XCTAssertTrue(ssh.scripts[0].contains("actions-runner-linux-arm64-"), "Linux agents baked directly")
@@ -353,8 +336,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github]))
 
         XCTAssertEqual(ssh.scripts[0], "uname -s")
         XCTAssertTrue(ssh.scripts[1].contains("actions-runner-osx-arm64-"), "macOS guest → macOS binaries")
@@ -367,8 +349,7 @@ final class ImagePreparerTests: XCTestCase {
         ssh.failWith = "sudo: a password is required"
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.target = "tahoe-base"
 
         do {
@@ -396,8 +377,7 @@ final class ImagePreparerTests: XCTestCase {
         ssh.failWith = "sudo: a password is required"
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         let options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
 
         do {
             try await preparer.run(options)
@@ -419,8 +399,7 @@ final class ImagePreparerTests: XCTestCase {
         let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
         try await preparer.run(
             .init(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github]))
         let scratch = try XCTUnwrap(tart.cloneCalls.first?.name)
         XCTAssertTrue(scratch.hasPrefix("kinhin-prepare-tmp-"), scratch)
         XCTAssertTrue(tart.deleteCalls.contains(scratch), "scratch deleted after success: \(tart.deleteCalls)")

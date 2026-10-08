@@ -11,8 +11,7 @@ import XCTest
 final class ImagePreparerCancellationTests: XCTestCase {
     private func makeOptions(target: String = "tahoe-base") -> ImagePreparer.Options {
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.source = "ghcr.io/cirruslabs/macos-tahoe-base:latest"
         options.target = target
         return options

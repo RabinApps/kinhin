@@ -17,12 +17,17 @@ final class HostAgentInstallerTests: XCTestCase {
     }
 
     private func installer(
-        _ shell: FakeShell, arm64: Bool = true, gitlab: Bool = false, buildkite: Bool = false, azure: Bool = false
+        _ shell: FakeShell, arm64: Bool = true, gitlab: Bool = false, buildkite: Bool = false, azure: Bool = false,
+        bitbucket: Bool = false
     ) -> HostAgentInstaller {
         let versions = self.versions
+        var forges: Set<ForgeID> = []
+        if gitlab { forges.insert(.gitlab) }
+        if buildkite { forges.insert(.buildkite) }
+        if azure { forges.insert(.azuredevops) }
+        if bitbucket { forges.insert(.bitbucket) }
         return HostAgentInstaller(
-            shell: shell, agentDir: dir, arm64: arm64, latestVersions: { versions }, includeGitLab: gitlab,
-            includeBuildkite: buildkite, includeAzureDevOps: azure)
+            shell: shell, agentDir: dir, arm64: arm64, latestVersions: { versions }, including: forges)
     }
 
     private func plant(github: Bool = false, gitea: Bool = false) throws {

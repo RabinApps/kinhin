@@ -52,8 +52,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.provisionScriptPath = path
 
         try await preparer.run(options)
@@ -76,8 +75,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.provisionScriptPath = try writeScript("brew install wget")
         options.provisionTimeout = 60
 
@@ -91,8 +89,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
         _ = try await preparer.run(
             ImagePreparer.Options(
-                hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-                hasAzureDevOpsToken: false))
+                storedTokens: [.github]))
 
         XCTAssertEqual(ssh.scripts.count, 2, "guest probe + agent install")
         XCTAssertFalse(ssh.scripts[1].contains("kinhin-provision.sh"))
@@ -105,8 +102,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.provisionScriptPath = scratch.appendingPathComponent("does-not-exist.sh").path
 
         do {
@@ -131,8 +127,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         let tart = FakeTart()
         let preparer = ImagePreparer(tart: tart, ssh: FakeSSH())
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.provisionScriptPath = try writeScript("   \n\t\n")
 
         do {
@@ -158,8 +153,7 @@ final class ImageProvisionScriptTests: XCTestCase {
         ssh.failOnCall = 2  // the third exec: the user provision script (0 is the guest probe)
         let preparer = ImagePreparer(tart: tart, ssh: ssh)
         var options = ImagePreparer.Options(
-            hasGitHubToken: true, hasGiteaToken: false, hasGitLabToken: false, hasBuildkiteToken: false,
-            hasAzureDevOpsToken: false)
+            storedTokens: [.github])
         options.target = "tahoe-base"
         options.provisionScriptPath = try writeScript("exit 3")
 
