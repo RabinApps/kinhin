@@ -217,17 +217,18 @@ struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
         }
     }
 
-    // MARK: - Queue operations: delegated to the underlying GitHub client
+    // MARK: - Queue operations: unsupported
+
+    // The listener yields `ForgeJob` demand without workflow-run ids, and the
+    // REST cancel/skip calls need run ids. Rather than succeed silently (the
+    // user would believe the queue was touched), report it through the normal
+    // error path (`AlertKit` in the app, the RPC error for the CLI).
 
     func userRequeueQueuedJobs() async throws {
-        // The listener produces `ForgeJob` demand; the underlying GitHub REST
-        // path operates on queued workflow-run ids. Until the scale-set listener
-        // emits run ids, this is intentionally a no-op.
+        throw GitHubScaleSetError.queueActionUnsupported(action: "Requeueing queued jobs")
     }
 
     func userSkipQueuedJobs() async throws {
-        // The listener produces `ForgeJob` demand; the underlying GitHub REST
-        // path operates on queued workflow-run ids. Until the scale-set listener
-        // emits run ids, this is intentionally a no-op.
+        throw GitHubScaleSetError.queueActionUnsupported(action: "Skipping queued jobs")
     }
 }

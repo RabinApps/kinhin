@@ -62,9 +62,14 @@ public enum GitHubScaleSetError: LocalizedError, Sendable {
     case messagePollFailed(original: String)
     case jitConfigFailed(original: String)
     case runnerNotFound(name: String)
+    /// A queue action (requeue / skip) the scale-set listener cannot perform.
+    case queueActionUnsupported(action: String)
 
     public var errorDescription: String? {
         switch self {
+        case .queueActionUnsupported(let action):
+            return
+                "\(action) is not supported for scale-set accounts: jobs are delivered by GitHub, not read from a queue"
         case .adminTokenExchangeFailed(let original): return "scale-set admin token exchange failed: \(original)"
         case .scaleSetNotFound(let name): return "scale set '\(name)' was not found"
         case .scaleSetUnavailable(let id, let reason): return "scale set \(id) is unavailable: \(reason)"
