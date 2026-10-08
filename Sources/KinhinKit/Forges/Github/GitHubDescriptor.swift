@@ -33,6 +33,7 @@ extension RunnerAgentSpec {
         host: HostAgentSpec(
             required: true, installedPath: "config.sh", mustBeExecutable: false, missingWhat: "config.sh",
             missingLocation: "", summaryName: "actions-runner",
+            stop: { await $0.stopGitHubRunners(id: $1) },
             installScript: { versions, arm64, _ in
                 """
                 \(RunnerBootstrap.githubRunnerDownloadScript(version: versions.github, platform: arm64 ? "osx-arm64" : "osx-x64", file: "runner.tar.gz"))

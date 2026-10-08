@@ -81,6 +81,10 @@ struct RunnerAgentSpec: Sendable {
         let missingLocation: String
         /// The short name in "installed … into" lines ("gitea-runner").
         let summaryName: String
+        /// Stops this agent's processes that outlive their job on the host
+        /// (called from the host runtime's teardown; a no-op for an instance
+        /// that never ran this agent).
+        let stop: @Sendable (_ host: HostRuntime, _ instanceID: String) async -> Void
         /// The shell that downloads and unpacks the agent into the agent directory.
         let installScript:
             @Sendable (_ versions: RunnerVersionResolver.Versions, _ arm64: Bool, _ agentDir: URL) -> String

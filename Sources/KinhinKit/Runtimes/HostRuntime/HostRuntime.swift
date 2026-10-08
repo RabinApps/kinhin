@@ -71,85 +71,19 @@ final class HostRuntime: Runtime {
         return entries.filter { $0.hasPrefix("kinhin-") }
     }
 
-    /// The registration script for the forge (GitHub here; Gitea-family in
-    /// `HostRuntime+Gitea`, GitLab in `HostRuntime+GitLab`, Buildkite in
-    /// `HostRuntime+Buildkite`, Azure DevOps in `HostRuntime+AzureDevOps`),
-    /// run from the
-    /// agent directory with the
-    /// work directory redirected into the instance's scrubbed dir. Labels:
-    /// the pool's labels (already merged with `kinhin-host` at pool build).
+    /// The registration script for the forge, from its descriptor (the
+    /// per-forge builders live in `HostRuntime+<Forge>`), run from the agent
+    /// directory with the work directory redirected into the instance's
+    /// scrubbed dir. Labels: the pool's labels (already merged with
+    /// `kinhin-host` at pool build).
     func registrationScript(
         forge: Forge, token: String, runnerTokens: [String: String], name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String {
-        switch forge.credentials.forge {
-        case .github:
-            if case .jitConfig = forge.registration {
-                let workDir = workDirectory(for: name)
-                try FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
-                let names = FleetEngine.runnerNames(for: name, count: runnerCount)
-                guard names.allSatisfy({ runnerTokens[$0] != nil }), runnerTokens.count == names.count else {
-                    throw EngineError.registrationFailed(vm: name, stderr: "forge returned incomplete JIT configs")
-                }
-                let blocks = names.enumerated().map { index, runnerName in
-                    let runnerDirectory =
-                        runnerCount == 1
-                        ? agentDir
-                        : agentDir.deletingLastPathComponent().appendingPathComponent("host-runner-\(index + 1)")
-                    let pidFile = workDir.appendingPathComponent(runnerName).appendingPathComponent("runner.pid")
-                    return """
-                        set -euo pipefail
-                        mkdir -p \(RunnerBootstrap.shellQuote(runnerDirectory.path))
-                        mkdir -p \(RunnerBootstrap.shellQuote(pidFile.deletingLastPathComponent().path))
-                        if [ ! -x \(RunnerBootstrap.shellQuote(runnerDirectory.appendingPathComponent("config.sh").path)) ]; then
-                          cp -a \(RunnerBootstrap.shellQuote(agentDir.path + "/.")) \(RunnerBootstrap.shellQuote(runnerDirectory.path + "/"))
-                        fi
-                        \(RunnerBootstrap.jitRegistrationScript(
-                            encodedJitConfig: runnerTokens[runnerName] ?? "", name: runnerName,
-                            workFolder: workDir.appendingPathComponent(runnerName).path,
-                            agentDirectory: runnerDirectory.path,
-                            pidFile: pidFile.path
-                        ))
-                        """
-                }
-                return blocks.joined(separator: "\n")
-            }
-        case .gitea, .forgejo:
-            // Forgejo shares Gitea's runner binary and registration flow.
-            return giteaRegistrationScript(
-                instance: forge.registrationURL(), token: token,
-                labels: forge.labels, name: name, runnerCount: runnerCount)
-        case .gitlab:
-            return try gitlabRegistrationScript(
-                forge: forge, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount)
-        case .buildkite:
-            return buildkiteRegistrationScript(
-                forge: forge, token: token, name: name, runnerCount: runnerCount, labels: labels)
-        case .azuredevops:
-            return azureRegistrationScript(forge: forge, token: token, name: name, runnerCount: runnerCount)
-        case .bitbucket:
-            return try bitbucketRegistrationScript(
-                forge: forge, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount)
-        }
-        let workDir = workDirectory(for: name)
-        let base = RunnerBootstrap.registrationScript(
-            configureURL: forge.registrationURL(),
-            token: token,
-            labels: labels ?? forge.labels,
-            ephemeral: true,  // host runners are always ephemeral processes
-            name: name,
-            runnerCount: runnerCount
-        )
-        // Run inside the agent dir with the per-instance work dir; the
-        // classic script's `cd ~/actions-runner` is overridden up front.
-        return """
-            set -euo pipefail
-            cd \(RunnerBootstrap.shellQuote(agentDir.path))
-            mkdir -p \(RunnerBootstrap.shellQuote(workDir.path))
-            \(base)
-            """
-            .replacingOccurrences(of: "cd ~/actions-runner\n", with: "")
-            .replacingOccurrences(of: "--work _work", with: "--work \(RunnerBootstrap.shellQuote(workDir.path))")
+        let request = RegistrationRequest(
+            forge: forge, token: token, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount,
+            route: route, labels: labels)
+        return try forge.credentials.forge.descriptor.registrationScript(for: .host(self), request)
     }
 
     /// Engine-owned watch works unchanged (ephemeral deregistration
@@ -159,12 +93,7 @@ final class HostRuntime: Runtime {
     /// cleanup. Idempotent: missing dirs are already clean.
     func teardown(id: String) async {
         let workDir = workDirectory(for: id)
-        await stopGiteaDaemons(id: id)
-        await stopGitLabRunners(id: id)
-        await stopBuildkiteAgents(id: id)
-        await stopGitHubRunners(id: id)
-        await stopAzureAgents(id: id)
-        await stopBitbucketRunners(id: id)
+        for agent in RunnerAgentSpec.all { await agent.host.stop(self, id) }
         await bestEffortAsync(id, "removing host work directory") {
             if FileManager.default.fileExists(atPath: workDir.path) {
                 try FileManager.default.removeItem(at: workDir)
@@ -174,16 +103,13 @@ final class HostRuntime: Runtime {
 
     // MARK: - Helpers
 
-    /// Stops scale-set runner processes recorded in the instance work dir.
-    func stopGitHubRunners(id: String) async {
-        await stopRecordedAgents(
-            id: id, pidFile: "runner.pid", command: "Runner.Listener", what: "GitHub runners")
-    }
-
     /// Stops the background agents an instance recorded in
     /// `<work dir>/<runner>/<pidFile>` (GitLab runners, Buildkite agents) and
     /// their children. A pid is only signalled while its command line still
-    /// contains `command`, since pids get reused.
+    /// contains `command`, since pids get reused. A pid file is removed only
+    /// once its process is stopped or gone: several agents record the same
+    /// `runner.pid` name, so a sweep for one agent must leave another agent's
+    /// live pid for that agent's own sweep.
     func stopRecordedAgents(id: String, pidFile: String, command: String, what: String) async {
         let workDir = workDirectory(for: id)
         let fm = FileManager.default
@@ -202,8 +128,10 @@ final class HostRuntime: Runtime {
               if ps -p "$pid" -o command= | grep -q \(RunnerBootstrap.shellQuote(command)); then
                 pkill -TERM -P "$pid" || true
                 kill "$pid" || true
+                rm -f "$f"
+              elif ! kill -0 "$pid" 2>/dev/null; then
+                rm -f "$f"
               fi
-              rm -f "$f"
             done
             """
         await bestEffortAsync(id, "stopping \(what)") {

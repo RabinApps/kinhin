@@ -15,6 +15,29 @@ struct AzureDevOpsDescriptor: ForgeDescriptor {
     func parseAccount(_ entry: ConfigLoader.AccountEntry) throws -> AccountConfig {
         try ConfigLoader.parseAzureDevOpsAccount(entry)
     }
+
+    func registrationScript(for guest: RegistrationGuest, _ request: RegistrationRequest) throws -> String {
+        let forge = request.forge
+        let runnerNames = FleetEngine.runnerNames(for: request.name, count: request.runnerCount)
+        let capabilities = AzureDevOpsForge.capabilityEnvironment(forge.labels)
+        switch guest {
+        case .tartVM:
+            return RunnerBootstrap.azureRegistrationScript(
+                organization: forge.registrationURL(), token: request.token, pool: forge.scope,
+                runnerNames: runnerNames, capabilities: capabilities,
+                template: "\"$HOME/azure-agent\"", baseDir: "\"$HOME/azure-agents\"", copy: .vmGuest)
+        case .linuxContainer:
+            // Containers run as root, which the agent refuses unless allowed.
+            return RunnerBootstrap.azureRegistrationScript(
+                organization: forge.registrationURL(), token: request.token, pool: forge.scope,
+                runnerNames: runnerNames, capabilities: capabilities,
+                template: "/opt/azure-agent", baseDir: "/opt/azure-agents", copy: .archive,
+                extraEnvironment: ["AGENT_ALLOW_RUNASROOT=1"])
+        case .host(let host):
+            return host.azureRegistrationScript(
+                forge: forge, token: request.token, name: request.name, runnerCount: request.runnerCount)
+        }
+    }
 }
 
 // MARK: - Runner agent
@@ -39,6 +62,7 @@ extension RunnerAgentSpec {
             required: false, installedPath: "azure-agent/config.sh", mustBeExecutable: true,
             missingWhat: "the Azure Pipelines agent", missingLocation: "/azure-agent",
             summaryName: "azure pipelines agent",
+            stop: { await $0.stopAzureAgents(id: $1) },
             installScript: { versions, arm64, _ in
                 // The template each host runner clones (see HostRuntime+AzureDevOps).
                 """

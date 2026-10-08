@@ -12,6 +12,29 @@ struct BitbucketDescriptor: ForgeDescriptor {
     func parseAccount(_ entry: ConfigLoader.AccountEntry) throws -> AccountConfig {
         try ConfigLoader.parseBitbucketAccount(entry)
     }
+
+    func registrationScript(for guest: RegistrationGuest, _ request: RegistrationRequest) throws -> String {
+        func runners() throws -> [(name: String, bundle: String)] {
+            try RunnerBootstrap.bitbucketRunners(
+                name: request.name, runnerCount: request.runnerCount, tokens: request.runnerTokens)
+        }
+        switch guest {
+        case .tartVM:
+            // A tart base VM may be a macOS or a Linux guest; `auto` lets the
+            // guest resolve its own --runtime (Darwin -> macos, else linux-shell).
+            return RunnerBootstrap.bitbucketRegistrationScript(
+                runners: try runners(), runtime: "auto", runnerCommand: "\"$HOME/bitbucket-runner/runner.sh\"",
+                baseDir: "\"$HOME/bitbucket-runners\"")
+        case .linuxContainer:
+            return RunnerBootstrap.bitbucketRegistrationScript(
+                runners: try runners(), runtime: "linux-shell", runnerCommand: "/opt/bitbucket-runner/runner.sh",
+                baseDir: "/opt/bitbucket-runners")
+        case .host(let host):
+            return try host.bitbucketRegistrationScript(
+                forge: request.forge, runnerTokens: request.runnerTokens, name: request.name,
+                runnerCount: request.runnerCount)
+        }
+    }
 }
 
 // MARK: - Runner agent
@@ -39,6 +62,7 @@ extension RunnerAgentSpec {
             required: false, installedPath: "bitbucket-runner/runner.sh", mustBeExecutable: true,
             missingWhat: "the Bitbucket runner", missingLocation: "/bitbucket-runner",
             summaryName: "bitbucket runner",
+            stop: { await $0.stopBitbucketRunners(id: $1) },
             installScript: { versions, arm64, agentDir in
                 // The macOS runner (package + bundled JDK) each host runner uses.
                 RunnerBootstrap.bitbucketRunnerInstallScript(

@@ -31,6 +31,9 @@ protocol ForgeDescriptor: Sendable {
     /// The runner agent this forge needs installed (shared by forges that run
     /// the same binary).
     var agent: RunnerAgentSpec { get }
+    /// The script that registers this forge's runners inside `guest`, built
+    /// from the request. Cache-share exports are prepended by the runtime.
+    func registrationScript(for guest: RegistrationGuest, _ request: RegistrationRequest) throws -> String
     /// Validates one `accounts:` entry (after the checks every forge shares)
     /// and builds its `AccountConfig`.
     func parseAccount(_ entry: ConfigLoader.AccountEntry) throws -> AccountConfig

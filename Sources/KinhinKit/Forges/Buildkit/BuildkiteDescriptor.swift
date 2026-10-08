@@ -15,6 +15,26 @@ struct BuildkiteDescriptor: ForgeDescriptor {
     func parseAccount(_ entry: ConfigLoader.AccountEntry) throws -> AccountConfig {
         try ConfigLoader.parseBuildkiteAccount(entry)
     }
+
+    func registrationScript(for guest: RegistrationGuest, _ request: RegistrationRequest) throws -> String {
+        let forge = request.forge
+        let tags = RunnerBootstrap.buildkiteTags(accountLabels: forge.labels, poolLabels: request.labels)
+        let runnerNames = FleetEngine.runnerNames(for: request.name, count: request.runnerCount)
+        switch guest {
+        case .tartVM:
+            return RunnerBootstrap.buildkiteRegistrationScript(
+                token: request.token, tags: tags, runnerNames: runnerNames, ephemeral: request.route.ephemeral,
+                binary: "\"$HOME/buildkite-agent/buildkite-agent\"", baseDir: "\"$HOME/buildkite-agent\"")
+        case .linuxContainer:
+            return RunnerBootstrap.buildkiteRegistrationScript(
+                token: request.token, tags: tags, runnerNames: runnerNames, ephemeral: request.route.ephemeral,
+                binary: "/opt/buildkite-agent/buildkite-agent", baseDir: "/opt/buildkite-agent")
+        case .host(let host):
+            return host.buildkiteRegistrationScript(
+                forge: forge, token: request.token, name: request.name, runnerCount: request.runnerCount,
+                labels: request.labels)
+        }
+    }
 }
 
 // MARK: - Runner agent
@@ -37,6 +57,7 @@ extension RunnerAgentSpec {
         host: HostAgentSpec(
             required: false, installedPath: "buildkite-agent", mustBeExecutable: true,
             missingWhat: "buildkite-agent", missingLocation: "", summaryName: "buildkite-agent",
+            stop: { await $0.stopBuildkiteAgents(id: $1) },
             installScript: { versions, arm64, _ in
                 """
                 \(RunnerBootstrap.buildkiteAgentDownloadScript(version: versions.buildkite, platform: arm64 ? "darwin-arm64" : "darwin-amd64", file: "buildkite-agent.tar.gz"))

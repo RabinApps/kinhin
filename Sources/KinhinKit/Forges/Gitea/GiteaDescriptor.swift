@@ -14,6 +14,21 @@ struct GiteaDescriptor: ForgeDescriptor {
     func parseAccount(_ entry: ConfigLoader.AccountEntry) throws -> AccountConfig {
         try ConfigLoader.parseGiteaAccount(entry)
     }
+
+    /// Forgejo shares Gitea's runner binary and registration flow.
+    func registrationScript(for guest: RegistrationGuest, _ request: RegistrationRequest) throws -> String {
+        let forge = request.forge
+        switch guest {
+        case .tartVM, .linuxContainer:
+            return RunnerBootstrap.linuxGiteaRegistrationScript(
+                instance: forge.registrationURL(), token: request.token, labels: forge.labels, name: request.name,
+                runnerCount: request.runnerCount)
+        case .host(let host):
+            return host.giteaRegistrationScript(
+                instance: forge.registrationURL(), token: request.token, labels: forge.labels, name: request.name,
+                runnerCount: request.runnerCount)
+        }
+    }
 }
 
 // MARK: - Runner agent
@@ -34,6 +49,7 @@ extension RunnerAgentSpec {
         host: HostAgentSpec(
             required: true, installedPath: "gitea-runner", mustBeExecutable: true, missingWhat: "gitea-runner",
             missingLocation: "", summaryName: "gitea-runner",
+            stop: { await $0.stopGiteaDaemons(id: $1) },
             installScript: { versions, arm64, _ in
                 """
                 \(RunnerBootstrap.giteaRunnerDownloadScript(version: versions.gitea, platform: arm64 ? "darwin-arm64" : "darwin-amd64", file: "runner.xz"))

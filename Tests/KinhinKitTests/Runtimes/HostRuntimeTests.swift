@@ -244,8 +244,10 @@ final class HostRuntimeTests: XCTestCase {
         FileManager.default.createFile(
             atPath: instanceDir.appendingPathComponent("runner.pid").path, contents: Data("99999".utf8))
         try await runtime.teardown(id: id)
-        let stop = try XCTUnwrap(shell.calls.first { $0.last?.contains("runner.pid") == true }, "\(shell.calls)")
-        XCTAssertTrue(stop.last?.contains("run-single") ?? false, "only kills a pid that is still a run-single process")
+        let stop = try XCTUnwrap(
+            shell.calls.first { $0.last?.contains("run-single") == true },
+            "a sweep for the GitLab agent ran: \(shell.calls)")
+        XCTAssertTrue(stop.last?.contains("runner.pid") ?? false, "only kills a pid that is still a run-single process")
         XCTAssertFalse(FileManager.default.fileExists(atPath: runtime.workDirectory(for: id).path))
     }
 

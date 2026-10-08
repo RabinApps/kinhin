@@ -16,6 +16,31 @@ struct GitLabDescriptor: ForgeDescriptor {
     func parseAccount(_ entry: ConfigLoader.AccountEntry) throws -> AccountConfig {
         try ConfigLoader.parseGitLabAccount(entry)
     }
+
+    func registrationScript(for guest: RegistrationGuest, _ request: RegistrationRequest) throws -> String {
+        let forge = request.forge
+        switch guest {
+        case .tartVM:
+            return RunnerBootstrap.gitlabRegistrationScript(
+                instance: forge.registrationURL(),
+                runners: try RunnerBootstrap.gitlabRunners(
+                    name: request.name, runnerCount: request.runnerCount, tokens: request.runnerTokens),
+                binary: "\"$HOME/gitlab-runner/gitlab-runner\"",
+                baseDir: "\"$HOME/gitlab-runner\""
+            )
+        case .linuxContainer:
+            return RunnerBootstrap.gitlabRegistrationScript(
+                instance: forge.registrationURL(),
+                runners: try RunnerBootstrap.gitlabRunners(
+                    name: request.name, runnerCount: request.runnerCount, tokens: request.runnerTokens),
+                binary: "/opt/gitlab-runner/gitlab-runner",
+                baseDir: "/opt/gitlab-runner")
+        case .host(let host):
+            return try host.gitlabRegistrationScript(
+                forge: forge, runnerTokens: request.runnerTokens, name: request.name,
+                runnerCount: request.runnerCount)
+        }
+    }
 }
 
 // MARK: - Runner agent
@@ -40,6 +65,7 @@ extension RunnerAgentSpec {
         host: HostAgentSpec(
             required: false, installedPath: "gitlab-runner", mustBeExecutable: true, missingWhat: "gitlab-runner",
             missingLocation: "", summaryName: "gitlab-runner",
+            stop: { await $0.stopGitLabRunners(id: $1) },
             installScript: { versions, arm64, _ in
                 """
                 \(RunnerBootstrap.gitlabRunnerDownloadScript(version: versions.gitlab, platform: arm64 ? "darwin-arm64" : "darwin-amd64", file: "gitlab-runner"))

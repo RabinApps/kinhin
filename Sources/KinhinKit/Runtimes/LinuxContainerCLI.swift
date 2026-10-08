@@ -79,87 +79,11 @@ struct LinuxContainerCLI: Sendable {
         let selection = route.toolchains.map { ToolchainCatalog.selection(from: $0, platform: .linux) }
         let cachePrefix = RunnerBootstrap.cachePrefix(
             mounted: route.cacheMount, selection: selection, mountPath: ToolchainCacheMount.linuxGuestPath)
-        switch forge.credentials.forge {
-        case .github:
-            if case .jitConfig = forge.registration {
-                let names = FleetEngine.runnerNames(for: name, count: runnerCount)
-                guard names.allSatisfy({ runnerTokens[$0] != nil }), runnerTokens.count == names.count else {
-                    throw EngineError.registrationFailed(vm: name, stderr: "forge returned incomplete JIT configs")
-                }
-                let scripts = names.enumerated().map { index, runnerName in
-                    // Match the layout `kinhin image prepare` bakes for Linux: runner 1
-                    // lives in /opt/actions-runner; runners 2..N live in
-                    // /opt/actions-runner-2..N. The previous mapping used
-                    // /opt/actions-runner-(index+1), which produced a missing
-                    // /opt/actions-runner-1 for the first multi-runner container.
-                    let runnerNumber = index + 1
-                    let directory: String
-                    let workFolder: String
-                    if runnerCount == 1 {
-                        directory = "/opt/actions-runner"
-                        workFolder = "/opt/work"
-                    } else {
-                        directory =
-                            runnerNumber == 1
-                            ? "/opt/actions-runner"
-                            : "/opt/actions-runner-\(runnerNumber)"
-                        workFolder =
-                            runnerNumber == 1
-                            ? "/opt/work"
-                            : "/opt/work-\(runnerNumber)"
-                    }
-                    return RunnerBootstrap.linuxJitRegistrationScript(
-                        encodedJitConfig: runnerTokens[runnerName] ?? "", name: runnerName,
-                        workFolder: workFolder, agentDirectory: directory,
-                        pidFile: "/var/run/kinhin-\(name)-r\(runnerNumber).pid")
-                }
-                return cachePrefix + scripts.joined(separator: "\n")
-            }
-            return cachePrefix
-                + RunnerBootstrap.linuxGitHubRegistrationScript(
-                    configureURL: forge.registrationURL(), token: token, labels: labels ?? forge.labels,
-                    ephemeral: route.ephemeral, name: name, runnerCount: runnerCount)
-        case .gitea, .forgejo:
-            // Forgejo shares Gitea's runner binary and registration flow.
-            return cachePrefix
-                + RunnerBootstrap.linuxGiteaRegistrationScript(
-                    instance: forge.registrationURL(), token: token, labels: forge.labels, name: name,
-                    runnerCount: runnerCount)
-        case .gitlab:
-            return cachePrefix
-                + RunnerBootstrap.gitlabRegistrationScript(
-                    instance: forge.registrationURL(),
-                    runners: try RunnerBootstrap.gitlabRunners(
-                        name: name, runnerCount: runnerCount, tokens: runnerTokens),
-                    binary: "/opt/gitlab-runner/gitlab-runner",
-                    baseDir: "/opt/gitlab-runner")
-        case .buildkite:
-            return cachePrefix
-                + RunnerBootstrap.buildkiteRegistrationScript(
-                    token: token,
-                    tags: RunnerBootstrap.buildkiteTags(accountLabels: forge.labels, poolLabels: labels),
-                    runnerNames: FleetEngine.runnerNames(for: name, count: runnerCount),
-                    ephemeral: route.ephemeral,
-                    binary: "/opt/buildkite-agent/buildkite-agent",
-                    baseDir: "/opt/buildkite-agent")
-        case .azuredevops:
-            // Containers run as root, which the agent refuses unless allowed.
-            return cachePrefix
-                + RunnerBootstrap.azureRegistrationScript(
-                    organization: forge.registrationURL(), token: token, pool: forge.scope,
-                    runnerNames: FleetEngine.runnerNames(for: name, count: runnerCount),
-                    capabilities: AzureDevOpsForge.capabilityEnvironment(forge.labels),
-                    template: "/opt/azure-agent", baseDir: "/opt/azure-agents", copy: .archive,
-                    extraEnvironment: ["AGENT_ALLOW_RUNASROOT=1"])
-        case .bitbucket:
-            return cachePrefix
-                + RunnerBootstrap.bitbucketRegistrationScript(
-                    runners: try RunnerBootstrap.bitbucketRunners(
-                        name: name, runnerCount: runnerCount, tokens: runnerTokens),
-                    runtime: "linux-shell",
-                    runnerCommand: "/opt/bitbucket-runner/runner.sh",
-                    baseDir: "/opt/bitbucket-runners")
-        }
+        let request = RegistrationRequest(
+            forge: forge, token: token, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount,
+            route: route, labels: labels)
+        return cachePrefix
+            + (try forge.credentials.forge.descriptor.registrationScript(for: .linuxContainer, request))
     }
 
     /// Runs a script inside the running container (`exec`), which surfaces
