@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `kinhin workflow test` no longer reports a pass when it skipped work: matrix jobs, `uses:` actions other than checkout and unsupported `if:` conditions make the result `partial` (new `outcome` and `unsupportedSkips` in `--json`), which exits 1 unless `--lenient` is passed. Each run notes that steps execute directly on this Mac, not isolated.
+- `kinhin workflow test` no longer reports a pass when it skipped work: matrix jobs, `uses:` actions other than checkout and unsupported `if:` conditions make the result `partial` (new `outcome` and `unsupportedSkips` in `--json`), which exits 1 unless `--lenient` is passed. `bash` steps now run with `--noprofile --norc -e -o pipefail` like GitHub (a failing pipeline stage fails the step). Each run notes that steps execute directly on this Mac, not isolated.
 
 - `kinhin doctor --check-tokens` probes every configured account's token against its own forge (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket), reports ok/failed per account with the `kinhin auth set` fix, adds `tokenChecks` to `--json` and makes a failed check exit 1. Plain `kinhin doctor` is now fully offline (it no longer mints a GitHub org registration token) and says when tokens were not checked.
 

@@ -186,7 +186,7 @@ public actor LocalWorkflowRunner {
             let timeout = TimeInterval(step.timeoutMinutes ?? job.timeoutMinutes ?? 30) * 60
             let command: [String]
             switch stepShell.split(separator: " ").first.map(String.init) ?? stepShell {
-            case "bash": command = ["/bin/bash", "-e", "-s"]
+            case "bash": command = ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-s"]
             case "sh": command = ["/bin/sh", "-e", "-s"]
             case "zsh": command = ["/bin/zsh", "-e", "-s"]
             default: throw WorkflowError.unsupportedShell(stepShell)

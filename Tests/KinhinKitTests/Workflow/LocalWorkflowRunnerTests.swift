@@ -135,6 +135,28 @@ final class LocalWorkflowRunnerTests: XCTestCase {
             document: try document(yaml), workingDirectory: URL(fileURLWithPath: "/repo"))
     }
 
+    func testBashStepsRunWithGitHubsFlags() async throws {
+        let shell = FakeShell()
+        _ = try await LocalWorkflowRunner(shell: shell).run(
+            document: try document("jobs:\n  a:\n    steps:\n      - run: echo hi\n"),
+            workingDirectory: URL(fileURLWithPath: "/repo"))
+        XCTAssertEqual(
+            Array(shell.calls[0].prefix(7)),
+            ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-s"])
+    }
+
+    /// pipefail needs a real shell: `false | cat` must fail the step, as it
+    /// does on GitHub, and a profile/rc file must not leak into the run.
+    func testAFailingPipelineStageFailsTheStep() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("workflow-pipefail-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let report = try await LocalWorkflowRunner(shell: Shell()).run(
+            document: try document("jobs:\n  a:\n    steps:\n      - run: false | cat\n"), workingDirectory: root)
+        XCTAssertEqual(report.outcome, .failed)
+    }
+
     func testCleanRunIsSucceededAndExitsZeroEvenWithoutLenient() async throws {
         let report = try await run("jobs:\n  a:\n    steps:\n      - run: echo hi\n")
         XCTAssertEqual(report.outcome, .succeeded)
