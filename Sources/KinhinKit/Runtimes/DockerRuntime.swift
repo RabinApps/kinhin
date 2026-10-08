@@ -143,6 +143,10 @@ public struct DockerRuntime: Runtime {
         try await cli.containerIDs(all: true)
     }
 
+    public func state(id: String) async throws -> InstanceState {
+        try await cli.state(id: id)
+    }
+
     /// The CPU architecture of a local image (`arm64`/`amd64`), nil when the
     /// image is absent or the CLI can't say.
     public func imageArchitecture(of reference: String) async -> String? {

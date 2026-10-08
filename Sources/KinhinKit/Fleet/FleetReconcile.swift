@@ -95,6 +95,7 @@ extension FleetEngine {
             var idle = false
             do {
                 idle = try await reconcileOnce().idle
+                await sweepOrphansIfDue()
                 await statusBox.modify { $0.setAlert("reconcile", nil) }
             } catch is CancellationError {
                 return  // engine stopping: the loop exits instead of logging a cancel as an error

@@ -239,6 +239,10 @@ extension FleetEngine {
         let registrationDeadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 120)))
         var seen: Set<String> = []
         var idleSince: Date?
+        // The runtime is asked less often than the forge: a dead instance
+        // otherwise waits out the deadline below (hours) with its record.
+        var lastLivenessCheck = ContinuousClock.now
+        var deadChecks = 0
         while Date() < deadline {
             try Task.checkCancellation()
             let all: [ForgeRunner]
@@ -301,6 +305,24 @@ extension FleetEngine {
                 }
                 await deleteVMRecord(id: id, reason: "registration timeout")
                 return
+            }
+            if ContinuousClock.now - lastLivenessCheck >= watchdog.livenessInterval {
+                lastLivenessCheck = ContinuousClock.now
+                switch await liveness(of: id) {
+                case .alive: deadChecks = 0
+                case .unknown: break
+                case .dead(let state):
+                    deadChecks += 1
+                    if deadChecks >= watchdog.livenessMisses {
+                        let phase = store.all.first { $0.id == id }?.phase.rawValue ?? "unknown"
+                        Log.error(
+                            id,
+                            "instance is \(state == .gone ? "gone" : "stopped") while its runner was \(phase); cleaning up"
+                        )
+                        await deleteVMRecord(id: id, reason: "instance \(state == .gone ? "gone" : "stopped")")
+                        return
+                    }
+                }
             }
             try await Task.sleep(for: exitWatchInterval)
         }

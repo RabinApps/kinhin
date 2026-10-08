@@ -212,6 +212,13 @@ struct LinuxContainerCLI: Sendable {
         return result.outputLines
     }
 
+    /// Running, stopped (exited but not removed) or gone. A `--rm` container
+    /// that exited is removed, so it reads as gone.
+    func state(id: String) async throws -> InstanceState {
+        if try await containerIDs(all: false).contains(id) { return .running }
+        return try await containerIDs(all: true).contains(id) ? .stopped : .gone
+    }
+
     /// Local image references (the checklist's image row and the doctor);
     /// empty, with a warning, when the CLI can't list them.
     func localImageNames() async -> [String] {

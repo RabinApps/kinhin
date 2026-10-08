@@ -15,6 +15,16 @@ public enum RuntimeID: String, Codable, Sendable, CaseIterable {
     case host
 }
 
+/// Whether a provisioned instance is still alive, as its runtime sees it.
+public enum InstanceState: Sendable, Equatable {
+    /// Up and executing.
+    case running
+    /// Exists but is not executing (a halted VM or container).
+    case stopped
+    /// No longer exists (deleted out of band, or a `--rm` container that exited).
+    case gone
+}
+
 /// Health of a runtime's prerequisites — same shape as `TartHealth`, so the
 /// checklist renders it with existing machinery.
 public enum RuntimeHealth: Equatable, Sendable {
@@ -115,6 +125,12 @@ public protocol Runtime: Sendable {
     /// failed listing must never read as "no instances".
     func existingInstanceIDs() async throws -> [String]
 
+    /// Whether the instance is running, stopped or gone. Throws when the
+    /// runtime can't be asked: a failed query must never read as "gone". The
+    /// default answers from `existingInstanceIDs()` (present = running), which
+    /// is the best a runtime without a finer signal can say.
+    func state(id: String) async throws -> InstanceState
+
     /// The bootstrap script that turns the provisioned instance into N
     /// registered runners. The engine executes it inside the instance.
     /// `token` is the shared registration token; `runnerTokens` holds the
@@ -133,6 +149,10 @@ public protocol Runtime: Sendable {
 }
 
 extension Runtime {
+    func state(id: String) async throws -> InstanceState {
+        try await existingInstanceIDs().contains(id) ? .running : .gone
+    }
+
     /// Shared-token registration (every forge but GitLab).
     func registrationScript(
         forge: Forge, token: String, name: String,
@@ -275,6 +295,11 @@ struct TartRuntime: Runtime {
 
     func existingInstanceIDs() async throws -> [String] {
         try await tart.list().map(\.name)
+    }
+
+    func state(id: String) async throws -> InstanceState {
+        guard let vm = try await tart.list().first(where: { $0.name == id }) else { return .gone }
+        return vm.status.lowercased() == "running" ? .running : .stopped
     }
 
     func registrationScript(

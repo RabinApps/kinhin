@@ -230,6 +230,31 @@ final class DockerRuntimeTests: XCTestCase {
         } catch {}
     }
 
+    func testStateDistinguishesRunningStoppedAndGone() async throws {
+        let shell = FakeShell()
+        let runtime = DockerRuntime(shell: shell, image: "img", cpus: 2, memoryGB: 4, binPath: bin)
+        let ok = { (out: String) in ShellResult(exitCode: 0, stdout: out, stderr: "") }
+
+        shell.responses = [ok("kinhin-a\n")]  // `ps`: running
+        let running = try await runtime.state(id: "kinhin-a")
+        XCTAssertEqual(running, .running)
+
+        shell.responses = [ok(""), ok("kinhin-a\n")]  // `ps`, then `ps --all`: exited, not removed
+        let stopped = try await runtime.state(id: "kinhin-a")
+        XCTAssertEqual(stopped, .stopped)
+
+        shell.responses = [ok(""), ok("")]  // a --rm container that exited is removed
+        let gone = try await runtime.state(id: "kinhin-a")
+        XCTAssertEqual(gone, .gone)
+
+        shell.responses = []
+        shell.defaultResult = ShellResult(exitCode: 1, stdout: "", stderr: "Cannot connect to the Docker daemon")
+        do {
+            _ = try await runtime.state(id: "kinhin-a")
+            XCTFail("a dead daemon must not read as gone")
+        } catch {}
+    }
+
     // MARK: - Image sizes
 
     func testLocalImageSizesParsesListing() async {

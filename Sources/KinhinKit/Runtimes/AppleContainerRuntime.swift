@@ -121,6 +121,10 @@ public struct AppleContainerRuntime: Runtime {
         try await cli.containerIDs(all: true)
     }
 
+    public func state(id: String) async throws -> InstanceState {
+        try await cli.state(id: id)
+    }
+
     /// Local list of image references (for the checklist's image-present
     /// row and the doctor).
     public func localImageNames() async -> [String] {

@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 public struct TartVM: Sendable, Equatable {
     public let name: String
@@ -229,14 +230,51 @@ public struct TartController: TartControlling {
         process.arguments = Self.runArguments(name: name, mounts: mounts, softnet: softnet)
         process.environment = Self.runEnvironment(base: ProcessInfo.processInfo.environment, softnet: softnet)
         process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice
+        // stderr is drained into a short tail so an exit can be explained
+        // (a boot failure otherwise surfaces only as an IP timeout minutes later).
+        let errors = Pipe()
+        let tail = Mutex(Data())
+        errors.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+                return
+            }
+            tail.withLock { data in
+                data.append(chunk)
+                if data.count > Self.runTailBytes { data = data.suffix(Self.runTailBytes) }
+            }
+        }
+        process.standardError = errors
+        process.terminationHandler = { finished in
+            let text = tail.withLock { String(decoding: $0, as: UTF8.self) }
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            Self.logRunExit(
+                vm: name, status: finished.terminationStatus, reason: finished.terminationReason, tail: text)
+        }
         do {
             try process.run()
         } catch {
+            errors.fileHandleForReading.readabilityHandler = nil
             throw TartError.commandFailed(what: "run \(name)", stderr: error.localizedDescription)
         }
         // Do not wait — the VM keeps running in its own process.
+    }
+
+    /// How much of `tart run`'s stderr an exit report keeps.
+    static let runTailBytes = 2048
+
+    /// Reports that a VM's `tart run` process ended. A clean exit is the
+    /// normal end of a VM (`tart stop`); anything else is a crash, so the
+    /// reason and stderr tail are logged where the VM's log lines are.
+    static func logRunExit(vm: String, status: Int32, reason: Process.TerminationReason, tail: String) {
+        if status == 0, reason == .exit {
+            Log.info(vm, "tart run exited")
+        } else {
+            let how = reason == .uncaughtSignal ? "killed by signal \(status)" : "exited with status \(status)"
+            Log.warn(vm, "tart run \(how)" + (tail.isEmpty ? "" : ": \(tail)"))
+        }
     }
 
     public func ip(of name: String, timeout: TimeInterval = 120) async throws -> String {
