@@ -81,7 +81,7 @@ public struct GitHubCredentials: Sendable {
     }
 }
 
-public enum GitHubError: LocalizedError, Equatable, Sendable {
+public enum GitHubError: LocalizedError, CategorizedError, Equatable, Sendable {
     case unauthorized
     case forbidden(String)
     case notFound(String)
@@ -89,6 +89,16 @@ public enum GitHubError: LocalizedError, Equatable, Sendable {
     case http(Int, String)
     case decoding(String)
     case invalidInstance(String)
+
+    /// Only credential and access problems point at the token; an outage,
+    /// rate limit or malformed response must not tell the user to re-enter it.
+    public var category: ErrorCategory {
+        switch self {
+        case .unauthorized, .forbidden, .notFound: return .auth
+        case .invalidInstance: return .config
+        case .rateLimited, .http, .decoding: return .runtime
+        }
+    }
 
     public var errorDescription: String? {
         switch self {

@@ -10,7 +10,7 @@ import Foundation
 /// Problems that are not HTTP-shaped — a malformed instance URL, missing
 /// token scopes, an unknown pool — stay in the per-forge error enums, which
 /// now only carry those forge-specific cases.
-enum ForgeAPIError: LocalizedError, Equatable, Sendable {
+enum ForgeAPIError: LocalizedError, CategorizedError, Equatable, Sendable {
     case nonHTTPResponse(forge: ForgeID)
     case unauthorized(forge: ForgeID)
     case forbidden(forge: ForgeID, why: String)
@@ -25,6 +25,16 @@ enum ForgeAPIError: LocalizedError, Equatable, Sendable {
         case .nonHTTPResponse(let forge), .unauthorized(let forge), .forbidden(let forge, _),
             .notFound(let forge, _), .http(let forge, _, _), .decoding(let forge, _):
             return forge
+        }
+    }
+
+    /// Credential and access problems are `.auth`; outages, throttling and
+    /// malformed responses are not the token's fault.
+    var category: ErrorCategory {
+        switch self {
+        case .unauthorized, .forbidden, .notFound: return .auth
+        case .nonHTTPResponse, .decoding: return .runtime
+        case .http(_, let code, _): return code == 401 || code == 403 ? .auth : .runtime
         }
     }
 

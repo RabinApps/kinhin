@@ -75,7 +75,7 @@ public enum Daemon {
                 ? "no GitHub token in Keychain — run `kinhin auth` first"
                 : !cfg.accounts.isEmpty
                     ? "no account has a token in Keychain — run `kinhin auth list`, then `kinhin auth set --account NAME`"
-                    : "no forge ready — set a GitHub repo or a gitea: section, and store its token (`kinhin auth set`)"
+                    : "no forge ready — add an account under `accounts:` in the config, and store its token (`kinhin auth set --account NAME`)"
             Log.error("daemon", message)
             throw DaemonError.missingToken
         }

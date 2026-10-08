@@ -3,7 +3,7 @@ import KinhinKit
 
 // The CLI's routing table, extracted from the entry point so tests can pin
 // the command surface (arg parsing must not silently change meaning).
-enum CLICommand: Equatable {
+enum CLICommand: Equatable, Hashable {
     case configInit
     case auth
     case doctor
@@ -119,6 +119,18 @@ enum CLICommand: Equatable {
         default:
             return nil
         }
+    }
+
+    /// Commands that take no help flag of their own: `--help`/`-h` after the
+    /// command name must print help, not run the command (`kinhin stop --help`
+    /// used to stop the fleet).
+    private static let helpIntercepted: Set<CLICommand> = [
+        .start, .stop, .pause, .resume, .status, .daemon, .cleanup, .watch, .logs,
+    ]
+
+    static func wantsHelp(_ command: CLICommand?, args: [String]) -> Bool {
+        guard let command, helpIntercepted.contains(command) else { return false }
+        return args.dropFirst().contains { $0 == "--help" || $0 == "-h" }
     }
 
     /// Whether invoking this command should auto-create the starter config

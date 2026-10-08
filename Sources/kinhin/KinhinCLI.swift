@@ -20,6 +20,11 @@ struct KinhinCLI {
         let args = Array(CommandLine.arguments.dropFirst())
         let command = CLICommand.parse(args)
 
+        if CLICommand.wantsHelp(command, args: args) {
+            printHelp()
+            return
+        }
+
         if CLICommand.shouldAutoCreateConfig(command, args: args) {
             noteAutoCreatedConfigIfMissing()
         }
