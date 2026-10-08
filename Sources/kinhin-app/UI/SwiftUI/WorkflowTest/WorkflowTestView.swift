@@ -41,7 +41,7 @@ struct WorkflowTestView: View {
             }
             Spacer()
             if model.state == .running {
-                ProgressView().controlSize(.small)
+                ProgressView().controlSize(.small).accessibilityLabel("Working")
             }
         }
         .foregroundStyle(model.state == .running ? Color.accentColor : Color.primary)

@@ -238,7 +238,7 @@ final class SetupFormsTests: XCTestCase {
         XCTAssertEqual(model.imageButtonTitle, "Rebuild image…")
 
         var asked = 0
-        model.confirmRebuild = { _, _ in
+        model.seams.confirmRebuild = { _, _ in
             asked += 1
             return false
         }
@@ -259,25 +259,25 @@ final class SetupFormsTests: XCTestCase {
         let model = MacToolsModel()
         model.configURL = configURL
         model.reload()
-        model.addImage(name: " xcode ", baseImage: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest")
+        model.namedImages.add(name: " xcode ", baseImage: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest")
         XCTAssertEqual(try snapshot().images.map(\.name), ["xcode"])
         XCTAssertEqual(try snapshot().images.first?.baseImage, "ghcr.io/cirruslabs/macos-tahoe-xcode:latest")
-        XCTAssertEqual(model.extraImages.map(\.name), ["xcode"])
+        XCTAssertEqual(model.namedImages.rows.map(\.name), ["xcode"])
 
-        model.setImageBase(nil, for: "xcode")
+        model.namedImages.setBase(nil, for: "xcode")
         XCTAssertNil(try snapshot().images.first?.baseImage)
 
-        model.setImageLabels("xcode, xcode-26", for: "xcode")
+        model.namedImages.setLabels("xcode, xcode-26", for: "xcode")
         XCTAssertEqual(try snapshot().images.first?.labels, ["xcode", "xcode-26"])
-        XCTAssertEqual(model.extraImages.first?.labels, ["xcode", "xcode-26"])
+        XCTAssertEqual(model.namedImages.rows.first?.labels, ["xcode", "xcode-26"])
         // A label the fleet already has would make every job match: refused, nothing written.
-        model.setImageLabels("macos", for: "xcode")
+        model.namedImages.setLabels("macos", for: "xcode")
         XCTAssertEqual(model.busyLine.style, .error)
         XCTAssertEqual(try snapshot().images.first?.labels, ["xcode", "xcode-26"])
 
-        model.removeImage("xcode")
+        model.namedImages.remove("xcode")
         XCTAssertTrue(try snapshot().images.isEmpty)
-        XCTAssertTrue(model.extraImages.isEmpty)
+        XCTAssertTrue(model.namedImages.rows.isEmpty)
     }
 
     /// Every add re-reads the config the previous one wrote (read → append →
@@ -287,10 +287,10 @@ final class SetupFormsTests: XCTestCase {
         let model = MacToolsModel()
         model.configURL = configURL
         model.reload()
-        model.addImage(name: "xcode", baseImage: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest")
-        model.addImage(name: "web", baseImage: nil)
+        model.namedImages.add(name: "xcode", baseImage: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest")
+        model.namedImages.add(name: "web", baseImage: nil)
         XCTAssertEqual(try snapshot().images.map(\.name), ["xcode", "web"])
-        XCTAssertEqual(model.extraImages.map(\.name), ["xcode", "web"])
+        XCTAssertEqual(model.namedImages.rows.map(\.name), ["xcode", "web"])
         XCTAssertNotEqual(model.busyLine.style, .error, model.busyLine.text)
     }
 
@@ -298,7 +298,7 @@ final class SetupFormsTests: XCTestCase {
         let model = MacToolsModel()
         model.configURL = configURL
         model.reload()
-        model.addImage(name: "kinhin-xcode", baseImage: nil)
+        model.namedImages.add(name: "kinhin-xcode", baseImage: nil)
         XCTAssertTrue(try snapshot().images.isEmpty)
         XCTAssertEqual(model.busyLine.style, .error)
     }
@@ -370,7 +370,7 @@ final class SetupFormsTests: XCTestCase {
         try "labels: [unterminated\n".write(to: configURL, atomically: true, encoding: .utf8)
         let model = MacToolsModel()
         model.configURL = configURL
-        model.installedCheck = { _ in false }
+        model.seams.installedCheck = { _ in false }
         model.reload()
         XCTAssertEqual(model.busyLine.style, .error)
         XCTAssertTrue(model.busyLine.text.contains("config.yaml can't be read"), model.busyLine.text)
@@ -386,10 +386,10 @@ final class SetupFormsTests: XCTestCase {
     ) -> MacToolsModel {
         let model = MacToolsModel()
         model.configURL = configURL
-        model.installShell = shell
-        model.brewPath = { brew }
-        model.installedCheck = { _ in true }
-        model.hostFacts = { host }
+        model.seams.installShell = shell
+        model.seams.brewPath = { brew }
+        model.seams.installedCheck = { _ in true }
+        model.seams.hostFacts = { host }
         model.reload()
         return model
     }
@@ -399,7 +399,7 @@ final class SetupFormsTests: XCTestCase {
         let model = installModel(shell: shell)
         model.install(.docker)
         XCTAssertEqual(model.installOffer?.tool, .docker, "the user is always asked first")
-        model.cancelInstall()
+        model.installs.cancelInstall()
         XCTAssertNil(model.installOffer, "cancel closes the sheet")
         XCTAssertTrue(shell.calls.isEmpty, "cancel runs nothing")
     }
@@ -413,7 +413,7 @@ final class SetupFormsTests: XCTestCase {
             "all Docker options are offered")
         // The user picks Colima (captured before confirming: the sheet closes).
         let choice = model.installOffer?.options.first { $0.id == "docker-colima" }
-        model.confirmInstall(choice!)
+        model.installs.confirmInstall(choice!)
         XCTAssertNil(model.installOffer, "the sheet closes and the install starts")
         // reload() also starts a background container health check on the
         // same shell, so look for the install among the calls, not first.
@@ -433,7 +433,7 @@ final class SetupFormsTests: XCTestCase {
         let model = installModel(shell: shell)
         model.install(.docker)
         let choice = model.installOffer?.options.first { $0.id == "docker-colima" }
-        model.copyInstallCommand(choice!)
+        model.installs.copyInstallCommand(choice!)
         XCTAssertEqual(NSPasteboard.general.string(forType: .string), choice?.commandLine)
         XCTAssertNil(model.installOffer, "the sheet closes; the copied command is the takeaway")
         XCTAssertTrue(shell.calls.isEmpty, "copying never runs the install")
@@ -446,7 +446,7 @@ final class SetupFormsTests: XCTestCase {
         XCTAssertEqual(model.missingBrewOffer?.tool, .appleContainer)
         XCTAssertNil(model.installOffer, "no confirmation sheet without Homebrew")
         XCTAssertTrue(shell.calls.isEmpty)
-        model.cancelMissingBrew()
+        model.installs.cancelMissingBrew()
         XCTAssertNil(model.missingBrewOffer)
     }
 
@@ -455,7 +455,7 @@ final class SetupFormsTests: XCTestCase {
         shell.failAll = "no space left"
         let model = installModel(shell: shell)
         model.install(.appleContainer)
-        model.confirmInstall(model.installOffer!.options[0])
+        model.installs.confirmInstall(model.installOffer!.options[0])
         // The install runs on a background task; wait for it to fail.
         for _ in 0..<100 where !model.busyLine.text.hasPrefix("Failed") {
             try? await Task.sleep(nanoseconds: 50_000_000)
@@ -474,7 +474,7 @@ final class SetupFormsTests: XCTestCase {
             osVersion: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0))
         let model = installModel(shell: shell, host: intel)
         var explained: String?
-        model.explainUnsupported = { _, error in explained = error.localizedDescription }
+        model.seams.explainUnsupported = { _, error in explained = error.localizedDescription }
         model.install(.appleContainer)
         XCTAssertTrue(explained?.contains("Apple silicon") ?? false)
         XCTAssertNil(model.installOffer, "nothing is offered that cannot run")

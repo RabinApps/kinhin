@@ -83,7 +83,7 @@ final class AppPreferencesTests: XCTestCase {
         let model = WizardModel(defaults: suite)
         XCTAssertTrue(model.autoStartFleet, "the wizard offers auto-start on by default")
         // Not finished (steps missing): nothing is saved.
-        model.show(.start)
+        model.show(.review)
         model.next()
         XCTAssertFalse(AppPreferences.autoStartFleet(in: suite))
     }

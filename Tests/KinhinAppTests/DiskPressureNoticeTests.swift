@@ -17,7 +17,7 @@ import XCTest
         fake = FakeFleetServing()
         fleet = FleetController()
         fleet.service = fake
-        fleet.daemonProbe = { false }  // never touch a real daemon socket
+        fleet.environment.daemonProbe = { false }  // never touch a real daemon socket
     }
 
     override func tearDown() async throws {

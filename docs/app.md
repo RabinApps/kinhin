@@ -4,13 +4,33 @@ The main window, launch modes, Siri & Shortcuts, and how the app coexists with t
 
 [← Back to README](../README.md)
 
-Install kinhin (see [Install](install.md)), then launch **kinhin** from Applications. On first run a five-step setup
-wizard covers what the CLI quick start does: **Connect your code** (pick forges, paste a token, choose the repo, project
-or group to serve), **Get this Mac ready** (choose the runtimes and install tart or the Linux runtime; base images are built
-from the same card or with `kinhin image prepare`), **Split your capacity**, **Toolchains** (a read-only note: each repo declares its own),
-and **Ready to go**, whose **Start fleet** button saves everything and starts the fleet. It stays disabled until a forge is
-connected and a runtime is ready; earlier steps can be skipped, and everything can be changed later in the Setup tab. The fleet lives in kinhin's single main window (and the ○ in your
-menu bar shows the number of live runner VMs).
+Install kinhin (see [Install](install.md)), then launch **kinhin** from Applications. On first run a three-step setup
+wizard covers what the CLI quick start does:
+
+1. **Connect your code**: pick forges, paste a token, choose the repo, project or group to serve.
+2. **Get this Mac ready**: choose the runtimes and install tart or the Linux runtime. The macOS image is large, so the
+   card says up front that preparing it downloads and stores about 60 GB and takes roughly 20 to 60 minutes, once. Base
+   images are built from the same card or with `kinhin image prepare`.
+3. **Review & Start**: a plain-language summary and **Start fleet**, which saves everything and starts the fleet. A
+   closed **Tune it (optional)** section holds the capacity split between runtimes and a read-only note on toolchains
+   (each repo declares its own); the defaults are fine.
+
+**Continue** and **Start fleet** stay disabled until nothing blocks the step, and the wizard says what is missing beside
+the button (for example "Connect GitHub and choose a repository"). **Skip for now** moves past a step anyway. You can
+press **Start fleet** while the macOS image is still being prepared: the preparation continues in the background and
+macOS jobs begin when it finishes. Everything can be changed later in the Setup tab. The fleet lives in kinhin's single
+main window (and the ○ in your menu bar shows the number of live runner VMs).
+
+### Untested forges and runtimes
+
+The forge grid, the Linux runtime choices and the runtime pickers mark anything not yet run against the real service
+with an **untested** badge. These are implemented and covered by unit and contract tests, but only the items below have
+been exercised end to end. The list comes from one table in the code (`MaturityTable`).
+
+<!-- docs-sync:begin maturity -->
+Live-tested forges (`MaturityTable`): `github`. Live-tested runtimes: `tart`, `appleContainer` (`tart` means macOS VMs).
+Every other forge and runtime, and Tart serving Linux VMs, is shown with an **untested** badge.
+<!-- docs-sync:end maturity -->
 
 ## One window, three tabs
 
@@ -19,7 +39,7 @@ Everything kinhin does happens in a single main window. A segmented control swit
 | Tab          | Contents                                                                                                                                                                                                                                                                                |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Fleet**    | The **Runtimes** diagram: a lane per execution runtime — 🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host — holding one icon-led row per live instance — the phase-colored icon, that instance's VM-row detail, and its **Pipeline…**/**Delete** actions (a busy row opens its pipeline) — or the word *idle* when the runtime has nothing running; then live status, Start/Stop/Pause, Current jobs, Queued work, and buttons for Logs and Diagnostics. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason) rather than sending you back to Setup.                                                         |
-| **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps and Bitbucket — select every one to serve), pick each account's repo, org, project or group (its `scope` in `accounts:`), get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a five-step wizard.                                                  |
+| **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps and Bitbucket — select every one to serve), pick each account's repo, org, project or group (its `scope` in `accounts:`), get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a three-step wizard.                                                  |
 | **Advanced** | **Accounts** (forges), **Capacity** (this Mac's macOS and Linux runtimes, the reserve, the budget split between runtimes, VM counts and sizes, with Apply), **Routing** (pools, routes, the default pool, labels), **Containers** (containers and volumes), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, config file).                           |
 
 ### This Mac: macOS and Linux jobs

@@ -83,7 +83,7 @@ struct AppSectionView: View {
                     }
                     if model.daemonBusy || !model.daemonLine.text.isEmpty {
                         HStack(alignment: .top, spacing: 8) {
-                            if model.daemonBusy { ProgressView().controlSize(.small) }
+                            if model.daemonBusy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
                             StatusText(text: model.daemonLine.text, style: model.daemonLine.style)
                                 .textSelection(.enabled)
                             if model.daemonBusy {
@@ -107,7 +107,7 @@ struct AppSectionView: View {
                         Button("Reset kinhin…", role: .destructive) { model.resetClicked() }
                             .disabled(model.resetBusy)
                             .accessibilityIdentifier("app-reset-button")
-                        if model.resetBusy { ProgressView().controlSize(.small) }
+                        if model.resetBusy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
                     }
                     if !model.resetLine.text.isEmpty {
                         StatusText(text: model.resetLine.text, style: model.resetLine.style)

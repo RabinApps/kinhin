@@ -54,7 +54,7 @@ class MainWindowTestCase: XCTestCase {
         fake = FakeFleetServing()
         fleet = FleetController()
         fleet.service = fake
-        fleet.daemonProbe = { false }  // never touch a real daemon socket
+        fleet.environment.daemonProbe = { false }  // never touch a real daemon socket
         updates = UpdateController()
         window = MainTabsWindowController(defaults: suite, fleet: fleet, updates: updates)
         window.delegate = delegate

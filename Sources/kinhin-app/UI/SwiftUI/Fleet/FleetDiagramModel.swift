@@ -25,8 +25,19 @@ struct FleetDiagramModel {
         /// an instance that can hold a job has a pipeline to show).
         let opensPipeline: Bool
 
-        /// Tooltip and VoiceOver text: the title, then the detail facts.
+        /// Tooltip text: the title, then the detail facts.
         var tooltip: String { detail.isEmpty ? title : "\(title) — \(detail)" }
+
+        /// The phase in words. The icon's colour and shape say it to a
+        /// sighted reader; this says it to VoiceOver and to anyone who
+        /// can't tell the colours apart.
+        let phaseDescription: String
+
+        /// VoiceOver text: the instance, its phase in words, then the detail facts.
+        var accessibilityText: String {
+            let head = "\(id), \(phaseDescription)"
+            return detail.isEmpty ? head : "\(head). \(detail)"
+        }
     }
 
     /// One runtime lane: identity, cap, and its instances — none means idle.
@@ -164,7 +175,20 @@ struct FleetDiagramModel {
             title: "• \(record.id) — \(record.phase.rawValue)",
             detail: parts.joined(separator: " · "),
             hasError: record.error != nil,
-            opensPipeline: opensPipeline(record)
+            opensPipeline: opensPipeline(record),
+            phaseDescription: phaseDescription(of: record)
         )
+    }
+
+    /// "busy, running a job", "failed", "has an error": the state the icon colour stands for.
+    static func phaseDescription(of record: VMRecord) -> String {
+        if record.error != nil { return "\(record.phase.rawValue), has an error" }
+        switch record.phase {
+        case .busy: return "busy, running a job"
+        case .ready: return "ready, waiting for a job"
+        case .cloning, .booting, .registering: return "starting up (\(record.phase.rawValue))"
+        case .deleting: return "being deleted"
+        case .failed: return "failed"
+        }
     }
 }

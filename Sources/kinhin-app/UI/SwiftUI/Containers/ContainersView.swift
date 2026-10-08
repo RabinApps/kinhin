@@ -19,7 +19,7 @@ struct ContainersView: View {
                 .labelsHidden()
                 .fixedSize()
                 Spacer()
-                if model.busy { ProgressView().controlSize(.small) }
+                if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
                 Button("Refresh") { model.reload() }
             }
             .controlSize(.small)

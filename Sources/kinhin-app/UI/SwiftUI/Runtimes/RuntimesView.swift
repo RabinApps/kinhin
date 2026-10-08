@@ -143,7 +143,7 @@ struct RuntimesView: View {
                     )
                 ) {
                     ForEach(model.budgetRuntimeIDs, id: \.rawValue) { runtime in
-                        Text(runtime.rawValue).tag(runtime.rawValue)
+                        Text(runtime.rawValue + MaturityTable.maturity(of: runtime).pickerSuffix).tag(runtime.rawValue)
                     }
                 }
                 .controlSize(.small)

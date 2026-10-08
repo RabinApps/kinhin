@@ -66,6 +66,7 @@ struct ConnectView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
+                MaturityBadge(forge: forge)
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -81,7 +82,7 @@ struct ConnectView: View {
         .buttonStyle(.plain)
         .foregroundStyle(on ? Color.primary : Color.secondary)
         .accessibilityIdentifier("connect-forge-\(forge.rawValue)")
-        .accessibilityLabel("\(forge.displayName)")
+        .accessibilityLabel("\(forge.displayName)\(MaturityTable.maturity(of: forge).pickerSuffix)")
         .accessibilityAddTraits(on ? [.isSelected] : [])
     }
 }

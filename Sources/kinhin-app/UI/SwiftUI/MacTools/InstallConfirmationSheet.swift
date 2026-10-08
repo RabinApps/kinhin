@@ -5,7 +5,7 @@ import SwiftUI
 /// user pick a method when there are several, and offers to copy the command
 /// instead of running it.
 struct InstallConfirmationSheet: View {
-    let offer: MacToolsModel.InstallOffer
+    let offer: InstallOffer
     let onConfirm: (InstallOption) -> Void
     let onCopy: (InstallOption) -> Void
     let onCancel: () -> Void
@@ -13,7 +13,7 @@ struct InstallConfirmationSheet: View {
     @State private var selectedID: String
 
     init(
-        offer: MacToolsModel.InstallOffer, onConfirm: @escaping (InstallOption) -> Void,
+        offer: InstallOffer, onConfirm: @escaping (InstallOption) -> Void,
         onCopy: @escaping (InstallOption) -> Void, onCancel: @escaping () -> Void
     ) {
         self.offer = offer
