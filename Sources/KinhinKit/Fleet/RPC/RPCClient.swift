@@ -38,6 +38,16 @@ public struct RPCClient: Sendable {
         }
     }
 
+    /// Pings the daemon. A daemon that predates the protocol/version fields
+    /// answers `pong` only: those come back nil.
+    public func ping(timeout: TimeInterval = 2) throws -> PingReply {
+        let response = try Self.requireOK(send(method: .ping, timeout: timeout))
+        guard let payload = response.payload,
+            let reply = try? JSONDecoder().decode(PingReply.self, from: payload)
+        else { return PingReply(pong: true, protocolVersion: nil, version: nil) }
+        return reply
+    }
+
     /// The daemon's fleet status.
     /// `includeUsage: false` asks the daemon to skip CPU/RAM sampling (the
     /// request then carries a payload; the default sends none, exactly as

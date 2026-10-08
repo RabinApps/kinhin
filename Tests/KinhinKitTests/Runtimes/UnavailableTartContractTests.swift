@@ -101,7 +101,6 @@ final class UnavailableTartContractTests: XCTestCase {
             ("pull", { try await tart.pull(image: "base") }),
             ("createLinux", { try await tart.createLinux(name: "vm-1") }),
             ("runWithDisk", { try await tart.runWithDisk(name: "vm-1", isoPath: "/tmp/install.iso") }),
-            ("allowKeys", { try await tart.allowKeys("ssh-ed25519 AAAA") }),
         ]
         for (name, op) in operations {
             do {

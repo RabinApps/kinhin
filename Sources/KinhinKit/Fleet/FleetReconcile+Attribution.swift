@@ -3,28 +3,6 @@ import Foundation
 // FleetEngine — pool counters, runtime selection, and running-job attribution.
 
 extension FleetEngine {
-    /// Active VM counts by assigned account (`VMRecord.platform` holds the
-    /// account name; the legacy accounts are "github" and "gitea").
-    func activeByPlatform() -> [String: Int] {
-        var counts: [String: Int] = [:]
-        for record in store.all where record.phase.isActive {
-            guard let account = record.platform else { continue }
-            counts[account, default: 0] += 1
-        }
-        return counts
-    }
-
-    /// Active instance counts by runtime (mixed fleets partition capacity
-    /// per runtime, so scale-up selection counts this way too).
-    func activeByRuntime() -> [RuntimeID: Int] {
-        var counts: [RuntimeID: Int] = [:]
-        for record in store.all where record.phase.isActive {
-            let id = RuntimeID(rawValue: record.runtime ?? "") ?? .tart
-            counts[id, default: 0] += 1
-        }
-        return counts
-    }
-
     /// The runtime instance executing a record's workload (mixed fleets:
     /// per-record; legacy: the engine's single runtime). Dispatches through
     /// the runtime map; the fallback is the engine's primary runtime.
@@ -65,29 +43,6 @@ extension FleetEngine {
         label.lowercased() == "macos"
     }
 
-    /// Pick the runtime for a new instance: among pools with unmet demand,
-    /// the one with the most unmet jobs — never beyond its capacity
-    /// partition. Deterministic tie-breaks (alphabetical runtime id); with
-    /// no demand anywhere, the default runtime wins.
-    func selectRuntime(demand: [RuntimeID: Int], active: [RuntimeID: Int], caps: [RuntimeID: Int], fallback: RuntimeID)
-        -> RuntimeID
-    {
-        var best: RuntimeID = fallback
-        var bestUnmet = -1
-        for (id, unmet) in demand.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-            guard routing.poolExists(id) else { continue }
-            let cap = caps[id] ?? Int.max
-            let running = active[id] ?? 0
-            guard running < cap else { continue }  // partition exhausted
-            let effective = min(unmet, cap - running)
-            if effective > bestUnmet {
-                bestUnmet = effective
-                best = id
-            }
-        }
-        return best
-    }
-
     // MARK: - Running-job attribution
 
     /// Group repositories into a repo → count map. Org scope only: a
@@ -111,9 +66,11 @@ extension FleetEngine {
         // id itself; multi-runner VMs register as "<vmid>-r1…rN".
         var reposByVM: [String: [String]] = [:]
         var jobByVM: [String: String] = [:]
+        let records = store.all
+        let ids = Set(records.map(\.id))
         for job in running {
             guard let runnerName = job.runnerName,
-                let vmID = vmID(forRunnerName: runnerName)
+                let vmID = Self.vmID(forRunnerName: runnerName, among: ids, runnersPerVM: config.runnersPerVM)
             else { continue }
             if isOrgScope, let repo = job.repository {
                 reposByVM[vmID, default: []].append(repo)
@@ -126,7 +83,7 @@ extension FleetEngine {
         }
 
         // Stamp VMs that exist; clear the stamp on VMs whose jobs finished.
-        for record in store.all {
+        for record in records {
             let repos = reposByVM[record.id]?.sorted()
             let job = jobByVM[record.id]
             if record.repos != repos || record.job != job {
@@ -138,19 +95,17 @@ extension FleetEngine {
         }
     }
 
-    /// The VM id owning a GitHub runner name, among the VMs we track.
-    func vmID(forRunnerName runnerName: String) -> String? {
-        for record in store.all {
-            if runnerName == record.id { return record.id }
-            let prefix = "\(record.id)-r"
-            if runnerName.hasPrefix(prefix),
-                let index = Int(runnerName.dropFirst(prefix.count)),
-                (1...max(1, config.runnersPerVM)).contains(index)
-            {
-                return record.id
-            }
-        }
-        return nil
+    /// The VM id owning a runner name, among the tracked VM `ids`: the id
+    /// itself, or `<id>-r<N>` for N in 1...runnersPerVM. One set lookup per
+    /// name instead of a scan (and copy) of the whole store.
+    static func vmID(forRunnerName runnerName: String, among ids: Set<String>, runnersPerVM: Int) -> String? {
+        if ids.contains(runnerName) { return runnerName }
+        guard let marker = runnerName.range(of: "-r", options: .backwards),
+            let index = Int(runnerName[marker.upperBound...]),
+            (1...max(1, runnersPerVM)).contains(index)
+        else { return nil }
+        let base = String(runnerName[..<marker.lowerBound])
+        return ids.contains(base) ? base : nil
     }
 
     /// Drop the attribution stamp from every record (pause path).

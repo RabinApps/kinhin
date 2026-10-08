@@ -143,6 +143,10 @@ public struct DockerRuntime: Runtime {
         try await cli.containerIDs(all: true)
     }
 
+    public func state(id: String) async throws -> InstanceState {
+        try await cli.state(id: id)
+    }
+
     /// The CPU architecture of a local image (`arm64`/`amd64`), nil when the
     /// image is absent or the CLI can't say.
     public func imageArchitecture(of reference: String) async -> String? {
@@ -178,14 +182,8 @@ public struct DockerRuntime: Runtime {
     /// size column and per-runtime total. Empty when the CLI can't say: the
     /// rows then read "—", never a wrong number.
     public func localImageSizes() async -> [String: Int] {
-        do {
-            let result = try await run([bin, "images", "--format", "{{.Repository}}:{{.Tag}}\t{{.Size}}"])
-            guard result.succeeded else { return [:] }
-            return Self.parseImageSizes(result.stdout)
-        } catch {
-            Log.warn("docker", "could not list image sizes: \(error.localizedDescription)")
-            return [:]
-        }
+        await cli.localImageSizes(
+            arguments: ["images", "--format", "{{.Repository}}:{{.Tag}}\t{{.Size}}"], parse: Self.parseImageSizes)
     }
 
     /// `docker images` rows (`<repo>:<tag>\t<size>`) as whole GB. Pure so
@@ -202,9 +200,7 @@ public struct DockerRuntime: Runtime {
         return sizes
     }
 
-    /// A human byte count (`4.18GB`, `700MB`, `1.22kB`) in whole GB —
-    /// rounded to nearest, but never 0 for an image that exists (a row that
-    /// says "0 GB" reads as broken, not small).
+    /// A human byte count (`4.18GB`, `700MB`, `1.22kB`) in whole GB.
     static func gigabytes(from human: String) -> Int? {
         let text = human.trimmingCharacters(in: .whitespaces)
         var digits = ""
@@ -224,7 +220,7 @@ public struct DockerRuntime: Runtime {
         case "tb", "tib": scale = 1_000_000_000_000
         default: return nil
         }
-        return max(1, Int((value * scale / 1_000_000_000).rounded()))
+        return LinuxContainerCLI.wholeGigabytes(bytes: value * scale)
     }
 
     /// Removes one local image (`docker image rm`); an image that is already

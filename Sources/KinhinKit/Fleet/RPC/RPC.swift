@@ -69,6 +69,32 @@ struct AccountTokenReplaceRequest: Codable, Sendable, Equatable {
     }
 }
 
+/// The answer to `ping`. `protocolVersion` and `version` are absent from
+/// daemons that predate them, so a client decodes them as optionals and an
+/// old client (which only checks `ok`) ignores them.
+public struct PingReply: Codable, Sendable, Equatable {
+    /// The RPC protocol revision this build speaks.
+    public static let currentProtocol = 1
+
+    public let pong: Bool
+    public let protocolVersion: Int?
+    public let version: String?
+
+    public init(
+        pong: Bool = true, protocolVersion: Int? = Self.currentProtocol, version: String? = kinhinVersion.current
+    ) {
+        self.pong = pong
+        self.protocolVersion = protocolVersion
+        self.version = version
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case pong
+        case protocolVersion = "protocol"
+        case version
+    }
+}
+
 struct RPCRequest: Codable, Sendable, Equatable {
     let id: Int
     let method: RPCMethod

@@ -11,6 +11,9 @@ final class FakeGitHub: GitHubServing, Sendable {
         var nextRunnerID = 1
         var queueDepth = 0
         var queuedJobsCallCount = 0
+        var listRunnersCallCount = 0
+        /// Makes `listRunners` throw, like an API outage.
+        var failRunnerList = false
         var registrationTokenCalls = 0
         var deletedRunnerIDs: [Int] = []
         var failQueue = false
@@ -70,6 +73,15 @@ final class FakeGitHub: GitHubServing, Sendable {
     }
 
     var queuedJobsCallCount: Int { state.withLock { $0.queuedJobsCallCount } }
+
+    /// How many times the runner list was fetched.
+    var listRunnersCallCount: Int { state.withLock { $0.listRunnersCallCount } }
+
+    /// Makes `listRunners` throw.
+    var failRunnerList: Bool {
+        get { state.withLock { $0.failRunnerList } }
+        set { state.withLock { $0.failRunnerList = newValue } }
+    }
 
     var runningJobsCallCount: Int { state.withLock { $0.runningJobsCallCount } }
 
@@ -207,7 +219,11 @@ final class FakeGitHub: GitHubServing, Sendable {
     }
 
     func listRunners() async throws -> [GHRunner] {
-        Array(state.withLock { $0.runnersByID.values })
+        try state.withLock { state in
+            state.listRunnersCallCount += 1
+            if state.failRunnerList { throw URLError(.notConnectedToInternet) }
+            return Array(state.runnersByID.values)
+        }
     }
 
     func deleteRunner(id: Int) async throws {

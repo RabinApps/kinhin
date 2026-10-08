@@ -181,10 +181,7 @@ extension FleetEngine {
                 let detail = result.stderr.isEmpty ? result.stdout : result.stderr
                 throw EngineError.registrationFailed(vm: id, stderr: "exit \(result.exitCode): \(detail)")
             }
-            Log.info(id, "runner registered")
-            if let runtime = store.all.first(where: { $0.id == id })?.runtime.flatMap(RuntimeID.init(rawValue:)) {
-                spawnBackoff.withLock { $0.recordSuccess(runtime) }
-            }
+            Log.info(id, "registration script finished")
 
             // Phase: ready (or straight to busy if it picked up a job immediately)
             updateRecord(id) { $0.phase = .ready }
@@ -192,7 +189,11 @@ extension FleetEngine {
             // Scale-set runners are always one-job ephemeral, independent of
             // the fleet-wide classic-runner setting.
             if config.vm.ephemeral || isScaleSet {
+                // The watch clears the spawn backoff once the runner is seen online.
                 try await awaitRunnerExit(id: id, forge: forge)
+            } else {
+                // Nothing watches a classic runner: the script finishing is all the signal there is.
+                noteSpawnSuccess(id)
             }
         } catch is CancellationError {
             // Cancellation always originates from a path that owns teardown
@@ -236,14 +237,31 @@ extension FleetEngine {
         let isScaleSetForge = if case .jitConfig = forge.registration { true } else { false }
         let deadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 3600 * 6)))
         // Allowance for the agents inside the instance to finish registering.
-        let registrationDeadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 120)))
+        let registrationDeadline = Date().addingTimeInterval(
+            max(TimeInterval(config.vmBootTimeout), watchdog.registrationGrace.timeInterval))
         var seen: Set<String> = []
         var idleSince: Date?
+        // The runtime is asked less often than the forge: a dead instance
+        // otherwise waits out the deadline below (hours) with its record.
+        var lastLivenessCheck = ContinuousClock.now
+        var deadChecks = 0
+        var reportedOnline = false
+        // The watch reads the shared (up to a few seconds old) runner list, but
+        // never deletes on it: each decision below is confirmed against the
+        // forge itself, so a stale "gone" or "idle" cannot kill a busy instance.
+        func confirmedRunners() async throws -> [ForgeRunner]? {
+            do {
+                return try await runnerDirectory.freshRunners(of: forge).filter { expected.contains($0.name) }
+            } catch let error where !(error is CancellationError) && !Task.isCancelled {
+                Log.warn(id, "\(forgeName) runner list failed; retrying: \(error.localizedDescription)")
+                return nil
+            }
+        }
         while Date() < deadline {
             try Task.checkCancellation()
             let all: [ForgeRunner]
             do {
-                all = try await forge.runners()
+                all = try await runnerDirectory.runners(of: forge)
             } catch let error where !(error is CancellationError) && !Task.isCancelled {
                 Log.warn(id, "\(forgeName) runner list failed; retrying: \(error.localizedDescription)")
                 try await Task.sleep(for: exitWatchInterval)
@@ -253,9 +271,19 @@ extension FleetEngine {
             try Task.checkCancellation()
             let mine = all.filter { expected.contains($0.name) }
             for runner in mine where runner.online { seen.insert(runner.name) }
+            // A runner that came online proves the start worked; a script that
+            // merely exited 0 does not (the agent can die right after).
+            if !reportedOnline, !seen.isEmpty {
+                reportedOnline = true
+                noteSpawnSuccess(id)
+            }
             let allSeen = expected.allSatisfy { seen.contains($0) }
 
             if allSeen, mine.isEmpty {
+                guard let confirmed = try await confirmedRunners(), confirmed.isEmpty else {
+                    try await Task.sleep(for: exitWatchInterval)
+                    continue
+                }
                 // Every runner completed its lifecycle; none remain.
                 let phase = store.all.first { $0.id == id }?.phase
                 if phase == .busy || idleGrace != nil {
@@ -284,6 +312,12 @@ extension FleetEngine {
                         let since = idleSince ?? Date()
                         idleSince = since
                         if Date().timeIntervalSince(since) >= idleGrace {
+                            guard let confirmed = try await confirmedRunners(), !confirmed.contains(where: \.busy)
+                            else {
+                                idleSince = nil
+                                try await Task.sleep(for: exitWatchInterval)
+                                continue
+                            }
                             Log.info(id, "\(forgeName) runners idle \(Int(idleGrace))s; job complete; deleting VM")
                             await deleteVMRecord(id: id, reason: "jobs finished")
                             return
@@ -294,18 +328,53 @@ extension FleetEngine {
             // Deregistering forges wait while some runners are up; idle-grace
             // forges need every runner registered to judge idleness at all.
             if !allSeen, mine.isEmpty || idleGrace != nil, Date() > registrationDeadline {
-                Log.warn(id, "runners never registered on \(forgeName); deleting VM")
-                updateRecord(id) {
-                    $0.phase = .failed
-                    $0.error = "runner did not register within timeout"
+                guard let confirmed = try await confirmedRunners() else {
+                    try await Task.sleep(for: exitWatchInterval)
+                    continue
                 }
+                for runner in confirmed where runner.online { seen.insert(runner.name) }
+                guard !expected.allSatisfy({ seen.contains($0) }) else { continue }
+                Log.warn(id, "runners never registered on \(forgeName); deleting VM")
+                // Counted here: the delete below removes the record before the
+                // reconcile pass could see it `.failed` and note the failure.
+                noteSpawnFailure(
+                    runtime: recordedRuntime(of: id), reason: "runner did not register within timeout")
                 await deleteVMRecord(id: id, reason: "registration timeout")
                 return
+            }
+            if ContinuousClock.now - lastLivenessCheck >= watchdog.livenessInterval {
+                lastLivenessCheck = ContinuousClock.now
+                switch await liveness(of: id) {
+                case .alive: deadChecks = 0
+                case .unknown: break
+                case .dead(let state):
+                    deadChecks += 1
+                    if deadChecks >= watchdog.livenessMisses {
+                        let phase = store.all.first { $0.id == id }?.phase.rawValue ?? "unknown"
+                        Log.error(
+                            id,
+                            "instance is \(state == .gone ? "gone" : "stopped") while its runner was \(phase); cleaning up"
+                        )
+                        await deleteVMRecord(id: id, reason: "instance \(state == .gone ? "gone" : "stopped")")
+                        return
+                    }
+                }
             }
             try await Task.sleep(for: exitWatchInterval)
         }
         Log.warn(id, "ephemeral watch timed out; deleting VM")
         await deleteVMRecord(id: id, reason: "timeout")
+    }
+
+    /// The runtime recorded for `id` (the default pool's when unrecorded).
+    func recordedRuntime(of id: String) -> RuntimeID {
+        store.all.first { $0.id == id }?.runtime.flatMap(RuntimeID.init(rawValue:)) ?? routing.defaultRuntime
+    }
+
+    /// A runner of `id` registered: its runtime's spawn backoff clears.
+    func noteSpawnSuccess(_ id: String) {
+        let runtime = recordedRuntime(of: id)
+        spawnBackoff.withLock { $0.recordSuccess(runtime) }
     }
 
     /// The runner names an instance registers: the instance id itself, or
@@ -333,7 +402,9 @@ extension FleetEngine {
         let attached = forgeState.withLock { Array($0.byPlatform.values) }
         for forge in attached {
             await bestEffortAsync(id, "cleaning up stale runner registrations") {
-                let stale = try await forge.runners().filter { $0.name == id || $0.name.hasPrefix("\(id)-r") }
+                let stale = try await runnerDirectory.freshRunners(of: forge).filter {
+                    $0.name == id || $0.name.hasPrefix("\(id)-r")
+                }
                 for runner in stale {
                     await bestEffortAsync(id, "deleting runner \(runner.name)") {
                         try await forge.deleteRunner(id: runner.id)

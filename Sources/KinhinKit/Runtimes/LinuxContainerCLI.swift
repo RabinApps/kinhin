@@ -61,7 +61,7 @@ struct LinuxContainerCLI: Sendable {
         }
         argv += ["--name", id, "--cpus", String(cpus), "--memory", memoryLabel] + dialect.runFlags
         argv += [
-            "--rm",  // agent exit removes the container: belt + suspenders
+            "--rm",  // a container that stops (crash, engine kill) removes itself
             image,
             "/bin/bash", "-lc", "while true; do sleep 3600; done",
         ]
@@ -212,6 +212,13 @@ struct LinuxContainerCLI: Sendable {
         return result.outputLines
     }
 
+    /// Running, stopped (exited but not removed) or gone. A `--rm` container
+    /// that exited is removed, so it reads as gone.
+    func state(id: String) async throws -> InstanceState {
+        if try await containerIDs(all: false).contains(id) { return .running }
+        return try await containerIDs(all: true).contains(id) ? .stopped : .gone
+    }
+
     /// Local image references (the checklist's image row and the doctor);
     /// empty, with a warning, when the CLI can't list them.
     func localImageNames() async -> [String] {
@@ -223,6 +230,27 @@ struct LinuxContainerCLI: Sendable {
             Log.warn(dialect.tag, "could not list images: \(error.localizedDescription)")
             return []
         }
+    }
+
+    /// Disk usage of local images in whole GB, from the CLI's own size
+    /// listing (`arguments`) parsed by the runtime (`parse`: the two CLIs
+    /// print different formats). Empty when the CLI can't say: the inventory
+    /// rows then read "—", never a wrong number.
+    func localImageSizes(arguments: [String], parse: (String) -> [String: Int]) async -> [String: Int] {
+        do {
+            let result = try await run([bin] + arguments)
+            guard result.succeeded else { return [:] }
+            return parse(result.stdout)
+        } catch {
+            Log.warn(dialect.tag, "could not list image sizes: \(error.localizedDescription)")
+            return [:]
+        }
+    }
+
+    /// A byte count as whole GB, rounded to nearest but never 0 for an image
+    /// that exists (a row that says "0 GB" reads as broken, not small).
+    static func wholeGigabytes(bytes: Double) -> Int {
+        max(1, Int((bytes / 1_000_000_000).rounded()))
     }
 
     /// Removes one local image reference. An image that is already gone is

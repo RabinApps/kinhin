@@ -69,6 +69,12 @@ public final class FleetEngine: Sendable {
     let spawnStagger: Duration
     /// How often the ephemeral exit watch polls the instance (default 1s).
     let exitWatchInterval: Duration
+    /// Shared runner lists for the exit watchers (see `RunnerDirectory`).
+    let runnerDirectory: RunnerDirectory
+    /// Timings of the liveness check and the orphan sweep.
+    let watchdog: Watchdog
+    /// First-seen times of instances with no record (see `sweepOrphans`).
+    let orphanState = Mutex(OrphanState())
     /// Wakes a sleeping reconcile loop (`pollSoon()`).
     let pollWake = WakeSignal()
 
@@ -147,6 +153,8 @@ public final class FleetEngine: Sendable {
         self.lifecycleDrainTimeout = dependencies.lifecycleDrainTimeout
         self.spawnStagger = dependencies.spawnStagger
         self.exitWatchInterval = dependencies.exitWatchInterval
+        self.watchdog = dependencies.watchdog
+        self.runnerDirectory = RunnerDirectory(ttl: dependencies.runnerCacheTTL ?? dependencies.exitWatchInterval * 5)
         // The primary GitHub account attaches immediately under its account
         // name as an unverified placeholder: demand polling and the reconcile
         // loop work before the fleet starts, while start()'s verified attach
@@ -257,6 +265,11 @@ extension FleetEngine {
         public var spawnStagger: Duration
         /// Interval of the ephemeral runner exit watch (tests shorten it).
         public var exitWatchInterval: Duration
+        /// Liveness and orphan-sweep timings (tests shorten them).
+        public var watchdog: Watchdog
+        /// How long the exit watchers share one runner list per account;
+        /// nil → five exit-watch intervals (5 s in production).
+        public var runnerCacheTTL: Duration?
         /// Index of derived per-project images; nil → the state directory's.
         var projectImageStore: ProjectImageStore?
         /// Replaces the real image bake (tests); nil → `ImagePreparer`.
@@ -270,7 +283,9 @@ extension FleetEngine {
             hostProbe: (@Sendable () -> HostResources)? = nil,
             lifecycleDrainTimeout: Duration = .seconds(15),
             spawnStagger: Duration = .milliseconds(1500),
-            exitWatchInterval: Duration = .seconds(1)
+            exitWatchInterval: Duration = .seconds(1),
+            watchdog: Watchdog = Watchdog(),
+            runnerCacheTTL: Duration? = nil
         ) {
             self.githubFactory = githubFactory
             self.tokenLoader = tokenLoader
@@ -278,6 +293,8 @@ extension FleetEngine {
             self.lifecycleDrainTimeout = lifecycleDrainTimeout
             self.spawnStagger = spawnStagger
             self.exitWatchInterval = exitWatchInterval
+            self.watchdog = watchdog
+            self.runnerCacheTTL = runnerCacheTTL
         }
 
         /// Production: the Keychain and a live disk probe (the GitHub

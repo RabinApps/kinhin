@@ -2,9 +2,8 @@ import Foundation
 
 // MARK: - Runtime identity
 
-/// Where runner workloads execute. Stage 1 ships only `.tart`; the Docker
-/// and Host implementations land in stages 3–4 of the runtime design
-/// (docs/runtime-abstraction-design.md).
+/// Where runner workloads execute: Tart macOS/Linux VMs, Apple's `container`
+/// CLI, Docker, or the host itself.
 public enum RuntimeID: String, Codable, Sendable, CaseIterable {
     case tart
     /// Apple's `container` CLI (github.com/apple/container): Linux runner
@@ -13,6 +12,16 @@ public enum RuntimeID: String, Codable, Sendable, CaseIterable {
     case appleContainer
     case docker
     case host
+}
+
+/// Whether a provisioned instance is still alive, as its runtime sees it.
+public enum InstanceState: Sendable, Equatable {
+    /// Up and executing.
+    case running
+    /// Exists but is not executing (a halted VM or container).
+    case stopped
+    /// No longer exists (deleted out of band, or a `--rm` container that exited).
+    case gone
 }
 
 /// Health of a runtime's prerequisites — same shape as `TartHealth`, so the
@@ -29,8 +38,8 @@ public enum RuntimeHealth: Equatable, Sendable {
 }
 
 /// The routing context a runtime needs to provision and register a runner
-/// for one repo. Stage 1 carries the current config-driven values; stage 2
-/// generalizes it to per-repo routes from the `runtimes:` config section.
+/// for one repo: the fleet's config values, or the per-project image a record
+/// was bound to.
 public struct RepoRoute: Sendable, Equatable {
     public let repo: String
     public let image: String
@@ -115,6 +124,12 @@ public protocol Runtime: Sendable {
     /// failed listing must never read as "no instances".
     func existingInstanceIDs() async throws -> [String]
 
+    /// Whether the instance is running, stopped or gone. Throws when the
+    /// runtime can't be asked: a failed query must never read as "gone". The
+    /// default answers from `existingInstanceIDs()` (present = running), which
+    /// is the best a runtime without a finer signal can say.
+    func state(id: String) async throws -> InstanceState
+
     /// The bootstrap script that turns the provisioned instance into N
     /// registered runners. The engine executes it inside the instance.
     /// `token` is the shared registration token; `runnerTokens` holds the
@@ -133,6 +148,10 @@ public protocol Runtime: Sendable {
 }
 
 extension Runtime {
+    func state(id: String) async throws -> InstanceState {
+        try await existingInstanceIDs().contains(id) ? .running : .gone
+    }
+
     /// Shared-token registration (every forge but GitLab).
     func registrationScript(
         forge: Forge, token: String, name: String,
@@ -275,6 +294,11 @@ struct TartRuntime: Runtime {
 
     func existingInstanceIDs() async throws -> [String] {
         try await tart.list().map(\.name)
+    }
+
+    func state(id: String) async throws -> InstanceState {
+        guard let vm = try await tart.list().first(where: { $0.name == id }) else { return .gone }
+        return vm.status.lowercased() == "running" ? .running : .stopped
     }
 
     func registrationScript(

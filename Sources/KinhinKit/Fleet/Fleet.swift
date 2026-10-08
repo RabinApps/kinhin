@@ -31,8 +31,8 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     public var ip: String?
     /// Forge this VM serves ("github" | "gitea").
     public var platform: String?
-    /// Execution runtime backing this instance ("tart"; docker/host in
-    /// later stages). Nil on old records → treated as tart on read.
+    /// Execution runtime backing this instance (a `RuntimeID` raw value:
+    /// "tart", "appleContainer", "docker", "host"). Nil on old records → treated as tart on read.
     public var runtime: String?
     public var job: String?
     /// The derived per-project image this instance was cloned from (nil =

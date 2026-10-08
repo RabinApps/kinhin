@@ -69,6 +69,7 @@ enum RPCServer {
         // its own thread (bounded by `readTimeout`), so a slow or silent
         // client never stalls the next accept or a cooperative-pool thread.
         let acceptThread = Thread {
+            var failures = 0
             while true {
                 var len = socklen_t(MemoryLayout<sockaddr_un>.size)
                 var clientAddr = sockaddr_un()
@@ -78,12 +79,21 @@ enum RPCServer {
                     }
                 }
                 if accepted < 0 {
+                    let code = errno
                     // Socket closed by shutdown.
-                    if FileManager.default.fileExists(atPath: socketPath) {
-                        continue
+                    if !FileManager.default.fileExists(atPath: socketPath) { break }
+                    // Anything else is transient (a signal, a reset client) or
+                    // resource exhaustion (EMFILE/ENFILE): retrying at once
+                    // would spin a core and flood the log, so back off.
+                    failures += 1
+                    if failures == 1 {
+                        Log.warn("rpc", "accept failed (errno \(code)); retrying with backoff")
                     }
-                    break
+                    let delay = RPCServer.acceptRetryDelay(errno: code, consecutiveFailures: failures)
+                    if delay > 0 { Thread.sleep(forTimeInterval: delay) }
+                    continue
                 }
+                failures = 0
                 let clientFD = accepted
                 // Only the daemon's own user (the socket is 0600, this is the
                 // second line) and only a bounded number of live connections.
@@ -112,6 +122,14 @@ enum RPCServer {
         while true {
             try await Task.sleep(for: .seconds(3600))
         }
+    }
+
+    /// How long the accept loop waits after a failed `accept`. A signal or an
+    /// aborted connection retries at once; anything else (typically EMFILE
+    /// with the process out of descriptors) doubles from 50 ms up to 1 s.
+    static func acceptRetryDelay(errno code: Int32, consecutiveFailures: Int) -> TimeInterval {
+        if code == EINTR || code == ECONNABORTED { return 0 }
+        return min(1.0, 0.05 * pow(2, Double(min(max(consecutiveFailures, 1) - 1, 5))))
     }
 
     /// True when the peer of a unix-socket connection runs as our own user.

@@ -102,28 +102,45 @@ extension FleetEngine {
 
     // MARK: - Cache maintenance
 
-    /// Daily host-cache sweep while the fleet runs. Failures log and are
-    /// ignored — pruning must never disturb scaling. The pruner's grace
-    /// window keeps it from racing any in-flight download or install.
+    /// How often the host cache and the derived images are swept.
+    static let cacheSweepInterval: TimeInterval = 86_400
+
+    /// Daily host-cache sweep while the fleet runs. The first one runs at
+    /// launch when the sweep marker says one is due, so an app that restarts
+    /// (or an engine rebuilt by every config change) more often than daily
+    /// still sweeps. Failures log and are ignored — pruning must never
+    /// disturb scaling. The pruner's grace window keeps it from racing any
+    /// in-flight download or install.
     func startCachePruneSweepIfNeeded() {
         guard ToolchainCachePolicy(from: config.toolchainCache).autoPrune || !config.projects.isEmpty else { return }
         cachePruneTask = Task { [weak self] () -> Void in
             while !Task.isCancelled {
+                guard let self else { return }
+                await self.runCacheSweep()
                 do {
-                    try await Task.sleep(for: .seconds(86_400))
+                    try await Task.sleep(for: .seconds(Self.cacheSweepInterval))
                 } catch is CancellationError {
                     return  // engine stopped: the sweep task ends
                 } catch {
                     Log.warn("engine", "cache sweep sleep failed: \(error.localizedDescription)")
                     return
                 }
-                guard let self else { return }
-                await self.pruneProjectImages()
-                let policy = ToolchainCachePolicy(from: self.config.toolchainCache)
-                guard policy.autoPrune else { continue }
-                ToolchainCachePruner().prune(policy: policy)
             }
         }
+    }
+
+    /// One sweep, skipped when the marker says the last one was recent. The
+    /// tree walk is synchronous file I/O, so it runs detached at utility
+    /// priority instead of holding a cooperative-pool thread.
+    func runCacheSweep(pruner: ToolchainCachePruner = ToolchainCachePruner()) async {
+        guard pruner.isSweepDue(minInterval: Self.cacheSweepInterval) else { return }
+        await pruneProjectImages()
+        let policy = ToolchainCachePolicy(from: config.toolchainCache)
+        guard policy.autoPrune else { return }
+        let root = pruner.cacheRoot
+        await Task.detached(priority: .utility) {
+            ToolchainCachePruner(cacheRoot: root).prune(policy: policy, minInterval: Self.cacheSweepInterval)
+        }.value
     }
 
     // MARK: - Pause and status
