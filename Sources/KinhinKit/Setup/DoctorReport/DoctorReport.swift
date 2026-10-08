@@ -30,7 +30,7 @@ public struct DoctorReport: Codable, Equatable, Sendable {
 
     public struct ContainerSection: Codable, Equatable, Sendable {
         /// "ready" | "missing" | "broken".
-        public let state: String
+        public let state: RuntimeSectionState
         public let ok: Bool
         /// Install/start command or breakage reason, null when ready.
         public let fix: String?
@@ -44,7 +44,7 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     /// `docker:` section (same shape as the container section).
     public struct DockerSection: Codable, Equatable, Sendable {
         /// "ready" | "missing" | "broken".
-        public let state: String
+        public let state: RuntimeSectionState
         public let ok: Bool
         /// Install/start command or breakage reason, null when ready.
         public let fix: String?
@@ -81,7 +81,7 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     /// targets `host` (same presence rule as the checklist's host row).
     public struct HostSection: Codable, Equatable, Sendable {
         /// "ready" | "missing" | "broken".
-        public let state: String
+        public let state: RuntimeSectionState
         public let ok: Bool
         /// Install command or breakage reason, null when ready.
         public let fix: String?

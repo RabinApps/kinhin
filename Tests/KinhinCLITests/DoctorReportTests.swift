@@ -95,7 +95,7 @@ final class DoctorReportTests: XCTestCase {
             containerHealth: .ready,
             containerImages: ImageInventory.RuntimeImages(names: ["kinhin-ci-linux:1.2"])
         ).build()
-        XCTAssertEqual(found.container?.state, "ready")
+        XCTAssertEqual(found.container?.state, .ready)
         XCTAssertEqual(found.container?.image, "kinhin-ci-linux")
         XCTAssertTrue(
             found.container?.imageFound ?? false, "a tag-prefixed local image matches (same rule as the checklist)")
@@ -115,7 +115,7 @@ final class DoctorReportTests: XCTestCase {
             config: Self.config(container: true),
             containerHealth: .missing(tool: "apple container", fix: "brew install container && container system start")
         ).build()
-        XCTAssertEqual(report.container?.state, "missing")
+        XCTAssertEqual(report.container?.state, .missing)
         XCTAssertFalse(report.container?.ok ?? true)
         XCTAssertEqual(report.container?.fix, "brew install container && container system start")
         XCTAssertFalse(report.container?.imageFound ?? true, "no images when the runtime is not ready")
