@@ -105,13 +105,7 @@ public struct AccountConfig: Sendable, Equatable, Codable {
     /// Bitbucket a workspace or `workspace/repo`, the others `owner/name` or
     /// a bare org.
     static func isValidScope(_ scope: String, forge: ForgeID) -> Bool {
-        switch forge {
-        case .gitlab: return GitLabCredentials.isValidScope(scope)
-        case .buildkite: return BuildkiteCredentials.isValidScope(scope)
-        case .azuredevops: return AzureDevOpsCredentials.isValidScope(scope)
-        case .bitbucket: return BitbucketCredentials.isValidScope(scope)
-        case .github, .gitea, .forgejo: return isValidScope(scope)
-        }
+        forge.descriptor.isValidScope(scope)
     }
 
     /// Scale sets require ephemeral runners (scale-set runners are one-job
@@ -135,18 +129,7 @@ extension AccountConfig {
     /// True when the scope names one repository (`owner/name`) on a forge whose
     /// runners register per repository. Orgs, groups, Buildkite clusters and Azure
     /// pools cover many repositories.
-    var isSingleRepositoryScope: Bool {
-        switch forge {
-        case .github, .gitea, .forgejo, .bitbucket:
-            return scope.split(separator: "/", omittingEmptySubsequences: false).count == 2
-        case .gitlab:
-            // GitLab paths nest; only a project path (group/project) names one project,
-            // and it is indistinguishable from a subgroup, so require two or more segments.
-            return scope.split(separator: "/").count >= 2
-        case .buildkite, .azuredevops:
-            return false
-        }
-    }
+    var isSingleRepositoryScope: Bool { forge.descriptor.isSingleRepositoryScope(scope) }
 }
 
 extension KinhinConfig {

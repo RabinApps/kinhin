@@ -21,18 +21,6 @@ public enum ForgeID: String, Codable, Sendable, CaseIterable {
     /// workspace, or `workspace/repo` to serve one repository.
     case bitbucket
 
-    /// The product name for UI and messages ("GitHub", "GitLab", …).
-    public var displayName: String {
-        switch self {
-        case .github: return "GitHub"
-        case .gitea: return "Gitea"
-        case .forgejo: return "Forgejo"
-        case .gitlab: return "GitLab"
-        case .buildkite: return "Buildkite"
-        case .azuredevops: return "Azure DevOps"
-        case .bitbucket: return "Bitbucket"
-        }
-    }
 }
 
 /// Unified credential set across forges: the forge, its token, the scope it

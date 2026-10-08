@@ -3,30 +3,6 @@ import Yams
 
 // MARK: - accounts: section
 
-extension ForgeID {
-    /// Forges whose server the user hosts, so the account may name an
-    /// `instance` and may opt into plain http. The switch is exhaustive on
-    /// purpose: adding a forge forces a decision here instead of silently
-    /// missing a hardcoded list.
-    var isSelfHosted: Bool {
-        switch self {
-        case .gitea, .forgejo, .gitlab, .azuredevops: return true
-        case .github, .buildkite, .bitbucket: return false
-        }
-    }
-
-    /// What a valid `scope:` looks like on this forge, for error messages.
-    var scopeHint: String {
-        switch self {
-        case .gitlab: return "a GitLab project or group path (e.g. 'group/project')"
-        case .buildkite: return "'org-slug/cluster' (the cluster's name or id)"
-        case .azuredevops: return "the agent pool's name"
-        case .bitbucket: return "a workspace slug, or 'workspace/repo-slug' for one repository"
-        case .github, .gitea, .forgejo: return "'owner/name' or an org name"
-        }
-    }
-}
-
 extension ConfigLoader {
     /// An `http://` instance sends the token in cleartext: refuse it unless
     /// the account says `allow_insecure_http: true` (loopback is exempt).
@@ -78,14 +54,7 @@ extension ConfigLoader {
             }
             let account = AccountEntry(
                 name: name, forge: forge, scope: scope, allowInsecureHTTP: allowInsecureHTTP, raw: entry)
-            switch forge {
-            case .github: result.append(try parseGitHubAccount(account))
-            case .gitea, .forgejo: result.append(try parseGiteaAccount(account))
-            case .gitlab: result.append(try parseGitLabAccount(account))
-            case .buildkite: result.append(try parseBuildkiteAccount(account))
-            case .azuredevops: result.append(try parseAzureDevOpsAccount(account))
-            case .bitbucket: result.append(try parseBitbucketAccount(account))
-            }
+            result.append(try forge.descriptor.parseAccount(account))
         }
         return result
     }
@@ -107,7 +76,7 @@ extension ConfigLoader {
         }
     }
 
-    private static func parseGitHubAccount(_ account: AccountEntry) throws -> AccountConfig {
+    static func parseGitHubAccount(_ account: AccountEntry) throws -> AccountConfig {
         let entry = account.raw
         let name = account.name
         // Labels are deliberate gitea/forgejo/GitLab labels, so they are
@@ -144,7 +113,7 @@ extension ConfigLoader {
             allowInsecureHTTP: entry.allowInsecureHTTP, scaleSet: scaleSet)
     }
 
-    private static func parseGiteaAccount(_ account: AccountEntry) throws -> AccountConfig {
+    static func parseGiteaAccount(_ account: AccountEntry) throws -> AccountConfig {
         let entry = account.raw
         let name = account.name
         try rejectScaleSet(account)
@@ -165,7 +134,7 @@ extension ConfigLoader {
             allowInsecureHTTP: entry.allowInsecureHTTP)
     }
 
-    private static func parseGitLabAccount(_ account: AccountEntry) throws -> AccountConfig {
+    static func parseGitLabAccount(_ account: AccountEntry) throws -> AccountConfig {
         let entry = account.raw
         let name = account.name
         try rejectScaleSet(account)
@@ -185,7 +154,7 @@ extension ConfigLoader {
             allowInsecureHTTP: entry.allowInsecureHTTP)
     }
 
-    private static func parseBuildkiteAccount(_ account: AccountEntry) throws -> AccountConfig {
+    static func parseBuildkiteAccount(_ account: AccountEntry) throws -> AccountConfig {
         let entry = account.raw
         let name = account.name
         try rejectScaleSet(account)
@@ -201,7 +170,7 @@ extension ConfigLoader {
         return AccountConfig(name: name, forge: account.forge, scope: account.scope, labels: entry.labels)
     }
 
-    private static func parseAzureDevOpsAccount(_ account: AccountEntry) throws -> AccountConfig {
+    static func parseAzureDevOpsAccount(_ account: AccountEntry) throws -> AccountConfig {
         let entry = account.raw
         let name = account.name
         try rejectScaleSet(account)
@@ -227,7 +196,7 @@ extension ConfigLoader {
             allowInsecureHTTP: entry.allowInsecureHTTP)
     }
 
-    private static func parseBitbucketAccount(_ account: AccountEntry) throws -> AccountConfig {
+    static func parseBitbucketAccount(_ account: AccountEntry) throws -> AccountConfig {
         let entry = account.raw
         let name = account.name
         try rejectScaleSet(account)
