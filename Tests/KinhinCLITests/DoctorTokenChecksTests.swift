@@ -60,7 +60,7 @@ final class DoctorTokenChecksTests: XCTestCase {
         XCTAssertTrue(checks.allSatisfy(\.ok))
         XCTAssertEqual(seen.withLock { $0 }.sorted(), ["gitea=c", "github=a", "work-gl=b"])
         XCTAssertFalse(report.plainText.contains("not checked"))
-        XCTAssertTrue(report.plainText.contains("tok check: gitea: ok for gitea ✓"), report.plainText)
+        XCTAssertTrue(report.plainText.contains("tok check:  gitea: ok for gitea ✓"), report.plainText)
     }
 
     func testAFailedNonGitHubTokenMakesDoctorNotReadyAndNamesTheFix() async throws {
