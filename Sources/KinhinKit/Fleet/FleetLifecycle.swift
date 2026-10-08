@@ -136,9 +136,9 @@ extension FleetEngine {
                 guard !isScaleSet else {
                     throw EngineError.registrationFailed(vm: id, stderr: "scale-set forge requires JIT registration")
                 }
-                token = try await registrationCache(for: account).token {
-                    try await forge.mintRegistrationToken()
-                }
+                token = try await registrationCache(for: account).token(fetchExpiring: {
+                    try await forge.mintRegistrationTokenExpiring()
+                })
             case .sharedLongLived:
                 // Long-lived (Gitea family): captured at forge construction.
                 guard !isScaleSet else {

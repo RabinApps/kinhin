@@ -16,6 +16,28 @@ enum ConfigCommands {
         }
     }
 
+    /// `kinhin config migrate`: translates removed legacy keys to the current
+    /// schema. Prints the result (notes and warnings on stderr so stdout stays
+    /// pipeable); `--write` keeps the original as `<config>.bak` and replaces it.
+    static func migrate(_ args: [String], configURL: URL = Paths.config) throws {
+        let migration = try ConfigMigrator.migrate(fileAt: configURL)
+        for change in migration.changes { printError("migrated: \(change)") }
+        for warning in migration.warnings { printError("warning: \(warning)") }
+        if migration.isNoop {
+            printError("config already uses the current schema; nothing to migrate")
+            return
+        }
+        guard args.contains("--write") else {
+            print(migration.yaml, terminator: migration.yaml.hasSuffix("\n") ? "" : "\n")
+            return
+        }
+        let backup = configURL.appendingPathExtension("bak")
+        try? FileManager.default.removeItem(at: backup)
+        try FileManager.default.copyItem(at: configURL, to: backup)
+        try migration.yaml.write(to: configURL, atomically: true, encoding: .utf8)
+        print("wrote \(configURL.path) (original kept at \(backup.path))")
+    }
+
     /// `kinhin config validate`: parses and validates the config file without
     /// starting anything or writing to disk, so a hand edit can be checked before
     /// the fleet (or daemon) reloads it. Throws the loader's `ConfigError` (exit 3).

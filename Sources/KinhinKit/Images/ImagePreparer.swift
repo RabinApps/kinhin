@@ -220,7 +220,7 @@ public struct ImagePreparer: Sendable {
                 || hasBitbucketToken
         else {
             throw ImageError.noCredentials(
-                "store at least one platform token first (kinhin auth set / kinhin auth set --gitea / --gitlab / --account NAME)"
+                "store at least one platform token first (kinhin auth set --account NAME)"
             )
         }
 

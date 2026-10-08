@@ -46,6 +46,12 @@ enum CommandCatalog {
                     summary: "Check the config without starting anything",
                     flags: [jsonFlag],
                     details: ["Exits 3 when the config is invalid."]),
+                CommandSpec(
+                    name: "migrate",
+                    command: .configInit,
+                    summary: "Translate removed config keys to the current schema",
+                    flags: [.bool("--write", "Replace the config (the original is kept as config.yml.bak)")],
+                    details: ["Handles repo:, gitea:, forgejo: and toolchains:. Output to stdout; notes to stderr."]),
             ],
             defaultSubcommand: "init",
             docs: "website/guide/config.md"),
