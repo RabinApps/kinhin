@@ -21,7 +21,7 @@
 | `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                                                                                                                                                                                        |
 
 Scale-set mode (GitHub, opt-in): an `accounts:` entry may carry `scale_set:` with `name` (the
-scale set's name — also a label workflows can request through `runs-on:`) and `runner_group`
+scale set's name — what workflows put in `runs-on:`; kinhin adds `-container`, `-docker` and `-<image>` sets for the other pools and named images) and `runner_group`
 (where the scale set lives; GitHub's built-in group is `Default`, spelled exactly that way, and
 kinhin's lookup is case-sensitive). It swaps that account's demand from the REST poll to the
 message API — see [Forge support](/guide/forges/github#scale-set-mode-in-kinhin) and

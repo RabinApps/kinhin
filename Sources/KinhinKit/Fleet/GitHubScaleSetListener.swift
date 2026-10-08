@@ -216,6 +216,7 @@ public actor GitHubScaleSetListener {
                 .init(scaleSetId: id, sessionId: createdOrRefreshed.sessionId, ownerName: ownerName))
             abandonedSessionId = nil
             conflictStreak = 0
+            Log.info("scaleset", "session \(createdOrRefreshed.sessionId) established; listening for jobs")
             backOff = .seconds(1)
             lastMessageId = nil
             _lastError = nil

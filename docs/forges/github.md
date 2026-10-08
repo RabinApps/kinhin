@@ -85,9 +85,25 @@ but not in effect: it defaults to the lowercase string `default`, which never ma
 built-in group `Default`, because the lookup is an exact, case-sensitive name match — every org
 has that one group already, so the fix is spelling, not creation. Take the name from your org's
 runner-groups page and set it verbatim; [Troubleshooting scale sets](#troubleshooting-scale-sets)
-walks through the error, the fix, and the restart an account-level edit needs. The scale set is
-created with `labels:` from the account entry when present, otherwise the fleet `labels:`, plus
-the scale-set name — so a job requesting a label outside that set is never assigned to it.
+walks through the error, the fix, and the restart an account-level edit needs.
+
+**Workflows target a scale set by its name.** GitHub keeps only a scale set's name (plus its own
+`self-hosted`/architecture labels) on github.com, so `runs-on: [self-hosted, macos, xcode]` can never
+reach one. kinhin therefore creates one scale set per pool, and one per named `images:` entry, and the
+name picks where the job runs:
+
+| `runs-on:`         | Runs on                                           |
+| ------------------ | ------------------------------------------------- |
+| `kinhin`           | the Tart (macOS) pool — the `scale_set.name` itself |
+| `kinhin-container` | Apple containers (Linux)                          |
+| `kinhin-docker`    | Docker slots (Linux)                              |
+| `kinhin-host`      | the unisolated host pool (needs a host route)     |
+| `kinhin-<image>`   | a named `images:` entry, e.g. `kinhin-xcode`      |
+
+A fleet with a single pool and no named images keeps just `kinhin`. The set a job arrives on decides its
+pool (it overrides repo and workflow routes), and a runner registers in the set matching its pool and image.
+The names appear in the log at start (`listens on scale sets: …`). Pools or images added later need a
+restart to get their sets.
 
 Implementation notes:
 

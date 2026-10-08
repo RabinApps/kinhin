@@ -12,7 +12,7 @@ jobs:
     # Belt and braces: the push trigger is already tag-filtered, so this only
     # matters if another trigger is added later — skip instead of releasing.
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: [self-hosted, macos, arm64, xcode]
+    runs-on: kinhin-xcode
     # Protected environment: configure required reviewers (and move the signing
     # secrets into it) in the repo settings so a pushed tag alone cannot reach them.
     environment: release

@@ -30,7 +30,7 @@ extension FleetEngine {
     }
 
     /// The scale-set listeners attached to running accounts.
-    func scaleSetListeners() -> [String: GitHubScaleSetListener] {
+    func scaleSetListeners() -> [String: [GitHubScaleSetListener]] {
         forgeState.withLock { state in state.scaleSetListeners }
     }
 
@@ -73,11 +73,11 @@ extension FleetEngine {
                     }
                 }
                 if let scaleSet = account.scaleSet {
-                    let listener = await makeGitHubScaleSetListener(
+                    let targets = await makeScaleSetTargets(
                         account: account, token: token, client: client, scaleSet: scaleSet)
                     forge = GitHubScaleSetForge(
                         account: account, token: token, client: client,
-                        labels: account.labels ?? config.labels, listener: listener)
+                        labels: account.labels ?? config.labels, targets: targets)
                 } else {
                     forge = GitHubForge(account: account, token: token, client: client, labels: config.labels)
                 }
@@ -126,28 +126,24 @@ extension FleetEngine {
                     account: account.name
                 )
             }
-            let previousListener = forgeState.withLock { state -> GitHubScaleSetListener? in
-                let previous = state.scaleSetListeners[account.name]
+            let currentListeners = (forge as? GitHubScaleSetForge)?.targets.map(\.listener) ?? []
+            let previousListeners = forgeState.withLock { state -> [GitHubScaleSetListener] in
+                let previous = state.scaleSetListeners[account.name] ?? []
                 state.byPlatform[account.name] = forge
-                if let scaleSetForge = forge as? GitHubScaleSetForge {
-                    state.scaleSetListeners[account.name] = scaleSetForge.listener
-                } else {
-                    state.scaleSetListeners[account.name] = nil
-                }
+                state.scaleSetListeners[account.name] = currentListeners.isEmpty ? nil : currentListeners
                 if account.scaleSet == nil { state.scaleSetAdminTokens[account.name] = nil }
                 return previous
             }
-            let currentListener = (forge as? GitHubScaleSetForge)?.listener
-            if let previousListener, previousListener !== currentListener {
-                await previousListener.stop()
+            for previous in previousListeners where !currentListeners.contains(where: { $0 === previous }) {
+                await previous.stop()
             }
             registrationCache(for: account.name).invalidate()
             Log.info("engine", "account '\(account.name)' attached (\(account.forge.rawValue): \(account.scope))")
             await statusBox.modify {
                 if $0.lastError?.hasPrefix("account '\(account.name)'") == true { $0.lastError = nil }
             }
-            if running, let currentListener {
-                await currentListener.start()
+            if running {
+                for listener in currentListeners { await listener.start() }
             }
             return true
         } catch {
@@ -169,12 +165,76 @@ extension FleetEngine {
         await attach(account: account, token: token, verify: false)
     }
 
-    // MARK: - GitHub scale-set listener builder
+    // MARK: - GitHub scale-set targets
+
+    /// The scale sets an account listens on. GitHub keeps only a scale set's
+    /// name (plus its own system labels) on github.com, so a workflow can only
+    /// reach kinhin through `runs-on: <set name>`; one set per pool, and one
+    /// per named image, lets that name pick the pool and image:
+    ///
+    ///   `kinhin`            the Tart (macOS) pool  — the base name
+    ///   `kinhin-container`  Apple containers (the pool's exclusive marker)
+    ///   `kinhin-docker`     Docker slots
+    ///   `kinhin-host`       the unisolated host pool
+    ///   `kinhin-<image>`    a named `images:` entry (a Tart image)
+    ///
+    /// A fleet with a single pool and no named images keeps just the base name.
+    func scaleSetPlan(account: AccountConfig, baseName: String) -> [(
+        name: String, runtime: RuntimeID, labels: [String]
+    )] {
+        let pools = routing.pools
+        var plan: [(name: String, runtime: RuntimeID, labels: [String])] = []
+        let images = imagesState.withLock { $0 }.filter { !($0.labels ?? []).isEmpty }
+        let single = pools.count == 1 && images.isEmpty
+        for (runtime, pool) in pools.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            let name: String
+            if single || runtime == .tart {
+                name = baseName
+            } else if let marker = RuntimePool.exclusiveMarker(for: runtime) {
+                // "kinhin-container" etc. — the marker already names the pool.
+                name =
+                    marker.hasPrefix("kinhin") ? baseName + marker.dropFirst("kinhin".count) : "\(baseName)-\(marker)"
+            } else {
+                name = "\(baseName)-\(runtime.rawValue)"
+            }
+            plan.append((name, runtime, pool.labels))
+        }
+        if let tart = pools[.tart] {
+            for image in images {
+                plan.append(("\(baseName)-\(image.name)", .tart, tart.labels + (image.labels ?? [])))
+            }
+        }
+        // The base-named set (primary) first.
+        return plan.sorted { lhs, rhs in
+            if (lhs.name == baseName) != (rhs.name == baseName) { return lhs.name == baseName }
+            return lhs.name < rhs.name
+        }
+    }
+
+    private func makeScaleSetTargets(
+        account: AccountConfig, token: String, client: GitHubServing, scaleSet: AccountConfig.ScaleSetConfig
+    ) async -> [ScaleSetTarget] {
+        let plan = scaleSetPlan(account: account, baseName: scaleSet.name)
+        var targets: [ScaleSetTarget] = []
+        for entry in plan {
+            let listener = await makeGitHubScaleSetListener(
+                account: account, token: token, client: client, scaleSet: scaleSet, setName: entry.name)
+            targets.append(
+                ScaleSetTarget(
+                    setName: entry.name, runtime: entry.runtime, routingLabels: entry.labels, listener: listener))
+        }
+        Log.info(
+            "scaleset",
+            "account '\(account.name)' listens on scale sets: " + plan.map(\.name).joined(separator: ", ")
+                + " — workflows target one with `runs-on: <name>`")
+        return targets
+    }
 
     /// Build a listener whose privileged requests obtain an Actions JWT from
     /// this account's GitHub registration-token flow.
     private func makeGitHubScaleSetListener(
-        account: AccountConfig, token: String, client: GitHubServing, scaleSet: AccountConfig.ScaleSetConfig
+        account: AccountConfig, token: String, client: GitHubServing, scaleSet: AccountConfig.ScaleSetConfig,
+        setName: String
     ) async -> GitHubScaleSetListener {
         let credentials = GitHubCredentials(
             token: token, scope: account.scope, instance: account.instance,
@@ -196,11 +256,7 @@ extension FleetEngine {
             client: scaleSetClient,
             scaleSetIdSupplier: {
                 try await self.scaleSetIdForAttach(
-                    account: account,
-                    token: token,
-                    githubClient: client,
-                    scaleSet: scaleSet
-                )
+                    account: account, token: token, githubClient: client, scaleSet: scaleSet, setName: setName)
             },
             ownerName: credentials.owner,
             fallbackRepository: account.scope.contains("/") ? account.scope : nil,
@@ -208,7 +264,7 @@ extension FleetEngine {
             maxCapacity: poolCapacity,
             onDemandUpdate: { [weak self] in self?.pollSoon() },
             sessionStore: ScaleSetSessionStore(
-                directory: Paths.stateDirectory, account: account.name, scaleSet: scaleSet.name)
+                directory: Paths.stateDirectory, account: account.name, scaleSet: setName)
         )
     }
 
@@ -244,15 +300,17 @@ extension FleetEngine {
         }
     }
 
-    /// Ensure the configured scale set exists before exposing its id to the
-    /// listener's session, statistics, and JIT-registration paths.
+    /// Ensure the named scale set exists before exposing its id to the
+    /// listener's session, statistics, and JIT-registration paths. Only the
+    /// name is registered as its label: that is all GitHub keeps for a scale
+    /// set on github.com, and all a workflow's `runs-on:` can match.
     private func scaleSetIdForAttach(
         account: AccountConfig,
         token: String,
         githubClient: GitHubServing,
-        scaleSet: AccountConfig.ScaleSetConfig
+        scaleSet: AccountConfig.ScaleSetConfig,
+        setName: String
     ) async throws -> Int {
-        let labels = account.labels ?? config.labels
         do {
             let setupClient = GitHubScaleSetClient(
                 credentials: GitHubCredentials(
@@ -264,13 +322,13 @@ extension FleetEngine {
                 actionsServiceURL: { [self] in
                     forgeState.withLock { $0.scaleSetAdminTokens[account.name]?.actionsURL }
                 })
-            let fullLabels = Array(Set(labels + [scaleSet.name])).sorted()
-            let scaleSet = try await setupClient.ensureScaleSet(
-                name: scaleSet.name,
-                labels: fullLabels,
+            let created = try await setupClient.ensureScaleSet(
+                name: setName,
+                labels: [setName],
                 runnerGroup: scaleSet.runnerGroup
             )
-            return scaleSet.id
+            Log.info("scaleset", "scale set '\(created.name)' (id \(created.id)) ready — use `runs-on: \(setName)`")
+            return created.id
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -286,7 +344,7 @@ extension FleetEngine {
         let forges = forgeState.withLock { Array($0.byPlatform.values) }
         for forge in forges {
             if let scaleSetForge = forge as? GitHubScaleSetForge {
-                await scaleSetForge.listener.start()
+                for target in scaleSetForge.targets { await target.listener.start() }
             }
         }
     }
@@ -296,7 +354,7 @@ extension FleetEngine {
         let forges = forgeState.withLock { Array($0.byPlatform.values) }
         for forge in forges {
             if let scaleSetForge = forge as? GitHubScaleSetForge {
-                await scaleSetForge.listener.stop()
+                for target in scaleSetForge.targets { await target.listener.stop() }
             }
         }
     }

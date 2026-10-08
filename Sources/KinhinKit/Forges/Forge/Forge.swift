@@ -285,10 +285,15 @@ public struct ForgeJob: Sendable, Equatable {
     /// True when the job comes from a fork's pull request: its repo file is
     /// never honored.
     public let isFork: Bool
+    /// The pool the forge already chose for this job: a scale-set job arrives
+    /// on the scale set the workflow named in `runs-on:`, and that set is bound
+    /// to one runtime. Overrides repo and workflow routes; nil for every
+    /// other forge, which routes by labels and config.
+    public let runtimeHint: RuntimeID?
 
     public init(
         name: String, runnerName: String?, repository: String?, labels: [String]? = nil, ref: String? = nil,
-        sha: String? = nil, isFork: Bool = false
+        sha: String? = nil, isFork: Bool = false, runtimeHint: RuntimeID? = nil
     ) {
         self.name = name
         self.runnerName = runnerName
@@ -297,5 +302,6 @@ public struct ForgeJob: Sendable, Equatable {
         self.ref = ref
         self.sha = sha
         self.isFork = isFork
+        self.runtimeHint = runtimeHint
     }
 }

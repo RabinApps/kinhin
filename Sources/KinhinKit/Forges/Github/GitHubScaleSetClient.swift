@@ -370,7 +370,25 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
                 reason: "scale-set lookup for '\(name)' returned \(matchCount) results")
         }
         if let existing = scaleSets.first {
-            if Set(existing.labels) != Set(labels) { try await patchScaleSet(id: existing.id, labels: labels) }
+            Log.info(
+                "scaleset", "GitHub reports labels for '\(name)': \(existing.labels.sorted().joined(separator: ", "))")
+            // GitHub keeps only the name and its own system labels, so "already has them" is a
+            // case-insensitive subset test; comparing for equality would re-patch on every start.
+            if !Set(labels.map { $0.lowercased() }).isSubset(of: Set(existing.labels.map { $0.lowercased() })) {
+                try await patchScaleSet(id: existing.id, labels: labels)
+                // GitHub may drop labels it does not accept for scale sets; say so, since jobs
+                // asking for a dropped label are never delivered.
+                if let (refreshedData, _) = try? await send(listRequest),
+                    let refreshed = try? JSONDecoder().decode(ScaleSetList.self, from: refreshedData).value.first
+                {
+                    let have = Set(refreshed.labels.map { $0.lowercased() })
+                    let missing = labels.filter { !have.contains($0.lowercased()) }
+                    Log.info(
+                        "scaleset",
+                        "after update GitHub reports: \(refreshed.labels.sorted().joined(separator: ", "))"
+                            + (missing.isEmpty ? "" : " — NOT accepted: \(missing.sorted().joined(separator: ", "))"))
+                }
+            }
             return GitHubScaleSet(
                 id: existing.id, name: existing.name, runnerGroupName: existing.runnerGroupName,
                 labels: labels, statistics: existing.statistics)

@@ -329,6 +329,38 @@ final class FleetEngineTests: XCTestCase {
         XCTAssertEqual(forge?.labels, ["pool-label"])
     }
 
+    private func planEngine(
+        container: Bool = true, docker: Bool = false, images: [KinhinConfig.ImageConfig] = []
+    ) -> FleetEngine {
+        var cfg = makeTestConfig()
+        cfg.labels = ["self-hosted", "arm64"]
+        if container { cfg.container = .init(image: "c", cpus: 1, memoryGB: 4, labels: ["kinhin-container"]) }
+        if docker { cfg.docker = .init(image: "d", cpus: 1, memoryGB: 2) }
+        cfg.images = images
+        cfg.runtimes = .init(defaultRuntime: "appleContainer", budget: [:], routes: [])
+        return FleetEngine(
+            config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
+            host: testHost, dependencies: .init(tokenLoader: { _, _ in "t" }, exitWatchInterval: .milliseconds(20)))
+    }
+
+    /// GitHub keeps only a scale set's name, so each pool and each named
+    /// image gets a set a workflow can reach with `runs-on: <name>`.
+    func testScaleSetPlanNamesOneSetPerPoolAndImage() {
+        let engine = planEngine(docker: true, images: [.init(name: "xcode", labels: ["xcode"])])
+        let account = AccountConfig(name: "s", forge: .github, scope: "acme", scaleSet: .init(name: "kinhin"))
+        let plan = engine.scaleSetPlan(account: account, baseName: "kinhin")
+        XCTAssertEqual(plan.map(\.name), ["kinhin", "kinhin-container", "kinhin-docker", "kinhin-xcode"])
+        XCTAssertEqual(plan.map(\.runtime), [.tart, .appleContainer, .docker, .tart])
+        XCTAssertTrue(plan[1].labels.contains("kinhin-container"))
+        XCTAssertTrue(plan[3].labels.contains("xcode"), "an image set carries the image's labels")
+    }
+
+    func testSinglePoolFleetKeepsJustTheBaseName() {
+        let engine = planEngine(container: false)
+        let account = AccountConfig(name: "s", forge: .github, scope: "acme", scaleSet: .init(name: "kinhin"))
+        XCTAssertEqual(engine.scaleSetPlan(account: account, baseName: "kinhin").map(\.name), ["kinhin"])
+    }
+
     func testClassicGitHubAccountStillBuildsGitHubForge() async throws {
         var cfg = makeTestConfig()
         cfg.accounts.append(

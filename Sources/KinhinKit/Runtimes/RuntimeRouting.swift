@@ -58,6 +58,7 @@ struct RuntimePool: Sendable, Equatable {
 }
 
 /// Resolves a queued job to the pool that should serve it. Precedence:
+/// 0. The forge's own choice (`ForgeJob.runtimeHint`, scale-set jobs).
 /// 1. Workflow route (`owner/name@Workflow`) — most specific.
 /// 2. Repo route (`owner/name`).
 /// 3. Label capability: a job whose labels include a pool's exclusive
@@ -108,6 +109,10 @@ enum RuntimeRouter {
     static func assign(
         job: ForgeJob, config: RuntimeConfigModel, defaultPool: RuntimePool, pools: [RuntimeID: RuntimePool]
     ) -> Decision {
+        // 0. The forge already chose (scale-set jobs: the set the workflow named).
+        if let hint = job.runtimeHint, let pool = pools[hint] {
+            return Decision(pool: pool, via: "scale-set:\(hint.rawValue)")
+        }
         let repo = repoKey(job.repository)
 
         // 1 & 2. Workflow-then-repo route precedence.

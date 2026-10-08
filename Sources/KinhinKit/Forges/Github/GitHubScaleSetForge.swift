@@ -10,6 +10,23 @@ import Foundation
 /// This is the "adapter + listener addition" layer the scale-set plan describes,
 /// on top of the existing GitHub poller path rather than a second full fork of
 /// GitHubForge.
+/// One GitHub scale set the forge listens on. GitHub only lets a workflow
+/// target a scale set by its name (`runs-on: kinhin-container`) — extra labels
+/// are not kept on github.com — so each pool, and each named image, gets its
+/// own set; the set a job arrives on tells kinhin where to run it.
+struct ScaleSetTarget: Sendable {
+    /// The scale-set name, i.e. the workflow's `runs-on:` value.
+    let setName: String
+    /// The pool this set feeds; nil only for a single-target forge built
+    /// without routing information (jobs then route as classic ones do).
+    let runtime: RuntimeID?
+    /// Labels the runners of this set advertise (pool labels, plus a named
+    /// image's): jobs from this set carry them, so image selection and pool
+    /// markers keep working, and runner JIT configs are matched back by them.
+    let routingLabels: [String]
+    let listener: GitHubScaleSetListener
+}
+
 struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
     let id: ForgeID = .github
     let name = "github"
@@ -20,7 +37,10 @@ struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
     let credentials: ForgeCredentials
 
     let client: GitHubServing
-    let listener: GitHubScaleSetListener
+    /// Every scale set this account listens on (first = the primary).
+    let targets: [ScaleSetTarget]
+    /// The primary listener (single-set accounts have only this one).
+    var listener: GitHubScaleSetListener { targets[0].listener }
 
     init(
         account: AccountConfig,
@@ -34,7 +54,7 @@ struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
             instance: account.instance, allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         self.labels = account.labels ?? []
         self.client = client
-        self.listener = listener
+        self.targets = [ScaleSetTarget(setName: "", runtime: nil, routingLabels: [], listener: listener)]
     }
 
     init(
@@ -50,7 +70,25 @@ struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
             instance: account.instance, allowInsecureHTTP: account.allowInsecureHTTP ?? false)
         self.labels = account.labels ?? labels
         self.client = client
-        self.listener = listener
+        self.targets = [ScaleSetTarget(setName: "", runtime: nil, routingLabels: [], listener: listener)]
+    }
+
+    /// A forge listening on several scale sets (one per pool / named image).
+    init(
+        account: AccountConfig,
+        token: String,
+        client: GitHubServing,
+        labels: [String],
+        targets: [ScaleSetTarget]
+    ) {
+        precondition(!targets.isEmpty, "a scale-set forge needs at least one scale set")
+        self.account = account.name
+        self.credentials = .github(
+            token: token, scope: account.scope,
+            instance: account.instance, allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+        self.labels = account.labels ?? labels
+        self.client = client
+        self.targets = targets
     }
 
     /// Labels to pass through to the existing GitHub client paths. Scale-set
@@ -94,10 +132,27 @@ struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
 
     // MARK: - JIT config (per-runner)
 
+    /// The scale set a runner with these labels must register in: the most
+    /// specific one whose labels the runner carries (a named-image VM carries
+    /// the pool's labels plus the image's, so it picks the image's set).
+    func target(forRunnerLabels labels: [String]) -> ScaleSetTarget {
+        guard targets.count > 1 else { return targets[0] }
+        let have = Set(labels.map { $0.lowercased() })
+        let matching = targets.filter { target in
+            !target.routingLabels.isEmpty && Set(target.routingLabels.map { $0.lowercased() }).isSubset(of: have)
+        }
+        if let best = matching.max(by: { $0.routingLabels.count < $1.routingLabels.count }) { return best }
+        Log.warn(
+            "scaleset",
+            "no scale set matches runner labels [\(labels.joined(separator: ", "))]; using '\(targets[0].setName)'")
+        return targets[0]
+    }
+
     func jitRunnerConfig(name: String, labels: [String]) async throws -> String? {
         do {
-            let id = try await listener.currentScaleSetId()
-            let config = try await listener.generateJitConfig(
+            let target = target(forRunnerLabels: labels)
+            let id = try await target.listener.currentScaleSetId()
+            let config = try await target.listener.generateJitConfig(
                 scaleSetId: id, name: name, workFolder: "_work"
             )
             return config.encodedJitConfig
@@ -111,11 +166,30 @@ struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
     // MARK: - Demand: served from the listener snapshot
 
     func queuedJobs() async throws -> [ForgeJob] {
-        try await listener.queuedJobs()
+        // A single set without routing info behaves as before.
+        if targets.count == 1, targets[0].runtime == nil { return try await targets[0].listener.queuedJobs() }
+        var jobs: [ForgeJob] = []
+        for target in targets {
+            for job in try await target.listener.queuedJobs() {
+                // The set a job arrived on is its `runs-on:` choice: stamp the
+                // pool and the labels that pool/image routing keys on.
+                jobs.append(
+                    ForgeJob(
+                        name: job.name, runnerName: job.runnerName, repository: job.repository,
+                        labels: target.routingLabels, ref: job.ref, sha: job.sha, isFork: job.isFork,
+                        runtimeHint: target.runtime))
+            }
+        }
+        return jobs
     }
 
     func pendingScaleSetError() async -> String? {
-        (await listener.reportedError())?.errorDescription
+        for target in targets {
+            if let message = await target.listener.reportedError()?.errorDescription {
+                return targets.count > 1 && !target.setName.isEmpty ? "\(target.setName): \(message)" : message
+            }
+        }
+        return nil
     }
 
     func scaleSetStatistics() async throws -> GitHubScaleSetStatistics {

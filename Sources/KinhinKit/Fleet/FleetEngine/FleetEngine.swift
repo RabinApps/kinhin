@@ -25,7 +25,7 @@ struct ForgeState: Sendable {
     /// Registration-token caches, one per account (created on first use).
     var accountRegistrationTokens: [String: RegistrationTokenCache] = [:]
     /// Scale-set message listeners attached to running accounts.
-    var scaleSetListeners: [String: GitHubScaleSetListener] = [:]
+    var scaleSetListeners: [String: [GitHubScaleSetListener]] = [:]
     /// Retry schedule for forges that failed at startup (FleetForgeRetry.swift).
     var retry = ForgeRetryState()
 }
