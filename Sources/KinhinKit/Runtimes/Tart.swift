@@ -65,7 +65,6 @@ public protocol TartControlling: Sendable {
     /// only, so the returned key cannot be spoofed on the network. nil means
     /// this controller cannot do it (fakes, stand-ins).
     func rotateGuestHostKey(vm: String) async throws -> String?
-    func allowKeys(_ key: String) async throws
     /// Creates an empty Linux VM (`tart create --linux name`) with no OS —
     /// the starting point of the "Linux VM from scratch" flow.
     func createLinux(name: String) async throws
@@ -90,7 +89,6 @@ public extension TartControlling {
     func installGuestSSHKey(vm: String, user: String) async throws {}
     func hardenGuestSSH(vm: String) async throws {}
     func rotateGuestHostKey(vm: String) async throws -> String? { nil }
-    func allowKeys(_ key: String) async throws {}
     func processSamples(of names: [String]) async throws -> [String: ProcessSample] { [:] }
     func guestMemoryUsedMB(of name: String) async -> Int? { nil }
 }
@@ -217,10 +215,6 @@ public struct TartController: TartControlling {
     public func clone(source: String, to name: String) async throws {
         let res = try await exec(["clone", source, name], timeout: 300)
         guard res.succeeded else { throw TartError.commandFailed(what: "clone \(source) \(name)", stderr: res.stderr) }
-    }
-
-    public func allowKeys(_ key: String) async throws {
-        // The host key kinhin already trusts in the VM is the one that matters.
     }
 
     public func run(name: String, mounts: [String]) async throws {
@@ -384,7 +378,6 @@ struct UnavailableTart: TartControlling {
     func pull(image: String) async throws { throw missing }
     func createLinux(name: String) async throws { throw missing }
     func runWithDisk(name: String, isoPath: String) async throws { throw missing }
-    func allowKeys(_ key: String) async throws { throw missing }
 }
 
 extension KinhinConfig {

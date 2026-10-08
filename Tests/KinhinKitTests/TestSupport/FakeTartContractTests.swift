@@ -209,16 +209,4 @@ final class FakeTartContractTests: XCTestCase {
             { try await fake.hardenGuestSSH(vm: "vm-1") },
             "the fake's fail hook must produce the same error case")
     }
-
-    func testAllowKeysIsANoOpLikeTheRealController() async throws {
-        let realShell = FakeShell()
-        let real = try makeReal(realShell)
-        let fake = FakeTart()
-
-        try await real.allowKeys("ssh-ed25519 AAAA")
-        try await fake.allowKeys("ssh-ed25519 AAAA")
-
-        XCTAssertTrue(realShell.calls.isEmpty, "the real controller deliberately does nothing here")
-        XCTAssertTrue(fake.events.isEmpty && fake.cloneCalls.isEmpty, "the fake records nothing either")
-    }
 }

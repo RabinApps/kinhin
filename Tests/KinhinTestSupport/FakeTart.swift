@@ -238,10 +238,6 @@ final class FakeTart: TartControlling, Sendable {
         }
     }
 
-    func allowKeys(_ key: String) async throws {
-        // No-op fake; the production path also ignores this call.
-    }
-
     func stop(name: String) async throws {
         // Park (one-shot) before acting: the cancellation-during-commit hook.
         let shouldPark = state.withLock { state -> Bool in

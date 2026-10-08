@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Host runtime (stage 4)
+// MARK: - Host runtime
 
 /// Direct execution on the host Mac — the third execution backend, for
 /// explicitly trusted repos. No isolation whatsoever: jobs run with the

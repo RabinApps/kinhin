@@ -135,14 +135,7 @@ public struct AppleContainerRuntime: Runtime {
     /// size column and per-runtime total. Empty when the CLI can't say: the
     /// rows then read "—", never a wrong number.
     public func localImageSizes() async -> [String: Int] {
-        do {
-            let result = try await run([bin, "image", "list", "--format", "json"])
-            guard result.succeeded else { return [:] }
-            return Self.parseImageSizes(result.stdout)
-        } catch {
-            Log.warn("container", "could not list image sizes: \(error.localizedDescription)")
-            return [:]
-        }
+        await cli.localImageSizes(arguments: ["image", "list", "--format", "json"], parse: Self.parseImageSizes)
     }
 
     /// `container image list --format json` as whole GB: each entry's
@@ -163,7 +156,7 @@ public struct AppleContainerRuntime: Runtime {
                 .compactMap { $0["size"] as? Int }
                 .reduce(0, +)
             guard bytes > 0 else { continue }
-            let gigabytes = max(1, Int((Double(bytes) / 1_000_000_000).rounded()))
+            let gigabytes = LinuxContainerCLI.wholeGigabytes(bytes: Double(bytes))
             for form in nameForms(of: name) { sizes[form] = gigabytes }
         }
         return sizes

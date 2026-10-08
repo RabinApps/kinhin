@@ -3,7 +3,7 @@ import XCTest
 @testable import KinhinKit
 @testable import KinhinTestSupport
 
-/// Stage 2 routing: label pools, job→pool assignment (workflow route →
+/// Routing: label pools, job→pool assignment (workflow route →
 /// repo route → label opt-in → default), the weighted capacity partition,
 /// config parsing/validation, and the engine spawning per-runtime instances
 /// from bucketed demand.

@@ -2,9 +2,8 @@ import Foundation
 
 // MARK: - Runtime identity
 
-/// Where runner workloads execute. Stage 1 ships only `.tart`; the Docker
-/// and Host implementations land in stages 3–4 of the runtime design
-/// (docs/runtime-abstraction-design.md).
+/// Where runner workloads execute: Tart macOS/Linux VMs, Apple's `container`
+/// CLI, Docker, or the host itself.
 public enum RuntimeID: String, Codable, Sendable, CaseIterable {
     case tart
     /// Apple's `container` CLI (github.com/apple/container): Linux runner
@@ -39,8 +38,8 @@ public enum RuntimeHealth: Equatable, Sendable {
 }
 
 /// The routing context a runtime needs to provision and register a runner
-/// for one repo. Stage 1 carries the current config-driven values; stage 2
-/// generalizes it to per-repo routes from the `runtimes:` config section.
+/// for one repo: the fleet's config values, or the per-project image a record
+/// was bound to.
 public struct RepoRoute: Sendable, Equatable {
     public let repo: String
     public let image: String

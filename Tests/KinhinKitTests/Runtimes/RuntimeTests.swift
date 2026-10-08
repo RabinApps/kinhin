@@ -3,7 +3,7 @@ import XCTest
 @testable import KinhinKit
 @testable import KinhinTestSupport
 
-/// Stage 1 of the runtime abstraction: the Runtime protocol plus the
+/// The runtime abstraction: the Runtime protocol plus the
 /// TartRuntime implementation that wraps the engine's original tart calls.
 /// Behavior must be identical to the pre-refactor engine — these tests pin
 /// that.
@@ -101,7 +101,7 @@ final class RuntimeTests: XCTestCase {
             return status.records.first?.phase == .ready
         }
         let status = await engine.status()
-        XCTAssertEqual(status.records.first?.runtime, "tart", "stage 1: every spawned record runs on tart")
+        XCTAssertEqual(status.records.first?.runtime, "tart", "a default fleet spawns every record on tart")
         await engine.stop()
     }
 
