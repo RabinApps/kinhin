@@ -194,10 +194,7 @@ enum PipelineCommand {
     }
 
     static func jsonEncoder() -> JSONEncoder {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
+        CLIJSON.encoder(dates: .iso8601)
     }
 
     /// What of a growing log is new since the last print. Anchors on the tail
@@ -235,10 +232,7 @@ enum PipelineCommand {
 
     static func format(_ entries: [Entry], options: Options, requested: Bool, now: Date = Date()) throws -> String {
         if options.json {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
-            return String(decoding: try encoder.encode(entries), as: UTF8.self)
+            return try CLIJSON.string(entries, dates: .iso8601)
         }
         if entries.isEmpty { return "no VM is running a job." }
         var blocks: [String] = []

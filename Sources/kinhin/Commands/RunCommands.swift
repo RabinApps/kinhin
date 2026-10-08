@@ -30,19 +30,54 @@ enum RunCommands {
     }
 
     static func stop(_ args: [String]) throws {
+        try runControl(.stop, args: args)
+    }
+
+    static func pauseResume(_ command: String, args: [String]) throws {
+        try runControl(command == "pause" ? .pause : .resume, args: args)
+    }
+
+    /// What `stop`/`pause`/`resume` report under `--json`.
+    struct ControlResult: Codable, Equatable {
+        /// `stop`, `pause` or `resume`.
+        var action: String
+        /// False when there was no daemon to act on (exit 1).
+        var ok: Bool
+        var message: String
+    }
+
+    /// The CLI half of stop/pause/resume, on the shared exit rule: 0 when the
+    /// daemon did it, 1 when there is no daemon (nothing to act on), 4 when
+    /// the daemon refused. `--quiet` prints nothing; `--json` prints a
+    /// `ControlResult`.
+    private static func runControl(_ method: RPCMethod, args: [String]) throws {
+        let json = args.contains("--json")
+        let quiet = args.contains("--quiet") || args.contains("-q")
+        let action = method.rawValue
+        func report(_ result: ControlResult) throws {
+            guard !quiet else { return }
+            if json { try emitJSON(result) } else { print(result.message) }
+        }
+        guard RPCClient.isDaemonAlive() else {
+            try report(ControlResult(action: action, ok: false, message: noDaemonMessage(for: method)))
+            ExitRule.finish(healthy: false)
+            return
+        }
         do {
-            print(try control(.stop))
+            try report(ControlResult(action: action, ok: true, message: try control(method)))
         } catch let error as ControlFailure {
             fail(error.message, exit: error.exit)
         }
     }
 
-    static func pauseResume(_ command: String, args: [String]) throws {
-        let method: RPCMethod = command == "pause" ? .pause : .resume
-        do {
-            print(try control(method))
-        } catch let error as ControlFailure {
-            fail(error.message, exit: error.exit)
+    static func noDaemonMessage(for method: RPCMethod) -> String {
+        switch method {
+        case .stop:
+            return "no daemon running; nothing to stop (if `kinhin start` runs elsewhere, Ctrl-C it there)"
+        case .pause, .resume:
+            return "no daemon running; pause/resume works while a daemon is active"
+        default:
+            return "no daemon running"
         }
     }
 
@@ -51,14 +86,9 @@ enum RunCommands {
     /// so a tool result can carry the failure.
     static func control(_ method: RPCMethod) throws -> String {
         guard RPCClient.isDaemonAlive() else {
-            switch method {
-            case .stop:
-                return "no daemon running; nothing to stop (if `kinhin start` runs elsewhere, Ctrl-C it there)"
-            case .pause, .resume:
-                throw ControlFailure("no daemon running; pause/resume works while a daemon is active")
-            default:
-                throw ControlFailure("no daemon running")
-            }
+            // A stop with nothing running is a message; pause/resume have nothing to act on.
+            if method == .stop { return noDaemonMessage(for: method) }
+            throw ControlFailure(noDaemonMessage(for: method), exit: .needsAttention)
         }
         let response = try RPCClient().send(method: method)
         guard response.ok else { throw ControlFailure(response.error ?? "unknown error") }
@@ -83,28 +113,38 @@ enum RunCommands {
         var errorDescription: String? { message }
     }
 
+    /// `kinhin status`: exits 0 when a daemon answers, 1 when none does (the
+    /// fleet is not running). `--quiet` prints nothing; `--json` prints the
+    /// `StatusDocument` either way.
     static func status(_ args: [String]) async throws {
-        func emitJSON(_ document: StatusDocument) throws {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            print(String(decoding: try encoder.encode(document), as: UTF8.self))
-        }
+        let json = args.contains("--json")
+        let quiet = args.contains("--quiet") || args.contains("-q")
         let document: StatusDocument
         do {
             document = try await statusDocument()
         } catch {
             fail(error.localizedDescription, exit: .runtime)
         }
+        if !quiet { try await printStatus(document, json: json) }
+        ExitRule.finish(healthy: Self.isHealthy(document))
+    }
+
+    /// Healthy means a daemon answered: no daemon is "needs attention".
+    static func isHealthy(_ document: StatusDocument) -> Bool {
+        document.fleet != nil
+    }
+
+    private static func printStatus(_ document: StatusDocument, json: Bool) async throws {
         if let status = document.fleet {
             // Machine output only: prose before the JSON line would make the
             // document unparseable (same convention as doctor/setup-status).
-            if args.contains("--json") {
+            if json {
                 try emitJSON(document)
             } else {
                 print(FleetStatusFormatter.report(status))
             }
         } else {
-            if args.contains("--json") {
+            if json {
                 try emitJSON(document)
                 return
             }

@@ -103,9 +103,36 @@ edit them only when the CLI or a workflow an agent needs changes.
   agent's skill matcher reads to decide when to load the skill, so it must name the situations, not the commands.
 - Every backticked `kinhin <command>` must be a command the CLI actually routes and the help screen documents.
   `bash scripts/skills-lint.sh` fails on drift (it runs in `scripts/check.sh` and the CI docs job). A renamed command
-  updates `HelpText.swift` and the skill in the same change.
+  updates `CommandCatalog.swift` and the skill in the same change.
 - Keep the existing style: defer to `kinhin help` when the page and the CLI disagree, and keep the confirm-before-
   destructive-op rules (`cleanup --yes`, `reset`) that keep agents from wiping a user's machine.
+
+## CLI commands
+
+Every command, alias and flag the `kinhin` binary accepts is declared once, in
+`Sources/kinhin/Commands/Spec/CommandCatalog.swift` (`CommandSpec` / `FlagSpec`). The resolver parses and validates
+against that table (an undeclared command, subcommand or flag is a usage error with a "did you mean"), and the same table
+generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint vocabulary.
+
+- **Adding a flag or command:** declare it in the catalog first, then read it in the command body. A test
+  (`CommandCatalogTests`) fails when a body reads a flag the catalog does not declare. Keep an old spelling working as a
+  hidden alias (`aliases:` / `hidden: true`) instead of removing it; scripts and skills depend on them.
+- **Help text:** summaries are one line (about 60 characters) and every help line fits 100 columns. Put long explanations in
+  the `docs/` page the command's `docs:` field names, not in the help. After changing the catalog run
+  `KINHIN_UPDATE_GOLDEN=1 swift test --filter HelpRendererTests` to refresh `scripts/golden/cli-help.txt` (the copy
+  `docs-sync.sh` and `skills-lint.sh` read, since they run without a Swift toolchain), then `scripts/docs-sync.sh`.
+- **Exit codes, one rule** (`ExitRule`, `CLIExit`): 0 healthy or done, 1 needs attention (no daemon, a failing check, a token
+  not ready), 2 usage error, then 3 config, 4 runtime, 5 auth. A command that reports a state (`status`, `stop`, `pause`,
+  `resume`, `setup status`, `auth status`, `doctor`) derives "healthy" from its document and ends through
+  `ExitRule.finish(healthy:)`. Do not invent a per-command rule.
+- **Machine output:** print documents with `emitJSON(_:)` (one encoder: pretty, sorted keys; opt into `.iso8601` dates only
+  for documents that always had them). Under `--json` a failure is `{"error": …, "code": …}` on stdout (`ErrorReporter`),
+  so a script parsing stdout always gets JSON. `--quiet` (state commands) prints nothing and leaves the exit code as the
+  answer.
+- **Secrets:** never take a token as an argument in new code. `auth set|add` read it from the hidden prompt or
+  `--token-stdin`; `--token X` stays only as a hidden, warned legacy form.
+- **Bare `kinhin`** prints the setup status and the single next step (`BareStatus`, read-only); `kinhin help` prints the
+  full screen.
 
 ## Style
 
@@ -147,7 +174,7 @@ pushes.
 
 ## Generated doc blocks
 
-Some docs are derived from code, so they are generated instead of hand-copied: the forge IDs (`docs/forges/README.md`), the daemon RPC methods (`docs/architecture.md`), and the CLI exit codes and `kinhin help` screen (`website/cli/commands.md`). Each sits between `<!-- docs-sync:begin NAME -->` and `<!-- docs-sync:end NAME -->` markers. Never edit between the markers; change the Swift source (`ForgeID`, `RPCMethod`, `CLIExit`, `helpText()`), then run:
+Some docs are derived from code, so they are generated instead of hand-copied: the forge IDs (`docs/forges/README.md`), the daemon RPC methods (`docs/architecture.md`), and the CLI exit codes and `kinhin help` screen (`website/cli/commands.md`). Each sits between `<!-- docs-sync:begin NAME -->` and `<!-- docs-sync:end NAME -->` markers. Never edit between the markers; change the Swift source (`ForgeID`, `RPCMethod`, `CLIExit`, `CommandCatalog`; for the help screen also refresh `scripts/golden/cli-help.txt`, see "CLI commands"), then run:
 
 ```sh
 scripts/docs-sync.sh           # rewrite stale blocks in place

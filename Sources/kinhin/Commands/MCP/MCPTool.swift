@@ -234,7 +234,5 @@ private func intArgument(_ key: String, in arguments: Data?) throws -> Int? {
 /// The encoder the machine-readable commands use (pretty, sorted keys), so MCP
 /// payloads match the CLI's `--json` documents byte for byte.
 private func mcpEncode<T: Encodable>(_ value: T) throws -> Data {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    return try encoder.encode(value)
+    try CLIJSON.data(value)
 }

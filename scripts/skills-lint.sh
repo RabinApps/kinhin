@@ -9,9 +9,10 @@
 #      to the skill's directory and a non-empty `description:` (that line is
 #      what an agent's skill matcher reads to decide when to load it).
 #   2. Command drift: every backticked `kinhin <command>` must name a command
-#      the CLI routes (CLICommand.parse) and, when it has a plain second word,
-#      one the help screen documents (helpText()). A word after `help` is
-#      exempt: `help <topic>` is accepted and prints the full screen.
+#      the CLI declares (CommandCatalog.swift, aliases included) and, when it
+#      has a plain second word, a subcommand it declares or the help screen
+#      documents (scripts/golden/cli-help.txt, kept equal to `kinhin help` by
+#      a test). A word after `help` is exempt: `help <topic>` is accepted.
 #
 # Grep/sed/awk only — no toolchain, bash 3.2 compatible. Runs in CI's docs job
 # (ubuntu) and locally via scripts/check.sh.
@@ -19,8 +20,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-parse_src="Sources/kinhin/Commands/CLICommand.swift"
-help_src="Sources/kinhin/Commands/HelpText.swift"
+catalog_src="Sources/kinhin/Commands/Spec/CommandCatalog.swift"
+help_src="scripts/golden/cli-help.txt"
 
 skills=(skills/*/SKILL.md)
 if [[ ! -e ${skills[0]} ]]; then
@@ -28,32 +29,46 @@ if [[ ! -e ${skills[0]} ]]; then
     exit 1
 fi
 
-# MARK: - Command vocabulary (from the routing table + the help screen)
+# MARK: - Command vocabulary (from the command catalog + the help screen)
 
-parse_strings=$(sed -n '/static func parse(/,/^    }/p' "$parse_src" |
-    grep -oE '"[a-z][a-z0-9 -]*"' | tr -d '"' || true)
+# The catalog declares each command as `name: "x"` (and `aliases: ["y"]`) at a
+# fixed indentation: 12 spaces for a top-level command, 20 for a subcommand.
+# Heads are the top-level names and aliases; pairs are `<top> <sub>`.
+catalog_words=$(awk '
+    /^ {12}(name|aliases): / || /^ {20}(name|aliases): / {
+        match($0, /^ +/)
+        level = RLENGTH
+        key = ($0 ~ /^ +name:/) ? "name" : "aliases"
+        line = $0
+        n = 0
+        while (match(line, /"[a-z][a-z0-9 -]*"/)) {
+            tokens[++n] = substr(line, RSTART + 1, RLENGTH - 2)
+            line = substr(line, RSTART + RLENGTH)
+        }
+        for (i = 1; i <= n; i++) {
+            if (level == 12) {
+                if (key == "name") top = tokens[i]
+                print "H " tokens[i]
+            } else {
+                print "P " top " " tokens[i]
+            }
+        }
+    }' "$catalog_src" || true)
 
-help_words=$(sed -n '/^func helpText()/,/^}/p' "$help_src" |
-    awk '/^        [a-z]/ { print $1 }' || true)
+# The help screen rows: `    config init   Write a starter config file`. The USAGE rows start with `kinhin`.
+help_rows=$(awk '/^    [a-z]/ && $1 != "kinhin" { print }' "$help_src" || true)
 
 heads=$(
     {
-        printf '%s\n' "$parse_strings"
-        printf '%s\n' "$help_words"
+        printf '%s\n' "$catalog_words" | awk '$1 == "H" { print $2 }'
+        printf '%s\n' "$help_rows" | awk '{ print $1 }'
     } | grep -E '^[a-z][a-z0-9-]*$' | sort -u
 )
 
 pairs=$(
     {
-        printf '%s\n' "$parse_strings" | awk 'NF == 2 { print $1 " " $2 }'
-        sed -n '/^func helpText()/,/^}/p' "$help_src" | awk '
-            /^        [a-z]/ {
-                w1 = $1
-                w2 = $2
-                sub(/^\[/, "", w2)   # `auth [set]` -> pair auth set
-                sub(/\]$/, "", w2)
-                if (w2 ~ /^[a-z][a-z0-9-]*$/) print w1 " " w2
-            }'
+        printf '%s\n' "$catalog_words" | awk '$1 == "P" { print $2 " " $3 }'
+        printf '%s\n' "$help_rows" | awk '{ print $1 " " $2 }'
     } | grep -E '^[a-z][a-z0-9-]* [a-z][a-z0-9-]*$' | sort -u
 )
 
@@ -116,7 +131,7 @@ for file in "${skills[@]}"; do
                 continue # placeholders/flags (`kinhin <command> --help`)
             fi
             if ! printf '%s\n' "$heads" | grep -Fxq "$w1"; then
-                err "$file" "$ln" "unknown command '$w1' (not in kinhin help or CLICommand.parse)"
+                err "$file" "$ln" "unknown command '$w1' (not in CommandCatalog.swift or kinhin help)"
                 continue
             fi
             if [[ $w1 == help ]]; then

@@ -70,10 +70,7 @@ enum ImageListCommand {
         let query = try Query.parse(args)
         let inventory = await ImageInventory.probe(config: loadConfigLeniently(), only: query.only)
         if query.json {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
-            print(String(decoding: try encoder.encode(report(for: inventory)), as: UTF8.self))
+            try emitJSON(report(for: inventory), dates: .iso8601)
             return
         }
         for line in lines(for: inventory) { print(line) }

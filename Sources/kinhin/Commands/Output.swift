@@ -11,8 +11,10 @@ func warn(_ message: String) {
     printError("warning: \(message)")
 }
 
+/// Ends the process with `code`. Under `--json` the failure is the
+/// `ErrorDocument` on stdout; otherwise `kinhin: <message>` on stderr.
 func fail(_ message: String, exit code: CLIExit = .general) -> Never {
-    printError("kinhin: \(message)")
+    ErrorReporter.report(message, code: code)
     exit(code.rawValue)
 }
 

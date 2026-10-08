@@ -77,11 +77,9 @@ enum RuntimesCommand {
             reserve: parsed.reserve,
             loadHealth: !noHealth
         )
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return Summary(
             vm: vm,
-            json: try encoder.encode(jsonPayload(vm: vm, repo: parsed.repo)),
+            json: try CLIJSON.data(jsonPayload(vm: vm, repo: parsed.repo)),
             repo: parsed.repo,
             budget: parsed.runtimes?.budget ?? [:]
         )
