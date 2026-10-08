@@ -181,18 +181,17 @@ extension FleetEngine {
         let attached = forgeState.withLock { Array($0.byPlatform.values) }
         let demand = try await pollDemand(attached, paused: state.paused)
 
-        // 3. Decide the desired count and publish it.
-        let desired = await publishDesired(queueDepth: demand.queueDepth)
-        let active = store.all.filter { $0.phase.isActive }.count
+        // 3. Decide the whole pass once (spawns, scale-down) and publish it.
+        let plan = scalePlan(demand: demand, attached: attached)
+        await publishDesired(plan.desired)
         // A paused pass masks the queue (see `pollDemand`), so it never
         // counts as idle.
-        let outcome = PassOutcome(idle: !state.paused && demand.queueDepth == 0 && active == 0)
+        let outcome = PassOutcome(idle: !state.paused && demand.queueDepth == 0 && plan.active == 0)
         guard !state.paused else { return outcome }
 
-        // 4. Spawn up to desired, then 5. scale idle surplus down.
-        let target = spawnTarget(desired: desired, active: active, demand: demand)
-        try await spawn(upTo: target, active: active, demand: demand, attached: attached)
-        await scaleDown(active: active, desired: desired, demand: demand)
+        // 4. Spawn the planned instances, then 5. scale idle surplus down.
+        try await spawn(plan: plan, demand: demand)
+        await scaleDown(plan: plan, demand: demand)
         return outcome
     }
 
@@ -203,6 +202,10 @@ extension FleetEngine {
         var byForge: [String: Int] = [:]
         /// The same jobs bucketed into label pools (one per runtime).
         var byPool: [RuntimeID: Int] = [:]
+        /// The same jobs per account and pool, for the scale plan.
+        var byForgePool: [String: [RuntimeID: Int]] = [:]
+        /// Accounts whose queue counts running jobs too (`Forge.queueIncludesRunning`).
+        var includesRunning: Set<String> = []
         /// Queued tart jobs served by a ready derived per-project image.
         var byImage: [String: Int] = [:]
         /// Jobs waiting on an image bake, for the status snapshot.
@@ -257,7 +260,10 @@ extension FleetEngine {
                 perForgeJobs[forge.account] = (forge.attributesByRepo, jobs)
                 demand.byForge[forge.account] = jobs.count
                 demand.queueDepth += jobs.count
-                for (poolID, count) in routing.demandByPool(for: jobs, forgeID: forge.id) {
+                let pools = routing.demandByPool(for: jobs, forgeID: forge.id)
+                demand.byForgePool[forge.account] = pools
+                if forge.queueIncludesRunning { demand.includesRunning.insert(forge.account) }
+                for (poolID, count) in pools {
                     demand.byPool[poolID, default: 0] += count
                 }
                 for (image, count) in projectDemand.byImage { demand.byImage[image, default: 0] += count }
@@ -298,29 +304,23 @@ extension FleetEngine {
         return demand
     }
 
-    /// The instance count to spawn up to. `desired` compares total demand with
-    /// total instances, so an idle or busy instance in one pool would hide a job
-    /// waiting on another (a finished container masking a queued Xcode job).
-    /// Each pool's own unmet demand is therefore added on top, within the same cap.
-    func spawnTarget(desired: Int, active: Int, demand: Demand) -> Int {
-        let runnersPerVM = max(1, config.runnersPerVM)
-        let activeByPool = activeByRuntime()
-        var unmetVMs = 0
-        for (pool, jobs) in demand.byPool {
-            let wanted = Int(ceil(Double(jobs) / Double(runnersPerVM)))
-            unmetVMs += max(0, wanted - (activeByPool[pool] ?? 0))
-        }
-        let cap = min(config.maxRunners, capacity.maxConcurrent)
-        return min(cap, max(desired, active + unmetVMs))
+    /// The pure scaling decision for this pass, from the records, the forges'
+    /// demand, the caps and the spawn backoff.
+    func scalePlan(demand: Demand, attached: [Forge]) -> ScalePlan {
+        let held = spawnBackoff.withLock { $0.blocked(now: Date()) }
+        let routing = routing
+        return ScalePlan.make(
+            ScalePlan.Input(
+                records: store.all, demand: demand.byForgePool, includesRunning: demand.includesRunning,
+                attached: Set(attached.map(\.account)), failedForges: demand.failedForges,
+                runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
+                maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: capsByRuntime,
+                heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime))
     }
 
-    /// The desired instance count for `queueDepth`, published with the caps
-    /// and records into the status snapshot.
-    func publishDesired(queueDepth: Int) async -> Int {
+    /// Publishes the desired count with the caps and records into the status snapshot.
+    func publishDesired(_ desired: Int) async {
         let runnersPerVM = max(1, config.runnersPerVM)
-        let desired = Autoscaler.desiredCount(
-            queueDepth: queueDepth, minRunners: config.minRunners, maxRunners: config.maxRunners,
-            capacityCap: capacity.maxConcurrent, runnersPerVM: runnersPerVM)
         let jobCapacity = Autoscaler.jobCapacity(
             maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, runnersPerVM: runnersPerVM)
         let records = store.all
@@ -331,62 +331,40 @@ extension FleetEngine {
             $0.records = records
             $0.updatedAt = Date()
         }
-        return desired
     }
 
-    /// Starts instances up to `desired` — but never past what the disk can
-    /// hold. The plan-time cap uses the last probed free space; this
-    /// re-probe catches queue bursts that would otherwise fill the disk
-    /// between spawns. Host-runtime slots cost no disk, so they skip it.
-    func spawn(upTo desired: Int, active: Int, demand: Demand, attached: [Forge]) async throws {
-        var toSpawn = desired - active
-        // Runtimes whose last starts all failed wait out their backoff; the
-        // others spawn as usual. Zeroing the cap steers `selectRuntime` away.
-        let held = spawnBackoff.withLock { $0.blocked(now: Date()) }
-        var caps = capsByRuntime
-        for runtime in held { caps[runtime] = 0 }
-        if toSpawn > 0 {
-            if held.isEmpty {
-                Log.info("engine", "scaling up: \(active) active, want \(desired) (queue \(demand.queueDepth))")
+    /// Starts the planned instances — but never past what the disk can
+    /// hold. The host is probed once per pass (a `statfs` per spawn added up
+    /// in a burst); each planned instance then subtracts its own disk share.
+    /// Host-runtime slots cost no disk, so they skip it.
+    func spawn(plan: ScalePlan, demand: Demand) async throws {
+        defer { publishSpawnBackoff() }
+        var slots = plan.slots
+        var diskPressureMessage: String?
+        if slots.contains(where: { $0.runtime != .host }) {
+            let admission = ScalePlan.admitByDisk(
+                slots, freeDiskGB: hostProbe().freeDiskGB, reserveGB: config.reserve.diskGB,
+                diskPerInstanceGB: { ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: $0.rawValue) })
+            slots = admission.admitted
+            if let blocked = admission.blocked {
+                diskPressureMessage =
+                    "disk pressure: \(blocked.availableGB) GB free, a new \(blocked.runtime.rawValue) instance needs \(blocked.neededGB - config.reserve.diskGB) GB + \(config.reserve.diskGB) GB reserve — holding spawns"
             }
         }
-        defer { publishSpawnBackoff() }
-        var diskPressureMessage: String?
-        // The host is probed once per pass (a `statfs` per spawn added up in
-        // a burst); each planned instance then subtracts its own disk share.
-        var freeDisk: Int?
-        while toSpawn > 0 {
+        if !slots.isEmpty, spawnBackoff.withLock({ $0.blocked(now: Date()) }).isEmpty {
+            Log.info("engine", "scaling up: \(plan.active) active, want \(plan.target) (queue \(demand.queueDepth))")
+        }
+        for (index, slot) in slots.enumerated() {
             var record = VMRecord(id: VMRecord.newName(), phase: .cloning)
-            // The forge with the most unmet demand (its queued jobs minus VMs
-            // already serving it). Only attached forges are candidates, and a
-            // forge only attaches with a working token.
-            record.platform = ForgeDemand.assignAccount(
-                demand: demand.byForge, active: activeByPlatform(), attached: Set(attached.map(\.account)))
-            // The label pool with the most unmet demand, within its capacity
-            // partition. Single-pool fleets reduce to the primary runtime.
-            let chosen = selectRuntime(
-                demand: demand.byPool, active: activeByRuntime(), caps: caps, fallback: routing.defaultRuntime)
-            if held.contains(chosen) { break }  // every pool with demand is backing off
-            record.runtime = chosen.rawValue
-            if chosen == .tart { record.image = chooseImage(demand: demand) }
-            if chosen != .host {
-                let diskPerVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: chosen.rawValue)
-                let available = freeDisk ?? hostProbe().freeDiskGB
-                let needed = diskPerVM + config.reserve.diskGB
-                if available < needed {
-                    diskPressureMessage =
-                        "disk pressure: \(available) GB free, a new \(chosen.rawValue) instance needs \(diskPerVM) GB + \(config.reserve.diskGB) GB reserve — holding spawns"
-                    break
-                }
-                freeDisk = available - diskPerVM
-            }
+            record.platform = slot.account
+            record.runtime = slot.runtime.rawValue
+            if slot.runtime == .tart { record.image = chooseImage(demand: demand) }
             store.upsert(record)
             spawnLifecycle(for: record)
-            toSpawn -= 1
             // Stagger spawns slightly so disk I/O doesn't stampede (nothing to
             // stagger after the last one). Cancellation stops further
             // staggering (already-spawned VMs keep winding down).
-            if toSpawn > 0 { try await Task.sleep(for: spawnStagger) }
+            if index < slots.count - 1 { try await Task.sleep(for: spawnStagger) }
         }
         if let diskPressureMessage {
             Log.warn("engine", diskPressureMessage)
@@ -428,26 +406,19 @@ extension FleetEngine {
         }
     }
 
-    /// Deletes idle instances beyond `desired` — never from a pool whose
-    /// jobs are still waiting.
-    func scaleDown(active: Int, desired: Int, demand: Demand) async {
-        guard active > desired else { return }
+    /// Deletes the plan's idle surplus — never from a pool whose jobs are
+    /// still waiting, and not at all while a forge's queue is unreadable.
+    func scaleDown(plan: ScalePlan, demand: Demand) async {
         // An unreadable queue is not an empty one: keep idle (and warm)
         // instances until every forge answers again.
-        guard demand.failedForges.isEmpty else {
+        if plan.scaleDownHeld {
             let accounts = demand.failedForges.sorted().joined(separator: ", ")
             Log.warn("engine", "holding scale-down: could not read the queue of \(accounts)")
             return
         }
-        let idle = store.all.filter { $0.phase == .ready }.sorted { $0.createdAt < $1.createdAt }
-        var surplus = active - desired
-        for record in idle where surplus > 0 {
-            let poolID = RuntimeID(rawValue: record.runtime ?? "") ?? routing.defaultRuntime
-            let unmet = (demand.byPool[poolID] ?? 0) - (activeByRuntime()[poolID] ?? 0)
-            guard unmet <= 0 else { continue }  // this pool still needs capacity
-            Log.info("engine", "scaling down: deleting idle \(record.id)")
-            await deleteVMRecord(id: record.id, reason: "scale down")
-            surplus -= 1
+        for id in plan.scaleDown {
+            Log.info("engine", "scaling down: deleting idle \(id)")
+            await deleteVMRecord(id: id, reason: "scale down")
         }
     }
 

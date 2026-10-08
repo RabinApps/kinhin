@@ -412,15 +412,15 @@ final class RuntimeRoutingTests: XCTestCase {
         // covered by the router tests above. Here we pin selectRuntime
         // directly (deterministic, no sleeping spawn loop).
         let demand: [RuntimeID: Int] = [.tart: 1, .appleContainer: 2]
-        let chosen = engine.selectRuntime(
-            demand: demand, active: [:], caps: [.tart: 1, .appleContainer: 2],
-            fallback: engine.routing.defaultRuntime
+        let chosen = ScalePlan.selectRuntime(
+            unmet: demand, active: [:], caps: [.tart: 1, .appleContainer: 2],
+            fallback: engine.routing.defaultRuntime, poolExists: engine.routing.poolExists
         )
         XCTAssertEqual(chosen, .appleContainer, "most unmet demand wins")
 
-        let afterCap = engine.selectRuntime(
-            demand: demand, active: [.appleContainer: 2], caps: [.tart: 1, .appleContainer: 2],
-            fallback: engine.routing.defaultRuntime
+        let afterCap = ScalePlan.selectRuntime(
+            unmet: demand, active: [.appleContainer: 2], caps: [.tart: 1, .appleContainer: 2],
+            fallback: engine.routing.defaultRuntime, poolExists: engine.routing.poolExists
         )
         XCTAssertEqual(afterCap, .tart, "exhausted partitions are skipped")
     }

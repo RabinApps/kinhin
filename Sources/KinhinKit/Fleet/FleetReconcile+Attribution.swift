@@ -3,28 +3,6 @@ import Foundation
 // FleetEngine — pool counters, runtime selection, and running-job attribution.
 
 extension FleetEngine {
-    /// Active VM counts by assigned account (`VMRecord.platform` holds the
-    /// account name; the legacy accounts are "github" and "gitea").
-    func activeByPlatform() -> [String: Int] {
-        var counts: [String: Int] = [:]
-        for record in store.all where record.phase.isActive {
-            guard let account = record.platform else { continue }
-            counts[account, default: 0] += 1
-        }
-        return counts
-    }
-
-    /// Active instance counts by runtime (mixed fleets partition capacity
-    /// per runtime, so scale-up selection counts this way too).
-    func activeByRuntime() -> [RuntimeID: Int] {
-        var counts: [RuntimeID: Int] = [:]
-        for record in store.all where record.phase.isActive {
-            let id = RuntimeID(rawValue: record.runtime ?? "") ?? .tart
-            counts[id, default: 0] += 1
-        }
-        return counts
-    }
-
     /// The runtime instance executing a record's workload (mixed fleets:
     /// per-record; legacy: the engine's single runtime). Dispatches through
     /// the runtime map; the fallback is the engine's primary runtime.
@@ -63,29 +41,6 @@ extension FleetEngine {
     /// be advertised by a Linux Tart runner.
     private func macosOnlyLabel(_ label: String) -> Bool {
         label.lowercased() == "macos"
-    }
-
-    /// Pick the runtime for a new instance: among pools with unmet demand,
-    /// the one with the most unmet jobs — never beyond its capacity
-    /// partition. Deterministic tie-breaks (alphabetical runtime id); with
-    /// no demand anywhere, the default runtime wins.
-    func selectRuntime(demand: [RuntimeID: Int], active: [RuntimeID: Int], caps: [RuntimeID: Int], fallback: RuntimeID)
-        -> RuntimeID
-    {
-        var best: RuntimeID = fallback
-        var bestUnmet = -1
-        for (id, unmet) in demand.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-            guard routing.poolExists(id) else { continue }
-            let cap = caps[id] ?? Int.max
-            let running = active[id] ?? 0
-            guard running < cap else { continue }  // partition exhausted
-            let effective = min(unmet, cap - running)
-            if effective > bestUnmet {
-                bestUnmet = effective
-                best = id
-            }
-        }
-        return best
     }
 
     // MARK: - Running-job attribution
