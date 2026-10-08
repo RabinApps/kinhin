@@ -162,13 +162,23 @@ struct WorkflowTestView: View {
         .cornerRadius(6)
     }
 
+    /// A partial run says so (with how much was skipped) instead of reading as
+    /// the generic "skipped".
+    static func headline(for report: LocalRunReport?) -> String {
+        guard let report else { return "finished" }
+        if report.outcome == .partial {
+            return "partial — \(report.unsupportedSkips.count) skipped as unsupported"
+        }
+        return report.overallState.rawValue
+    }
+
     // MARK: - Finished
 
     private var finishedView: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 StateGlyph(state: model.report?.overallState ?? .pending)
-                Text(model.report?.overallState.rawValue ?? "finished")
+                Text(Self.headline(for: model.report))
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 if let failed = model.report?.failedJobs, failed > 0 {
