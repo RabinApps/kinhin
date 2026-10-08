@@ -243,11 +243,22 @@ extension FleetEngine {
         // otherwise waits out the deadline below (hours) with its record.
         var lastLivenessCheck = ContinuousClock.now
         var deadChecks = 0
+        // The watch reads the shared (up to a few seconds old) runner list, but
+        // never deletes on it: each decision below is confirmed against the
+        // forge itself, so a stale "gone" or "idle" cannot kill a busy instance.
+        func confirmedRunners() async throws -> [ForgeRunner]? {
+            do {
+                return try await runnerDirectory.freshRunners(of: forge).filter { expected.contains($0.name) }
+            } catch let error where !(error is CancellationError) && !Task.isCancelled {
+                Log.warn(id, "\(forgeName) runner list failed; retrying: \(error.localizedDescription)")
+                return nil
+            }
+        }
         while Date() < deadline {
             try Task.checkCancellation()
             let all: [ForgeRunner]
             do {
-                all = try await forge.runners()
+                all = try await runnerDirectory.runners(of: forge)
             } catch let error where !(error is CancellationError) && !Task.isCancelled {
                 Log.warn(id, "\(forgeName) runner list failed; retrying: \(error.localizedDescription)")
                 try await Task.sleep(for: exitWatchInterval)
@@ -260,6 +271,10 @@ extension FleetEngine {
             let allSeen = expected.allSatisfy { seen.contains($0) }
 
             if allSeen, mine.isEmpty {
+                guard let confirmed = try await confirmedRunners(), confirmed.isEmpty else {
+                    try await Task.sleep(for: exitWatchInterval)
+                    continue
+                }
                 // Every runner completed its lifecycle; none remain.
                 let phase = store.all.first { $0.id == id }?.phase
                 if phase == .busy || idleGrace != nil {
@@ -288,6 +303,12 @@ extension FleetEngine {
                         let since = idleSince ?? Date()
                         idleSince = since
                         if Date().timeIntervalSince(since) >= idleGrace {
+                            guard let confirmed = try await confirmedRunners(), !confirmed.contains(where: \.busy)
+                            else {
+                                idleSince = nil
+                                try await Task.sleep(for: exitWatchInterval)
+                                continue
+                            }
                             Log.info(id, "\(forgeName) runners idle \(Int(idleGrace))s; job complete; deleting VM")
                             await deleteVMRecord(id: id, reason: "jobs finished")
                             return
@@ -298,6 +319,12 @@ extension FleetEngine {
             // Deregistering forges wait while some runners are up; idle-grace
             // forges need every runner registered to judge idleness at all.
             if !allSeen, mine.isEmpty || idleGrace != nil, Date() > registrationDeadline {
+                guard let confirmed = try await confirmedRunners() else {
+                    try await Task.sleep(for: exitWatchInterval)
+                    continue
+                }
+                for runner in confirmed where runner.online { seen.insert(runner.name) }
+                guard !expected.allSatisfy({ seen.contains($0) }) else { continue }
                 Log.warn(id, "runners never registered on \(forgeName); deleting VM")
                 updateRecord(id) {
                     $0.phase = .failed
@@ -355,7 +382,9 @@ extension FleetEngine {
         let attached = forgeState.withLock { Array($0.byPlatform.values) }
         for forge in attached {
             await bestEffortAsync(id, "cleaning up stale runner registrations") {
-                let stale = try await forge.runners().filter { $0.name == id || $0.name.hasPrefix("\(id)-r") }
+                let stale = try await runnerDirectory.freshRunners(of: forge).filter {
+                    $0.name == id || $0.name.hasPrefix("\(id)-r")
+                }
                 for runner in stale {
                     await bestEffortAsync(id, "deleting runner \(runner.name)") {
                         try await forge.deleteRunner(id: runner.id)
