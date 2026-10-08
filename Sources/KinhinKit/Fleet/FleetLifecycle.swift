@@ -86,6 +86,9 @@ extension FleetEngine {
             probe.runtime = stored?.runtime
             probe.image = stored?.image
             let recordRuntime = runtime(for: probe)
+            // A freshly spawned instance waits its turn so a burst of clones does not stampede the
+            // disk; a re-entered one (recovery) is already on the host and starts at once.
+            if stored?.phase == .cloning { try await spawnPacer.admit() }
             // Phase: provisioning (clone+boot for VMs, container run for
             // containers; idempotent for an existing id — recovery path).
             updateRecord(id) { $0.phase = .cloning }
@@ -385,8 +388,8 @@ extension FleetEngine {
     }
 
     func deleteVMRecord(id: String, reason: String) async {
-        guard deletesInFlight.withLock({ $0.insert(id).inserted }) else { return }
-        defer { deletesInFlight.withLock { _ = $0.remove(id) } }
+        guard deletes.withLock({ $0.inFlight.insert(id).inserted }) else { return }
+        defer { deletes.withLock { _ = $0.inFlight.remove(id) } }
         Log.info(id, "deleting VM (\(reason))")
         updateRecord(id) { $0.phase = .deleting }
         // Stop the instance's lifecycle — unless that lifecycle is the caller
@@ -431,7 +434,45 @@ extension FleetEngine {
         Log.info(id, "VM deleted")
     }
 
-    func pauseAllVMs() async {
+    // MARK: - Background deletes
+
+    /// Tears `id` down in its own task and returns at once, so a reconcile pass never waits on a
+    /// teardown (each can take minutes: a stop and a delete, up to 120 s each). Single-flight per
+    /// instance: false when a delete of `id` is already running or scheduled. The pass sees the
+    /// record's `.deleting` phase (or its removal) on a later turn; `settleDeletes` waits for them.
+    @discardableResult
+    func scheduleDelete(id: String, reason: String) -> Bool {
+        deletes.withLock { state in
+            guard state.tasks[id] == nil, !state.inFlight.contains(id) else { return false }
+            // The task removes itself under this same lock, so it cannot finish before it is stored.
+            state.tasks[id] = Task { [weak self] in
+                await self?.deleteVMRecord(id: id, reason: reason)
+                self?.deletes.withLock { $0.tasks[id] = nil }
+            }
+            return true
+        }
+    }
+
+    /// Waits for every scheduled delete, up to `timeout` (nil: as long as it takes).
+    func settleDeletes(timeout: Duration? = nil) async {
+        let tasks = deletes.withLock { Array($0.tasks.values) }
+        if let timeout {
+            await drain(tasks, timeout: timeout)
+        } else {
+            for task in tasks { await task.value }
+        }
+    }
+
+    /// Instances torn down at once when the engine stops.
+    static let stopDeleteConcurrency = 8
+    /// How long `stop()` waits for those teardowns. The RPC handler gives a call 120 s; the stop must
+    /// answer inside it. Whatever is still tearing down keeps running in the background and, if the
+    /// process exits first, is finished by the next start (the record stays `.deleting`).
+    static let stopDeleteBudget: Duration = .seconds(100)
+
+    /// Engine stop: cancels every lifecycle and deletes every active instance, up to
+    /// `stopDeleteConcurrency` at a time, within `stopDeleteBudget` in total.
+    func deleteAllActiveVMs(budget: Duration = FleetEngine.stopDeleteBudget) async {
         let tasks = lifecycleTasks.withLock { tasks -> [Task<Void, Never>] in
             defer { tasks.removeAll() }
             return Array(tasks.values)
@@ -451,9 +492,17 @@ extension FleetEngine {
                 Log.warn("engine", "stop-grace sleep failed: \(error.localizedDescription)")
             }
         }
-        let remaining = store.all.filter { $0.phase.isActive }
-        for record in remaining {
-            await deleteVMRecord(id: record.id, reason: "engine stopped")
+        let remaining = store.all.filter { $0.phase.isActive }.map(\.id)
+        let sweep = Task {
+            do {
+                _ = try await boundedMap(remaining, limit: Self.stopDeleteConcurrency) { id in
+                    await self.deleteVMRecord(id: id, reason: "engine stopped")
+                }
+            } catch {
+                Log.warn("engine", "stop sweep interrupted: \(error.localizedDescription)")
+            }
         }
+        let background = deletes.withLock { Array($0.tasks.values) }
+        await drain([sweep] + background, timeout: budget)
     }
 }
