@@ -93,6 +93,7 @@ public actor LocalWorkflowRunner {
                 steps: [], notices: jobNotices)
         }
 
+        let expressions = ExpressionEvaluator(root: root)
         var env = baselineEnvironment(root: root, temp: temp)
         env["PATH"] = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
         env.merge(workflow.env) { _, new in new }
@@ -105,7 +106,7 @@ public actor LocalWorkflowRunner {
 
         for step in job.steps {
             try Task.checkCancellation()
-            let condition = evaluate(step.condition, previousFailure: previousFailure)
+            let condition = expressions.evaluate(condition: step.condition, previousFailure: previousFailure)
             guard condition.shouldRun else {
                 let note = condition.notice ?? "condition is not supported; skipped"
                 stepResults.append(
@@ -136,7 +137,7 @@ public actor LocalWorkflowRunner {
             }
             let script: String
             if let run = step.run {
-                let expanded = expand(run, env: stepEnv, root: root, notices: &stepNotices)
+                let expanded = expressions.expand(run, env: stepEnv, notices: &stepNotices)
                 script = exportPreamble(stepEnv) + expanded
             } else if let uses = step.uses {
                 if uses == "actions/checkout" || uses.hasPrefix("actions/checkout@") {
@@ -276,55 +277,6 @@ public actor LocalWorkflowRunner {
         guard !text.isEmpty else { return nil }
         if text.count <= 200_000 { return text }
         return String(text.suffix(200_000))
-    }
-
-    private func expand(_ script: String, env: [String: String], root: URL, notices: inout [String]) -> String {
-        var result = script
-        let replacements = [
-            "${{ github.workspace }}": root.path, "${{ runner.os }}": "macOS", "${{ runner.arch }}": "arm64",
-        ]
-        for (expression, value) in replacements { result = result.replacingOccurrences(of: expression, with: value) }
-        let pattern = #"\$\{\{\s*(env|secrets)\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}"#
-        if let regex = try? NSRegularExpression(pattern: pattern) {
-            let ns = result as NSString
-            let matches = regex.matches(in: result, range: NSRange(location: 0, length: ns.length))
-            for match in matches.reversed() {
-                guard match.numberOfRanges == 3 else { continue }
-                let kind = ns.substring(with: match.range(at: 1))
-                let key = ns.substring(with: match.range(at: 2))
-                let replacement: String
-                if kind == "env" {
-                    replacement = env[key] ?? ""
-                } else {
-                    replacement = ""
-                    if !notices.contains("secrets are unavailable locally; \(key) expanded to an empty string") {
-                        notices.append("secrets are unavailable locally; \(key) expanded to an empty string")
-                    }
-                }
-                if let range = Range(match.range, in: result) { result.replaceSubrange(range, with: replacement) }
-            }
-        }
-        if result.contains("${{") { notices.append("unknown expression left literal") }
-        return result
-    }
-
-    private func evaluate(_ raw: String?, previousFailure: Bool) -> (shouldRun: Bool, forceRun: Bool, notice: String?) {
-        guard let raw else { return (true, false, nil) }
-        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "${{", with: "")
-            .replacingOccurrences(of: "}}", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        switch value {
-        case "true": return (true, false, nil)
-        case "success()":
-            return (!previousFailure, false, previousFailure ? "condition success() evaluated false" : nil)
-        case "false": return (false, false, "condition false evaluated; skipped")
-        case "always()": return (true, true, nil)
-        case "failure()": return (previousFailure, true, nil)
-        case "cancelled()": return (false, false, nil)
-        default: return (false, false, "unsupported condition '\(raw)' skipped")
-        }
     }
 
     private func applyEnvironmentFiles(
