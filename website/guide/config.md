@@ -5,12 +5,12 @@
 
 | Field                                      | Meaning                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `repo`                                     | GitHub scope to serve: `owner/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization** (PAT needs org runner-admin permission)                                                                                                                                                                             |
-| `accounts`                                 | Additional named GitHub/Gitea accounts, each with its own token (`name`, `forge`, `scope`, and `instance` for Gitea) — see [Forges](/guide/forges#multiple-accounts)                                                                                                                                                                                         |
+| `version` | Config schema version (optional, absent = `1`). Unknown keys are an error at version 1; see [Validation](#validation-and-defaults) |
+| `accounts` | The forges this fleet serves, each with its own token: `name`, `forge` (`github`, `gitlab`, `gitea`, `forgejo`, `buildkite`, `azuredevops`, `bitbucket`), `scope` (`owner/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization**; PAT needs org runner-admin permission), and `instance` for self-hosted forges — see [Forges](/guide/forges#multiple-accounts) |
 | `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                                                                                                                                                                                             |
-| `min_runners` / `max_runners`              | Scaling bounds (in VMs)                                                                                                                                                                                                                                                                                                                                      |
+| `min_runners` / `max_runners` | Scaling bounds (in VMs). Defaults `0` / `2` |
 | `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                                                                                                                                                                                                   |
-| `poll_interval`                            | Seconds between GitHub polls (≥ 5)                                                                                                                                                                                                                                                                                                                           |
+| `poll_interval` | Seconds between forge polls (≥ 5, default 20) |
 | `vm.cpu` / `vm.memory_gb` / `vm.ephemeral` | Per-VM shape                                                                                                                                                                                                                                                                                                                                                 |
 | `image`                                    | Tart image cloned per runner (`tahoe-base` after prepare)                                                                                                                                                                                                                                                                                                    |
 | `base_image`                               | What `image prepare` starts from: a pre-configured tart image (`ghcr.io/cirruslabs/…`, macOS or Linux), digest-pinned (`ref@sha256:…` — see `kinhin image digest`), or a local VM name (e.g. one made with `image prepare --linux`); absent = the default macOS base. A Linux base turns the Tart pool into [Tart Linux VMs](/guide/runtimes#tart-linux-vms) |
@@ -33,6 +33,34 @@ The effective concurrency cap is
 Linux container slots). The scaler re-checks free disk before every spawn and holds new VMs when
 the disk would dip below `reserve.disk_gb` plus one instance's footprint.
 `kinhin doctor` prints the result and the binding constraint.
+
+## Validation and defaults
+
+`config.yaml` is validated when it loads, and errors name the key as written in the file
+(`vm.memory_gb`, not an internal name).
+
+- **Unknown keys are an error.** A typo such as `max_runner:` is rejected with a suggestion
+  (`did you mean 'max_runners'?`) instead of silently falling back to the default. The check covers
+  the top level and the nested sections (`vm`, `reserve`, `container`, `docker`, `runtimes`,
+  `images`, `accounts`, `projects`, `toolchain_cache`). Top-level keys that start with `x-` are
+  ignored, so you can keep notes or YAML anchors there.
+- **`version`** is optional and defaults to `1`. A file that declares a newer version than your
+  kinhin understands is still read: keys it does not know are logged and ignored, and the keys it
+  does know are validated as usual. That lets an older build run a config written for a newer one.
+- **Ranges.** `vm_boot_timeout` must be 30–3600 seconds and `token_ttl` 60–3600 seconds, on top of
+  the bounds on `poll_interval`, `runners_per_vm` and the resource keys.
+- **Defaults** come from one place, so omitting a key and the starter template agree:
+  `min_runners: 0`, `max_runners: 2`, `runners_per_vm: 1`, `poll_interval: 20`,
+  `vm: {cpu: 4, memory_gb: 8}`, `reserve: {cpu: 2, memory_gb: 4, disk_gb: 10}`.
+- **Runtime names** in `runtimes:` (`default`, `budget`, `routes[].runtime`) are `tart`,
+  `appleContainer`, `docker` and `host`; anything else is rejected with a suggestion.
+
+### Older configs
+
+The top-level `repo:`, `gitea:` and `forgejo:` keys and the global `toolchains:` section no longer
+load; the error names the replacement (an `accounts:` entry, a `projects:` entry, `toolchain_cache:`).
+`ConfigMigrator` in KinhinKit translates them as text without writing the file, keeping comments
+elsewhere in it.
 
 ## Live reload
 
