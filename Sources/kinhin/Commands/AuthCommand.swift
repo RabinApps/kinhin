@@ -21,24 +21,24 @@ enum AuthCommand {
 
     /// Builds, prints, and returns the machine-readable status document.
     /// Static — no network probes, tolerant of a missing config file.
-    static func emitStatusJSON(environment: AuthEnvironment) throws -> (report: AuthStatusReport, data: Data) {
+    static func emitStatusJSON(environment: AuthEnvironment, quiet: Bool = false) throws -> (
+        report: AuthStatusReport, data: Data
+    ) {
         let report = statusReport(
             jsonConfig: environment.jsonConfig,
             load: environment.load,
             loadAccount: environment.loadAccount
         )
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(report)
-        print(String(decoding: data, as: UTF8.self))
+        let data = try CLIJSON.data(report)
+        if !quiet { print(String(decoding: data, as: UTF8.self)) }
         return (report, data)
     }
 
-    /// `auth add NAME --github|--gitlab|… --scope S [--instance URL] [--token T]`.
+    /// `auth add NAME --github|--gitlab|… --scope S [--instance URL] [--token-stdin]`.
     private static func add(_ args: [String], environment: AuthEnvironment) throws {
         guard let name = args.dropFirst(2).first, !name.hasPrefix("--") else {
             try environment.fail(
-                "usage: kinhin auth add NAME \(forgeFlagList) --scope SCOPE [--instance URL] [--token T]"
+                "usage: kinhin auth add NAME \(forgeFlagList) --scope SCOPE [--instance URL] [--token-stdin]"
             )
         }
         guard let forge = forgeFlag(in: args) else {
@@ -55,6 +55,8 @@ enum AuthCommand {
             }
             try environment.fail("--scope is required (\(expected))")
         }
+        // Read the token (stdin) before touching the config, so a conflict or an empty stdin changes nothing.
+        let supplied = try suppliedToken(args, environment: environment)
         let account = AccountConfig(name: name, forge: forge, scope: scope, instance: flag("--instance", in: args))
         do {
             try AccountsConfigEditor.add(account, to: environment.configURL)
@@ -62,8 +64,7 @@ enum AuthCommand {
             try environment.fail(error.localizedDescription)
         }
         print("account '\(name)' added to config (\(forge.rawValue): \(scope))")
-        if let token = flag("--token", in: args) {
-            warnTokenOnCommandLine()
+        if let token = supplied {
             try environment.saveAccount(token, forge, name)
             environment.notifyDaemonAccount(name, token)
             print("token stored in Keychain")
@@ -138,20 +139,41 @@ enum AuthCommand {
     // MARK: - set / status / clear
 
     /// A token passed as an argument lands in shell history and is visible in
-    /// the process list; say so, and point at the hidden prompt / piped stdin.
+    /// the process list; say so, and point at the hidden prompt / stdin.
     private static func warnTokenOnCommandLine() {
         warn(
-            "--token puts the token in your shell history and process list; run `kinhin auth set` and paste it at the prompt (or pipe it on stdin) instead"
+            "--token puts the token in your shell history and process list; use `kinhin auth set --token-stdin` (pipe the token in) or the hidden prompt instead"
         )
     }
 
-    /// `auth set`: store the token (from --token or stdin) and hand it to a
-    /// running daemon.
+    /// The token given on the command line: read from stdin for
+    /// `--token-stdin`, taken from `--token` (the old form, kept working with
+    /// its warning), or nil when neither was given. The two are alternatives.
+    static func suppliedToken(_ args: [String], environment: AuthEnvironment) throws -> String? {
+        let explicit = flag("--token", in: args)
+        let fromStdin = args.contains("--token-stdin")
+        if explicit != nil, fromStdin {
+            throw CLIError("--token and --token-stdin are alternatives; pass only --token-stdin", exit: .usage)
+        }
+        if let explicit {
+            warnTokenOnCommandLine()
+            return explicit
+        }
+        guard fromStdin else { return nil }
+        guard let entered = environment.readToken()?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !entered.isEmpty
+        else {
+            try environment.fail("no token on stdin; pipe it in: printf %s \"$TOKEN\" | kinhin auth set --token-stdin")
+        }
+        return entered
+    }
+
+    /// `auth set`: store the token (from --token-stdin, --token or the hidden
+    /// prompt) and hand it to a running daemon.
     private static func setToken(_ args: [String], target: Target, environment: AuthEnvironment) throws {
         let token: String
-        if let explicit = flag("--token", in: args) {
-            warnTokenOnCommandLine()
-            token = explicit
+        if let supplied = try suppliedToken(args, environment: environment) {
+            token = supplied
         } else {
             // Say what the token needs before asking for it, so it is
             // created with the right permissions the first time.
@@ -179,13 +201,15 @@ enum AuthCommand {
     private static func status(_ args: [String], target: Target, environment: AuthEnvironment) async throws {
         // Machine output first: a fast, deterministic, scriptable snapshot —
         // never a network probe, never an early exit before the JSON lands.
+        let quiet = args.contains("--quiet") || args.contains("-q")
+        let say: (String) -> Void = { if !quiet { print($0) } }
         if args.contains("--json") {
-            let (report, _) = try Self.emitStatusJSON(environment: environment)
+            let (report, _) = try Self.emitStatusJSON(environment: environment, quiet: quiet)
             if !report.allGood { try environment.exit(1) }
             return
         }
         guard let token = try target.load(environment) else {
-            print(target.named != nil || target.forge != .github ? "no \(target.label) stored" : "no token stored")
+            say(target.named != nil || target.forge != .github ? "no \(target.label) stored" : "no token stored")
             try environment.exit(1)
         }
         let cfg = environment.loadConfig()
@@ -213,7 +237,7 @@ enum AuthCommand {
         let noun = selfHostedPrimary ? "\(target.forge == .forgejo ? "Forgejo" : "Gitea") token" : "token"
         let checking = selfHostedPrimary ? account.instance ?? "" : account.scope
         let against = selfHostedPrimary ? "\(account.scope) @ \(checking)" : account.scope
-        print("\(noun) stored (starts with \(token.prefix(4))…), checking \(checking)…")
+        say("\(noun) stored (starts with \(token.prefix(4))…), checking \(checking)…")
         do {
             switch account.forge {
             case .github:
@@ -241,12 +265,12 @@ enum AuthCommand {
             case .bitbucket:
                 try await environment.checkBitbucket(BitbucketCredentials(token: token, scope: account.scope))
             }
-            print("token works against \(against)")
+            say("token works against \(against)")
         } catch {
-            print("token check failed: \(error.localizedDescription)")
+            say("token check failed: \(error.localizedDescription)")
             if target.named == nil {
-                print("")
-                print(Self.requirements(for: target.forge, config: cfg).plainText)
+                say("")
+                say(Self.requirements(for: target.forge, config: cfg).plainText)
             }
             try environment.exit(1)
         }
