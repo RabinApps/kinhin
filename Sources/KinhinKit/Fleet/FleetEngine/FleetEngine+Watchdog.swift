@@ -14,15 +14,20 @@ public struct Watchdog: Sendable {
     public var orphanSweepInterval: Duration
     /// How long an instance with no record may exist before it is removed.
     public var orphanGrace: Duration
+    /// Allowance for the agents in a booted instance to show up on the forge
+    /// (never below `vm_boot_timeout`).
+    public var registrationGrace: Duration
 
     public init(
         livenessInterval: Duration = .seconds(15), livenessMisses: Int = 3,
-        orphanSweepInterval: Duration = .seconds(120), orphanGrace: Duration = .seconds(600)
+        orphanSweepInterval: Duration = .seconds(120), orphanGrace: Duration = .seconds(600),
+        registrationGrace: Duration = .seconds(120)
     ) {
         self.livenessInterval = livenessInterval
         self.livenessMisses = livenessMisses
         self.orphanSweepInterval = orphanSweepInterval
         self.orphanGrace = orphanGrace
+        self.registrationGrace = registrationGrace
     }
 }
 

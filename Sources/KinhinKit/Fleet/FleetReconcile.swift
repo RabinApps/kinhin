@@ -386,7 +386,11 @@ extension FleetEngine {
     /// A failed instance counts against its runtime's spawn backoff.
     func noteSpawnFailure(_ record: VMRecord) {
         guard let runtime = record.runtime.flatMap(RuntimeID.init(rawValue:)) else { return }
-        let reason = record.error ?? "unknown"
+        noteSpawnFailure(runtime: runtime, reason: record.error ?? "unknown")
+    }
+
+    /// Counts a failed start against `runtime`'s spawn backoff.
+    func noteSpawnFailure(runtime: RuntimeID, reason: String) {
         let delay = spawnBackoff.withLock { $0.recordFailure(runtime, reason: reason, now: Date()) }
         if delay > 0 {
             Log.warn(
