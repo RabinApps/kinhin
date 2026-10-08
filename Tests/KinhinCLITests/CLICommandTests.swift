@@ -69,13 +69,21 @@ final class CLICommandTests: XCTestCase {
 
     /// The subcommands that parse their own operands get the head tokens
     /// stripped, in both spellings the router accepts.
-    func testImageSubcommandArgumentsAreStripped() {
-        XCTAssertEqual(KinhinCLI.afterImageSubcommand(["image", "digest", "ghcr.io/x"]), ["ghcr.io/x"])
-        XCTAssertEqual(KinhinCLI.afterImageSubcommand(["image", "list"]), [])
-        XCTAssertEqual(KinhinCLI.afterImageSubcommand(["image", "delete", "a", "--yes"]), ["a", "--yes"])
-        XCTAssertEqual(KinhinCLI.afterImageSubcommand(["image", "prune", "--yes"]), ["--yes"])
-        XCTAssertEqual(KinhinCLI.afterImageSubcommand(["image digest", "ghcr.io/x"]), ["ghcr.io/x"])
-        XCTAssertEqual(KinhinCLI.afterImageSubcommand([]), [])
+    func testImageSubcommandArgumentsAreStripped() throws {
+        XCTAssertEqual(try CommandResolver.resolve(["image", "digest", "ghcr.io/x"]).rest, ["ghcr.io/x"])
+        XCTAssertEqual(try CommandResolver.resolve(["image", "list"]).rest, [])
+        XCTAssertEqual(try CommandResolver.resolve(["image", "delete", "a", "--yes"]).rest, ["a", "--yes"])
+        XCTAssertEqual(try CommandResolver.resolve(["image", "prune", "--yes"]).rest, ["--yes"])
+        XCTAssertEqual(try CommandResolver.resolve(["image digest", "ghcr.io/x"]).rest, ["ghcr.io/x"])
+    }
+
+    func testNormalizedSpellingsRouteLikeTheLegacyOnes() {
+        XCTAssertEqual(CLICommand.parse(["setup", "status"]), .setupStatus)
+        XCTAssertEqual(CLICommand.parse(["setup", "status", "--json"]), .setupStatus)
+        XCTAssertEqual(CLICommand.parse(["setup", "repair", "tart"]), .setupRepair)
+        XCTAssertEqual(CLICommand.parse(["config", "validate"]), .configInit)
+        XCTAssertEqual(CLICommand.parse(["workflow", "route", "ci.yml", "tart"]), .workflow)
+        XCTAssertEqual(CLICommand.parse(["toolchains", "prune"]), .toolchains)
     }
 
     func testUnknownCommandReturnsNil() {

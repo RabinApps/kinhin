@@ -89,9 +89,7 @@ enum ConfigCommands {
             return
         }
         let document = validationDocument()
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        print(String(decoding: try encoder.encode(document), as: UTF8.self))
+        try emitJSON(document)
         guard document.valid else { exit(CLIExit.config.rawValue) }
     }
 }

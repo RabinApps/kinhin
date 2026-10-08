@@ -64,9 +64,7 @@ enum CleanupCommand {
 
     /// The report on stdout, pretty and key-sorted like every `--json` document.
     private static func emitReport(_ plan: CleanupPlan, targets: CleanupPlan.Targets) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        print(String(decoding: try encoder.encode(report(for: plan, targets: targets)), as: UTF8.self))
+        try emitJSON(report(for: plan, targets: targets))
     }
 
     static func run(_ args: [String]) async throws {

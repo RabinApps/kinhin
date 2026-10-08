@@ -78,7 +78,7 @@ gen_exit-codes() {
     sed -n '/enum CLIExit/,/^    init/p' Sources/kinhin/Commands/CLIExit.swift |
         sed -nE 's/^[[:space:]]*case ([a-z]+) = ([0-9]+)$/\2 \1/p' | while read -r code name; do
         case "$name" in
-            general) meaning="Anything unclassified" ;;
+            general) meaning="Needs attention (not healthy), or anything unclassified" ;;
             usage) meaning="Bad command line" ;;
             config) meaning="Invalid or unreadable config" ;;
             runtime) meaning="Runtime or engine failure" ;;
@@ -90,12 +90,14 @@ gen_exit-codes() {
     done
 }
 
-# The `helpText()` string literal, de-indented, as a fenced block.
+# The `kinhin help` screen as a fenced block. The screen is generated from
+# the Swift command catalog, which this script cannot run (no toolchain on the
+# docs job), so it copies the checked-in golden file; `HelpRendererTests`
+# fails when that file differs from the real output, naming the command that
+# regenerates it.
 gen_cli-help() {
     echo '```text'
-    awk '
-        /^    """$/ { n++; next }
-        n == 1 { sub(/^    /, ""); print }' Sources/kinhin/Commands/HelpText.swift
+    cat scripts/golden/cli-help.txt
     echo '```'
 }
 

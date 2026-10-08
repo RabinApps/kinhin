@@ -18,9 +18,10 @@ final class ResetCommandTests: XCTestCase {
     }
 
     func testHelpMentionsResetWithItsScopes() {
-        let help = helpText()
-        XCTAssertTrue(help.contains("reset [--scope config|daemon|all] [--yes]"), help)
-        XCTAssertTrue(help.contains("no undo"), help)
+        XCTAssertTrue(helpText().contains("reset "), "the overview lists reset")
+        let page = helpText(for: ["reset"])
+        XCTAssertTrue(page.contains("reset [--scope config|daemon|all] [--yes]"), page)
+        XCTAssertTrue(page.contains("no undo"), page)
     }
 
     // MARK: - Scope resolution

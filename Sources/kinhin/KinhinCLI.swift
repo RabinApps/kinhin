@@ -18,14 +18,30 @@ import KinhinKit
 struct KinhinCLI {
     static func main() async {
         let args = Array(CommandLine.arguments.dropFirst())
-        let command = CLICommand.parse(args)
 
-        if CLICommand.wantsHelp(command, args: args) {
-            printHelp()
+        // Bare `kinhin`: where setup stands and the next step. `kinhin help`
+        // prints the full screen.
+        if args.isEmpty {
+            await BareStatus.run()
             return
         }
 
-        if CLICommand.shouldAutoCreateConfig(command, args: args) {
+        let invocation: Invocation
+        do {
+            invocation = try CommandResolver.resolve(args)
+        } catch {
+            ErrorReporter.useJSON(args.contains("--json"))
+            fail(error)
+        }
+        ErrorReporter.useJSON(invocation.json)
+        let command = invocation.command
+
+        if invocation.wantsHelp {
+            print(HelpRenderer.page(for: invocation.helpSpec, path: invocation.helpPath))
+            return
+        }
+
+        if CLICommand.shouldAutoCreateConfig(command, args: invocation.args) {
             noteAutoCreatedConfigIfMissing()
         }
 
@@ -39,15 +55,19 @@ struct KinhinCLI {
             // image build then unwinds through its scratch-VM cleanup instead
             // of being killed mid-bake with the scratch VM left behind.
             if command == .start || command == .mcp {
-                try await dispatch(command!, args)
+                try await dispatch(invocation)
             } else {
-                let task = Task { try await dispatch(command!, args) }
+                let task = Task { try await dispatch(invocation) }
                 let interruptSource = InterruptBridge.install(cancel: { task.cancel() })
                 defer { interruptSource?.cancel() }
                 try await task.value
             }
         } catch is CancellationError {
-            printError("cancelled — in-progress work was cleaned up")
+            if ErrorReporter.isJSON {
+                ErrorReporter.report("cancelled — in-progress work was cleaned up", code: .cancelled)
+            } else {
+                printError("cancelled — in-progress work was cleaned up")
+            }
             exit(CLIExit.cancelled.rawValue)
         } catch {
             fail(error)
@@ -56,11 +76,13 @@ struct KinhinCLI {
 
     /// The routing table's bodies, extracted so the Ctrl-C bridge can run them
     /// in a task it holds. Throws `CancellationError` when the user cancelled.
-    private static func dispatch(_ command: CLICommand, _ args: [String]) async throws {
-        switch command {
+    private static func dispatch(_ invocation: Invocation) async throws {
+        let args = invocation.args
+        let rest = invocation.rest
+        switch invocation.command {
         case .configInit:
-            if args.dropFirst().first == "validate" {
-                try ConfigCommands.runValidate(Array(args.dropFirst(2)))
+            if invocation.subcommand == "validate" {
+                try ConfigCommands.runValidate(rest)
             } else {
                 try ConfigCommands.configInit(args)
             }
@@ -84,30 +106,24 @@ struct KinhinCLI {
             try await ImageCommand.run(args)
 
         case .imageList:
-            try await ImageListCommand.run(afterImageSubcommand(args))
+            try await ImageListCommand.run(rest)
 
         case .imageDelete:
-            try await ImageDeleteCommand.run(afterImageSubcommand(args))
+            try await ImageDeleteCommand.run(rest)
 
         case .imagePrune:
-            try await ImagePruneCommand.run(afterImageSubcommand(args))
+            try await ImagePruneCommand.run(rest)
 
         case .imageDigest:
-            try await ImageCommand.runDigest(afterImageSubcommand(args))
+            try await ImageCommand.runDigest(rest)
 
         case .toolchains:
-            do {
-                if args.dropFirst().first == "prune" {
-                    await ToolchainsCommand.prune(Array(args.dropFirst()))
-                } else if args.dropFirst().first == "list-images" {
-                    await ToolchainsCommand.listImages()
-                } else if args.dropFirst().first == "detect" {
-                    ToolchainsDetectCommand.run(Array(args.dropFirst(2)))
-                } else if args.dropFirst().first == "helper" {
-                    ToolchainsCommand.helper(Array(args.dropFirst()))
-                } else {
-                    await ToolchainsCommand.run(args)
-                }
+            switch invocation.subcommand {
+            case "prune": await ToolchainsCommand.prune(rest)
+            case "list-images": await ToolchainsCommand.listImages()
+            case "detect": ToolchainsDetectCommand.run(rest)
+            case "helper": ToolchainsCommand.helper(rest)
+            default: await ToolchainsCommand.run(args)
             }
 
         case .start:
@@ -156,32 +172,16 @@ struct KinhinCLI {
             try await MCPCommand.run(args)
 
         case .workflow:
-            switch args.dropFirst().first {
-            case "test":
-                try await WorkflowTestCommand.run(Array(args.dropFirst(2)))
-            case "route":
-                try await WorkflowRouteCommand.run(Array(args.dropFirst(2)))
-            default:
-                throw CLIError("unknown workflow subcommand; available: test, route", exit: .usage)
+            switch invocation.subcommand {
+            case "test": try await WorkflowTestCommand.run(rest)
+            default: try await WorkflowRouteCommand.run(rest)
             }
 
         case .version:
             print("kinhin \(kinhinVersion.current)")
 
         case .help:
-            printHelp()
-
+            print(helpText(for: rest))
         }
-    }
-
-    /// The arguments after the `image <subcommand>` head tokens, for the
-    /// subcommands that parse their own operands (`digest`, `list`,
-    /// `delete`, `prune`). Handles both spellings: `image digest ref` (two tokens) and
-    /// the quoted `"image digest" ref` form the head switch also accepts.
-    nonisolated static func afterImageSubcommand(_ args: [String]) -> [String] {
-        guard let first = args.first else { return [] }
-        if first == "image" { return Array(args.dropFirst(2)) }
-        if first.hasPrefix("image ") { return Array(args.dropFirst()) }
-        return args
     }
 }

@@ -28,9 +28,7 @@ enum ToolchainsDetectCommand {
         let detection = try ProjectToolchainDetector().detect(at: directory)
 
         if hasFlag("--json", in: args) {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            return Output(stdout: String(decoding: try encoder.encode(detection), as: UTF8.self) + "\n", stderr: "")
+            return Output(stdout: try CLIJSON.string(detection) + "\n", stderr: "")
         }
 
         var notes = evidenceTable(detection)

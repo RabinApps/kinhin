@@ -53,11 +53,7 @@ enum WorkflowTestCommand {
             workingDirectory: root
         )
         if options.json {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
-            let data = try encoder.encode(report)
-            print(String(decoding: data, as: UTF8.self))
+            try emitJSON(report, dates: .iso8601)
         } else {
             print(
                 "summary: \(PipelineFormatter.label(for: report.overallState).lowercased()) · \(report.jobs.count) job(s)"

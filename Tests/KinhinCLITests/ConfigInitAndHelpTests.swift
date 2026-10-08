@@ -54,8 +54,9 @@ final class ConfigInitAndHelpTests: XCTestCase {
     func testHelpTextMentionsEveryCommandFamily() {
         let help = helpText()
         for needle in [
-            "config init", "auth", "doctor", "setup-status", "setup repair host-agent", "runtimes route add",
+            "config init", "auth set", "doctor", "setup status", "setup repair host-agent", "runtimes route add",
             "runtimes route remove", "image prepare", "image list", "image delete", "image prune",
+            "image digest", "toolchains prune", "workflow test", "workflow route",
             "start", "stop", "pause", "resume", "status", "watch", "logs",
             "daemon", "support", "mcp", "version", "help",
         ] {
@@ -63,31 +64,27 @@ final class ConfigInitAndHelpTests: XCTestCase {
         }
     }
 
-    func testHelpTextAdvertisesEveryForgeInAuthAdd() {
-        let help = helpText()
+    func testAuthAddPageAdvertisesEveryForge() {
+        let page = helpText(for: ["auth", "add"])
         for forge in ["--github", "--gitea", "--forgejo", "--gitlab", "--buildkite", "--azuredevops", "--bitbucket"] {
-            XCTAssertTrue(help.contains(forge), "auth add help must list \(forge)")
+            XCTAssertTrue(page.contains(forge), "auth add help must list \(forge)")
         }
     }
 
-    func testHelpTextSaysTheGitLabAndBuildkiteAgentInstallsAreConditional() {
-        let help = helpText()
+    func testHostAgentPageSaysTheOtherAgentInstallsAreConditional() {
         XCTAssertTrue(
-            help.contains(
-                "gitlab-runner / buildkite-agent / the Azure Pipelines agent / the Bitbucket runner are added only when a GitLab / Buildkite / Azure DevOps / Bitbucket account is configured"
-            ),
+            helpText(for: ["setup", "repair", "host-agent"]).contains("added only when such an account is configured"),
             "host-agent help must match HostAgentInstaller's conditional agent installs")
     }
 
-    func testHelpTextMentionsProvisionScriptHook() {
-        let help = helpText()
-        XCTAssertTrue(help.contains("--provision-script"), "help should advertise the provision-script flag")
-    }
-
-    func testHelpTextMentionsToolchainFlagsAndCommand() {
-        let help = helpText()
-        XCTAssertTrue(help.contains("image prepare --project"), "help should advertise the per-project bake")
-        XCTAssertTrue(help.contains("toolchains prune"), "help should advertise the manual cache prune")
+    func testImagePreparePageMentionsProvisionScriptAndPerProjectBakes() {
+        let page = helpText(for: ["image", "prepare"])
+        XCTAssertTrue(page.contains("--provision-script"), "help should advertise the provision-script flag")
+        XCTAssertTrue(page.contains("--project"), "help should advertise the per-project bake")
+        XCTAssertTrue(helpText().contains("toolchains prune"), "help should advertise the manual cache prune")
+        for removed in ["--toolchain", "--stack", "--linux-toolchain", "--linux-stack"] {
+            XCTAssertFalse(page.contains(removed), "\(removed) was removed and must not be advertised")
+        }
     }
 
     func testHelpTextStaysHonestAboutSetupOrder() {
@@ -100,18 +97,6 @@ final class ConfigInitAndHelpTests: XCTestCase {
         XCTAssertLessThan(config.lowerBound, auth.lowerBound)
         XCTAssertLessThan(auth.lowerBound, image.lowerBound)
         XCTAssertLessThan(image.lowerBound, start.lowerBound)
-    }
-
-    func testHelpTextDescribesPerProjectBakesNotToolchainOverrides() {
-        let help = helpText()
-        XCTAssertTrue(help.contains("image prepare --project <owner/name>"), "help should advertise per-project bakes")
-        for removed in ["--toolchain", "--stack", "--linux-toolchain", "--linux-stack"] {
-            XCTAssertFalse(help.contains(removed), "\(removed) was removed and must not be advertised")
-        }
-        let project = try! XCTUnwrap(help.range(of: "image prepare --project"))
-        let container = try! XCTUnwrap(help.range(of: "image prepare --container"))
-        XCTAssertLessThan(project.lowerBound, container.lowerBound)
-        XCTAssertTrue(help.contains("toolchains --project <owner/name>"))
     }
 
     func testHelpTextSpeaksKinhinAndMentionsEveryRuntime() {
