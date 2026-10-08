@@ -141,7 +141,9 @@ extension FleetEngine {
             result = try await recordRuntime.execRegistration(id, ip: ip, script, timeout: 600)
             try Task.checkCancellation()
             guard result.succeeded else {
-                throw EngineError.registrationFailed(vm: id, stderr: result.stderr)
+                // Some bootstrap tools (the runner's config.sh) report errors on stdout.
+                let detail = result.stderr.isEmpty ? result.stdout : result.stderr
+                throw EngineError.registrationFailed(vm: id, stderr: "exit \(result.exitCode): \(detail)")
             }
             Log.info(id, "runner registered")
 

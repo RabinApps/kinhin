@@ -107,11 +107,9 @@ enum RunnerBootstrap {
             \(agentDirectoryCommand)
             \(agentMaterialization)
             \(caEnvExports)cd "$agent_dir"
-            ./config.sh --jitconfig \(shellQuote(encodedJitConfig)) \\
-                        --unattended \\
-                        --replace \\
-                        --work \(shellQuote(workFolder)) >/dev/null
-            nohup ./run.sh > run.log 2>&1 &
+            # JIT runners are already registered by the scale-set API; config.sh does not
+            # take --jitconfig, run.sh does (the work folder was fixed at generate time).
+            nohup ./run.sh --jitconfig \(shellQuote(encodedJitConfig)) > run.log 2>&1 &
             \(pidSetup)
             echo "runner started"
             """

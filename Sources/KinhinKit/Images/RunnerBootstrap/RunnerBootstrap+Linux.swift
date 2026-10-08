@@ -217,11 +217,9 @@ extension RunnerBootstrap {
             if [ ! -x ./config.sh ]; then
               cp -a /opt/actions-runner/. . 2>/dev/null || true
             fi
-            ./config.sh --jitconfig \(shellQuote(encodedJitConfig)) \\
-                        --unattended \\
-                        --replace \\
-                        --work \(shellQuote(workFolder)) >/dev/null
-            nohup ./run.sh > run.log 2>&1 &
+            # JIT runners are already registered by the scale-set API; config.sh does not
+            # take --jitconfig, run.sh does (the work folder was fixed at generate time).
+            nohup ./run.sh --jitconfig \(shellQuote(encodedJitConfig)) > run.log 2>&1 &
             \(pidSetup)
             echo "runner started"
             """
