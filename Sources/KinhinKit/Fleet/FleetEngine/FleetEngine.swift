@@ -6,6 +6,32 @@ import Synchronization
 /// Every mutable field is either a `Mutex` box (checked `Sendable`) or an
 /// immutable collaborator, so the conformance is verified by the compiler
 /// rather than asserted.
+///
+/// ## Locks
+///
+/// The engine's mutable state sits behind these independent locks:
+///
+/// | lock              | guards                                                           |
+/// | ----------------- | ---------------------------------------------------------------- |
+/// | `runState`        | running / paused / "poll now" flags                              |
+/// | `forgeState`      | attached forges, scale-set listeners and tokens, retry schedule |
+/// | `router`          | routing model, caps, images, projects, fleet labels (one snapshot) |
+/// | `lifecycleTasks`  | one lifecycle task per instance id                               |
+/// | `deletes`         | in-flight deletes and their background tasks                     |
+/// | `spawnBackoff`    | per-runtime failure counters and holds                           |
+/// | `orphanState`     | first-seen times of instances without a record                   |
+/// | `_reconcileTask`, `_cachePruneTask` | the two loop task handles                      |
+///
+/// plus `FleetStore`'s own record lock and `statusBox`, an actor.
+///
+/// **Order.** Every one of these is a *leaf*: it is held only to read or write
+/// its fields, never across an `await`, a callback into other code, or the
+/// acquisition of another lock. Code copies what it needs out of the lock and
+/// works on the copy (take `router.snapshot` once per decision). The only
+/// nesting in the engine is inside `FleetStore` (its write lock, then its
+/// record lock). If a change ever has to hold two engine locks, take them in
+/// the table's order, top to bottom, and never touch `statusBox` while holding
+/// any of them (awaiting an actor under a `Mutex` is not allowed anyway).
 public final class FleetEngine: Sendable {
     let config: KinhinConfig
     let tart: TartControlling
@@ -29,7 +55,6 @@ public final class FleetEngine: Sendable {
     /// How long `detachKeepingInstances()` waits for cancelled lifecycle
     /// tasks before handing the fleet over anyway.
     let lifecycleDrainTimeout: Duration
-    let spawnStagger: Duration
     /// How often the ephemeral exit watch polls the instance (default 1s).
     let exitWatchInterval: Duration
     /// Shared runner lists for the exit watchers (see `RunnerDirectory`).
@@ -58,9 +83,12 @@ public final class FleetEngine: Sendable {
     }
     /// One lifecycle task per VM id (removed by the task itself on finish).
     let lifecycleTasks = Mutex<[String: Task<Void, Never>]>([:])
-    /// Instances a `deleteVMRecord` is currently tearing down, so the retry
-    /// sweep for stuck `.deleting` records never races an in-flight delete.
-    let deletesInFlight = Mutex<Set<String>>([])
+    /// Deletes in progress: which instances a `deleteVMRecord` is tearing down (so the retry
+    /// sweep for stuck `.deleting` records never races one) and the background task of each
+    /// delete the reconcile pass started (see `scheduleDelete`).
+    let deletes = Mutex(DeleteState())
+    /// Spaces out the starts of new instances (see `SpawnPacer`).
+    let spawnPacer: SpawnPacer
 
     /// Whether the fleet is serving and whether it is paused — the single
     /// source of truth (`status()` reads it on every call).
@@ -114,7 +142,7 @@ public final class FleetEngine: Sendable {
         self.tokenLoader = dependencies.tokenLoader
         self.hostProbe = dependencies.hostProbe ?? { [host] in host }
         self.lifecycleDrainTimeout = dependencies.lifecycleDrainTimeout
-        self.spawnStagger = dependencies.spawnStagger
+        self.spawnPacer = SpawnPacer(interval: dependencies.spawnStagger)
         self.exitWatchInterval = dependencies.exitWatchInterval
         self.watchdog = dependencies.watchdog
         self.runnerDirectory = RunnerDirectory(ttl: dependencies.runnerCacheTTL ?? dependencies.exitWatchInterval * 5)

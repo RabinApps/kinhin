@@ -55,6 +55,15 @@ extension FleetEngine {
         }
         for task in tasks { task.cancel() }
         await drain(tasks, timeout: lifecycleDrainTimeout)
+        // Background work the pass started: a forge attach is cancelled, but a teardown is let finish
+        // (cancelling one mid-way would drop its record) so the replacement never races it.
+        let retry = forgeState.withLock { state in
+            defer { state.retry.inFlight = nil }
+            return state.retry.inFlight
+        }
+        retry?.cancel()
+        await drain([retry].compactMap { $0 }, timeout: lifecycleDrainTimeout)
+        await settleDeletes(timeout: lifecycleDrainTimeout)
         invalidateRegistrationTokens()
     }
 

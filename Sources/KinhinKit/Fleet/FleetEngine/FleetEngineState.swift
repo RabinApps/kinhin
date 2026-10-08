@@ -22,6 +22,14 @@ struct ForgeState: Sendable {
     var retry = ForgeRetryState()
 }
 
+/// Deletes in progress, behind the engine's `deletes` lock.
+struct DeleteState: Sendable {
+    /// Instances a `deleteVMRecord` is tearing down right now (from any caller).
+    var inFlight: Set<String> = []
+    /// The background task of each delete the reconcile pass started, by instance id.
+    var tasks: [String: Task<Void, Never>] = [:]
+}
+
 /// The engine's serving flags, read by the reconcile loop and forge retry.
 struct RunState: Sendable {
     var running = false

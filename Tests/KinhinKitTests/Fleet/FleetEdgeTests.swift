@@ -214,6 +214,7 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertTrue(stuck?.error?.contains("disk busy") ?? false)
 
         try await engine.reconcileOnce()
+        await engine.settleDeletes()  // the retry runs in the background
         XCTAssertNil(engine.store.all.first { $0.id == "kinhin-stuck" }, "the retry removes it")
     }
 

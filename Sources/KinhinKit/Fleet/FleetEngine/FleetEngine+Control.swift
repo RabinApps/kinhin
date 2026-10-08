@@ -101,7 +101,7 @@ extension FleetEngine {
         // via the cache (minted under the old PAT's authority).
         invalidateRegistrationTokens()
         await stopAttachedListeners()
-        await pauseAllVMs()
+        await deleteAllActiveVMs()
     }
 
     // MARK: - Cache maintenance
