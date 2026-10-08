@@ -148,24 +148,22 @@ public enum TokenHealthCheck {
     /// (`name`, or the forge's primary one), reads *that account's* token via
     /// `keychainToken(forge, accountName)` and probes it. Returns an
     /// actionable "not checkable" report when a prerequisite is missing (no
-    /// token stored, or no config account to check against).
-    public static func check(
+    /// token stored, or no config account to check against). `admin` replaces
+    /// the live client (tests).
+    static func check(
         forge: ForgeID,
         account name: String? = nil,
         config: KinhinConfig?,
         keychainToken: @escaping (ForgeID, String) throws -> String?,
-        github: GitHubServing? = nil,
-        gitea: GiteaClient? = nil,
-        gitlab: GitLabClient? = nil
+        admin: ((AccountConfig, String) -> any ForgeAdmin)? = nil
     ) async -> Report {
         switch resolve(forge: forge, account: name, config: config, keychainToken: keychainToken) {
         case .notCheckable(let report):
             return report
         case .ready(let account, let token):
-            return await probe(account, token: token, github: github, gitea: gitea, gitlab: gitlab)
+            return await probe(account, token: token, admin: admin)
         }
     }
-
     /// What `check` found for a forge/account pair.
     enum Resolution {
         case ready(AccountConfig, token: String)
@@ -217,45 +215,14 @@ public enum TokenHealthCheck {
     /// runner-management permission, a Gitea-family registration mint, or
     /// GitLab's version, scopes and scope.
     public static func account(_ account: AccountConfig, token: String) async -> Report {
-        await probe(account, token: token)
+        await probe(account, token: token, admin: nil)
     }
 
     private static func probe(
-        _ account: AccountConfig, token: String,
-        github githubClient: GitHubServing? = nil, gitea giteaClient: GiteaClient? = nil,
-        gitlab gitlabClient: GitLabClient? = nil
+        _ account: AccountConfig, token: String, admin: ((AccountConfig, String) -> any ForgeAdmin)?
     ) async -> Report {
-        switch account.forge {
-        case .github:
-            guard !account.scope.isEmpty else {
-                return Report(ok: false, message: "No scope to check — add a GitHub account to config.yaml first.")
-            }
-            return await github(
-                token: token, scope: account.scope, instance: account.instance,
-                allowInsecureHTTP: account.allowInsecureHTTP ?? false, account: account.name, client: githubClient)
-        case .gitea, .forgejo:
-            guard let instance = account.instance, !instance.isEmpty else {
-                return Report(ok: false, message: "This account has no server address in config.yaml.")
-            }
-            return await gitea(
-                token: token, scope: account.scope, instance: instance,
-                allowInsecureHTTP: account.allowInsecureHTTP ?? false, client: giteaClient)
-        case .gitlab:
-            return await gitlab(
-                token: token, scope: account.scope, instance: account.instance,
-                allowInsecureHTTP: account.allowInsecureHTTP ?? false, client: gitlabClient)
-        case .buildkite:
-            return await buildkite(token: token, scope: account.scope)
-        case .azuredevops:
-            guard let instance = account.instance, !instance.isEmpty else {
-                return Report(ok: false, message: "This account has no organization URL in config.yaml.")
-            }
-            return await azureDevOps(
-                token: token, scope: account.scope, instance: instance,
-                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
-        case .bitbucket:
-            return await bitbucket(token: token, scope: account.scope)
-        }
+        let client = admin?(account, token) ?? account.forge.descriptor.makeAdmin(account: account, token: token)
+        return await client.checkToken()
     }
 
     /// The repositories a token can see on a forge (the Connect form's
@@ -264,31 +231,8 @@ public enum TokenHealthCheck {
     public static func repositories(
         forge: ForgeID, token: String, instance: String?, allowInsecureHTTP: Bool = false
     ) async throws -> [RepoRef] {
-        switch forge {
-        case .github:
-            return try await GitHubClient(
-                credentials: GitHubCredentials(
-                    token: token, scope: "", instance: instance, allowInsecureHTTP: allowInsecureHTTP)
-            ).listRepositories()
-        case .gitea, .forgejo:
-            return try await GiteaClient(
-                credentials: GiteaCredentials(
-                    token: token, scope: "", instance: instance ?? "", allowInsecureHTTP: allowInsecureHTTP)
-            ).listRepositories()
-        case .gitlab:
-            return try await GitLabClient(
-                credentials: GitLabCredentials(
-                    token: token, scope: "", instance: instance, allowInsecureHTTP: allowInsecureHTTP)
-            ).listRepositories()
-        case .buildkite:
-            return try await BuildkiteClient(credentials: BuildkiteCredentials(token: token, scope: "")).listScopes()
-        case .azuredevops:
-            return try await AzureDevOpsClient(
-                credentials: AzureDevOpsCredentials(
-                    token: token, scope: "", instance: instance ?? "", allowInsecureHTTP: allowInsecureHTTP)
-            ).listPools()
-        case .bitbucket:
-            return try await BitbucketClient(credentials: BitbucketCredentials(token: token, scope: "")).listScopes()
-        }
+        let account = AccountConfig(
+            name: forge.rawValue, forge: forge, scope: "", instance: instance, allowInsecureHTTP: allowInsecureHTTP)
+        return try await forge.descriptor.makeAdmin(account: account, token: token).listScopes()
     }
 }

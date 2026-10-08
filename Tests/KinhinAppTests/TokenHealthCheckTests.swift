@@ -29,7 +29,7 @@ final class TokenHealthCheckTests: XCTestCase {
             forge: .github,
             config: Self.configWithRepo("acme/widgets"),
             keychainToken: { _, _ in "ghp_x" },
-            github: client
+            admin: { account, token in GitHubDescriptor().makeAdmin(account: account, token: token, client: client) }
         )
         XCTAssertEqual(client.registrationTokenCalls, 1, "the check must probe via the forge API")
         XCTAssertTrue(report.ok)
@@ -84,7 +84,9 @@ final class TokenHealthCheckTests: XCTestCase {
                 overrideSeen = true
                 return "stored"
             },
-            github: FakeGitHub()
+            admin: { account, token in
+                GitHubDescriptor().makeAdmin(account: account, token: token, client: FakeGitHub())
+            }
         )
         XCTAssertTrue(report.ok)
         XCTAssertTrue(overrideSeen, "the probe consulted the injected token source")

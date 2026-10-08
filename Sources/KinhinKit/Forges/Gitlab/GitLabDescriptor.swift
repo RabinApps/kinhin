@@ -41,6 +41,33 @@ struct GitLabDescriptor: ForgeDescriptor {
                 runnerCount: request.runnerCount)
         }
     }
+
+    func makeForge(_ build: ForgeBuild) async throws -> any Forge {
+        let account = build.account
+        return try await GitLabForge.make(
+            credentials: GitLabCredentials(
+                token: build.token, scope: account.scope, instance: account.instance,
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false),
+            labels: account.labels ?? build.fleetLabels,
+            account: account.name
+        )
+    }
+
+    func makeAdmin(account: AccountConfig, token: String) -> any ForgeAdmin {
+        ClosureForgeAdmin(
+            check: {
+                await TokenHealthCheck.gitlab(
+                    token: token, scope: account.scope, instance: account.instance,
+                    allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+            },
+            scopes: {
+                try await GitLabClient(
+                    credentials: GitLabCredentials(
+                        token: token, scope: "", instance: account.instance,
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+                ).listRepositories()
+            })
+    }
 }
 
 // MARK: - Runner agent

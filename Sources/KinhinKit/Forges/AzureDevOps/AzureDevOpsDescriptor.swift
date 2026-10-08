@@ -38,6 +38,40 @@ struct AzureDevOpsDescriptor: ForgeDescriptor {
                 forge: forge, token: request.token, name: request.name, runnerCount: request.runnerCount)
         }
     }
+
+    func makeForge(_ build: ForgeBuild) async throws -> any Forge {
+        let account = build.account
+        guard let instance = account.instance else {
+            throw EngineError.accountUnverified("no organization URL configured")
+        }
+        return try await AzureDevOpsForge.make(
+            credentials: AzureDevOpsCredentials(
+                token: build.token, scope: account.scope, instance: instance,
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false),
+            labels: account.labels ?? [],
+            account: account.name
+        )
+    }
+
+    func makeAdmin(account: AccountConfig, token: String) -> any ForgeAdmin {
+        ClosureForgeAdmin(
+            check: {
+                guard let instance = account.instance, !instance.isEmpty else {
+                    return TokenHealthCheck.Report(
+                        ok: false, message: "This account has no organization URL in config.yaml.")
+                }
+                return await TokenHealthCheck.azureDevOps(
+                    token: token, scope: account.scope, instance: instance,
+                    allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+            },
+            scopes: {
+                try await AzureDevOpsClient(
+                    credentials: AzureDevOpsCredentials(
+                        token: token, scope: "", instance: account.instance ?? "",
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+                ).listPools()
+            })
+    }
 }
 
 // MARK: - Runner agent

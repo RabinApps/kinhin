@@ -12,6 +12,52 @@ struct GitHubDescriptor: ForgeDescriptor {
     func parseAccount(_ entry: ConfigLoader.AccountEntry) throws -> AccountConfig {
         try ConfigLoader.parseGitHubAccount(entry)
     }
+
+    func makeForge(_ build: ForgeBuild) async throws -> any Forge {
+        let account = build.account
+        let credentials = GitHubCredentials(
+            token: build.token, scope: account.scope, instance: account.instance,
+            allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+        let client = build.githubClient(credentials)
+        if build.verify {
+            let verification = await OrgPermissionProbe.verify(github: client, scope: account.scope)
+            guard verification.ok else {
+                throw EngineError.accountUnverified(verification.message)
+            }
+        }
+        if let scaleSet = account.scaleSet {
+            let targets = await build.scaleSetTargets(client, scaleSet)
+            return GitHubScaleSetForge(
+                account: account, token: build.token, client: client,
+                labels: account.labels ?? build.fleetLabels, targets: targets)
+        }
+        return GitHubForge(account: account, token: build.token, client: client, labels: build.fleetLabels)
+    }
+
+    func makeAdmin(account: AccountConfig, token: String) -> any ForgeAdmin {
+        makeAdmin(account: account, token: token, client: nil)
+    }
+
+    /// `client` replaces the live GitHub client for the token check (tests).
+    func makeAdmin(account: AccountConfig, token: String, client: GitHubServing?) -> any ForgeAdmin {
+        ClosureForgeAdmin(
+            check: {
+                guard !account.scope.isEmpty else {
+                    return TokenHealthCheck.Report(
+                        ok: false, message: "No scope to check — add a GitHub account to config.yaml first.")
+                }
+                return await TokenHealthCheck.github(
+                    token: token, scope: account.scope, instance: account.instance,
+                    allowInsecureHTTP: account.allowInsecureHTTP ?? false, account: account.name, client: client)
+            },
+            scopes: {
+                try await GitHubClient(
+                    credentials: GitHubCredentials(
+                        token: token, scope: "", instance: account.instance,
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+                ).listRepositories()
+            })
+    }
 }
 
 // MARK: - Runner agent

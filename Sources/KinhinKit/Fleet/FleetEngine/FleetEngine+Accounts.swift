@@ -59,73 +59,14 @@ extension FleetEngine {
             )
         }
         do {
-            let forge: Forge
-            switch account.forge {
-            case .github:
-                let credentials = GitHubCredentials(
-                    token: token, scope: account.scope, instance: account.instance,
-                    allowInsecureHTTP: account.allowInsecureHTTP ?? false)
-                let client = githubFactory.make(credentials)
-                if verify {
-                    let verification = await OrgPermissionProbe.verify(github: client, scope: account.scope)
-                    guard verification.ok else {
-                        throw EngineError.accountUnverified(verification.message)
-                    }
-                }
-                if let scaleSet = account.scaleSet {
-                    let targets = await makeScaleSetTargets(
-                        account: account, token: token, client: client, scaleSet: scaleSet)
-                    forge = GitHubScaleSetForge(
-                        account: account, token: token, client: client,
-                        labels: account.labels ?? fleetLabels, targets: targets)
-                } else {
-                    forge = GitHubForge(account: account, token: token, client: client, labels: fleetLabels)
-                }
-            case .gitea, .forgejo:
-                guard let instance = account.instance else {
-                    throw EngineError.accountUnverified("no instance URL configured")
-                }
-                forge = try await GiteaForge.make(
-                    forge: account.forge,
-                    credentials: GiteaCredentials(
-                        token: token, scope: account.scope, instance: instance,
-                        allowInsecureHTTP: account.allowInsecureHTTP ?? false),
-                    labels: account.labels ?? ["macos:host"],
-                    demandFloor: config.minRunners,
-                    account: account.name
-                )
-            case .gitlab:
-                forge = try await GitLabForge.make(
-                    credentials: GitLabCredentials(
-                        token: token, scope: account.scope, instance: account.instance,
-                        allowInsecureHTTP: account.allowInsecureHTTP ?? false),
-                    labels: account.labels ?? fleetLabels,
-                    account: account.name
-                )
-            case .azuredevops:
-                guard let instance = account.instance else {
-                    throw EngineError.accountUnverified("no organization URL configured")
-                }
-                forge = try await AzureDevOpsForge.make(
-                    credentials: AzureDevOpsCredentials(
-                        token: token, scope: account.scope, instance: instance,
-                        allowInsecureHTTP: account.allowInsecureHTTP ?? false),
-                    labels: account.labels ?? [],
-                    account: account.name
-                )
-            case .buildkite:
-                forge = try await BuildkiteForge.make(
-                    credentials: BuildkiteCredentials(token: token, scope: account.scope),
-                    labels: account.labels ?? BuildkiteForge.defaultLabels,
-                    account: account.name
-                )
-            case .bitbucket:
-                forge = try await BitbucketForge.make(
-                    credentials: BitbucketCredentials(token: token, scope: account.scope),
-                    labels: account.labels ?? [],
-                    account: account.name
-                )
-            }
+            let forge = try await account.forge.descriptor.makeForge(
+                ForgeBuild(
+                    account: account, token: token, verify: verify, fleetLabels: fleetLabels,
+                    minRunners: config.minRunners, githubClient: { self.githubFactory.make($0) },
+                    scaleSetTargets: { client, scaleSet in
+                        await self.makeScaleSetTargets(
+                            account: account, token: token, client: client, scaleSet: scaleSet)
+                    }))
             let currentListeners = (forge as? GitHubScaleSetForge)?.targets.map(\.listener) ?? []
             let previousListeners = forgeState.withLock { state -> [GitHubScaleSetListener] in
                 let previous = state.scaleSetListeners[account.name] ?? []

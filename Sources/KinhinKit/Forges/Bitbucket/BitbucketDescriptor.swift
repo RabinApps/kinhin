@@ -35,6 +35,23 @@ struct BitbucketDescriptor: ForgeDescriptor {
                 runnerCount: request.runnerCount)
         }
     }
+
+    func makeForge(_ build: ForgeBuild) async throws -> any Forge {
+        let account = build.account
+        return try await BitbucketForge.make(
+            credentials: BitbucketCredentials(token: build.token, scope: account.scope),
+            labels: account.labels ?? [],
+            account: account.name
+        )
+    }
+
+    func makeAdmin(account: AccountConfig, token: String) -> any ForgeAdmin {
+        ClosureForgeAdmin(
+            check: { await TokenHealthCheck.bitbucket(token: token, scope: account.scope) },
+            scopes: {
+                try await BitbucketClient(credentials: BitbucketCredentials(token: token, scope: "")).listScopes()
+            })
+    }
 }
 
 // MARK: - Runner agent

@@ -29,6 +29,42 @@ struct GiteaDescriptor: ForgeDescriptor {
                 runnerCount: request.runnerCount)
         }
     }
+
+    func makeForge(_ build: ForgeBuild) async throws -> any Forge {
+        let account = build.account
+        guard let instance = account.instance else {
+            throw EngineError.accountUnverified("no instance URL configured")
+        }
+        return try await GiteaForge.make(
+            forge: account.forge,
+            credentials: GiteaCredentials(
+                token: build.token, scope: account.scope, instance: instance,
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false),
+            labels: account.labels ?? ["macos:host"],
+            demandFloor: build.minRunners,
+            account: account.name
+        )
+    }
+
+    func makeAdmin(account: AccountConfig, token: String) -> any ForgeAdmin {
+        ClosureForgeAdmin(
+            check: {
+                guard let instance = account.instance, !instance.isEmpty else {
+                    return TokenHealthCheck.Report(
+                        ok: false, message: "This account has no server address in config.yaml.")
+                }
+                return await TokenHealthCheck.gitea(
+                    token: token, scope: account.scope, instance: instance,
+                    allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+            },
+            scopes: {
+                try await GiteaClient(
+                    credentials: GiteaCredentials(
+                        token: token, scope: "", instance: account.instance ?? "",
+                        allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+                ).listRepositories()
+            })
+    }
 }
 
 // MARK: - Runner agent

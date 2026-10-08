@@ -34,6 +34,10 @@ protocol ForgeDescriptor: Sendable {
     /// The script that registers this forge's runners inside `guest`, built
     /// from the request. Cache-share exports are prepended by the runtime.
     func registrationScript(for guest: RegistrationGuest, _ request: RegistrationRequest) throws -> String
+    /// Builds (and, when asked, verifies) the runtime `Forge` for one account.
+    func makeForge(_ build: ForgeBuild) async throws -> any Forge
+    /// The token-check and scope-listing client for one account.
+    func makeAdmin(account: AccountConfig, token: String) -> any ForgeAdmin
     /// Validates one `accounts:` entry (after the checks every forge shares)
     /// and builds its `AccountConfig`.
     func parseAccount(_ entry: ConfigLoader.AccountEntry) throws -> AccountConfig

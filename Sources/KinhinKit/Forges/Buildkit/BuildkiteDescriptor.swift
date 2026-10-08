@@ -35,6 +35,23 @@ struct BuildkiteDescriptor: ForgeDescriptor {
                 labels: request.labels)
         }
     }
+
+    func makeForge(_ build: ForgeBuild) async throws -> any Forge {
+        let account = build.account
+        return try await BuildkiteForge.make(
+            credentials: BuildkiteCredentials(token: build.token, scope: account.scope),
+            labels: account.labels ?? BuildkiteForge.defaultLabels,
+            account: account.name
+        )
+    }
+
+    func makeAdmin(account: AccountConfig, token: String) -> any ForgeAdmin {
+        ClosureForgeAdmin(
+            check: { await TokenHealthCheck.buildkite(token: token, scope: account.scope) },
+            scopes: {
+                try await BuildkiteClient(credentials: BuildkiteCredentials(token: token, scope: "")).listScopes()
+            })
+    }
 }
 
 // MARK: - Runner agent

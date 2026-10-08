@@ -251,6 +251,34 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: runtime.workDirectory(for: id).path))
     }
 
+    /// GitHub and GitLab runners both record `runner.pid`: a sweep for one
+    /// agent must not delete (and so orphan) the other agent's live pid.
+    func testStopSweepKeepsAnotherAgentsLivePidFile() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kinhin-host-tests-\(UUID().uuidString)", isDirectory: true)
+        let runtime = HostRuntime(shell: Shell(), agentDir: dir)
+        let id = "kinhin-sweep\(UUID().uuidString.prefix(6))"
+        let runnerDir = runtime.workDirectory(for: id).appendingPathComponent("\(id)-r1", isDirectory: true)
+        try FileManager.default.createDirectory(at: runnerDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: runtime.workDirectory(for: id)) }  // scratch dir
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        process.arguments = ["60"]
+        try process.run()
+        defer { if process.isRunning { process.terminate() } }
+        let pidFile = runnerDir.appendingPathComponent("runner.pid")
+        try Data("\(process.processIdentifier)".utf8).write(to: pidFile)
+
+        await runtime.stopRecordedAgents(id: id, pidFile: "runner.pid", command: "run-single", what: "gitlab runners")
+        XCTAssertTrue(process.isRunning, "a different agent's process is left alone")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: pidFile.path), "and so is its pid file")
+
+        await runtime.stopRecordedAgents(id: id, pidFile: "runner.pid", command: "sleep", what: "sleepers")
+        process.waitUntilExit()
+        XCTAssertFalse(process.isRunning, "the owning agent's sweep stops it")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: pidFile.path))
+    }
+
     func testHostLabelsForceTheHostSchemeAndAddTheMarker() {
         XCTAssertEqual(
             HostRuntime.hostLabels(["macos:host", "ubuntu-latest:docker://node:20", "arm64", "arm64:host"]),
