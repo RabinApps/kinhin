@@ -254,11 +254,11 @@ extension ConfigLoader {
     // MARK: - scale_set partial decoding
 
     /// The minimal shape the loader decodes from a `scale_set:` YAML block.
-    private struct PartialScaleSet: Decodable {
+    struct PartialScaleSet: Decodable {
         var name: String?
         var runnerGroup: String?
 
-        enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case name
             case runnerGroup = "runner_group"
         }

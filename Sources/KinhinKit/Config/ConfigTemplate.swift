@@ -7,6 +7,10 @@ extension ConfigLoader {
         # kinhin configuration
         # Location: ~/Library/Application Support/Kinhin/config.yaml
 
+        # Config schema version (optional, absent = 1). Unknown keys are an
+        # error at version 1 so a typo like `max_runner:` cannot pass silently.
+        version: 1
+
         # The forges this fleet serves. Every entry is one account: a scope
         # on a forge with its own token (kinhin auth set --account NAME).
         #   "owner/name"  → a single repository

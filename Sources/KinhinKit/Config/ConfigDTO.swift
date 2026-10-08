@@ -7,6 +7,8 @@ import Foundation
 public struct PartialConfig: Decodable {
     /// Removed keys: decoded only so the loader can reject them with a
     /// pointer to the accounts: replacement instead of a silent ignore.
+    /// Schema version of the file (absent = 1). See `ConfigLoader.currentVersion`.
+    var version: Int?
     var repo: String?
     var gitea: PartialGitea?
     var forgejo: PartialGitea?
@@ -48,7 +50,7 @@ public struct PartialConfig: Decodable {
         var allowInsecureHTTP: Bool?
         var scaleSet: [String: String]?
 
-        enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case name, forge, scope, instance, labels
             case allowInsecureHTTP = "allow_insecure_http"
             case scaleSet = "scale_set"
@@ -68,7 +70,7 @@ public struct PartialConfig: Decodable {
         var memoryGB: Int?
         var ephemeral: Bool?
 
-        enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case cpu
             case memoryGB = "memory_gb"
             case ephemeral
@@ -84,7 +86,7 @@ public struct PartialConfig: Decodable {
         /// Only present so `container.platform` can be rejected with a clear message.
         var platform: String?
 
-        enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case image
             case cpus
             case memoryGB = "memory_gb"
@@ -102,7 +104,7 @@ public struct PartialConfig: Decodable {
         var baseImage: String?
         var platform: String?
 
-        enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case image
             case cpus
             case memoryGB = "memory_gb"
@@ -116,6 +118,10 @@ public struct PartialConfig: Decodable {
         var `default`: String?
         var budget: [String: Double]?
         var routes: [PartialRoute]?
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case `default`, budget, routes
+        }
     }
 
     struct PartialProject: Decodable {
@@ -124,7 +130,7 @@ public struct PartialConfig: Decodable {
         var toolchains: PartialToolchains?
         var shareCache: Bool?
 
-        enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case pattern
             case repoFile = "repo_file"
             case toolchains
@@ -137,7 +143,7 @@ public struct PartialConfig: Decodable {
         var baseImage: String?
         var labels: [String]?
 
-        enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case name, labels
             case baseImage = "base_image"
         }
@@ -147,6 +153,10 @@ public struct PartialConfig: Decodable {
         var pattern: String?
         var runtime: String?
         var consent: Bool?
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case pattern, runtime, consent
+        }
     }
 
     struct PartialReserve: Decodable {
@@ -154,7 +164,7 @@ public struct PartialConfig: Decodable {
         var memoryGB: Int?
         var diskGB: Int?
 
-        enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case cpu
             case memoryGB = "memory_gb"
             case diskGB = "disk_gb"
@@ -173,6 +183,10 @@ public struct PartialConfig: Decodable {
             self.brew = brew
             self.stacks = stacks
         }
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case specs, brew, stacks
+        }
     }
 
     public struct PartialCachePolicy: Decodable {
@@ -186,14 +200,15 @@ public struct PartialConfig: Decodable {
             self.maxGB = maxGB
         }
 
-        enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case autoPrune = "auto_prune"
             case maxAgeDays = "max_age_days"
             case maxGB = "max_gb"
         }
     }
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case version
         case repo
         case labels
         case minRunners = "min_runners"

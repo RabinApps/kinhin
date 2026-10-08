@@ -71,6 +71,7 @@ public struct ConfigLoader {
     public static func parse(_ yaml: String) throws -> KinhinConfig {
         let partial = try Self.decode(yaml)
         try rejectRemovedKeys(partial)
+        try checkSchema(partial, yaml: yaml)
 
         var cfg = KinhinConfig.default
         // Every forge is an `accounts:` entry. A config with none is the
