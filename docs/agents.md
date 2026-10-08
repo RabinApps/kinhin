@@ -52,7 +52,7 @@ claude mcp add kinhin -- kinhin mcp     # Claude Code
 | Tool | Returns |
 | --- | --- |
 | `status` | The `kinhin status --json` document: daemon reachability, running/paused, queue depth |
-| `doctor` | Prerequisites, tokens, runtime health, the capacity cap, image disk usage (`imageTotalGB`), prune hint (`imagePrune`) and the disk-pressure warning (`diskPressure`) — `kinhin doctor --json` |
+| `doctor` | Prerequisites, tokens, runtime health, the capacity cap, image disk usage (`imageTotalGB`), prune hint (`imagePrune`) and the disk-pressure warning (`diskPressure`) — `kinhin doctor --json` (offline; add `--check-tokens` for live per-account token verdicts under `tokenChecks`) |
 | `setup_status` | The first-run checklist and its `ready` flag |
 | `runtimes` | Pools, budget split, health, routes (`noHealth: true` skips probes) |
 | `auth_status` | Which forges have a stored token — never the token itself |
@@ -87,7 +87,7 @@ For agents that shell out instead of speaking MCP:
 | `kinhin pipeline [VM] [--job N] --json` | Live jobs and steps |
 | `kinhin config validate --json` | `valid` + parsed facts, or `valid: false` + `error` (exit 3) |
 | `kinhin cleanup … --json` | Dry-run report: what a cleanup *would* remove; refuses `--yes` |
-| `kinhin workflow test … --json` | Local workflow-run report (exit 1 when a job failed) |
+| `kinhin workflow test … --json` | Local workflow-run report with `outcome` (`succeeded`, `partial`, `failed`, …); exit 1 unless `succeeded` (`--lenient` also accepts `partial`) |
 | `kinhin workflow route … --json` | What the route edit did or would do |
 | `kinhin toolchains detect … --json` | Detected toolchains and the evidence, with `--write` to save |
 | `kinhin image list --json [--runtime <name>]` | Installed images per runtime: name, role, size, last used, who uses them |

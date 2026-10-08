@@ -61,7 +61,7 @@ final class HostSetupStatusTests: XCTestCase {
             hostHealth: .missing(tool: "agent", fix: "x")
         ).build()
         let section = try XCTUnwrap(report.hostRuntime)
-        XCTAssertEqual(section.state, "missing")
+        XCTAssertEqual(section.state, .missing)
         XCTAssertEqual(section.routes, ["acme/scripts"])
         XCTAssertEqual(section.fix, "kinhin setup repair host-agent")
         XCTAssertTrue(section.warning.contains("unisolated"))

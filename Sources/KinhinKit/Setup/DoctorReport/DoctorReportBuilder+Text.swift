@@ -2,7 +2,7 @@ import Foundation
 
 // The human rendering of `kinhin doctor`: the report's own `plainText`, then
 // the config-specific lines that are not part of the JSON contract (config
-// path, base image, cache note, org-scope permissions). Living here means the
+// path, base image, cache note, org-scope requirements). Living here means the
 // CLI renders one report from one probe pass instead of re-probing config.
 extension DoctorReportBuilder {
     /// The full human output (no trailing newline).
@@ -13,14 +13,14 @@ extension DoctorReportBuilder {
     /// The human output for a report the caller already built, so a caller
     /// that also needs `report.ready` (the CLI's exit code) probes once.
     public func plainText(for report: DoctorReport) async -> String {
-        let details = await configDetailLines()
+        let details = configDetailLines()
         return ([report.plainText] + details).joined(separator: "\n")
     }
 
     /// The config-specific lines below the report. A missing or unparseable
     /// config simply has no config-specific lines beyond the path; the
     /// report's checks already flag it.
-    func configDetailLines() async -> [String] {
+    func configDetailLines() -> [String] {
         let exists: Bool
         let cfg: KinhinConfig?
         switch config {
@@ -47,29 +47,19 @@ extension DoctorReportBuilder {
                 "  cache note: no project sets share_cache — per-job `kinhin-toolchain install` steps download from scratch every job"
             )
         }
-        lines += await orgPermissionLines(cfg)
+        lines += orgScopeLines(cfg)
         return lines
     }
 
-    /// Org scopes: what the token needs, then an active check — mint (and
-    /// discard) a registration token, the exact call the fleet depends on.
-    private func orgPermissionLines(_ cfg: KinhinConfig) async -> [String] {
+    /// Org scopes: the permissions the token needs. Whether it actually has
+    /// them is `--check-tokens`'s job (the `check NAME` rows), not a hidden network call.
+    private func orgScopeLines(_ cfg: KinhinConfig) -> [String] {
         guard let account = cfg.primaryGitHub, !account.scope.isEmpty, !account.scope.contains("/") else { return [] }
         let org = account.scope
         var lines = ["  scope:      organization '\(org)' — runners serve every repo"]
         lines.append(
             TokenRequirements.github(scope: org).plainText
                 .split(separator: "\n").map { "  \($0)" }.joined(separator: "\n"))
-        do {
-            if let token = try accountLoad(.github, account.name) {
-                lines.append("  org perms:  \(await orgPermissionCheck(token, org, account.instance))")
-            } else {
-                lines.append(
-                    "  org perms:  cannot verify — no token stored (run: kinhin auth set --account \(account.name))")
-            }
-        } catch {
-            lines.append("  org perms:  cannot verify — \(error.localizedDescription)")
-        }
         return lines
     }
 }

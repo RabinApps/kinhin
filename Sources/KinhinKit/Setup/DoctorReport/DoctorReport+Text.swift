@@ -133,6 +133,16 @@ extension DoctorReport {
         for account in auth.accounts {
             row("tok \(account.name)", account.stored ? "stored ✓" : account.detail)
         }
+        if let tokenChecks {
+            for check in tokenChecks {
+                row(
+                    "tok check",
+                    check.ok ? "\(check.account): \(check.message) ✓" : "\(check.account): FAILED ✗ — \(check.message)")
+                if let fix = check.fix { more("fix: \(fix)") }
+            }
+        } else if !auth.accounts.isEmpty {
+            row("tok check", "not checked — run with --check-tokens to verify each token against its forge")
+        }
 
         let cache = toolchainCache
         if cache.usable {

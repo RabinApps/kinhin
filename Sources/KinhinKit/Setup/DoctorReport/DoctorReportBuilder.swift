@@ -41,10 +41,12 @@ public struct DoctorReportBuilder: Sendable {
     /// configured-derived tart images (never prunable) and mark stale index
     /// entries — again, the `image list` read.
     let projectRecords: [ProjectImageRecord]?
-    /// The active org-permission check (mints and discards a registration
-    /// token): takes the stored token and the org scope, returns the verdict
-    /// line. Only the human rendering runs it; tests substitute a fixture.
-    let orgPermissionCheck: @Sendable (String, String, String?) async -> String
+    /// `kinhin doctor --check-tokens`: probe every configured account's token
+    /// against its forge (network). Off by default, so doctor stays offline.
+    public var checkTokens: Bool
+    /// The per-account token probe (`TokenHealthCheck.account` live); tests
+    /// substitute a fixture.
+    let tokenCheck: @Sendable (AccountConfig, String) async -> TokenHealthCheck.Report
 
     public init(
         host: HostResources? = nil,
@@ -65,8 +67,9 @@ public struct DoctorReportBuilder: Sendable {
         osVersion: OperatingSystemVersion? = nil,
         softnetInstalled: Bool? = nil,
         hostKeyMarker: URL? = nil,
-        orgPermissionCheck: @escaping @Sendable (String, String, String?) async -> String = { token, scope, instance in
-            await TokenHealthCheck.github(token: token, scope: scope, instance: instance).message
+        checkTokens: Bool = false,
+        tokenCheck: @escaping @Sendable (AccountConfig, String) async -> TokenHealthCheck.Report = {
+            await TokenHealthCheck.account($0, token: $1)
         },
         fleet: [VMRecord]? = nil,
         projectRecords: [ProjectImageRecord]? = nil
@@ -87,7 +90,8 @@ public struct DoctorReportBuilder: Sendable {
         self.osVersion = osVersion
         self.softnetInstalled = softnetInstalled
         self.hostKeyMarker = hostKeyMarker
-        self.orgPermissionCheck = orgPermissionCheck
+        self.checkTokens = checkTokens
+        self.tokenCheck = tokenCheck
         self.fleet = fleet
         self.projectRecords = projectRecords
     }
@@ -241,216 +245,36 @@ public struct DoctorReportBuilder: Sendable {
 
         let authReport = AuthStatusReporter.report(config: parsed, load: authLoad, loadAccount: sharedAccountLoad)
 
-        // Apple-container section — present only when the config enables it,
-        // with the same image-matching rule the checklist row uses.
-        var containerSection: DoctorReport.ContainerSection?
-        if let cfg = parsed, let container = cfg.container {
-            let resolvedHealth = resolvedContainerHealth ?? .broken("container health was not probed")
-            let state: String
-            let ok: Bool
-            var fix: String?
-            switch resolvedHealth {
-            case .ready:
-                state = "ready"; ok = true; fix = nil
-            case .missing(_, let howToFix):
-                state = "missing"; ok = false; fix = howToFix
-            case .broken(let why):
-                state = "broken"; ok = false; fix = why
-            }
-            let wanted = container.image
-            let imageFound =
-                resolvedContainerImages.map { images in
-                    ImageInventory.section(.container, config: cfg, images: images)
-                        .entries.contains { $0.role == .base && $0.present }
-                } ?? false
-            // A working runtime with a missing image gets the prepare command
-            // — the same advice the human doctor prints for that case.
-            if ok, !imageFound {
-                fix = "kinhin image prepare --container --target \(wanted)"
-            }
-            containerSection = DoctorReport.ContainerSection(
-                state: state, ok: ok, fix: fix, image: wanted, imageFound: imageFound
-            )
-        }
-
-        // Docker section — same presence rule, health mapping, image matching,
-        // and prepare-command advice as the container section above.
-        var dockerSection: DoctorReport.DockerSection?
-        if let cfg = parsed, let docker = cfg.docker {
-            let resolvedHealth = resolvedDockerHealth ?? .broken("docker health was not probed")
-            let state: String
-            let ok: Bool
-            var fix: String?
-            switch resolvedHealth {
-            case .ready:
-                state = "ready"; ok = true; fix = nil
-            case .missing(_, let howToFix):
-                state = "missing"; ok = false; fix = howToFix
-            case .broken(let why):
-                state = "broken"; ok = false; fix = why
-            }
-            let wanted = docker.image
-            let imageFound =
-                resolvedDockerImages.map { images in
-                    ImageInventory.section(.docker, config: cfg, images: images)
-                        .entries.contains { $0.role == .base && $0.present }
-                } ?? false
-            let imageArch = dockerArchitecture
-            let archMismatch = imageFound && (imageArch.map { $0 != docker.platform.dockerArchitecture } ?? false)
-            if ok, !imageFound {
-                fix = "kinhin image prepare --docker --target \(wanted)"
-            } else if ok, archMismatch, let imageArch {
-                fix =
-                    "image is \(imageArch) but docker.platform is \(docker.platform.rawValue): kinhin image prepare --docker --target \(wanted)"
-            }
-            dockerSection = DoctorReport.DockerSection(
-                state: state, ok: ok, fix: fix, image: wanted, imageFound: imageFound,
-                platform: docker.platform.rawValue, imageArchitecture: imageArch,
-                note: docker.platform.isEmulated ? LinuxPlatform.emulationNotice : nil
-            )
-        }
-
-        // Docker availability — always reported, so Diagnostics can say
-        // whether Docker is installed and supported before it's enabled.
-        let facts = HostFacts(
-            resources: resolvedHost, osVersion: osVersion ?? ProcessInfo.processInfo.operatingSystemVersion)
-        let dockerBlocked = HostRequirements.blockingReason(for: .docker, on: facts)
-        let dockerFound: Bool
-        if let dockerInstalled {
-            dockerFound = dockerInstalled
-        } else if let dockerHealth {
-            if case .missing = dockerHealth { dockerFound = false } else { dockerFound = true }
-        } else {
-            dockerFound = InstallableTool.docker.isInstalled
-        }
-        let dockerAvailability = DoctorReport.DockerAvailabilitySection(
-            installed: dockerFound, supported: dockerBlocked == nil, reason: dockerBlocked)
-
-        // Host section — present only when a route targets `host`; the
-        // unisolated warning is always attached.
-        var hostSection: DoctorReport.HostSection?
-        if let parsed, parsed.hostRoutesConfigured {
-            let resolvedHealth = resolvedHostHealth ?? .broken("host health was not probed")
-            let state: String
-            let ok: Bool
-            var fix: String?
-            switch resolvedHealth {
-            case .ready:
-                state = "ready"; ok = true; fix = nil
-            case .missing:
-                state = "missing"; ok = false; fix = "kinhin setup repair host-agent"
-            case .broken(let why):
-                state = "broken"; ok = false; fix = why
-            }
-            hostSection = DoctorReport.HostSection(
-                state: state, ok: ok, fix: fix,
-                routes: (parsed.runtimes?.routes ?? []).filter { $0.runtime == RuntimeID.host.rawValue }.map(\.pattern),
-                warning: "host routes run repo code directly on this Mac with your privileges, unisolated"
-            )
-        }
-
-        // Shared toolchain cache — directory state only (no live mounts
-        // probed; runners mount on demand). The per-ecosystem breakdown
-        // covers the subdirectories the config's toolchains selection uses,
-        // falling back to all top-level directories with content.
+        let containerSection = Self.containerSection(
+            config: parsed, health: resolvedContainerHealth, images: resolvedContainerImages)
+        let dockerSection = Self.dockerSection(
+            config: parsed, health: resolvedDockerHealth, images: resolvedDockerImages,
+            imageArchitecture: dockerArchitecture)
+        let dockerAvailability = dockerAvailabilitySection(host: resolvedHost)
+        let hostSection = Self.hostSection(config: parsed, health: resolvedHostHealth)
+        // Shared toolchain cache — directory state only (no live mounts probed).
         let cacheSection = Self.toolchainCacheSection(config: parsed)
 
-        // The configured tart base image — the same verdict the checklist's
-        // base-image row renders (shared classifier, so they cannot drift).
-        // The local-VM half of the verdict uses the same tart list the
-        // checklist fetched; the fixture (or the live list) may be nil when
-        // tart is unavailable, which leaves known references green.
+        // The local-VM half of the base-image verdict uses the same tart list
+        // the checklist fetched.
         let tartImages =
             tartList.map { ImageInventory.RuntimeImages(tartEntries: $0) }
             ?? detailed.tartImages
-        var tartBaseImageSection: DoctorReport.TartBaseImageSection?
-        if let cfg = parsed, cfg.baseImage != nil {
-            // The checklist's image row already listed tart (and reports a
-            // failed listing): reuse that listing. An unreachable tart just
-            // leaves known references green and unknown ones unknown.
-            let verdict = SetupStatusComputer.baseImageState(cfg: cfg, localImages: tartImages)
-            tartBaseImageSection = DoctorReport.TartBaseImageSection(
-                reference: cfg.baseImage ?? "", state: verdict.state, ok: verdict.ok, fix: verdict.fix,
-                pinned: TartBaseImage.isDigestPinned(cfg.baseImage ?? ""),
-                warning: SetupStatusComputer.baseImageMutabilityNote(cfg.baseImage))
-        }
-
-        // Image disk usage and the prune suggestion — one build of the same
-        // shared sections `kinhin image list` prints, from the listings this
-        // pass already fetched (one probe set, every surface). The totals are
-        // the sections' `totalGB` (runner VMs and bake scratch VMs are dropped
-        // by name); the suggestion is `ImagePrunePlan.plan` itself, so doctor
-        // can never promise a sweep `kinhin image prune` would refuse. The two
-        // store reads are the ones `image list` makes: they classify
-        // derived images, mark stale records, and (with the fleet) keep
-        // in-use images out of the count.
-        var imageTotalGB: [String: Int]?
-        var imagePrune: DoctorReport.ImagePruneSection?
-        if let cfg = parsed {
-            let fleetRecords = fleet ?? FleetStore().all
-            let imageRecords = projectRecords ?? ProjectImageStore().all
-            var sections: [ImageInventory.Section] = []
-            if let tartImages {
-                sections.append(
-                    ImageInventory.section(
-                        .tart, config: cfg, images: tartImages,
-                        fleet: fleetRecords, projectRecords: imageRecords))
-            }
-            if let resolvedContainerImages {
-                sections.append(ImageInventory.section(.container, config: cfg, images: resolvedContainerImages))
-            }
-            if let resolvedDockerImages {
-                sections.append(ImageInventory.section(.docker, config: cfg, images: resolvedDockerImages))
-            }
-            var totals: [String: Int] = [:]
-            for section in sections {
-                if let gb = section.totalGB { totals[section.runtime.rawValue] = gb }
-            }
-            imageTotalGB = totals.isEmpty ? nil : totals
-
-            let plan = ImagePrunePlan.plan(
-                inventory: ImageInventory(sections: sections), config: cfg, fleet: fleetRecords)
-            let prunable = plan.targets.filter(\.present)
-            if !prunable.isEmpty {
-                imagePrune = DoctorReport.ImagePruneSection(
-                    count: prunable.count, reclaimGB: plan.reclaimGB, command: "kinhin image prune")
-            }
-        }
-
-        // Disk pressure — the engine's own pre-spawn guard, computed the
-        // same way (one instance's footprint + the reserve vs free disk),
-        // so doctor warns under exactly the condition that makes the fleet
-        // hold spawns — and the rendered line pairs it with the image
-        // totals, because freeing images is the lever the user has.
-        var diskPressure: DoctorReport.DiskPressureSection?
-        if let cfg = parsed {
-            let primary = Capacity.primaryRuntime(of: cfg)
-            let instanceDisk = ResourceProbe.effectiveDiskPerVMGB(diskGB: cfg.diskGB, runtime: primary.rawValue)
-            if resolvedHost.freeDiskGB < instanceDisk + cfg.reserve.diskGB {
-                diskPressure = DoctorReport.DiskPressureSection(
-                    freeGB: resolvedHost.freeDiskGB, runtime: primary.rawValue,
-                    instanceDiskGB: instanceDisk, reserveGB: cfg.reserve.diskGB)
-            }
-        }
-
-        // Capacity — the same math the human doctor prints, plus job slots.
-        // The disk estimate matches the engine's scaler (explicit disk_gb or
-        // the runtime default), so doctor's cap is the cap the fleet enforces.
-        var capacitySection: DoctorReport.CapacitySection?
-        if let cfg = parsed {
-            let plan = Capacity.plan(for: cfg, host: resolvedHost)
-            capacitySection = DoctorReport.CapacitySection(
-                maxConcurrent: plan.maxConcurrent,
-                bindingConstraint: plan.bindingConstraint,
-                fits: plan.fits,
-                jobSlots: plan.maxConcurrent * max(1, cfg.runnersPerVM)
-            )
-        }
+        let tartBaseImageSection = Self.tartBaseImageSection(config: parsed, tartImages: tartImages)
+        let images = imageSections(
+            config: parsed, tartImages: tartImages, containerImages: resolvedContainerImages,
+            dockerImages: resolvedDockerImages)
+        let diskPressure = Self.diskPressureSection(config: parsed, host: resolvedHost)
+        let capacitySection = Self.capacitySection(config: parsed, host: resolvedHost)
 
         let security = Self.securitySection(
             config: parsed, softnetInstalled: softnetInstalled, tartHealthy: Self.tartSection(from: resolvedTart).ok,
             hostKeyUnpinned: GuestHostKeyPinning.recordedFallback(
                 marker: hostKeyMarker ?? GuestHostKeyPinning.markerURL))
+
+        // Network: only when asked (`--check-tokens`); nil means "not checked".
+        let tokenChecks: [DoctorReport.TokenCheck]? =
+            checkTokens ? await tokenChecks(accounts: parsed?.accounts ?? [], load: sharedAccountLoad) : nil
 
         return DoctorReport(
             host: resolvedHost,
@@ -463,13 +287,15 @@ public struct DoctorReportBuilder: Sendable {
             toolchainCache: cacheSection,
             auth: authReport,
             checks: status.checks,
-            ready: status.ready && authReport.allGood && (security?.ok ?? true),
+            ready: status.ready && authReport.allGood && (security?.ok ?? true)
+                && (tokenChecks?.allSatisfy(\.ok) ?? true),
             capacity: capacitySection,
             tartBaseImage: tartBaseImageSection,
             security: security,
-            imageTotalGB: imageTotalGB,
-            imagePrune: imagePrune,
-            diskPressure: diskPressure
+            imageTotalGB: images.totalGB,
+            imagePrune: images.prune,
+            diskPressure: diskPressure,
+            tokenChecks: tokenChecks
         )
     }
 }

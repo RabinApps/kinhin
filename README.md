@@ -131,7 +131,7 @@ kinhin toolchains prune [--dry-run]
                              Expire stale host-cache entries now
 kinhin toolchains helper [--linux]
                              Print the per-job `kinhin-toolchain` helper present in images
-kinhin workflow test [FILE] [--job NAME] [--list] [--json]
+kinhin workflow test [FILE] [--job NAME] [--list] [--lenient] [--json]
                              Run GitHub Actions workflow scripts on this Mac (host-only); see docs/workflow-testing.md
 kinhin workflow route <FILE|name> <tart|appleContainer|docker|host>
                              Route the workflow's runs-on: to that runtime — edits the workflow (comment-preserving)

@@ -118,9 +118,13 @@ enum CommandCatalog {
             flags: [
                 .bool("--json", "One merged machine-readable diagnostics document"),
                 .optionalValue("--bundle", "FILE", "Write a redacted support bundle to attach to a bug report"),
+                .bool("--check-tokens", "Verify every account's token against its forge (network)"),
                 quietFlag,
             ],
-            details: ["Exits 0 when everything is ready, 1 when something needs attention."]),
+            details: [
+                "Offline by default: tokens are only checked as stored. --check-tokens probes each one.",
+                "Exits 0 when everything is ready, 1 when something needs attention.",
+            ]),
         CommandSpec(
             name: "setup",
             command: .setupRepair,
@@ -448,12 +452,15 @@ enum CommandCatalog {
                     flags: [
                         .value("--job", "NAME", "Run one job (its needs are not run)"),
                         .bool("--list", "Print the jobs and exit"),
+                        .bool("--lenient", "Exit 0 on a partial result (skipped unsupported work)"),
                         jsonFlag,
                     ],
                     details: [
                         "No VM, token or config: the YAML is parsed and jobs run sequentially in `needs` order, "
-                            + "each script step through bash. FILE defaults to the only workflow in "
-                            + ".github/workflows. --json exits 1 when a job failed."
+                            + "each script step through bash directly on this Mac (not isolated). FILE defaults to "
+                            + "the only workflow in .github/workflows.",
+                        "Matrix jobs, other `uses:` actions and unsupported `if:` conditions are skipped and make "
+                            + "the result partial: exit 1 unless --lenient. A failed job always exits 1.",
                     ],
                     docs: "docs/workflow-testing.md"),
                 CommandSpec(

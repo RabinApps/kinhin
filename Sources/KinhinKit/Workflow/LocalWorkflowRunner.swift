@@ -4,6 +4,10 @@ import Foundation
 /// host shell abstraction. Matrix expansion and non-checkout actions are not
 /// supported in this version.
 public actor LocalWorkflowRunner {
+    /// Reported once per run: nothing here is sandboxed.
+    public static let isolationNotice =
+        "steps run directly on this Mac with your privileges (not isolated like a runner VM or container)"
+
     private let shell: ShellRunning
     private let onEvent: @Sendable (LocalRunEvent) -> Void
 
@@ -38,7 +42,7 @@ public actor LocalWorkflowRunner {
         var results: [LocalJobResult] = []
         var jobOutcomes: [String: PipelineStepState] = [:]
         var failedEarlierJob = false
-        var notices: [String] = []
+        var notices: [String] = [Self.isolationNotice]
         if !requestedJobs.isEmpty, let first = byID[requestedJobs[0]], !first.needs.isEmpty {
             notices.append("--job \(first.id) selected; its needs were not run")
             onEvent(.needSkipped(first.id))
@@ -65,6 +69,11 @@ public actor LocalWorkflowRunner {
             jobOutcomes[id] = result.state
             if result.state == .failed || result.state == .cancelled { failedEarlierJob = true }
         }
+        let unsupported = LocalRunReport.unsupportedSkips(in: results)
+        if !unsupported.isEmpty {
+            notices.append(
+                "\(unsupported.count) job/step(s) skipped as unsupported: the result is partial, not a pass")
+        }
         let report = LocalRunReport(
             workflowPath: document.path,
             workflowName: document.name,
@@ -90,9 +99,10 @@ public actor LocalWorkflowRunner {
             onEvent(.jobFinished(job.id, state: .skipped))
             return LocalJobResult(
                 name: job.name, id: job.id, state: .skipped, startedAt: started, finishedAt: Date(), duration: 0,
-                steps: [], notices: jobNotices)
+                steps: [], notices: jobNotices, skippedAsUnsupported: true)
         }
 
+        let expressions = ExpressionEvaluator(root: root)
         var env = baselineEnvironment(root: root, temp: temp)
         env["PATH"] = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
         env.merge(workflow.env) { _, new in new }
@@ -105,13 +115,13 @@ public actor LocalWorkflowRunner {
 
         for step in job.steps {
             try Task.checkCancellation()
-            let condition = evaluate(step.condition, previousFailure: previousFailure)
+            let condition = expressions.evaluate(condition: step.condition, previousFailure: previousFailure)
             guard condition.shouldRun else {
                 let note = condition.notice ?? "condition is not supported; skipped"
                 stepResults.append(
                     LocalStepResult(
                         name: step.name, state: .skipped, startedAt: nil, finishedAt: nil, duration: nil,
-                        notices: [note]))
+                        notices: [note], skippedAsUnsupported: condition.unsupported))
                 onEvent(.stepSkipped(step.name, notice: note))
                 continue
             }
@@ -135,8 +145,10 @@ public actor LocalWorkflowRunner {
                 throw WorkflowError.unsupportedShell(stepShell)
             }
             let script: String
+            // A `uses:` other than checkout is not run; the run is then partial.
+            var unsupportedUse = false
             if let run = step.run {
-                let expanded = expand(run, env: stepEnv, root: root, notices: &stepNotices)
+                let expanded = expressions.expand(run, env: stepEnv, notices: &stepNotices)
                 script = exportPreamble(stepEnv) + expanded
             } else if let uses = step.uses {
                 if uses == "actions/checkout" || uses.hasPrefix("actions/checkout@") {
@@ -146,6 +158,7 @@ public actor LocalWorkflowRunner {
                 } else {
                     let notice = "uses: \(uses) skipped (third-party actions are not supported)"
                     stepNotices.append(notice)
+                    unsupportedUse = true
                     script = ""
                 }
             } else {
@@ -159,7 +172,7 @@ public actor LocalWorkflowRunner {
                 stepResults.append(
                     LocalStepResult(
                         name: step.name, state: state, startedAt: nil, finishedAt: Date(), duration: 0,
-                        notices: stepNotices))
+                        notices: stepNotices, skippedAsUnsupported: unsupportedUse))
                 onEvent(.stepFinished(step.name, state: state))
                 continue
             }
@@ -173,7 +186,7 @@ public actor LocalWorkflowRunner {
             let timeout = TimeInterval(step.timeoutMinutes ?? job.timeoutMinutes ?? 30) * 60
             let command: [String]
             switch stepShell.split(separator: " ").first.map(String.init) ?? stepShell {
-            case "bash": command = ["/bin/bash", "-e", "-s"]
+            case "bash": command = ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-s"]
             case "sh": command = ["/bin/sh", "-e", "-s"]
             case "zsh": command = ["/bin/zsh", "-e", "-s"]
             default: throw WorkflowError.unsupportedShell(stepShell)
@@ -276,55 +289,6 @@ public actor LocalWorkflowRunner {
         guard !text.isEmpty else { return nil }
         if text.count <= 200_000 { return text }
         return String(text.suffix(200_000))
-    }
-
-    private func expand(_ script: String, env: [String: String], root: URL, notices: inout [String]) -> String {
-        var result = script
-        let replacements = [
-            "${{ github.workspace }}": root.path, "${{ runner.os }}": "macOS", "${{ runner.arch }}": "arm64",
-        ]
-        for (expression, value) in replacements { result = result.replacingOccurrences(of: expression, with: value) }
-        let pattern = #"\$\{\{\s*(env|secrets)\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}"#
-        if let regex = try? NSRegularExpression(pattern: pattern) {
-            let ns = result as NSString
-            let matches = regex.matches(in: result, range: NSRange(location: 0, length: ns.length))
-            for match in matches.reversed() {
-                guard match.numberOfRanges == 3 else { continue }
-                let kind = ns.substring(with: match.range(at: 1))
-                let key = ns.substring(with: match.range(at: 2))
-                let replacement: String
-                if kind == "env" {
-                    replacement = env[key] ?? ""
-                } else {
-                    replacement = ""
-                    if !notices.contains("secrets are unavailable locally; \(key) expanded to an empty string") {
-                        notices.append("secrets are unavailable locally; \(key) expanded to an empty string")
-                    }
-                }
-                if let range = Range(match.range, in: result) { result.replaceSubrange(range, with: replacement) }
-            }
-        }
-        if result.contains("${{") { notices.append("unknown expression left literal") }
-        return result
-    }
-
-    private func evaluate(_ raw: String?, previousFailure: Bool) -> (shouldRun: Bool, forceRun: Bool, notice: String?) {
-        guard let raw else { return (true, false, nil) }
-        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "${{", with: "")
-            .replacingOccurrences(of: "}}", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        switch value {
-        case "true": return (true, false, nil)
-        case "success()":
-            return (!previousFailure, false, previousFailure ? "condition success() evaluated false" : nil)
-        case "false": return (false, false, "condition false evaluated; skipped")
-        case "always()": return (true, true, nil)
-        case "failure()": return (previousFailure, true, nil)
-        case "cancelled()": return (false, false, nil)
-        default: return (false, false, "unsupported condition '\(raw)' skipped")
-        }
     }
 
     private func applyEnvironmentFiles(
