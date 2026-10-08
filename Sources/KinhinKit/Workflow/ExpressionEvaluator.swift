@@ -14,6 +14,9 @@ struct ExpressionEvaluator: Sendable {
         /// True for `always()` / `failure()`: run even after an earlier failure.
         let forceRun: Bool
         let notice: String?
+        /// True when the condition is outside the supported subset, so the
+        /// step was skipped without being evaluated (not a deliberate skip).
+        var unsupported = false
     }
 
     /// Expands the supported expressions in `script`: `github.workspace`,
@@ -71,7 +74,8 @@ struct ExpressionEvaluator: Sendable {
         case "failure()": return Condition(shouldRun: previousFailure, forceRun: true, notice: nil)
         case "cancelled()": return Condition(shouldRun: false, forceRun: false, notice: nil)
         default:
-            return Condition(shouldRun: false, forceRun: false, notice: "unsupported condition '\(raw)' skipped")
+            return Condition(
+                shouldRun: false, forceRun: false, notice: "unsupported condition '\(raw)' skipped", unsupported: true)
         }
     }
 }

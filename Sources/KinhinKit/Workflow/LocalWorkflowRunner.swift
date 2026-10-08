@@ -4,6 +4,10 @@ import Foundation
 /// host shell abstraction. Matrix expansion and non-checkout actions are not
 /// supported in this version.
 public actor LocalWorkflowRunner {
+    /// Reported once per run: nothing here is sandboxed.
+    public static let isolationNotice =
+        "steps run directly on this Mac with your privileges (not isolated like a runner VM or container)"
+
     private let shell: ShellRunning
     private let onEvent: @Sendable (LocalRunEvent) -> Void
 
@@ -38,7 +42,7 @@ public actor LocalWorkflowRunner {
         var results: [LocalJobResult] = []
         var jobOutcomes: [String: PipelineStepState] = [:]
         var failedEarlierJob = false
-        var notices: [String] = []
+        var notices: [String] = [Self.isolationNotice]
         if !requestedJobs.isEmpty, let first = byID[requestedJobs[0]], !first.needs.isEmpty {
             notices.append("--job \(first.id) selected; its needs were not run")
             onEvent(.needSkipped(first.id))
@@ -65,6 +69,11 @@ public actor LocalWorkflowRunner {
             jobOutcomes[id] = result.state
             if result.state == .failed || result.state == .cancelled { failedEarlierJob = true }
         }
+        let unsupported = LocalRunReport.unsupportedSkips(in: results)
+        if !unsupported.isEmpty {
+            notices.append(
+                "\(unsupported.count) job/step(s) skipped as unsupported: the result is partial, not a pass")
+        }
         let report = LocalRunReport(
             workflowPath: document.path,
             workflowName: document.name,
@@ -90,7 +99,7 @@ public actor LocalWorkflowRunner {
             onEvent(.jobFinished(job.id, state: .skipped))
             return LocalJobResult(
                 name: job.name, id: job.id, state: .skipped, startedAt: started, finishedAt: Date(), duration: 0,
-                steps: [], notices: jobNotices)
+                steps: [], notices: jobNotices, skippedAsUnsupported: true)
         }
 
         let expressions = ExpressionEvaluator(root: root)
@@ -112,7 +121,7 @@ public actor LocalWorkflowRunner {
                 stepResults.append(
                     LocalStepResult(
                         name: step.name, state: .skipped, startedAt: nil, finishedAt: nil, duration: nil,
-                        notices: [note]))
+                        notices: [note], skippedAsUnsupported: condition.unsupported))
                 onEvent(.stepSkipped(step.name, notice: note))
                 continue
             }
@@ -136,6 +145,8 @@ public actor LocalWorkflowRunner {
                 throw WorkflowError.unsupportedShell(stepShell)
             }
             let script: String
+            // A `uses:` other than checkout is not run; the run is then partial.
+            var unsupportedUse = false
             if let run = step.run {
                 let expanded = expressions.expand(run, env: stepEnv, notices: &stepNotices)
                 script = exportPreamble(stepEnv) + expanded
@@ -147,6 +158,7 @@ public actor LocalWorkflowRunner {
                 } else {
                     let notice = "uses: \(uses) skipped (third-party actions are not supported)"
                     stepNotices.append(notice)
+                    unsupportedUse = true
                     script = ""
                 }
             } else {
@@ -160,7 +172,7 @@ public actor LocalWorkflowRunner {
                 stepResults.append(
                     LocalStepResult(
                         name: step.name, state: state, startedAt: nil, finishedAt: Date(), duration: 0,
-                        notices: stepNotices))
+                        notices: stepNotices, skippedAsUnsupported: unsupportedUse))
                 onEvent(.stepFinished(step.name, state: state))
                 continue
             }

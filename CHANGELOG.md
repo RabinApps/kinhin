@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `kinhin workflow test` no longer reports a pass when it skipped work: matrix jobs, `uses:` actions other than checkout and unsupported `if:` conditions make the result `partial` (new `outcome` and `unsupportedSkips` in `--json`), which exits 1 unless `--lenient` is passed. Each run notes that steps execute directly on this Mac, not isolated.
+
 - `kinhin doctor --check-tokens` probes every configured account's token against its own forge (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket), reports ok/failed per account with the `kinhin auth set` fix, adds `tokenChecks` to `--json` and makes a failed check exit 1. Plain `kinhin doctor` is now fully offline (it no longer mints a GitHub org registration token) and says when tokens were not checked.
 
 - kinhin's own CI runs its docs gates on kinhin: the `docs-lint` job and the VitePress build job use `runs-on: [kinhin-container]` (fork PRs keep the same skip guard as `test`; the Pages deploy job stays on ubuntu-latest), and baked Linux images — Apple container, Docker and tart Linux VMs — now install `git` and `jq` next to the runner agents so `actions/checkout`, `git ls-files` and jq-piping steps work in the container. Existing images gain them after a re-bake: `kinhin image prepare --container` / `--docker`, or `--source <name>` for a tart Linux VM.

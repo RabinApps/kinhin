@@ -15,7 +15,13 @@ kinhin workflow test --json
 
 With no file argument, kinhin uses the only `.yml` or `.yaml` file in `.github/workflows/`. If none exists, or more than one exists, it reports the problem and asks you to provide a file. `--list` shows each job's key, name, step count, and whether it has a matrix. `--job NAME` runs just that job, without its `needs:` jobs. `--json` suppresses progress output and emits the final report as JSON.
 
-Exit codes follow the CLI convention: `0` all jobs succeeded, `1` a workflow run failed, `2` invalid command-line usage, `3` missing/invalid workflow YAML, and `130` cancellation with Ctrl-C.
+Exit codes follow the CLI convention: `0` all jobs succeeded, `1` a job failed or the result is only partial, `2` invalid command-line usage, `3` missing/invalid workflow YAML, and `130` cancellation with Ctrl-C.
+
+### Partial results
+
+Everything the runner cannot execute is skipped with a note: matrix jobs, `uses:` actions other than `actions/checkout`, and `if:` conditions outside the supported set. A run that skipped anything of that kind did not prove what a real runner would, so it is reported as `partial` (in the summary line and as `outcome` in `--json`, with the skipped items under `unsupportedSkips`) and exits `1`, even though every step that did run passed. `--lenient` accepts a partial result and exits `0`; a failed job still exits `1`. Deliberate skips (`if: false`, steps after an earlier failure) do not make a run partial.
+
+Every run also prints a one-line note that steps run directly on this Mac, not isolated.
 
 ## Example
 
@@ -45,11 +51,11 @@ On an Apple Silicon Mac, the step prints `Hello, from macOS (arm64)` and the run
 
 Jobs run sequentially in dependency order. Each `run:` step is sent to a local `bash -e -s` (or supported `sh`/`zsh`) process, rooted at the repository directory. Workflow, job, and step `env:` values and `defaults.run.working-directory`/`shell` are applied. `GITHUB_ENV` and `GITHUB_PATH` are temporary files; simple `KEY=VALUE` environment updates and added path lines affect later steps. Each step's output is captured and included in the final report, bounded to its most recent 200,000 characters.
 
-The runner provides a small local environment: `CI`, `GITHUB_ACTIONS`, `GITHUB_WORKSPACE`, `RUNNER_OS=macOS`, and `RUNNER_ARCH=arm64`. It expands <code v-pre>${{ github.workspace }}</code>, <code v-pre>${{ runner.os }}</code>, <code v-pre>${{ runner.arch }}</code>, <code v-pre>${{ env.NAME }}</code>, and <code v-pre>${{ secrets.NAME }}</code>. Secrets are not available locally and expand to empty strings with a warning. The supported simple conditions are `true`, `false`, `success()`, `failure()`, `always()`, and `cancelled()`; unknown expressions or conditions are noted and skipped rather than evaluated.
+The runner provides a small local environment: `CI`, `GITHUB_ACTIONS`, `GITHUB_WORKSPACE`, `RUNNER_OS=macOS`, and `RUNNER_ARCH=arm64`. It expands <code v-pre>${{ github.workspace }}</code>, <code v-pre>${{ runner.os }}</code>, <code v-pre>${{ runner.arch }}</code>, <code v-pre>${{ env.NAME }}</code>, and <code v-pre>${{ secrets.NAME }}</code>. Secrets are not available locally and expand to empty strings with a warning. The supported simple conditions are `true`, `false`, `success()`, `failure()`, `always()`, and `cancelled()`; unknown expressions or conditions are noted and skipped rather than evaluated (and make the run partial).
 
 ## Deliberate v1 limits
 
-- Matrix jobs are skipped; matrix values are not expanded.
+- Matrix jobs are skipped; matrix values are not expanded. Job-level `if:`, `container:` and `services:` are not read.
 - `actions/checkout` is a no-op because the working tree is already present. Other `uses:` actions are skipped; third-party actions are not downloaded or executed.
 - `GITHUB_ENV` accepts plain `NAME=value` lines; the multiline delimiter form is not supported.
 - This runs scripts directly on your Mac, without a VM or container. Only test repositories and scripts you trust. Do not expect the result to exactly match GitHub's hosted runner image or security boundary.
