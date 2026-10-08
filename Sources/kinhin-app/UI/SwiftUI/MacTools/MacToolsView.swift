@@ -19,9 +19,9 @@ struct MacToolsView: View {
         .sheet(item: $model.installOffer) { offer in
             InstallConfirmationSheet(
                 offer: offer,
-                onConfirm: { model.confirmInstall($0) },
-                onCopy: { model.copyInstallCommand($0) },
-                onCancel: { model.cancelInstall() }
+                onConfirm: { model.installs.confirmInstall($0) },
+                onCopy: { model.installs.copyInstallCommand($0) },
+                onCancel: { model.installs.cancelInstall() }
             )
         }
         .sheet(item: $model.linuxSetupOffer) { offer in
@@ -30,9 +30,9 @@ struct MacToolsView: View {
         .sheet(item: $model.missingBrewOffer) { offer in
             MissingBrewSheet(
                 offer: offer,
-                onGetBrew: { model.openBrewSite() },
-                onDownload: { model.downloadManually() },
-                onCancel: { model.cancelMissingBrew() }
+                onGetBrew: { model.installs.openBrewSite() },
+                onDownload: { model.installs.downloadManually() },
+                onCancel: { model.installs.cancelMissingBrew() }
             )
         }
     }
@@ -55,6 +55,10 @@ struct MacToolsView: View {
             ) {
                 model.prepareImage()
             }
+            if !model.imagePresent && !model.tartLinuxOn {
+                HintText(ImagePrepCost.notice)
+                    .accessibilityIdentifier("mac-image-prep-cost")
+            }
             if model.tartLinuxOn {
                 HintText(
                     "tart is serving Linux jobs — its base image is chosen under Linux jobs below. Add a macOS "
@@ -65,7 +69,7 @@ struct MacToolsView: View {
             if model.offersNamedImages { moreImagesSection }
             if model.busy || !model.busyLine.text.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
-                    if model.busy { ProgressView().controlSize(.small) }
+                    if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
                     StatusText(text: model.busyLine.text, style: model.busyLine.style)
                         .textSelection(.enabled)
                     if model.busy {
@@ -90,7 +94,7 @@ struct MacToolsView: View {
             HintText(
                 "Extra prepared images, such as one on an Xcode base or a Linux base. Each has its own base and is rebuilt separately. A Linux-named image strips the fleet's `macos` label automatically."
             )
-            ForEach(model.extraImages) { row in
+            ForEach(model.namedImages.rows) { row in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
                         Text(row.name).font(.system(size: 12, design: .monospaced))
@@ -99,23 +103,24 @@ struct MacToolsView: View {
                             style: row.present ? .secondary : .warn)
                         Spacer(minLength: 0)
                         smallButton(row.present ? "Rebuild…" : "Prepare", id: "mac-image-prepare-\(row.name)") {
-                            model.prepareNamedImage(row.name)
+                            model.namedImages.prepare(row.name)
                         }
-                        smallButton("Remove", id: "mac-image-remove-\(row.name)") { model.removeImage(row.name) }
+                        smallButton("Remove", id: "mac-image-remove-\(row.name)") { model.namedImages.remove(row.name) }
                     }
                     HStack(spacing: 8) {
                         Text("Run jobs with labels").font(.system(size: 11)).foregroundStyle(
                             StatusStyle.secondary.color)
                         Spacer(minLength: 0)
                         ImageLabelsField(
-                            labels: row.labels, id: row.name, commit: { model.setImageLabels($0, for: row.name) })
+                            labels: row.labels, id: row.name, commit: { model.namedImages.setLabels($0, for: row.name) }
+                        )
                     }
                     HStack(spacing: 8) {
                         Text("Base image").font(.system(size: 11)).foregroundStyle(StatusStyle.secondary.color)
                         Spacer(minLength: 0)
                         BaseImagePicker(
                             value: row.baseImage,
-                            onChange: { model.setImageBase($0, for: row.name) },
+                            onChange: { model.namedImages.setBase($0, for: row.name) },
                             catalog: .tartVM,
                             pinDigest: { reference in await BaseImageChoice.pin(reference, in: .tartVM) }
                         )
@@ -136,7 +141,7 @@ struct MacToolsView: View {
                 .fixedSize()
                 Spacer(minLength: 0)
                 smallButton("Add image", id: "mac-image-add") {
-                    model.addImage(name: newImageName, baseImage: newImageBase)
+                    model.namedImages.add(name: newImageName, baseImage: newImageBase)
                     newImageName = ""
                 }
                 .disabled(model.busy || newImageName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -165,7 +170,8 @@ struct MacToolsView: View {
                 "Apple container", on: model.containerOn, toggleID: "mac-container-toggle",
                 setOn: { model.setContainer($0) }, line: model.containerLine,
                 installVisible: model.containerInstallVisible, installTitle: model.containerInstallTitle,
-                installID: "mac-install-container", install: { model.installContainer() })
+                installID: "mac-install-container", maturity: MaturityTable.maturity(of: .appleContainer),
+                install: { model.installContainer() })
             if model.containerOn {
                 baseImageRow(value: model.containerBaseImage, runtime: .appleContainer)
                 buildImageRow(.appleContainer)
@@ -174,7 +180,8 @@ struct MacToolsView: View {
                 "Docker", on: model.dockerOn, toggleID: "mac-docker-toggle",
                 setOn: { model.setDocker($0) }, line: model.dockerLine,
                 installVisible: model.dockerInstallVisible, installTitle: "Install…",
-                installID: "mac-install-docker", install: { model.installDocker() })
+                installID: "mac-install-docker", maturity: MaturityTable.maturity(of: .docker),
+                install: { model.installDocker() })
             if model.dockerOn {
                 baseImageRow(value: model.dockerBaseImage, runtime: .docker)
                 buildImageRow(.docker)
@@ -220,7 +227,7 @@ struct MacToolsView: View {
     private func runtimeRow(
         _ title: String, on: Bool, toggleID: String, setOn: @escaping @MainActor (Bool) -> Void,
         line: StatusLine, installVisible: Bool, installTitle: String, installID: String,
-        install: @escaping () -> Void
+        maturity: Maturity = .liveTested, install: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 8) {
             // Binding's setter is @Sendable; the toggle only ever fires on the
@@ -235,6 +242,7 @@ struct MacToolsView: View {
             .toggleStyle(.checkbox)
             .font(.system(size: 12))
             .accessibilityIdentifier(toggleID)
+            MaturityBadge(maturity)
             StatusText(text: line.text, style: line.style)
             Spacer(minLength: 0)
             if installVisible { smallButton(installTitle, id: installID, action: install) }
@@ -256,6 +264,7 @@ struct MacToolsView: View {
             .font(.system(size: 12))
             .disabled(!model.tartInstalled)
             .accessibilityIdentifier("mac-tart-linux-toggle")
+            MaturityBadge(MaturityTable.tartLinux)
             StatusText(text: model.tartLine.text, style: model.tartLine.style)
             Spacer(minLength: 0)
             if model.tartInstallVisible {

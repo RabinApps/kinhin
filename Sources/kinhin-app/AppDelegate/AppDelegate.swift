@@ -116,18 +116,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.info("app", "first run: wrote starter config at \(Paths.config.path)")
         }
         // Attach to daemon when one is running; otherwise run the engine in-process.
-        let daemonAlive = await Task.detached { RPCClient.isDaemonAlive() }.value
+        let daemonBackend = await FleetBackend.attachToDaemon()
         // A broken config stays a broken config for the wizard to surface;
         // loading it here is only a fast-path gate for "skip onboarding".
         let loadedConfig: KinhinConfig? =
-            daemonAlive
+            daemonBackend != nil
             ? nil
             : await Task.detached { () -> KinhinConfig? in
                 guard FileManager.default.fileExists(atPath: Paths.config.path) else { return nil }
                 return try? ConfigLoader.load()
             }.value
-        if daemonAlive {
-            fleet.backend = .daemon(RPCClient())
+        if let daemonBackend {
+            fleet.backend = daemonBackend
             setupIncomplete = false
             Log.info("app", "attaching to running daemon")
         } else if let cfg = loadedConfig,

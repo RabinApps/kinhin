@@ -34,6 +34,9 @@ enum DoctorCommand {
             return
         }
         let quiet = args.contains("--quiet") || args.contains("-q")
+        var builder = builder
+        // Network probe of every account's token; doctor is offline without it.
+        if args.contains("--check-tokens") { builder.checkTokens = true }
         let ready: Bool
         if quiet {
             ready = await builder.build().ready

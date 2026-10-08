@@ -1,48 +1,37 @@
 import Foundation
 import Synchronization
 
-// MARK: - Routing state
-
-/// The live routing model and its per-runtime caps, swapped together on reload.
-struct RoutingState: Sendable {
-    var model: RuntimeConfigModel
-    var caps: [RuntimeID: Int]
-}
-
-/// Attached forges by account name, plus the bookkeeping that changes with
-/// them.
-struct ScaleSetAdminToken: Sendable {
-    let token: String
-    let actionsURL: URL
-    let expiresAt: Date
-    let sourceToken: String
-}
-
-struct ForgeState: Sendable {
-    var byPlatform: [String: Forge] = [:]
-    /// Actions-service JWTs exchanged from account PAT registration tokens.
-    var scaleSetAdminTokens: [String: ScaleSetAdminToken] = [:]
-    /// Registration-token caches, one per account (created on first use).
-    var accountRegistrationTokens: [String: RegistrationTokenCache] = [:]
-    /// Scale-set message listeners attached to running accounts.
-    var scaleSetListeners: [String: [GitHubScaleSetListener]] = [:]
-    /// Retry schedule for forges that failed at startup (FleetForgeRetry.swift).
-    var retry = ForgeRetryState()
-}
-
-/// The engine's serving flags, read by the reconcile loop and forge retry.
-struct RunState: Sendable {
-    var running = false
-    var paused = false
-    /// The reconcile loop should run its next pass now (`pollSoon()`).
-    var pollNow = false
-}
-
 // MARK: - Engine
 
 /// Every mutable field is either a `Mutex` box (checked `Sendable`) or an
 /// immutable collaborator, so the conformance is verified by the compiler
 /// rather than asserted.
+///
+/// ## Locks
+///
+/// The engine's mutable state sits behind these independent locks:
+///
+/// | lock              | guards                                                           |
+/// | ----------------- | ---------------------------------------------------------------- |
+/// | `runState`        | running / paused / "poll now" flags                              |
+/// | `forgeState`      | attached forges, scale-set listeners and tokens, retry schedule |
+/// | `router`          | routing model, caps, images, projects, fleet labels (one snapshot) |
+/// | `lifecycleTasks`  | one lifecycle task per instance id                               |
+/// | `deletes`         | in-flight deletes and their background tasks                     |
+/// | `spawnBackoff`    | per-runtime failure counters and holds                           |
+/// | `orphanState`     | first-seen times of instances without a record                   |
+/// | `_reconcileTask`, `_cachePruneTask` | the two loop task handles                      |
+///
+/// plus `FleetStore`'s own record lock and `statusBox`, an actor.
+///
+/// **Order.** Every one of these is a *leaf*: it is held only to read or write
+/// its fields, never across an `await`, a callback into other code, or the
+/// acquisition of another lock. Code copies what it needs out of the lock and
+/// works on the copy (take `router.snapshot` once per decision). The only
+/// nesting in the engine is inside `FleetStore` (its write lock, then its
+/// record lock). If a change ever has to hold two engine locks, take them in
+/// the table's order, top to bottom, and never touch `statusBox` while holding
+/// any of them (awaiting an actor under a `Mutex` is not allowed anyway).
 public final class FleetEngine: Sendable {
     let config: KinhinConfig
     let tart: TartControlling
@@ -66,7 +55,6 @@ public final class FleetEngine: Sendable {
     /// How long `detachKeepingInstances()` waits for cancelled lifecycle
     /// tasks before handing the fleet over anyway.
     let lifecycleDrainTimeout: Duration
-    let spawnStagger: Duration
     /// How often the ephemeral exit watch polls the instance (default 1s).
     let exitWatchInterval: Duration
     /// Shared runner lists for the exit watchers (see `RunnerDirectory`).
@@ -95,9 +83,12 @@ public final class FleetEngine: Sendable {
     }
     /// One lifecycle task per VM id (removed by the task itself on finish).
     let lifecycleTasks = Mutex<[String: Task<Void, Never>]>([:])
-    /// Instances a `deleteVMRecord` is currently tearing down, so the retry
-    /// sweep for stuck `.deleting` records never races an in-flight delete.
-    let deletesInFlight = Mutex<Set<String>>([])
+    /// Deletes in progress: which instances a `deleteVMRecord` is tearing down (so the retry
+    /// sweep for stuck `.deleting` records never races one) and the background task of each
+    /// delete the reconcile pass started (see `scheduleDelete`).
+    let deletes = Mutex(DeleteState())
+    /// Spaces out the starts of new instances (see `SpawnPacer`).
+    let spawnPacer: SpawnPacer
 
     /// Whether the fleet is serving and whether it is paused — the single
     /// source of truth (`status()` reads it on every call).
@@ -112,22 +103,22 @@ public final class FleetEngine: Sendable {
     /// recovery dispatch through this map — no per-runtime branches in the
     /// engine. Fixed per engine (config changes rebuild it via the daemon).
     let runtimesByRuntime: [RuntimeID: any Runtime]
-    /// Routing model: label pools + per-repo/per-workflow routes, and the
-    /// per-runtime caps. Reloaded live by applyReloaded(config:), so a
-    /// running fleet picks up route changes without a restart. Read through
-    /// `routing` and `capsByRuntime`, which take the lock.
-    let routingState: Mutex<RoutingState>
+    /// Routing model, caps, named images, project rules and fleet labels as
+    /// one atomic snapshot, reloaded live by `applyReloaded(config:)` so a
+    /// running fleet picks up route changes without a restart. Take
+    /// `router.snapshot` once per decision; the single-field accessors below
+    /// are for call sites that need only one part.
+    let router: Router
     /// Runtimes whose instances keep failing to register are held back (see `SpawnBackoff`).
     let spawnBackoff = Mutex(SpawnBackoff())
-    var routing: RuntimeConfigModel { routingState.withLock { $0.model } }
-    var capsByRuntime: [RuntimeID: Int] { routingState.withLock { $0.caps } }
-    /// Per-project toolchains: the `projects:` rules (hot-reloaded), the
-    /// repo-file reader, and the builder of derived per-project images.
-    let projectsState: Mutex<[KinhinConfig.ProjectConfig]>
-    /// The named `images:` entries (hot-reloaded): which labels route a job
-    /// to which image, and the labels a cloned instance advertises.
-    let imagesState: Mutex<[KinhinConfig.ImageConfig]>
-    var images: [KinhinConfig.ImageConfig] { imagesState.withLock { $0 } }
+    var routing: RuntimeConfigModel { router.snapshot.model }
+    var capsByRuntime: [RuntimeID: Int] { router.snapshot.caps }
+    var images: [KinhinConfig.ImageConfig] { router.snapshot.images }
+    /// The fleet labels as of the latest reload (`config.labels` is the
+    /// construction-time value and goes stale).
+    var fleetLabels: [String] { router.snapshot.labels }
+    /// Per-project toolchains: the repo-file reader and the builder of derived
+    /// per-project images (the `projects:` rules live in `router`).
     let projectSource = ProjectToolchainSource()
     let projectStore: ProjectImageStore
     let projectImages: ProjectImageBuilder
@@ -151,7 +142,7 @@ public final class FleetEngine: Sendable {
         self.tokenLoader = dependencies.tokenLoader
         self.hostProbe = dependencies.hostProbe ?? { [host] in host }
         self.lifecycleDrainTimeout = dependencies.lifecycleDrainTimeout
-        self.spawnStagger = dependencies.spawnStagger
+        self.spawnPacer = SpawnPacer(interval: dependencies.spawnStagger)
         self.exitWatchInterval = dependencies.exitWatchInterval
         self.watchdog = dependencies.watchdog
         self.runnerDirectory = RunnerDirectory(ttl: dependencies.runnerCacheTTL ?? dependencies.exitWatchInterval * 5)
@@ -195,8 +186,6 @@ public final class FleetEngine: Sendable {
         self.store = store
         self.ssh = ssh
         self.statusBox = FleetStatusBox()
-        self.projectsState = Mutex(config.projects)
-        self.imagesState = Mutex(config.images)
         let projectStore = dependencies.projectImageStore ?? ProjectImageStore()
         self.projectStore = projectStore
         self.projectImages = ProjectImageBuilder(
@@ -204,20 +193,7 @@ public final class FleetEngine: Sendable {
         // The primary runtime's cap; its disk estimate also feeds the
         // pre-spawn disk guard and `kinhin doctor`.
         self.capacity = Capacity.plan(for: config, host: host)
-        let routing = RuntimeConfigModel(
-            config: config.runtimes,
-            fleetLabels: config.labels,
-            containerLabels: config.container?.labels,
-            containerConfigured: config.container != nil,
-            dockerConfigured: config.docker != nil,
-            dockerPlatform: config.docker?.platform ?? .arm64,
-            hostConfigured: config.hostRoutesConfigured
-        )
-
-        // Mixed fleets partition the usable host budget between runtimes;
-        // single-pool fleets keep the fleet cap (no per-runtime caps).
-        let caps = RuntimeCapacity.caps(for: config, host: host)
-        self.routingState = Mutex(RoutingState(model: routing, caps: caps))
+        self.router = Router(Router.Snapshot.make(config: config, host: host))
     }
 
     /// Convenience initializer matching the production wiring: GitHub

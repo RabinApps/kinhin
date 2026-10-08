@@ -51,7 +51,7 @@ Run these in order, stopping to fix any failure before the next step:
    `~/Library/Application Support/Kinhin/config.yaml`.
 2. Edit `accounts:` and `labels` (use the `kinhin-configure` skill), then `kinhin config validate`.
 3. `kinhin auth set` stores the token in the Keychain. Never put tokens in the config or on the command line if you
-   can avoid it. `--token X` works but prints a warning.
+   can avoid it. `--token-stdin` reads it from stdin; `--token X` still works but prints a warning.
 4. `kinhin doctor` checks Tart, disk, the token and the capacity cap.
 5. `kinhin image prepare` builds the base image. It runs once, is slow and uses roughly 40 to 60 GB.
 6. `kinhin start` runs in the foreground. `kinhin daemon install` installs a LaunchAgent that survives reboots.

@@ -10,6 +10,7 @@ extension AppDelegate {
     func installStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.title = "○"
+        item.button?.setAccessibilityLabel("kinhin, not running")
         let m = buildMenu()
         menu = m
         item.menu = m
@@ -30,7 +31,15 @@ extension AppDelegate {
         statusLine.isEnabled = false
         statusLine.identifier = NSUserInterfaceItemIdentifier("statusLine")
 
-        m.addItem(.separator())
+        // The VM rows sit directly under the status line (extra status lines
+        // land between the two). `rebuildVMSection` owns everything between
+        // the header and the end marker.
+        let vmHeader = m.addItem(withTitle: "VMs", action: nil, keyEquivalent: "")
+        vmHeader.isEnabled = false
+        vmHeader.identifier = NSUserInterfaceItemIdentifier("vmSectionStart")
+        let vmEnd = NSMenuItem.separator()
+        vmEnd.identifier = NSUserInterfaceItemIdentifier("vmSectionEnd")
+        m.addItem(vmEnd)
 
         // Opens the main window (the launch-mode setting decides whether it
         // also opens at launch). Always present: in menu-bar-only mode this
@@ -52,8 +61,7 @@ extension AppDelegate {
         for (title, action, key, id) in [
             ("Start Fleet", #selector(startFleet), "s", "startFleet"),
             ("Stop Fleet", #selector(stopFleet), "k", "stopFleet"),
-            ("Pause", #selector(pauseFleet), "p", "pauseFleet"),
-            ("Resume", #selector(resumeFleet), "r", "resumeFleet"),
+            ("Pause", #selector(togglePauseFleet), "p", "pauseResumeFleet"),
         ] as [(String, Selector, String, String)] {
             let item = m.addItem(withTitle: title, action: action, keyEquivalent: key)
             item.keyEquivalentModifierMask = [.command]
@@ -78,13 +86,9 @@ extension AppDelegate {
             withTitle: "Support kinhin…", action: #selector(openSupportPage), keyEquivalent: "")
         supportItem.target = self
         supportItem.identifier = NSUserInterfaceItemIdentifier("supportKinhin")
-        m.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q").target = self
 
-        // Placeholder VM section refreshed dynamically.
         m.addItem(.separator())
-        let vmHeader = m.addItem(withTitle: "VMs", action: nil, keyEquivalent: "")
-        vmHeader.isEnabled = false
-        vmHeader.identifier = NSUserInterfaceItemIdentifier("vmSectionStart")
+        m.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q").target = self
 
         return m
     }
@@ -125,8 +129,11 @@ extension AppDelegate {
             switch item.identifier?.rawValue {
             case "startFleet": item.isHidden = !visibility.start
             case "stopFleet": item.isHidden = !visibility.stop
-            case "pauseFleet": item.isHidden = !visibility.pause
-            case "resumeFleet": item.isHidden = !visibility.resume
+            case "pauseResumeFleet":
+                // One toggle: Pause while running, Resume while paused, gone when stopped.
+                item.isHidden = !(visibility.pause || visibility.resume)
+                item.title = visibility.resume ? "Resume" : "Pause"
+                item.keyEquivalent = visibility.resume ? "r" : "p"
             default: break
             }
         }
@@ -164,6 +171,8 @@ extension AppDelegate {
             let title: String
         }
         var itemTitle: String
+        /// What VoiceOver says for the status item ("kinhin, 2 runners, paused").
+        var accessibilityLabel: String
         var statusText: String
         var visibility: FleetControlVisibility
         var setupVisible: Bool
@@ -175,10 +184,29 @@ extension AppDelegate {
         let pending = fleet.pendingFleetAction
         return MenuViewState(
             itemTitle: statusItemTitle(pending: pending, status: status),
+            accessibilityLabel: Self.statusItemAccessibilityLabel(pending: pending, status: status),
             statusText: statusLineText(pending: pending, status: status),
             visibility: FleetControlVisibility(status: status),
             setupVisible: setupIncomplete,
             rows: (status?.records ?? []).map { MenuViewState.VMRow(id: $0.id, title: Self.menuRowTitle(for: $0)) })
+    }
+
+    /// The status item's accessibility label: the glyph title ("○ 2") reads as
+    /// "white circle 2", so say it in words, e.g. "kinhin, 2 runners, paused".
+    static func statusItemAccessibilityLabel(pending: FleetAction?, status: FleetStatus?) -> String {
+        if let pending {
+            switch pending {
+            case .start: return "kinhin, starting"
+            case .stop: return "kinhin, stopping"
+            case .requeueQueuedJobs, .skipQueuedJobs: return "kinhin, updating the queue"
+            }
+        }
+        guard let status, status.running else { return "kinhin, not running" }
+        var parts = ["kinhin"]
+        let n = status.activeCount
+        parts.append("\(n) runner\(n == 1 ? "" : "s")")
+        if status.paused { parts.append("paused") }
+        return parts.joined(separator: ", ")
     }
 
     static func menuRowTitle(for record: VMRecord) -> String {
@@ -202,6 +230,7 @@ extension AppDelegate {
         applyFleetControlVisibility(to: menu, status: status)
         applySetupItemVisibility(to: menu)
         statusItem?.button?.title = state.itemTitle
+        statusItem?.button?.setAccessibilityLabel(state.accessibilityLabel)
         renderStatusLines(state.statusText)
         rebuildVMSection(status: status)
     }
@@ -226,28 +255,31 @@ extension AppDelegate {
         }
     }
 
-    /// Rebuilds the dynamic VM rows between the "VMs" header and the trailing
-    /// separator. Internal (not private) so tests can drive the rebuild
-    /// against a real menu. Idempotent: stale rows are removed first.
+    /// Rebuilds the dynamic VM rows between the "VMs" header and the end
+    /// marker. Internal (not private) so tests can drive the rebuild against a
+    /// real menu. Idempotent: stale rows are removed first.
     func rebuildVMSection(status: FleetStatus?) {
         guard let menu else { return }
-        // Remove everything between the "VMs" header and the trailing separator.
         guard let startIdx = menu.items.firstIndex(where: { $0.identifier?.rawValue == "vmSectionStart" }) else {
             return
         }
-        while menu.items.count > startIdx + 1 {
+        while startIdx + 1 < menu.items.count, menu.items[startIdx + 1].identifier?.rawValue != "vmSectionEnd" {
             menu.removeItem(at: startIdx + 1)
         }
+        var next = startIdx + 1
         guard let status, !status.records.isEmpty else {
-            let none = menu.addItem(withTitle: "  (no VMs)", action: nil, keyEquivalent: "")
+            let none = NSMenuItem(title: "  (no VMs)", action: nil, keyEquivalent: "")
             none.isEnabled = false
+            menu.insertItem(none, at: next)
             return
         }
         for record in status.records {
-            let item = menu.addItem(
-                withTitle: Self.menuRowTitle(for: record), action: #selector(deleteVM(_:)), keyEquivalent: "")
+            let item = NSMenuItem(
+                title: Self.menuRowTitle(for: record), action: #selector(deleteVM(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = record.id
+            menu.insertItem(item, at: next)
+            next += 1
         }
     }
 }

@@ -51,7 +51,7 @@ final class DoctorSecuritySectionTests: XCTestCase {
         ).build()
         XCTAssertFalse(reads.withLock { $0 }.isEmpty, "the accounts were read")
         XCTAssertTrue(reads.withLock { $0 }.values.allSatisfy { $0 == 1 }, "\(reads.withLock { $0 })")
-        XCTAssertEqual(report.docker?.state, "ready")
+        XCTAssertEqual(report.docker?.state, .ready)
         XCTAssertEqual(report.docker?.imageFound, true)
         XCTAssertEqual(report.checks.first { $0.id == "docker-image" }?.ok, true)
     }

@@ -1,13 +1,14 @@
 import Foundation
 import KinhinKit
 
-/// `kinhin workflow test [FILE] [--job NAME] [--list] [--json]`.
+/// `kinhin workflow test [FILE] [--job NAME] [--list] [--lenient] [--json]`.
 enum WorkflowTestCommand {
     struct Options: Sendable {
         var file: URL?
         var job: String?
         var list = false
         var json = false
+        var lenient = false
     }
 
     @MainActor
@@ -26,6 +27,7 @@ enum WorkflowTestCommand {
         }
 
         let root = workingDirectory(for: file)
+        if !options.json { printError("note: \(LocalWorkflowRunner.isolationNotice)") }
         let runner = LocalWorkflowRunner(shell: Shell()) { event in
             guard !options.json else { return }
             switch event {
@@ -55,11 +57,27 @@ enum WorkflowTestCommand {
         if options.json {
             try emitJSON(report, dates: .iso8601)
         } else {
-            print(
-                "summary: \(PipelineFormatter.label(for: report.overallState).lowercased()) · \(report.jobs.count) job(s)"
-            )
+            print(summaryLine(for: report))
+            for skipped in report.unsupportedSkips { printError("  unsupported: \(skipped)") }
+            if report.outcome == .partial {
+                printError(
+                    options.lenient
+                        ? "  partial result accepted (--lenient)"
+                        : "  partial result is not a pass: exit 1 (pass --lenient to accept skipped work)")
+            }
         }
-        if report.exitCode != 0 { exit(report.exitCode) }
+        let code = report.exitCode(lenient: options.lenient)
+        if code != 0 { exit(code) }
+    }
+
+    /// "summary: partial · 3 job(s) · 2 skipped as unsupported".
+    static func summaryLine(for report: LocalRunReport) -> String {
+        let label =
+            report.outcome == .partial ? "partial" : PipelineFormatter.label(for: report.overallState).lowercased()
+        var line = "summary: \(label) · \(report.jobs.count) job(s)"
+        let unsupported = report.unsupportedSkips.count
+        if unsupported > 0 { line += " · \(unsupported) skipped as unsupported" }
+        return line
     }
 
     static func parse(_ args: [String]) throws -> Options {
@@ -70,6 +88,7 @@ enum WorkflowTestCommand {
             switch value {
             case "--list": result.list = true
             case "--json": result.json = true
+            case "--lenient": result.lenient = true
             case "--job":
                 index += 1
                 guard index < args.count, !args[index].hasPrefix("-") else {
@@ -109,10 +128,12 @@ enum WorkflowTestCommand {
     }
 
     private static let help = """
-        usage: kinhin workflow test [FILE] [--job NAME] [--list] [--json]
+        usage: kinhin workflow test [FILE] [--job NAME] [--list] [--lenient] [--json]
 
         Run GitHub Actions workflow scripts on this Mac. No VM, daemon, token or config is used.
         FILE defaults to the only workflow in .github/workflows; --job runs one job without its needs.
         --list prints jobs. --json prints the final report instead of step output.
+        Matrix jobs, other `uses:` actions and unsupported `if:` conditions are skipped; the result is then
+        "partial" and exits 1. --lenient accepts a partial result (exit 0); a failed job still exits 1.
         """
 }

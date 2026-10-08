@@ -18,10 +18,12 @@ final class MenuRenderSkipTests: XCTestCase {
     }
 
     private func vmRowItems() -> [NSMenuItem] {
-        guard let start = menu.items.firstIndex(where: { $0.identifier?.rawValue == "vmSectionStart" }) else {
+        guard let start = menu.items.firstIndex(where: { $0.identifier?.rawValue == "vmSectionStart" }),
+            let end = menu.items.firstIndex(where: { $0.identifier?.rawValue == "vmSectionEnd" })
+        else {
             return []
         }
-        return Array(menu.items.dropFirst(start + 1))
+        return Array(menu.items[(start + 1)..<end])
     }
 
     func testAnUnchangedStateRendersNothing() {

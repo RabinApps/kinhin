@@ -170,21 +170,21 @@ extension MCPTool {
         description:
             "Hold the fleet: stop scaling while queued jobs wait (same as `kinhin pause`). Needs a running daemon.",
         inputSchema: InputSchema(),
-        run: { _ in try mcpEncode(MCPMessage(message: RunCommands.control(.pause))) }
+        run: { _ in try mcpEncode(MCPMessage(message: try await RunCommands.control(.pause))) }
     )
 
     static let resume = MCPTool(
         name: "resume",
         description: "Let the fleet scale again (same as `kinhin resume`). Needs a running daemon.",
         inputSchema: InputSchema(),
-        run: { _ in try mcpEncode(MCPMessage(message: RunCommands.control(.resume))) }
+        run: { _ in try mcpEncode(MCPMessage(message: try await RunCommands.control(.resume))) }
     )
 
     static let stop = MCPTool(
         name: "stop",
         description: "Stop the daemon's fleet (same as `kinhin stop`). Stops scaling; it does not reset anything.",
         inputSchema: InputSchema(),
-        run: { _ in try mcpEncode(MCPMessage(message: RunCommands.control(.stop))) }
+        run: { _ in try mcpEncode(MCPMessage(message: try await RunCommands.control(.stop))) }
     )
 
     static let daemonInstall = MCPTool(

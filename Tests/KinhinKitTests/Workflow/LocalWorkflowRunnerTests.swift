@@ -126,6 +126,141 @@ final class LocalWorkflowRunnerTests: XCTestCase {
         XCTAssertEqual(shell.calls.count, 0)
     }
 
+    // MARK: - Partial results
+
+    private func run(_ yaml: String, responses: [ShellResult] = []) async throws -> LocalRunReport {
+        let shell = FakeShell()
+        shell.responses = responses
+        return try await LocalWorkflowRunner(shell: shell).run(
+            document: try document(yaml), workingDirectory: URL(fileURLWithPath: "/repo"))
+    }
+
+    func testBashStepsRunWithGitHubsFlags() async throws {
+        let shell = FakeShell()
+        _ = try await LocalWorkflowRunner(shell: shell).run(
+            document: try document("jobs:\n  a:\n    steps:\n      - run: echo hi\n"),
+            workingDirectory: URL(fileURLWithPath: "/repo"))
+        XCTAssertEqual(
+            Array(shell.calls[0].prefix(7)),
+            ["/bin/bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-s"])
+    }
+
+    /// pipefail needs a real shell: `false | cat` must fail the step, as it
+    /// does on GitHub, and a profile/rc file must not leak into the run.
+    func testAFailingPipelineStageFailsTheStep() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("workflow-pipefail-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let report = try await LocalWorkflowRunner(shell: Shell()).run(
+            document: try document("jobs:\n  a:\n    steps:\n      - run: false | cat\n"), workingDirectory: root)
+        XCTAssertEqual(report.outcome, .failed)
+    }
+
+    func testCleanRunIsSucceededAndExitsZeroEvenWithoutLenient() async throws {
+        let report = try await run("jobs:\n  a:\n    steps:\n      - run: echo hi\n")
+        XCTAssertEqual(report.outcome, .succeeded)
+        XCTAssertEqual(report.unsupportedSkips, [])
+        XCTAssertEqual(report.exitCode(), 0)
+    }
+
+    func testThirdPartyActionMakesTheRunPartialNotASuccess() async throws {
+        let report = try await run(
+            """
+            jobs:
+              a:
+                steps:
+                  - uses: actions/checkout@v4
+                  - uses: acme/deploy@v1
+                  - run: echo hi
+            """)
+        XCTAssertEqual(report.jobs[0].state, .succeeded, "the job's own steps passed")
+        XCTAssertEqual(report.jobs[0].steps.map(\.skippedAsUnsupported), [false, true, false])
+        XCTAssertEqual(report.outcome, .partial)
+        XCTAssertNotEqual(report.overallState, .succeeded)
+        XCTAssertEqual(report.exitCode(), 1)
+        XCTAssertEqual(report.exitCode(lenient: true), 0)
+        XCTAssertEqual(report.unsupportedSkips.count, 1)
+        XCTAssertTrue(report.unsupportedSkips[0].hasPrefix("a / "), report.unsupportedSkips[0])
+        XCTAssertTrue(report.notices.contains { $0.contains("partial") }, "\(report.notices)")
+    }
+
+    func testUnsupportedConditionMakesTheRunPartial() async throws {
+        let report = try await run(
+            """
+            jobs:
+              a:
+                steps:
+                  - run: echo only on main
+                    if: github.ref == 'refs/heads/main'
+            """)
+        XCTAssertEqual(report.jobs[0].steps[0].state, .skipped)
+        XCTAssertTrue(report.jobs[0].steps[0].skippedAsUnsupported)
+        XCTAssertEqual(report.outcome, .partial)
+        XCTAssertEqual(report.exitCode(), 1)
+        XCTAssertEqual(report.exitCode(lenient: true), 0)
+    }
+
+    func testDeliberateSkipsStayASuccess() async throws {
+        let report = try await run(
+            """
+            jobs:
+              a:
+                steps:
+                  - run: echo hi
+                  - run: echo never
+                    if: false
+            """)
+        XCTAssertEqual(report.jobs[0].steps[1].state, .skipped)
+        XCTAssertFalse(report.jobs[0].steps[1].skippedAsUnsupported, "if: false is a decision, not a gap")
+        XCTAssertEqual(report.outcome, .succeeded)
+    }
+
+    func testMatrixJobMakesTheRunPartial() async throws {
+        let report = try await run(
+            """
+            jobs:
+              m:
+                strategy:
+                  matrix:
+                    os: [a, b]
+                steps:
+                  - run: echo never
+            """)
+        XCTAssertTrue(report.jobs[0].skippedAsUnsupported)
+        XCTAssertEqual(report.outcome, .partial)
+    }
+
+    func testAFailureStaysFailedEvenWithLenient() async throws {
+        let report = try await run(
+            """
+            jobs:
+              a:
+                steps:
+                  - uses: acme/deploy@v1
+                  - run: exit 1
+            """,
+            responses: [ShellResult(exitCode: 1, stdout: "", stderr: "boom")])
+        XCTAssertEqual(report.outcome, .failed)
+        XCTAssertEqual(report.exitCode(lenient: true), 1)
+    }
+
+    func testJSONCarriesTheOutcomeAndTheUnsupportedList() async throws {
+        let report = try await run("jobs:\n  a:\n    steps:\n      - uses: acme/deploy@v1\n")
+        let data = try JSONEncoder().encode(report)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["outcome"] as? String, "partial")
+        XCTAssertEqual((object["unsupportedSkips"] as? [String])?.count, 1)
+        let decoded = try JSONDecoder().decode(LocalRunReport.self, from: data)
+        XCTAssertEqual(decoded, report, "derived keys are ignored on decode")
+    }
+
+    func testEveryRunNotesThatStepsAreNotIsolated() async throws {
+        let report = try await run("jobs:\n  a:\n    steps:\n      - run: echo hi\n")
+        XCTAssertEqual(report.notices.first, LocalWorkflowRunner.isolationNotice)
+        XCTAssertTrue(LocalWorkflowRunner.isolationNotice.contains("directly on this Mac"))
+    }
+
     func testSelectedJobDoesNotRunItsNeeds() async throws {
         let shell = FakeShell()
         let workflow = try document(
@@ -143,7 +278,8 @@ final class LocalWorkflowRunnerTests: XCTestCase {
             document: workflow, jobs: ["build"], workingDirectory: URL(fileURLWithPath: "/repo"))
         XCTAssertEqual(report.jobs.map(\.id), ["build"])
         XCTAssertEqual(shell.calls.count, 1)
-        XCTAssertEqual(report.notices, ["--job build selected; its needs were not run"])
+        XCTAssertEqual(
+            report.notices, [LocalWorkflowRunner.isolationNotice, "--job build selected; its needs were not run"])
     }
 
     func testDetectsDependencyCycles() async throws {

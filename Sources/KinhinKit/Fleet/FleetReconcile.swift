@@ -164,18 +164,22 @@ extension FleetEngine {
     func reconcileOnce() async throws -> PassOutcome {
         let state = runState.withLock { $0 }
 
-        // Forges that failed at startup get another chance (backed off).
-        await retryDetachedForgesIfDue()
+        // Forges that failed at startup get another chance (backed off), in the background: an
+        // attach talks to the forge and must not hold the pass up.
+        startForgeRetryIfDue()
 
-        // 1. Clean up finished/failed VMs.
+        // 1. Clean up finished/failed VMs. Each teardown runs as its own task (one per instance), so
+        // the pass moves on to the queue at once; the failure is counted only by the pass that starts
+        // the delete, never again while it runs.
         for record in store.all where record.phase == .failed {
-            noteSpawnFailure(record)
-            await deleteVMRecord(id: record.id, reason: "failed: \(record.error ?? "unknown")")
+            if scheduleDelete(id: record.id, reason: "failed: \(record.error ?? "unknown")") {
+                noteSpawnFailure(record)
+            }
         }
 
         // A teardown that failed leaves its record in `.deleting`: try again.
         for record in store.all where record.phase == .deleting {
-            await deleteVMRecord(id: record.id, reason: "retrying failed teardown")
+            scheduleDelete(id: record.id, reason: "retrying failed teardown")
         }
 
         // 2. Ask each attached forge for demand and running-work attribution.
@@ -191,7 +195,7 @@ extension FleetEngine {
         guard !state.paused else { return outcome }
 
         // 4. Spawn the planned instances, then 5. scale idle surplus down.
-        try await spawn(plan: plan, demand: demand)
+        await spawn(plan: plan, demand: demand)
         await scaleDown(plan: plan, demand: demand)
         return outcome
     }
@@ -239,13 +243,15 @@ extension FleetEngine {
             case answered(jobs: [ForgeJob], images: ProjectImageDemand)
             case failed(message: String)
         }
+        // One routing snapshot for the whole pass: a reload landing mid-pass applies from the next one.
+        let routerState = router.snapshot
         let ordered = attached.sorted { $0.account < $1.account }
         // `try`, not `try?`: cancellation must propagate, not read as "no answers".
         let answers =
             try await boundedMap(ordered, limit: 4) { forge -> ForgeAnswer in
                 do {
                     let jobs = try await forge.queuedJobs()
-                    let images = await self.resolveProjectImages(for: jobs, forge: forge)
+                    let images = await self.resolveProjectImages(for: jobs, forge: forge, routerState: routerState)
                     return .answered(jobs: jobs, images: images)
                 } catch {
                     return .failed(message: (error as? LocalizedError)?.errorDescription ?? "\(error)")
@@ -261,7 +267,7 @@ extension FleetEngine {
                 perForgeJobs[forge.account] = (forge.attributesByRepo, jobs)
                 demand.byForge[forge.account] = jobs.count
                 demand.queueDepth += jobs.count
-                let pools = routing.demandByPool(for: jobs, forgeID: forge.id)
+                let pools = routerState.model.demandByPool(for: jobs, forgeID: forge.id)
                 demand.byForgePool[forge.account] = pools
                 if forge.queueIncludesRunning { demand.includesRunning.insert(forge.account) }
                 for (poolID, count) in pools {
@@ -309,13 +315,14 @@ extension FleetEngine {
     /// demand, the caps and the spawn backoff.
     func scalePlan(demand: Demand, attached: [Forge]) -> ScalePlan {
         let held = spawnBackoff.withLock { $0.blocked(now: Date()) }
-        let routing = routing
+        let routerState = router.snapshot
+        let routing = routerState.model
         return ScalePlan.make(
             ScalePlan.Input(
                 records: store.all, demand: demand.byForgePool, includesRunning: demand.includesRunning,
                 attached: Set(attached.map(\.account)), failedForges: demand.failedForges,
                 runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
-                maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: capsByRuntime,
+                maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
                 heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime))
     }
 
@@ -338,7 +345,7 @@ extension FleetEngine {
     /// hold. The host is probed once per pass (a `statfs` per spawn added up
     /// in a burst); each planned instance then subtracts its own disk share.
     /// Host-runtime slots cost no disk, so they skip it.
-    func spawn(plan: ScalePlan, demand: Demand) async throws {
+    func spawn(plan: ScalePlan, demand: Demand) async {
         defer { publishSpawnBackoff() }
         var slots = plan.slots
         var diskPressureMessage: String?
@@ -355,17 +362,15 @@ extension FleetEngine {
         if !slots.isEmpty, spawnBackoff.withLock({ $0.blocked(now: Date()) }).isEmpty {
             Log.info("engine", "scaling up: \(plan.active) active, want \(plan.target) (queue \(demand.queueDepth))")
         }
-        for (index, slot) in slots.enumerated() {
+        for slot in slots {
             var record = VMRecord(id: VMRecord.newName(), phase: .cloning)
             record.platform = slot.account
             record.runtime = slot.runtime.rawValue
             if slot.runtime == .tart { record.image = chooseImage(demand: demand) }
             store.upsert(record)
+            // The lifecycle waits its turn at the engine's `SpawnPacer`, so disk I/O does not
+            // stampede; the pass itself never sleeps.
             spawnLifecycle(for: record)
-            // Stagger spawns slightly so disk I/O doesn't stampede (nothing to
-            // stagger after the last one). Cancellation stops further
-            // staggering (already-spawned VMs keep winding down).
-            if index < slots.count - 1 { try await Task.sleep(for: spawnStagger) }
         }
         if let diskPressureMessage {
             Log.warn("engine", diskPressureMessage)
@@ -423,7 +428,7 @@ extension FleetEngine {
         }
         for id in plan.scaleDown {
             Log.info("engine", "scaling down: deleting idle \(id)")
-            await deleteVMRecord(id: id, reason: "scale down")
+            scheduleDelete(id: id, reason: "scale down")
         }
     }
 

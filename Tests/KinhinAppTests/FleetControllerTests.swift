@@ -16,7 +16,7 @@ final class FleetControllerTests: XCTestCase {
         fake = FakeFleetServing()
         fleet = FleetController()
         fleet.service = fake
-        fleet.daemonProbe = { false }  // never touch a real daemon socket
+        fleet.environment.daemonProbe = { false }  // never touch a real daemon socket
     }
 
     override func tearDown() async throws {
@@ -115,25 +115,25 @@ final class FleetControllerTests: XCTestCase {
 
     func testConfigPushDebouncesABurstIntoOneFlush() async {
         var flushes = 0
-        fleet.configPushDelay = .milliseconds(30)
-        fleet.configFlushOverride = { flushes += 1 }
+        fleet.configPush.delay = .milliseconds(30)
+        fleet.configPush.flush = { flushes += 1 }
 
         fleet.pushConfigToEngine()
         fleet.pushConfigToEngine()
         fleet.pushConfigToEngine()
-        await waitUntil("debounce flushes") { flushes >= 1 && !fleet.isConfigPushScheduled }
+        await waitUntil("debounce flushes") { flushes >= 1 && !fleet.configPush.isScheduled }
         XCTAssertEqual(flushes, 1)
     }
 
     func testEditsDuringAFlushTriggerAnotherPass() async {
         var flushes = 0
-        fleet.configPushDelay = .milliseconds(10)
-        fleet.configFlushOverride = { [fleet] in
+        fleet.configPush.delay = .milliseconds(10)
+        fleet.configPush.flush = { [fleet] in
             flushes += 1
-            if flushes == 1 { fleet?.pendingConfigEdits = true }
+            if flushes == 1 { fleet?.configPush.hasPendingEdits = true }
         }
         fleet.pushConfigToEngine()
-        await waitUntil("second pass") { flushes >= 2 && !fleet.isConfigPushScheduled }
+        await waitUntil("second pass") { flushes >= 2 && !fleet.configPush.isScheduled }
         XCTAssertEqual(flushes, 2)
     }
 
@@ -295,8 +295,8 @@ final class FleetControllerTests: XCTestCase {
         fleet.service = nil
         fleet.setupIncomplete = true
         let daemon = FakeFleetServing(FleetStatus(running: true))
-        fleet.daemonProbe = { true }
-        fleet.makeDaemonBackend = { daemon }
+        fleet.environment.daemonProbe = { true }
+        fleet.environment.makeDaemonBackend = { daemon }
 
         await fleet.refresh()
 
@@ -307,7 +307,7 @@ final class FleetControllerTests: XCTestCase {
 
     func testNeverAdoptsADaemonWhileTheAppHasItsOwnBackend() async {
         let probes = Mutex(0)
-        fleet.daemonProbe = {
+        fleet.environment.daemonProbe = {
             probes.withLock { $0 += 1 }
             return true
         }
@@ -361,21 +361,21 @@ final class FleetControllerTests: XCTestCase {
     }
 
     func testPollCadenceFollowsVisibility() {
-        XCTAssertEqual(fleet.currentPollInterval, fleet.idleInterval)
-        XCTAssertGreaterThan(fleet.idleInterval, fleet.activeInterval)
+        XCTAssertEqual(fleet.currentPollInterval, fleet.poller.idleInterval)
+        XCTAssertGreaterThan(fleet.poller.idleInterval, fleet.poller.activeInterval)
         fleet.setMainWindowVisible(true)
-        XCTAssertEqual(fleet.currentPollInterval, fleet.activeInterval)
+        XCTAssertEqual(fleet.currentPollInterval, fleet.poller.activeInterval)
         fleet.setMenuOpen(true)
         fleet.setMainWindowVisible(false)
-        XCTAssertEqual(fleet.currentPollInterval, fleet.activeInterval, "an open menu keeps it fast")
+        XCTAssertEqual(fleet.currentPollInterval, fleet.poller.activeInterval, "an open menu keeps it fast")
         fleet.setMenuOpen(false)
-        XCTAssertEqual(fleet.currentPollInterval, fleet.idleInterval)
+        XCTAssertEqual(fleet.currentPollInterval, fleet.poller.idleInterval)
     }
 
     /// Opening a surface cuts a long idle wait short: it is looked at now.
     func testOpeningASurfaceWakesTheIdlePollImmediately() async {
-        fleet.idleInterval = .seconds(60)
-        fleet.activeInterval = .seconds(60)
+        fleet.poller.idleInterval = .seconds(60)
+        fleet.poller.activeInterval = .seconds(60)
         fleet.startPolling()
         await waitUntil("first poll") { self.fake.calls.filter { $0 == "status" }.count == 1 }
         fleet.setMenuOpen(true)

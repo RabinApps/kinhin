@@ -52,7 +52,7 @@ claude mcp add kinhin -- kinhin mcp     # Claude Code
 | Tool | Returns |
 | --- | --- |
 | `status` | The `kinhin status --json` document: daemon reachability, running/paused, queue depth |
-| `doctor` | Prerequisites, tokens, runtime health, the capacity cap, image disk usage (`imageTotalGB`), prune hint (`imagePrune`) and the disk-pressure warning (`diskPressure`) — `kinhin doctor --json` |
+| `doctor` | Prerequisites, tokens, runtime health, the capacity cap, image disk usage (`imageTotalGB`), prune hint (`imagePrune`) and the disk-pressure warning (`diskPressure`) — `kinhin doctor --json` (offline; add `--check-tokens` for live per-account token verdicts under `tokenChecks`) |
 | `setup_status` | The first-run checklist and its `ready` flag |
 | `runtimes` | Pools, budget split, health, routes (`noHealth: true` skips probes) |
 | `auth_status` | Which forges have a stored token — never the token itself |
@@ -74,20 +74,20 @@ For agents that shell out instead of speaking MCP:
   parseable. Documents are pretty-printed with sorted keys.
 - **Exit codes classify the failure**: `0` success, `1` general, `2` usage, `3` config, `4` runtime/engine,
   `5` auth, `130` cancelled (Ctrl-C).
-- Two commands use exit `1` as "not ready yet": `kinhin auth status --json` and `kinhin setup-status` exit 1
+- Two commands use exit `1` as "not ready yet": `kinhin auth status --json` and `kinhin setup status` exit 1
   until setup is complete (`doctor --json` reports `ready=false` instead of failing).
 
 | Command | Document |
 | --- | --- |
 | `kinhin status --json` | Fleet status, flattened `paused` / `autoResume` / `queueAgeSeconds` fields |
 | `kinhin doctor --json` | Merged diagnostics: host, runtimes, tokens, checklist, capacity, image disk usage (`imageTotalGB`), prune hint (`imagePrune`), disk pressure (`diskPressure`) |
-| `kinhin setup-status --json` | First-run checklist |
+| `kinhin setup status --json` | First-run checklist |
 | `kinhin auth status --json` | Stored-token state across every configured forge |
 | `kinhin runtimes [--json] [--no-health]` | Pools, capacity, budget, health, routes |
 | `kinhin pipeline [VM] [--job N] --json` | Live jobs and steps |
 | `kinhin config validate --json` | `valid` + parsed facts, or `valid: false` + `error` (exit 3) |
 | `kinhin cleanup … --json` | Dry-run report: what a cleanup *would* remove; refuses `--yes` |
-| `kinhin workflow test … --json` | Local workflow-run report (exit 1 when a job failed) |
+| `kinhin workflow test … --json` | Local workflow-run report with `outcome` (`succeeded`, `partial`, `failed`, …); exit 1 unless `succeeded` (`--lenient` also accepts `partial`) |
 | `kinhin workflow route … --json` | What the route edit did or would do |
 | `kinhin toolchains detect … --json` | Detected toolchains and the evidence, with `--write` to save |
 | `kinhin image list --json [--runtime <name>]` | Installed images per runtime: name, role, size, last used, who uses them |

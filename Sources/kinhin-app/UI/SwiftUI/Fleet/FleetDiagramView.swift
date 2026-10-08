@@ -118,7 +118,7 @@ struct FleetDiagramView: View {
         .onTapGesture { if instance.opensPipeline { onOpenPipeline(instance.id) } }
         .help(instance.tooltip)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(instance.tooltip)
+        .accessibilityLabel(instance.accessibilityText)
         if instance.opensPipeline {
             lead
                 .accessibilityAddTraits(.isButton)

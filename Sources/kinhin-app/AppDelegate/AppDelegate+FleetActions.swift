@@ -23,6 +23,11 @@ extension AppDelegate {
         fleet.userSetPaused(false)
     }
 
+    /// The menu's single Pause/Resume item: pauses a running fleet, resumes a paused one.
+    @objc func togglePauseFleet() {
+        fleet.userSetPaused(!(fleet.status?.paused ?? false))
+    }
+
     @objc func deleteVM(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String else { return }
         deleteVM(id: id)

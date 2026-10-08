@@ -35,7 +35,7 @@ struct AddRouteSheet: View {
 
             Picker("Runtime to use", selection: $runtime) {
                 ForEach(runtimes, id: \.rawValue) { id in
-                    Text(RuntimesModel.runtimeTitle(id)).tag(id)
+                    Text(RuntimesModel.runtimeTitle(id) + MaturityTable.maturity(of: id).pickerSuffix).tag(id)
                 }
             }
             .labelsHidden()

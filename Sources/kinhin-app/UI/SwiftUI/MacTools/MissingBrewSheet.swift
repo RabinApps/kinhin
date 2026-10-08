@@ -5,7 +5,7 @@ import SwiftUI
 /// without it the user gets Homebrew, downloads the tool by hand (when one
 /// exists), or cancels.
 struct MissingBrewSheet: View {
-    let offer: MacToolsModel.MissingBrewOffer
+    let offer: MissingBrewOffer
     let onGetBrew: () -> Void
     let onDownload: () -> Void
     let onCancel: () -> Void

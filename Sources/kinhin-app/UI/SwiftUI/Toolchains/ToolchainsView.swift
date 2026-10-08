@@ -143,7 +143,7 @@ struct ToolchainsView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
-            if model.busy { ProgressView().controlSize(.small) }
+            if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
             StatusText(text: model.status.text, style: model.status.style)
                 .lineLimit(3)
                 .textSelection(.enabled)

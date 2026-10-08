@@ -93,13 +93,11 @@ final class MainWindowTabsTests: MainWindowTestCase {
 
     func testSetupCannotBeLeftEarlyFromTheLastStep() {
         let wizard = showWizard()
-        wizard.next()  // connect → mac
-        wizard.next()  // mac → capacity
-        wizard.next()  // capacity → toolchains
-        wizard.next()  // toolchains → start
+        wizard.skip()  // connect → mac
+        wizard.skip()  // mac → review
         XCTAssertFalse(wizard.canSkip, "there is no Finish later")
         wizard.skip()
-        XCTAssertEqual(wizard.step, .start)
+        XCTAssertEqual(wizard.step, .review)
         XCTAssertEqual(tabs.selectedTab, .setup)
         XCTAssertEqual(tabs.visibleTabs, [])
     }
@@ -122,31 +120,28 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertNil(models.macToolsModel, "This Mac lives in Capacity, not Accounts")
     }
 
-    func testWizardWalksFiveSteps() {
+    func testWizardWalksThreeSteps() {
         let wizard = showWizard()
         XCTAssertEqual(wizard.step, .connect, "the wizard opens on connecting an account")
 
-        wizard.next()  // connect → mac
+        wizard.skip()  // connect → mac
         XCTAssertEqual(wizard.step, .mac)
-        wizard.next()  // mac → capacity
-        XCTAssertEqual(wizard.step, .capacity)
-        wizard.next()  // capacity → toolchains
-        XCTAssertEqual(wizard.step, .toolchains)
-        wizard.next()  // toolchains → start
-        XCTAssertEqual(wizard.step, .start)
+        wizard.skip()  // mac → review
+        XCTAssertEqual(wizard.step, .review)
+        XCTAssertEqual(WizardModel.Step.allCases, [.connect, .mac, .review])
     }
 
     func testWizardCannotStartUntilConnectedAndReady() {
         let wizard = showWizard()
-        wizard.next()  // connect → mac
-        wizard.next()  // mac → capacity
-        wizard.next()  // capacity → toolchains
-        wizard.next()  // toolchains → start
-        XCTAssertEqual(wizard.step, .start)
+        wizard.skip()  // connect → mac
+        wizard.skip()  // mac → review
+        XCTAssertEqual(wizard.step, .review)
         // Nothing connected in a hermetic test: pressing Start must not
         // finish (it would bounce the app straight back into setup).
+        XCTAssertFalse(wizard.canContinue)
         wizard.next()
         XCTAssertEqual(delegate.setupFinishedCalls, 0)
+        XCTAssertEqual(wizard.currentBlockers.count, 2, "both blockers are said, for the view to show")
         XCTAssertTrue(
             wizard.summaryText.contains("Still needed"),
             "the summary says what is missing: \(wizard.summaryText)")
@@ -154,8 +149,8 @@ final class MainWindowTabsTests: MainWindowTestCase {
 
     func testWizardBackNavigation() {
         let wizard = showWizard()
-        wizard.next()
-        wizard.next()  // mac → start
+        wizard.skip()
+        wizard.skip()  // mac → review
         wizard.back()
         XCTAssertEqual(wizard.step, .mac)
         wizard.back()

@@ -11,26 +11,8 @@ extension FleetController {
     /// else (scope, bounds, VM shape, forge sections) restarts the engine
     /// automatically — the old behavior was to silently keep the stale config
     /// until a manual daemon restart.
-    /// Edits are debounced: a save burst (e.g. a stepper drag) flushes once.
-    func pushConfigToEngine() {
-        pendingConfigEdits = true
-        guard !isConfigPushScheduled else { return }
-        isConfigPushScheduled = true
-        Task { [weak self, delay = configPushDelay] in
-            do {
-                try await Task.sleep(for: delay)  // debounce a save burst
-            } catch {
-                self?.isConfigPushScheduled = false  // cancelled: nothing to push
-                return
-            }
-            guard let self else { return }
-            while self.pendingConfigEdits {
-                self.pendingConfigEdits = false
-                await self.applyConfigToEngine()
-            }
-            self.isConfigPushScheduled = false
-        }
-    }
+    /// Edits are debounced by `configPush`: a save burst (e.g. a stepper drag) flushes once.
+    func pushConfigToEngine() { configPush.push() }
 
     /// Toggles `auto_resume:` in config.yaml and pushes the change to whoever
     /// owns the engine — the App Intent's entry point, matching what the
@@ -38,21 +20,16 @@ extension FleetController {
     /// file is missing or the edited result fails validation (nothing is
     /// written in that case).
     func setAutoResumePolicy(_ on: Bool) async throws {
-        try GeneralConfigEditor.apply(.autoResume(on), to: configURL)
+        try GeneralConfigEditor.apply(.autoResume(on), to: environment.configURL)
         pushConfigToEngine()
     }
 
     func applyConfigToEngine() async {
-        if let configFlushOverride {
-            await configFlushOverride()
-            return
-        }
-
         if let engine {
             let cfg: KinhinConfig
             do {
                 // Off the main actor: loading reads and parses the file.
-                let url = configURL
+                let url = environment.configURL
                 cfg = try await Task.detached { try ConfigLoader.load(from: url) }.value
             } catch {
                 Log.warn(
@@ -64,7 +41,7 @@ extension FleetController {
             if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
                 await rebuildInProcessEngine(from: engine, config: cfg)
             } else {
-                let snapshot = hostSnapshot
+                let snapshot = environment.hostSnapshot
                 let host = await Task.detached { snapshot() }.value  // a statfs/sysctl probe
                 engine.applyReloaded(config: cfg, host: host)
                 Log.info("app", "routing reloaded into in-process engine")
@@ -90,7 +67,7 @@ extension FleetController {
         let enginePAT: String?
         do {
             // Detached: the Keychain read can block on an access prompt.
-            let loadToken = engineToken
+            let loadToken = environment.engineToken
             enginePAT = try await Task.detached { try loadToken(cfg) }.value
         } catch {
             Log.error(
@@ -107,7 +84,7 @@ extension FleetController {
             return
         }
         do {
-            let replacement = try makeEngine(cfg, pat)
+            let replacement = try environment.makeEngine(cfg, pat)
             switch await old.handOver(to: replacement) {
             case .rejected(let error):
                 // Startup verification failed (bad PAT, transient network):

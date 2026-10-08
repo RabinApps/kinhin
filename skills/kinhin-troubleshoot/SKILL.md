@@ -9,8 +9,10 @@ description: Diagnose kinhin problems - jobs queued but no VMs, runner never reg
 
 1. `kinhin doctor` (add `--json` to parse it). It checks Tart, disk, tokens, isolation posture and the capacity cap —
    and reports each runtime's image disk usage (`imageTotalGB`), with `imagePrune` naming what
-   `kinhin image prune` would reclaim when unused images are wasting disk.
-2. `kinhin setup-status` and `kinhin auth status`.
+   `kinhin image prune` would reclaim when unused images are wasting disk. Doctor is offline by default and only
+   says whether a token is *stored*; add `--check-tokens` to probe every account's token against its forge (a revoked
+   GitLab/Gitea token otherwise looks fine). A failed check makes doctor not ready and names the `kinhin auth set` fix.
+2. `kinhin setup status` and `kinhin auth status`.
 3. `kinhin logs -n 200`, and `~/Library/Application Support/Kinhin/logs/kinhin.log`.
 4. `kinhin status` and `kinhin pipeline` to see what the fleet thinks is happening.
 5. For a bug report: `kinhin doctor --bundle [FILE]` writes a redacted support bundle. Tell the user to review it before

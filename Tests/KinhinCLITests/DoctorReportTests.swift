@@ -1,4 +1,3 @@
-import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -95,7 +94,7 @@ final class DoctorReportTests: XCTestCase {
             containerHealth: .ready,
             containerImages: ImageInventory.RuntimeImages(names: ["kinhin-ci-linux:1.2"])
         ).build()
-        XCTAssertEqual(found.container?.state, "ready")
+        XCTAssertEqual(found.container?.state, .ready)
         XCTAssertEqual(found.container?.image, "kinhin-ci-linux")
         XCTAssertTrue(
             found.container?.imageFound ?? false, "a tag-prefixed local image matches (same rule as the checklist)")
@@ -115,7 +114,7 @@ final class DoctorReportTests: XCTestCase {
             config: Self.config(container: true),
             containerHealth: .missing(tool: "apple container", fix: "brew install container && container system start")
         ).build()
-        XCTAssertEqual(report.container?.state, "missing")
+        XCTAssertEqual(report.container?.state, .missing)
         XCTAssertFalse(report.container?.ok ?? true)
         XCTAssertEqual(report.container?.fix, "brew install container && container system start")
         XCTAssertFalse(report.container?.imageFound ?? true, "no images when the runtime is not ready")
@@ -461,42 +460,6 @@ final class DoctorReportTests: XCTestCase {
         XCTAssertFalse(text.contains("  image:"), "no config → no config-specific lines")
     }
 
-    func testOrgScopeRunsTheActivePermissionCheckOnce() async {
-        let probes = LockedBox<[String]>([])
-        let builder = DoctorReportBuilder(
-            host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
-            config: .loaded(Self.config(repo: "acme")),
-            authLoad: { _ in "ghp_live" }, accountLoad: { _, _ in "ghp_live" },
-            orgPermissionCheck: { token, scope, _ in
-                probes.withValue { $0.append("\(token)@\(scope)") }
-                return "ok ✓"
-            })
-        let text = await builder.buildPlainText()
-
-        XCTAssertTrue(text.contains("scope:      organization 'acme'"), text)
-        XCTAssertTrue(text.contains("org perms:  ok ✓"), text)
-        XCTAssertEqual(probes.value, ["ghp_live@acme"])
-    }
-
-    func testOrgScopeWithoutAStoredTokenSaysHowToFixIt() async {
-        let builder = DoctorReportBuilder(
-            host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
-            config: .loaded(Self.config(repo: "acme")),
-            authLoad: { _ in nil }, accountLoad: { _, _ in nil })
-        let text = await builder.buildPlainText()
-        XCTAssertTrue(text.contains("org perms:  cannot verify — no token stored"), text)
-    }
-
-    func testOrgScopeKeychainFailureIsReportedNotHidden() async {
-        struct KeychainDown: LocalizedError { var errorDescription: String? { "Keychain is locked" } }
-        let builder = DoctorReportBuilder(
-            host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
-            config: .loaded(Self.config(repo: "acme")),
-            authLoad: { _ in nil }, accountLoad: { _, _ in throw KeychainDown() })
-        let text = await builder.buildPlainText()
-        XCTAssertTrue(text.contains("org perms:  cannot verify — Keychain is locked"), text)
-    }
-
     func testUnparseableOrTemplateConfigStillGetsThePathLine() async {
         for scenario in [ConfigScenario.invalid, .template] {
             let text = await DoctorReportBuilder(
@@ -521,14 +484,6 @@ final class DoctorReportTests: XCTestCase {
     func testJSONDocumentIsUnchangedByTheTextOnlyLines() async throws {
         let (_, data) = try await DoctorCommand.emitJSON(builder: builder(config: Self.config()))
         let json = String(decoding: data, as: UTF8.self)
-        XCTAssertFalse(json.contains("org perms"), "the active probe is human-output only")
+        XCTAssertFalse(json.contains("org perms"), "the org-scope lines are human-output only")
     }
-}
-
-/// Mutex-guarded box so a `@Sendable` fixture can record calls.
-private final class LockedBox<Value: Sendable>: Sendable {
-    private let stored: Mutex<Value>
-    init(_ value: Value) { stored = Mutex(value) }
-    var value: Value { stored.withLock { $0 } }
-    func withValue(_ body: (inout Value) -> Void) { stored.withLock { body(&$0) } }
 }

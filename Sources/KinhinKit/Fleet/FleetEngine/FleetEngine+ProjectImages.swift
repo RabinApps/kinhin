@@ -16,12 +16,14 @@ extension FleetEngine {
     /// derived image that serves it. Jobs whose image is still baking (or
     /// failed) count as base-image demand, so they run on the base image
     /// meanwhile and never wait on a bake.
-    func resolveProjectImages(for jobs: [ForgeJob], forge: Forge) async -> ProjectImageDemand {
+    func resolveProjectImages(
+        for jobs: [ForgeJob], forge: Forge, routerState: Router.Snapshot
+    ) async -> ProjectImageDemand {
         var result = ProjectImageDemand()
-        let projects = projectsState.withLock { $0 }
-        let images = images
+        let projects = routerState.projects
+        let images = routerState.images
         guard !projects.isEmpty || !images.isEmpty else { return result }
-        let model = routing
+        let model = routerState.model
         // Jobs on a named image are counted straight away; the rest need their
         // repository's toolchains resolved. Those lookups (repo file reads)
         // run concurrently, bounded, then the results are applied in job

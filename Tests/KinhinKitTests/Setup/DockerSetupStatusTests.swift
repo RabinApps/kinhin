@@ -120,7 +120,7 @@ final class DockerSetupStatusTests: XCTestCase {
             dockerImages: ImageInventory.RuntimeImages()
         ).build()
         let docker = try XCTUnwrap(report.docker)
-        XCTAssertEqual(docker.state, "broken")
+        XCTAssertEqual(docker.state, .broken)
         XCTAssertEqual(docker.ok, false)
         XCTAssertEqual(docker.fix, "daemon down")
         XCTAssertEqual(docker.image, "ghcr.io/acme/kinhin-ci-linux")
@@ -140,7 +140,7 @@ final class DockerSetupStatusTests: XCTestCase {
             dockerImages: ImageInventory.RuntimeImages(names: ["ubuntu:24.04"])
         ).build()
         let docker = try XCTUnwrap(report.docker)
-        XCTAssertEqual(docker.state, "ready")
+        XCTAssertEqual(docker.state, .ready)
         XCTAssertEqual(docker.imageFound, false)
         XCTAssertEqual(docker.fix, "kinhin image prepare --docker --target ghcr.io/acme/kinhin-ci-linux")
     }
@@ -161,7 +161,7 @@ final class DockerSetupStatusTests: XCTestCase {
 
     func testDoctorJSONRoundTripsDockerSection() throws {
         let section = DoctorReport.DockerSection(
-            state: "ready", ok: true, fix: nil,
+            state: .ready, ok: true, fix: nil,
             image: "ghcr.io/acme/kinhin-ci-linux", imageFound: true,
             platform: "linux/arm64", imageArchitecture: nil, note: nil
         )

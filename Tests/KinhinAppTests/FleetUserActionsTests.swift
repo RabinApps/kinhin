@@ -18,7 +18,7 @@ final class FleetUserActionsTests: XCTestCase {
         fake = FakeFleetServing()
         fleet = FleetController()
         fleet.service = fake
-        fleet.daemonProbe = { false }  // never touch a real daemon socket
+        fleet.environment.daemonProbe = { false }  // never touch a real daemon socket
         alertTitles = []
         answer = .alertFirstButtonReturn
         AlertKit.runModal = { [unowned self] alert in
