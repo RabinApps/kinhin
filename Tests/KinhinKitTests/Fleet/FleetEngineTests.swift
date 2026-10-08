@@ -569,6 +569,21 @@ final class FleetEngineTests: XCTestCase {
         XCTAssertFalse(script.contains("--url"))
     }
 
+    /// JIT runners start through `run.sh --jitconfig` (config.sh has no such option),
+    /// keep their output, and fail registration at once if the runner dies.
+    func testJitBootstrapStartsRunShAndChecksTheRunnerStayedUp() {
+        for script in [
+            RunnerBootstrap.jitRegistrationScript(encodedJitConfig: "abc", name: "vm"),
+            RunnerBootstrap.linuxJitRegistrationScript(encodedJitConfig: "abc", name: "vm"),
+        ] {
+            XCTAssertTrue(script.contains("./run.sh --jitconfig 'abc'"), script)
+            XCTAssertFalse(script.contains("./config.sh --"), "JIT runners are already registered by the API")
+            XCTAssertTrue(script.contains("> run.log 2>&1 &"), "the runner's output must be kept for diagnosis")
+            XCTAssertTrue(script.contains("kill -0 \"$runner_pid\""), script)
+            XCTAssertTrue(script.contains("tail -n 20 run.log"), script)
+        }
+    }
+
     func testScaleSetListenerClearsStateOnStop() async throws {
         let listener = makeTestListener()
         let event = GitHubScaleSetJobEvent(

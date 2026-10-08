@@ -167,6 +167,7 @@ extension FleetEngine {
 
         // 1. Clean up finished/failed VMs.
         for record in store.all where record.phase == .failed {
+            noteSpawnFailure(record)
             await deleteVMRecord(id: record.id, reason: "failed: \(record.error ?? "unknown")")
         }
 
@@ -304,9 +305,17 @@ extension FleetEngine {
     /// between spawns. Host-runtime slots cost no disk, so they skip it.
     func spawn(upTo desired: Int, active: Int, demand: Demand, attached: [Forge]) async throws {
         var toSpawn = desired - active
+        // Runtimes whose last starts all failed wait out their backoff; the
+        // others spawn as usual. Zeroing the cap steers `selectRuntime` away.
+        let held = spawnBackoff.withLock { $0.blocked(now: Date()) }
+        var caps = capsByRuntime
+        for runtime in held { caps[runtime] = 0 }
         if toSpawn > 0 {
-            Log.info("engine", "scaling up: \(active) active, want \(desired) (queue \(demand.queueDepth))")
+            if held.isEmpty {
+                Log.info("engine", "scaling up: \(active) active, want \(desired) (queue \(demand.queueDepth))")
+            }
         }
+        defer { publishSpawnBackoff() }
         var diskPressureMessage: String?
         // The host is probed once per pass (a `statfs` per spawn added up in
         // a burst); each planned instance then subtracts its own disk share.
@@ -321,7 +330,8 @@ extension FleetEngine {
             // The label pool with the most unmet demand, within its capacity
             // partition. Single-pool fleets reduce to the primary runtime.
             let chosen = selectRuntime(
-                demand: demand.byPool, active: activeByRuntime(), caps: capsByRuntime, fallback: routing.defaultRuntime)
+                demand: demand.byPool, active: activeByRuntime(), caps: caps, fallback: routing.defaultRuntime)
+            if held.contains(chosen) { break }  // every pool with demand is backing off
             record.runtime = chosen.rawValue
             if chosen == .tart { record.image = chooseImage(demand: demand) }
             if chosen != .host {
@@ -355,6 +365,34 @@ extension FleetEngine {
             await statusBox.modify { status in
                 if status.lastError?.contains("disk pressure") == true { status.lastError = nil }
                 status.diskPressureNotice = nil
+            }
+        }
+    }
+
+    /// A failed instance counts against its runtime's spawn backoff.
+    func noteSpawnFailure(_ record: VMRecord) {
+        guard let runtime = record.runtime.flatMap(RuntimeID.init(rawValue:)) else { return }
+        let reason = record.error ?? "unknown"
+        let delay = spawnBackoff.withLock { $0.recordFailure(runtime, reason: reason, now: Date()) }
+        if delay > 0 {
+            Log.warn(
+                "engine",
+                "\(runtime.rawValue) runners failed to start repeatedly; holding new ones for \(Int(delay))s — \(reason)"
+            )
+        }
+    }
+
+    /// Shows the backoff in the status line while it holds spawns, and clears
+    /// only its own message once spawns are free again.
+    func publishSpawnBackoff() {
+        let summary = spawnBackoff.withLock { $0.summary(now: Date()) }
+        Task { [statusBox] in
+            await statusBox.modify { status in
+                if let summary {
+                    status.lastError = summary
+                } else if status.lastError?.hasPrefix("runner starts failing") == true {
+                    status.lastError = nil
+                }
             }
         }
     }

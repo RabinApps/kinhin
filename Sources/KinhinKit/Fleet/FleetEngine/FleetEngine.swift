@@ -108,6 +108,8 @@ public final class FleetEngine: Sendable {
     /// running fleet picks up route changes without a restart. Read through
     /// `routing` and `capsByRuntime`, which take the lock.
     let routingState: Mutex<RoutingState>
+    /// Runtimes whose instances keep failing to register are held back (see `SpawnBackoff`).
+    let spawnBackoff = Mutex(SpawnBackoff())
     var routing: RuntimeConfigModel { routingState.withLock { $0.model } }
     var capsByRuntime: [RuntimeID: Int] { routingState.withLock { $0.caps } }
     /// Per-project toolchains: the `projects:` rules (hot-reloaded), the

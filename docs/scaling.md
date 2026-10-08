@@ -38,6 +38,13 @@ Every `poll_interval` seconds the engine:
    and a runner process on the Mac itself for host routes.
 6. Deletes idle instances when `desired` drops (scale to zero by default).
 
+**When starts keep failing.** If a runtime's instances fail to register twice in a row (a bad image, a runner
+that exits at once), kinhin stops respawning them in a loop: that runtime waits 30 s, then 1 min, 2 min … up to
+10 min before the next attempt, other runtimes keep going, and the status line shows `runner starts failing on
+<runtime> … retrying in Ns: <reason>` with the runner's own output. One successful registration clears it. A job
+cancelled on GitHub before a runner picks it up is not a failure: the idle instance is simply removed
+(`cancelled remotely` in the log).
+
 ### Poll cadence
 
 `poll_interval` is the normal cadence. Two things stretch it:

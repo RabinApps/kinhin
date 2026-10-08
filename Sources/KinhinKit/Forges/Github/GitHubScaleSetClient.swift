@@ -251,7 +251,14 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
                         "scaleset",
                         "409 from \(request.httpMethod ?? "?") \(request.url?.path ?? "?"): "
                             + String(decoding: data.prefix(300), as: UTF8.self))
-                    throw GitHubScaleSetClientError.sessionConflict
+                    let body = String(decoding: data.prefix(500), as: UTF8.self)
+                    // Only the session endpoints mean "an earlier session is still active"; a 409
+                    // elsewhere (e.g. generatejitconfig for a runner name that already exists) is
+                    // a different conflict, so keep GitHub's own message.
+                    if request.url?.path.contains("/sessions") == true {
+                        throw GitHubScaleSetClientError.sessionConflict
+                    }
+                    throw GitHubError.http(409, body)
                 case 429, 500...599:
                     lastError = GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
                     continue

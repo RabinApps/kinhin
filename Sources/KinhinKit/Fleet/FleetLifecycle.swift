@@ -146,6 +146,9 @@ extension FleetEngine {
                 throw EngineError.registrationFailed(vm: id, stderr: "exit \(result.exitCode): \(detail)")
             }
             Log.info(id, "runner registered")
+            if let runtime = store.all.first(where: { $0.id == id })?.runtime.flatMap(RuntimeID.init(rawValue:)) {
+                spawnBackoff.withLock { $0.recordSuccess(runtime) }
+            }
 
             // Phase: ready (or straight to busy if it picked up a job immediately)
             updateRecord(id) { $0.phase = .ready }
@@ -194,6 +197,7 @@ extension FleetEngine {
         let expected = Self.runnerNames(for: id, count: config.runnersPerVM)
         let forgeName = forge.name
         let idleGrace: TimeInterval? = forge.exitSemantics == .idleGrace ? 30 : nil
+        let isScaleSetForge = if case .jitConfig = forge.registration { true } else { false }
         let deadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 3600 * 6)))
         // Allowance for the agents inside the instance to finish registering.
         let registrationDeadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 120)))
@@ -222,8 +226,15 @@ extension FleetEngine {
                     Log.info(id, "all jobs finished; \(forgeName) runners deregistered; deleting VM")
                     await deleteVMRecord(id: id, reason: "jobs finished")
                 } else {
-                    Log.warn(id, "runners vanished while ready; deleting VM")
-                    await deleteVMRecord(id: id, reason: "runners vanished")
+                    if isScaleSetForge {
+                        // A scale-set runner is ephemeral and only disappears early when GitHub
+                        // removed it: the job it was reserved for was cancelled before pickup.
+                        Log.info(id, "runner removed on GitHub before taking a job (cancelled?); deleting VM")
+                        await deleteVMRecord(id: id, reason: "cancelled remotely")
+                    } else {
+                        Log.warn(id, "runners vanished while ready; deleting VM")
+                        await deleteVMRecord(id: id, reason: "runners vanished")
+                    }
                 }
                 return
             }

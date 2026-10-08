@@ -220,7 +220,16 @@ extension RunnerBootstrap {
             # JIT runners are already registered by the scale-set API; config.sh does not
             # take --jitconfig, run.sh does (the work folder was fixed at generate time).
             nohup ./run.sh --jitconfig \(shellQuote(encodedJitConfig)) > run.log 2>&1 &
+            runner_pid=$!
             \(pidSetup)
+            # A runner that dies at once (bad config, job already cancelled) must fail
+            # registration with its own output, not look started.
+            sleep 2
+            if ! kill -0 "$runner_pid" 2>/dev/null; then
+              echo "runner exited immediately:"
+              tail -n 20 run.log
+              exit 1
+            fi
             echo "runner started"
             """
     }
