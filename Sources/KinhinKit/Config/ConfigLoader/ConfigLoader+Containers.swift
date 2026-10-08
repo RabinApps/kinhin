@@ -23,8 +23,8 @@ extension ConfigLoader {
         let containerBase = try Self.validatedBaseImage(container.baseImage, key: "container.base_image")
         return KinhinConfig.ContainerConfig(
             image: containerImage,
-            cpus: container.cpus ?? 4,
-            memoryGB: container.memoryGB ?? 8,
+            cpus: container.cpus ?? KinhinConfig.ContainerConfig.defaultCPUs,
+            memoryGB: container.memoryGB ?? KinhinConfig.ContainerConfig.defaultMemoryGB,
             labels: container.labels,
             baseImage: containerBase
         )
@@ -54,9 +54,9 @@ extension ConfigLoader {
         }
         return KinhinConfig.DockerForgeConfig(
             image: dockerImage,
-            cpus: docker.cpus ?? 2,
-            memoryGB: docker.memoryGB ?? 4,
-            maxSlots: docker.maxSlots ?? 8,
+            cpus: docker.cpus ?? KinhinConfig.DockerForgeConfig.defaultCPUs,
+            memoryGB: docker.memoryGB ?? KinhinConfig.DockerForgeConfig.defaultMemoryGB,
+            maxSlots: docker.maxSlots ?? KinhinConfig.DockerForgeConfig.defaultMaxSlots,
             baseImage: dockerBase,
             platform: dockerPlatform
         )

@@ -25,22 +25,24 @@ extension ConfigLoader {
         for route in routes where !seenPatterns.insert(route.pattern).inserted {
             throw ConfigError.invalid("duplicate runtimes.routes pattern '\(route.pattern)'")
         }
-        let referenced = Set(budget.keys).union(routes.map(\.runtime)).union([runtimes.default ?? "tart"])
-        let validRuntimes = Set(["tart", "appleContainer", "docker", "host"])
-        for name in referenced where !validRuntimes.contains(name) {
+        let defaultRuntime = runtimes.default ?? RuntimeID.tart.rawValue
+        let referenced = Set(budget.keys).union(routes.map(\.runtime)).union([defaultRuntime])
+        let known = RuntimeID.allCases.map(\.rawValue)
+        for name in referenced.sorted() where !known.contains(name) {
             throw ConfigError.invalid(
-                "runtimes: unknown runtime '\(name)' (known: tart, appleContainer, docker, host)")
+                "runtimes: unknown runtime '\(name)'\(ConfigSuggestion.hint(for: name, in: known)) "
+                    + "(known: \(known.joined(separator: ", ")))")
         }
         if runtimes.default == RuntimeID.host.rawValue {
             throw ConfigError.invalid(
                 "runtimes.default cannot be 'host' — host execution is opt-in per route (with consent: true)")
         }
-        if referenced.contains("appleContainer"), container == nil {
+        if referenced.contains(RuntimeID.appleContainer.rawValue), container == nil {
             throw ConfigError.invalid(
                 "runtimes routes reference 'appleContainer' but no container: section is configured (it needs an image)"
             )
         }
-        if referenced.contains("docker"), docker == nil {
+        if referenced.contains(RuntimeID.docker.rawValue), docker == nil {
             throw ConfigError.invalid(
                 "runtimes routes reference 'docker' but no docker: section is configured (it needs an image)")
         }
@@ -50,7 +52,7 @@ extension ConfigLoader {
                 "runtimes.budget weights sum to \(String(format: "%.2f", totalWeight)) — the total must be <= 1.0")
         }
         return KinhinConfig.RuntimeConfig(
-            defaultRuntime: runtimes.default ?? "tart",
+            defaultRuntime: defaultRuntime,
             budget: budget,
             routes: routes
         )

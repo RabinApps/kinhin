@@ -2,6 +2,10 @@ import Foundation
 
 extension KinhinConfig {
     public struct ContainerConfig: Sendable, Equatable {
+        /// Defaults for an omitted `container.cpus` / `container.memory_gb` (shared by the initializer and the loader).
+        public static let defaultCPUs = 4
+        public static let defaultMemoryGB = 8
+
         /// Linux OCI image to run each runner container from (must be
         /// prepared with the runner agents via `kinhin image prepare`).
         public var image: String
@@ -14,7 +18,8 @@ extension KinhinConfig {
         public var baseImage: String?
 
         public init(
-            image: String, cpus: Int = 4, memoryGB: Int = 8, labels: [String]? = nil, baseImage: String? = nil
+            image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, labels: [String]? = nil,
+            baseImage: String? = nil
         ) {
             self.image = image
             self.cpus = cpus

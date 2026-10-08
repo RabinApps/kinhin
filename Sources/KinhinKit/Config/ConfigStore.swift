@@ -12,7 +12,7 @@ public enum ConfigStore {
         do {
             return try String(contentsOf: url, encoding: .utf8)
         } catch {
-            throw ConfigError.unreadable(url.path)
+            throw ConfigError.unreadable(url.path, reason: error.localizedDescription)
         }
     }
 

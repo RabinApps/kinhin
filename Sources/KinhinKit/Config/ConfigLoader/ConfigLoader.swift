@@ -59,14 +59,17 @@ public struct ConfigLoader {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw ConfigError.notFound(url.path)
         }
-        guard let yaml = try? String(contentsOf: url, encoding: .utf8) else {
-            throw ConfigError.unreadable(url.path)
+        let yaml: String
+        do {
+            yaml = try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            throw ConfigError.unreadable(url.path, reason: error.localizedDescription)
         }
         return try Self.parse(yaml)
     }
 
     public static func parse(_ yaml: String) throws -> KinhinConfig {
-        let partial = try YAMLDecoder().decode(PartialConfig.self, from: yaml)
+        let partial = try Self.decode(yaml)
         try rejectRemovedKeys(partial)
 
         var cfg = KinhinConfig.default
@@ -87,6 +90,18 @@ public struct ConfigLoader {
         try parseReserve(partial.reserve, into: &cfg)
         try validateHostScopes(cfg)
         return cfg
+    }
+
+    /// Decodes the YAML into the all-optional shape, mapping YAML syntax and
+    /// wrong-typed-value failures to a `ConfigError` that names the config key.
+    static func decode(_ yaml: String) throws -> PartialConfig {
+        do {
+            return try YAMLDecoder().decode(PartialConfig.self, from: yaml)
+        } catch let error as DecodingError {
+            throw ConfigError.invalid(error.configDescription)
+        } catch let error as YamlError {
+            throw ConfigError.invalid("not valid YAML — \(error)")
+        }
     }
 
     /// Host mode runs repo code unisolated on the Mac, and the host runner is

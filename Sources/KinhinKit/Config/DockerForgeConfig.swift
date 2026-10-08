@@ -5,6 +5,11 @@ extension KinhinConfig {
     /// fleet may run (capacity is also bounded by the host budget partition
     /// like every other runtime).
     public struct DockerForgeConfig: Sendable, Equatable {
+        /// Defaults for omitted `docker.cpus` / `memory_gb` / `max_slots` (shared by the initializer and the loader).
+        public static let defaultCPUs = 2
+        public static let defaultMemoryGB = 4
+        public static let defaultMaxSlots = 8
+
         /// Linux OCI image baked with the runner agents (kinhin image
         /// prepare --docker).
         public var image: String
@@ -22,7 +27,8 @@ extension KinhinConfig {
         public var platform: LinuxPlatform
 
         public init(
-            image: String, cpus: Int = 2, memoryGB: Int = 4, maxSlots: Int = 8, baseImage: String? = nil,
+            image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, maxSlots: Int = defaultMaxSlots,
+            baseImage: String? = nil,
             platform: LinuxPlatform = .arm64
         ) {
             self.image = image
