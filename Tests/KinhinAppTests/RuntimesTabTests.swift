@@ -140,7 +140,6 @@ final class RuntimesTabTests: XCTestCase {
                 forge: github
                 scope: "acme/widgets"
             labels: ["self-hosted"]
-            fleet: none
             """)
         defer { try? FileManager.default.removeItem(at: model.configURL) }
         XCTAssertEqual(model.headline, "Fleet scope: acme/widgets — single-pool fleet")
