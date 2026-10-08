@@ -27,9 +27,12 @@ reading of each API, not that the real service agrees, so expect surprises there
 
 | Forge                                                      | Live-tested | Unit-tested |
 | ---------------------------------------------------------- | ----------- | ----------- |
-| GitHub Actions + Tart                                      | yes         | yes         |
+| GitHub Actions + Tart macOS VMs                            | yes         | yes         |
+| GitHub Actions + apple/container (Linux)                   | yes         | yes         |
 | Gitea, Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket | **no**      | yes         |
 
+Runtimes follow the same rule: Tart macOS VMs and apple/container are live-tested; Docker, Tart Linux VMs and host mode
+are not (see [Runtimes](runtimes.md)).
 If you try one, please open a "Forge report" issue and say whether it worked.
 
 ## Connecting a forge

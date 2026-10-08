@@ -27,6 +27,41 @@ Open-Anyway dance only applies to old releases or locally built copies (clear it
 `xattr -cr /Applications/kinhin.app`). Remove everything with `bash scripts/install.sh --uninstall`
 (config and your Keychain PAT are kept).
 
+## Installing Tart
+
+Tart runs the macOS runner VMs (and optional Linux VMs). The app's setup window installs it for you; from the terminal
+the same installer is one command:
+
+```bash
+kinhin setup repair tart      # skipped if tart is already on your PATH
+```
+
+`kinhin doctor` shows the tart state. When it reports `tart: NOT FOUND` or `tart: INSTALLED BUT KILLED ON LAUNCH`, it
+prints the exact repair commands for that state, and the app's setup checklist offers them as one-click fixes. Use
+those rather than typing brew commands from memory; this section is the only place the manual commands are documented.
+
+These are the manual equivalents, for machines where `kinhin` is not installed yet or Homebrew must be driven by hand:
+
+```bash
+# Install (what `kinhin setup repair tart` runs)
+brew tap openai/tools
+brew trust openai/tools
+brew install openai/tools/tart
+
+# If `kinhin doctor` reports "INSTALLED BUT KILLED ON LAUNCH": the OpenAI-tap bottle is un-notarized
+# (openai/homebrew-tools#27) and Gatekeeper kills it. Roll back to a notarized build:
+brew uninstall openai/tools/tart openai/tools/softnet
+brew tap openai/cli
+brew trust openai/cli
+brew install openai/cli/tart
+```
+
+Re-run `kinhin doctor` afterwards; it offers to move back to the OpenAI tap once a fixed bottle ships. The commands
+`doctor` prints are authoritative if they differ from this page.
+
+Other runtimes use the same installer: `kinhin setup repair container` and `kinhin setup repair docker` (see
+[Runtimes](runtimes.md#choosing-a-linux-runtime)).
+
 ## How updates and installs are verified
 
 - **Install script:** it refuses a download without `checksums.txt`, fetches over https only, and never strips the quarantine attribute. The copy attached to a release is stamped with the Developer ID Team ID of the shipped app, so it refuses an app that is not signed by that team or not accepted by Gatekeeper. A copy run from a checkout or a fork has no Team ID and can only verify that the signature is valid. A local DMG is checked against `DMG.sha256` when one sits next to it.

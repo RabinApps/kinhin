@@ -51,9 +51,6 @@ jobs:
       - name: Run tests
         run: swift test
 
-      - name: Docs lint (stale strings)
-        run: bash scripts/docs-lint.sh
-
   tsan:
     # ThreadSanitizer pass over shared state: serial (~5–10 min), so it runs
     # on demand and nightly rather than on every push.
@@ -79,27 +76,22 @@ jobs:
         # with "No ThreadSanitizer reports" means a test regression.
         run: scripts/tsan.sh
 
-  docs-lint:
-    # Runs in kinhin's own Apple-container pool (`kinhin-container` is that
-    # pool's exclusive marker). The fleet Mac must have the container runtime
-    # and image prepared, or this job queues. Same fork guard as `test`: the
-    # fleet never runs a fork's scripts — and `test` runs docs lint again on
-    # macOS, so lint coverage survives even if this pool is down.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: kinhin-container
+  docs:
+    # Docs lint, docs-sync --check and skills lint are grep/sed/awk scripts with
+    # no Swift or macOS dependency, so they run on a GitHub-hosted runner, never
+    # on the self-hosted fleet. That makes it safe to run for fork PRs too (no
+    # fork guard): the job has read-only contents permission, no secrets, and
+    # shares no Keychain or Mac with the fleet. Keep this step list in sync with
+    # scripts/check.sh.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Check toolchain
-        # `git ls-files` drives docs lint, and jq is the other tool the docs
-        # workflows pipe through; both are baked into the image. Fail with the
-        # fix instead of "command not found" halfway through the job.
-        run: |
-          git --version || { echo "::error::git is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
-          jq --version || { echo "::error::jq is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
 
       - name: Docs lint (stale strings)
         run: bash scripts/docs-lint.sh
 
       - name: Docs sync (code-derived blocks)
         run: bash scripts/docs-sync.sh --check
+
+      - name: Skills lint (frontmatter + command drift)
+        run: bash scripts/skills-lint.sh

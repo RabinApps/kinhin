@@ -8,8 +8,8 @@ description: Install kinhin and its prerequisites (Tart) on an Apple Silicon Mac
 kinhin turns an Apple Silicon Mac into an autoscaling pool of ephemeral self-hosted CI runners: one fresh VM or
 container per job, deleted afterwards. This skill covers install and first run.
 
-**Beta status (tell the user):** only GitHub Actions with Tart macOS VMs has run for real. Every other forge and
-runtime is unit-tested against fakes only. Findings are welcome as GitHub issues ("Forge report").
+**Beta status (tell the user):** only GitHub Actions with Tart macOS VMs and apple/container has run for real. Every
+other forge and runtime (Docker, Tart Linux, host) is unit-tested against fakes only. Findings are welcome as GitHub issues ("Forge report").
 
 ## Requirements
 
@@ -23,16 +23,12 @@ Check the machine first: `uname -m` must print `arm64`, and `sw_vers -productVer
 ## 1. Install Tart
 
 ```bash
-brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart
+kinhin setup repair tart
 ```
 
-If `kinhin doctor` later reports `tart: INSTALLED BUT KILLED ON LAUNCH`, the bottle is un-notarized. Roll back:
-
-```bash
-brew uninstall openai/tools/tart openai/tools/softnet
-brew tap cirruslabs/cli && brew trust cirruslabs/cli
-brew install cirruslabs/cli/tart
-```
+(The `kinhin` CLI comes from step 2, so install kinhin first if the command is missing.) If `kinhin doctor` later
+reports `tart: INSTALLED BUT KILLED ON LAUNCH`, the bottle is un-notarized; `kinhin doctor` prints the exact rollback
+commands, and the manual brew equivalents are in `docs/install.md#installing-tart`.
 
 ## 2. Install kinhin
 

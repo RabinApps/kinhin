@@ -4,10 +4,13 @@ The main window, launch modes, Siri & Shortcuts, and how the app coexists with t
 
 [← Back to README](../README.md)
 
-Install kinhin (see [Install](../README.md#install)), then launch **kinhin** from Applications. The
-setup window walks through the same steps as the CLI — installing tart, creating the config,
-storing the token, and preparing the image — then starts the fleet. The fleet lives in kinhin's
-single main window (and the ○ in your menu bar shows the number of live runner VMs).
+Install kinhin (see [Install](install.md)), then launch **kinhin** from Applications. On first run a five-step setup
+wizard covers what the CLI quick start does: **Connect your code** (pick forges, paste a token, choose the repo, project
+or group to serve), **Get this Mac ready** (choose the runtimes and install tart or the Linux runtime; base images are built
+from the same card or with `kinhin image prepare`), **Split your capacity**, **Toolchains** (a read-only note: each repo declares its own),
+and **Ready to go**, whose **Start fleet** button saves everything and starts the fleet. It stays disabled until a forge is
+connected and a runtime is ready; earlier steps can be skipped, and everything can be changed later in the Setup tab. The fleet lives in kinhin's single main window (and the ○ in your
+menu bar shows the number of live runner VMs).
 
 ## One window, three tabs
 
@@ -16,12 +19,12 @@ Everything kinhin does happens in a single main window. A segmented control swit
 | Tab          | Contents                                                                                                                                                                                                                                                                                |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Fleet**    | The **Runtimes** diagram: a lane per execution runtime — 🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host — holding one icon-led row per live instance — the phase-colored icon, that instance's VM-row detail, and its **Pipeline…**/**Delete** actions (a busy row opens its pipeline) — or the word *idle* when the runtime has nothing running; then live status, Start/Stop/Pause, Current jobs, Queued work, and buttons for Logs and Diagnostics. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason) rather than sending you back to Setup.                                                         |
-| **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps and Bitbucket — select every one to serve), pick the repo or org, get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a short wizard.                                                  |
+| **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps and Bitbucket — select every one to serve), pick each account's repo, org, project or group (its `scope` in `accounts:`), get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a five-step wizard.                                                  |
 | **Advanced** | **Accounts** (forges), **Capacity** (this Mac's macOS and Linux runtimes, the reserve, the budget split between runtimes, VM counts and sizes, with Apply), **Routing** (pools, routes, the default pool, labels), **Containers** (containers and volumes), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, config file).                           |
 
 ### This Mac: macOS and Linux jobs
 
-The **This Mac** card (Setup step 2, and Advanced → Capacity) has two parts. **macOS jobs** runs workflows in tart
+The **This Mac** card (wizard step 2, and Advanced → Capacity) has two parts. **macOS jobs** runs workflows in tart
 virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple container** and **Docker**
 (see [Runtimes](runtimes.md#choosing-a-linux-runtime) for the side-by-side comparison and when to use each):
 

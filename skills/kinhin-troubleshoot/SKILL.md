@@ -21,7 +21,7 @@ description: Diagnose kinhin problems - jobs queued but no VMs, runner never reg
 | Symptom | Likely cause and fix |
 | --- | --- |
 | `tart: NOT FOUND` | Install Tart (see the `kinhin-install` skill). |
-| `tart: INSTALLED BUT KILLED ON LAUNCH` | Un-notarized bottle. Roll back to the Cirrus tap: `brew uninstall openai/tools/tart openai/tools/softnet`, then `brew tap cirruslabs/cli && brew install cirruslabs/cli/tart`. |
+| `tart: INSTALLED BUT KILLED ON LAUNCH` | Un-notarized bottle. `kinhin doctor` prints the exact rollback commands (manual equivalents: `docs/install.md#installing-tart`); then re-run `kinhin doctor`. |
 | Jobs queue but no VMs start | The job's `runs-on` (or tags) must include every configured label. The scaler counts only runnable jobs. Check `labels` and the forge's targeting rules. |
 | Jobs land on the wrong runtime, or queue forever after a `runs-on:` edit | Precedence is workflow route → repo route → `runs-on:` marker → default: a repo route outranks the marker, and a GitHub-hosted label (`ubuntu-latest`) matches no kinhin runner. `kinhin workflow route <file> <runtime> --dry-run` shows the fix and reconciles a conflicting route — see the `kinhin-route-workflow` skill. |
 | VM boots but the runner never registers | The image predates the runner agent or its forge account. Re-run `kinhin image prepare`, then check `kinhin logs -n 200`. |

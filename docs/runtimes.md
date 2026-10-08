@@ -5,8 +5,8 @@ each job between them.
 
 [← Back to README](../README.md)
 
-> **Beta:** only the Tart runtime has been run for real. apple/container, Docker and host mode are covered by unit tests
-> against fakes and have not been exercised live.
+> **Beta:** Tart (macOS VMs) and apple/container have been run for real. Docker, Tart Linux VMs and host mode are covered
+> by unit tests against fakes and have not been exercised live.
 
 | Runtime             | Runs                                                         | Isolation                                    |
 | ------------------- | ------------------------------------------------------------ | -------------------------------------------- |
@@ -31,6 +31,10 @@ published image (`macos-sequoia-base`, `macos-sonoma-xcode`, …), set the top-l
 macOS card, then press **Rebuild image…** in that card: a changed base image only takes effect once the image is rebuilt (the
 Apple container and Docker rows have a **Build image…** button for their Linux images). `kinhin doctor` flags a reference that is neither a published image nor a local VM, so a typo doesn't
 surface as a failed clone mid-prepare.
+
+`kinhin image prepare` automates a clone-boot-inject sequence and skips the download when tart or the image already
+exists. By hand, the first two steps are `tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest tahoe-base` and
+`tart run tahoe-base`; the runner agent is then injected over SSH. Point `image:` at the result (`tahoe-base`).
 
 ### Multiple macOS images
 

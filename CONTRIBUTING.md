@@ -37,12 +37,27 @@ scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
 scripts/dev-run.sh                # debug app, signed with a stable identity so Keychain "Always Allow" survives rebuilds
 swift package --disable-sandbox dev   # same, as a SwiftPM command plugin (Plugins/Dev)
 scripts/dev-run.sh --env-tokens   # debug app with tokens from env vars (.env.dev) instead of the Keychain
+```
 
 **Always run the debug app from a terminal.** Do not run `scripts/dev-run.sh` via
 launchd (`launchctl submit`), an Xcode scheme, or any other process supervisor.
 launchd restarts the script every time the app exits, creating an infinite loop.
 The script now detects non-terminal runs (no TTY) and exits with an error instead.
 If a restart loop ever gets going, run `launchctl remove kinhin-dev-app` to stop it.
+
+`scripts/dev-run.sh` signs the build with a stable identity (your first Apple Development certificate, or
+`CODESIGN_IDENTITY`) so the Keychain's **Always Allow** answer survives rebuilds instead of prompting after every one.
+Extra arguments go to the app, e.g. `scripts/dev-run.sh -kinhin.autoStartFleet NO` overrides the auto-start preference
+for that run only. `swift package --disable-sandbox dev` does the same from the repo root (the sandbox must be off
+because it signs and launches the app); arguments pass through.
+
+With `--env-tokens`, forge tokens are read from environment variables (`KINHIN_TOKEN_GITHUB`, `KINHIN_TOKEN_GITEA`, …,
+and `KINHIN_TOKEN_<ACCOUNT>` for named accounts, upper-cased with non-alphanumerics as `_`), loaded from a gitignored
+`.env.dev` (copy `.env.dev.example`). The same works for the CLI: `KINHIN_TOKEN_STORE=env KINHIN_TOKEN_GITHUB=… swift
+run kinhin auth status`. Tokens typed into the app in this mode last for that run only. It exists only in debug builds;
+release builds always use the Keychain.
+
+```bash
 swift format lint --strict -r Sources Tests
 swift format format -i -r Sources Tests
 bash scripts/skills-lint.sh       # skills/*/SKILL.md frontmatter + command drift (in check.sh too)

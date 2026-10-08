@@ -5,9 +5,9 @@
 #   test job     : swift format lint --strict -r Sources Tests
 #                  swift build -c release --product kinhin-app --product kinhin
 #                  swift test
-#                  bash scripts/docs-lint.sh
-#   docs-lint job: bash scripts/docs-lint.sh
+#   docs job     : bash scripts/docs-lint.sh          (GitHub-hosted ubuntu runner)
 #                  bash scripts/docs-sync.sh --check
+#                  bash scripts/skills-lint.sh
 # The release-only build (KinhinTestSupport is testable-only) stays CI-only:
 # it is a compile check CI can afford that a local iteration loop cannot.
 #

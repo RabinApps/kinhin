@@ -5,7 +5,7 @@ description: Choose the right kinhin runtime for a workflow (macOS tart vs apple
 
 # Route a workflow to a runtime
 
-**Beta status:** only GitHub Actions with Tart macOS VMs has run for real. Every other
+**Beta status:** only GitHub Actions with Tart macOS VMs and apple/container has run for real. Every other
 forge/runtime pair is fakes-tested only — say so when the user picks one.
 
 ## Rules
@@ -37,7 +37,7 @@ forge/runtime pair is fakes-tested only — say so when the user picks one.
    setup (step 3) and apply. If they only said "a Linux container" or "somewhere cheaper", ask which Linux type,
    quoting `docs/runtimes.md#choosing-a-linux-runtime`:
    - **apple/container** — the docs' default for Linux CI: VM-grade isolation, no daemon, high density, 8 GB per
-     instance; cons: Debian/Ubuntu-based image only, no amd64, never exercised for real (beta).
+     instance; cons: Debian/Ubuntu-based image only, no amd64; live-tested (beta).
    - **Docker** — adopt free if Docker Desktop/OrbStack/colima already runs; highest density; amd64 via
      Rosetta/QEMU (JIT caveats); shared kernel.
    - **Tart Linux VM** — full control: your distro, kernel modules, long `sudo`; cons: lowest density, 50 GB per

@@ -5,8 +5,8 @@ description: Build and manage kinhin VM and container images and per-project too
 
 # Images and toolchains
 
-**Beta status:** only the Tart macOS path has run for real. Linux runtimes (Apple container, Docker, Tart Linux) are
-unit-tested against fakes only. Run `kinhin help image` or `kinhin help toolchains` if a flag here is rejected.
+**Beta status:** the Tart macOS and Apple container paths have run for real. The other Linux runtimes (Docker, Tart
+Linux) are unit-tested against fakes only. Run `kinhin help image` or `kinhin help toolchains` if a flag here is rejected.
 
 ## Images
 

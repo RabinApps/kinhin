@@ -6,12 +6,8 @@ runners. This page gets you from zero to a working fleet. New here? Read [why ki
 ## Requirements
 
 - Apple Silicon Mac (arm64), macOS 15+
-- [Tart](https://tart.run) — macOS runner VMs:
-  ```bash
-  brew tap openai/tools
-  brew trust openai/tools
-  brew install openai/tools/tart
-  ```
+- [Tart](https://tart.run) — macOS runner VMs. `kinhin setup repair tart` installs it (or the setup
+  window does); manual commands are in [Installing Tart](/guide/install#installing-tart)
 - An access token for at least one CI platform: GitHub, Gitea, Forgejo, GitLab, Buildkite, Azure DevOps or
   Bitbucket (see [Pick your forge](#pick-your-forge) and [Forge support](/guide/forges))
 - Optional — Linux jobs. Three options — [apple/container](https://github.com/apple/container)
@@ -73,8 +69,8 @@ accounts:
 ```
 
 ::: warning Beta
-Only GitHub Actions has been tested against a real server. The other forges are unit-tested but not
-yet live-tested; see [what has been tested](/guide/forges#what-has-been-tested). Please report how it goes.
+Only GitHub Actions has been tested against a real server (with Tart macOS VMs and apple/container). The other forges
+are unit-tested but not yet live-tested; see [what has been tested](/guide/forges#what-has-been-tested). Please report how it goes.
 :::
 
 Each forge's setup details, token scopes and job-selection rules are in [Forge support](/guide/forges).
@@ -82,6 +78,9 @@ Each forge's setup details, token scopes and job-selection rules are in [Forge s
 ## First fleet (CLI)
 
 ```bash
+# 0. Install tart (skipped if already installed)
+kinhin setup repair tart
+
 # 1. Create a starter config
 kinhin config init
 #    edit ~/Library/Application Support/Kinhin/config.yaml

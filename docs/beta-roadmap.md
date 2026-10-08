@@ -12,8 +12,9 @@ real server" for every forge and runtime we ship. Milestones are ordered by what
 | Area | State |
 | ---- | ----- |
 | GitHub Actions + Tart macOS VMs | Live-tested |
+| apple/container runtime (Linux jobs) | Live-tested |
 | Gitea, Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket | Unit-tested only (stubbed HTTP, fake shells); never run against a real server |
-| apple/container, Docker, Tart Linux and host runtimes | Unit-tested only |
+| Docker, Tart Linux and host runtimes | Unit-tested only |
 | In-app updater | Not yet exercised against a published release |
 | Telemetry | None |
 
@@ -31,14 +32,14 @@ The detailed results of each test pass are kept in the [beta test log](plans/bet
 
 - Run Gitea, Forgejo and GitLab (gitlab.com and a self-managed instance) against real servers and fix API-shape surprises.
 - Exercise the in-app updater against a published release.
-- Verify Linux jobs on at least one non-Tart runtime (apple/container or Docker).
+- Verify Linux jobs on Docker (apple/container is already live-tested).
 
 **Exit:** each of those forges has a passing real run recorded in [what has been tested](forges.md#what-has-been-tested).
 
 ### beta-3: remaining forges and runtimes
 
 - Run Buildkite, Azure DevOps and Bitbucket against real accounts.
-- Run the remaining runtimes (Docker, apple/container, Tart Linux, host) for real.
+- Run the remaining runtimes (Docker, Tart Linux, host) for real.
 - Multi-account and mixed-forge fleets on one shared pool.
 
 **Exit:** every shipped forge and runtime is either live-tested or clearly labeled experimental in the docs.

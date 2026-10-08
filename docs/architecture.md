@@ -173,7 +173,7 @@ The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Flee
   selection, Fleet-tab buttons, launch-mode and login persistence), update menu states, update preferences,
   SwiftUI form models, App Intents through the bridge.
 
-These tests use fakes and stubbed HTTP; they do not exercise live forge servers, boot real VMs/containers, or validate isolation against hostile jobs. The [README's beta notice](../README.md) and [security guide](security.md) distinguish tested paths from known limitations.
+These tests use fakes and stubbed HTTP; they do not exercise live forge servers, boot real VMs/containers, or validate isolation against hostile jobs. The [README's beta notice](../README.md) (GitHub with Tart and apple/container is live-tested; everything else is not) and [security guide](security.md) distinguish tested paths from known limitations.
 
 ## CI
 

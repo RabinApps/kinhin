@@ -91,4 +91,4 @@ Finally, dispatch a workflow whose `runs-on` labels match the config and watch i
   host, over SSH.
 - No GitHub App or JIT registration yet; runners register with a PAT and `--ephemeral` (see the
   [GitHub notes](forges/github.md)).
-- Only GitHub Actions with Tart VMs has been tested for real; see the [beta roadmap](beta-roadmap.md).
+- Only GitHub Actions with Tart VMs and apple/container has been tested for real; see the [beta roadmap](beta-roadmap.md).

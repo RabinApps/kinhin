@@ -5,8 +5,8 @@ description: Edit or write a kinhin config.yaml safely - accounts per forge, lab
 
 # Configure kinhin
 
-**Beta status:** only GitHub Actions with Tart macOS VMs has run for real. Other forges and runtimes are tested only
-against fakes. Say so when the user picks one.
+**Beta status:** only GitHub Actions with Tart macOS VMs and apple/container has run for real. Other forges and
+runtimes are tested only against fakes. Say so when the user picks one.
 
 ## Rules
 
