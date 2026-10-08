@@ -261,6 +261,25 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         }
     }
 
+    /// One account's live token verdict from `kinhin doctor --check-tokens`.
+    public struct TokenCheck: Codable, Equatable, Sendable {
+        public let account: String
+        public let forge: String
+        public let ok: Bool
+        /// The probe's verdict line (what worked, or why it failed).
+        public let message: String
+        /// The command that stores a fresh token; null when ok.
+        public let fix: String?
+
+        public init(account: String, forge: String, ok: Bool, message: String, fix: String?) {
+            self.account = account
+            self.forge = forge
+            self.ok = ok
+            self.message = message
+            self.fix = fix
+        }
+    }
+
     /// Host snapshot (cores, memory, free disk, arm64).
     public let host: HostResources
     /// Command Line Tools state + repair command.
@@ -303,6 +322,11 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     /// The disk-pressure advisory — nil when free disk covers the next
     /// instance plus the reserve.
     public let diskPressure: DiskPressureSection?
+    /// Live per-account token verdicts, in config order. Present only for
+    /// `doctor --check-tokens` (a network probe); null means the tokens were
+    /// not checked — `auth` above only says whether one is stored. Any failed
+    /// entry makes `ready` false.
+    public let tokenChecks: [TokenCheck]?
 
     public init(
         host: HostResources, clt: CLTSection, tart: TartSection, container: ContainerSection?,
@@ -311,8 +335,9 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         auth: AuthStatusReport, checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?,
         tartBaseImage: TartBaseImageSection? = nil, security: SecuritySection? = nil,
         imageTotalGB: [String: Int]? = nil, imagePrune: ImagePruneSection? = nil,
-        diskPressure: DiskPressureSection? = nil
+        diskPressure: DiskPressureSection? = nil, tokenChecks: [TokenCheck]? = nil
     ) {
+        self.tokenChecks = tokenChecks
         self.host = host
         self.clt = clt
         self.tart = tart

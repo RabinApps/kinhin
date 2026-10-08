@@ -118,9 +118,13 @@ enum CommandCatalog {
             flags: [
                 .bool("--json", "One merged machine-readable diagnostics document"),
                 .optionalValue("--bundle", "FILE", "Write a redacted support bundle to attach to a bug report"),
+                .bool("--check-tokens", "Verify every account's token against its forge (network)"),
                 quietFlag,
             ],
-            details: ["Exits 0 when everything is ready, 1 when something needs attention."]),
+            details: [
+                "Offline by default: tokens are only checked as stored. --check-tokens probes each one.",
+                "Exits 0 when everything is ready, 1 when something needs attention.",
+            ]),
         CommandSpec(
             name: "setup",
             command: .setupRepair,

@@ -52,7 +52,7 @@ claude mcp add kinhin -- kinhin mcp     # Claude Code
 | Tool | Returns |
 | --- | --- |
 | `status` | The `kinhin status --json` document: daemon reachability, running/paused, queue depth |
-| `doctor` | Prerequisites, tokens, runtime health, the capacity cap, image disk usage (`imageTotalGB`), prune hint (`imagePrune`) and the disk-pressure warning (`diskPressure`) — `kinhin doctor --json` |
+| `doctor` | Prerequisites, tokens, runtime health, the capacity cap, image disk usage (`imageTotalGB`), prune hint (`imagePrune`) and the disk-pressure warning (`diskPressure`) — `kinhin doctor --json` (offline; add `--check-tokens` for live per-account token verdicts under `tokenChecks`) |
 | `setup_status` | The first-run checklist and its `ready` flag |
 | `runtimes` | Pools, budget split, health, routes (`noHealth: true` skips probes) |
 | `auth_status` | Which forges have a stored token — never the token itself |

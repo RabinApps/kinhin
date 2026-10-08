@@ -41,10 +41,12 @@ public struct DoctorReportBuilder: Sendable {
     /// configured-derived tart images (never prunable) and mark stale index
     /// entries — again, the `image list` read.
     let projectRecords: [ProjectImageRecord]?
-    /// The active org-permission check (mints and discards a registration
-    /// token): takes the stored token and the org scope, returns the verdict
-    /// line. Only the human rendering runs it; tests substitute a fixture.
-    let orgPermissionCheck: @Sendable (String, String, String?) async -> String
+    /// `kinhin doctor --check-tokens`: probe every configured account's token
+    /// against its forge (network). Off by default, so doctor stays offline.
+    public var checkTokens: Bool
+    /// The per-account token probe (`TokenHealthCheck.account` live); tests
+    /// substitute a fixture.
+    let tokenCheck: @Sendable (AccountConfig, String) async -> TokenHealthCheck.Report
 
     public init(
         host: HostResources? = nil,
@@ -65,8 +67,9 @@ public struct DoctorReportBuilder: Sendable {
         osVersion: OperatingSystemVersion? = nil,
         softnetInstalled: Bool? = nil,
         hostKeyMarker: URL? = nil,
-        orgPermissionCheck: @escaping @Sendable (String, String, String?) async -> String = { token, scope, instance in
-            await TokenHealthCheck.github(token: token, scope: scope, instance: instance).message
+        checkTokens: Bool = false,
+        tokenCheck: @escaping @Sendable (AccountConfig, String) async -> TokenHealthCheck.Report = {
+            await TokenHealthCheck.account($0, token: $1)
         },
         fleet: [VMRecord]? = nil,
         projectRecords: [ProjectImageRecord]? = nil
@@ -87,7 +90,8 @@ public struct DoctorReportBuilder: Sendable {
         self.osVersion = osVersion
         self.softnetInstalled = softnetInstalled
         self.hostKeyMarker = hostKeyMarker
-        self.orgPermissionCheck = orgPermissionCheck
+        self.checkTokens = checkTokens
+        self.tokenCheck = tokenCheck
         self.fleet = fleet
         self.projectRecords = projectRecords
     }
@@ -268,6 +272,10 @@ public struct DoctorReportBuilder: Sendable {
             hostKeyUnpinned: GuestHostKeyPinning.recordedFallback(
                 marker: hostKeyMarker ?? GuestHostKeyPinning.markerURL))
 
+        // Network: only when asked (`--check-tokens`); nil means "not checked".
+        let tokenChecks: [DoctorReport.TokenCheck]? =
+            checkTokens ? await tokenChecks(accounts: parsed?.accounts ?? [], load: sharedAccountLoad) : nil
+
         return DoctorReport(
             host: resolvedHost,
             clt: Self.cltSection(from: resolvedCLT),
@@ -279,13 +287,15 @@ public struct DoctorReportBuilder: Sendable {
             toolchainCache: cacheSection,
             auth: authReport,
             checks: status.checks,
-            ready: status.ready && authReport.allGood && (security?.ok ?? true),
+            ready: status.ready && authReport.allGood && (security?.ok ?? true)
+                && (tokenChecks?.allSatisfy(\.ok) ?? true),
             capacity: capacitySection,
             tartBaseImage: tartBaseImageSection,
             security: security,
             imageTotalGB: images.totalGB,
             imagePrune: images.prune,
-            diskPressure: diskPressure
+            diskPressure: diskPressure,
+            tokenChecks: tokenChecks
         )
     }
 }
