@@ -2,8 +2,9 @@ import XCTest
 
 @testable import KinhinKit
 
-/// Budget editing math: slider drags keep weights consistent with the
-/// default-remainder rule, and every result round-trips through the
+/// Budget editing math: slider drags redistribute proportionally so the
+/// shares always total 1, zero is spelled by key omission (ConfigLoader
+/// rejects an explicit 0), and every result round-trips through the
 /// validated config editor.
 final class BudgetEditorTests: XCTestCase {
     // MARK: - Fixtures
@@ -12,6 +13,93 @@ final class BudgetEditorTests: XCTestCase {
     private let reserve = KinhinConfig.Reserve(cpu: 2, memoryGB: 4, diskGB: 10)
 
     // MARK: - setShare
+
+    // MARK: - Locks
+
+    private let three: [String: Double] = ["tart": 0.5, "docker": 0.3, "appleContainer": 0.2]
+
+    func testLockedPoolKeepsItsShareWhileTheOtherAbsorbs() {
+        let result = BudgetEditor.setShare(
+            of: .docker, to: 0.4, current: three, defaultRuntime: .tart, locked: [.tart])
+        XCTAssertEqual(result["tart"] ?? 0, 0.5, accuracy: 0.0001, "locked default untouched")
+        XCTAssertEqual(result["docker"] ?? 0, 0.4, accuracy: 0.0001)
+        XCTAssertEqual(result["appleContainer"] ?? 0, 0.1, accuracy: 0.0001, "the only free pool absorbs")
+    }
+
+    func testLockedNonDefaultKeepsItsShare() {
+        let result = BudgetEditor.setShare(
+            of: .appleContainer, to: 0.4, current: three, defaultRuntime: .tart, locked: [.docker])
+        XCTAssertEqual(result["docker"] ?? 0, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(result["appleContainer"] ?? 0, 0.4, accuracy: 0.0001)
+        XCTAssertEqual(result["tart"] ?? 0, 0.3, accuracy: 0.0001)
+    }
+
+    func testDragIsCappedAtWhatTheUnlockedPoolsCanGive() {
+        let result = BudgetEditor.setShare(
+            of: .docker, to: 1.0, current: three, defaultRuntime: .tart, locked: [.tart])
+        XCTAssertEqual(result["docker"] ?? 0, 0.5, accuracy: 0.0001, "1 − locked tart")
+        XCTAssertNil(result["appleContainer"], "the free pool bottoms out at 0 (omitted)")
+        XCTAssertEqual(
+            BudgetEditor.maxShare(for: .docker, locked: [.tart], current: three, defaultRuntime: .tart), 0.5,
+            accuracy: 0.0001)
+    }
+
+    func testEveryOtherPoolLockedMakesTheDragANoOp() {
+        let result = BudgetEditor.setShare(
+            of: .docker, to: 0.9, current: three, defaultRuntime: .tart, locked: [.tart, .appleContainer])
+        XCTAssertEqual(result["docker"] ?? 0, 0.3, accuracy: 0.0001)
+        XCTAssertFalse(
+            BudgetEditor.canMove(
+                runtime: .docker, locked: [.tart, .appleContainer], pools: [.tart, .docker, .appleContainer]))
+        XCTAssertFalse(
+            BudgetEditor.canMove(runtime: .tart, locked: [.tart], pools: [.tart, .docker]), "a locked pool can't move")
+        XCTAssertTrue(
+            BudgetEditor.canMove(runtime: .docker, locked: [.tart], pools: [.tart, .docker, .appleContainer]))
+    }
+
+    func testDraggingALockedPoolChangesNothing() {
+        let result = BudgetEditor.setShare(
+            of: .docker, to: 0.1, current: three, defaultRuntime: .tart, locked: [.docker])
+        XCTAssertEqual(result["docker"] ?? 0, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(result["tart"] ?? 0, 0.5, accuracy: 0.0001)
+    }
+
+    func testShrinkingWhenFreePoolsAreAtZeroSplitsEvenly() {
+        let current: [String: Double] = ["tart": 0.4, "docker": 0.6]
+        let result = BudgetEditor.setShare(
+            of: .docker, to: 0.2, current: current, defaultRuntime: .tart, locked: [.appleContainer])
+        XCTAssertEqual(result["docker"] ?? 0, 0.2, accuracy: 0.0001)
+        XCTAssertEqual(result["tart"] ?? 0, 0.8, accuracy: 0.0001)
+    }
+
+    func testLockedDefaultAbsorbsNoRoundingDrift() {
+        let current: [String: Double] = ["tart": 0.34, "docker": 0.33, "appleContainer": 0.33]
+        let result = BudgetEditor.setShare(
+            of: .docker, to: 0.5, current: current, defaultRuntime: .tart, locked: [.tart])
+        XCTAssertEqual(result["tart"] ?? 0, 0.34, accuracy: 0.000_001)
+        XCTAssertEqual(result.values.reduce(0, +), 1.0, accuracy: 0.0001)
+    }
+
+    func testLockedSweepAlwaysTotalsOneAndNeverMovesLockedPools() {
+        let pools: [RuntimeID] = [.tart, .docker, .appleContainer]
+        let lockSets: [Set<RuntimeID>] = [[], [.tart], [.docker], [.appleContainer], [.tart, .docker]]
+        for locked in lockSets {
+            for dragged in pools where !locked.contains(dragged) {
+                for step in 0...20 {
+                    let result = BudgetEditor.setShare(
+                        of: dragged, to: Double(step) / 20, current: three, defaultRuntime: .tart, locked: locked)
+                    let shares = BudgetEditor.displayShares(current: result, defaultRuntime: .tart)
+                    XCTAssertEqual(shares.values.reduce(0, +), 1.0, accuracy: 0.011, "\(locked) \(dragged) \(step)")
+                    XCTAssertNil(BudgetEditor.validate(result), "\(locked) \(dragged) \(step)")
+                    for pool in locked {
+                        XCTAssertEqual(
+                            shares[pool.rawValue] ?? 0, three[pool.rawValue] ?? 0, accuracy: 0.000_001,
+                            "\(pool) moved while locked: \(locked) dragging \(dragged) to \(step)/20")
+                    }
+                }
+            }
+        }
+    }
 
     func testSetShareGivesDefaultTheRemainder() {
         let result = BudgetEditor.setShare(
@@ -25,20 +113,22 @@ final class BudgetEditorTests: XCTestCase {
 
     func testSetShareScalesOtherNonDefaultRuntimesProportionally() {
         // Three runtimes: docker joins tart and container in the non-default
-        // set. Cutting container to 0.2 from 0.5 redistributes the vacated
-        // 0.3 across docker/tart(non-default) by share.
+        // set. Cutting container to 0.2 from 0.5 rescales the rest — ratios
+        // preserved — so the shares still total 1.
         let result = BudgetEditor.setShare(
             of: .appleContainer, to: 0.2,
             current: ["tart": 0.2, "appleContainer": 0.5, "docker": 0.3],
             defaultRuntime: .host
         )
         XCTAssertEqual(result["appleContainer"] ?? 0, 0.2, accuracy: 0.0001)
-        // docker: 0.3 + 0.3*(0.3/0.5) = 0.48
+        // scale = (1 − 0.2) / (1 − 0.5) = 1.6: docker 0.3 × 1.6 = 0.48
         XCTAssertEqual(result["docker"] ?? 0, 0.48, accuracy: 0.0001)
-        // tart: 0.2 + 0.3*(0.2/0.5) = 0.32
+        // tart 0.2 × 1.6 = 0.32
         XCTAssertEqual(result["tart"] ?? 0, 0.32, accuracy: 0.0001)
-        // host (default) gets the remainder: 0
-        XCTAssertEqual(result["host"] ?? 0, 0, accuracy: 0.0001)
+        // host (default) derives the remainder: 0 — omitted from the dict,
+        // since ConfigLoader rejects an explicit 0.
+        XCTAssertNil(result["host"])
+        XCTAssertNil(BudgetEditor.validate(result))
     }
 
     func testSetShareToFullLeavesDefaultNothing() {
@@ -48,7 +138,62 @@ final class BudgetEditorTests: XCTestCase {
             defaultRuntime: .tart
         )
         XCTAssertEqual(result["appleContainer"] ?? 0, 1.0, accuracy: 0.0001)
-        XCTAssertEqual(result["tart"] ?? 0, 0.0, accuracy: 0.0001)
+        XCTAssertNil(result["tart"], "zero remainder is written by omission")
+        // The pane used to alert-and-snap-back here: setShare stored an
+        // explicit tart: 0, which validate refuses. Not any more.
+        XCTAssertNil(BudgetEditor.validate(result))
+    }
+
+    func testSetShareToZeroOmitsTheKeyAndStaysValid() {
+        let result = BudgetEditor.setShare(
+            of: .appleContainer, to: 0,
+            current: ["tart": 0.6, "appleContainer": 0.4],
+            defaultRuntime: .tart
+        )
+        XCTAssertNil(result["appleContainer"], "zero share = omitted key")
+        XCTAssertEqual(result["tart"] ?? 0, 1.0, accuracy: 0.0001, "the default absorbs everything")
+        XCTAssertNil(BudgetEditor.validate(result))
+    }
+
+    func testSetShareOnTheDefaultRescalesTheOtherPools() {
+        let result = BudgetEditor.setShare(
+            of: .tart, to: 0.3,
+            current: ["tart": 0.6, "appleContainer": 0.4],
+            defaultRuntime: .tart
+        )
+        XCTAssertEqual(result["tart"] ?? 0, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(result["appleContainer"] ?? 0, 0.7, accuracy: 0.0001)
+        XCTAssertNil(BudgetEditor.validate(result))
+    }
+
+    func testDraggingADefaultThatOwnsEverythingSplitsTheShareEvenly() {
+        // A fresh fleet: the default is at 100% and the other pools were
+        // never budgeted (seeded explicit zeros, which the model adds so
+        // the drag has pools to split with).
+        let seeded = ["tart": 1.0, "appleContainer": 0.0, "docker": 0.0]
+        let result = BudgetEditor.setShare(
+            of: .tart, to: 0.3,
+            current: seeded,
+            defaultRuntime: .tart
+        )
+        XCTAssertEqual(result["tart"] ?? 0, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(result["appleContainer"] ?? 0, 0.35, accuracy: 0.0001)
+        XCTAssertEqual(result["docker"] ?? 0, 0.35, accuracy: 0.0001)
+        XCTAssertNil(BudgetEditor.validate(result))
+    }
+
+    func testSetShareIsANormalizingNoOpWhenTheTargetMatches() {
+        // Explicit zeros and a stored default that lies are cleaned up even
+        // when the slider hasn't moved, so they can never reach the disk.
+        let result = BudgetEditor.setShare(
+            of: .appleContainer, to: 0.4,
+            current: ["tart": 0.3, "appleContainer": 0.4, "docker": 0.0],
+            defaultRuntime: .tart
+        )
+        XCTAssertNil(result["docker"])
+        XCTAssertEqual(result["tart"] ?? 0, 0.6, accuracy: 0.0001, "the lying stored default is re-derived")
+        XCTAssertEqual(result["appleContainer"] ?? 0, 0.4, accuracy: 0.0001)
+        XCTAssertNil(BudgetEditor.validate(result))
     }
 
     func testSetShareClampsFloatNoise() {

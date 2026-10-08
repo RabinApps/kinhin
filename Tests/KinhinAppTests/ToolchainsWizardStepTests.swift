@@ -6,8 +6,8 @@ import XCTest
 /// The wizard's Toolchains step is informational: no seed, no selection, no
 /// config writes, and Next works with nothing to validate.
 @MainActor final class ToolchainsWizardStepTests: XCTestCase {
-    func testStepSitsBetweenMacAndStartAndNeedsNoState() {
-        XCTAssertEqual(WizardModel.Step.allCases, [.connect, .mac, .toolchains, .start])
+    func testStepSitsBetweenCapacityAndStartAndNeedsNoState() {
+        XCTAssertEqual(WizardModel.Step.allCases, [.connect, .mac, .capacity, .toolchains, .start])
         XCTAssertEqual(WizardModel.Step.toolchains.title, "Toolchains")
         let model = WizardModel(defaults: UserDefaults(suiteName: "kinhin-tc-wizard-\(UUID().uuidString)") ?? .standard)
         model.show(.toolchains)

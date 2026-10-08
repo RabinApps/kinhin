@@ -84,7 +84,7 @@ final class MainTabsModel {
             return
         }
         // Setup only exists during onboarding; afterwards its Connect form
-        // lives in Advanced → Accounts (This Mac is under Mac & VMs).
+        // lives in Advanced → Accounts (This Mac is under Capacity).
         if tab == .setup {
             showAdvanced(.accounts)
             return
@@ -163,6 +163,7 @@ final class MainTabsModel {
             // but This Mac's model has nothing pending and refreshes.
             models.capacityModel?.reload()
             models.macToolsModel?.reload()
+            models.runtimesModel?.reload()
         case .routing: models.runtimesModel?.reload()
         case .containers: models.containersModel?.reload()
         case .toolchains: models.toolchainsModel?.reload()

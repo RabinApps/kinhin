@@ -9,9 +9,12 @@ import Observation
 ///    (optionally add a self-hosted Gitea).
 /// 2. **This Mac** — install tart and prepare the runner image; optionally
 ///    enable Linux runtimes.
-/// 3. **Toolchains** — an informational page: toolchains are declared per
+/// 3. **Capacity** — split the Mac's capacity between the enabled runtimes
+///    (the Runtimes pane's Budget card). With one runtime enabled it says
+///    there is nothing to split; Skip passes it.
+/// 4. **Toolchains** — an informational page: toolchains are declared per
 ///    repo (`.kinhin.yml`, `projects:`), so there is nothing to choose or save.
-/// 4. **Start** — a plain-language summary and "Start fleet".
+/// 5. **Start** — a plain-language summary and "Start fleet".
 ///
 /// Every choice is written as soon as it is made, so leaving the wizard at
 /// any point keeps the progress. "Start fleet" is only enabled once the fleet
@@ -29,13 +32,15 @@ final class WizardModel {
     enum Step: Int, CaseIterable {
         case connect = 0
         case mac = 1
-        case toolchains = 2
-        case start = 3
+        case capacity = 2
+        case toolchains = 3
+        case start = 4
 
         var title: String {
             switch self {
             case .connect: return "Connect your code"
             case .mac: return "Get this Mac ready"
+            case .capacity: return "Split your capacity"
             case .toolchains: return "Toolchains"
             case .start: return "Ready to go"
             }
@@ -49,6 +54,9 @@ final class WizardModel {
             case .mac:
                 return
                     "Choose what runs your jobs: Linux (Docker, Apple container, or a full Linux VM), macOS virtual machines (tart), or both. You only need one — the button below walks the comparison."
+            case .capacity:
+                return
+                    "Decide how much of this Mac each runtime gets. Drag a slider or type a percent; lock a pool to keep its share fixed while the others rebalance. The default split is fine if you're unsure."
             case .toolchains:
                 return
                     "Nothing to choose here: every repo declares its own toolchains, and nothing is installed until a job needs it."
@@ -64,6 +72,8 @@ final class WizardModel {
 
     let connect = ConnectModel()
     let mac = MacToolsModel()
+    /// The Budget card's model, shared with the Runtimes pane's editing code.
+    let runtimes = RuntimesModel()
 
     private(set) var step: Step = .connect
     /// The "Ready to go" summary, refreshed each time that step is shown.
@@ -117,6 +127,8 @@ final class WizardModel {
             connect.reload()
         case .mac:
             mac.reload()
+        case .capacity:
+            runtimes.reload()
         case .toolchains:
             break  // informational: no state to load or validate
         case .start:
@@ -146,6 +158,15 @@ final class WizardModel {
 
     // MARK: - Summary
 
+    /// "tart 50% · docker 30% · appleContainer 20%" once a split is chosen.
+    private var capacitySummary: String? {
+        guard runtimes.showsBudget, !(runtimes.currentRuntimeConfig?.budget.isEmpty ?? true) else { return nil }
+        let parts = runtimes.budgetRows.filter { $0.share > 0 }.map {
+            "\($0.id.rawValue) \(Int(($0.share * 100).rounded()))%"
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     func refreshSummary() {
         var accounts: [AccountConfig]
         do {
@@ -171,6 +192,7 @@ final class WizardModel {
             }
         }
         lines.append("Runs on:  \(mac.runsOnDescription)")
+        if let capacity = capacitySummary { lines.append("Capacity:  \(capacity)") }
         let missing = missingItems
         if !missing.isEmpty {
             lines.append("")

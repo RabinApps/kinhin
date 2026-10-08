@@ -14,6 +14,13 @@
   ```
 - **Jobs queue but no VMs start** — check that the job's `runs-on:` contains _every_ label in
   your config; the scaler only counts jobs it could actually run.
+- **Scale set: `runner group 'default' was not found; create it in GitHub before attaching`** —
+  with `scale_set:` on a GitHub account, kinhin looks the runner group up by an exact,
+  case-sensitive name, and its default (`default`) is not GitHub's built-in group name
+  (`Default`), so no scale set is ever created and the listener retries forever. Set
+  `runner_group: "Default"` under `scale_set:` in `config.yaml`, spelled exactly as GitHub
+  spells it, then restart the app — account-level config is not live-reloaded. Walkthrough:
+  [Troubleshooting scale sets](/guide/forges/github#troubleshooting-scale-sets).
 - **VM boots but the runner never registers** — the base image may predate the injected agent.
   Re-run `kinhin image prepare`. Full logs: `kinhin logs -n 200` or
   `~/Library/Application Support/Kinhin/logs/kinhin.log`.

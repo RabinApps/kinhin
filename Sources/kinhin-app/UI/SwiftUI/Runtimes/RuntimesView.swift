@@ -1,8 +1,8 @@
 import KinhinKit
 import SwiftUI
 
-/// Advanced → Routing: the fleet's runtime pools, capacity budget, routes,
-/// and labels. State and actions live in `RuntimesModel`, which owns the
+/// Advanced → Routing: the fleet's runtime pools, routes, default pool and
+/// labels (the capacity split lives in Advanced → Capacity). State and actions live in `RuntimesModel`, which owns the
 /// Add Route and Edit YAML sheets too (presented from `routeOffer` and
 /// `isYAMLEditorOpen`).
 struct RuntimesView: View {
@@ -17,24 +17,13 @@ struct RuntimesView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 10) {
-                        if !model.availabilityRows.isEmpty {
-                            SectionHeader("On this Mac")
-                            ForEach(model.availabilityRows, id: \.id) { row in
-                                card(title: row.title, detail: row.detail)
-                            }
-                        }
-
-                        SectionHeader("Pools & capacity")
+                        SectionHeader("Pools")
                         ForEach(model.poolRows) { pool in
                             poolCard(pool)
                         }
 
-                        if model.showsBudget {
-                            SectionHeader("Budget")
-                            budgetCard
-                        }
-
                         SectionHeader("Routes")
+                        StarvedRoutesStrip(warnings: model.starvedRoutes)
                         if model.routeRows.isEmpty {
                             StatusText(text: "  No routes — every job uses the default pool.")
                         } else {
@@ -43,14 +32,10 @@ struct RuntimesView: View {
                             }
                         }
 
+                        defaultRuntimeCard
+
                         SectionHeader("Labels")
                         labelsCard
-
-                        StatusText(
-                            text:
-                                "Unmatched jobs → \(model.defaultRuntimeID.rawValue)",
-                            style: .secondary
-                        )
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 2)
@@ -86,7 +71,6 @@ struct RuntimesView: View {
         HStack(spacing: 12) {
             Button("Add Route…") { model.addRouteClicked() }
             Button("Edit YAML…") { model.editYAMLClicked() }
-            HintText("Slider changes apply on release; validation gates every write.")
             Spacer()
         }
         .controlSize(.small)
@@ -143,66 +127,35 @@ struct RuntimesView: View {
         .formSurface(cornerRadius: 8)
     }
 
-    // MARK: - Budget
+    // MARK: - Default runtime
 
-    private var budgetCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if !model.starvedRoutes.isEmpty {
-                Text(model.starvedRoutes.joined(separator: "\n"))
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(StatusStyle.error.color)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .frame(width: FormMetrics.width - 60, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .systemRed).opacity(0.12)))
-            }
-
-            Picker(
-                "Default (gets the remainder):",
-                selection: Binding(
-                    get: { model.defaultRuntimeID.rawValue },
-                    set: { model.defaultRuntimeChanged(to: $0) }
-                )
-            ) {
-                ForEach(model.budgetRuntimeIDs, id: \.rawValue) { runtime in
-                    Text(runtime.rawValue).tag(runtime.rawValue)
-                }
-            }
-            .controlSize(.small)
-            .labelsHidden()
-
-            ForEach(model.budgetRuntimeIDs.filter { $0 != model.defaultRuntimeID }, id: \.rawValue) { runtime in
-                HStack(spacing: 8) {
-                    Text(runtime.rawValue)
-                        .font(.system(size: 12))
-                        .frame(width: 110, alignment: .leading)
-                    Slider(
-                        value: Binding(
-                            get: { model.budgetShare(for: runtime) },
-                            set: { model.budgetSliderChanged(runtime: runtime, fraction: $0) }
-                        ),
-                        in: 0...1
+    /// Which pool takes jobs no route claims. With several pools it is also
+    /// the one that holds the budget's remainder (see Capacity).
+    @ViewBuilder
+    private var defaultRuntimeCard: some View {
+        if model.showsBudget {
+            VStack(alignment: .leading, spacing: 4) {
+                Picker(
+                    "Jobs with no route run on:",
+                    selection: Binding(
+                        get: { model.defaultRuntimeID.rawValue },
+                        set: { model.defaultRuntimeChanged(to: $0) }
                     )
-                    .controlSize(.small)
-                    .frame(width: 220)
-                    .accessibilityLabel("\(runtime.rawValue) budget share")
-                    Text(model.percentText(for: runtime))
-                        .font(.system(size: 12, weight: .medium))
-                        .frame(width: 44, alignment: .leading)
-                    Text(model.capPreviews[runtime].map { "\($0) inst" } ?? "")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 52, alignment: .leading)
+                ) {
+                    ForEach(model.budgetRuntimeIDs, id: \.rawValue) { runtime in
+                        Text(runtime.rawValue).tag(runtime.rawValue)
+                    }
                 }
+                .controlSize(.small)
+                HintText("The default pool also keeps whatever share the others leave (Advanced → Capacity).")
             }
-
-            HintText(model.remainderNote)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(width: FormMetrics.width, alignment: .leading)
+            .formSurface(cornerRadius: 8)
+        } else {
+            StatusText(text: "Unmatched jobs → \(model.defaultRuntimeID.rawValue)", style: .secondary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(width: FormMetrics.width, alignment: .leading)
-        .formSurface(cornerRadius: 8)
     }
 
     // MARK: - Labels

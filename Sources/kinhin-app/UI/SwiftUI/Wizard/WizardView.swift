@@ -50,6 +50,19 @@ struct WizardView: View {
             ScrollView { ConnectView(model: model.connect, showsMoreAccounts: false).padding(.bottom, 8) }
         case .mac:
             ScrollView { MacToolsView(model: model.mac).padding(.bottom, 8) }
+        case .capacity:
+            ScrollView {
+                if model.runtimes.showsBudget {
+                    BudgetCard(model: model.runtimes).padding(.bottom, 8)
+                } else {
+                    StatusText(
+                        text:
+                            "Only one runtime is enabled, so there's nothing to split. Enable another on the previous step (Docker, Apple container or tart) to divide this Mac's capacity — or skip.",
+                        style: .secondary
+                    )
+                    .frame(width: FormMetrics.width, alignment: .leading)
+                }
+            }
         case .toolchains:
             ScrollView { ToolchainsGuideView().padding(.bottom, 8) }
         case .start:

@@ -88,8 +88,9 @@ final class WindowModels {
     /// load once as they are built: `reloadSection` deliberately skips
     /// Capacity (a stale reload would discard unapplied edits), so a fresh
     /// model must fetch its own snapshot or the form renders blank forever.
-    /// The Mac & VMs section (`.capacity`) also builds This Mac's model, so
-    /// that section is self-contained; Accounts keeps only Connect.
+    /// The Capacity section (`.capacity`) also builds This Mac's model and the
+    /// shared Runtimes model (its Budget card), so that section is
+    /// self-contained; Accounts keeps only Connect.
     func ensureSection(_ section: AdvancedSection) {
         switch section {
         case .accounts:
@@ -113,18 +114,18 @@ final class WindowModels {
                 macToolsModel = mac
                 mac.reload()
             }
+            ensureRuntimesModel()
             let model = CapacityModel()
             model.configURL = Paths.config
-            model.onChanged = { [weak self] in self?.runtimesEdited?() }
+            model.onChanged = { [weak self] in
+                // Reserve and VM size feed the Budget card's instance counts.
+                self?.runtimesModel?.reload()
+                self?.runtimesEdited?()
+            }
             capacityModel = model
             model.reload()
         case .routing:
-            guard runtimesModel == nil else { return }
-            let model = RuntimesModel()
-            model.configURL = Paths.config
-            model.onChanged = { [weak self] in self?.runtimesEdited?() }
-            runtimesModel = model
-            model.reload()
+            ensureRuntimesModel()
         case .containers:
             guard containersModel == nil else { return }
             containersModel = ContainersModel()
@@ -139,6 +140,17 @@ final class WindowModels {
         }
     }
 
+    /// The one `RuntimesModel` shared by Routing and Capacity's Budget card,
+    /// so locks, drags and the loaded config are the same in both places.
+    private func ensureRuntimesModel() {
+        guard runtimesModel == nil else { return }
+        let model = RuntimesModel()
+        model.configURL = Paths.config
+        model.onChanged = { [weak self] in self?.runtimesEdited?() }
+        runtimesModel = model
+        model.reload()
+    }
+
     /// Data-backed sections load when shown (Capacity's own form is skipped:
     /// reloading it would discard unapplied edits — its This Mac model does
     /// reload, it has nothing pending).
@@ -149,6 +161,7 @@ final class WindowModels {
         case .accounts: connectModel?.reload()
         case .capacity:
             macToolsModel?.reload()
+            runtimesModel?.reload()
         case .toolchains: toolchainsModel?.reload()
         case .app: break
         }

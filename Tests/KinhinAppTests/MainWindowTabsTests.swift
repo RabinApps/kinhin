@@ -46,7 +46,7 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertEqual(MainTab.allCases, [.fleet, .setup, .advanced])
         XCTAssertEqual(
             AdvancedSection.allCases.map(\.label),
-            ["Accounts", "Mac & VMs", "Routing", "Containers", "Toolchains", "App"])
+            ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "App"])
     }
 
     func testTabBarIsHiddenWhileSetupIsUnfinished() {
@@ -94,7 +94,8 @@ final class MainWindowTabsTests: MainWindowTestCase {
     func testSetupCannotBeLeftEarlyFromTheLastStep() {
         let wizard = showWizard()
         wizard.next()  // connect → mac
-        wizard.next()  // mac → toolchains
+        wizard.next()  // mac → capacity
+        wizard.next()  // capacity → toolchains
         wizard.next()  // toolchains → start
         XCTAssertFalse(wizard.canSkip, "there is no Finish later")
         wizard.skip()
@@ -118,16 +119,18 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertEqual(tabs.advancedSection, .accounts)
         XCTAssertNil(models.wizardModel)
         XCTAssertNotNil(models.connectModel)
-        XCTAssertNil(models.macToolsModel, "This Mac lives in Mac & VMs, not Accounts")
+        XCTAssertNil(models.macToolsModel, "This Mac lives in Capacity, not Accounts")
     }
 
-    func testWizardWalksFourSteps() {
+    func testWizardWalksFiveSteps() {
         let wizard = showWizard()
         XCTAssertEqual(wizard.step, .connect, "the wizard opens on connecting an account")
 
         wizard.next()  // connect → mac
         XCTAssertEqual(wizard.step, .mac)
-        wizard.next()  // mac → toolchains
+        wizard.next()  // mac → capacity
+        XCTAssertEqual(wizard.step, .capacity)
+        wizard.next()  // capacity → toolchains
         XCTAssertEqual(wizard.step, .toolchains)
         wizard.next()  // toolchains → start
         XCTAssertEqual(wizard.step, .start)
@@ -136,7 +139,8 @@ final class MainWindowTabsTests: MainWindowTestCase {
     func testWizardCannotStartUntilConnectedAndReady() {
         let wizard = showWizard()
         wizard.next()  // connect → mac
-        wizard.next()  // mac → toolchains
+        wizard.next()  // mac → capacity
+        wizard.next()  // capacity → toolchains
         wizard.next()  // toolchains → start
         XCTAssertEqual(wizard.step, .start)
         // Nothing connected in a hermetic test: pressing Start must not
@@ -164,7 +168,7 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertNotNil(models.capacityModel, "Capacity embeds the form model")
     }
 
-    /// Accounts and Mac & VMs are separate: Accounts keeps the Connect form
+    /// Accounts and Capacity are separate: Accounts keeps the Connect form
     /// alone; the renamed Capacity section hosts This Mac above the cards.
     func testMacAndVmSettingsShareTheRenamedCapacitySection() {
         tabs.showAdvanced(.accounts)
@@ -172,7 +176,7 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertNil(models.macToolsModel, "Accounts no longer builds This Mac")
 
         tabs.showAdvanced(.capacity)
-        XCTAssertNotNil(models.macToolsModel, "Mac & VMs builds This Mac")
+        XCTAssertNotNil(models.macToolsModel, "Capacity builds This Mac")
         XCTAssertNotNil(models.capacityModel, "and its own capacity form")
     }
 
@@ -214,7 +218,10 @@ final class MainWindowTabsTests: MainWindowTestCase {
             case .capacity:
                 XCTAssertGreaterThanOrEqual(models.capacityModel?.loads ?? 0, 1)
                 XCTAssertNotNil(
-                    models.macToolsModel, "Mac & VMs embeds the This Mac form beside the capacity cards")
+                    models.macToolsModel, "Capacity embeds the This Mac form beside the capacity cards")
+                XCTAssertGreaterThanOrEqual(
+                    models.runtimesModel?.loads ?? 0, 1,
+                    "Capacity hosts the Budget card, so it loads the runtimes model")
             case .routing: XCTAssertGreaterThanOrEqual(models.runtimesModel?.loads ?? 0, 1)
             case .containers: XCTAssertNotNil(models.containersModel)
             case .toolchains: XCTAssertNotNil(models.toolchainsModel)

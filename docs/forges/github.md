@@ -64,11 +64,30 @@ Token-creation and settings links are rendered per instance by `OrgPermissionPro
 
 ## Scale sets (future direction)
 
-GitHub's supported autoscaling path is runner scale sets plus JIT runner configuration (see [`actions/scaleset`](https://github.com/actions/scaleset)). The scale-set message API is Public Preview and, like the endpoint removed above, is not in any published OpenAPI description. kinhin keeps polling documented per-repository endpoints until the message API is documented. JIT stays out of scope (audit finding 2 is unchanged).
+GitHub's supported autoscaling path is runner scale sets plus JIT runner configuration (see [`actions/scaleset`](https://github.com/actions/scaleset)). The scale-set message API is Public Preview and, like the endpoint removed above, is not in any published OpenAPI description. kinhin keeps polling documented per-repository endpoints until the message API is documented. Only the opt-in mode below registers with JIT; the classic path still hands the VM a shared token (audit finding 2).
 
 ### Scale set mode in kinhin
 
 kinhin has an opt-in scale-set mode for GitHub accounts. It is not the default and does not replace the documented REST poll. When a GitHub account has `scale_set:` set, kinhin uses the Actions-service message path for demand instead of polling workflow runs, and registers spawned runners with JIT configs.
+
+```yaml
+accounts:
+  - name: github
+    forge: github
+    scope: your-org
+    scale_set:
+      name: kinhin # the scale set's name, and a label jobs may request via runs-on:
+      runner_group: "Default" # case-sensitive: GitHub's built-in group is "Default"
+```
+
+`name` is required and must be a valid `runs-on:` label. `runner_group` is optional in the file
+but not in effect: it defaults to the lowercase string `default`, which never matches GitHub's
+built-in group `Default`, because the lookup is an exact, case-sensitive name match — every org
+has that one group already, so the fix is spelling, not creation. Take the name from your org's
+runner-groups page and set it verbatim; [Troubleshooting scale sets](#troubleshooting-scale-sets)
+walks through the error, the fix, and the restart an account-level edit needs. The scale set is
+created with `labels:` from the account entry when present, otherwise the fleet `labels:`, plus
+the scale-set name — so a job requesting a label outside that set is never assigned to it.
 
 Implementation notes:
 
@@ -82,10 +101,64 @@ Caveat: because the message API is still preview and not in GitHub's published O
 
 ### Scale-set troubleshooting (kinhin side)
 
-For the error signatures that show up in kinhin logs and how to read them, see [Troubleshooting scale sets](/docs/scaling.md#troubleshooting-scale-sets) in _How scaling works_. The two most common are:
+The listener service log lines are tagged `[scaleset]` and live in `~/Library/Application Support/Kinhin/logs/kinhin.log` (the app; `kinhin logs -n 200` from the CLI).
+Three signatures cover almost everything.
 
-- `cd: /Users/admin/actions-runner-N: No such file or directory` (`bash: line …: cd: …: No such file or directory` in the in-VM script) — a per-runner directory is missing on the image; usually a `runners_per_vm` bake/fleet mismatch. Scale-set mode does **not** use a separate image; the same baked image that works for classic mode also boots scale-set VMs. See the density-mismatch section.
-- `could not pin the guest's SSH host key … connecting without host key verification` — a boot/SSH-agent reachability issue, not a registration-material issue. Establish that one VM can boot and register in classic mode before scaling it.
+#### `runner group 'default' was not found; create it in GitHub before attaching`
+
+The full line is `scale-set message service failed: runner group 'default' was not found; create
+it in GitHub before attaching`, repeated every few seconds as `statistics poll failed` and
+`session refresh failed`. The group exists — kinhin's lookup is what fails:
+
+- Every organization has exactly one built-in runner group, and GitHub names it **`Default`**
+  (capital D).
+- `scale_set.runner_group` defaults to the lowercase string `default`, and kinhin resolves the
+  group with an **exact, case-sensitive** name match: the `groupName=` filter is re-checked
+  locally against the full group list, so `default` never matches `Default`, no scale set is
+  ever created, and the listener keeps retrying with the same message.
+
+Name the group yourself, spelled byte-for-byte as GitHub spells it:
+
+```yaml
+accounts:
+  - name: github
+    forge: github
+    scope: your-org
+    scale_set:
+      name: kinhin
+      runner_group: "Default" # case-sensitive; GitHub's built-in group is "Default"
+```
+
+Read the spelling off your org's runner-groups page
+(<https://github.com/organizations/OWNER/settings/actions/runner-groups>) — `default`, `Default`
+and `DEFAULT` are three different answers to kinhin. Creating an _additional_ runner group needs
+the GitHub Team plan; on Free, the built-in `Default` is the only group there is, and it isthe right target for a first scale set.
+
+`scale_set:` is account-level config, so a fleet that is already running picks the change up only
+when the engine is rebuilt — restart the app (or the daemon) after editing it. (Routing, budget
+and label edits are the ones that apply live; everything else waits for a rebuild.)
+
+#### `cd: /Users/admin/actions-runner-N: No such file or directory`
+
+`bash: line …: cd: …` in the in-VM registration script: the image has no per-runner directory for
+the slot the fleet is asking for, which is a `runners_per_vm` bake/fleet mismatch. Scale-set mode
+uses the same baked image as classic mode, so bake with the density you run (or run the density
+you baked with) and re-run `kinhin image prepare`.
+
+#### `could not pin the guest's SSH host key … connecting without host key verification`
+
+A boot/SSH reachability issue, not a registration-material issue — see
+[Known limits](../../security.md#known-limits). Establish that one VM can boot and register before
+scaling it.
+
+#### A job stays queued with no `[scaleset]` error
+
+GitHub assigns a job to a scale set only when the scale set carries **every** label the job
+requests. kinhin creates one scale set per account, labelled with `labels:` from the account entry
+when it is present, otherwise the fleet's `labels:`, plus the scale-set name (which is itself a
+valid `runs-on:` label). A job asking for anything else — an image label such as `xcode`, or the
+pool marker `kinhin-container` — is never assigned to it. Make the configured labels cover what
+your workflows request, or leave `scale_set:` off and let the classic poller route per pool.
 
 If the listener can't refresh statistics or the session drops, the engine keeps the last known snapshot briefly; if that keeps failing, re-check the account token and scopes (organization self-hosted-runner permissions).
 

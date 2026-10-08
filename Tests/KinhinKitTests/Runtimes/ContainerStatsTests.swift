@@ -22,6 +22,30 @@ final class ContainerStatsTests: XCTestCase {
         XCTAssertEqual(stats["kinhin-2"], ResourceUsage(cpuPercent: nil, memoryUsedMB: 1024, memoryLimitMB: 4096))
     }
 
+    func testParsesAppleCPUCounters() {
+        let text = """
+            [{"id":"kinhin-2","cpuUsageUsec":2500000,"memoryUsageBytes":1073741824},
+             {"id":"no-counter","memoryUsageBytes":42}]
+            """
+        let counters = ContainerManager.parseAppleCPUSeconds(text)
+        XCTAssertEqual(counters["kinhin-2"], 2.5, "microseconds → seconds")
+        XCTAssertNil(counters["no-counter"], "a row without the field is skipped")
+    }
+
+    func testAppleStatsWithCountersPairsUsageAndCounter() async throws {
+        let shell = FakeShell()
+        shell.defaultResult = ShellResult(
+            exitCode: 0,
+            stdout:
+                #"[{"id":"kinhin-2","memoryUsageBytes":1073741824,"memoryLimitBytes":4294967296,"cpuUsageUsec":5000000}]"#,
+            stderr: "")
+        let stats = try await ContainerManager(tool: .appleContainer, shell: shell, binary: "/usr/bin/container")
+            .statsWithCounters()
+        XCTAssertEqual(
+            stats["kinhin-2"]?.usage, ResourceUsage(cpuPercent: nil, memoryUsedMB: 1024, memoryLimitMB: 4096))
+        XCTAssertEqual(stats["kinhin-2"]?.cpuSeconds, 5)
+    }
+
     func testMalformedStatsReadAsEmpty() {
         XCTAssertTrue(ContainerManager.parseDockerStats("garbage").isEmpty)
         XCTAssertTrue(ContainerManager.parseAppleStats("").isEmpty)

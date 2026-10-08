@@ -61,6 +61,9 @@ public enum ScaleSetError: LocalizedError, Sendable {
 /// into scale-set mode.
 public actor GitHubScaleSetListener {
     private var session: GitHubScaleSetSession?
+    /// Id of a session we stopped polling after a failure but never deleted; GitHub still treats it
+    /// as active (409 on create) until it is refreshed or expires.
+    private var abandonedSessionId: String?
     private var lastMessageId: String?
     private var cachedSnapshot: GitHubScaleSetSnapshot?
     private var pendingActions: [String: GitHubScaleSetJobEvent] = [:]
@@ -125,10 +128,11 @@ public actor GitHubScaleSetListener {
         await messageTask?.value
         await statisticsTask?.value
         await retryTask?.value
-        if let session, let id = cachedScaleSetId {
-            await bestEffort { [self] in try await client.deleteSession(scaleSetId: id, sessionId: session.sessionId) }
+        if let sessionId = session?.sessionId ?? abandonedSessionId, let id = cachedScaleSetId {
+            await bestEffort { [self] in try await client.deleteSession(scaleSetId: id, sessionId: sessionId) }
         }
         session = nil
+        abandonedSessionId = nil
         cachedSnapshot = nil
         pendingActions = [:]
         cachedScaleSetId = nil
@@ -184,15 +188,17 @@ public actor GitHubScaleSetListener {
     private func refreshSession() async {
         do {
             let id = try await currentScaleSetId()
-            let newSession = try await client.createSession(scaleSetId: id, ownerName: ownerName)
+            let createdOrRefreshed = try await client.createOrUpdateSession(
+                scaleSetId: id, sessionId: session?.sessionId ?? abandonedSessionId, ownerName: ownerName)
             try Task.checkCancellation()
             guard isRunning else {
                 await bestEffort { [self] in
-                    try await client.deleteSession(scaleSetId: id, sessionId: newSession.sessionId)
+                    try await client.deleteSession(scaleSetId: id, sessionId: createdOrRefreshed.sessionId)
                 }
                 return
             }
-            session = newSession
+            session = createdOrRefreshed
+            abandonedSessionId = nil
             backOff = .seconds(1)
             lastMessageId = nil
             _lastError = nil
@@ -221,10 +227,14 @@ public actor GitHubScaleSetListener {
                 try await pollOnce()
             } catch is CancellationError {
                 return
+            } catch let error as URLError where error.code == .timedOut {
+                // A long-poll that outlives the client timeout is not a dead session; poll again.
+                Log.debug("scaleset", "message poll timed out; polling again")
             } catch {
                 let reason = error.localizedDescription
                 Log.warn("scaleset", "message poll failed: \(reason)")
                 _lastError = error as? ScaleSetError ?? .messageServiceFailure(reason: reason)
+                abandonedSessionId = session?.sessionId
                 session = nil
                 scheduleBackoff()
             }

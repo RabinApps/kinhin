@@ -74,6 +74,37 @@ final class UsageSamplerTests: XCTestCase {
         XCTAssertEqual(tart.calls, 1)
     }
 
+    /// Apple reports a cumulative `cpuUsageUsec`, never a rate: the sampler
+    /// must turn the delta between polls into a live percentage.
+    func testAppleContainerCPURisesFromItsCumulativeCounter() async throws {
+        let shell = FakeShell()
+        func stats(_ usec: Int) -> ShellResult {
+            ShellResult(
+                exitCode: 0,
+                stdout:
+                    #"[{"id":"kinhin-c","memoryUsageBytes":1073741824,"memoryLimitBytes":4294967296,"cpuUsageUsec":\#(usec)}]"#,
+                stderr: "")
+        }
+        shell.responses = [stats(1_000_000), stats(4_000_000)]
+        // maxStale 0: every snapshot waits for its own sample, so the
+        // second one carries the counter delta (a non-zero maxStale would
+        // serve the previous snapshot while refreshing in the background).
+        let sampler = UsageSampler(
+            tart: CountingTart(), shell: shell, tartMemoryMB: { 4096 },
+            minInterval: .milliseconds(0), maxStale: .milliseconds(0),
+            makeContainer: { ContainerManager(tool: $0, shell: $1, binary: "/usr/bin/container") })
+        var record = VMRecord(id: "kinhin-c", phase: .ready, createdAt: Date())
+        record.runtime = RuntimeID.appleContainer.rawValue
+
+        let first = await sampler.snapshot(for: [record])
+        XCTAssertEqual(first.byInstance["kinhin-c"]?.memoryUsedMB, 1024)
+        XCTAssertNil(first.byInstance["kinhin-c"]?.cpuPercent, "the first sample only starts the baseline")
+
+        let second = await sampler.snapshot(for: [record])
+        let cpu = try XCTUnwrap(second.byInstance["kinhin-c"]?.cpuPercent)
+        XCTAssertGreaterThan(cpu, 0, "the counter delta reads as a live percentage")
+    }
+
     func testStatusWithoutUsageSkipsSampling() async throws {
         let tart = FakeTart()
         let engine = FleetEngine(

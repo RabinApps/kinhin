@@ -5,15 +5,39 @@ import Foundation
 extension ContainerManager {
     /// Live CPU/RAM of running containers, keyed by container name.
     public func stats() async throws -> [String: ResourceUsage] {
+        try await statsWithCounters().mapValues(\.usage)
+    }
+
+    /// As `stats()`, plus each container's cumulative CPU counter in seconds
+    /// where the tool reports one (apple's `cpuUsageUsec`; docker reports a
+    /// rate directly, so its counter is nil). The sampler turns the counter's
+    /// delta between polls into a live percentage.
+    public func statsWithCounters() async throws -> [String: (usage: ResourceUsage, cpuSeconds: Double?)] {
         switch tool {
         case .docker:
             let out = try await run(
                 ["stats", "--no-stream", "--no-trunc", "--format", "{{json .}}"], what: "reading container stats")
-            return Self.parseDockerStats(out)
+            return Self.parseDockerStats(out).mapValues { (usage: $0, cpuSeconds: nil) }
         case .appleContainer:
             let out = try await run(["stats", "--no-stream", "--format", "json"], what: "reading container stats")
-            return Self.parseAppleStats(out)
+            let usage = Self.parseAppleStats(out)
+            let counters = Self.parseAppleCPUSeconds(out)
+            var merged: [String: (usage: ResourceUsage, cpuSeconds: Double?)] = [:]
+            for (id, value) in usage { merged[id] = (value, counters[id]) }
+            return merged
         }
+    }
+
+    /// Apple's `cpuUsageUsec` — cumulative microseconds since the container
+    /// started, keyed like `parseAppleStats`. A row without the field is
+    /// skipped; its container then simply shows no CPU.
+    static func parseAppleCPUSeconds(_ text: String) -> [String: Double] {
+        var out: [String: Double] = [:]
+        for row in jsonArray(text) {
+            guard let id = row["id"] as? String, let usec = row["cpuUsageUsec"] as? NSNumber else { continue }
+            out[id] = usec.doubleValue / 1_000_000
+        }
+        return out
     }
 
     /// Docker `stats --format '{{json .}}'`: `Name`, `CPUPerc` ("12.34%") and

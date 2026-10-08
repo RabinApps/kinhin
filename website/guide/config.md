@@ -20,6 +20,13 @@
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                                                                                                                                                                                                      |
 | `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                                                                                                                                                                                        |
 
+Scale-set mode (GitHub, opt-in): an `accounts:` entry may carry `scale_set:` with `name` (the
+scale set's name — also a label workflows can request through `runs-on:`) and `runner_group`
+(where the scale set lives; GitHub's built-in group is `Default`, spelled exactly that way, and
+kinhin's lookup is case-sensitive). It swaps that account's demand from the REST poll to the
+message API — see [Forge support](/guide/forges/github#scale-set-mode-in-kinhin) and
+[Troubleshooting scale sets](/guide/forges/github#troubleshooting-scale-sets).
+
 The effective concurrency cap is
 `min(max_runners, (cores − reserve.cpu) / vm.cpu, (RAM − reserve.memory_gb) / vm.memory_gb, free_disk / disk_per_vm)` —
 `disk_per_vm` is your `disk_gb` when set, else a runtime default (50 GB for Tart VMs, 8 GB for

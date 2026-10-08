@@ -13,34 +13,6 @@ final class RuntimesTabTests: XCTestCase {
         model = RuntimesModel()
     }
 
-    // MARK: - availability titles
-
-    func testAvailabilityTitleDistinguishesInstalledFromNotInstalled() {
-        XCTAssertEqual(
-            RuntimesModel.availabilityTitle(.tart, health: .ready, inUse: true),
-            "🍎 Tart (macOS VMs) — installed ✓ · used by your fleet"
-        )
-        XCTAssertEqual(
-            RuntimesModel.availabilityTitle(
-                .docker, health: .missing(tool: "docker", fix: "install Docker Desktop"), inUse: false),
-            "🐳 Docker (Linux) — not installed · not used by your config"
-        )
-        XCTAssertEqual(
-            RuntimesModel.availabilityTitle(
-                .appleContainer, health: .broken("the container system service is not running"), inUse: true),
-            "🐧 Apple container (Linux) — installed — needs attention · used by your fleet"
-        )
-    }
-
-    func testAvailabilityTitlesAreDistinctPerState() {
-        let titles = [
-            RuntimesModel.availabilityTitle(.tart, health: .ready, inUse: false),
-            RuntimesModel.availabilityTitle(.tart, health: .missing(tool: "tart", fix: "x"), inUse: false),
-            RuntimesModel.availabilityTitle(.tart, health: .broken("y"), inUse: false),
-        ]
-        XCTAssertEqual(Set(titles).count, 3, "the three states must read differently at a glance")
-    }
-
     func testHealthChipsCoverEveryState() {
         XCTAssertEqual(RuntimesModel.healthChip(.ready, probing: false).text, "● ready")
         XCTAssertEqual(

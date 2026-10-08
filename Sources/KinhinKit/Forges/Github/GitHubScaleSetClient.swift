@@ -9,6 +9,8 @@ public protocol GitHubScaleSetServing: Sendable {
     func patchScaleSet(id: Int, labels: [String]) async throws
     func createSession(scaleSetId: Int, ownerName: String) async throws -> GitHubScaleSetSession
     func refreshSession(scaleSetId: Int, sessionId: String) async throws -> GitHubScaleSetSession
+    func createOrUpdateSession(scaleSetId: Int, sessionId: String?, ownerName: String) async throws
+        -> GitHubScaleSetSession
     func deleteSession(scaleSetId: Int, sessionId: String) async throws
     func pollMessages(session: GitHubScaleSetSession, lastMessageId: String?, maxCapacity: Int) async throws
         -> [GitHubScaleSetMessage]
@@ -17,12 +19,36 @@ public protocol GitHubScaleSetServing: Sendable {
     func scaleSetStatistics(scaleSetId: Int) async throws -> GitHubScaleSetStatistics
 }
 
+extension GitHubScaleSetServing {
+    /// Refreshes `sessionId` when we hold one, creating a fresh session when there is none or
+    /// GitHub reports the held one is no longer active (409) instead of retrying the refresh.
+    public func createOrUpdateSession(
+        scaleSetId: Int, sessionId: String?, ownerName: String
+    ) async throws -> GitHubScaleSetSession {
+        guard let sessionId else {
+            return try await createSession(scaleSetId: scaleSetId, ownerName: ownerName)
+        }
+        do {
+            return try await refreshSession(scaleSetId: scaleSetId, sessionId: sessionId)
+        } catch GitHubScaleSetClientError.sessionConflict {
+            return try await createSession(scaleSetId: scaleSetId, ownerName: ownerName)
+        } catch GitHubError.notFound {
+            return try await createSession(scaleSetId: scaleSetId, ownerName: ownerName)
+        }
+    }
+}
+
 public enum GitHubScaleSetClientError: LocalizedError, Sendable {
     case messageQueueTokenExpired
+    case sessionConflict
 
     public var errorDescription: String? {
         switch self {
         case .messageQueueTokenExpired: "scale-set message queue token expired"
+        case .sessionConflict:
+            "scale-set session conflict: GitHub still holds an earlier session for this scale set "
+                + "(a previous run that did not shut down cleanly, or another kinhin instance); "
+                + "retrying until it expires"
         }
     }
 }
@@ -220,6 +246,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
                     lastError = GitHubError.forbidden(String(decoding: data.prefix(500), as: UTF8.self))
                     continue
                 case 404: throw GitHubError.notFound(request.url?.path ?? "resource")
+                case 409: throw GitHubScaleSetClientError.sessionConflict
                 case 429, 500...599:
                     lastError = GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
                     continue
@@ -301,11 +328,15 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         // missing — and a filter that comes back unfiltered is matched the
         // same way instead of erroring on the count.
         let filtered = try await fetch(query: groupComponents.percentEncodedQuery)
-        if let match = filtered.value.first(where: { $0.name == name }) {
+        func firstMatch(in groups: [GitHubScaleSetRunnerGroup]) -> GitHubScaleSetRunnerGroup? {
+            groups.first { $0.name == name }
+                ?? groups.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+        }
+        if let match = firstMatch(in: filtered.value) {
             return match
         }
         let all = try await fetch(query: nil)
-        guard let match = all.value.first(where: { $0.name == name }) else {
+        guard let match = firstMatch(in: all.value) else {
             throw ScaleSetError.messageServiceFailure(
                 reason: "runner group '\(name)' was not found; create it in GitHub before attaching")
         }

@@ -72,6 +72,130 @@ final class GitHubScaleSetClientTests: XCTestCase {
         XCTAssertEqual((payload["labels"] as? [[String: String]])?.first?["type"], "System")
     }
 
+    func testRunnerGroupLookupMatchesGitHubsBuiltInDefaultGroupCaseInsensitively() async throws {
+        let requests = Mutex<[URLRequest]>([])
+        StubProtocol.handler = { request in
+            let call = requests.withLock { captured -> Int in
+                captured.append(request)
+                return captured.count
+            }
+            switch call {
+            case 1:
+                // GitHub's built-in group is "Default"; kinhin asked for its
+                // lowercase default.
+                return (200, Data(#"{"value":[{"id":42,"name":"Default"}],"count":1}"#.utf8), [:])
+            case 2:
+                return (200, Data(#"{"value":[],"count":0}"#.utf8), [:])
+            default:
+                return (
+                    200,
+                    Data(#"{"id":9,"name":"kinhin","runnerGroupName":"Default","labels":[]}"#.utf8), [:]
+                )
+            }
+        }
+        let scaleSet = try await makeClient().ensureScaleSet(
+            name: "kinhin", labels: ["self-hosted"], runnerGroup: "default")
+        XCTAssertEqual(scaleSet.id, 9)
+        let captured = requests.withLock { $0 }
+        XCTAssertEqual(captured.count, 3, "the filtered list held the group, so there is no full-list fallback")
+        XCTAssertEqual(captured[1].url?.path, "/prefix/_apis/runtime/runnerscalesets")
+        let body = try XCTUnwrap(captured[2].bodyStreamData())
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(payload["runnerGroupId"] as? Int, 42)
+    }
+
+    func testRunnerGroupLookupFallsBackToTheFullListCaseInsensitively() async throws {
+        let requests = Mutex<[URLRequest]>([])
+        StubProtocol.handler = { request in
+            let call = requests.withLock { captured -> Int in
+                captured.append(request)
+                return captured.count
+            }
+            switch call {
+            case 1:
+                // Some GHES builds answer the `groupName` filter with an empty
+                // list; the full list carries the group under its own casing.
+                return (200, Data(#"{"value":[],"count":0}"#.utf8), [:])
+            case 2:
+                return (200, Data(#"{"value":[{"id":7,"name":"Default"}],"count":1}"#.utf8), [:])
+            case 3:
+                return (200, Data(#"{"value":[],"count":0}"#.utf8), [:])
+            default:
+                return (
+                    200,
+                    Data(#"{"id":3,"name":"kinhin","runnerGroupName":"Default","labels":[]}"#.utf8), [:]
+                )
+            }
+        }
+        let scaleSet = try await makeClient().ensureScaleSet(
+            name: "kinhin", labels: ["self-hosted"], runnerGroup: "default")
+        XCTAssertEqual(scaleSet.id, 3)
+        let captured = requests.withLock { $0 }
+        XCTAssertEqual(captured.count, 4)
+        XCTAssertEqual(captured[2].url?.path, "/prefix/_apis/runtime/runnerscalesets")
+        let body = try XCTUnwrap(captured[3].bodyStreamData())
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(payload["runnerGroupId"] as? Int, 7)
+    }
+
+    func testRunnerGroupLookupPrefersAnExactNameMatch() async throws {
+        let requests = Mutex<[URLRequest]>([])
+        StubProtocol.handler = { request in
+            let call = requests.withLock { captured -> Int in
+                captured.append(request)
+                return captured.count
+            }
+            switch call {
+            case 1:
+                // Two groups differing only in casing: the exact spelling wins
+                // instead of whichever the list happened to return first.
+                let json = #"{"value":[{"id":1,"name":"default"},{"id":2,"name":"Default"}],"count":2}"#
+                return (200, Data(json.utf8), [:])
+            case 2:
+                return (200, Data(#"{"value":[],"count":0}"#.utf8), [:])
+            default:
+                return (
+                    200,
+                    Data(#"{"id":4,"name":"kinhin","runnerGroupName":"default","labels":[]}"#.utf8), [:]
+                )
+            }
+        }
+        let scaleSet = try await makeClient().ensureScaleSet(
+            name: "kinhin", labels: ["self-hosted"], runnerGroup: "default")
+        XCTAssertEqual(scaleSet.id, 4)
+        let captured = requests.withLock { $0 }
+        let body = try XCTUnwrap(captured[2].bodyStreamData())
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(payload["runnerGroupId"] as? Int, 1)
+    }
+
+    func testRunnerGroupLookupFailsWhenGitHubListsNoSuchGroup() async throws {
+        let requests = Mutex<[URLRequest]>([])
+        StubProtocol.handler = { request in
+            let call = requests.withLock { captured -> Int in
+                captured.append(request)
+                return captured.count
+            }
+            switch call {
+            case 1:
+                return (200, Data(#"{"value":[],"count":0}"#.utf8), [:])
+            default:
+                return (200, Data(#"{"value":[{"id":1,"name":"builds"}],"count":1}"#.utf8), [:])
+            }
+        }
+        do {
+            _ = try await makeClient().ensureScaleSet(
+                name: "kinhin", labels: ["self-hosted"], runnerGroup: "default")
+            XCTFail("a group GitHub does not list must fail instead of attaching to the wrong one")
+        } catch let error as ScaleSetError {
+            guard case .messageServiceFailure(let reason) = error else {
+                return XCTFail("unexpected error: \(error)")
+            }
+            XCTAssertTrue(reason.contains("runner group 'default' was not found"), reason)
+        }
+        XCTAssertEqual(requests.withLock { $0 }.count, 2, "both group lookups ran; no scale set was created")
+    }
+
     private func makeClient(
         instance: String? = nil,
         actionsServiceURL: URL = URL(string: "https://actions.example.invalid/prefix")!

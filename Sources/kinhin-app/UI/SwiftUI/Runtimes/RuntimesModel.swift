@@ -55,12 +55,37 @@ final class RuntimesModel: ConfigFormModel {
     @ObservationIgnored var currentRuntimeConfig: KinhinConfig.RuntimeConfig?
     @ObservationIgnored private(set) var parsedConfig: KinhinConfig?
     @ObservationIgnored var previewCommitTask: Task<Void, Never>?
+    /// The split a drag started from; every tick rescales from it.
+    @ObservationIgnored var dragBaseline: [String: Double]?
+    /// The latest previewed split, written on release (or after the debounce).
+    @ObservationIgnored var pendingBudget: [String: Double]?
+    /// True between a slider press and release; reloads wait for the release.
+    @ObservationIgnored var isDraggingBudget = false
+    @ObservationIgnored var reloadDeferredDuringDrag = false
+
+    /// Pools whose share the other sliders must not touch (session only —
+    /// the lock is a UI aid, not config).
+    var lockedRuntimes: Set<RuntimeID> = []
+    /// One line under the share rows ("Capped at 40% — tart is locked").
+    var budgetNotice = ""
 
     /// Live budget-preview state, updated on every slider tick.
     var capPreviews: [RuntimeID: Int] = [:]
     var percentShares: [String: Double] = [:]
-    var remainderNote = ""
     var starvedRoutes: [String] = []
+    /// One row per pool for the Budget card, rebuilt on every tick.
+    var budgetRows: [BudgetRow] = []
+
+    /// What one pool's slice of the split looks like right now: the share
+    /// (rows always total 100%), the instance cap the engine would enforce
+    /// (nil reads "n/a" — no split configured, or a host pool outside the
+    /// partition), and whether the pool takes unmatched jobs.
+    struct BudgetRow: Identifiable {
+        let id: RuntimeID
+        let share: Double
+        let cap: Int?
+        let isDefault: Bool
+    }
 
     // MARK: - Label fields
 
@@ -77,6 +102,11 @@ final class RuntimesModel: ConfigFormModel {
     /// then live probe results flip the chips in place — the pane never
     /// blocks on a subprocess.
     func reload() {
+        // A reload mid-drag would rebuild the rows under the user's hand.
+        guard !isDraggingBudget else {
+            reloadDeferredDuringDrag = true
+            return
+        }
         loads += 1
         Task { await reloadWithHealth() }
     }
@@ -147,27 +177,6 @@ final class RuntimesModel: ConfigFormModel {
 
     // MARK: - Pool display
 
-    /// The "On this Mac" rows: what's installed vs not, and whether the
-    /// config actually uses it.
-    var availabilityRows: [(id: String, title: String, detail: String?)] {
-        guard let vm = viewModel else { return [] }
-        return [RuntimeID.tart, .appleContainer, .docker].compactMap { id in
-            guard let health = vm.availability[id] else { return nil }
-            let inUse = vm.pools.contains { $0.runtime == id }
-            let title = Self.availabilityTitle(id, health: health, inUse: inUse)
-            let detail: String?
-            switch health {
-            case .ready:
-                detail = nil
-            case .missing(_, let fix):
-                detail = "To install: \(fix)"
-            case .broken(let why):
-                detail = why
-            }
-            return (id.rawValue, title, detail)
-        }
-    }
-
     var poolRows: [PoolDisplay] {
         guard let vm = viewModel else { return [] }
         return vm.pools.map { pool in
@@ -184,9 +193,8 @@ final class RuntimesModel: ConfigFormModel {
             } else {
                 title += "cap n/a"
             }
-            if let pct = pool.budgetPercent {
-                title += String(format: " · %.0f%% of host budget", pct)
-            }
+            // The Budget card owns the share display now — no duplicate
+            // "N% of host budget" buried in pool titles.
             if pool.runtime == vm.defaultRuntime {
                 title += " · default"
             }
@@ -228,8 +236,13 @@ final class RuntimesModel: ConfigFormModel {
         RuntimeID(rawValue: currentRuntimeConfig?.defaultRuntime ?? "") ?? .tart
     }
 
+    /// One pool's share as the slider should show it: the default's share
+    /// is derived (the engine ignores its stored weight and computes the
+    /// remainder), so a hand-edited `budget:` line can never park the
+    /// slider where the fleet won't actually run.
     func budgetShare(for runtime: RuntimeID) -> Double {
-        currentRuntimeConfig?.budget[runtime.rawValue] ?? 0
+        guard let rc = currentRuntimeConfig else { return 0 }
+        return BudgetEditor.displayShares(current: rc.budget, defaultRuntime: defaultRuntimeID)[runtime.rawValue] ?? 0
     }
 
     // MARK: - Sheets (Add Route / Edit YAML)
@@ -255,25 +268,6 @@ final class RuntimesModel: ConfigFormModel {
     }
 
     // MARK: - Display helpers (shared with tests)
-
-    /// "On this Mac" row title: what's installed vs not, and whether the
-    /// config actually uses it.
-    static func availabilityTitle(_ id: RuntimeID, health: RuntimeHealth, inUse: Bool) -> String {
-        let name: String
-        switch id {
-        case .tart: name = "🍎 Tart (macOS VMs)"
-        case .appleContainer: name = "🐧 Apple container (Linux)"
-        case .docker: name = "🐳 Docker (Linux)"
-        case .host: name = "Host"
-        }
-        let state: String
-        switch health {
-        case .ready: state = "installed ✓"
-        case .missing: state = "not installed"
-        case .broken: state = "installed — needs attention"
-        }
-        return "\(name) — \(state)\(inUse ? " · used by your fleet" : " · not used by your config")"
-    }
 
     /// A small colored health chip: green ready / red not ready /
     /// grey "checking…" while the probe pass is in flight.

@@ -1,8 +1,9 @@
 import KinhinKit
 import SwiftUI
 
-/// Advanced → Mac & VMs: the This Mac form (its macOS and Linux cards) at the
-/// top, then the VM capacity steppers in cards, with Revert and Apply pinned
+/// Advanced → Capacity: the This Mac form (its macOS and Linux cards) at the
+/// top, then reserve, the split between runtimes (Budget) and the VM capacity
+/// steppers in cards, with Revert and Apply pinned
 /// below — they apply to the capacity fields only; the This Mac form saves as
 /// you edit, exactly as it did on Accounts. State and actions live in
 /// `CapacityModel` (VM capacity) and `MacToolsModel` (this Mac).
@@ -11,6 +12,8 @@ struct CapacityView: View {
 
     let model: CapacityModel
     let mac: MacToolsModel
+    /// Drives the Budget card; its instance counts read the saved config.
+    let runtimes: RuntimesModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -21,7 +24,15 @@ struct CapacityView: View {
                     // The capacity cards need a config that parses; the This Mac
                     // card always renders (it carries its own config error line).
                     if model.draft != nil {
-                        SectionHeader("VM capacity")
+                        SectionHeader("Capacity")
+                        reserveCard
+                        if runtimes.showsBudget {
+                            SectionHeader("Split between runtimes")
+                            BudgetCard(model: runtimes)
+                            if model.hasPendingChanges {
+                                HintText("Instance counts update once you Apply the changes below.")
+                            }
+                        }
                         capacityCards
                     }
                 }
@@ -86,6 +97,10 @@ struct CapacityView: View {
                 .accessibilityIdentifier("image-field")
             }
         }
+    }
+
+    @ViewBuilder
+    private var reserveCard: some View {
         FormCard(
             title: "Keep free for your Mac",
             subtitle: "Resources kinhin will not hand to VMs, so your Mac stays responsive."

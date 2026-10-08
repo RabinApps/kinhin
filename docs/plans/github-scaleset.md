@@ -36,7 +36,7 @@ accounts:
     scope: your-org # org or owner/name — both supported
     scale_set: # ABSENT → classic poller (today's behavior, default)
       name: kinhin # scale-set name base (per-pool suffixes derived)
-      # runner_group: default
+      # runner_group: "Default"  # case-sensitive: GitHub's built-in runner group is "Default"
 ```
 
 Validation: `scale_set` requires `vm.ephemeral: true` (scale-set runners deregister after one job — persistent VMs are contradictory); name must be a valid label; per-pool derived names validated the same way.

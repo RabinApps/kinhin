@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Advanced → Accounts: the Connect form the wizard uses, as a page for
 /// changing forges after setup. The This Mac form it used to stack lives with
-/// the VM settings under Advanced → Mac & VMs.
+/// the VM settings under Advanced → Capacity.
 struct AccountsSectionView: View {
     let connect: ConnectModel
 

@@ -17,11 +17,11 @@ Everything kinhin does happens in a single main window. A segmented control swit
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Fleet**    | The **Runtimes** diagram: a lane per execution runtime — 🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host — holding one icon-led row per live instance — the phase-colored icon, that instance's VM-row detail, and its **Pipeline…**/**Delete** actions (a busy row opens its pipeline) — or the word *idle* when the runtime has nothing running; then live status, Start/Stop/Pause, Current jobs, Queued work, and buttons for Logs and Diagnostics. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason) rather than sending you back to Setup.                                                         |
 | **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps and Bitbucket — select every one to serve), pick the repo or org, get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a short wizard.                                                  |
-| **Advanced** | **Accounts** (forges), **Mac & VMs** (this Mac's macOS and Linux runtimes, VM counts and sizes, with Apply), **Routing** (runtimes, budget, labels), **Containers** (containers and volumes), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, config file).                           |
+| **Advanced** | **Accounts** (forges), **Capacity** (this Mac's macOS and Linux runtimes, the reserve, the budget split between runtimes, VM counts and sizes, with Apply), **Routing** (pools, routes, the default pool, labels), **Containers** (containers and volumes), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, config file).                           |
 
 ### This Mac: macOS and Linux jobs
 
-The **This Mac** card (Setup step 2, and Advanced → Mac & VMs) has two parts. **macOS jobs** runs workflows in tart
+The **This Mac** card (Setup step 2, and Advanced → Capacity) has two parts. **macOS jobs** runs workflows in tart
 virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple container** and **Docker**
 (see [Runtimes](runtimes.md#choosing-a-linux-runtime) for the side-by-side comparison and when to use each):
 

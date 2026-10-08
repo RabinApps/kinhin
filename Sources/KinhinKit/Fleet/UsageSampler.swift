@@ -15,6 +15,9 @@ final class UsageSampler: Sendable {
         var cached: (at: ContinuousClock.Instant, snapshot: Snapshot)?
         /// Last cumulative CPU reading per Tart VM, for rate calculation.
         var processCPU: [String: (seconds: Double, at: ContinuousClock.Instant)] = [:]
+        /// The same baseline for a container's cumulative counter (apple's
+        /// `cpuUsageUsec`; docker reports a rate and never lands here).
+        var containerCPU: [String: (seconds: Double, at: ContinuousClock.Instant)] = [:]
         /// The sample being taken, joined by every caller that arrives meanwhile.
         var inFlight: Task<Snapshot, Never>?
     }
@@ -23,6 +26,8 @@ final class UsageSampler: Sendable {
     private let shell: ShellRunning
     private let hostProbe: HostUsageProbe
     private let tartMemoryMB: @Sendable () -> Int
+    /// Builds the per-tool container client (tests inject a canned binary).
+    private let makeContainer: @Sendable (ContainerTool, ShellRunning) -> ContainerManager
     private let minInterval: Duration
     /// Past this age a snapshot is no longer served stale: the caller waits.
     private let maxStale: Duration
@@ -31,12 +36,16 @@ final class UsageSampler: Sendable {
     init(
         tart: TartControlling, shell: ShellRunning, hostProbe: HostUsageProbe = HostUsageProbe(),
         tartMemoryMB: @escaping @Sendable () -> Int, minInterval: Duration = .seconds(2),
-        maxStale: Duration = .seconds(30)
+        maxStale: Duration = .seconds(30),
+        makeContainer: @escaping @Sendable (ContainerTool, ShellRunning) -> ContainerManager = {
+            ContainerManager(tool: $0, shell: $1)
+        }
     ) {
         self.tart = tart
         self.shell = shell
         self.hostProbe = hostProbe
         self.tartMemoryMB = tartMemoryMB
+        self.makeContainer = makeContainer
         self.minInterval = minInterval
         self.maxStale = maxStale
     }
@@ -73,13 +82,23 @@ final class UsageSampler: Sendable {
 
         var byInstance: [String: ResourceUsage] = [:]
         if !tartIDs.isEmpty { byInstance.merge(await tartUsage(names: tartIDs, now: now)) { $1 } }
+        var seenContainers = Set<String>()
         for tool in tools {
             do {
-                byInstance.merge(try await ContainerManager(tool: tool, shell: shell).stats()) { $1 }
+                let stats = try await makeContainer(tool, shell).statsWithCounters()
+                seenContainers.formUnion(stats.keys)
+                for (key, entry) in stats {
+                    var usage = entry.usage
+                    if usage.cpuPercent == nil {
+                        usage.cpuPercent = containerRate(key: key, seconds: entry.cpuSeconds, now: now)
+                    }
+                    byInstance[key] = usage
+                }
             } catch {
                 Log.warn("usage", "\(tool.title) stats unavailable: \(error.localizedDescription)")
             }
         }
+        state.withLock { $0.containerCPU = $0.containerCPU.filter { seenContainers.contains($0.key) } }
         let snapshot = Snapshot(host: hostProbe.sample(), byInstance: byInstance)
         state.withLock {
             $0.cached = (now, snapshot)
@@ -93,6 +112,20 @@ final class UsageSampler: Sendable {
         case RuntimeID.docker.rawValue: return .docker
         case RuntimeID.appleContainer.rawValue: return .appleContainer
         default: return nil
+        }
+    }
+
+    /// A container's cumulative CPU counter → percent of one core, from the
+    /// delta since the previous sample. The first sample only starts the
+    /// baseline and reports nil — the same rule as a Tart VM's first reading.
+    private func containerRate(key: String, seconds: Double?, now: ContinuousClock.Instant) -> Double? {
+        guard let seconds else { return nil }
+        return state.withLock { state in
+            defer { state.containerCPU[key] = (seconds, now) }
+            guard let before = state.containerCPU[key], seconds >= before.seconds else { return nil }
+            let wall = (now - before.at) / .seconds(1)
+            guard wall > 0 else { return nil }
+            return (seconds - before.seconds) / wall * 100
         }
     }
 
@@ -116,8 +149,11 @@ final class UsageSampler: Sendable {
                     }
                 }
                 state.processCPU[name] = (sample.cpuSeconds, now)
+                // The host process carries its own overhead above the guest:
+                // never report more than the guest is allowed.
+                let rssMB = limit > 0 ? min(sample.rssMB, limit) : sample.rssMB
                 out[name] = ResourceUsage(
-                    cpuPercent: cpu, memoryUsedMB: sample.rssMB, memoryLimitMB: limit > 0 ? limit : nil)
+                    cpuPercent: cpu, memoryUsedMB: rssMB, memoryLimitMB: limit > 0 ? limit : nil)
             }
             state.processCPU = state.processCPU.filter { samples[$0.key] != nil }
             return out

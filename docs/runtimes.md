@@ -47,7 +47,7 @@ images:
 Build them with `kinhin image prepare --image xcode`, or `kinhin image prepare --all` to build `image:` and every
 `images:` entry one after another (each bake is disk-heavy). A `--source` or `--target` names one image, so it cannot be
 combined with `--all`; `--runner-version` pins the runner agents in every baked image. In the app, use **More images** in
-the macOS card (**Advanced → Mac & VMs**): each entry has its own base-image picker (including the Xcode images), a
+the macOS card (**Advanced → Capacity**): each entry has its own base-image picker (including the Xcode images), a
 status line, **Prepare** / **Rebuild…** and **Remove**, and **Add image** creates a new one. The block stays available
 when tart's primary base image is a Linux one — a mixed macOS + Linux fleet is built from named images. Rebuilding an
 image only discards the per-project images derived from that image.
@@ -334,8 +334,9 @@ Precedence: **workflow route → repo route → `runs-on:` label → default**. 
 `kinhin status` shows the result. If a split would leave a configured route with zero capacity, the app warns you
 before you can save it.
 
-Manage routes in **Advanced → Routing** (pools with a live health chip, a budget slider per runtime, labels, and routes)
-or with `kinhin runtimes route add|remove`. `kinhin runtimes` prints the same summary. Changes edit only the relevant
+Manage routes in **Advanced → Routing** (pools with a live health chip, routes, the default pool, and labels) or with
+`kinhin runtimes route add|remove`. The capacity split lives in **Advanced → Capacity**: a budget slider per runtime —
+drag it or type a percent, and lock a pool to keep its share fixed while the others rebalance. `kinhin runtimes` prints the same summary. Changes edit only the relevant
 part of `config.yaml`, must pass full validation, and reach a running fleet without a restart.
 
 ## Route one workflow with the CLI
