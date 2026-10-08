@@ -15,7 +15,7 @@ enum SetupStatusCommand {
                 for line in render(setup) { print(line) }
             }
         }
-        if !setup.ready { exit(CLIExit.needsAttention.rawValue) }
+        ExitRule.finish(healthy: setup.ready)
     }
 
     /// The human checklist, one line per check, then the verdict.

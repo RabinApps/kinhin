@@ -10,9 +10,7 @@ enum DoctorCommand {
         report: DoctorReport, data: Data
     ) {
         let report = await builder.build()
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return (report, try encoder.encode(report))
+        return (report, try CLIJSON.data(report))
     }
 
     /// Builds and prints the machine-readable diagnostics document, returning
@@ -25,7 +23,9 @@ enum DoctorCommand {
         return built
     }
 
-    static func run(_ args: [String]) async throws {
+    /// `kinhin doctor`: exits 0 when everything is ready, 1 when something
+    /// needs attention (the report's `ready`). `--quiet` prints nothing.
+    static func run(_ args: [String], builder: DoctorReportBuilder = DoctorReportBuilder()) async throws {
         Paths.ensureSupportDirectories()
         // Machine output first: the whole point is a one-shot diagnostics
         // document for scripts — nothing else is printed in this mode.
@@ -33,10 +33,17 @@ enum DoctorCommand {
             try await SupportBundle.run(args: args)
             return
         }
-        if args.contains("--json") {
-            _ = try await Self.emitJSON()
-            return
+        let quiet = args.contains("--quiet") || args.contains("-q")
+        let ready: Bool
+        if quiet {
+            ready = await builder.build().ready
+        } else if args.contains("--json") {
+            ready = try await Self.emitJSON(builder: builder).report.ready
+        } else {
+            let report = await builder.build()
+            print(await builder.plainText(for: report))
+            ready = report.ready
         }
-        print(await DoctorReportBuilder().buildPlainText())
+        ExitRule.finish(healthy: ready)
     }
 }

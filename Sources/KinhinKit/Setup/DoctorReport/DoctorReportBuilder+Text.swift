@@ -7,7 +7,12 @@ import Foundation
 extension DoctorReportBuilder {
     /// The full human output (no trailing newline).
     public func buildPlainText() async -> String {
-        let report = await build()
+        await plainText(for: await build())
+    }
+
+    /// The human output for a report the caller already built, so a caller
+    /// that also needs `report.ready` (the CLI's exit code) probes once.
+    public func plainText(for report: DoctorReport) async -> String {
         let details = await configDetailLines()
         return ([report.plainText] + details).joined(separator: "\n")
     }
