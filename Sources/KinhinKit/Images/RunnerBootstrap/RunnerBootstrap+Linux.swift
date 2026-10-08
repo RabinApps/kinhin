@@ -146,6 +146,8 @@ extension RunnerBootstrap {
         return """
 
             set -euo pipefail
+            # Containers run as root, which the runner refuses unless allowed.
+            export RUNNER_ALLOW_RUNASROOT=1
 
             \(blocks)
             """
@@ -212,6 +214,9 @@ extension RunnerBootstrap {
             } ?? ""
         return """
             set -euo pipefail
+            # Containers run as root, which the runner refuses ("Must not run interactively
+            # with sudo") unless allowed.
+            export RUNNER_ALLOW_RUNASROOT=1
             mkdir -p \(shellQuote(agentDirectory))
             cd \(shellQuote(agentDirectory))
             if [ ! -x ./config.sh ]; then
