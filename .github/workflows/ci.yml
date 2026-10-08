@@ -42,14 +42,14 @@ jobs:
       - name: Lint (swift-format)
         run: swift format lint --strict -r Sources Tests
 
+      - name: Run tests
+        run: swift test
+
       - name: Build release products
         # Release-only code paths (KinhinTestSupport is testable-only) and the
         # signed-app pipeline both compile from these; catch breakage here
         # instead of at release time.
         run: swift build -c release --product kinhin-app --product kinhin
-
-      - name: Run tests
-        run: swift test
 
   tsan:
     # ThreadSanitizer pass over shared state: serial (~5–10 min), so it runs
