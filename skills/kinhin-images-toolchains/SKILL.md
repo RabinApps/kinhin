@@ -72,7 +72,7 @@ projects:
 | Host (unisolated) | `kinhin setup repair host-agent`, route with `consent: true` | `runs-on: [kinhin-host]` |
 
 Route with `kinhin runtimes route add acme/api appleContainer`. Pass `--target <name>` to the container and Docker prepare
-commands when routing to a named image. Check readiness with `kinhin setup-status` and `kinhin runtimes`. Host mode runs
+commands when routing to a named image. Check readiness with `kinhin setup status` and `kinhin runtimes`. Host mode runs
 jobs directly on the Mac, so warn the user before enabling it.
 
 ## More

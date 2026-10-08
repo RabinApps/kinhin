@@ -74,14 +74,14 @@ For agents that shell out instead of speaking MCP:
   parseable. Documents are pretty-printed with sorted keys.
 - **Exit codes classify the failure**: `0` success, `1` general, `2` usage, `3` config, `4` runtime/engine,
   `5` auth, `130` cancelled (Ctrl-C).
-- Two commands use exit `1` as "not ready yet": `kinhin auth status --json` and `kinhin setup-status` exit 1
+- Two commands use exit `1` as "not ready yet": `kinhin auth status --json` and `kinhin setup status` exit 1
   until setup is complete (`doctor --json` reports `ready=false` instead of failing).
 
 | Command | Document |
 | --- | --- |
 | `kinhin status --json` | Fleet status, flattened `paused` / `autoResume` / `queueAgeSeconds` fields |
 | `kinhin doctor --json` | Merged diagnostics: host, runtimes, tokens, checklist, capacity, image disk usage (`imageTotalGB`), prune hint (`imagePrune`), disk pressure (`diskPressure`) |
-| `kinhin setup-status --json` | First-run checklist |
+| `kinhin setup status --json` | First-run checklist |
 | `kinhin auth status --json` | Stored-token state across every configured forge |
 | `kinhin runtimes [--json] [--no-health]` | Pools, capacity, budget, health, routes |
 | `kinhin pipeline [VM] [--job N] --json` | Live jobs and steps |

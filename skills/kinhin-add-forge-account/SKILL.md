@@ -22,7 +22,7 @@ kinhin auth add NAME --<github|gitlab|gitea|forgejo|buildkite|azuredevops|bitbuc
 
    `--instance` is required for Gitea, Forgejo and Azure DevOps (the org URL), optional for GitLab, and not used for
    hosted-only Buildkite and Bitbucket. The command prints the token permissions that forge needs.
-3. Store the token: `kinhin auth set --account NAME`. Do not paste tokens into chat, and avoid `--token X`.
+3. Store the token: `kinhin auth set --account NAME`. Do not paste tokens into chat, and avoid `--token X` (pipe it with `--token-stdin` if a script must).
 4. `kinhin config validate`, then `kinhin auth status --account NAME`. A good check means the token reaches the forge and
    the scope is valid.
 5. Add the job targeting in the repo's workflow or pipeline (labels, tags, queue or demands per forge, see the
