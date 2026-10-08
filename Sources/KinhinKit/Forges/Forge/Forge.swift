@@ -95,9 +95,10 @@ public enum ForgeExitSemantics: Sendable {
 
 // MARK: - Protocol
 
-/// Unified forge surface the engine needs. The GitHub implementation wraps
-/// the existing `GitHubServing` client unchanged; Gitea gets its own client.
-/// All methods are scoped to the credentials the forge was built with.
+/// Unified forge surface the engine needs: one adapter per forge over that
+/// forge's own client. All methods are scoped to the credentials the forge was
+/// built with. Capabilities only some forges have live in sub-protocols
+/// (`ForgeWithJITConfig`, `ForgeWithQueuedJobs`), not here.
 public protocol Forge: Sendable {
     var id: ForgeID { get }
     /// Human label for status lines ("github", "gitea").
@@ -130,11 +131,6 @@ public protocol Forge: Sendable {
     /// Per-runner credentials (`perRunner`): creates each named runner with
     /// the given labels and returns name → token.
     func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String]
-    /// A JIT config string for one scale-set runner (`.jitConfig` forges).
-    /// The default no-op is overridden by the GitHub scale-set forge; other
-    /// forge types keep the no-op and the lifecycle layer never calls it for
-    /// non-scale-set accounts.
-    func jitRunnerConfig(name: String, labels: [String]) async throws -> String?
     /// This scope's runners (name/id/status/busy), unified shape.
     func runners() async throws -> [ForgeRunner]
     func deleteRunner(id: String) async throws
@@ -212,14 +208,28 @@ extension Forge {
         return Dictionary(uniqueKeysWithValues: runnerNames.map { ($0, token) })
     }
 
-    /// Non-scale-set forges do not provide JIT configs; the lifecycle layer
-    /// only calls this for `.jitConfig` accounts.
-    public func jitRunnerConfig(name: String, labels: [String]) async throws -> String? { nil }
-
-    /// JIT configs for several named runners (`.jitConfig` forges). The default
-    /// no-op is overridden by the GitHub scale-set forge; other forge types keep
-    /// the no-op and the lifecycle layer never calls it for non-scale-set accounts.
+    /// JIT configs for several named runners (`.jitConfig` forges only). A
+    /// forge that is not a `ForgeWithJITConfig` has none to give, and the
+    /// lifecycle layer only asks for `.jitConfig` accounts.
     public func jitRunnerTokens(names: [String], labels: [String]) async throws -> [String: String] {
+        guard let jit = self as? any ForgeWithJITConfig else {
+            throw EngineError.registrationFailed(vm: account, stderr: "JIT registration requires a scale-set forge")
+        }
+        return try await jit.jitConfigs(names: names, labels: labels)
+    }
+}
+
+/// Forges whose runners register with a generated JIT config instead of a
+/// registration token (`ForgeRegistration.jitConfig`: the GitHub scale-set
+/// message API). Only the GitHub scale-set forge conforms.
+public protocol ForgeWithJITConfig: Forge {
+    /// A JIT config string for one scale-set runner.
+    func jitRunnerConfig(name: String, labels: [String]) async throws -> String?
+}
+
+extension ForgeWithJITConfig {
+    /// One config per named runner (runners the forge returns no config for are omitted).
+    func jitConfigs(names: [String], labels: [String]) async throws -> [String: String] {
         var out: [String: String] = [:]
         for name in names {
             if let config = try await jitRunnerConfig(name: name, labels: labels) {

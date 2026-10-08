@@ -23,7 +23,7 @@ struct ScaleSetTarget: Sendable {
 /// mode. Demand comes from the scale-set message listener(s); everything else
 /// (runners, deletion, pipeline detail/log, project file) is delegated to the
 /// same REST `GitHubClient` path the classic poller uses.
-struct GitHubScaleSetForge: Forge, ForgeWithQueuedJobs {
+struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
     let id: ForgeID = .github
     let name = "github"
     let account: String
