@@ -133,8 +133,8 @@ public struct DockerRuntime: Runtime {
         try await cli.exec(id, script, timeout: timeout)
     }
 
-    public func teardown(id: String) async {
-        await cli.teardown(id: id)
+    public func teardown(id: String) async throws {
+        try await cli.teardown(id: id)
     }
 
     /// All container ids known to the CLI (running + stopped) — the

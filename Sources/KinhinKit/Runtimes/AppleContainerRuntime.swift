@@ -111,8 +111,8 @@ public struct AppleContainerRuntime: Runtime {
         try await cli.exec(id, script, timeout: timeout)
     }
 
-    public func teardown(id: String) async {
-        await cli.teardown(id: id)
+    public func teardown(id: String) async throws {
+        try await cli.teardown(id: id)
     }
 
     /// Ids of all known containers (running + stopped) — the recovery path

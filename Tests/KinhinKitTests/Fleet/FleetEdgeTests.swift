@@ -174,6 +174,49 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertNil(status.queuePolledAt, "no forge answered → the queue has no fresh observation to date")
     }
 
+    /// A forge outage is not an empty queue: idle instances must survive it,
+    /// and recover to the normal scale-down once the forge answers again.
+    func testScaleDownIsHeldWhileAForgeQueueIsUnreadable() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        github.failQueue = true
+        let engine = makeEngine(tart: tart, github: github, ssh: FakeSSH())
+        for name in ["kinhin-idle1", "kinhin-idle2"] {
+            var record = VMRecord(id: name, phase: .ready)
+            record.runtime = RuntimeID.tart.rawValue
+            engine.store.upsert(record)
+            tart.vms[name] = TartVM(name: name, source: "base", status: "running")
+        }
+
+        try await engine.reconcileOnce()
+        XCTAssertTrue(tart.deleteCalls.isEmpty, "idle VMs must survive a forge outage")
+
+        github.failQueue = false
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { tart.deleteCalls.count == 2 }
+    }
+
+    /// A failed `tart delete` must not make the engine forget the VM: the
+    /// record stays (`.deleting`) and the next pass retries until it is gone.
+    func testFailedTeardownKeepsTheRecordAndRetries() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        let engine = makeEngine(tart: tart, github: github, ssh: FakeSSH())
+        var record = VMRecord(id: "kinhin-stuck", phase: .ready)
+        record.runtime = RuntimeID.tart.rawValue
+        engine.store.upsert(record)
+        tart.vms["kinhin-stuck"] = TartVM(name: "kinhin-stuck", source: "base", status: "running")
+        tart.failNext("delete", stderr: "disk busy")
+
+        await engine.deleteVMRecord(id: "kinhin-stuck", reason: "test")
+        let stuck = engine.store.all.first { $0.id == "kinhin-stuck" }
+        XCTAssertEqual(stuck?.phase, .deleting, "a failed delete keeps the record")
+        XCTAssertTrue(stuck?.error?.contains("disk busy") ?? false)
+
+        try await engine.reconcileOnce()
+        XCTAssertNil(engine.store.all.first { $0.id == "kinhin-stuck" }, "the retry removes it")
+    }
+
     func testPauseWithoutAutoResumeStillSkipsQueuePolling() async throws {
         let github = FakeGitHub()
         github.queueDepth = 3

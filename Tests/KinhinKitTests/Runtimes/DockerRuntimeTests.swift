@@ -209,7 +209,7 @@ final class DockerRuntimeTests: XCTestCase {
             shell: shell, image: "img", cpus: 2, memoryGB: 4,
             binPath: bin
         )
-        await runtime.teardown(id: "kinhin-abc")
+        try await runtime.teardown(id: "kinhin-abc")
         XCTAssertEqual(shell.calls.first, [bin, "rm", "--force", "kinhin-abc"])
     }
 

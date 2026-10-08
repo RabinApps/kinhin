@@ -81,7 +81,7 @@ extension FleetEngine {
             if record.phase == .deleting {
                 await deleteVMRecord(id: record.id, reason: "cleanup after restart")
             } else {
-                spawnLifecycle(for: record)
+                resumeLifecycle(for: record)
             }
         }
     }
@@ -95,12 +95,13 @@ extension FleetEngine {
             var idle = false
             do {
                 idle = try await reconcileOnce().idle
+                await statusBox.modify { $0.setAlert("reconcile", nil) }
             } catch is CancellationError {
                 return  // engine stopping: the loop exits instead of logging a cancel as an error
             } catch {
                 let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
                 Log.error("engine", "reconcile failed: \(message)")
-                await statusBox.modify { $0.lastError = message }
+                await statusBox.modify { $0.setAlert("reconcile", message) }
             }
             let paused = runState.withLock { $0.paused }
             let attached = forgeState.withLock { Array($0.byPlatform.values) }
@@ -171,9 +172,14 @@ extension FleetEngine {
             await deleteVMRecord(id: record.id, reason: "failed: \(record.error ?? "unknown")")
         }
 
+        // A teardown that failed leaves its record in `.deleting`: try again.
+        for record in store.all where record.phase == .deleting {
+            await deleteVMRecord(id: record.id, reason: "retrying failed teardown")
+        }
+
         // 2. Ask each attached forge for demand and running-work attribution.
         let attached = forgeState.withLock { Array($0.byPlatform.values) }
-        let demand = await pollDemand(attached, paused: state.paused)
+        let demand = try await pollDemand(attached, paused: state.paused)
 
         // 3. Decide the desired count and publish it.
         let desired = await publishDesired(queueDepth: demand.queueDepth)
@@ -184,8 +190,8 @@ extension FleetEngine {
         guard !state.paused else { return outcome }
 
         // 4. Spawn up to desired, then 5. scale idle surplus down.
-        let spawnTarget = spawnTarget(desired: desired, active: active, demand: demand)
-        try await spawn(upTo: spawnTarget, active: active, demand: demand, attached: attached)
+        let target = spawnTarget(desired: desired, active: active, demand: demand)
+        try await spawn(upTo: target, active: active, demand: demand, attached: attached)
         await scaleDown(active: active, desired: desired, demand: demand)
         return outcome
     }
@@ -201,6 +207,10 @@ extension FleetEngine {
         var byImage: [String: Int] = [:]
         /// Jobs waiting on an image bake, for the status snapshot.
         var imageNotices: Set<String> = []
+        /// Accounts whose queue could not be read this pass. A failed read is
+        /// not "no jobs": while any forge is unreadable the demand is
+        /// incomplete, so the pass must not scale idle instances down on it.
+        var failedForges: Set<String> = []
     }
 
     /// Polls every attached forge's queue (and running work) into `Demand`
@@ -208,7 +218,7 @@ extension FleetEngine {
     /// polled and attribution is cleared. Paused with auto-resume, the queue
     /// is still watched — the pause releases the moment demand drains — but
     /// no demand is returned, so nothing spawns this pass.
-    func pollDemand(_ attached: [Forge], paused: Bool) async -> Demand {
+    func pollDemand(_ attached: [Forge], paused: Bool) async throws -> Demand {
         guard !paused || config.autoResume else {
             // Clear attribution so stale repos don't linger.
             await statusBox.modify { $0.runningByRepo = nil }
@@ -226,8 +236,9 @@ extension FleetEngine {
             case failed(message: String)
         }
         let ordered = attached.sorted { $0.account < $1.account }
+        // `try`, not `try?`: cancellation must propagate, not read as "no answers".
         let answers =
-            (try? await boundedMap(ordered, limit: 4) { forge -> ForgeAnswer in
+            try await boundedMap(ordered, limit: 4) { forge -> ForgeAnswer in
                 do {
                     let jobs = try await forge.queuedJobs()
                     let images = await self.resolveProjectImages(for: jobs, forge: forge)
@@ -235,11 +246,12 @@ extension FleetEngine {
                 } catch {
                     return .failed(message: (error as? LocalizedError)?.errorDescription ?? "\(error)")
                 }
-            }) ?? []
+            }
         for (forge, answer) in zip(ordered, answers) {
             switch answer {
             case .answered(let jobs, let projectDemand):
                 answeredQueue = true
+                await statusBox.modify { $0.setAlert("queue:\(forge.account)", nil) }
                 // Org-scope forges contribute repo attribution; repo-scope
                 // forges suppress it (breakdown would carry no info).
                 perForgeJobs[forge.account] = (forge.attributesByRepo, jobs)
@@ -252,7 +264,8 @@ extension FleetEngine {
                 demand.imageNotices.formUnion(projectDemand.notices)
             case .failed(let message):
                 Log.warn("engine", "could not fetch \(forge.name) queue: \(message)")
-                await statusBox.modify { $0.lastError = message }
+                demand.failedForges.insert(forge.account)
+                await statusBox.modify { $0.setAlert("queue:\(forge.account)", message) }
             }
         }
         if paused {
@@ -270,10 +283,15 @@ extension FleetEngine {
             return Demand()
         }
         let byRepo = ForgeDemand.mergeQueueByRepo(perForgeJobs)
+        // When no forge answered, keep the last observed queue: publishing 0
+        // would show a healthy empty queue during an outage.
+        let nothingAnswered = !ordered.isEmpty && !answeredQueue
         await statusBox.modify { [demand] in
             $0.imageNotice = demand.imageNotices.isEmpty ? nil : demand.imageNotices.sorted().joined(separator: "; ")
-            $0.queueDepth = demand.queueDepth
-            $0.queueByRepo = byRepo
+            if !nothingAnswered {
+                $0.queueDepth = demand.queueDepth
+                $0.queueByRepo = byRepo
+            }
             if answeredQueue { $0.queuePolledAt = Date() }
         }
         await attributeRunningJobs(attached)
@@ -373,14 +391,14 @@ extension FleetEngine {
         if let diskPressureMessage {
             Log.warn("engine", diskPressureMessage)
             await statusBox.modify { status in
-                status.lastError = diskPressureMessage
+                status.setAlert("disk", diskPressureMessage)
                 status.diskPressureNotice = diskPressureMessage
             }
         } else {
             // Spawns resumed: clear a stale disk-pressure message (other
             // errors belong to their own flows).
             await statusBox.modify { status in
-                if status.lastError?.contains("disk pressure") == true { status.lastError = nil }
+                status.setAlert("disk", nil)
                 status.diskPressureNotice = nil
             }
         }
@@ -405,11 +423,7 @@ extension FleetEngine {
         let summary = spawnBackoff.withLock { $0.summary(now: Date()) }
         Task { [statusBox] in
             await statusBox.modify { status in
-                if let summary {
-                    status.lastError = summary
-                } else if status.lastError?.hasPrefix("runner starts failing") == true {
-                    status.lastError = nil
-                }
+                status.setAlert("spawn-backoff", summary)
             }
         }
     }
@@ -418,6 +432,13 @@ extension FleetEngine {
     /// jobs are still waiting.
     func scaleDown(active: Int, desired: Int, demand: Demand) async {
         guard active > desired else { return }
+        // An unreadable queue is not an empty one: keep idle (and warm)
+        // instances until every forge answers again.
+        guard demand.failedForges.isEmpty else {
+            let accounts = demand.failedForges.sorted().joined(separator: ", ")
+            Log.warn("engine", "holding scale-down: could not read the queue of \(accounts)")
+            return
+        }
         let idle = store.all.filter { $0.phase == .ready }.sorted { $0.createdAt < $1.createdAt }
         var surplus = active - desired
         for record in idle where surplus > 0 {

@@ -62,7 +62,7 @@ extension FleetEngine {
             let problem = await statusBox.get().lastError
             let message = problem ?? "no forge configured — declare at least one accounts: entry"
             Log.error("engine", "startup blocked: \(message)")
-            await statusBox.modify { $0.lastError = message }
+            await statusBox.modify { $0.setAlert("startup", message) }
             runState.withLock { $0.running = false }
             return false
         }

@@ -71,7 +71,7 @@ final class ContainerFakingShellContractTests: XCTestCase {
         XCTAssertTrue(execArgv.contains("/bin/bash"))
         XCTAssertTrue(execArgv.contains("<stdin>"), "the registration script travels on stdin, out of argv")
 
-        await runtime.teardown(id: "kinhin-1")
+        try await runtime.teardown(id: "kinhin-1")
         let after = try await runtime.existingInstanceIDs()
         XCTAssertEqual(after, [], "`container delete --force` must take the container out of the next list")
     }

@@ -75,7 +75,7 @@ final class DockerFakingShellContractTests: XCTestCase {
         XCTAssertEqual(Array(execArgv.prefix(6)), [bin, "exec", "-i", "kinhin-1", "/bin/bash", "-ls"])
         XCTAssertTrue(execArgv.contains("<stdin>"), "the registration script travels on stdin, out of argv")
 
-        await runtime.teardown(id: "kinhin-1")
+        try await runtime.teardown(id: "kinhin-1")
         let after = try await runtime.existingInstanceIDs()
         XCTAssertEqual(after, [], "`docker rm --force` must take the container out of the next list")
     }
@@ -130,7 +130,7 @@ final class DockerFakingShellContractTests: XCTestCase {
         let ps = try await shell.run([bin, "ps", "--format", "{{.Names}}"], cwd: nil, timeout: 10)
         XCTAssertEqual(ps.outputLines, real.outputLines, "the fake's ps output parses to the same names")
 
-        await runtime.teardown(id: "kinhin-1")
+        try await runtime.teardown(id: "kinhin-1")
         let finalArgvs = shell.argvSnapshot()
         XCTAssertEqual(
             finalArgvs.first { $0.dropFirst().first == "rm" },

@@ -185,14 +185,19 @@ struct LinuxContainerCLI: Sendable {
     // MARK: - Teardown
 
     /// Removes the container. `--rm` usually got there first, so an already
-    /// missing container is fine; any other failure is logged.
-    func teardown(id: String) async {
-        await bestEffortAsync(id, "removing container") {
+    /// missing container is fine; any other failure is thrown.
+    func teardown(id: String) async throws {
+        do {
             let result = try await run([bin, dialect.removeVerb, "--force", id])
             let gone =
                 result.stderr.localizedCaseInsensitiveContains("no such container")
                 || result.stderr.localizedCaseInsensitiveContains("not found")
             if !gone { try require(result, "removing container \(id)") }
+        } catch is CancellationError {
+            return
+        } catch {
+            Log.warn(id, "removing container failed: \(error.localizedDescription)")
+            throw error
         }
     }
 

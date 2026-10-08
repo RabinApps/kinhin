@@ -139,9 +139,7 @@ extension FleetEngine {
             }
             registrationCache(for: account.name).invalidate()
             Log.info("engine", "account '\(account.name)' attached (\(account.forge.rawValue): \(account.scope))")
-            await statusBox.modify {
-                if $0.lastError?.hasPrefix("account '\(account.name)'") == true { $0.lastError = nil }
-            }
+            await statusBox.modify { $0.setAlert("account:\(account.name)", nil) }
             if running {
                 for listener in currentListeners { await listener.start() }
             }
@@ -149,7 +147,7 @@ extension FleetEngine {
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             Log.error("engine", "account '\(account.name)' unavailable: \(message)")
-            await statusBox.modify { $0.lastError = "account '\(account.name)': \(message)" }
+            await statusBox.modify { $0.setAlert("account:\(account.name)", "account '\(account.name)': \(message)") }
             return false
         }
     }

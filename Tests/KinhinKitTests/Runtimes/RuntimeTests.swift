@@ -41,8 +41,8 @@ final class RuntimeTests: XCTestCase {
         tart.strictMissing = true
         let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
 
-        await runtime.teardown(id: "kinhin-1")
-        await runtime.teardown(id: "kinhin-1")  // second call must not throw
+        try await runtime.teardown(id: "kinhin-1")
+        try await runtime.teardown(id: "kinhin-1")  // second call must not throw
 
         XCTAssertEqual(tart.stopCalls, ["kinhin-1"], "no tart list round trip; a missing VM is success")
         XCTAssertEqual(tart.deleteCalls.filter { $0 == "kinhin-1" }.count, 1, "delete runs once; second is a no-op")

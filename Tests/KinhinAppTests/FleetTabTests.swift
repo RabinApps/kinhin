@@ -3,6 +3,7 @@ import SwiftUI
 import XCTest
 
 @testable import KinhinKit
+@testable import KinhinTestSupport
 @testable import kinhin_app
 
 /// The Fleet tab: status rendering and the controls that reach the delegate.
@@ -342,7 +343,8 @@ final class FleetTabTests: MainWindowTestCase {
         let config = "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n"
         try? config.write(to: cfgURL, atomically: true, encoding: .utf8)
         let cfg = try! ConfigLoader.load(from: cfgURL)
-        let engine = try! FleetEngine.production(config: cfg, token: "ghp_test")
+        let engine = FleetEngine(
+            config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: testHost)
         fleet.service = nil
         fleet.backend = .inProcess(engine)
         let footer = models.fleetModel.fleetStatusFooter
@@ -374,7 +376,8 @@ final class FleetTabTests: MainWindowTestCase {
         let config = "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n"
         try? config.write(to: cfgURL, atomically: true, encoding: .utf8)
         let cfg = try! ConfigLoader.load(from: cfgURL)
-        let engine = try! FleetEngine.production(config: cfg, token: "ghp_test")
+        let engine = FleetEngine(
+            config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: testHost)
         fleet.service = nil
         fleet.backend = .inProcess(engine)
         XCTAssertEqual(models.fleetModel.fleetModeBadge, "in-process engine")

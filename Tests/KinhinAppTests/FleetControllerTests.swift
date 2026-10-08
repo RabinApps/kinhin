@@ -3,6 +3,7 @@ import Synchronization
 import XCTest
 
 @testable import KinhinKit
+@testable import KinhinTestSupport
 @testable import kinhin_app
 
 @MainActor
@@ -423,7 +424,8 @@ final class FleetControllerTests: XCTestCase {
         let config = "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n"
         try? config.write(to: cfgURL, atomically: true, encoding: .utf8)
         let cfg = try! ConfigLoader.load(from: cfgURL)
-        let engine = try! FleetEngine.production(config: cfg, token: "ghp_test")
+        let engine = FleetEngine(
+            config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: testHost)
         fleet.backend = .inProcess(engine)
         XCTAssertEqual(fleet.fleetMode, "in-process engine")
         XCTAssertTrue(fleet.statusLine.contains("in-process engine"))
@@ -456,7 +458,8 @@ final class FleetControllerTests: XCTestCase {
         let config = "accounts:\n  - name: github\n    forge: github\n    scope: \"your-org/your-repo\"\nlabels: [a]\n"
         try? config.write(to: cfgURL, atomically: true, encoding: .utf8)
         let cfg = try! ConfigLoader.load(from: cfgURL)
-        let engine = try! FleetEngine.production(config: cfg, token: "ghp_test")
+        let engine = FleetEngine(
+            config: cfg, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: testHost)
         fleet.service = nil
         fleet.backend = .inProcess(engine)
         fleet.status = FleetStatus(running: true, queueDepth: 2, desired: 1, capacityCap: 3, jobCapacity: 4)

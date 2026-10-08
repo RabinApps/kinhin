@@ -141,12 +141,12 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertEqual(ssh.execs, 1, "one real attempt reports the error when the window is gone")
     }
 
-    func testTartTeardownDoesNotNeedList() async {
+    func testTartTeardownDoesNotNeedList() async throws {
         let tart = FakeTart()
         tart.vms["vm-1"] = TartVM(name: "vm-1", source: "base", status: "running")
         tart.failList = true
         let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
-        await runtime.teardown(id: "vm-1")
+        try await runtime.teardown(id: "vm-1")
         XCTAssertEqual(tart.deleteCalls, ["vm-1"])
     }
 

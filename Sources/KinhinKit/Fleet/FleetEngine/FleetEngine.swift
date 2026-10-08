@@ -89,6 +89,9 @@ public final class FleetEngine: Sendable {
     }
     /// One lifecycle task per VM id (removed by the task itself on finish).
     let lifecycleTasks = Mutex<[String: Task<Void, Never>]>([:])
+    /// Instances a `deleteVMRecord` is currently tearing down, so the retry
+    /// sweep for stuck `.deleting` records never races an in-flight delete.
+    let deletesInFlight = Mutex<Set<String>>([])
 
     /// Whether the fleet is serving and whether it is paused — the single
     /// source of truth (`status()` reads it on every call).

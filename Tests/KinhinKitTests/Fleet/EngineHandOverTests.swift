@@ -53,7 +53,7 @@ final class EngineHandOverTests: XCTestCase {
         let tart = FakeTart()
         tart.blockIP()
         tart.vms["kinhin-live"] = TartVM(name: "kinhin-live", source: "tahoe-base", status: "running")
-        store.upsert(VMRecord(id: "kinhin-live", phase: .ready))
+        store.upsert(VMRecord(id: "kinhin-live", phase: .booting))
         return (store, tart)
     }
 

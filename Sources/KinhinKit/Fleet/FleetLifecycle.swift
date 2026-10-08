@@ -16,6 +16,42 @@ extension FleetEngine {
         }
     }
 
+    /// Re-enter an instance's lifecycle after a restart or engine hand-over.
+    /// An instance that already registered (`ready`/`busy`) must not replay
+    /// provisioning and registration: re-registering a classic runner removes
+    /// it mid-job, and a scale-set JIT request for an existing runner name is
+    /// rejected, which would fail the record and delete a busy VM. Those
+    /// instances go straight back to watching their runner.
+    func resumeLifecycle(for record: VMRecord) {
+        guard record.phase == .ready || record.phase == .busy else {
+            spawnLifecycle(for: record)
+            return
+        }
+        let account = record.platform ?? ForgeID.github.rawValue
+        guard let forge = forgeState.withLock({ $0.byPlatform[account] }) else {
+            // Nothing to watch it with: the full lifecycle fails the record
+            // ("no forge attached") and the normal cleanup removes it.
+            spawnLifecycle(for: record)
+            return
+        }
+        let watchesExit =
+            config.vm.ephemeral
+            || { if case .jitConfig = forge.registration { return true } else { return false } }()
+        guard watchesExit else { return }
+        let id = record.id
+        Log.info(id, "resuming exit watch for \(record.phase.rawValue) instance")
+        spawnLifecycleTask(id: id) { [weak self] in
+            guard let self else { return }
+            defer { self.finishLifecycle(id: id) }
+            do {
+                try await self.awaitRunnerExit(id: id, forge: forge)
+            } catch {
+                if error is CancellationError || Task.isCancelled { return }
+                Log.error(id, "exit watch failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// Start `body` as the lifecycle task for `id` (no-op when one is already
     /// running). Check, create and insert happen under one lock: a concurrent
     /// spawn cannot start a second task, and the task's own finishLifecycle
@@ -280,6 +316,8 @@ extension FleetEngine {
     }
 
     func deleteVMRecord(id: String, reason: String) async {
+        guard deletesInFlight.withLock({ $0.insert(id).inserted }) else { return }
+        defer { deletesInFlight.withLock { _ = $0.remove(id) } }
         Log.info(id, "deleting VM (\(reason))")
         updateRecord(id) { $0.phase = .deleting }
         // Stop the instance's lifecycle — unless that lifecycle is the caller
@@ -306,7 +344,18 @@ extension FleetEngine {
         // Runtime teardown (per-record: stop+delete the VM, or container rm).
         var probe = VMRecord(id: id, phase: .deleting)
         probe.runtime = store.all.first { $0.id == id }?.runtime
-        await runtime(for: probe).teardown(id: id)
+        do {
+            try await runtime(for: probe).teardown(id: id)
+        } catch is CancellationError {
+            // Fall through: cancellation paths own the teardown and the record.
+        } catch {
+            // Keep the record in `.deleting`: dropping it would leave an
+            // untracked instance eating disk. The reconcile pass retries it.
+            let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            Log.error(id, "teardown failed; will retry: \(message)")
+            updateRecord(id) { $0.error = "teardown failed: \(message)" }
+            return
+        }
         store.remove(id: id)
         Log.info(id, "VM deleted")
     }

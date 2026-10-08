@@ -126,8 +126,10 @@ public protocol Runtime: Sendable {
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String
 
-    /// Stop and remove the instance. Must be idempotent.
-    func teardown(id: String) async
+    /// Stop and remove the instance. Must be idempotent: an instance that is
+    /// already gone is success. Throws when it could not be removed, so the
+    /// engine keeps the record (and retries) instead of leaking the instance.
+    func teardown(id: String) async throws
 }
 
 extension Runtime {
@@ -388,10 +390,12 @@ struct TartRuntime: Runtime {
         }
     }
 
-    func teardown(id: String) async {
+    func teardown(id: String) async throws {
         // Idempotent without a `tart list` round trip: stop then delete, and a
         // VM that is already gone (double deletes from racing lifecycle
-        // paths) is success, not a warning.
+        // paths) is success, not a warning. A failed stop is only logged (the
+        // delete below usually still works); a failed delete throws so the
+        // caller keeps the record instead of losing track of the disk.
         await ssh.forgetHostKey(vm: id)
         do {
             try await tart.stop(name: id)
@@ -408,6 +412,7 @@ struct TartRuntime: Runtime {
         } catch {
             if Self.vmIsGone(error) { return }
             Log.warn(id, "deleting VM failed: \(error.localizedDescription)")
+            throw error
         }
     }
 

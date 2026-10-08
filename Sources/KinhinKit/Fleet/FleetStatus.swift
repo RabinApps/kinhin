@@ -46,6 +46,11 @@ public struct FleetStatus: Codable, Sendable, Equatable {
             }
         }
     }
+    /// Active problems, one per source, oldest first. `lastError` mirrors the
+    /// newest, so a source that recovers clears only its own entry and an
+    /// unrelated problem is never overwritten or left stale. Nil from a daemon
+    /// predating the field.
+    public var alerts: [FleetStatusAlert]?
     var updatedAt: Date
     /// Execution runtime serving the fleet ("tart" or "appleContainer").
     public var runtime: String?
@@ -118,6 +123,26 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     public var queueAgeIsStale: Bool? {
         guard let age = queueAgeSeconds else { return nil }
         return age > (currentPollInterval ?? pollInterval ?? 0)
+    }
+}
+
+/// One active problem and the subsystem that raised it.
+public struct FleetStatusAlert: Codable, Sendable, Equatable {
+    /// Stable key of the raising subsystem (`"reconcile"`, `"queue:<account>"`…).
+    public var source: String
+    public var message: String
+}
+
+extension FleetStatus {
+    /// Raises (`message` non-nil) or clears (nil) the alert of `source`, then
+    /// refreshes `lastError` to the newest remaining alert. Re-raising an
+    /// existing source moves it to the front of attention (newest).
+    public mutating func setAlert(_ source: String, _ message: String?) {
+        var list = alerts ?? []
+        list.removeAll { $0.source == source }
+        if let message { list.append(FleetStatusAlert(source: source, message: LogRedactor.redact(message))) }
+        alerts = list.isEmpty ? nil : list
+        lastError = list.last?.message
     }
 }
 

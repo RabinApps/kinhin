@@ -173,7 +173,7 @@ final class GuestHostKeyPinningTests: XCTestCase {
         _ = try await runtime.awaitReady(id: "kinhin-1", timeout: 5)
         XCTAssertEqual(ssh.pinned["kinhin-1"], key)
         XCTAssertEqual(tart.rotateCalls, ["kinhin-1"])
-        await runtime.teardown(id: "kinhin-1")
+        try await runtime.teardown(id: "kinhin-1")
         XCTAssertEqual(ssh.forgotten, ["kinhin-1"])
     }
 

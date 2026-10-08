@@ -30,7 +30,7 @@ extension FleetEngine {
             message = error.localizedDescription
         }
         Log.error("engine", message)
-        await statusBox.modify { $0.lastError = message }
+        await statusBox.modify { $0.setAlert("credentials", message) }
         return nil
     }
 

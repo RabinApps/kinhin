@@ -82,4 +82,29 @@ final class FleetRecoveryTests: XCTestCase {
         XCTAssertEqual(store.all.first?.runtime, RuntimeID.tart.rawValue)
         await engine.detachKeepingInstances()
     }
+
+    /// A restart (or `max_runners` edit) must not replay registration on an
+    /// instance that already took a job: re-running `config.sh` would remove
+    /// the runner mid-job.
+    func testBusyInstanceIsNotReRegisteredOnRecovery() async throws {
+        let store = makeTestStore()
+        var record = VMRecord(id: "kinhin-t1", phase: .busy)
+        record.runtime = RuntimeID.tart.rawValue
+        store.upsert(record)
+        var config = makeTestConfig()
+        config.vm.ephemeral = true
+        let tart = FakeTart()
+        tart.vms["kinhin-t1"] = TartVM(name: "kinhin-t1", source: "tahoe-base", status: "running")
+        let ssh = FakeSSH()
+        let engine = FleetEngine(
+            config: config, github: FakeGitHub(), tart: tart, store: store, ssh: ssh, host: host,
+            containerShell: FakeShell(), dependencies: .init(lifecycleDrainTimeout: .milliseconds(200)))
+
+        await engine.recoverIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertTrue(ssh.scripts.isEmpty, "no registration script may run on a live busy instance")
+        XCTAssertNotEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .cloning)
+        await engine.detachKeepingInstances()
+    }
 }

@@ -231,7 +231,7 @@ final class AppleContainerRuntimeTests: XCTestCase {
             shell: shell, image: "img", cpus: 2, memoryGB: 4,
             binPath: "/usr/local/bin/container"
         )
-        await runtime.teardown(id: "kinhin-abc")
+        try await runtime.teardown(id: "kinhin-abc")
         let argv = try XCTUnwrap(shell.calls.first)
         XCTAssertTrue(argv.contains("delete"))
         XCTAssertTrue(argv.contains("--force"))
