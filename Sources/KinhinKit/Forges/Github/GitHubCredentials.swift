@@ -42,13 +42,12 @@ public struct GitHubCredentials: Sendable {
     }
 
     /// The web base for this instance: where token-creation and settings links
-    /// point. github.com stays at github.com; a `*.ghe.com` host uses the
-    /// host as-is; any other host is the instance URL's host.
+    /// point. github.com stays at github.com; any instance (GHES, or a
+    /// `*.ghe.com` data-residency host) uses its own host as-is.
     var webBase: String {
         guard let instance, let url = URL(string: instance), let host = url.host else {
             return "https://github.com"
         }
-        if host.hasSuffix(".ghe.com") { return "https://\(host)" }
         return "https://\(host)"
     }
 
@@ -82,22 +81,6 @@ public struct GitHubCredentials: Sendable {
 }
 
 extension GitHubCredentials {
-    /// The host the API base for this scope resolves to (nil for github.com).
-    /// Callers that need to pin pagination or validate a redirect target can
-    /// compare against this host, which is the same one `request` builds URLs
-    /// against.
-    var apiHost: String? {
-        guard let instance, let url = URL(string: instance), let host = url.host else { return nil }
-        return host
-    }
-
-    /// An error view that includes the enterprise host, useful for token-check
-    /// and doctor messages that must tell the user *which* GitHub instance the
-    /// token was talking to.
-    var instanceLabel: String {
-        apiBase
-    }
-
     /// True when this scope is served by a non-github.com instance: any GHES
     /// host or a GHEC data-residency host. The token-creation URLs used in
     /// `TokenRequirements` and the runner-registration flow must point at this

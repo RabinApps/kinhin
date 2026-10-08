@@ -53,6 +53,12 @@ struct GitHubForge: Forge {
         try await client.fetchRegistrationToken().token
     }
 
+    /// GitHub reports `expires_at`; the cache follows it.
+    func mintRegistrationTokenExpiring() async throws -> (token: String, expiresAt: Date?) {
+        let minted = try await client.fetchRegistrationToken()
+        return (minted.token, minted.expiresAt)
+    }
+
     func runners() async throws -> [ForgeRunner] {
         try await client.listRunners().map { ForgeRunner(id: String($0.id), name: $0.name, busy: $0.busy) }
     }

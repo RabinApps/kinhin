@@ -53,30 +53,14 @@ public struct ForgeCredentials: Sendable, Equatable {
         self.instance = instance
     }
 
-    public static func github(token: String, scope: String) -> ForgeCredentials {
-        ForgeCredentials(forge: .github, token: token, scope: scope)
-    }
-
-    public static func github(token: String, scope: String, instance: String?, allowInsecureHTTP: Bool = false)
-        -> ForgeCredentials
-    {
-        ForgeCredentials(
-            forge: .github, token: token, scope: scope,
-            instance: instance)
-    }
-
-    /// A GitHub credential struct that carries enterprise-instance fields the
-    /// way `GitHubCredentials` does, for callers that build both a `Forge`
-    /// credential set and a `GitHubCredentials` from the same account.
+    /// GitHub credentials. `instance` is nil on github.com. `allowInsecureHTTP`
+    /// is accepted so call sites can pass the account's flag alongside the
+    /// instance, but this struct does not carry it: the scheme rule is enforced
+    /// where the URL is used (`GitHubCredentials`, `GitHubClient`).
     public static func github(
-        token: String, scope: String, instance: String?, allowInsecureHTTP: Bool = false
-    ) -> (forgeCredentials: ForgeCredentials, clientCredentials: GitHubCredentials) {
-        let clientCredentials = GitHubCredentials(
-            token: token, scope: scope, instance: instance, allowInsecureHTTP: allowInsecureHTTP)
-        return (
-            ForgeCredentials(forge: .github, token: token, scope: scope, instance: instance),
-            clientCredentials
-        )
+        token: String, scope: String, instance: String? = nil, allowInsecureHTTP: Bool = false
+    ) -> ForgeCredentials {
+        ForgeCredentials(forge: .github, token: token, scope: scope, instance: instance)
     }
 
     public static func gitea(token: String, scope: String, instance: String) -> ForgeCredentials {
@@ -151,6 +135,10 @@ public protocol Forge: Sendable {
     /// The shared registration token (`sharedShortLived`/`sharedLongLived`).
     /// Scale-set (`.jitConfig`) forges do not use this path.
     func mintRegistrationToken() async throws -> String
+    /// `mintRegistrationToken` plus the expiry the forge reported, so
+    /// `RegistrationTokenCache` follows the real lifetime instead of a fixed
+    /// TTL. Defaults to no expiry (the cache then falls back to its TTL).
+    func mintRegistrationTokenExpiring() async throws -> (token: String, expiresAt: Date?)
     /// Per-runner credentials (`perRunner`): creates each named runner with
     /// the given labels and returns name → token.
     func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String]
@@ -195,6 +183,10 @@ public protocol ForgeWithQueuedJobs: Forge {
 }
 
 extension Forge {
+    func mintRegistrationTokenExpiring() async throws -> (token: String, expiresAt: Date?) {
+        (try await mintRegistrationToken(), nil)
+    }
+
     public func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? { nil }
 
     public func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? { nil }

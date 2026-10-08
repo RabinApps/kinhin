@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Client
 
-/// Minimal GitHub REST client covering what the autoscaler needs.
+/// What the fleet needs from GitHub's REST API (real client: `GitHubClient`).
 public protocol GitHubServing: Sendable {
     /// The URL the VM's `config.sh --url` must use for this scope
     /// (organizations register at github.com/<org>).
@@ -13,10 +13,10 @@ public protocol GitHubServing: Sendable {
     func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob]
     func runningJobs(matching labels: Set<String>) async throws -> [RunningJob]
     /// Cancel the queued workflow runs `ids` (their jobs are re-queued
-    /// downstream). Nil when none is found or the caller cannot cancel them.
+    /// downstream). False when a run is not found or the caller cannot cancel it.
     func cancelWorkflowRun(ids: [Int]) async throws -> Bool
     /// Mark the queued workflow runs `ids` as skipped (their jobs are
-    /// dropped). Nil when none is found or the caller cannot skip them.
+    /// dropped). False when a run is not found or the caller cannot skip it.
     func skipWorkflowRun(ids: [Int]) async throws -> Bool
     /// The API budget the last response reported; nil when unknown.
     var rateLimit: ForgeRateLimit? { get }
@@ -323,8 +323,8 @@ public struct GitHubClient: GitHubServing {
     }
 
     /// Cancel the queued workflow runs `ids` (their jobs are re-queued
-    /// downstream). Nil when none of the runs is found or the caller cannot
-    /// cancel them.
+    /// downstream). False when any run is not found or the caller cannot
+    /// cancel it.
     public func cancelWorkflowRun(ids: [Int]) async throws -> Bool {
         try await withThrowingTaskGroup(of: Bool.self) { group in
             for id in ids {
@@ -338,8 +338,8 @@ public struct GitHubClient: GitHubServing {
         }
     }
 
-    /// Mark the queued workflow run `id` as skipped (its jobs are dropped).
-    /// Nil when none of the runs is found or the caller cannot skip them.
+    /// Mark the queued workflow runs `ids` as skipped (their jobs are dropped).
+    /// False when any run is not found or the caller cannot skip it.
     public func skipWorkflowRun(ids: [Int]) async throws -> Bool {
         try await withThrowingTaskGroup(of: Bool.self) { group in
             for id in ids {
