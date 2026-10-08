@@ -42,6 +42,7 @@ blocks=(
     "rpc-methods|docs/architecture.md"
     "exit-codes|website/cli/commands.md"
     "cli-help|website/cli/commands.md"
+    "maturity|docs/app.md"
 )
 
 # MARK: - Generators
@@ -99,6 +100,18 @@ gen_cli-help() {
     echo '```text'
     cat scripts/golden/cli-help.txt
     echo '```'
+}
+
+# `MaturityTable`: the forges and runtimes that are live-tested. The app shows
+# an "untested" badge on everything else.
+gen_maturity() {
+    local forges runtimes
+    forges=$(sed -nE 's/^.*liveTestedForges: \[ForgeID\] = \[(.*)\]$/\1/p' Sources/KinhinKit/Core/MaturityTable.swift |
+        sed -E 's/\.([a-zA-Z]+)/`\1`/g')
+    runtimes=$(sed -nE 's/^.*liveTestedRuntimes: \[RuntimeID\] = \[(.*)\]$/\1/p' Sources/KinhinKit/Core/MaturityTable.swift |
+        sed -E 's/\.([a-zA-Z]+)/`\1`/g')
+    echo "Live-tested forges (\`MaturityTable\`): $forges. Live-tested runtimes: $runtimes (\`tart\` means macOS VMs)."
+    echo "Every other forge and runtime, and Tart serving Linux VMs, is shown with an **untested** badge."
 }
 
 # MARK: - Block replacement
