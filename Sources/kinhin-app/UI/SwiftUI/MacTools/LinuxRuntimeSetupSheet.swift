@@ -99,6 +99,7 @@ private struct LinuxRuntimeChoiceRow: View {
                 roundedBox(for: option)
                 Text(option.displayName)
                     .font(.system(size: 13, weight: .semibold))
+                MaturityBadge(option.maturity)
                 Spacer(minLength: 0)
                 if installed {
                     Text("installed ✓")

@@ -21,26 +21,45 @@ struct WizardView: View {
                 .padding(.top, 14)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            HStack(spacing: 8) {
-                if model.canSkip {
-                    Button(model.skipTitle) { model.skip() }
-                        .controlSize(.small)
-                }
-                if model.showsOpenConfigButton {
-                    Button("Open config.yaml") { model.openConfig?() }
-                        .controlSize(.small)
-                }
-                Spacer()
-                Button("Back") { model.back() }
-                    .disabled(!model.canGoBack)
-                Button(model.nextTitle) { model.next() }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!model.canContinue)
-            }
-            .padding(.top, 12)
-            .padding(.bottom, 16)
+            footer
+                .padding(.top, 12)
+                .padding(.bottom, 16)
         }
         .padding(.horizontal, 24)
+    }
+
+    /// Skip / Open config / Back / Continue, with what blocks Continue said
+    /// beside the disabled button instead of leaving it silently inert.
+    private var footer: some View {
+        HStack(spacing: 8) {
+            if model.canSkip {
+                Button(model.skipTitle) { model.skip() }
+                    .controlSize(.small)
+            }
+            if model.showsOpenConfigButton {
+                Button("Open config.yaml") { model.openConfig?() }
+                    .controlSize(.small)
+            }
+            Spacer()
+            if !model.canContinue {
+                blockerNote
+            }
+            Button("Back") { model.back() }
+                .disabled(!model.canGoBack)
+            Button(model.nextTitle) { model.next() }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!model.canContinue)
+        }
+    }
+
+    private var blockerNote: some View {
+        let blockers = model.currentBlockers
+        return StatusText(text: blockers.joined(separator: " "), style: .warn)
+            .lineLimit(3)
+            .multilineTextAlignment(.trailing)
+            .frame(maxWidth: 340, alignment: .trailing)
+            .accessibilityIdentifier("wizard-blockers")
+            .accessibilityLabel("Cannot continue yet: \(blockers.joined(separator: " "))")
     }
 
     @ViewBuilder
@@ -50,32 +69,46 @@ struct WizardView: View {
             ScrollView { ConnectView(model: model.connect, showsMoreAccounts: false).padding(.bottom, 8) }
         case .mac:
             ScrollView { MacToolsView(model: model.mac).padding(.bottom, 8) }
-        case .capacity:
+        case .review:
+            @Bindable var model = model
             ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(model.summaryText)
+                        .font(.system(size: 13))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Toggle("Start the fleet automatically whenever kinhin opens", isOn: $model.autoStartFleet)
+                        .accessibilityLabel("Start the fleet automatically whenever kinhin opens")
+                    tuneIt(model: model)
+                }
+                .frame(width: FormMetrics.width, alignment: .topLeading)
+                .padding(.bottom, 8)
+            }
+        }
+    }
+
+    /// Optional knobs, closed by default: the defaults are fine.
+    private func tuneIt(model: WizardModel) -> some View {
+        @Bindable var model = model
+        return DisclosureGroup(isExpanded: $model.tuneItExpanded) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Split your capacity").font(.system(size: 12, weight: .semibold))
                 if model.runtimes.showsBudget {
-                    BudgetCard(model: model.runtimes).padding(.bottom, 8)
+                    BudgetCard(model: model.runtimes)
                 } else {
                     StatusText(
                         text:
-                            "Only one runtime is enabled, so there's nothing to split. Enable another on the previous step (Docker, Apple container or tart) to divide this Mac's capacity — or skip.",
+                            "Only one runtime is enabled, so there's nothing to split. Enable another on the previous step (Docker, Apple container or tart) to divide this Mac's capacity.",
                         style: .secondary
                     )
-                    .frame(width: FormMetrics.width, alignment: .leading)
                 }
+                Text("Toolchains").font(.system(size: 12, weight: .semibold))
+                ToolchainsGuideView()
             }
-        case .toolchains:
-            ScrollView { ToolchainsGuideView().padding(.bottom, 8) }
-        case .start:
-            @Bindable var model = model
-            VStack(alignment: .leading, spacing: 14) {
-                Text(model.summaryText)
-                    .font(.system(size: 13))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                Toggle("Start the fleet automatically whenever kinhin opens", isOn: $model.autoStartFleet)
-                    .accessibilityLabel("Start the fleet automatically whenever kinhin opens")
-            }
-            .frame(width: FormMetrics.width, alignment: .topLeading)
+            .padding(.top, 8)
+        } label: {
+            Text("Tune it (optional)").font(.system(size: 13, weight: .semibold))
         }
+        .accessibilityIdentifier("wizard-tune-it")
     }
 }

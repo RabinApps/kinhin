@@ -55,6 +55,10 @@ struct MacToolsView: View {
             ) {
                 model.prepareImage()
             }
+            if !model.imagePresent && !model.tartLinuxOn {
+                HintText(ImagePrepCost.notice)
+                    .accessibilityIdentifier("mac-image-prep-cost")
+            }
             if model.tartLinuxOn {
                 HintText(
                     "tart is serving Linux jobs — its base image is chosen under Linux jobs below. Add a macOS "
@@ -166,7 +170,8 @@ struct MacToolsView: View {
                 "Apple container", on: model.containerOn, toggleID: "mac-container-toggle",
                 setOn: { model.setContainer($0) }, line: model.containerLine,
                 installVisible: model.containerInstallVisible, installTitle: model.containerInstallTitle,
-                installID: "mac-install-container", install: { model.installContainer() })
+                installID: "mac-install-container", maturity: MaturityTable.maturity(of: .appleContainer),
+                install: { model.installContainer() })
             if model.containerOn {
                 baseImageRow(value: model.containerBaseImage, runtime: .appleContainer)
                 buildImageRow(.appleContainer)
@@ -175,7 +180,8 @@ struct MacToolsView: View {
                 "Docker", on: model.dockerOn, toggleID: "mac-docker-toggle",
                 setOn: { model.setDocker($0) }, line: model.dockerLine,
                 installVisible: model.dockerInstallVisible, installTitle: "Install…",
-                installID: "mac-install-docker", install: { model.installDocker() })
+                installID: "mac-install-docker", maturity: MaturityTable.maturity(of: .docker),
+                install: { model.installDocker() })
             if model.dockerOn {
                 baseImageRow(value: model.dockerBaseImage, runtime: .docker)
                 buildImageRow(.docker)
@@ -221,7 +227,7 @@ struct MacToolsView: View {
     private func runtimeRow(
         _ title: String, on: Bool, toggleID: String, setOn: @escaping @MainActor (Bool) -> Void,
         line: StatusLine, installVisible: Bool, installTitle: String, installID: String,
-        install: @escaping () -> Void
+        maturity: Maturity = .liveTested, install: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 8) {
             // Binding's setter is @Sendable; the toggle only ever fires on the
@@ -236,6 +242,7 @@ struct MacToolsView: View {
             .toggleStyle(.checkbox)
             .font(.system(size: 12))
             .accessibilityIdentifier(toggleID)
+            MaturityBadge(maturity)
             StatusText(text: line.text, style: line.style)
             Spacer(minLength: 0)
             if installVisible { smallButton(installTitle, id: installID, action: install) }
@@ -257,6 +264,7 @@ struct MacToolsView: View {
             .font(.system(size: 12))
             .disabled(!model.tartInstalled)
             .accessibilityIdentifier("mac-tart-linux-toggle")
+            MaturityBadge(MaturityTable.tartLinux)
             StatusText(text: model.tartLine.text, style: model.tartLine.style)
             Spacer(minLength: 0)
             if model.tartInstallVisible {

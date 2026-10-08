@@ -28,6 +28,15 @@ enum LinuxRuntimeSetup: Sendable, CaseIterable {
         }
     }
 
+    /// How much real-world testing the option has had (`MaturityTable`).
+    var maturity: Maturity {
+        switch self {
+        case .appleContainer: return MaturityTable.maturity(of: .appleContainer)
+        case .docker: return MaturityTable.maturity(of: .docker)
+        case .tartLinux: return MaturityTable.tartLinux
+        }
+    }
+
     /// The installable tool behind the option.
     var tool: InstallableTool? {
         switch self {

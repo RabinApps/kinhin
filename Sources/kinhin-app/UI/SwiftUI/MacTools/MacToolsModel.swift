@@ -53,6 +53,9 @@ final class MacToolsModel: ConfigFormModel {
     /// The prepared tart image exists, so the button rebuilds it (a changed
     /// base image only takes effect through a rebuild).
     private(set) var imagePresent = false
+    /// The tart image is being baked right now. The wizard lets Start through
+    /// meanwhile: the bake keeps running in the background.
+    private(set) var isPreparingImage = false
     var imageButtonTitle: String { imagePresent ? "Rebuild image…" : "Prepare image" }
     private(set) var containerOn = false
     private(set) var dockerOn = false
@@ -294,11 +297,16 @@ final class MacToolsModel: ConfigFormModel {
         {
             return
         }
-        installs.run(
+        let task = installs.run(
             "Preparing the runner image — this takes a while…",
             cancelledLine: "Cancelled — the previous image is untouched"
         ) {
             try await ImageBuildService.rebuild(.tart, config: ConfigLoader.load())
+        }
+        isPreparingImage = true
+        Task { [weak self] in
+            await task.value
+            self?.isPreparingImage = false
         }
     }
 
@@ -346,6 +354,7 @@ final class MacToolsModel: ConfigFormModel {
     // MARK: - Test hooks
 
     func setTartReadyForTesting(_ ready: Bool) { setTartReady(ready) }
+    func setPreparingImageForTesting(_ preparing: Bool) { isPreparingImage = preparing }
     func setImagePresentForTesting(_ present: Bool) { imagePresent = present }
     func setContainerForTesting(_ on: Bool) { setContainer(on) }
     func setDockerForTesting(_ on: Bool) { setDocker(on) }
