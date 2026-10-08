@@ -19,9 +19,9 @@ struct MacToolsView: View {
         .sheet(item: $model.installOffer) { offer in
             InstallConfirmationSheet(
                 offer: offer,
-                onConfirm: { model.confirmInstall($0) },
-                onCopy: { model.copyInstallCommand($0) },
-                onCancel: { model.cancelInstall() }
+                onConfirm: { model.installs.confirmInstall($0) },
+                onCopy: { model.installs.copyInstallCommand($0) },
+                onCancel: { model.installs.cancelInstall() }
             )
         }
         .sheet(item: $model.linuxSetupOffer) { offer in
@@ -30,9 +30,9 @@ struct MacToolsView: View {
         .sheet(item: $model.missingBrewOffer) { offer in
             MissingBrewSheet(
                 offer: offer,
-                onGetBrew: { model.openBrewSite() },
-                onDownload: { model.downloadManually() },
-                onCancel: { model.cancelMissingBrew() }
+                onGetBrew: { model.installs.openBrewSite() },
+                onDownload: { model.installs.downloadManually() },
+                onCancel: { model.installs.cancelMissingBrew() }
             )
         }
     }
@@ -90,7 +90,7 @@ struct MacToolsView: View {
             HintText(
                 "Extra prepared images, such as one on an Xcode base or a Linux base. Each has its own base and is rebuilt separately. A Linux-named image strips the fleet's `macos` label automatically."
             )
-            ForEach(model.extraImages) { row in
+            ForEach(model.namedImages.rows) { row in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 8) {
                         Text(row.name).font(.system(size: 12, design: .monospaced))
@@ -99,23 +99,24 @@ struct MacToolsView: View {
                             style: row.present ? .secondary : .warn)
                         Spacer(minLength: 0)
                         smallButton(row.present ? "Rebuild…" : "Prepare", id: "mac-image-prepare-\(row.name)") {
-                            model.prepareNamedImage(row.name)
+                            model.namedImages.prepare(row.name)
                         }
-                        smallButton("Remove", id: "mac-image-remove-\(row.name)") { model.removeImage(row.name) }
+                        smallButton("Remove", id: "mac-image-remove-\(row.name)") { model.namedImages.remove(row.name) }
                     }
                     HStack(spacing: 8) {
                         Text("Run jobs with labels").font(.system(size: 11)).foregroundStyle(
                             StatusStyle.secondary.color)
                         Spacer(minLength: 0)
                         ImageLabelsField(
-                            labels: row.labels, id: row.name, commit: { model.setImageLabels($0, for: row.name) })
+                            labels: row.labels, id: row.name, commit: { model.namedImages.setLabels($0, for: row.name) }
+                        )
                     }
                     HStack(spacing: 8) {
                         Text("Base image").font(.system(size: 11)).foregroundStyle(StatusStyle.secondary.color)
                         Spacer(minLength: 0)
                         BaseImagePicker(
                             value: row.baseImage,
-                            onChange: { model.setImageBase($0, for: row.name) },
+                            onChange: { model.namedImages.setBase($0, for: row.name) },
                             catalog: .tartVM,
                             pinDigest: { reference in await BaseImageChoice.pin(reference, in: .tartVM) }
                         )
@@ -136,7 +137,7 @@ struct MacToolsView: View {
                 .fixedSize()
                 Spacer(minLength: 0)
                 smallButton("Add image", id: "mac-image-add") {
-                    model.addImage(name: newImageName, baseImage: newImageBase)
+                    model.namedImages.add(name: newImageName, baseImage: newImageBase)
                     newImageName = ""
                 }
                 .disabled(model.busy || newImageName.trimmingCharacters(in: .whitespaces).isEmpty)

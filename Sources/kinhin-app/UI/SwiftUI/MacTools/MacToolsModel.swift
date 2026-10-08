@@ -2,115 +2,6 @@ import AppKit
 import KinhinKit
 import Observation
 
-// MARK: - Linux runtime choice (three-way comparison)
-
-/// The three Linux runtimes a repo's Linux jobs can run on, and the one the
-/// user picks from the "This Mac" form. Mirrors `docs/runtimes.md` choosing-
-/// a-linux-runtime: each option carries its own per-runtime prerequisites, so
-/// the sheet only offers what this Mac can actually run, and the "why" text is
-/// the comparison from the docs (VM-grade isolation / density / amd64 / needs /
-/// best-for), not a paraphrase the reader would have to trust.
-enum LinuxRuntimeSetup: Sendable, CaseIterable {
-    case appleContainer
-    case docker
-    case tartLinux
-
-    var id: String {
-        switch self {
-        case .appleContainer: return "appleContainer"
-        case .docker: return "docker"
-        case .tartLinux: return "tartLinux"
-        }
-    }
-
-    var displayName: String {
-        switch self {
-        case .appleContainer: return "Apple container"
-        case .docker: return "Docker"
-        case .tartLinux: return "Tart (Linux VM)"
-        }
-    }
-
-    /// The installable tool behind the option.
-    var tool: InstallableTool? {
-        switch self {
-        case .appleContainer: return .appleContainer
-        case .docker: return .docker
-        case .tartLinux: return .tart
-        }
-    }
-
-    /// Per-runtime prerequisites the reader can act on. Mirrors the docs:
-    /// apple/container needs the container CLI; Docker needs a Docker provider;
-    /// Tart (Linux VM) needs tart.
-    var prerequisite: String {
-        switch self {
-        case .appleContainer: return "Apple container CLI (brew install container)"
-        case .docker: return "Docker Desktop, OrbStack or colima"
-        case .tartLinux: return "tart (for macOS VMs too)"
-        }
-    }
-
-    /// One-line comparison row from the docs, used as the option's "why" line.
-    var summary: String {
-        switch self {
-        case .appleContainer:
-            return
-                "VM-grade isolation, no daemon, high density, 8 GB/instance — Debian/Ubuntu-based image only, no amd64, beta."
-        case .docker:
-            return
-                "Highest density if a Docker provider already runs; amd64 via emulation with JIT/Go/Java/.NET caveats; shared kernel."
-        case .tartLinux:
-            return
-                "Full control: your distro, kernel modules, long sudo; lowest density, 50 GB/instance, needs an ISO or published image."
-        }
-    }
-
-    /// Options worth showing on this Mac, with any "limited" caveat folded into
-    /// the option's detail (same shape HostRequirements.offeredOptions already builds).
-    static func offeredOptions(on host: HostFacts) -> [LinuxRuntimeSetup] {
-        allCases.filter { unavailableReason(for: $0, on: host) == nil }
-    }
-
-    /// Why the option cannot run here, or nil when at least one install path works.
-    static func unavailableReason(for option: LinuxRuntimeSetup, on host: HostFacts) -> String? {
-        switch option {
-        case .appleContainer:
-            return HostRequirements.blockingReason(for: .appleContainer, on: host)
-        case .docker:
-            return HostRequirements.blockingReason(for: .docker, on: host)
-        case .tartLinux:
-            // tart is supported on every Mac kinhin runs on; the only blocker
-            // is a host that kinhin itself excludes.
-            return HostRequirements.blockingReason(for: .tart, on: host)
-        }
-    }
-
-    /// The sheet's confirm payload: the option the user chose, plus the install
-    /// method they picked (nil = the best available one).
-    struct Offer: Identifiable {
-        let id: String
-        let tool: InstallableTool?
-        let method: String?
-        let onConfirm: (Offer?) -> Void
-
-        init(
-            tool: InstallableTool?,
-            options: [LinuxRuntimeSetup],
-            onConfirm: @escaping (Offer?) -> Void
-        ) {
-            self.id = UUID().uuidString
-            self.tool = tool
-            self.method = nil
-            self.onConfirm = onConfirm
-        }
-
-        static func == (lhs: Offer, rhs: Offer) -> Bool { lhs.id == rhs.id }
-    }
-
-    static var allRuntimes: [LinuxRuntimeSetup] { allCases }
-}
-
 /// State and actions behind the "This Mac" form: what kinhin runs jobs on,
 /// with real actions instead of instructions. macOS jobs need tart and a
 /// prepared base image (both can be fixed here); Linux jobs can optionally
@@ -136,21 +27,12 @@ final class MacToolsModel: ConfigFormModel {
     /// finish, and say so. (The Accounts page leaves choices alone.)
     @ObservationIgnored var autoEnableLinuxRuntime = false
 
-    private var tartReady = false
+    /// The readiness rule's inputs and derived answers (see `MacReadiness`).
+    private var readiness = MacReadiness()
     /// Enabled *and* installed Linux runtimes, by display name.
-    private(set) var activeLinuxRuntimes: [String] = []
-
+    var activeLinuxRuntimes: [String] { readiness.activeLinuxRuntimes }
     /// Plain-language summary of what jobs can run here (for the final step).
-    var runsOnDescription: String {
-        switch (tartReady, activeLinuxRuntimes.isEmpty) {
-        case (true, true): return "macOS jobs (tart)"
-        case (true, false): return "macOS jobs (tart) and Linux jobs (\(activeLinuxRuntimes.joined(separator: ", ")))"
-        case (false, false):
-            return
-                "Linux jobs only (\(activeLinuxRuntimes.joined(separator: ", "))) — macOS jobs need tart, which isn't set up"
-        case (false, true): return "nothing yet"
-        }
-    }
+    var runsOnDescription: String { readiness.runsOnDescription }
 
     // MARK: - Display state
 
@@ -171,34 +53,7 @@ final class MacToolsModel: ConfigFormModel {
     /// The prepared tart image exists, so the button rebuilds it (a changed
     /// base image only takes effect through a rebuild).
     private(set) var imagePresent = false
-    /// Extra named macOS images (`images:`), with whether each is prepared.
-    struct ImageRow: Identifiable, Equatable {
-        var name: String
-        var baseImage: String?
-        var labels: [String] = []
-        var present: Bool
-        var id: String { name }
-    }
-    private(set) var extraImages: [ImageRow] = []
     var imageButtonTitle: String { imagePresent ? "Rebuild image…" : "Prepare image" }
-    /// A long-running action (install, prepare image) is in flight.
-    private(set) var busy = false
-    private(set) var busyLine = Line(text: "")
-    /// The task behind the current `busy` action, so the Cancel button can
-    /// stop it (an image build then unwinds through its scratch-VM cleanup
-    /// and keeps the previous image).
-    @ObservationIgnored private(set) var runningTask: Task<Void, Never>?
-
-    /// The open install-confirmation sheet's inputs: what will run and the
-    /// methods to choose from. `MacToolsView` presents the sheet while
-    /// non-nil (see MacToolsModel+InstallSheets for the sheet's actions).
-    var installOffer: InstallOffer?
-    /// The open missing-Homebrew sheet's inputs, or nil.
-    var missingBrewOffer: MissingBrewOffer?
-    /// The open Linux-runtime choice sheet's inputs, or nil. Presenting the sheet
-    /// sets the sheet's model to `self` so it can kick off installs.
-    var linuxSetupOffer: LinuxRuntimeSetup.Offer?
-
     private(set) var containerOn = false
     private(set) var dockerOn = false
     private(set) var containerLine = Line(text: "")
@@ -208,33 +63,52 @@ final class MacToolsModel: ConfigFormModel {
     private(set) var containerInstallTitle = "Install…"
     /// Base image each runtime's image is baked on (nil = default); the
     /// tart value is what `image prepare` starts from.
-    private(set) var tartBaseImage: String?
+    internal(set) var tartBaseImage: String?
     /// The fleet's `labels:` as saved (what runners advertise to the forge).
-    private(set) var fleetLabels: [String] = []
-    private(set) var containerBaseImage: String?
-    private(set) var dockerBaseImage: String?
-    private(set) var dockerPlatform: LinuxPlatform = .arm64
+    internal(set) var fleetLabels: [String] = []
+    internal(set) var containerBaseImage: String?
+    internal(set) var dockerBaseImage: String?
+    internal(set) var dockerPlatform: LinuxPlatform = .arm64
 
     /// Installed but its background service isn't running: offer to start it
     /// (a fresh install leaves it stopped).
     private var containerServiceNeedsStart = false
 
-    // MARK: - Injectable seams
+    // MARK: - Collaborators
 
-    @ObservationIgnored var installShell: ShellRunning = Shell()
-    /// Whether a tool is installed afterwards (real PATH lookup by default).
-    @ObservationIgnored var installedCheck: @Sendable (InstallableTool) -> Bool = { $0.isInstalled }
-    @ObservationIgnored var brewPath: () -> String? = { RuntimeInstaller.brewPath }
-    /// The Mac install options are judged against (real probe by default).
-    @ObservationIgnored var hostFacts: () -> HostFacts = { .current() }
-    /// Confirms replacing an existing image (real alert by default; tests inject a closure).
-    @ObservationIgnored var confirmRebuild: (_ title: String, _ message: String) -> Bool = { title, message in
-        AlertKit.confirm(title: title, message: message, confirmTitle: "Rebuild", destructive: true)
+    /// Test seams (shell, host probe, confirmations) shared with the collaborators.
+    @ObservationIgnored let seams = MacToolsSeams()
+    /// The install flow and the busy/progress state of long actions.
+    @ObservationIgnored private(set) lazy var installs = InstallCoordinator(seams: seams) { [weak self] in
+        self?.reload()
     }
-    /// Shown instead of the confirmation when no option can run on this Mac.
-    @ObservationIgnored var explainUnsupported: (InstallableTool, Error) -> Void = { tool, error in
-        AlertKit.present(error: error, title: "\(tool.title) can't run on this Mac")
+    /// The extra named macOS images (`images:`).
+    @ObservationIgnored private(set) lazy var namedImages = NamedImagesModel(owner: self)
+
+    // MARK: - Forwarded busy state (the form and the sibling forms read these)
+
+    var busy: Bool { installs.busy }
+    var busyLine: Line { installs.busyLine }
+    var runningTask: Task<Void, Never>? { installs.runningTask }
+    var installOffer: InstallOffer? {
+        get { installs.installOffer }
+        set { installs.installOffer = newValue }
     }
+    var missingBrewOffer: MissingBrewOffer? {
+        get { installs.missingBrewOffer }
+        set { installs.missingBrewOffer = newValue }
+    }
+    var linuxSetupOffer: LinuxRuntimeSetup.Offer? {
+        get { installs.linuxSetupOffer }
+        set { installs.linuxSetupOffer = newValue }
+    }
+    func cancelRunning() { installs.cancelRunning() }
+    func install(_ tool: InstallableTool) { installs.install(tool) }
+    @discardableResult
+    func run(
+        _ title: String, cancelledLine: String = "Cancelled",
+        _ body: @escaping @Sendable () async throws -> Void
+    ) -> Task<Void, Never> { installs.run(title, cancelledLine: cancelledLine, body) }
 
     // MARK: - State
 
@@ -249,7 +123,7 @@ final class MacToolsModel: ConfigFormModel {
         } catch {
             snapshot = nil
             configReadable = false
-            busyLine = .unreadableConfig(error)
+            installs.busyLine = .unreadableConfig(error)
         }
         containerOn = snapshot?.container != nil
         dockerOn = snapshot?.docker != nil
@@ -258,7 +132,7 @@ final class MacToolsModel: ConfigFormModel {
         let dockerInstalled = Paths.findExecutable(named: "docker") != nil
         recomputeReadiness()
         // Don't offer an install that can't run here; say why instead.
-        let host = hostFacts()
+        let host = seams.hostFacts()
         let containerBlocked = HostRequirements.blockingReason(for: .appleContainer, on: host)
         let dockerBlocked = HostRequirements.blockingReason(for: .docker, on: host)
         containerInstallVisible = !containerInstalled && containerBlocked == nil
@@ -270,8 +144,8 @@ final class MacToolsModel: ConfigFormModel {
 
         let image = snapshot?.image ?? "tahoe-base"
         let extra = snapshot?.images ?? []
-        extraImages = extra.map {
-            ImageRow(name: $0.name, baseImage: $0.baseImage, labels: $0.labels ?? [], present: false)
+        namedImages.rows = extra.map {
+            .init(name: $0.name, baseImage: $0.baseImage, labels: $0.labels ?? [], present: false)
         }
         // `tart_path:` is authoritative, exactly like the CLI, doctor and the
         // daemon: a configured binary that is not there reads as missing (the
@@ -321,8 +195,8 @@ final class MacToolsModel: ConfigFormModel {
                 text: present ? "\(image) ready ✓" : "\(image) not prepared yet — takes a while, once",
                 style: present ? .secondary : .warn)
             self.imagePresent = present
-            self.extraImages = extra.map {
-                ImageRow(
+            self.namedImages.rows = extra.map {
+                .init(
                     name: $0.name, baseImage: $0.baseImage, labels: $0.labels ?? [],
                     present: preparedNames.contains($0.name))
             }
@@ -334,22 +208,23 @@ final class MacToolsModel: ConfigFormModel {
     }
 
     private func noteAutoEnabled(_ name: String) {
-        busyLine = Line(text: "tart isn't installed, so \(name) is on for Linux jobs. Change it below any time.")
+        installs.busyLine = Line(
+            text: "tart isn't installed, so \(name) is on for Linux jobs. Change it below any time.")
     }
 
     private func setTartReady(_ ready: Bool) {
-        tartReady = ready
+        readiness.tartReady = ready
         recomputeReadiness()
     }
 
     /// Re-derives readiness from tart + the Linux toggles. Toggling a runtime
     /// on or off changes it immediately (no reload needed).
     private func recomputeReadiness() {
-        var active: [String] = []
-        if containerOn, Paths.findExecutable(named: "container") != nil { active.append("Apple container") }
-        if dockerOn, Paths.findExecutable(named: "docker") != nil { active.append("Docker") }
-        activeLinuxRuntimes = active
-        let ready = tartReady || !active.isEmpty
+        readiness.containerEnabled = containerOn
+        readiness.containerInstalled = Paths.findExecutable(named: "container") != nil
+        readiness.dockerEnabled = dockerOn
+        readiness.dockerInstalled = Paths.findExecutable(named: "docker") != nil
+        let ready = readiness.isReady
         let changed = ready != isReady
         isReady = ready
         if changed { onReadinessChanged?() }
@@ -357,109 +232,16 @@ final class MacToolsModel: ConfigFormModel {
 
     /// Reads the config for a passive refresh; a broken file is said on the
     /// status line and reads as nothing saved, never as silent defaults.
-    private func currentSnapshot() -> GeneralConfigEditor.Snapshot? {
+    func currentSnapshot() -> GeneralConfigEditor.Snapshot? {
         do {
             return try ConfigStore.snapshot(at: configURL)
         } catch {
-            busyLine = .unreadableConfig(error)
+            installs.busyLine = .unreadableConfig(error)
             return nil
         }
     }
 
-    /// Re-reads the saved base image for each runtime.
-    private func refreshBaseImages() {
-        refreshBaseImages(from: currentSnapshot())
-    }
-
-    private func refreshBaseImages(from snapshot: GeneralConfigEditor.Snapshot?) {
-        tartBaseImage = snapshot?.baseImage(for: .tart)
-        fleetLabels = snapshot?.labels ?? []
-        containerBaseImage = snapshot?.baseImage(for: .appleContainer)
-        dockerBaseImage = snapshot?.baseImage(for: .docker)
-        dockerPlatform = snapshot?.dockerPlatform ?? .arm64
-    }
-
-    func saveDockerPlatform(_ platform: LinuxPlatform) {
-        do {
-            try GeneralConfigEditor.setDockerPlatform(platform, at: configURL)
-            refreshBaseImages()
-            onChanged?()
-        } catch {
-            busyLine = .notSaved(error)
-            refreshBaseImages()
-        }
-    }
-
-    /// Tart serves Linux jobs when its base image is a Linux one.
-    var tartLinuxOn: Bool { TartBaseImage.isLinux(tartBaseImage) }
-
-    /// Set while tart's main base image is Linux and the fleet still
-    /// advertises `macos`: macOS jobs would be routed to a Linux VM and fail
-    /// there. This warning does not apply when you use named images with
-    /// distinct labels — a Linux-named image strips the fleet's `macos` label
-    /// automatically, so macOS and Linux Tart VMs can share one fleet.
-    var tartLinuxLabelWarning: String? {
-        guard tartLinuxOn, fleetLabels.contains(where: { $0.lowercased() == "macos" }) else { return nil }
-        return "Your fleet labels include “macos”, so macOS jobs would be sent to this Linux VM. In config.yaml, "
-            + "remove “macos” from labels (add “linux” if jobs ask for it)."
-    }
-
-    /// The "Tart (Linux VM)" checkbox: on starts from the default Linux
-    /// image; off drops the key, returning tart to the macOS default.
-    func setTartLinux(_ on: Bool) {
-        guard tartInstalled || !on else { return }
-        saveBaseImage(on ? TartBaseImage.defaultLinuxReference : nil, for: .tart)
-    }
-
-    func saveBaseImage(_ value: String?, for runtime: RuntimeID) {
-        do {
-            try GeneralConfigEditor.setBaseImage(value, for: runtime, at: configURL)
-            refreshBaseImages()
-            onChanged?()
-            busyLine = Line(text: "Base image saved. Rebuild the image for it to take effect.")
-        } catch {
-            busyLine = .notSaved(error)
-            refreshBaseImages()
-        }
-    }
-
     // MARK: - Actions
-
-    /// Runs a long action with the busy spinner/line managed around it
-    /// (internal: the install-sheet extension starts installs through it).
-    /// `cancelledLine` is shown when the action is cancelled (default fits
-    /// installs; image builds pass their own reassurance). The task is kept
-    /// in `runningTask` so `cancelRunning()` can stop it.
-    @discardableResult
-    func run(
-        _ title: String, cancelledLine: String = "Cancelled",
-        _ body: @escaping @Sendable () async throws -> Void
-    ) -> Task<Void, Never> {
-        busy = true
-        busyLine = Line(text: title)
-        let task = Task { [weak self] in
-            do {
-                try await body()
-                self?.busyLine = Line(text: "")
-            } catch is CancellationError {
-                self?.busyLine = Line(text: cancelledLine, style: .warn)
-            } catch {
-                self?.busyLine = Line(text: "Failed — \(error.localizedDescription)", style: .error)
-            }
-            self?.busy = false
-            self?.runningTask = nil
-            self?.reload()
-        }
-        runningTask = task
-        return task
-    }
-
-    /// The Cancel button's action: cancels the in-flight action. Cancellation
-    /// is cooperative — image builds remove their scratch VM and keep the
-    /// previous image; child processes are killed by `Shell`.
-    func cancelRunning() {
-        runningTask?.cancel()
-    }
 
     private static func installLine(installed: Bool, blocked: String?) -> Line {
         if installed { return Line(text: "installed ✓") }
@@ -477,51 +259,19 @@ final class MacToolsModel: ConfigFormModel {
         return "not installed — tart_path: \(configuredPath) does not exist"
     }
 
-    func installTart() { install(.tart) }
+    func installTart() { installs.install(.tart) }
 
     func installContainer() {
-        if containerServiceNeedsStart { startContainerService() } else { install(.appleContainer) }
+        if containerServiceNeedsStart { startContainerService() } else { installs.install(.appleContainer) }
     }
 
-    func installDocker() { install(.docker) }
+    func installDocker() { installs.install(.docker) }
 
     /// Presents the Linux-runtime choice sheet from the form's "Set up Linux jobs…" button.
-    func chooseLinuxRuntime() {
-        let host = hostFacts()
-        guard
-            !LinuxRuntimeSetup.allRuntimes.allSatisfy({ LinuxRuntimeSetup.unavailableReason(for: $0, on: host) != nil })
-        else {
-            return  // everything is unavailable: the form already says so
-        }
-        linuxSetupOffer = LinuxRuntimeSetup.Offer(
-            tool: nil,
-            options: LinuxRuntimeSetup.offeredOptions(on: host),
-            onConfirm: { [weak self] offer in
-                if let offer { self?.applyLinuxRuntime(offer) }
-            }
-        )
-    }
-
-    /// The user confirmed a Linux runtime in the sheet: install it, then turn
-    /// the matching toggle on so the form keeps the choice.
-    private func applyLinuxRuntime(_ offer: LinuxRuntimeSetup.Offer) {
-        switch offer.tool {
-        case .appleContainer:
-            linuxSetupOffer = nil
-            install(.appleContainer)
-        case .docker:
-            linuxSetupOffer = nil
-            install(.docker)
-        case .tart:
-            linuxSetupOffer = nil
-            installTart()
-        case .none:
-            break
-        }
-    }
+    func chooseLinuxRuntime() { installs.chooseLinuxRuntime() }
 
     private func checkContainerService() {
-        let shell = installShell
+        let shell = seams.installShell
         Task { [weak self] in
             let ready = await Task.detached { await AppleContainerRuntime(shell: shell).health().isReady }.value
             guard let self, !ready, self.containerLine.text.hasPrefix("installed") else { return }
@@ -533,42 +283,18 @@ final class MacToolsModel: ConfigFormModel {
     }
 
     @discardableResult
-    func startContainerService() -> Task<Void, Never> {
-        let shell = installShell
-        return run("Starting the Apple container service…") {
-            try await AppleContainerRuntime.startSystem(shell: shell)
-        }
-    }
-
-    /// Install… pressed: confirm in a sheet before anything runs — or, when
-    /// no option can run (no Homebrew), explain in a sheet instead. The
-    /// sheet's actions start the install (MacToolsModel+InstallSheets).
-    func install(_ tool: InstallableTool) {
-        let host = hostFacts()
-        do {
-            try HostRequirements.ensureSupported(tool, on: host)
-        } catch {
-            explainUnsupported(tool, error)
-            return
-        }
-        let options = HostRequirements.offeredOptions(for: tool, on: host)
-        guard brewPath() != nil || options.contains(where: { !$0.needsBrew }) else {
-            missingBrewOffer = MissingBrewOffer(tool: tool, options: options)
-            return
-        }
-        installOffer = InstallOffer(tool: tool, options: options)
-    }
+    func startContainerService() -> Task<Void, Never> { installs.startContainerService() }
 
     func prepareImage() {
         if imagePresent,
-            !confirmRebuild(
+            !seams.confirmRebuild(
                 "Rebuild the runner image?",
                 "This replaces the existing image with a fresh bake from the selected base image and "
                     + "takes a while. Running VMs keep working; new ones use the rebuilt image.")
         {
             return
         }
-        run(
+        installs.run(
             "Preparing the runner image — this takes a while…",
             cancelledLine: "Cancelled — the previous image is untouched"
         ) {
@@ -576,74 +302,11 @@ final class MacToolsModel: ConfigFormModel {
         }
     }
 
-    // MARK: - Named images
-
-    /// Adds an `images:` entry (a name and its base, e.g. a Cirrus `-xcode` image).
-    func addImage(name: String, baseImage: String?) {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        mutateImages { $0.append(.init(name: trimmed, baseImage: baseImage)) }
-    }
-
-    func setImageBase(_ baseImage: String?, for name: String) {
-        mutateImages { images in
-            if let index = images.firstIndex(where: { $0.name == name }) { images[index].baseImage = baseImage }
-        }
-        busyLine = Line(text: "Base image saved. Rebuild '\(name)' for it to take effect.")
-    }
-
-    /// Sets the labels a job requests (`runs-on`) to run on this image; empty = not selectable by label.
-    func setImageLabels(_ text: String, for name: String) {
-        let labels = text.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
-        // Focus loss commits too: skip the config write (and engine restart) when nothing changed.
-        guard extraImages.first(where: { $0.name == name })?.labels != labels else { return }
-        mutateImages { images in
-            if let index = images.firstIndex(where: { $0.name == name }) {
-                images[index].labels = labels.isEmpty ? nil : labels
-            }
-        }
-    }
-
-    /// Removes the entry from the config. The prepared VM (large) stays on disk; say so.
-    func removeImage(_ name: String) {
-        mutateImages { $0.removeAll { $0.name == name } }
-        busyLine = Line(
-            text: "Removed '\(name)' from the config. Its prepared VM is still on disk (tart delete \(name)).")
-    }
-
-    func prepareNamedImage(_ name: String) {
-        let present = extraImages.first(where: { $0.name == name })?.present ?? false
-        if present,
-            !confirmRebuild(
-                "Rebuild image “\(name)”?",
-                "This replaces the existing image with a fresh bake from its base image and takes a while.")
-        {
-            return
-        }
-        run(
-            "Preparing image “\(name)” — this takes a while…",
-            cancelledLine: "Cancelled — the previous image is untouched"
-        ) {
-            try await ImageBuildService.rebuild(.tart, config: ConfigLoader.load(), image: name)
-        }
-    }
-
-    private func mutateImages(_ change: (inout [KinhinConfig.ImageConfig]) -> Void) {
-        do {
-            var images = try ConfigStore.snapshot(at: configURL)?.images ?? []
-            change(&images)
-            try ImagesConfigEditor.apply(images, to: configURL)
-            reload()
-            onChanged?()
-        } catch {
-            busyLine = .notSaved(error)
-        }
-    }
-
     /// Builds (or rebuilds) the Linux image for Apple container or Docker from its
     /// configured base image.
     func buildLinuxImage(_ runtime: RuntimeID) {
         guard runtime == .appleContainer || runtime == .docker else { return }
-        run(
+        installs.run(
             "Building the \(runtime == .docker ? "Docker" : "Apple container") image — this takes a while…",
             cancelledLine: "Cancelled — the previous image is untouched"
         ) {
@@ -676,15 +339,8 @@ final class MacToolsModel: ConfigFormModel {
         } catch {
             revert(self)
             recomputeReadiness()
-            busyLine = .notSaved(error)
+            installs.busyLine = .notSaved(error)
         }
-    }
-
-    /// Appends the by-hand command to a failed install's busy line (internal:
-    /// the install-sheet extension calls it from the follow-up task).
-    func noteManualCommandFallback(_ command: String) {
-        guard busyLine.text.hasPrefix("Failed") else { return }
-        busyLine.text += "\nYou can also run this in Terminal: \(command)"
     }
 
     // MARK: - Test hooks
