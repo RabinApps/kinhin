@@ -29,12 +29,12 @@ enum RunCommands {
         dispatchMain()
     }
 
-    static func stop(_ args: [String]) throws {
-        try runControl(.stop, args: args)
+    static func stop(_ args: [String]) async throws {
+        try await runControl(.stop, args: args)
     }
 
-    static func pauseResume(_ command: String, args: [String]) throws {
-        try runControl(command == "pause" ? .pause : .resume, args: args)
+    static func pauseResume(_ command: String, args: [String]) async throws {
+        try await runControl(command == "pause" ? .pause : .resume, args: args)
     }
 
     /// What `stop`/`pause`/`resume` report under `--json`.
@@ -50,7 +50,7 @@ enum RunCommands {
     /// daemon did it, 1 when there is no daemon (nothing to act on), 4 when
     /// the daemon refused. `--quiet` prints nothing; `--json` prints a
     /// `ControlResult`.
-    private static func runControl(_ method: RPCMethod, args: [String]) throws {
+    private static func runControl(_ method: RPCMethod, args: [String]) async throws {
         let json = args.contains("--json")
         let quiet = args.contains("--quiet") || args.contains("-q")
         let action = method.rawValue
@@ -58,13 +58,13 @@ enum RunCommands {
             guard !quiet else { return }
             if json { try emitJSON(result) } else { print(result.message) }
         }
-        guard RPCClient.isDaemonAlive() else {
+        guard let backend = await FleetBackend.attachToDaemon() else {
             try report(ControlResult(action: action, ok: false, message: noDaemonMessage(for: method)))
             ExitRule.finish(healthy: false)
             return
         }
         do {
-            try report(ControlResult(action: action, ok: true, message: try control(method)))
+            try report(ControlResult(action: action, ok: true, message: try await control(method, on: backend)))
         } catch let error as ControlFailure {
             fail(error.message, exit: error.exit)
         }
@@ -84,19 +84,34 @@ enum RunCommands {
     /// The pause/resume/stop core, shared with the MCP `pause`/`resume`/`stop`
     /// tools: returns the line the CLI prints, and throws instead of exiting
     /// so a tool result can carry the failure.
-    static func control(_ method: RPCMethod) throws -> String {
-        guard RPCClient.isDaemonAlive() else {
+    static func control(_ method: RPCMethod) async throws -> String {
+        guard let backend = await FleetBackend.attachToDaemon() else {
             // A stop with nothing running is a message; pause/resume have nothing to act on.
             if method == .stop { return noDaemonMessage(for: method) }
             throw ControlFailure(noDaemonMessage(for: method), exit: .needsAttention)
         }
-        let response = try RPCClient().send(method: method)
-        guard response.ok else { throw ControlFailure(response.error ?? "unknown error") }
-        switch method {
-        case .stop: return "daemon fleet stopped"
-        case .pause: return "fleet paused"
-        case .resume: return "fleet resumed"
-        default: return "done"
+        return try await control(method, on: backend)
+    }
+
+    /// The one RPC switch for stop/pause/resume, on the same `FleetBackend`
+    /// the app uses. A daemon refusal is a `ControlFailure` (exit 4).
+    static func control(_ method: RPCMethod, on backend: any FleetServing) async throws -> String {
+        do {
+            switch method {
+            case .stop:
+                try await backend.stop()
+                return "daemon fleet stopped"
+            case .pause:
+                try await backend.setPaused(true)
+                return "fleet paused"
+            case .resume:
+                try await backend.setPaused(false)
+                return "fleet resumed"
+            default:
+                throw ControlFailure("\(method.rawValue) is not a control action", exit: .usage)
+            }
+        } catch RPCError.rejected(let why) {
+            throw ControlFailure(why)
         }
     }
 

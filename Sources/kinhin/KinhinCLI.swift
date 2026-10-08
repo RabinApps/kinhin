@@ -132,13 +132,13 @@ struct KinhinCLI {
             try await RunCommands.start(args)
 
         case .stop:
-            try RunCommands.stop(args)
+            try await RunCommands.stop(args)
 
         case .pause:
-            try RunCommands.pauseResume("pause", args: args)
+            try await RunCommands.pauseResume("pause", args: args)
 
         case .resume:
-            try RunCommands.pauseResume("resume", args: args)
+            try await RunCommands.pauseResume("resume", args: args)
 
         case .status:
             try await RunCommands.status(args)
