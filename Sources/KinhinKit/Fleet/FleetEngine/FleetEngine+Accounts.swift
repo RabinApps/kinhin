@@ -206,7 +206,9 @@ extension FleetEngine {
             fallbackRepository: account.scope.contains("/") ? account.scope : nil,
             pollInterval: .seconds(2),
             maxCapacity: poolCapacity,
-            onDemandUpdate: { [weak self] in self?.pollSoon() }
+            onDemandUpdate: { [weak self] in self?.pollSoon() },
+            sessionStore: ScaleSetSessionStore(
+                directory: Paths.stateDirectory, account: account.name, scaleSet: scaleSet.name)
         )
     }
 

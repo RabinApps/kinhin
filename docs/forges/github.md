@@ -160,6 +160,14 @@ valid `runs-on:` label). A job asking for anything else — an image label such 
 pool marker `kinhin-container` — is never assigned to it. Make the configured labels cover what
 your workflows request, or leave `scale_set:` off and let the classic poller route per pool.
 
+**`session conflict` after a restart.** GitHub allows one live message session per scale set. If kinhin exits without
+cleaning up (force quit, crash), GitHub keeps the old session until its lease lapses and answers `409` to the next one.
+kinhin records the session id under its state directory and deletes the leftover one on the next start, so a restart
+normally attaches immediately. If the log keeps saying GitHub holds a session kinhin has no record of, another kinhin
+instance (or an earlier run on another machine) is still using the scale set; it frees up on its own once that stops.
+Cancelling a workflow has no effect on the session, and nothing needs to be re-created — the scale-set name is your
+`runs-on:` label, so it stays fixed.
+
 If the listener can't refresh statistics or the session drops, the engine keeps the last known snapshot briefly; if that keeps failing, re-check the account token and scopes (organization self-hosted-runner permissions).
 
 ## Pipeline view

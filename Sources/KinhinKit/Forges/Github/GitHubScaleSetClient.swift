@@ -246,7 +246,12 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
                     lastError = GitHubError.forbidden(String(decoding: data.prefix(500), as: UTF8.self))
                     continue
                 case 404: throw GitHubError.notFound(request.url?.path ?? "resource")
-                case 409: throw GitHubScaleSetClientError.sessionConflict
+                case 409:
+                    Log.debug(
+                        "scaleset",
+                        "409 from \(request.httpMethod ?? "?") \(request.url?.path ?? "?"): "
+                            + String(decoding: data.prefix(300), as: UTF8.self))
+                    throw GitHubScaleSetClientError.sessionConflict
                 case 429, 500...599:
                     lastError = GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
                     continue

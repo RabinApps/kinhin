@@ -72,8 +72,16 @@ public actor GitHubScaleSetListener {
     private var statisticsPollTask: Task<Void, Never>?
     private var sessionRetryTask: Task<Void, Never>?
     private var isRunning = false
+    /// Whether this run already deleted a session left over from an earlier
+    /// one (the store's record); done once, before the first create.
+    private var reapedStaleSession = false
+    /// Consecutive 409s on session create, to tell a brief overlap from a
+    /// session that something else is keeping alive.
+    private var conflictStreak = 0
+    private static let conflictsBeforeHint = 3
 
     private let client: GitHubScaleSetServing
+    private let sessionStore: ScaleSetSessionStore?
     private let scaleSetIdSupplier: () async throws -> Int
     private let ownerName: String
     private let fallbackRepository: String?
@@ -92,9 +100,11 @@ public actor GitHubScaleSetListener {
         fallbackRepository: String? = nil,
         pollInterval: Duration = .seconds(2),
         maxCapacity: Int = 1_000,
-        onDemandUpdate: @escaping @Sendable () async -> Void = {}
+        onDemandUpdate: @escaping @Sendable () async -> Void = {},
+        sessionStore: ScaleSetSessionStore? = nil
     ) {
         self.client = client
+        self.sessionStore = sessionStore
         self.scaleSetIdSupplier = scaleSetIdSupplier
         self.ownerName = ownerName
         self.fallbackRepository = fallbackRepository
@@ -131,8 +141,11 @@ public actor GitHubScaleSetListener {
         if let sessionId = session?.sessionId ?? abandonedSessionId, let id = cachedScaleSetId {
             await bestEffort { [self] in try await client.deleteSession(scaleSetId: id, sessionId: sessionId) }
         }
+        sessionStore?.clear()
         session = nil
         abandonedSessionId = nil
+        reapedStaleSession = false
+        conflictStreak = 0
         cachedSnapshot = nil
         pendingActions = [:]
         cachedScaleSetId = nil
@@ -188,6 +201,7 @@ public actor GitHubScaleSetListener {
     private func refreshSession() async {
         do {
             let id = try await currentScaleSetId()
+            await reapStaleSession(scaleSetId: id)
             let createdOrRefreshed = try await client.createOrUpdateSession(
                 scaleSetId: id, sessionId: session?.sessionId ?? abandonedSessionId, ownerName: ownerName)
             try Task.checkCancellation()
@@ -198,12 +212,26 @@ public actor GitHubScaleSetListener {
                 return
             }
             session = createdOrRefreshed
+            sessionStore?.save(
+                .init(scaleSetId: id, sessionId: createdOrRefreshed.sessionId, ownerName: ownerName))
             abandonedSessionId = nil
+            conflictStreak = 0
             backOff = .seconds(1)
             lastMessageId = nil
             _lastError = nil
         } catch is CancellationError {
             return
+        } catch GitHubScaleSetClientError.sessionConflict {
+            conflictStreak += 1
+            let reason =
+                conflictStreak >= Self.conflictsBeforeHint
+                ? "GitHub still holds a session for this scale set that kinhin has no record of — another kinhin "
+                    + "instance (or an earlier run on another machine) is using it. It frees up on its own within a "
+                    + "few minutes once that instance stops; nothing needs to be re-created."
+                : GitHubScaleSetClientError.sessionConflict.localizedDescription
+            _lastError = .sessionRefreshFailed(reason: reason)
+            Log.warn("scaleset", "session refresh failed: \(reason)")
+            scheduleBackoff()
         } catch let error as ScaleSetError {
             _lastError = error
             Log.warn("scaleset", "session refresh failed: \(String(describing: error.errorDescription))")
@@ -215,6 +243,20 @@ public actor GitHubScaleSetListener {
             Log.warn("scaleset", "session refresh failed: \(reason)")
             scheduleBackoff()
         }
+    }
+
+    /// Deletes the session an earlier run recorded and never deleted, so the
+    /// create below succeeds at once instead of waiting out GitHub's lease.
+    private func reapStaleSession(scaleSetId: Int) async {
+        guard !reapedStaleSession else { return }
+        reapedStaleSession = true
+        guard session == nil, abandonedSessionId == nil, let record = sessionStore?.load(),
+            record.scaleSetId == scaleSetId
+        else { return }
+        await bestEffort { [self] in try await client.deleteSession(scaleSetId: scaleSetId, sessionId: record.sessionId)
+        }
+        sessionStore?.clear()
+        Log.info("scaleset", "removed the session left by an earlier run (\(record.sessionId))")
     }
 
     private func pollLoop() async {
