@@ -105,6 +105,12 @@ public struct GitHubActionsRunner: Sendable, Equatable, Decodable {
 public struct GitHubScaleSetClient: GitHubScaleSetServing {
     public let credentials: GitHubCredentials
     public let session: URLSession
+    /// Carries the message-queue long-poll, which the server holds open for
+    /// about 50 s: it needs timeouts the shared 30 s session would cut short.
+    /// An injected session (tests) serves both.
+    let pollSession: URLSession
+    /// Retry policy for the admin/REST calls (tests shorten the waits).
+    var retryPolicy = ForgeRetryPolicy(retries: 3)
     private let adminJwtProvider: @Sendable () async throws -> String
     private let actionsServiceURL: @Sendable () -> URL?
 
@@ -118,6 +124,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
     ) {
         self.credentials = credentials
         self.session = ForgeHTTP.session(session)
+        self.pollSession = ForgeHTTP.longPollSession(session)
         self.adminJwtProvider = adminJwtProvider
         self.actionsServiceURL = actionsServiceURL
     }
@@ -140,22 +147,12 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         try request(method: method, path: path, body: body, headers: headers, baseURL: nil)
     }
 
-    private func restBaseURL(for instance: String?) -> URL {
-        guard let instance, let url = URL(string: instance), let host = url.host else {
-            return URL(string: "https://api.github.com")!
-        }
-        if host.hasSuffix(".ghe.com") {
-            return URL(string: "https://api.\(host)")!
-        }
-        return URL(string: "https://\(host)/api/v3")!
-    }
-
     private func request(
         method: String, path: String, body: Data?, headers: [String: String] = [:], baseURL: URL?
     ) throws -> URLRequest {
-        let base =
-            credentials.isEnterprise ? restBaseURL(for: credentials.instance) : URL(string: "https://api.github.com")!
-        guard var components = URLComponents(string: base.absoluteString + path) else {
+        guard let base = URL(string: credentials.apiBase),
+            var components = URLComponents(string: base.absoluteString + path)
+        else {
             throw GitHubError.http(0, "invalid request path \(path)")
         }
         let isAdminRequest = path.hasPrefix("/_apis/")
@@ -170,7 +167,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
             // runtime API lives there, not on api.github.com. Enterprise: admin
             // calls stay on the instance's API host (data residency) and adopt
             // only the exchanged URL's path prefix.
-            let authority = credentials.isEnterprise ? restBaseURL(for: credentials.instance) : actionsURL
+            let authority = credentials.isEnterprise ? base : actionsURL
             guard let authorityHost = authority.host else {
                 throw GitHubError.http(0, "invalid Actions service URL")
             }
@@ -206,11 +203,8 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         request.httpMethod = method
         request.httpBody = body
         for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
-        request.setValue(
-            isAdminRequest ? "application/json; api-version=6.0-preview" : "application/vnd.github+json",
-            forHTTPHeaderField: "Accept")
-        request.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
-        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        GitHubAPI.apply(
+            to: &request, accept: isAdminRequest ? "application/json; api-version=6.0-preview" : GitHubAPI.accept)
         return request
     }
 
@@ -220,64 +214,38 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         try request(method: method, path: path, body: JSONEncoder().encode(body), headers: headers)
     }
 
-    func send(_ request: URLRequest, retries: Int = 3) async throws -> (Data, HTTPURLResponse) {
-        var attempt = 0
-        var lastError: Error = GitHubError.http(0, "no attempt made")
-        while attempt <= retries {
-            if attempt > 0 {
-                try await Task.sleep(for: .seconds(min(8.0, pow(2, Double(attempt)))))
-            }
-            attempt += 1
+    /// Execute under the shared `ForgeRetryPolicy` (see `GitHubClient.send`).
+    /// The scale-set API additionally maps a 409 on a session endpoint to
+    /// `sessionConflict`, which is never retried here.
+    func send(_ request: URLRequest, retries: Int? = nil) async throws -> (Data, HTTPURLResponse) {
+        var policy = retryPolicy
+        if let retries { policy.retries = retries }
+        return try await policy.run { () async throws -> ForgeRetryPolicy.Attempt<(Data, HTTPURLResponse)> in
+            let (data, response): (Data, URLResponse)
             do {
-                let (data, response) = try await self.session.data(for: request)
-                guard let http = response as? HTTPURLResponse else {
-                    lastError = GitHubError.http(0, "non-HTTP response")
-                    continue
-                }
-                switch http.statusCode {
-                case 200...299: return (data, http)
-                case 401: throw GitHubError.unauthorized
-                case 403:
-                    if http.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0",
-                        let reset = http.value(forHTTPHeaderField: "X-RateLimit-Reset").flatMap(TimeInterval.init)
-                    {
-                        throw GitHubError.rateLimited(resetAt: Date(timeIntervalSince1970: reset))
-                    }
-                    lastError = GitHubError.forbidden(String(decoding: data.prefix(500), as: UTF8.self))
-                    continue
-                case 404: throw GitHubError.notFound(request.url?.path ?? "resource")
-                case 409:
-                    Log.debug(
-                        "scaleset",
-                        "409 from \(request.httpMethod ?? "?") \(request.url?.path ?? "?"): "
-                            + String(decoding: data.prefix(300), as: UTF8.self))
-                    let body = String(decoding: data.prefix(500), as: UTF8.self)
-                    // Only the session endpoints mean "an earlier session is still active"; a 409
-                    // elsewhere (e.g. generatejitconfig for a runner name that already exists) is
-                    // a different conflict, so keep GitHub's own message.
-                    if request.url?.path.contains("/sessions") == true {
-                        throw GitHubScaleSetClientError.sessionConflict
-                    }
-                    throw GitHubError.http(409, body)
-                case 429, 500...599:
-                    lastError = GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
-                    continue
-                default: throw GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
-                }
-            } catch let error as GitHubError {
-                if case .forbidden = error { lastError = error; continue }
-                if case .http(let code, _) = error, code == 429 || code >= 500 { lastError = error; continue }
-                if case .http(0, _) = error { lastError = error; continue }
-                throw error
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch let error as URLError where error.code == .cancelled {
-                throw CancellationError()
+                (data, response) = try await session.data(for: request)
             } catch let error where ForgeHTTP.isTransientNetworkError(error) {
-                lastError = GitHubError.http(0, error.localizedDescription)
+                return .retry(GitHubError.http(0, error.localizedDescription), after: nil)
             }
+            guard let http = response as? HTTPURLResponse else {
+                return .retry(GitHubError.http(0, "non-HTTP response"), after: nil)
+            }
+            if (200...299).contains(http.statusCode) { return .done((data, http)) }
+            if http.statusCode == 409 {
+                let body = String(decoding: data.prefix(500), as: UTF8.self)
+                Log.debug("scaleset", "409 from \(request.httpMethod ?? "?") \(request.url?.path ?? "?"): \(body)")
+                // Only the session endpoints mean "an earlier session is still active"; a 409
+                // elsewhere (e.g. generatejitconfig for a runner name that already exists) is
+                // a different conflict, so keep GitHub's own message.
+                if request.url?.path.contains("/sessions") == true {
+                    throw GitHubScaleSetClientError.sessionConflict
+                }
+                throw GitHubError.http(409, body)
+            }
+            let failure = GitHubError.from(http, body: data, path: request.url?.path ?? "resource")
+            if case .retry(let after) = policy.verdict(for: http) { return .retry(failure, after: after) }
+            throw failure
         }
-        throw lastError
     }
 
     // MARK: - Admin token exchange
@@ -472,10 +440,23 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         request.setValue("application/json; api-version=6.0-preview", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(session.messageQueueAccessToken)", forHTTPHeaderField: "Authorization")
         request.setValue(String(max(0, maxCapacity)), forHTTPHeaderField: "X-ScaleSetMaxCapacity")
-        request.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await self.session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw ScaleSetError.messageServiceFailure(reason: "non-HTTP message response")
+        request.setValue(ForgeHTTP.userAgent, forHTTPHeaderField: "User-Agent")
+        // A timed-out long-poll is the listener's "poll again", so network errors
+        // propagate untouched; only a transient 5xx is worth another try here.
+        var policy = retryPolicy
+        policy.retriesNetworkErrors = false
+        let (data, http) = try await policy.run {
+            () async throws -> ForgeRetryPolicy.Attempt<(Data, HTTPURLResponse)> in
+            let (data, response) = try await pollSession.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw ScaleSetError.messageServiceFailure(reason: "non-HTTP message response")
+            }
+            if case .retry(let after) = policy.verdict(for: http), (500...599).contains(http.statusCode) {
+                return .retry(
+                    ScaleSetError.messageServiceFailure(reason: "message poll returned \(http.statusCode)"),
+                    after: after)
+            }
+            return .done((data, http))
         }
         if http.statusCode == 202 { return [] }
         if http.statusCode == 401 {
@@ -512,10 +493,26 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         request.httpMethod = "DELETE"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(session.messageQueueAccessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
-        let (_, response) = try await self.session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw ScaleSetError.messageServiceFailure(reason: "non-HTTP acknowledgement response")
+        request.setValue(ForgeHTTP.userAgent, forHTTPHeaderField: "User-Agent")
+        // Deleting an acknowledged message is idempotent, so a transient 5xx or
+        // network error retries; the listener would otherwise drop the session.
+        let policy = retryPolicy
+        let http = try await policy.run { () async throws -> ForgeRetryPolicy.Attempt<HTTPURLResponse> in
+            let response: URLResponse
+            do {
+                response = try await self.session.data(for: request).1
+            } catch let error where ForgeHTTP.isTransientNetworkError(error) {
+                return .retry(error, after: nil)
+            }
+            guard let http = response as? HTTPURLResponse else {
+                throw ScaleSetError.messageServiceFailure(reason: "non-HTTP acknowledgement response")
+            }
+            if case .retry(let after) = policy.verdict(for: http), (500...599).contains(http.statusCode) {
+                return .retry(
+                    ScaleSetError.messageServiceFailure(
+                        reason: "message acknowledgement failed (HTTP \(http.statusCode))"), after: after)
+            }
+            return .done(http)
         }
         if http.statusCode == 401 {
             throw GitHubScaleSetClientError.messageQueueTokenExpired

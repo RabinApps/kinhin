@@ -104,3 +104,20 @@ extension GitHubCredentials {
     /// host rather than github.com.
     var isEnterprise: Bool { instance != nil }
 }
+
+// MARK: - GitHubAPI
+
+/// The request headers every GitHub REST call carries. All API flavors
+/// (api.github.com, api.<sub>.ghe.com, GHES `/api/v3`) document the version
+/// header; a per-instance override is a later refinement.
+enum GitHubAPI {
+    static let version = "2022-11-28"
+    static let accept = "application/vnd.github+json"
+
+    /// Sets Accept, User-Agent and the API version on `request`.
+    static func apply(to request: inout URLRequest, accept: String = GitHubAPI.accept) {
+        request.setValue(accept, forHTTPHeaderField: "Accept")
+        request.setValue(ForgeHTTP.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(version, forHTTPHeaderField: "X-GitHub-Api-Version")
+    }
+}

@@ -94,16 +94,10 @@ final class FakeGitHubContractTests: XCTestCase {
         let fake404 = await firstError { try await missing.fetchRegistrationToken() }
         assertSameCase(real404, fake404, "404 must read as GitHubError.notFound on both sides")
 
-        // 403 — the real transport retries before giving up, so this pins the
-        // mapping itself (403 → .forbidden) through `send(retries: 0)`; that is
+        // 403 — a plain 403 is a permissions error and is not retried; that is
         // exactly what `permissionDenied` simulates for the engine tests.
         StubProtocol.handler = { _ in (403, Data("nope".utf8), [:]) }
-        let real403 = await firstError {
-            let client = makeReal()
-            let req = try client.request(
-                method: "POST", path: "/repos/acme/widgets/actions/runners/registration-token")
-            _ = try await client.send(req, retries: 0)
-        }
+        let real403 = await firstError { try await makeReal().fetchRegistrationToken() }
         let forbidden = FakeGitHub()
         forbidden.permissionDenied = true
         let fake403 = await firstError { try await forbidden.fetchRegistrationToken() }

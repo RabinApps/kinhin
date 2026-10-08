@@ -116,15 +116,15 @@ enum ForgeAPIError: LocalizedError, CategorizedError, Equatable, Sendable {
 // MARK: - ForgeTransport
 
 /// One send/retry pipeline for the forge REST clients: request headers from
-/// the forge's auth scheme, one status→error mapping, and retry with backoff
-/// on transient failures (network errors, 429, 5xx). The clients keep what is
-/// genuinely theirs — base-URL and path construction, pagination and
-/// decoding — and hand the built URL here.
+/// the forge's auth scheme, one status→error mapping, and the shared
+/// `ForgeRetryPolicy` (backoff with jitter on network errors and 5xx, waits for
+/// `Retry-After` and spent rate limits, no retry of a plain 403). The clients
+/// keep what is genuinely theirs — base-URL and path construction, pagination
+/// and decoding — and hand the built URL here.
 ///
-/// `GitHubClient` does not use this transport yet: its send adds conditional
-/// GETs (ETag/304), rate-limit accounting and a 403 secondary-limit retry,
-/// which would turn the shared pipeline into a GitHub-shaped one. It can
-/// adopt the transport when those become `ForgeTransport` features.
+/// `GitHubClient` and `GitHubScaleSetClient` keep their own request building
+/// (conditional GETs, rate-limit accounting, the Actions service URL) but run
+/// the same `ForgeRetryPolicy`.
 struct ForgeTransport: Sendable {
     /// How a client authenticates: the header each forge's API expects.
     enum Authorization: Sendable {
@@ -154,8 +154,14 @@ struct ForgeTransport: Sendable {
     let authorization: Authorization
     /// Attempts beyond the first on a transient failure (2 → up to 3 tries).
     var retries: Int = 2
-    /// Backoff base: attempt n waits `baseDelay * 2^(n-1)` seconds.
+    /// Backoff base: retry n waits about `baseDelay * 2^(n-1)` seconds (jittered).
     var baseDelay: TimeInterval = 1
+    /// How the retry loop waits (tests record the delays instead of sleeping).
+    var sleep: ForgeRetryPolicy.Sleep = ForgeRetryPolicy().sleep
+
+    var policy: ForgeRetryPolicy {
+        ForgeRetryPolicy(retries: retries, baseDelay: baseDelay, sleep: sleep)
+    }
 
     /// A forge-specific response classifier, consulted before the default
     /// status mapping. Returning non-nil throws that error (Azure's PAT
@@ -168,8 +174,9 @@ struct ForgeTransport: Sendable {
         _ method: String, _ url: URL, body: Data? = nil, accept: String = "application/json",
         classify: Classifier? = nil
     ) async throws -> (Data, HTTPURLResponse) {
-        try await withTransientRetry(retries: retries, baseDelay: baseDelay, isTransient: Self.isTransient) {
-            try await sendOnce(method, url, body: body, accept: accept, classify: classify)
+        let policy = policy
+        return try await policy.run {
+            try await sendOnce(method, url, body: body, accept: accept, classify: classify, policy: policy)
         }
     }
 
@@ -191,38 +198,40 @@ struct ForgeTransport: Sendable {
     }
 
     private func sendOnce(
-        _ method: String, _ url: URL, body: Data?, accept: String, classify: Classifier?
-    ) async throws -> (Data, HTTPURLResponse) {
+        _ method: String, _ url: URL, body: Data?, accept: String, classify: Classifier?, policy: ForgeRetryPolicy
+    ) async throws -> ForgeRetryPolicy.Attempt<(Data, HTTPURLResponse)> {
         var req = URLRequest(url: url)
         req.httpMethod = method
         let auth = authorization.header
         req.setValue(auth.value, forHTTPHeaderField: auth.field)
         req.setValue(accept, forHTTPHeaderField: "Accept")
-        req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue(ForgeHTTP.userAgent, forHTTPHeaderField: "User-Agent")
         if let body {
             req.httpBody = body
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else {
-            throw ForgeAPIError.nonHTTPResponse(forge: forge)
+            return .retry(ForgeAPIError.nonHTTPResponse(forge: forge), after: nil)
         }
         if let classify, let error = classify(http, data) {
             throw error
         }
         // Error bodies are truncated: a full HTML error page is not a message.
         let bodyText = { String(decoding: data.prefix(300), as: UTF8.self) }
+        if (200...299).contains(http.statusCode) { return .done((data, http)) }
+        let failure = Self.error(for: http, body: bodyText(), url: url, forge: forge)
+        if case .retry(let after) = policy.verdict(for: http) { return .retry(failure, after: after) }
+        throw failure
+    }
+
+    /// The status→error mapping shared by every forge.
+    private static func error(for http: HTTPURLResponse, body: String, url: URL, forge: ForgeID) -> ForgeAPIError {
         switch http.statusCode {
-        case 200...299:
-            return (data, http)
-        case 401:
-            throw ForgeAPIError.unauthorized(forge: forge)
-        case 403:
-            throw ForgeAPIError.forbidden(forge: forge, why: bodyText())
-        case 404:
-            throw ForgeAPIError.notFound(forge: forge, what: url.path)
-        default:
-            throw ForgeAPIError.http(forge: forge, code: http.statusCode, body: bodyText())
+        case 401: return .unauthorized(forge: forge)
+        case 403: return .forbidden(forge: forge, why: body)
+        case 404: return .notFound(forge: forge, what: url.path)
+        default: return .http(forge: forge, code: http.statusCode, body: body)
         }
     }
 }

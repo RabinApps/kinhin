@@ -50,4 +50,26 @@ public enum GitHubError: LocalizedError, CategorizedError, Equatable, Sendable {
                 "invalid GitHub enterprise instance URL: \(url). Use the base URL (e.g. https://github.example.com or https://SUB.ghe.com), not an /api path"
         }
     }
+
+    /// The error for a non-2xx response, shared by the REST and scale-set
+    /// clients. A 403 that carries `Retry-After` or a spent rate-limit budget
+    /// is a rate limit (`resetAt` says when it lifts); any other 403 is a
+    /// permissions refusal.
+    static func from(_ http: HTTPURLResponse, body: Data, path: String, now: Date = Date()) -> GitHubError {
+        let text = String(decoding: body.prefix(500), as: UTF8.self)
+        switch http.statusCode {
+        case 401:
+            return .unauthorized
+        case 403:
+            if let reset = ForgeRetryPolicy.rateLimitReset(http) { return .rateLimited(resetAt: reset) }
+            if let wait = ForgeRetryPolicy.requestedWait(http, now: now) {
+                return .rateLimited(resetAt: now.addingTimeInterval(wait))
+            }
+            return .forbidden(text)
+        case 404:
+            return .notFound(path)
+        default:
+            return .http(http.statusCode, text)
+        }
+    }
 }

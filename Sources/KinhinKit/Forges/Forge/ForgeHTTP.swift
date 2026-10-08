@@ -59,10 +59,23 @@ enum ForgeHTTP {
         }
     }
 
-    private static let shared: URLSession = {
+    /// The `User-Agent` every forge request carries.
+    static let userAgent = "Kinhin/1.0"
+
+    /// The session for a long-poll (the scale-set message queue holds a request
+    /// open for about 50 s): the injected one, else a session whose timeouts
+    /// outlast the server's hold, so a quiet queue is not cut off client-side.
+    static func longPollSession(_ injected: URLSession?) -> URLSession {
+        injected ?? longPoll
+    }
+
+    private static let shared: URLSession = makeSession(requestTimeout: 30, resourceTimeout: 60)
+    private static let longPoll: URLSession = makeSession(requestTimeout: 90, resourceTimeout: 120)
+
+    private static func makeSession(requestTimeout: TimeInterval, resourceTimeout: TimeInterval) -> URLSession {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
+        config.timeoutIntervalForRequest = requestTimeout
+        config.timeoutIntervalForResource = resourceTimeout
         config.waitsForConnectivity = false
         // Polls must see the forge's current answer: GitHub marks reads
         // max-age=60, which the system cache would serve stale. Revalidation
@@ -70,7 +83,7 @@ enum ForgeHTTP {
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: config, delegate: RedirectGuard(), delegateQueue: nil)
-    }()
+    }
 
     /// A network-layer failure (offline, DNS, timeout) worth another
     /// attempt. A cancelled request is not: cancellation must propagate.

@@ -40,6 +40,8 @@ extension GitHubServing {
 public struct GitHubClient: GitHubServing {
     let credentials: GitHubCredentials
     let session: URLSession
+    /// The retry policy for every request (tests shorten the waits).
+    var retryPolicy = ForgeRetryPolicy(retries: 3)
 
     public var configureURL: String { credentials.configureURL }
 
@@ -101,89 +103,52 @@ public struct GitHubClient: GitHubServing {
         req.httpMethod = method
         req.httpBody = body
         req.setValue("Bearer \(credentials.token)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
-        // Every GitHub API flavor (api.github.com, api.<sub>.ghe.com, GHES
-        // `/api/v3`) documents this header; a per-instance override is a
-        // later refinement.
-        req.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        GitHubAPI.apply(to: &req)
         return req
     }
 
-    /// Execute with retry on transient failures, honoring rate-limit headers.
+    /// Execute under the shared `ForgeRetryPolicy`: network errors, 5xx and real
+    /// rate limits (429, or a 403 carrying `Retry-After` / a spent budget) are
+    /// retried; a plain 403 is a permissions error and surfaces at once.
     /// GETs revalidate against `conditionalGets`: a 304 returns the cached
     /// body, so callers never see the difference.
-    func send(_ req: URLRequest, retries: Int = 3) async throws -> (Data, HTTPURLResponse) {
-        var req = req
-        let conditionalKey = req.httpMethod == "GET" ? req.url?.absoluteString : nil
+    func send(_ req: URLRequest, retries: Int? = nil) async throws -> (Data, HTTPURLResponse) {
+        var request = req
+        var policy = retryPolicy
+        if let retries { policy.retries = retries }
+        let conditionalKey = request.httpMethod == "GET" ? request.url?.absoluteString : nil
         if let conditionalKey, let etag = conditionalGets.etag(for: conditionalKey) {
-            req.setValue(etag, forHTTPHeaderField: "If-None-Match")
+            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
         }
-        var attempt = 0
-        var lastError: Error = GitHubError.http(0, "no attempt made")
-        while attempt <= retries {
-            if attempt > 0 {
-                try await Task.sleep(for: .seconds(min(8.0, pow(2, Double(attempt)))))
-            }
-            attempt += 1
+        return try await policy.run { () async throws -> ForgeRetryPolicy.Attempt<(Data, HTTPURLResponse)> in
+            let (data, response): (Data, URLResponse)
             do {
-                let (data, response) = try await session.data(for: req)
-                guard let http = response as? HTTPURLResponse else {
-                    lastError = GitHubError.http(0, "non-HTTP response")
-                    continue
-                }
-                if let limit = ForgeRateLimit(headers: http) { rateLimits.record(limit) }
-                switch http.statusCode {
-                case 200...299:
-                    if let conditionalKey, let etag = http.value(forHTTPHeaderField: "ETag") {
-                        conditionalGets.store(url: conditionalKey, etag: etag, body: data)
-                    }
-                    return (data, http)
-                case 304:
-                    if let conditionalKey, let body = conditionalGets.body(for: conditionalKey) {
-                        return (body, http)
-                    }
-                    // The cached body was evicted mid-flight: read it afresh.
-                    req.setValue(nil, forHTTPHeaderField: "If-None-Match")
-                    lastError = GitHubError.http(304, "not modified, but no cached body")
-                    continue
-                case 401:
-                    throw GitHubError.unauthorized
-                case 403:
-                    if let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining"),
-                        remaining == "0",
-                        let resetStr = http.value(forHTTPHeaderField: "X-RateLimit-Reset"),
-                        let reset = TimeInterval(resetStr)
-                    {
-                        throw GitHubError.rateLimited(resetAt: Date(timeIntervalSince1970: reset))
-                    }
-                    lastError = GitHubError.forbidden(String(decoding: data.prefix(500), as: UTF8.self))
-                    continue  // can be transient (secondary limits)
-                case 404:
-                    throw GitHubError.notFound(req.url?.path ?? "resource")
-                case 429, 500...599:
-                    lastError = GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
-                    continue
-                default:
-                    throw GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
-                }
-            } catch let error as GitHubError {
-                // Only retryable classes continue the loop.
-                if case .forbidden = error { lastError = error; continue }
-                if case .http(let code, _) = error, code == 429 || code >= 500 { lastError = error; continue }
-                if case .http(0, _) = error { lastError = error; continue }
-                throw error
+                (data, response) = try await session.data(for: request)
             } catch let error where ForgeHTTP.isTransientNetworkError(error) {
-                // Network-layer error (offline, DNS, timeout): retry.
-                lastError = GitHubError.http(0, error.localizedDescription)
-                continue
-            } catch let error as URLError where error.code == .cancelled {
-                // A cancelled request surfaces as URLError; it must end the
-                // caller's task like any other cancellation, never retry.
-                throw CancellationError()
+                return .retry(GitHubError.http(0, error.localizedDescription), after: nil)
             }
+            guard let http = response as? HTTPURLResponse else {
+                return .retry(GitHubError.http(0, "non-HTTP response"), after: nil)
+            }
+            if let limit = ForgeRateLimit(headers: http) { rateLimits.record(limit) }
+            if (200...299).contains(http.statusCode) {
+                if let conditionalKey, let etag = http.value(forHTTPHeaderField: "ETag") {
+                    conditionalGets.store(url: conditionalKey, etag: etag, body: data)
+                }
+                return .done((data, http))
+            }
+            if http.statusCode == 304 {
+                if let conditionalKey, let body = conditionalGets.body(for: conditionalKey) {
+                    return .done((body, http))
+                }
+                // The cached body was evicted mid-flight: read it afresh.
+                request.setValue(nil, forHTTPHeaderField: "If-None-Match")
+                return .retry(GitHubError.http(304, "not modified, but no cached body"), after: nil)
+            }
+            let failure = GitHubError.from(http, body: data, path: request.url?.path ?? "resource")
+            if case .retry(let after) = policy.verdict(for: http) { return .retry(failure, after: after) }
+            throw failure
         }
-        throw lastError
     }
 
     // MARK: - API
