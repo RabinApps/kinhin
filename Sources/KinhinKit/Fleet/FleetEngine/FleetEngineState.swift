@@ -1,15 +1,6 @@
 import Foundation
 
-// MARK: - Routing state
-
-/// The live routing model and its per-runtime caps, swapped together on reload.
-struct RoutingState: Sendable {
-    var model: RuntimeConfigModel
-    var caps: [RuntimeID: Int]
-}
-
-/// Attached forges by account name, plus the bookkeeping that changes with
-/// them.
+/// An Actions-service JWT exchanged for an account's registration token.
 struct ScaleSetAdminToken: Sendable {
     let token: String
     let actionsURL: URL
@@ -17,6 +8,8 @@ struct ScaleSetAdminToken: Sendable {
     let sourceToken: String
 }
 
+/// Attached forges by account name, plus the bookkeeping that changes with
+/// them.
 struct ForgeState: Sendable {
     var byPlatform: [String: Forge] = [:]
     /// Actions-service JWTs exchanged from account PAT registration tokens.

@@ -36,12 +36,12 @@ extension GitHubScaleSetListener {
         let messages: [GitHubScaleSetMessage]
         do {
             messages = try await client.pollMessages(
-                session: activeSession, lastMessageId: lastMessageId, maxCapacity: maxCapacity)
+                session: activeSession, lastMessageId: lastMessageId, maxCapacity: max(0, maxCapacity()))
         } catch GitHubScaleSetClientError.messageQueueTokenExpired {
             let refreshed = try await client.refreshSession(scaleSetId: id, sessionId: activeSession.sessionId)
             self.session = refreshed
             let retried = try await client.pollMessages(
-                session: refreshed, lastMessageId: lastMessageId, maxCapacity: maxCapacity)
+                session: refreshed, lastMessageId: lastMessageId, maxCapacity: max(0, maxCapacity()))
             try await process(retried, session: refreshed, scaleSetId: id)
             return
         }

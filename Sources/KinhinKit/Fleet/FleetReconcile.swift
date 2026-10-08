@@ -239,13 +239,15 @@ extension FleetEngine {
             case answered(jobs: [ForgeJob], images: ProjectImageDemand)
             case failed(message: String)
         }
+        // One routing snapshot for the whole pass: a reload landing mid-pass applies from the next one.
+        let routerState = router.snapshot
         let ordered = attached.sorted { $0.account < $1.account }
         // `try`, not `try?`: cancellation must propagate, not read as "no answers".
         let answers =
             try await boundedMap(ordered, limit: 4) { forge -> ForgeAnswer in
                 do {
                     let jobs = try await forge.queuedJobs()
-                    let images = await self.resolveProjectImages(for: jobs, forge: forge)
+                    let images = await self.resolveProjectImages(for: jobs, forge: forge, routerState: routerState)
                     return .answered(jobs: jobs, images: images)
                 } catch {
                     return .failed(message: (error as? LocalizedError)?.errorDescription ?? "\(error)")
@@ -261,7 +263,7 @@ extension FleetEngine {
                 perForgeJobs[forge.account] = (forge.attributesByRepo, jobs)
                 demand.byForge[forge.account] = jobs.count
                 demand.queueDepth += jobs.count
-                let pools = routing.demandByPool(for: jobs, forgeID: forge.id)
+                let pools = routerState.model.demandByPool(for: jobs, forgeID: forge.id)
                 demand.byForgePool[forge.account] = pools
                 if forge.queueIncludesRunning { demand.includesRunning.insert(forge.account) }
                 for (poolID, count) in pools {
@@ -309,13 +311,14 @@ extension FleetEngine {
     /// demand, the caps and the spawn backoff.
     func scalePlan(demand: Demand, attached: [Forge]) -> ScalePlan {
         let held = spawnBackoff.withLock { $0.blocked(now: Date()) }
-        let routing = routing
+        let routerState = router.snapshot
+        let routing = routerState.model
         return ScalePlan.make(
             ScalePlan.Input(
                 records: store.all, demand: demand.byForgePool, includesRunning: demand.includesRunning,
                 attached: Set(attached.map(\.account)), failedForges: demand.failedForges,
                 runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
-                maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: capsByRuntime,
+                maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
                 heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime))
     }
 

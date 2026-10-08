@@ -75,22 +75,22 @@ public final class FleetEngine: Sendable {
     /// recovery dispatch through this map — no per-runtime branches in the
     /// engine. Fixed per engine (config changes rebuild it via the daemon).
     let runtimesByRuntime: [RuntimeID: any Runtime]
-    /// Routing model: label pools + per-repo/per-workflow routes, and the
-    /// per-runtime caps. Reloaded live by applyReloaded(config:), so a
-    /// running fleet picks up route changes without a restart. Read through
-    /// `routing` and `capsByRuntime`, which take the lock.
-    let routingState: Mutex<RoutingState>
+    /// Routing model, caps, named images, project rules and fleet labels as
+    /// one atomic snapshot, reloaded live by `applyReloaded(config:)` so a
+    /// running fleet picks up route changes without a restart. Take
+    /// `router.snapshot` once per decision; the single-field accessors below
+    /// are for call sites that need only one part.
+    let router: Router
     /// Runtimes whose instances keep failing to register are held back (see `SpawnBackoff`).
     let spawnBackoff = Mutex(SpawnBackoff())
-    var routing: RuntimeConfigModel { routingState.withLock { $0.model } }
-    var capsByRuntime: [RuntimeID: Int] { routingState.withLock { $0.caps } }
-    /// Per-project toolchains: the `projects:` rules (hot-reloaded), the
-    /// repo-file reader, and the builder of derived per-project images.
-    let projectsState: Mutex<[KinhinConfig.ProjectConfig]>
-    /// The named `images:` entries (hot-reloaded): which labels route a job
-    /// to which image, and the labels a cloned instance advertises.
-    let imagesState: Mutex<[KinhinConfig.ImageConfig]>
-    var images: [KinhinConfig.ImageConfig] { imagesState.withLock { $0 } }
+    var routing: RuntimeConfigModel { router.snapshot.model }
+    var capsByRuntime: [RuntimeID: Int] { router.snapshot.caps }
+    var images: [KinhinConfig.ImageConfig] { router.snapshot.images }
+    /// The fleet labels as of the latest reload (`config.labels` is the
+    /// construction-time value and goes stale).
+    var fleetLabels: [String] { router.snapshot.labels }
+    /// Per-project toolchains: the repo-file reader and the builder of derived
+    /// per-project images (the `projects:` rules live in `router`).
     let projectSource = ProjectToolchainSource()
     let projectStore: ProjectImageStore
     let projectImages: ProjectImageBuilder
@@ -158,8 +158,6 @@ public final class FleetEngine: Sendable {
         self.store = store
         self.ssh = ssh
         self.statusBox = FleetStatusBox()
-        self.projectsState = Mutex(config.projects)
-        self.imagesState = Mutex(config.images)
         let projectStore = dependencies.projectImageStore ?? ProjectImageStore()
         self.projectStore = projectStore
         self.projectImages = ProjectImageBuilder(
@@ -167,20 +165,7 @@ public final class FleetEngine: Sendable {
         // The primary runtime's cap; its disk estimate also feeds the
         // pre-spawn disk guard and `kinhin doctor`.
         self.capacity = Capacity.plan(for: config, host: host)
-        let routing = RuntimeConfigModel(
-            config: config.runtimes,
-            fleetLabels: config.labels,
-            containerLabels: config.container?.labels,
-            containerConfigured: config.container != nil,
-            dockerConfigured: config.docker != nil,
-            dockerPlatform: config.docker?.platform ?? .arm64,
-            hostConfigured: config.hostRoutesConfigured
-        )
-
-        // Mixed fleets partition the usable host budget between runtimes;
-        // single-pool fleets keep the fleet cap (no per-runtime caps).
-        let caps = RuntimeCapacity.caps(for: config, host: host)
-        self.routingState = Mutex(RoutingState(model: routing, caps: caps))
+        self.router = Router(Router.Snapshot.make(config: config, host: host))
     }
 
     /// Convenience initializer matching the production wiring: GitHub

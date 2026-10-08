@@ -32,7 +32,9 @@ public actor GitHubScaleSetListener {
     let fallbackRepository: String?
     let onDemandUpdate: @Sendable () async -> Void
     let pollInterval: Duration
-    let maxCapacity: Int
+    /// Job slots offered to GitHub on each poll. A closure so a config reload that changes the
+    /// caps applies to the next poll instead of being frozen at attach time.
+    nonisolated let maxCapacity: @Sendable () -> Int
     var cachedScaleSetId: Int?
     var cachedStatistics: GitHubScaleSetStatistics?
     var statisticsExpiresAt: Date?
@@ -45,6 +47,7 @@ public actor GitHubScaleSetListener {
         fallbackRepository: String? = nil,
         pollInterval: Duration = .seconds(2),
         maxCapacity: Int = 1_000,
+        capacity: (@Sendable () -> Int)? = nil,
         onDemandUpdate: @escaping @Sendable () async -> Void = {},
         sessionStore: ScaleSetSessionStore? = nil
     ) {
@@ -54,7 +57,8 @@ public actor GitHubScaleSetListener {
         self.ownerName = ownerName
         self.fallbackRepository = fallbackRepository
         self.pollInterval = pollInterval
-        self.maxCapacity = max(0, maxCapacity)
+        let fixed = max(0, maxCapacity)
+        self.maxCapacity = capacity ?? { fixed }
         self.onDemandUpdate = onDemandUpdate
     }
 

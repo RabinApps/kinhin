@@ -77,9 +77,9 @@ extension FleetEngine {
                         account: account, token: token, client: client, scaleSet: scaleSet)
                     forge = GitHubScaleSetForge(
                         account: account, token: token, client: client,
-                        labels: account.labels ?? config.labels, targets: targets)
+                        labels: account.labels ?? fleetLabels, targets: targets)
                 } else {
-                    forge = GitHubForge(account: account, token: token, client: client, labels: config.labels)
+                    forge = GitHubForge(account: account, token: token, client: client, labels: fleetLabels)
                 }
             case .gitea, .forgejo:
                 guard let instance = account.instance else {
@@ -99,7 +99,7 @@ extension FleetEngine {
                     credentials: GitLabCredentials(
                         token: token, scope: account.scope, instance: account.instance,
                         allowInsecureHTTP: account.allowInsecureHTTP ?? false),
-                    labels: account.labels ?? config.labels,
+                    labels: account.labels ?? fleetLabels,
                     account: account.name
                 )
             case .azuredevops:
@@ -180,9 +180,10 @@ extension FleetEngine {
     func scaleSetPlan(account: AccountConfig, baseName: String) -> [(
         name: String, runtime: RuntimeID, labels: [String]
     )] {
-        let pools = routing.pools
+        let routerState = router.snapshot
+        let pools = routerState.model.pools
         var plan: [(name: String, runtime: RuntimeID, labels: [String])] = []
-        let images = imagesState.withLock { $0 }.filter { !($0.labels ?? []).isEmpty }
+        let images = routerState.images.filter { !($0.labels ?? []).isEmpty }
         let single = pools.count == 1 && images.isEmpty
         for (runtime, pool) in pools.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let name: String
@@ -216,7 +217,8 @@ extension FleetEngine {
         var targets: [ScaleSetTarget] = []
         for entry in plan {
             let listener = await makeGitHubScaleSetListener(
-                account: account, token: token, client: client, scaleSet: scaleSet, setName: entry.name)
+                account: account, token: token, client: client, scaleSet: scaleSet, setName: entry.name,
+                runtime: entry.runtime)
             targets.append(
                 ScaleSetTarget(
                     setName: entry.name, runtime: entry.runtime, routingLabels: entry.labels, listener: listener))
@@ -230,40 +232,51 @@ extension FleetEngine {
 
     /// Build a listener whose privileged requests obtain an Actions JWT from
     /// this account's GitHub registration-token flow.
+    ///
+    /// The engine owns the listener (through `forgeState`), so every closure the
+    /// listener keeps captures the engine weakly: a strong capture would be a
+    /// cycle that keeps a replaced engine alive for as long as its listener
+    /// object is. A closure that outlives the engine fails the request instead.
     private func makeGitHubScaleSetListener(
         account: AccountConfig, token: String, client: GitHubServing, scaleSet: AccountConfig.ScaleSetConfig,
-        setName: String
+        setName: String, runtime: RuntimeID
     ) async -> GitHubScaleSetListener {
         let credentials = GitHubCredentials(
             token: token, scope: account.scope, instance: account.instance,
             allowInsecureHTTP: account.allowInsecureHTTP ?? false)
-        let poolCapacity = Autoscaler.jobCapacity(
-            maxRunners: config.maxRunners,
-            capacityCap: capacity.maxConcurrent,
-            runnersPerVM: config.runnersPerVM
-        )
         let scaleSetClient = GitHubScaleSetClient(
             credentials: credentials,
-            adminJwtProvider: { [self] in
-                try await self.adminJwtForAttach(account: account, token: token, client: client)
+            adminJwtProvider: { [weak self] in
+                guard let self else { throw ScaleSetError.adminTokenFailure(reason: "the engine was replaced") }
+                return try await self.adminJwtForAttach(account: account, token: token, client: client)
             },
-            actionsServiceURL: { [self] in
-                forgeState.withLock { $0.scaleSetAdminTokens[account.name]?.actionsURL }
+            actionsServiceURL: { [weak self] in
+                self?.forgeState.withLock { $0.scaleSetAdminTokens[account.name]?.actionsURL }
             })
         return GitHubScaleSetListener(
             client: scaleSetClient,
-            scaleSetIdSupplier: {
-                try await self.scaleSetIdForAttach(
+            scaleSetIdSupplier: { [weak self] in
+                guard let self else { throw ScaleSetError.scaleSetIdFailure(reason: "the engine was replaced") }
+                return try await self.scaleSetIdForAttach(
                     account: account, token: token, githubClient: client, scaleSet: scaleSet, setName: setName)
             },
             ownerName: credentials.owner,
             fallbackRepository: account.scope.contains("/") ? account.scope : nil,
             pollInterval: .seconds(2),
-            maxCapacity: poolCapacity,
+            // Read on every poll: a reload that changes the caps reaches the open session.
+            capacity: { [weak self] in self?.scaleSetJobCapacity(for: runtime) ?? 0 },
             onDemandUpdate: { [weak self] in self?.pollSoon() },
             sessionStore: ScaleSetSessionStore(
                 directory: Paths.stateDirectory, account: account.name, scaleSet: setName)
         )
+    }
+
+    /// The job slots a scale set feeding `runtime`'s pool offers GitHub right
+    /// now, from the latest reloaded caps.
+    func scaleSetJobCapacity(for runtime: RuntimeID) -> Int {
+        router.snapshot.jobCapacity(
+            for: runtime, maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent,
+            runnersPerVM: config.runnersPerVM)
     }
 
     /// Mint and exchange a registration token, caching the Actions JWT until

@@ -158,19 +158,8 @@ extension FleetEngine {
     /// change or a runtime's shape lives in the runtime instance (fixed per
     /// engine) and still needs a daemon restart.
     public func applyReloaded(config newConfig: KinhinConfig, host: HostResources) {
-        let model = RuntimeConfigModel(
-            config: newConfig.runtimes,
-            fleetLabels: newConfig.labels,
-            containerLabels: newConfig.container?.labels,
-            containerConfigured: newConfig.container != nil,
-            dockerConfigured: newConfig.docker != nil,
-            dockerPlatform: newConfig.docker?.platform ?? .arm64,
-            hostConfigured: newConfig.hostRoutesConfigured
-        )
-        let caps = RuntimeCapacity.caps(for: newConfig, host: host)
-        projectsState.withLock { $0 = newConfig.projects }
-        imagesState.withLock { $0 = newConfig.images }
-        routingState.withLock { $0 = RoutingState(model: model, caps: caps) }
+        let snapshot = Router.Snapshot.make(config: newConfig, host: host)
+        router.replace(with: snapshot)
         // Fleet label edits must reach the forge's demand query too —
         // queuedJobs(matching:) filters by the forge's label set.
         forgeState.withLock { state in
@@ -185,8 +174,8 @@ extension FleetEngine {
                 }
             }
         }
-        let poolNames = model.pools.keys.map(\.rawValue).sorted().joined(separator: ", ")
-        let capNote = caps.isEmpty ? "fleet cap" : "partitioned caps"
+        let poolNames = snapshot.model.pools.keys.map(\.rawValue).sorted().joined(separator: ", ")
+        let capNote = snapshot.caps.isEmpty ? "fleet cap" : "partitioned caps"
         Log.info("engine", "routing reloaded (pools: \(poolNames), \(capNote))")
         // New routes and labels re-bucket demand now, not after an idle backoff.
         pollSoon()

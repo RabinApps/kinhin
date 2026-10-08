@@ -18,7 +18,9 @@ extension FleetEngine {
     /// forge's fleet labels).
     func poolLabels(for record: VMRecord) -> [String]? {
         guard let runtimeID = record.runtime.flatMap(RuntimeID.init(rawValue:)) else { return nil }
-        let pool = routing.pools[runtimeID]?.labels
+        let routerState = router.snapshot
+        let images = routerState.images
+        let pool = routerState.model.pools[runtimeID]?.labels
         // A tart instance cloned from a named image also advertises that image's labels, so
         // the jobs that ask for them (`runs-on: [..., xcode]`) can land on it.
         guard runtimeID == .tart, let pool, let image = record.image,
