@@ -76,6 +76,10 @@ extension FleetEngine {
     func launch() async {
         let served = forgeState.withLock { $0.byPlatform.keys.sorted().joined(separator: " + ") }
         Log.info("engine", "starting fleet engine for \(served) (capacity cap: \(capacity.maxConcurrent))")
+        // The store was read at construction. On a hand-over the previous engine kept writing until it
+        // detached, so what is on disk now is newer: adopt that, not the stale copy (which would lose the
+        // platform and image of every record created in between).
+        store.reload()
         await recoverIfNeeded()
         await startAttachedListeners()
         startCachePruneSweepIfNeeded()

@@ -11,20 +11,35 @@ public final class FleetStore: Sendable {
 
     public init(directory: URL = Paths.stateDirectory) {
         self.url = directory.appendingPathComponent("fleet.json")
-        let loaded: [VMRecord] = {
-            // A missing or corrupt fleet.json reads as "no fleet" — restart
-            // recovery then adopts the live instances again. A corrupt one is
-            // logged: its records (job/repo attribution) are lost.
-            let file = directory.appendingPathComponent("fleet.json")
-            guard FileManager.default.fileExists(atPath: file.path) else { return [] }
-            do {
-                return try JSONDecoder().decode([VMRecord].self, from: Data(contentsOf: file))
-            } catch {
-                Log.warn("store", "could not read \(file.path) (\(error.localizedDescription)); starting empty")
-                return []
-            }
-        }()
-        self.mutex = Mutex(loaded)
+        // A missing or corrupt fleet.json reads as "no fleet" — restart
+        // recovery then adopts the live instances again. A corrupt one is
+        // logged: its records (job/repo attribution) are lost.
+        self.mutex = Mutex(Self.readRecords(at: url) ?? [])
+    }
+
+    /// The records in `file`; nil when it is missing or unreadable.
+    private static func readRecords(at file: URL) -> [VMRecord]? {
+        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+        do {
+            return try JSONDecoder().decode([VMRecord].self, from: Data(contentsOf: file))
+        } catch {
+            Log.warn("store", "could not read \(file.path) (\(error.localizedDescription)); starting empty")
+            return nil
+        }
+    }
+
+    /// Re-reads fleet.json, replacing the in-memory records. A store built
+    /// before another engine finished writing (the daemon builds a replacement
+    /// engine while the old one still runs) holds stale records; the engine
+    /// calls this once the previous owner is detached, so recovery adopts what
+    /// that engine last wrote instead of what the file held at construction.
+    /// A missing or unreadable file keeps the records in memory (the write
+    /// that would have produced it may have failed).
+    func reload() {
+        writeLock.withLock { _ in
+            guard let records = Self.readRecords(at: url) else { return }
+            mutex.withLock { $0 = records }
+        }
     }
 
     public var all: [VMRecord] { mutex.withLock { $0 } }
