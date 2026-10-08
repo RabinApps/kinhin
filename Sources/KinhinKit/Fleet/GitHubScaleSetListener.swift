@@ -184,16 +184,7 @@ public actor GitHubScaleSetListener {
         pendingActions: [String: GitHubScaleSetJobEvent]
     ) {
         self.pendingActions = pendingActions
-        let tracked = Array(pendingActions.values)
-        var attributedRepos = Set(tracked.map { "\($0.ownerName)/\($0.repositoryName)" })
-        if attributedRepos.isEmpty, let fallbackRepository {
-            attributedRepos.insert(fallbackRepository)
-        }
-        cachedSnapshot = GitHubScaleSetSnapshot(
-            statistics: statistics,
-            trackedJobs: tracked,
-            attributedRepos: attributedRepos
-        )
+        publishSnapshot(statistics: statistics)
     }
 
     // MARK: - Internal
@@ -321,7 +312,9 @@ public actor GitHubScaleSetListener {
         try await process(messages, session: activeSession, scaleSetId: id)
     }
 
-    private func process(
+    /// Applies one batch of polled messages (events, then statistics), acknowledging each
+    /// after its demand was published. Internal so tests drive the production path.
+    func process(
         _ messages: [GitHubScaleSetMessage], session: GitHubScaleSetSession, scaleSetId: Int
     ) async throws {
         for message in messages {
@@ -345,20 +338,6 @@ public actor GitHubScaleSetListener {
             lastMessageId = message.messageId
         }
         if messages.isEmpty { try await updateSnapshot() }
-    }
-
-    func handleMessage(_ message: GitHubScaleSetMessage, session: GitHubScaleSetSession) async throws {
-        let snapshotBeforeMessage = cachedSnapshot
-        for event in message.events {
-            try await handleEvent(event)
-        }
-        if let statistics = message.statistics {
-            try acceptStatistics(statistics)
-            publishSnapshot(statistics: statistics)
-        }
-        if snapshotBeforeMessage != cachedSnapshot { await onDemandUpdate() }
-        try await client.ackMessage(session: session, messageId: message.messageId)
-        lastMessageId = message.messageId
     }
 
     private func handleEvent(_ jobEvent: GitHubScaleSetJobEvent) async throws {
@@ -431,9 +410,6 @@ public actor GitHubScaleSetListener {
             let id = try await currentScaleSetId()
             let stats = try await client.scaleSetStatistics(scaleSetId: id)
             try Task.checkCancellation()
-            guard stats.totalAssignedJobs >= 0, stats.activeNodesCount >= 0 else {
-                throw ScaleSetError.statisticsUnavailable(reason: "API returned negative statistics")
-            }
             try acceptStatistics(stats)
             return stats
         } catch is CancellationError {
@@ -508,8 +484,9 @@ public actor GitHubScaleSetListener {
     }
 
     private func synthesizePlaceholderJobs(upTo count: Int, into snap: GitHubScaleSetSnapshot) -> [ForgeJob] {
-        let existingRepos = Array(snap.attributedRepos)
-        guard !existingRepos.isEmpty else { return [] }
+        // After a restart no event is tracked yet, so an org-scoped listener has no repository to
+        // attribute: the placeholders then carry none, but the demand they stand for still counts.
+        let existingRepos: [String?] = snap.attributedRepos.isEmpty ? [nil] : snap.attributedRepos.sorted()
         var placeholders: [ForgeJob] = []
         var remaining = count
         var index = 0

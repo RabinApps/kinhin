@@ -465,9 +465,11 @@ final class FleetEngineTests: XCTestCase {
             statistics: .init(totalAssignedJobs: 3, activeNodesCount: 0),
             pendingActions: [:]
         )
-        // No attributed repos yet, so placeholders cannot be synthesized.
+        // No attributed repos yet (an org-scoped listener after a restart): the demand still counts,
+        // as placeholders without a repository.
         let jobs = try await listener.queuedJobs()
-        XCTAssertTrue(jobs.isEmpty, "no attributed repos means no placeholders yet")
+        XCTAssertEqual(jobs.count, 3, "reported demand must not vanish just because no repo is attributed")
+        XCTAssertTrue(jobs.allSatisfy { $0.name.hasPrefix("scale-set placeholder") && $0.repository == nil })
 
         let event = GitHubScaleSetJobEvent(
             ownerName: "acme", repositoryName: "widgets",
@@ -496,7 +498,7 @@ final class FleetEngineTests: XCTestCase {
             runnerRequestId: "17", eventType: .jobAvailable)
         let message = GitHubScaleSetMessage(
             messageId: "9", statistics: .init(totalAssignedJobs: 1, activeNodesCount: 0), events: [event])
-        try await listener.handleMessage(message, session: makeSession())
+        try await listener.process([message], session: makeSession(), scaleSetId: 17)
         let firstAcknowledgements = await client.acknowledged
         XCTAssertEqual(firstAcknowledgements, ["9"])
         let assignedJobs = try await listener.queuedJobs()
@@ -509,7 +511,7 @@ final class FleetEngineTests: XCTestCase {
                     ownerName: "acme", repositoryName: "widgets", jobDisplayName: "build", requestLabels: [],
                     runnerRequestId: "17", eventType: .jobCompleted)
             ])
-        try await listener.handleMessage(completed, session: makeSession())
+        try await listener.process([completed], session: makeSession(), scaleSetId: 17)
         let allAcknowledgements = await client.acknowledged
         XCTAssertEqual(allAcknowledgements, ["9", "10"])
         let remainingJobs = try await listener.queuedJobs()
