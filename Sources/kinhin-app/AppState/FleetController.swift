@@ -30,9 +30,8 @@ final class FleetController {
     /// `serviceGeneration`, so a poll that was in flight against the old one
     /// can't publish its answer.
     @ObservationIgnored var service: (any FleetServing)? {
-        didSet { serviceGeneration &+= 1 }
+        didSet { poller.invalidate() }
     }
-    @ObservationIgnored private var serviceGeneration = 0
     /// The production backend: the in-process engine or the daemon. Reads
     /// and writes go through `service` (so a swap bumps `serviceGeneration`
     /// and an in-flight poll can't publish a stale answer); tests set it
@@ -45,28 +44,10 @@ final class FleetController {
     /// which the Fleet button sets a tick earlier).
     @ObservationIgnored private var commandInFlight = false
     /// Config-edit push (debounced): a burst of edits flushes once.
-    @ObservationIgnored var pendingConfigEdits = false
-    @ObservationIgnored var isConfigPushScheduled = false
-    @ObservationIgnored var configPushDelay: Duration = .seconds(1)
-    /// Test seam: replaces the engine/daemon reload the debounce flushes into.
-    @ObservationIgnored var configFlushOverride: (() async -> Void)?
-    /// The config file edits are read from (tests point this at a scratch file).
-    @ObservationIgnored var configURL: URL = Paths.config
-    /// How a rebuilt in-process engine gets its forge token and is built;
-    /// production defaults hit the Keychain and the real runtimes.
-    /// The blocking seams (Keychain, a daemon ping, host probes) are
-    /// `@Sendable` so the controller runs them off the main actor.
-    @ObservationIgnored var engineToken: @Sendable (KinhinConfig) throws -> String? = {
-        try ConfigLoader.engineToken(for: $0)
-    }
-    @ObservationIgnored var makeEngine: (KinhinConfig, String) throws -> FleetEngine = {
-        try FleetEngine.production(config: $0, token: $1)
-    }
-    @ObservationIgnored var hostSnapshot: @Sendable () -> HostResources = { ResourceProbe().snapshot() }
-    /// Whether a daemon is serving this Mac, and how to talk to it. Checked
-    /// only while the app has no backend of its own.
-    @ObservationIgnored var daemonProbe: @Sendable () -> Bool = { RPCClient.isDaemonAlive() }
-    @ObservationIgnored var makeDaemonBackend: () -> any FleetServing = { FleetBackend.daemon(RPCClient()) }
+    @ObservationIgnored let configPush = ConfigPushScheduler()
+    /// Everything the controller reaches outside the process for (Keychain,
+    /// host probes, daemon ping, engine construction, the config file).
+    @ObservationIgnored var environment = Environment()
     /// A LaunchAgent plist exists but points at a binary that no longer exists
     /// on disk (e.g. the app was removed without `kinhin daemon uninstall`).
     /// Nil when the plist is absent, points at a live binary, or cannot be read.
@@ -76,41 +57,29 @@ final class FleetController {
     /// pressure has eased, so the next episode shows the banner again.
     @ObservationIgnored private var diskPressureDismissed = false
 
-    @ObservationIgnored private var pollTask: Task<Void, Never>?
-    /// Wakes the poll loop's sleep (a surface opened, so look now).
-    @ObservationIgnored private let pollWake = WakeSignal()
+    /// The poll's cadence, wake-ups and stale-answer guard.
+    @ObservationIgnored let poller = FleetPoller()
 
     // MARK: - Visibility (adaptive polling)
 
-    /// Poll cadence while a surface that shows live data (the main window or
-    /// the open menu) is up, and while nothing is looking.
-    @ObservationIgnored var activeInterval: Duration = .seconds(3)
-    @ObservationIgnored var idleInterval: Duration = .seconds(12)
-    @ObservationIgnored private(set) var isMainWindowVisible = false
-    @ObservationIgnored private(set) var isMenuOpen = false
     /// Something on screen shows live fleet data (including CPU/RAM).
-    var isUIActive: Bool { isMainWindowVisible || isMenuOpen }
+    var isUIActive: Bool { poller.isUIActive }
     /// The interval the poll loop waits before its next look.
-    var currentPollInterval: Duration { isUIActive ? activeInterval : idleInterval }
+    var currentPollInterval: Duration { poller.currentInterval }
 
-    func setMainWindowVisible(_ visible: Bool) {
-        let before = isUIActive
-        isMainWindowVisible = visible
-        if isUIActive != before { pollWake.signal() }
-    }
+    func setMainWindowVisible(_ visible: Bool) { poller.setMainWindowVisible(visible) }
 
-    func setMenuOpen(_ open: Bool) {
-        let before = isUIActive
-        isMenuOpen = open
-        if isUIActive != before { pollWake.signal() }
-    }
+    func setMenuOpen(_ open: Bool) { poller.setMenuOpen(open) }
+
     /// Notifications for state changes nobody is watching for, and the sleep guard
     /// held while the fleet serves jobs. Both are driven from `refresh()`.
     @ObservationIgnored var alerts = FleetAlerts()
     @ObservationIgnored var sleepPreventer = SleepPreventer()
-    @ObservationIgnored private var wakeObserver: (any NSObjectProtocol)?
 
-    /// The production backend, when `service` is one.
+    init() {
+        configPush.flush = { [weak self] in await self?.applyConfigToEngine() }
+    }
+
     /// The in-process engine, when this app runs the fleet itself.
     var engine: FleetEngine? { (service as? FleetBackend)?.engine }
 
@@ -120,7 +89,10 @@ final class FleetController {
     var attachedForges: [String: Forge] {
         guard let _ = service as? FleetBackend else { return [:] }
         if let engine { return engine.forges }
-        return [:]  // a daemon currently has no forge-API surface
+        // A daemon has no forge-API surface: `Forge` clients are live objects and `FleetStatus`
+        // carries no forge list, so the per-forge requeue/skip rows are empty in daemon mode
+        // (the Fleet tab shows its "no forges attached" hint). Exposing it needs a new RPC.
+        return [:]
     }
 
     // MARK: - Polling
@@ -129,42 +101,13 @@ final class FleetController {
     /// at launch, so tests that build a controller never poll.
     /// `interval` pins both cadences (tests); nil keeps the adaptive ones.
     func startPolling(every interval: Duration? = nil) {
-        guard pollTask == nil else { return }
-        if let interval {
-            activeInterval = interval
-            idleInterval = interval
-        }
-        // After a wake the picture on screen is stale and the daemon connection may have
-        // dropped: look again straight away instead of waiting out the interval.
-        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                await self?.refresh()
-                await self?.detectStaleDaemonPlist()
-            }
-        }
-        pollTask = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.refresh()
-                guard let wait = self?.currentPollInterval, let wake = self?.pollWake else { return }
-                // Sleep until the next look — or until a surface opens and
-                // the cadence (and the usage sampling) should step up now.
-                do {
-                    try await wake.sleep(for: wait)
-                } catch {
-                    return
-                }
-            }
-        }
+        poller.start(
+            every: interval,
+            poll: { [weak self] in await self?.refresh() },
+            onWake: { [weak self] in self?.detectStaleDaemonPlist() })
     }
 
-    func stopPolling() {
-        if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
-        wakeObserver = nil
-        pollTask?.cancel()
-        pollTask = nil
-    }
+    func stopPolling() { poller.stop() }
 
     /// Checks whether a LaunchAgent plist exists but points at a binary that
     /// no longer exists on disk, and stores a human-readable notice.
@@ -193,12 +136,12 @@ final class FleetController {
             // launch (with an engine of our own we never do — two fleets
             // would fight over the same VMs).
             // Off the main actor: the probe pings a socket with a deadline.
-            let probe = daemonProbe
+            let probe = environment.daemonProbe
             let daemonAlive = await Task.detached { probe() }.value
             guard service == nil else { return }  // a backend appeared while the probe ran
             if daemonAlive {
                 Log.info("app", "a daemon is now serving this Mac — attaching to it")
-                service = makeDaemonBackend()
+                service = environment.makeDaemonBackend()
                 setupIncomplete = false
                 await refresh()
                 return
@@ -206,10 +149,10 @@ final class FleetController {
             publish(status: nil, unreachableReason: nil, sideEffects: false)
             return
         }
-        let generation = serviceGeneration
+        let generation = poller.generation
         do {
             let fresh = try await polled.status(includeUsage: isUIActive)
-            guard generation == serviceGeneration else { return }  // the backend was swapped mid-poll
+            guard poller.isCurrent(generation) else { return }  // the backend was swapped mid-poll
             publish(status: fresh, unreachableReason: nil)
         } catch is CancellationError {
             return
@@ -217,7 +160,7 @@ final class FleetController {
             // Polled every few seconds (daemon calls run off the main thread):
             // an unreachable or wedged daemon is expected, so it is kept as a
             // reason the UI shows ("not responding"), not an error dialog.
-            guard generation == serviceGeneration else { return }
+            guard poller.isCurrent(generation) else { return }
             // Log the transition only: the poll repeats every few seconds.
             if unreachableReason == nil { Log.warn("app", "fleet poll failed: \(error.localizedDescription)") }
             publish(status: nil, unreachableReason: error.localizedDescription)

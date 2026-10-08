@@ -35,10 +35,10 @@ final class FleetControllerConfigPushTests: XCTestCase {
         builds = BuildLog()
         tokenAnswer = .success("ghp_test")
         fleet = FleetController()
-        fleet.configURL = url
-        fleet.hostSnapshot = { [host] in host }
+        fleet.environment.configURL = url
+        fleet.environment.hostSnapshot = { [host] in host }
         let answer = tokenAnswerBox
-        fleet.engineToken = { _ in try answer.value.withLock { $0 }.get() }
+        fleet.environment.engineToken = { _ in try answer.value.withLock { $0 }.get() }
     }
 
     override func tearDown() async throws {
@@ -79,7 +79,7 @@ final class FleetControllerConfigPushTests: XCTestCase {
     ) throws -> FleetEngine {
         let engine = makeEngine(try ConfigLoader.parse(yaml(vmCPU: vmCPU)))
         fleet.service = FleetBackend.inProcess(engine)
-        fleet.makeEngine = { [builds] config, _ in
+        fleet.environment.makeEngine = { [builds] config, _ in
             builds?.record(config)
             return try factory(config)
         }
@@ -286,8 +286,8 @@ final class FleetControllerConfigPushTests: XCTestCase {
 
     func testAutoResumePolicyWritesTheConfigAndPushesIt() async throws {
         var flushes = 0
-        fleet.configPushDelay = .milliseconds(10)
-        fleet.configFlushOverride = { flushes += 1 }
+        fleet.configPush.delay = .milliseconds(10)
+        fleet.configPush.flush = { flushes += 1 }
 
         try await fleet.setAutoResumePolicy(true)
 
@@ -300,8 +300,8 @@ final class FleetControllerConfigPushTests: XCTestCase {
     func testAutoResumePolicyThrowsWhenTheConfigIsMissingAndPushesNothing() async {
         try? FileManager.default.removeItem(at: url)
         var flushes = 0
-        fleet.configPushDelay = .milliseconds(10)
-        fleet.configFlushOverride = { flushes += 1 }
+        fleet.configPush.delay = .milliseconds(10)
+        fleet.configPush.flush = { flushes += 1 }
         do {
             try await fleet.setAutoResumePolicy(true)
             XCTFail("a missing config must fail the intent")
