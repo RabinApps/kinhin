@@ -111,11 +111,15 @@ public enum AuthStatusReporter {
         for forge in [ForgeID.github, .gitea, .forgejo] {
             // The conventional account (named like the forge) drives the
             // per-forge row; additional accounts of the same forge show under
-            // `accounts` below.
-            let account =
-                accounts.first { $0.name == forge.rawValue && $0.forge == forge }
-                ?? accounts.first { $0.forge == forge }
-            let forgeRead = read { try load(forge) }
+            // `accounts` below. The row is a view of that account, so it reads
+            // the account's own token (keyed by name, not by forge). Only with
+            // no account configured does it fall back to the forge-keyed item,
+            // to report a token stored ahead of its config entry.
+            let account = accounts.primary(for: forge)
+            let forgeRead = read {
+                if let account { return try loadAccount(account.forge, account.name) }
+                return try load(forge)
+            }
             let token = forgeRead.token
             let masked = token.map { String($0.prefix(4)) }
             forges.append(
@@ -142,7 +146,7 @@ public enum AuthStatusReporter {
             let detail =
                 accountRead.failureDetail
                 ?? masked.map { "stored in Keychain (\($0)) · scope: \(account.scope)" }
-                ?? "no token stored — run: kinhin auth set --account \(account.name)"
+                ?? "no token stored — run: \(AuthFix.command(forge: account.forge, account: account.name))"
             return AuthStatusReport.Account(
                 name: account.name, forge: account.forge.rawValue, stored: token != nil,
                 prefix: token.map { String($0.prefix(4)) }, scope: account.scope, instance: account.instance,
@@ -176,6 +180,7 @@ public enum AuthStatusReporter {
     private static func accountDetail(token: String?, account: AccountConfig?, forge: ForgeID) -> String {
         let masked = token.map { "\(String($0.prefix(4)))…" } ?? "—"
         let name = forge.rawValue
+        let fix = AuthFix.command(forge: forge, account: account?.name)
         let scopeLine: (AccountConfig) -> String = { account in
             var line = "scope: \(account.scope)"
             if let instance = account.instance, !instance.isEmpty { line += " @ \(instance)" }
@@ -187,9 +192,24 @@ public enum AuthStatusReporter {
         case (true, false):
             return "stored in Keychain (\(masked)) — add a \(name) account to config.yaml to use it"
         case (false, true):
-            return "no token stored — run: kinhin auth set --account \(name)"
+            return "no token stored — run: \(fix)"
         case (false, false):
-            return "no token stored — add a \(name) account to config.yaml, then run: kinhin auth set"
+            return "no token stored — add a \(name) account to config.yaml, then run: \(fix)"
         }
+    }
+}
+
+extension Collection where Element == AccountConfig {
+    /// The account that stands for `forge` in single-account views: the one
+    /// named like the forge (the legacy name), else the first of that forge.
+    func primary(for forge: ForgeID) -> AccountConfig? {
+        first { $0.name == forge.rawValue && $0.forge == forge } ?? first { $0.forge == forge }
+    }
+
+    /// The account called `name` on `forge`, or the forge's primary account
+    /// when no name is given.
+    func account(named name: String?, forge: ForgeID) -> AccountConfig? {
+        guard let name else { return primary(for: forge) }
+        return first { $0.name == name && $0.forge == forge }
     }
 }

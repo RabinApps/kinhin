@@ -25,14 +25,14 @@ public enum TokenHealthCheck {
     /// and reports "not checkable".
     public static func github(
         token: String, scope: String, instance: String? = nil, allowInsecureHTTP: Bool = false,
-        client github: GitHubServing? = nil
+        account: String? = nil, client github: GitHubServing? = nil
     ) async -> Report {
         let client =
             github
             ?? GitHubClient(
                 credentials: GitHubCredentials(
                     token: token, scope: scope, instance: instance, allowInsecureHTTP: allowInsecureHTTP))
-        let report = await OrgPermissionProbe.verify(github: client, scope: scope)
+        let report = await OrgPermissionProbe.verify(github: client, scope: scope, account: account)
         return Report(ok: report.ok, message: report.ok ? "Token works — \(report.message)" : report.message)
     }
 
@@ -144,93 +144,106 @@ public enum TokenHealthCheck {
         }
     }
 
-    /// Forge-dispatching convenience for the settings form: resolves the
-    /// stored token (via `keychainToken`) and the config scope, and returns
-    /// an actionable "not checkable" report when a prerequisite is missing
-    /// (no token stored, or no config scope/section to check against).
+    /// Forge-dispatching convenience for the settings form: finds the account
+    /// (`name`, or the forge's primary one), reads *that account's* token via
+    /// `keychainToken(forge, accountName)` and probes it. Returns an
+    /// actionable "not checkable" report when a prerequisite is missing (no
+    /// token stored, or no config account to check against).
     public static func check(
         forge: ForgeID,
+        account name: String? = nil,
         config: KinhinConfig?,
-        keychainToken: @escaping (ForgeID) throws -> String?,
+        keychainToken: @escaping (ForgeID, String) throws -> String?,
         github: GitHubServing? = nil,
-        gitea: GiteaClient? = nil
+        gitea: GiteaClient? = nil,
+        gitlab: GitLabClient? = nil
     ) async -> Report {
+        switch resolve(forge: forge, account: name, config: config, keychainToken: keychainToken) {
+        case .notCheckable(let report):
+            return report
+        case .ready(let account, let token):
+            return await probe(account, token: token, github: github, gitea: gitea, gitlab: gitlab)
+        }
+    }
+
+    /// What `check` found for a forge/account pair.
+    enum Resolution {
+        case ready(AccountConfig, token: String)
+        case notCheckable(Report)
+    }
+
+    /// Picks the account to check and reads *its* token: the account is keyed
+    /// by name (a forge can have several), never by forge alone, so a second
+    /// GitLab account is checked with its own token and scope, not the first's.
+    static func resolve(
+        forge: ForgeID, account name: String?, config: KinhinConfig?,
+        keychainToken: (ForgeID, String) throws -> String?
+    ) -> Resolution {
+        let account = config?.accounts.account(named: name, forge: forge)
+        if account == nil, let name, config != nil {
+            return .notCheckable(
+                Report(ok: false, message: "No \(forge.displayName) account '\(name)' in config.yaml."))
+        }
+        let tokenName = account?.name ?? name ?? KeychainTokenStore.legacyAccountName(for: forge)
         let stored: String?
         do {
-            stored = try keychainToken(forge)
+            stored = try keychainToken(forge, tokenName)
         } catch {
-            return Report(ok: false, message: "Token check failed: \(error.localizedDescription)")
+            return .notCheckable(Report(ok: false, message: "Token check failed: \(error.localizedDescription)"))
         }
         guard let token = stored else {
-            return Report(ok: false, message: "No token stored yet — save one first.")
+            return .notCheckable(
+                Report(
+                    ok: false,
+                    message:
+                        "No token stored yet — save one first (\(AuthFix.command(forge: forge, account: tokenName)))."))
         }
-        switch forge {
-        case .github:
-            guard let primary = config?.primaryGitHub, !primary.scope.isEmpty else {
-                return Report(ok: false, message: "No scope to check — add a GitHub account to config.yaml first.")
+        guard let account else {
+            if let name {
+                return .notCheckable(
+                    Report(ok: false, message: "No \(forge.displayName) account '\(name)' in config.yaml."))
             }
-            return await Self.github(
-                token: token, scope: primary.scope, instance: primary.instance,
-                allowInsecureHTTP: primary.allowInsecureHTTP ?? false, client: github)
-        case .gitea, .forgejo:
-            guard let account = config?.accounts.first(where: { $0.forge == forge }) else {
-                return Report(
-                    ok: false, message: "No \(forge.rawValue) account in config.yaml — add one to check the token.")
-            }
-            return await Self.gitea(
-                token: token, scope: account.scope, instance: account.instance ?? "",
-                allowInsecureHTTP: account.allowInsecureHTTP ?? false, client: gitea)
-        case .gitlab:
-            // GitLab always lived in accounts:; check the one named "gitlab".
-            guard let account = config?.accounts.first(where: { $0.forge == .gitlab }) else {
-                return Report(ok: false, message: "No GitLab account in config.yaml — add one to check the token.")
-            }
-            return await Self.gitlab(
-                token: token, scope: account.scope, instance: account.instance,
-                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
-        case .buildkite:
-            guard let account = config?.accounts.first(where: { $0.forge == .buildkite }) else {
-                return Report(ok: false, message: "No Buildkite account in config.yaml — add one to check the token.")
-            }
-            return await Self.buildkite(token: token, scope: account.scope)
-        case .azuredevops:
-            guard let account = config?.accounts.first(where: { $0.forge == .azuredevops }),
-                let instance = account.instance
-            else {
-                return Report(
-                    ok: false, message: "No Azure DevOps account in config.yaml — add one to check the token.")
-            }
-            return await Self.azureDevOps(
-                token: token, scope: account.scope, instance: instance,
-                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
-        case .bitbucket:
-            guard let account = config?.accounts.first(where: { $0.forge == .bitbucket }) else {
-                return Report(ok: false, message: "No Bitbucket account in config.yaml — add one to check the token.")
-            }
-            return await Self.bitbucket(token: token, scope: account.scope)
+            let missing =
+                forge == .github
+                ? "No scope to check — add a GitHub account to config.yaml first."
+                : "No \(forge == .gitea || forge == .forgejo ? forge.rawValue : forge.displayName) account in "
+                    + "config.yaml — add one to check the token."
+            return .notCheckable(Report(ok: false, message: missing))
         }
+        return .ready(account, token: token)
     }
 
     /// Check any `accounts:` entry's token the way its forge needs: GitHub's
     /// runner-management permission, a Gitea-family registration mint, or
     /// GitLab's version, scopes and scope.
     public static func account(_ account: AccountConfig, token: String) async -> Report {
+        await probe(account, token: token)
+    }
+
+    private static func probe(
+        _ account: AccountConfig, token: String,
+        github githubClient: GitHubServing? = nil, gitea giteaClient: GiteaClient? = nil,
+        gitlab gitlabClient: GitLabClient? = nil
+    ) async -> Report {
         switch account.forge {
         case .github:
+            guard !account.scope.isEmpty else {
+                return Report(ok: false, message: "No scope to check — add a GitHub account to config.yaml first.")
+            }
             return await github(
                 token: token, scope: account.scope, instance: account.instance,
-                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false, account: account.name, client: githubClient)
         case .gitea, .forgejo:
             guard let instance = account.instance, !instance.isEmpty else {
                 return Report(ok: false, message: "This account has no server address in config.yaml.")
             }
             return await gitea(
                 token: token, scope: account.scope, instance: instance,
-                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false, client: giteaClient)
         case .gitlab:
             return await gitlab(
                 token: token, scope: account.scope, instance: account.instance,
-                allowInsecureHTTP: account.allowInsecureHTTP ?? false)
+                allowInsecureHTTP: account.allowInsecureHTTP ?? false, client: gitlabClient)
         case .buildkite:
             return await buildkite(token: token, scope: account.scope)
         case .azuredevops:

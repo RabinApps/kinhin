@@ -34,7 +34,7 @@ public enum OrgPermissionProbe {
     ///
     /// Two gates: the registration-token mint (runner management) and a
     /// queued/running-jobs read — the exact call the engine polls.
-    public static func verify(github: GitHubServing, scope: String) async -> Report {
+    public static func verify(github: GitHubServing, scope: String, account: String? = nil) async -> Report {
         do {
             _ = try await github.fetchRegistrationToken()
             let kind = scope.contains("/") ? "repository" : "organization"
@@ -60,7 +60,11 @@ public enum OrgPermissionProbe {
                     ok: false,
                     message: "PAT lacks runner-management permission for '\(scope)'.\(remediation(for: scope))")
             case .unauthorized:
-                return Report(ok: false, message: "PAT was rejected (401) — expired or revoked. Fix: kinhin auth set")
+                return Report(
+                    ok: false,
+                    message:
+                        "PAT was rejected (401) — expired or revoked. Fix: \(AuthFix.command(forge: .github, account: account))"
+                )
             case .notFound:
                 // Reached only when the registration-token mint itself 404s
                 // (queue-read 404s are handled above): the PAT can't manage

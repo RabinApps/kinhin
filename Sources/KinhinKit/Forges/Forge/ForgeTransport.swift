@@ -56,25 +56,23 @@ enum ForgeAPIError: LocalizedError, CategorizedError, Equatable, Sendable {
     }
 
     private static func unauthorizedMessage(_ forge: ForgeID) -> String {
+        let fix = "Fix: \(AuthFix.command(forge: forge, account: nil)) with a new token"
         switch forge {
         case .github:
             return
-                "GitHub rejected the token (401). Check it with `kinhin auth status` — it may be expired or lack the required scopes."
+                "GitHub rejected the token (401): expired, revoked, or missing the required scopes. "
+                + "Check it with `kinhin auth status`. \(fix)"
         case .gitlab:
-            return
-                "GitLab rejected the access token (401): expired, revoked, or wrong instance. Fix: kinhin auth set NAME with a new token"
+            return "GitLab rejected the access token (401): expired, revoked, or wrong instance. \(fix)"
         case .gitea, .forgejo:
-            return
-                "Gitea rejected the access token (401) — expired, revoked, or wrong instance. Fix: kinhin auth set --gitea"
+            return "\(forge.displayName) rejected the access token (401): expired, revoked, or wrong instance. \(fix)"
         case .buildkite:
-            return
-                "Buildkite rejected the API access token (401): expired, revoked, or mistyped. Fix: kinhin auth set NAME with a new token"
+            return "Buildkite rejected the API access token (401): expired, revoked, or mistyped. \(fix)"
         case .azuredevops:
             return "Azure DevOps rejected the personal access token (401): expired, revoked, or for another "
-                + "organization. Fix: kinhin auth set NAME with a new token"
+                + "organization. \(fix)"
         case .bitbucket:
-            return
-                "Bitbucket rejected the access token (401): expired, revoked, or mistyped. Fix: kinhin auth set NAME with a new token"
+            return "Bitbucket rejected the access token (401): expired, revoked, or mistyped. \(fix)"
         }
     }
 
@@ -100,7 +98,8 @@ enum ForgeAPIError: LocalizedError, CategorizedError, Equatable, Sendable {
         case .gitlab:
             return "GitLab returned 404 for \(what): check the scope path and that the token can see it"
         case .gitea, .forgejo:
-            return "Gitea returned 404 for \(what) — check the scope and that Actions are enabled on the instance"
+            return
+                "\(forge.displayName) returned 404 for \(what) — check the scope and that Actions are enabled on the instance"
         case .buildkite:
             return "Buildkite returned 404 for \(what): check the organization slug and that the token can see it"
         case .azuredevops:

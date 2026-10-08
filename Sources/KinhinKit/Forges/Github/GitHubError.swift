@@ -23,7 +23,8 @@ public enum GitHubError: LocalizedError, CategorizedError, Equatable, Sendable {
         switch self {
         case .unauthorized:
             return
-                "GitHub rejected the token (401). Check it with `kinhin auth status` — it may be expired or lack the required scopes."
+                "GitHub rejected the token (401). Check it with `kinhin auth status` — it may be expired or lack the required scopes. "
+                + "Fix: \(AuthFix.command(forge: .github, account: nil)) with a new token"
         case .forbidden(let why):
             return "GitHub forbidden (403): \(why)"
         case .notFound(let what):

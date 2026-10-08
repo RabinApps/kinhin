@@ -115,7 +115,7 @@ final class TokenReadFailureTests: XCTestCase {
 
     func testTokenHealthCheckReportsAKeychainFailure() async {
         let report = await TokenHealthCheck.check(
-            forge: .github, config: githubConfig(), keychainToken: { _ in throw KeychainDown() })
+            forge: .github, config: githubConfig(), keychainToken: { _, _ in throw KeychainDown() })
         XCTAssertFalse(report.ok)
         XCTAssertTrue(report.message.contains("the login keychain is locked"), report.message)
         XCTAssertFalse(report.message.contains("No token stored"), report.message)

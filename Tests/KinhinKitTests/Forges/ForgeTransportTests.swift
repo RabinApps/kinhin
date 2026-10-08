@@ -247,8 +247,18 @@ final class ForgeTransportTests: XCTestCase {
     func testForgeAPIErrorMessagesCarryTheForgeNameAndItsHint() {
         XCTAssertEqual(
             ForgeAPIError.unauthorized(forge: .gitlab).errorDescription,
-            "GitLab rejected the access token (401): expired, revoked, or wrong instance. Fix: kinhin auth set NAME with a new token"
+            "GitLab rejected the access token (401): expired, revoked, or wrong instance. "
+                + "Fix: kinhin auth set --account NAME with a new token"
         )
+        for forge in [ForgeID.gitea, .forgejo] {
+            let text = try? XCTUnwrap(ForgeAPIError.unauthorized(forge: forge).errorDescription)
+            XCTAssertTrue(text?.hasPrefix(forge.displayName) == true, text ?? "nil")
+            XCTAssertTrue(text?.contains("kinhin auth set --account NAME") == true, text ?? "nil")
+            XCTAssertFalse(text?.contains("--gitea") == true, "\(forge) must not be told --gitea")
+        }
+        XCTAssertTrue(
+            ForgeAPIError.notFound(forge: .forgejo, what: "/x").errorDescription?.hasPrefix("Forgejo returned 404")
+                == true)
         XCTAssertEqual(
             ForgeAPIError.forbidden(forge: .azuredevops, why: "no").errorDescription,
             "Azure DevOps forbidden (403): no. The token needs the Agent Pools (Read & manage) scope")
