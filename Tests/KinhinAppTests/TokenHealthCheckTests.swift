@@ -28,7 +28,7 @@ final class TokenHealthCheckTests: XCTestCase {
         let report = await TokenHealthCheck.check(
             forge: .github,
             config: Self.configWithRepo("acme/widgets"),
-            keychainToken: { _ in "ghp_x" },
+            keychainToken: { _, _ in "ghp_x" },
             github: client
         )
         XCTAssertEqual(client.registrationTokenCalls, 1, "the check must probe via the forge API")
@@ -40,7 +40,7 @@ final class TokenHealthCheckTests: XCTestCase {
         let report = await TokenHealthCheck.check(
             forge: .github,
             config: Self.configWithRepo("acme/widgets"),
-            keychainToken: { _ in nil }
+            keychainToken: { _, _ in nil }
         )
         XCTAssertFalse(report.ok)
         XCTAssertTrue(report.message.contains("No token stored"))
@@ -50,7 +50,7 @@ final class TokenHealthCheckTests: XCTestCase {
         let report = await TokenHealthCheck.check(
             forge: .github,
             config: Self.configWithRepo(""),
-            keychainToken: { _ in "ghp_x" }
+            keychainToken: { _, _ in "ghp_x" }
         )
         XCTAssertFalse(report.ok)
         XCTAssertTrue(report.message.contains("No scope to check"))
@@ -60,7 +60,7 @@ final class TokenHealthCheckTests: XCTestCase {
         let report = await TokenHealthCheck.check(
             forge: .gitea,
             config: Self.configWithRepo("acme/widgets"),
-            keychainToken: { _ in "gt_x" }
+            keychainToken: { _, _ in "gt_x" }
         )
         XCTAssertFalse(report.ok)
         XCTAssertTrue(report.message.contains("gitea account"))
@@ -80,7 +80,7 @@ final class TokenHealthCheckTests: XCTestCase {
         let report = await TokenHealthCheck.check(
             forge: .github,
             config: Self.configWithRepo("acme/widgets"),
-            keychainToken: { _ in
+            keychainToken: { _, _ in
                 overrideSeen = true
                 return "stored"
             },

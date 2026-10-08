@@ -1,165 +1,8 @@
 import Foundation
 
-public struct GitHubCredentials: Sendable {
-    public let token: String
-    /// GitHub scope the fleet serves: "owner/name" (one repository) or a
-    /// single "org" segment (an entire organization — runners register at
-    /// the org level and serve every repo's queued jobs).
-    public let scope: String
-    /// The GitHub instance base URL. Nil means github.com; a GHES host
-    /// ("https://HOST") or a GHEC data-residency host ("https://HOST")
-    /// changes every API base, the runner registration URL and token-creation
-    /// links. `allowInsecureHTTP` controls the scheme rule for self-hosted
-    /// instances (loopback http is always allowed).
-    public let instance: String?
-    public let allowInsecureHTTP: Bool
-
-    public init(token: String, scope: String, instance: String? = nil, allowInsecureHTTP: Bool = false) {
-        self.token = token
-        self.scope = scope
-        self.instance = instance
-        self.allowInsecureHTTP = allowInsecureHTTP
-    }
-
-    /// True when the scope is an organization, not a single repository.
-    var isOrgScope: Bool { !scope.contains("/") }
-
-    /// The owner segment of the scope ("acme" in "acme/api").
-    public var owner: String { String(scope.split(separator: "/").first ?? "") }
-
-    /// The REST base URL for this scope's Actions API. github.com stays at
-    /// api.github.com; a `*.ghe.com` data-residency host uses `api.<host>`;
-    /// any other host uses `<host>/api/v3`.
-    var apiBase: String {
-        guard let instance else { return "https://api.github.com" }
-        guard let url = URL(string: instance), let host = url.host else {
-            return "https://api.github.com"
-        }
-        if host.hasSuffix(".ghe.com") {
-            return "https://api.\(host)"
-        }
-        return "https://\(host)/api/v3"
-    }
-
-    /// The web base for this instance: where token-creation and settings links
-    /// point. github.com stays at github.com; a `*.ghe.com` host uses the
-    /// host as-is; any other host is the instance URL's host.
-    var webBase: String {
-        guard let instance, let url = URL(string: instance), let host = url.host else {
-            return "https://github.com"
-        }
-        if host.hasSuffix(".ghe.com") { return "https://\(host)" }
-        return "https://\(host)"
-    }
-
-    /// URL passed to the runner's `config.sh --url`: GitHub's documented form
-    /// is `https://github.com/<org>` for org runners and
-    /// `https://github.com/<owner>/<repo>` for repo runners (the
-    /// `/organizations/<org>` form answers 404 from runner-registration).
-    var configureURL: String { "\(webBase)/\(scope)" }
-
-    /// REST path prefix for the Actions API of this scope.
-    var actionsBase: String {
-        isOrgScope
-            ? "/orgs/\(scope)/actions"
-            : "/repos/\(scope)/actions"
-    }
-
-    /// Validates an enterprise instance URL the way `GitLabCredentials` does:
-    /// an http(s) URL with a host, scheme allowed by the account's
-    /// `allowInsecureHTTP`, and no `/api` path suffix (the client appends its
-    /// own prefix where needed).
-    static func validate(instance: String, allowInsecureHTTP: Bool = false) throws -> URL {
-        guard let url = URL(string: instance),
-            ForgeHTTP.permitsScheme(of: url, allowInsecureHTTP: allowInsecureHTTP),
-            let host = url.host, !host.isEmpty,
-            !url.path.split(separator: "/").contains("api")
-        else {
-            throw GitHubError.invalidInstance(instance)
-        }
-        return url
-    }
-}
-
-public enum GitHubError: LocalizedError, CategorizedError, Equatable, Sendable {
-    case unauthorized
-    case forbidden(String)
-    case notFound(String)
-    case rateLimited(resetAt: Date)
-    case http(Int, String)
-    case decoding(String)
-    case invalidInstance(String)
-
-    /// Only credential and access problems point at the token; an outage,
-    /// rate limit or malformed response must not tell the user to re-enter it.
-    public var category: ErrorCategory {
-        switch self {
-        case .unauthorized, .forbidden, .notFound: return .auth
-        case .invalidInstance: return .config
-        case .rateLimited, .http, .decoding: return .runtime
-        }
-    }
-
-    public var errorDescription: String? {
-        switch self {
-        case .unauthorized:
-            return
-                "GitHub rejected the token (401). Check it with `kinhin auth status` — it may be expired or lack the required scopes."
-        case .forbidden(let why):
-            return "GitHub forbidden (403): \(why)"
-        case .notFound(let what):
-            if what.hasPrefix("/orgs/"), what.contains("/actions/runs") {
-                return
-                    "GitHub returned 404 for \(what): the token cannot read this organization's workflow runs. "
-                    + "Kinhin reads runs per repository; check the token's repository access and Actions: Read-only permission."
-            }
-            if what.hasSuffix("/*/actions/runs") {
-                return
-                    "GitHub returned 404 for \(what): the token cannot read workflow runs in any repository of the scope. "
-                    + "Fine-grained tokens need Repository permissions → Actions: Read-only; a classic token with the repo scope always works."
-            }
-
-            return "GitHub returned 404 for \(what). Does the repo exist and does the token have access to it?"
-        case .rateLimited(let resetAt):
-            return "GitHub rate limit exhausted; resets at \(resetAt)"
-        case .http(let code, let body):
-            return "GitHub HTTP \(code): \(body)"
-        case .decoding(let why):
-            return "Could not decode GitHub response: \(why)"
-        case .invalidInstance(let url):
-            return
-                "invalid GitHub enterprise instance URL: \(url). Use the base URL (e.g. https://github.example.com or https://SUB.ghe.com), not an /api path"
-        }
-    }
-}
-
-extension GitHubCredentials {
-    /// The host the API base for this scope resolves to (nil for github.com).
-    /// Callers that need to pin pagination or validate a redirect target can
-    /// compare against this host, which is the same one `request` builds URLs
-    /// against.
-    var apiHost: String? {
-        guard let instance, let url = URL(string: instance), let host = url.host else { return nil }
-        return host
-    }
-
-    /// An error view that includes the enterprise host, useful for token-check
-    /// and doctor messages that must tell the user *which* GitHub instance the
-    /// token was talking to.
-    var instanceLabel: String {
-        apiBase
-    }
-
-    /// True when this scope is served by a non-github.com instance: any GHES
-    /// host or a GHEC data-residency host. The token-creation URLs used in
-    /// `TokenRequirements` and the runner-registration flow must point at this
-    /// host rather than github.com.
-    var isEnterprise: Bool { instance != nil }
-}
-
 // MARK: - Client
 
-/// Minimal GitHub REST client covering what the autoscaler needs.
+/// What the fleet needs from GitHub's REST API (real client: `GitHubClient`).
 public protocol GitHubServing: Sendable {
     /// The URL the VM's `config.sh --url` must use for this scope
     /// (organizations register at github.com/<org>).
@@ -170,10 +13,10 @@ public protocol GitHubServing: Sendable {
     func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob]
     func runningJobs(matching labels: Set<String>) async throws -> [RunningJob]
     /// Cancel the queued workflow runs `ids` (their jobs are re-queued
-    /// downstream). Nil when none is found or the caller cannot cancel them.
+    /// downstream). False when a run is not found or the caller cannot cancel it.
     func cancelWorkflowRun(ids: [Int]) async throws -> Bool
     /// Mark the queued workflow runs `ids` as skipped (their jobs are
-    /// dropped). Nil when none is found or the caller cannot skip them.
+    /// dropped). False when a run is not found or the caller cannot skip it.
     func skipWorkflowRun(ids: [Int]) async throws -> Bool
     /// The API budget the last response reported; nil when unknown.
     var rateLimit: ForgeRateLimit? { get }
@@ -197,6 +40,8 @@ extension GitHubServing {
 public struct GitHubClient: GitHubServing {
     let credentials: GitHubCredentials
     let session: URLSession
+    /// The retry policy for every request (tests shorten the waits).
+    var retryPolicy = ForgeRetryPolicy(retries: 3)
 
     public var configureURL: String { credentials.configureURL }
 
@@ -258,89 +103,52 @@ public struct GitHubClient: GitHubServing {
         req.httpMethod = method
         req.httpBody = body
         req.setValue("Bearer \(credentials.token)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        req.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
-        // Every GitHub API flavor (api.github.com, api.<sub>.ghe.com, GHES
-        // `/api/v3`) documents this header; a per-instance override is a
-        // later refinement.
-        req.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        GitHubAPI.apply(to: &req)
         return req
     }
 
-    /// Execute with retry on transient failures, honoring rate-limit headers.
+    /// Execute under the shared `ForgeRetryPolicy`: network errors, 5xx and real
+    /// rate limits (429, or a 403 carrying `Retry-After` / a spent budget) are
+    /// retried; a plain 403 is a permissions error and surfaces at once.
     /// GETs revalidate against `conditionalGets`: a 304 returns the cached
     /// body, so callers never see the difference.
-    func send(_ req: URLRequest, retries: Int = 3) async throws -> (Data, HTTPURLResponse) {
-        var req = req
-        let conditionalKey = req.httpMethod == "GET" ? req.url?.absoluteString : nil
+    func send(_ req: URLRequest, retries: Int? = nil) async throws -> (Data, HTTPURLResponse) {
+        var request = req
+        var policy = retryPolicy
+        if let retries { policy.retries = retries }
+        let conditionalKey = request.httpMethod == "GET" ? request.url?.absoluteString : nil
         if let conditionalKey, let etag = conditionalGets.etag(for: conditionalKey) {
-            req.setValue(etag, forHTTPHeaderField: "If-None-Match")
+            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
         }
-        var attempt = 0
-        var lastError: Error = GitHubError.http(0, "no attempt made")
-        while attempt <= retries {
-            if attempt > 0 {
-                try await Task.sleep(for: .seconds(min(8.0, pow(2, Double(attempt)))))
-            }
-            attempt += 1
+        return try await policy.run { () async throws -> ForgeRetryPolicy.Attempt<(Data, HTTPURLResponse)> in
+            let (data, response): (Data, URLResponse)
             do {
-                let (data, response) = try await session.data(for: req)
-                guard let http = response as? HTTPURLResponse else {
-                    lastError = GitHubError.http(0, "non-HTTP response")
-                    continue
-                }
-                if let limit = ForgeRateLimit(headers: http) { rateLimits.record(limit) }
-                switch http.statusCode {
-                case 200...299:
-                    if let conditionalKey, let etag = http.value(forHTTPHeaderField: "ETag") {
-                        conditionalGets.store(url: conditionalKey, etag: etag, body: data)
-                    }
-                    return (data, http)
-                case 304:
-                    if let conditionalKey, let body = conditionalGets.body(for: conditionalKey) {
-                        return (body, http)
-                    }
-                    // The cached body was evicted mid-flight: read it afresh.
-                    req.setValue(nil, forHTTPHeaderField: "If-None-Match")
-                    lastError = GitHubError.http(304, "not modified, but no cached body")
-                    continue
-                case 401:
-                    throw GitHubError.unauthorized
-                case 403:
-                    if let remaining = http.value(forHTTPHeaderField: "X-RateLimit-Remaining"),
-                        remaining == "0",
-                        let resetStr = http.value(forHTTPHeaderField: "X-RateLimit-Reset"),
-                        let reset = TimeInterval(resetStr)
-                    {
-                        throw GitHubError.rateLimited(resetAt: Date(timeIntervalSince1970: reset))
-                    }
-                    lastError = GitHubError.forbidden(String(decoding: data.prefix(500), as: UTF8.self))
-                    continue  // can be transient (secondary limits)
-                case 404:
-                    throw GitHubError.notFound(req.url?.path ?? "resource")
-                case 429, 500...599:
-                    lastError = GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
-                    continue
-                default:
-                    throw GitHubError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
-                }
-            } catch let error as GitHubError {
-                // Only retryable classes continue the loop.
-                if case .forbidden = error { lastError = error; continue }
-                if case .http(let code, _) = error, code == 429 || code >= 500 { lastError = error; continue }
-                if case .http(0, _) = error { lastError = error; continue }
-                throw error
+                (data, response) = try await session.data(for: request)
             } catch let error where ForgeHTTP.isTransientNetworkError(error) {
-                // Network-layer error (offline, DNS, timeout): retry.
-                lastError = GitHubError.http(0, error.localizedDescription)
-                continue
-            } catch let error as URLError where error.code == .cancelled {
-                // A cancelled request surfaces as URLError; it must end the
-                // caller's task like any other cancellation, never retry.
-                throw CancellationError()
+                return .retry(GitHubError.http(0, error.localizedDescription), after: nil)
             }
+            guard let http = response as? HTTPURLResponse else {
+                return .retry(GitHubError.http(0, "non-HTTP response"), after: nil)
+            }
+            if let limit = ForgeRateLimit(headers: http) { rateLimits.record(limit) }
+            if (200...299).contains(http.statusCode) {
+                if let conditionalKey, let etag = http.value(forHTTPHeaderField: "ETag") {
+                    conditionalGets.store(url: conditionalKey, etag: etag, body: data)
+                }
+                return .done((data, http))
+            }
+            if http.statusCode == 304 {
+                if let conditionalKey, let body = conditionalGets.body(for: conditionalKey) {
+                    return .done((body, http))
+                }
+                // The cached body was evicted mid-flight: read it afresh.
+                request.setValue(nil, forHTTPHeaderField: "If-None-Match")
+                return .retry(GitHubError.http(304, "not modified, but no cached body"), after: nil)
+            }
+            let failure = GitHubError.from(http, body: data, path: request.url?.path ?? "resource")
+            if case .retry(let after) = policy.verdict(for: http) { return .retry(failure, after: after) }
+            throw failure
         }
-        throw lastError
     }
 
     // MARK: - API
@@ -515,8 +323,8 @@ public struct GitHubClient: GitHubServing {
     }
 
     /// Cancel the queued workflow runs `ids` (their jobs are re-queued
-    /// downstream). Nil when none of the runs is found or the caller cannot
-    /// cancel them.
+    /// downstream). False when any run is not found or the caller cannot
+    /// cancel it.
     public func cancelWorkflowRun(ids: [Int]) async throws -> Bool {
         try await withThrowingTaskGroup(of: Bool.self) { group in
             for id in ids {
@@ -530,8 +338,8 @@ public struct GitHubClient: GitHubServing {
         }
     }
 
-    /// Mark the queued workflow run `id` as skipped (its jobs are dropped).
-    /// Nil when none of the runs is found or the caller cannot skip them.
+    /// Mark the queued workflow runs `ids` as skipped (their jobs are dropped).
+    /// False when any run is not found or the caller cannot skip it.
     public func skipWorkflowRun(ids: [Int]) async throws -> Bool {
         try await withThrowingTaskGroup(of: Bool.self) { group in
             for id in ids {
