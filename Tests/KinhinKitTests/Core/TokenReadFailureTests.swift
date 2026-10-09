@@ -69,10 +69,16 @@ final class TokenReadFailureTests: XCTestCase {
     }
 
     func testAuthReportStillWorksWhenOnlyOneReadFails() throws {
+        let cfg = githubConfig()
+        // `makeTestConfig()` configures a GitHub account, so the per-forge row
+        // reads *that account's* token through `loadAccount`, not the forge-
+        // keyed `load` closure. Inject both so the test models one forge down
+        // and one up, which is what it is trying to assert.
         let report = AuthStatusReporter.report(
-            config: githubConfig(),
-            load: { forge in
-                if forge == .github { return "ghp_abcd1234" }
+            config: cfg,
+            load: { _ in throw KeychainDown() },
+            loadAccount: { forge, name in
+                if forge == .github && name == cfg.accounts.first?.name { return "ghp_abcd1234" }
                 throw KeychainDown()
             })
         let github = try XCTUnwrap(report.forges.first { $0.id == "github" })

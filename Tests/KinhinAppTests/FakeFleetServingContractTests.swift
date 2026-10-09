@@ -26,8 +26,13 @@ import XCTest
 final class FakeFleetServingContractTests: XCTestCase {
     private func makeEngine(store: FleetStore) -> FleetEngine {
         FleetEngine(
-            config: makeTestConfig(), github: FakeGitHub(), tart: FakeTart(), store: store,
-            ssh: FakeSSH(), host: testHost)
+            config: makeTestConfig(),
+            github: FakeGitHub(),
+            tart: FakeTart(),
+            store: store,
+            ssh: FakeSSH(),
+            host: testHost,
+            dependencies: .init(tokenLoader: { _, _ in "test-token" }))
     }
 
     /// The real backend: an in-process engine whose runtimes are all fakes.
