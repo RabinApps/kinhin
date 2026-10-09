@@ -12,13 +12,12 @@ struct MaturityBadge: View {
 
     var body: some View {
         if maturity.isUntested {
-            Text("untested")
-                .font(.system(size: 9, weight: .semibold))
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 16, weight: .semibold))
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
                 .foregroundStyle(StatusStyle.warn.color)
-                .background(StatusStyle.warn.color.opacity(0.14), in: Capsule())
-                .help("Implemented and unit-tested, but not yet run against the real service")
+                .help("Implemented and unit-tested, but not yet run against the real service. Please report errors to on GitHub to help us improve support for this forge.")
                 .accessibilityLabel("untested")
         }
     }

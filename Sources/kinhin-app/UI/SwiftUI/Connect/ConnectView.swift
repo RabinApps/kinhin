@@ -43,8 +43,12 @@ struct ConnectView: View {
 
     private var selector: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Where does your code live?").font(.system(size: 12, weight: .semibold))
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+            HStack(alignment: .center, spacing: 6) {
+                Text("Where does your code live?").font(.system(size: 12, weight: .semibold))
+                                Spacer(minLength: 0)
+
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(ConnectModel.allForges, id: \.self) { forge in
                     chip(forge)
                 }
@@ -66,8 +70,9 @@ struct ConnectView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
-                MaturityBadge(forge: forge)
                 Spacer(minLength: 0)
+
+                MaturityBadge(forge: forge)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
