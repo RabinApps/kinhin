@@ -87,30 +87,78 @@ struct MainTabsView: View {
     }
 }
 
-/// Advanced: a segmented section picker over the section's form.
+/// Advanced: a collapsible sidebar of sections with the selected section's
+/// form on the right.
 private struct AdvancedView: View {
     let model: MainTabsModel
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Picker(
-                "Advanced sections",
-                selection: Binding(get: { model.advancedSection }, set: { model.selectAdvancedSection($0) })
-            ) {
-                ForEach(AdvancedSection.allCases, id: \.self) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.small)
-            .accessibilityLabel("Advanced sections")
-            .frame(width: 680)
-            .padding(.leading, 4)
+    private var collapsed: Bool { model.advancedSidebarCollapsed }
 
+    var body: some View {
+        HStack(spacing: 0) {
+            sidebar
+            Divider()
             section
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 12)
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Button {
+                withAnimation(.snappy) { model.toggleAdvancedSidebar() }
+            } label: {
+                Image(systemName: "sidebar.left")
+                    .frame(width: 28, height: 26)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .help(collapsed ? "Show sidebar" : "Hide sidebar")
+            .accessibilityLabel(collapsed ? "Show sidebar" : "Hide sidebar")
+            .accessibilityIdentifier("advanced-sidebar-toggle")
+            .keyboardShortcut("s", modifiers: [.command, .option])
+            .padding(.bottom, 6)
+
+            ForEach(AdvancedSection.allCases, id: \.self) { item in
+                row(item)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 10)
+        .frame(width: collapsed ? 52 : 176)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func row(_ item: AdvancedSection) -> some View {
+        let selected = model.advancedSection == item
+        return Button {
+            model.selectAdvancedSection(item)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: item.symbol)
+                    .frame(width: 20)
+                if !collapsed {
+                    Text(item.label)
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .foregroundStyle(selected ? Color.white : Color.primary)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(selected ? Color.accentColor : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(item.label)
+        .accessibilityLabel(item.label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     @ViewBuilder

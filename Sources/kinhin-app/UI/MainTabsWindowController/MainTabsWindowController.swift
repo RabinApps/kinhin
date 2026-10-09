@@ -28,7 +28,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         models = WindowModels(fleet: fleet, updates: updates, prefs: defaults)
         tabs = MainTabsModel(fleet: fleet, models: models)
 
-        let size = NSSize(width: 620, height: 600)
+        let size = NSSize(width: 800, height: 600)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -44,7 +44,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         host.sizingOptions = []
         window.contentView = host
         window.center()
-        window.minSize = NSSize(width: 620, height: 480)
+        window.minSize = NSSize(width: 760, height: 480)
         super.init(window: window)
         window.delegate = self
         tabs.onSetupFinished = { [weak self] in self?.delegate?.setupTabFinished() }

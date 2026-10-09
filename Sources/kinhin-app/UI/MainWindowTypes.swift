@@ -62,6 +62,19 @@ enum AdvancedSection: String, CaseIterable {
     case benchmarks
     case app
 
+    /// The SF Symbol shown beside the section in the Advanced sidebar.
+    var symbol: String {
+        switch self {
+        case .accounts: return "person.2"
+        case .capacity: return "gauge.with.dots.needle.67percent"
+        case .routing: return "arrow.triangle.branch"
+        case .containers: return "shippingbox"
+        case .toolchains: return "wrench.and.screwdriver"
+        case .benchmarks: return "speedometer"
+        case .app: return "gearshape"
+        }
+    }
+
     var label: String {
         switch self {
         case .accounts: return String(localized: "Accounts", bundle: .l10n, comment: "Advanced section title")

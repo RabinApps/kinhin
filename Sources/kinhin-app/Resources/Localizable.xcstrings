@@ -392,9 +392,6 @@
     "Advanced" : {
       "comment" : "Main window tab title"
     },
-    "Advanced sections" : {
-      "comment" : "Picker in MainTabsView"
-    },
     "Agent pool" : {
       "comment" : "Label of the repository field"
     },
@@ -1070,6 +1067,9 @@
     },
     "Hide Others" : {
       "comment" : "App menu item"
+    },
+    "Hide sidebar" : {
+      "comment" : ".help in MainTabsView"
     },
     "Highest density if a Docker provider already runs; amd64 via emulation with JIT/Go/Java/.NET caveats; shared kernel." : {
       "comment" : "Linux runtime comparison summary"
@@ -2079,6 +2079,9 @@
     },
     "Show pipeline of %@" : {
       "comment" : ".accessibilityLabel in FleetDiagramView"
+    },
+    "Show sidebar" : {
+      "comment" : ".help in MainTabsView"
     },
     "Show steps of %@, %@" : {
       "comment" : ".accessibilityLabel in PipelineView"
