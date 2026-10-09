@@ -4,7 +4,9 @@ import type { Theme } from "vitepress";
 import "./version-banner.css";
 
 function addDiagramExpandButtons(): void {
-  const diagrams = document.querySelectorAll<HTMLElement>(".vp-doc pre.mermaid[data-processed]");
+  const diagrams = document.querySelectorAll<HTMLElement>(
+    ".vp-doc pre.mermaid[data-processed]",
+  );
   for (const diagram of diagrams) {
     const parent = diagram.parentElement;
     if (!parent || parent.classList.contains("diagram-frame")) continue;
@@ -30,7 +32,9 @@ function addDiagramExpandButtons(): void {
     expand.type = "button";
     expand.textContent = "Expand";
     expand.setAttribute("aria-label", "Expand diagram to full screen");
-    expand.addEventListener("click", () => openDiagramFullscreen(diagram, expand));
+    expand.addEventListener("click", () =>
+      openDiagramFullscreen(diagram, expand),
+    );
     frame.append(expand);
   }
 }
@@ -95,7 +99,11 @@ function attachPinchZoom(
       event.preventDefault();
       const midX = (event.touches[0].clientX + event.touches[1].clientX) / 2;
       const midY = (event.touches[0].clientY + event.touches[1].clientY) / 2;
-      applyZoom(clampZoom(pinch.zoom * (distance(event.touches) / pinch.distance)), midX, midY);
+      applyZoom(
+        clampZoom(pinch.zoom * (distance(event.touches) / pinch.distance)),
+        midX,
+        midY,
+      );
     },
     { passive: false },
   );
@@ -106,7 +114,11 @@ function attachPinchZoom(
   container.addEventListener("touchcancel", end);
 }
 
-function zoomButton(label: string, ariaLabel: string, onClick: () => void): HTMLButtonElement {
+function zoomButton(
+  label: string,
+  ariaLabel: string,
+  onClick: () => void,
+): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "diagram-zoom-button";
@@ -116,7 +128,10 @@ function zoomButton(label: string, ariaLabel: string, onClick: () => void): HTML
   return button;
 }
 
-function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonElement): void {
+function openDiagramFullscreen(
+  diagram: HTMLElement,
+  expandButton: HTMLButtonElement,
+): void {
   const placeholder = document.createComment("diagram position");
   diagram.before(placeholder);
 
@@ -131,7 +146,8 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
   title.textContent = "Architecture diagram";
   const hint = document.createElement("span");
   hint.className = "diagram-zoom-hint";
-  hint.textContent = " drag to pan · pinch, double-tap, + / − or Ctrl+scroll to zoom · 0 to reset";
+  hint.textContent =
+    " drag to pan · pinch, double-tap, + / − or Ctrl+scroll to zoom · 0 to reset";
   title.append(hint);
 
   const content = document.createElement("div");
@@ -170,7 +186,8 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
     if (
       content.scrollWidth > content.clientWidth ||
       content.scrollHeight > content.clientHeight
-    ) content.setAttribute("data-pannable", "");
+    )
+      content.setAttribute("data-pannable", "");
     else content.removeAttribute("data-pannable");
   };
   const stepZoom = (direction: number) => {
@@ -207,7 +224,13 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
 
   // Drag-to-pan with the mouse (touch keeps native scrolling). The handlers
   // live on `content`, which is discarded with the dialog on close.
-  let pan: { pointerId: number; x: number; y: number; left: number; top: number } | null = null;
+  let pan: {
+    pointerId: number;
+    x: number;
+    y: number;
+    left: number;
+    top: number;
+  } | null = null;
   content.addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || event.pointerType === "touch") return;
     if (!content.hasAttribute("data-pannable")) return;
@@ -225,7 +248,9 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
     content.classList.add("is-panning");
     // Best-effort: keeps move events flowing when the pointer leaves the
     // dialog mid-drag (throws for synthetic/test pointers).
-    try { content.setPointerCapture(event.pointerId); } catch {}
+    try {
+      content.setPointerCapture(event.pointerId);
+    } catch {}
     // Also stops the drag from selecting the diagram's labels.
     event.preventDefault();
   });
@@ -238,7 +263,9 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
     if (!pan || event.pointerId !== pan.pointerId) return;
     pan = null;
     content.classList.remove("is-panning");
-    try { content.releasePointerCapture(event.pointerId); } catch {}
+    try {
+      content.releasePointerCapture(event.pointerId);
+    } catch {}
   };
   content.addEventListener("pointerup", endPan);
   content.addEventListener("pointercancel", endPan);
@@ -272,14 +299,20 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
       tap = null;
     } else if (event.touches.length === 1 && !pinchSeen) {
       const touch = event.touches[0];
-      tap = { x: touch.clientX, y: touch.clientY, time: Date.now(), moved: false };
+      tap = {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: Date.now(),
+        moved: false,
+      };
     }
   });
   content.addEventListener("touchmove", (event) => {
     // Scrolling disqualifies the gesture as a tap, but never blocks the scroll.
     if (event.touches.length === 1 && tap && !tap.moved) {
       const touch = event.touches[0];
-      if (Math.hypot(touch.clientX - tap.x, touch.clientY - tap.y) > TAP_SLOP) tap.moved = true;
+      if (Math.hypot(touch.clientX - tap.x, touch.clientY - tap.y) > TAP_SLOP)
+        tap.moved = true;
     }
   });
   content.addEventListener("touchend", (event) => {
@@ -298,7 +331,8 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
       const paired =
         lastTap !== null &&
         now - lastTap.time <= DOUBLE_TAP_MS &&
-        Math.hypot(clientX - lastTap.x, clientY - lastTap.y) <= DOUBLE_TAP_DISTANCE;
+        Math.hypot(clientX - lastTap.x, clientY - lastTap.y) <=
+          DOUBLE_TAP_DISTANCE;
       if (paired) {
         lastTap = null;
         // Out to 100% when zoomed in, in by 2× otherwise — pinned to the tap.
@@ -343,23 +377,27 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
-  dialog.addEventListener("close", () => {
-    document.removeEventListener("keydown", onKeyDown);
-    window.removeEventListener("resize", applyZoom);
-    diagram.style.removeProperty("width");
-    diagram.style.removeProperty("height");
-    diagram.style.removeProperty("box-sizing");
-    diagram.style.removeProperty("zoom");
-    // Back to the inline view — including any pinch zoom it had before Expand.
-    if (inlineZoomStyle) diagram.style.zoom = inlineZoomStyle;
-    if (svg) {
-      if (svgOriginalStyle === null) svg.removeAttribute("style");
-      else svg.setAttribute("style", svgOriginalStyle);
-    }
-    placeholder.replaceWith(diagram);
-    dialog.remove();
-    expandButton.focus();
-  }, { once: true });
+  dialog.addEventListener(
+    "close",
+    () => {
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", applyZoom);
+      diagram.style.removeProperty("width");
+      diagram.style.removeProperty("height");
+      diagram.style.removeProperty("box-sizing");
+      diagram.style.removeProperty("zoom");
+      // Back to the inline view — including any pinch zoom it had before Expand.
+      if (inlineZoomStyle) diagram.style.zoom = inlineZoomStyle;
+      if (svg) {
+        if (svgOriginalStyle === null) svg.removeAttribute("style");
+        else svg.setAttribute("style", svgOriginalStyle);
+      }
+      placeholder.replaceWith(diagram);
+      dialog.remove();
+      expandButton.focus();
+    },
+    { once: true },
+  );
 
   // showModal first: the dialog is display:none until open, so clientWidth/
   // Height would read 0 before it.
@@ -368,13 +406,34 @@ function openDiagramFullscreen(diagram: HTMLElement, expandButton: HTMLButtonEle
   close.focus();
 }
 
+let cachedMermaid: typeof import("mermaid").default | null = null;
+
+async function loadMermaid(): Promise<typeof import("mermaid").default> {
+  if (cachedMermaid) return cachedMermaid;
+  const mod = await import("mermaid");
+  cachedMermaid = mod.default;
+  return cachedMermaid;
+}
+
 async function renderMermaidDiagrams(): Promise<void> {
-  const theme = document.documentElement.classList.contains("dark") ? "dark" : "default";
-  const diagrams = Array.from(document.querySelectorAll<HTMLElement>("pre.mermaid"));
-  const outdated = diagrams.filter((diagram) => diagram.dataset.mermaidTheme !== theme);
-  if (outdated.length > 0) {
-    const { default: mermaid } = await import("mermaid");
-    for (const diagram of outdated) {
+  const theme = document.documentElement.classList.contains("dark")
+    ? "dark"
+    : "default";
+  const diagrams = Array.from(
+    document.querySelectorAll<HTMLElement>("pre.mermaid"),
+  );
+  const needRender = diagrams.filter(
+    (diagram) => diagram.dataset.mermaidTheme !== theme,
+  );
+
+  if (needRender.length === 0) {
+    addDiagramExpandButtons();
+    return;
+  }
+
+  try {
+    const mermaid = await loadMermaid();
+    for (const diagram of needRender) {
       if (diagram.dataset.mermaidSource === undefined) {
         diagram.dataset.mermaidSource = diagram.textContent ?? "";
       } else {
@@ -387,8 +446,33 @@ async function renderMermaidDiagrams(): Promise<void> {
       securityLevel: "strict",
       theme,
     });
-    await mermaid.run({ nodes: outdated });
-    for (const diagram of outdated) diagram.dataset.mermaidTheme = theme;
+    await mermaid.run({ querySelector: ".mermaid:not([data-processed])" });
+    // Fallback: if any diagram still has raw text (mermaid.run skipped it),
+    // render it individually. This can happen when querySelector misses a
+    // freshly-prepared node or when a prior data-processed flag survives.
+    const remaining = Array.from(
+      document.querySelectorAll<HTMLElement>(".mermaid:not([data-processed])"),
+    );
+    for (const diagram of remaining) {
+      const source = diagram.dataset.mermaidSource ?? diagram.textContent ?? "";
+      if (source.trim().length === 0) continue;
+      try {
+        const id = `mermaid-fallback-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        diagram.setAttribute("data-processed", "true");
+        const result = await mermaid.render(id, source);
+        const svg = result?.svg;
+        if (svg && svg !== diagram.innerHTML) {
+          diagram.innerHTML = svg;
+        }
+      } catch (inner) {
+        console.warn("Could not render one architecture diagram:", inner);
+      }
+    }
+    for (const diagram of needRender) {
+      diagram.dataset.mermaidTheme = theme;
+    }
+  } catch (error) {
+    console.error("Could not render architecture diagrams:", error);
   }
   addDiagramExpandButtons();
 }
@@ -405,9 +489,11 @@ export default {
       let renderQueue = Promise.resolve();
       const renderAfterUpdate = () => {
         void nextTick(() => {
-          renderQueue = renderQueue.then(renderMermaidDiagrams).catch((error: unknown) => {
-            console.error("Could not render architecture diagrams:", error);
-          });
+          renderQueue = renderQueue
+            .then(renderMermaidDiagrams)
+            .catch((error: unknown) => {
+              console.error("Could not render architecture diagrams:", error);
+            });
         });
       };
       onMounted(() => {
@@ -424,13 +510,25 @@ export default {
         h(DefaultTheme.Layout, null, {
           "nav-bar-title-after": () =>
             __DOCS_BETA__
-              ? h("a", { class: "beta-badge", href: "/guide/beta-roadmap", target: "_self" }, "beta")
+              ? h(
+                  "a",
+                  {
+                    class: "beta-badge",
+                    href: "/guide/beta-roadmap",
+                    target: "_self",
+                  },
+                  "beta",
+                )
               : null,
           "layout-top": () =>
             __DOCS_VERSION__
               ? h("div", { class: "version-banner" }, [
                   `You are reading the docs for ${__DOCS_VERSION__}. `,
-                  h("a", { href: "/", target: "_self" }, "View the latest docs"),
+                  h(
+                    "a",
+                    { href: "/", target: "_self" },
+                    "View the latest docs",
+                  ),
                   ".",
                 ])
               : null,
