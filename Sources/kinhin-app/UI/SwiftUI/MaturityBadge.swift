@@ -17,7 +17,7 @@ struct MaturityBadge: View {
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
                 .foregroundStyle(StatusStyle.warn.color)
-                .help("Implemented and unit-tested, but not yet run against the real service. Please report errors to on GitHub to help us improve support for this forge.")
+                .help("Implemented and unit-tested, but not yet run against the real service. Please report errors on GitHub to help us improve support for this forge.")
                 .accessibilityLabel("untested")
         }
     }
