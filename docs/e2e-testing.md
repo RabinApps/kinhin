@@ -157,7 +157,10 @@ What has actually been run, so the table does not claim more than it checked:
 | Gitea 1.24 and 1.26 on Docker         | Run, passing (lifecycle, failing job)                                       |
 | Gitea 1.25                            | Endpoints probed live; lifecycle **not run**                                |
 | Forgejo 11 on Docker                  | Run, passing (lifecycle, failing job), after the no-runner-list fix         |
-| Gitea/Forgejo on Apple container, fleet behavior, toolchains | See the latest run notes in the pull request |
+| Gitea 1.24 and Forgejo 11 on Apple container | Run, passing (lifecycle, failing job), after the sparse-file fix     |
+| Fleet behavior: pause/resume, daemon crash, broken image | Run, passing (Gitea on Docker)                  |
+| Fleet behavior: `max_runners` cap     | **Failing or undiagnosed**: job B did not finish in 420 s; being investigated |
+| Toolchains (bench, per-job install)   | Per-job test fixed; **not rerun**; bench on Apple container not yet run     |
 | GitLab CE                             | Fixture written, **not run**: the first image pull ran the Docker VM out of disk (since cleared) |
 | GitHub                                | Fixture written, **not run**: needs a throwaway repository and a token       |
 | Buildkite, Azure DevOps, Bitbucket    | Waived: hosted-only control planes; the fixture protocol is ready for them   |

@@ -13,7 +13,7 @@ its job finishes.
 | ------------------- | -------------- | ----------------------------- | ------------------------------------------------------ |
 | GitHub Actions      | ✅ live-tested | actions-runner                | `owner/name` repo or org, optional enterprise instance |
 | Gitea Actions       | ✅ live-tested | gitea-runner                  | `owner/name` repo or org, any instance                 |
-| Forgejo             | 🧪 untested    | gitea-runner                  | `owner/name` repo or org, any instance                 |
+| Forgejo             | ✅ live-tested | gitea-runner                  | `owner/name` repo or org, any instance                 |
 | GitLab CI/CD        | 🧪 untested    | gitlab-runner                 | project or group path (`group/sub/proj`)               |
 | Buildkite           | 🧪 untested    | buildkite-agent               | `org/cluster`                                          |
 | Azure Pipelines     | 🧪 untested    | Azure Pipelines agent         | an agent pool in an organization                       |
@@ -29,8 +29,9 @@ reading of each API, not that the real service agrees, so expect surprises there
 | ---------------------------------------------------------- | ----------- | ----------- |
 | GitHub Actions + Tart macOS VMs                            | yes         | yes         |
 | GitHub Actions + apple/container (Linux)                   | yes         | yes         |
-| Gitea Actions + Docker (Linux), Gitea 1.24                 | yes         | yes         |
-| Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket        | **no**      | yes         |
+| Gitea Actions + Docker, apple/container (Linux), Gitea 1.24, 1.26 | yes  | yes         |
+| Forgejo 11 + Docker, apple/container (Linux)               | yes         | yes         |
+| GitLab, Buildkite, Azure DevOps, Bitbucket                 | **no**      | yes         |
 
 Gitea was run by the [end-to-end suite](e2e-testing.md) (a real Gitea in a container, a real job in a Docker runner). Gitea
 with `min_runners: 0` is not supported on 1.24: it reports no queued job until a runner exists, so use `min_runners: 1`.
