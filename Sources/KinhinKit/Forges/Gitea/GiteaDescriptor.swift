@@ -95,7 +95,7 @@ extension RunnerAgentSpec {
             installScript: { versions, arm64, _ in
                 """
                 \(RunnerBootstrap.giteaRunnerDownloadScript(version: versions.gitea, platform: arm64 ? "darwin-arm64" : "darwin-amd64", file: "runner.xz"))
-                xz -d runner.xz
+                xz -d --no-sparse runner.xz
                 chmod +x runner
                 mv runner gitea-runner
                 """

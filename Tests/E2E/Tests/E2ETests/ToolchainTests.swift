@@ -77,7 +77,10 @@ extension Infra {
             try await Lane.with(forge: cell.forge, runtime: cell.runtime) { lane in
                 let (_, proof) = try await lane.runJob(
                     name: "toolchain",
-                    extraStep: "kinhin-toolchain install node@22 >/dev/null\nexport E2E_EXTRA=\"$(node -v)\"",
+                    // The helper hands new PATH entries to later steps through $GITHUB_PATH; this one runs in the same shell,
+                    // so it puts mise's shims on PATH itself.
+                    extraStep:
+                        "kinhin-toolchain install node@22 >/dev/null\nexport PATH=\"$HOME/.local/share/mise/shims:$PATH\"\nexport E2E_EXTRA=\"$(node -v)\"",
                     timeout: 900)
                 #expect(proof.contains("v22"), "node@22 was not installed by the job: \(proof)")
             }

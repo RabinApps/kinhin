@@ -373,7 +373,7 @@ final class ForgeTests: XCTestCase {
                 "https://gitea.com/gitea/runner/releases/download/v3.5.0/gitea-runner-3.5.0-darwin-arm64.xz"),
             "URL should point at the .xz asset")
         XCTAssertTrue(
-            script.contains("xz -d runner.xz"),
+            script.contains("xz -d --no-sparse runner.xz"),
             "should decompress the .xz download")
         XCTAssertTrue(
             script.contains("tar xf runner.tar"),

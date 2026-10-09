@@ -92,7 +92,7 @@ extension RunnerBootstrap {
           mkdir -p /opt/gitea-runner
           cd /opt/gitea-runner
           \(giteaRunnerDownloadScript(version: version, platform: "linux-\(arch)", file: "runner.xz").replacingOccurrences(of: "\n", with: "\n  "))
-          xz -d runner.xz
+          xz -d --no-sparse runner.xz
           chmod +x runner
           mv runner gitea-runner
           ./gitea-runner --version

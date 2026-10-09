@@ -154,7 +154,7 @@ enum RunnerBootstrap {
           mkdir -p "$HOME/gitea-runner"
           cd "$HOME/gitea-runner"
           \(giteaRunnerDownloadScript(version: version, platform: "darwin-arm64", file: "runner.xz").replacingOccurrences(of: "\n", with: "\n  "))
-          xz -d runner.xz
+          xz -d --no-sparse runner.xz
           tar xf runner.tar
           rm -f runner.tar
           ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
