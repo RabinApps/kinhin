@@ -1,4 +1,5 @@
 import { defineConfig } from "vitepress";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { docsLinks } from "./docsLinks";
@@ -71,7 +72,13 @@ export default defineConfig({
       };
     },
   },
+  // srcDir is the repo root, so VitePress would look for static files in <repo>/public. Keep them in
+  // website/public instead: Vite serves it in dev, and buildEnd copies it into the output.
+  buildEnd: async (siteConfig) => {
+    fs.cpSync(path.join(siteRoot, "public"), siteConfig.outDir, { recursive: true });
+  },
   vite: {
+    publicDir: path.join(siteRoot, "public"),
     // Read by the theme to show an "old version" banner on snapshot builds.
     define: {
       __DOCS_VERSION__: JSON.stringify(docsVersion ?? ""),
