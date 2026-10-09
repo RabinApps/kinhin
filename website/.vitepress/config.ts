@@ -48,6 +48,7 @@ export default defineConfig({
     "website/index.md": "index.md",
     "website/guide/:page.md": "guide/:page.md",
     "website/cli/:page.md": "cli/:page.md",
+    "website/blog/:page.md": "blog/:page.md",
     "docs/why.md": "guide/why-kinhin.md",
     "docs/forges/README.md": "guide/forges/index.md",
     "docs/forges/:page.md": "guide/forges/:page.md",
@@ -96,6 +97,7 @@ export default defineConfig({
     nav: [
       { text: "Guide", link: "/guide/quick-start" },
       { text: "CLI", link: "/cli/commands" },
+      { text: "Blog", link: "/blog/" },
       {
         text: docsVersion ?? "Latest",
         items: [

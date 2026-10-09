@@ -13,6 +13,9 @@ hero:
       text: Why does this exist?
       link: /guide/why-kinhin
     - theme: alt
+      text: Read the beta announcement
+      link: /blog/introducing-kinhin-beta
+    - theme: alt
       text: Beta roadmap
       link: /guide/beta-roadmap
     - theme: alt
