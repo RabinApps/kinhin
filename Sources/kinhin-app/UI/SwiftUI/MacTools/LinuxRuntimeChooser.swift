@@ -22,9 +22,11 @@ enum LinuxRuntimeSetup: Sendable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .appleContainer: return "Apple container"
-        case .docker: return "Docker"
-        case .tartLinux: return "Tart (Linux VM)"
+        case .appleContainer:
+            return String(localized: "Apple container", bundle: .l10n, comment: "Linux runtime option name")
+        case .docker: return String(localized: "Docker", bundle: .l10n, comment: "Linux runtime option name")
+        case .tartLinux:
+            return String(localized: "Tart (Linux VM)", bundle: .l10n, comment: "Linux runtime option name")
         }
     }
 
@@ -51,9 +53,15 @@ enum LinuxRuntimeSetup: Sendable, CaseIterable {
     /// Tart (Linux VM) needs tart.
     var prerequisite: String {
         switch self {
-        case .appleContainer: return "Apple container CLI (brew install container)"
-        case .docker: return "Docker Desktop, OrbStack or colima"
-        case .tartLinux: return "tart (for macOS VMs too)"
+        case .appleContainer:
+            return String(
+                localized: "Apple container CLI (brew install container)", bundle: .l10n,
+                comment: "Linux runtime prerequisite; the brew command stays verbatim")
+        case .docker:
+            return String(
+                localized: "Docker Desktop, OrbStack or colima", bundle: .l10n, comment: "Linux runtime prerequisite")
+        case .tartLinux:
+            return String(localized: "tart (for macOS VMs too)", bundle: .l10n, comment: "Linux runtime prerequisite")
         }
     }
 
@@ -62,13 +70,22 @@ enum LinuxRuntimeSetup: Sendable, CaseIterable {
         switch self {
         case .appleContainer:
             return
-                "VM-grade isolation, no daemon, high density, 8 GB/instance — Debian/Ubuntu-based image only, no amd64, beta."
+                String(
+                    localized:
+                        "VM-grade isolation, no daemon, high density, 8 GB/instance — Debian/Ubuntu-based image only, no amd64, beta.",
+                    bundle: .l10n, comment: "Linux runtime comparison summary")
         case .docker:
             return
-                "Highest density if a Docker provider already runs; amd64 via emulation with JIT/Go/Java/.NET caveats; shared kernel."
+                String(
+                    localized:
+                        "Highest density if a Docker provider already runs; amd64 via emulation with JIT/Go/Java/.NET caveats; shared kernel.",
+                    bundle: .l10n, comment: "Linux runtime comparison summary")
         case .tartLinux:
             return
-                "Full control: your distro, kernel modules, long sudo; lowest density, 50 GB/instance, needs an ISO or published image."
+                String(
+                    localized:
+                        "Full control: your distro, kernel modules, long sudo; lowest density, 50 GB/instance, needs an ISO or published image.",
+                    bundle: .l10n, comment: "Linux runtime comparison summary")
         }
     }
 

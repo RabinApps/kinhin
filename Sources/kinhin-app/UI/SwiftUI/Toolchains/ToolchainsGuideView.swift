@@ -26,7 +26,7 @@ struct ToolchainsGuideView: View {
                         .controlSize(.small)
                         .accessibilityLabel("Copy \(example.title)")
                     }
-                    HintText(example.note)
+                    HintText(verbatim: example.note)
                     Text(example.yaml)
                         .font(.system(size: 11, design: .monospaced))
                         .textSelection(.enabled)
@@ -35,7 +35,7 @@ struct ToolchainsGuideView: View {
                         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
                 }
             }
-            HintText(ToolchainsGuide.noToolchainsNote)
+            HintText(verbatim: ToolchainsGuide.noToolchainsNote)
             if let url = ToolchainsGuide.docsURL {
                 Link("Read the docs: per-project toolchains", destination: url).font(.system(size: 12))
             }
@@ -51,10 +51,16 @@ enum ToolchainsGuide {
         string: "https://github.com/RabinApps/kinhin/blob/main/docs/toolchains.md#per-project-toolchains")
 
     static let intro =
-        "Every repo needs its own toolchains, and nothing is chosen in this app. Declare them in the repo's .kinhin.yml (enabled by a projects: entry with repo_file: true in config.yaml), or list them directly under projects[].toolchains in config.yaml."
+        String(
+            localized:
+                "Every repo needs its own toolchains, and nothing is chosen in this app. Declare them in the repo's .kinhin.yml (enabled by a projects: entry with repo_file: true in config.yaml), or list them directly under projects[].toolchains in config.yaml.",
+            bundle: .l10n, comment: "Toolchains guide intro; file and key names stay verbatim")
 
     static let noToolchainsNote =
-        "Repos with neither get the plain base image, with no toolchains baked in. Their jobs can still run `kinhin-toolchain install` per job."
+        String(
+            localized:
+                "Repos with neither get the plain base image, with no toolchains baked in. Their jobs can still run `kinhin-toolchain install` per job.",
+            bundle: .l10n, comment: "Toolchains guide note; the backticked command stays verbatim")
 
     struct Example: Identifiable, Equatable {
         var id: String { title }
@@ -65,23 +71,34 @@ enum ToolchainsGuide {
 
     static let examples: [Example] = [
         Example(
-            title: "In the repo: .kinhin.yml",
-            note: "Commit this at the repo root, then enable it in config.yaml with the second snippet.",
+            title: String(
+                localized: "In the repo: .kinhin.yml", bundle: .l10n, comment: "Toolchains guide example title"),
+            note: String(
+                localized: "Commit this at the repo root, then enable it in config.yaml with the second snippet.",
+                bundle: .l10n, comment: "Toolchains guide example note"),
             yaml: """
                 toolchains:
                   specs: [go@1.22.5, node@20]
                 """),
         Example(
-            title: "In config.yaml: honor the repo file",
-            note: "Off by default: a repo file chooses what is installed on this Mac.",
+            title: String(
+                localized: "In config.yaml: honor the repo file", bundle: .l10n,
+                comment: "Toolchains guide example title"),
+            note: String(
+                localized: "Off by default: a repo file chooses what is installed on this Mac.", bundle: .l10n,
+                comment: "Toolchains guide example note"),
             yaml: """
                 projects:
                   - pattern: "acme/api"
                     repo_file: true
                 """),
         Example(
-            title: "In config.yaml: toolchains listed directly",
-            note: "No repo file needed. These versions apply to every matching repo.",
+            title: String(
+                localized: "In config.yaml: toolchains listed directly", bundle: .l10n,
+                comment: "Toolchains guide example title"),
+            note: String(
+                localized: "No repo file needed. These versions apply to every matching repo.", bundle: .l10n,
+                comment: "Toolchains guide example note"),
             yaml: """
                 projects:
                   - pattern: "acme/api"

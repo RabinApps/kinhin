@@ -13,7 +13,7 @@ struct DiagnosticsView: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("🩺  Diagnostics").font(.system(size: 18, weight: .bold))
-                StatusText(text: model.status)
+                StatusText(verbatim: model.status)
             }
             ScrollView {
                 VStack(spacing: 8) {
@@ -46,15 +46,15 @@ private struct DiagnosticsRow: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(row.ok ? StatusStyle.ok.color : StatusStyle.error.color)
             VStack(alignment: .leading, spacing: 2) {
-                Text(row.title).font(.system(size: 13, weight: .semibold))
+                Text(verbatim: row.title).font(.system(size: 13, weight: .semibold))
                 // Selectable so fix commands can be copied.
-                Text(row.detail)
+                Text(verbatim: row.detail)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
                 if let warning = row.warning {
-                    Text("⚠ \(warning)")
+                    Text(verbatim: "⚠ \(warning)")
                         .font(.system(size: 11))
                         .foregroundStyle(StatusStyle.warn.color)
                         .textSelection(.enabled)

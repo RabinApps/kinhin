@@ -43,9 +43,9 @@ enum MainTab: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .fleet: return "Fleet"
-        case .setup: return "Setup"
-        case .advanced: return "Advanced"
+        case .fleet: return String(localized: "Fleet", bundle: .l10n, comment: "Main window tab title")
+        case .setup: return String(localized: "Setup", bundle: .l10n, comment: "Main window tab title")
+        case .advanced: return String(localized: "Advanced", bundle: .l10n, comment: "Main window tab title")
         }
     }
 }
@@ -63,12 +63,12 @@ enum AdvancedSection: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .accounts: return "Accounts"
-        case .capacity: return "Capacity"
-        case .routing: return "Routing"
-        case .containers: return "Containers"
-        case .toolchains: return "Toolchains"
-        case .app: return "App"
+        case .accounts: return String(localized: "Accounts", bundle: .l10n, comment: "Advanced section title")
+        case .capacity: return String(localized: "Capacity", bundle: .l10n, comment: "Advanced section title")
+        case .routing: return String(localized: "Routing", bundle: .l10n, comment: "Advanced section title")
+        case .containers: return String(localized: "Containers", bundle: .l10n, comment: "Advanced section title")
+        case .toolchains: return String(localized: "Toolchains", bundle: .l10n, comment: "Advanced section title")
+        case .app: return String(localized: "App", bundle: .l10n, comment: "Advanced section title")
         }
     }
 }

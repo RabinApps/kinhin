@@ -89,7 +89,9 @@ final class AppSectionModel {
 
     /// The card's button: uninstall when a daemon is installed, else install.
     var daemonToggleButtonTitle: String {
-        isDaemonInstalled ? "Uninstall daemon…" : "Install daemon…"
+        isDaemonInstalled
+            ? String(localized: "Uninstall daemon…", bundle: .l10n, comment: "Settings → App button")
+            : String(localized: "Install daemon…", bundle: .l10n, comment: "Settings → App button")
     }
 
     /// The card's one-click action: installs when no daemon is installed,
@@ -107,12 +109,18 @@ final class AppSectionModel {
     /// A debug build refuses (the LaunchAgent must point at a release binary);
     /// the CLI's answer surfaces in `daemonLine` rather than failing silently.
     func installDaemon() {
-        runDaemonCommand("install", progressLine: "Installing the daemon…")
+        runDaemonCommand(
+            "install",
+            progressLine: String(
+                localized: "Installing the daemon…", bundle: .l10n, comment: "Settings → App daemon progress line"))
     }
 
     /// Removes the daemon LaunchAgent (`kinhin daemon uninstall`) and stops it.
     func uninstallDaemon() {
-        runDaemonCommand("uninstall", progressLine: "Uninstalling the daemon…")
+        runDaemonCommand(
+            "uninstall",
+            progressLine: String(
+                localized: "Uninstalling the daemon…", bundle: .l10n, comment: "Settings → App daemon progress line"))
     }
 
     /// Runs one `kinhin daemon` subcommand off the main thread and reports
@@ -141,7 +149,10 @@ final class AppSectionModel {
             guard let kinhin = Paths.findExecutable(named: "kinhin") else {
                 daemonLine = StatusLine(
                     text:
-                        "couldn't find the kinhin CLI — install it with scripts/install.sh, then try again (a debug build alone can't install the daemon)",
+                        String(
+                            localized:
+                                "couldn't find the kinhin CLI — install it with scripts/install.sh, then try again (a debug build alone can't install the daemon)",
+                            bundle: .l10n, comment: "Settings → App daemon error; the script path stays verbatim"),
                     style: .error)
                 return
             }
@@ -149,13 +160,27 @@ final class AppSectionModel {
             guard result.succeeded, let line = result.stdout.split(separator: "\n").last.map(String.init) else {
                 let message =
                     result.stderr.split(separator: "\n").last.map(String.init)
-                    ?? "`kinhin daemon \(subcommand)` failed"
+                    ?? (subcommand == "install"
+                        ? String(
+                            localized: "`kinhin daemon install` failed", bundle: .l10n,
+                            comment: "Settings → App daemon error; the backticked command stays verbatim")
+                        : String(
+                            localized: "`kinhin daemon uninstall` failed", bundle: .l10n,
+                            comment: "Settings → App daemon error; the backticked command stays verbatim"))
                 daemonLine = StatusLine(text: message, style: .error)
                 return
             }
             daemonLine = StatusLine(text: line, style: .ok)
         } catch {
-            daemonLine = StatusLine(text: "\(subcommand) failed — \(error.localizedDescription)", style: .error)
+            daemonLine = StatusLine(
+                text: subcommand == "install"
+                    ? String(
+                        localized: "install failed — \(error.localizedDescription)", bundle: .l10n,
+                        comment: "Settings → App daemon error; %@ is the reason")
+                    : String(
+                        localized: "uninstall failed — \(error.localizedDescription)", bundle: .l10n,
+                        comment: "Settings → App daemon error; %@ is the reason"),
+                style: .error)
             return
         }
         // The controller sees the new plist / daemon state on its next poll,
@@ -173,25 +198,35 @@ final class AppSectionModel {
     /// real state.
     @ObservationIgnored var chooseResetScope: () -> ResetScope? = {
         AlertKit.chooseResetScope(
-            title: "Reset kinhin",
+            title: String(localized: "Reset kinhin", bundle: .l10n, comment: "Reset alert title"),
             message:
-                "Pick what to erase. The next screen lists exactly what will be deleted — this cannot be undone.")
+                String(
+                    localized:
+                        "Pick what to erase. The next screen lists exactly what will be deleted — this cannot be undone.",
+                    bundle: .l10n, comment: "Reset alert body"))
     }
     @ObservationIgnored var confirmResetPlan: (ResetPlan) -> Bool = { plan in
         AlertKit.confirm(
-            title: "Reset kinhin — \(plan.scope.label)?",
+            title: String(
+                localized: "Reset kinhin — \(plan.scope.label)?", bundle: .l10n,
+                comment: "Reset confirmation title; %@ names what will be erased"),
             message: plan.describe(),
-            confirmTitle: "Continue",
+            confirmTitle: String(localized: "Continue", bundle: .l10n, comment: "Reset confirmation button"),
             style: .critical,
             destructive: true)
     }
     @ObservationIgnored var confirmResetWord: () -> Bool = {
         AlertKit.confirmWithTypedWord(
-            title: "Type reset to confirm",
+            title: String(
+                localized: "Type reset to confirm", bundle: .l10n,
+                comment: "Final reset alert title; the word `reset` is what the user must type"),
             message:
-                "kinhin will permanently delete everything listed above. There is no undo and nothing is kept.",
+                String(
+                    localized:
+                        "kinhin will permanently delete everything listed above. There is no undo and nothing is kept.",
+                    bundle: .l10n, comment: "Final reset alert body"),
             word: "reset",
-            confirmTitle: "Erase")
+            confirmTitle: String(localized: "Erase", bundle: .l10n, comment: "Final reset alert destructive button"))
     }
     /// Builds the plan (reads only). Injectable so tests never touch real state.
     @ObservationIgnored var resetPlanner: (ResetScope) async -> ResetPlan = {
@@ -218,7 +253,9 @@ final class AppSectionModel {
         guard !resetBusy else { return }
         guard let scope = chooseResetScope() else { return }
         resetBusy = true
-        resetLine = StatusLine(text: "Preparing the reset…")
+        resetLine = StatusLine(
+            text: String(
+                localized: "Preparing the reset…", bundle: .l10n, comment: "Settings → App reset progress line"))
         Task { await runReset(scope) }
     }
 
@@ -242,7 +279,10 @@ final class AppSectionModel {
                 // Best-effort: the wipe below handles leftovers.
                 try? await fleetController?.perform(.stop)
             }
-            resetLine = StatusLine(text: "Resetting — deleting files, tokens and VMs…")
+            resetLine = StatusLine(
+                text: String(
+                    localized: "Resetting — deleting files, tokens and VMs…", bundle: .l10n,
+                    comment: "Settings → App reset progress line"))
             let report = try await resetRunner(plan)
             if scope.includesConfig {
                 // Preferences belong to the app, not the wipe core (the CLI
@@ -255,7 +295,10 @@ final class AppSectionModel {
             resetLine = StatusLine(text: report.joined(separator: " · "), style: .ok)
             onResetFinished(scope)
         } catch {
-            resetLine = StatusLine(text: "reset failed — \(error.localizedDescription)", style: .error)
+            resetLine = StatusLine(
+                text: String(
+                    localized: "reset failed — \(error.localizedDescription)", bundle: .l10n,
+                    comment: "Settings → App reset error; %@ is the reason"), style: .error)
         }
     }
 
@@ -263,16 +306,42 @@ final class AppSectionModel {
 
     /// What the update card says, and whether its button can be pressed.
     var updateText: String {
-        let version = "kinhin \(kinhinVersion.current)"
+        let current = kinhinVersion.current
         switch updateState {
-        case .idle(let lastChecked): return Self.lastCheckedText(version: version, lastChecked)
-        case .checking: return "\(version) — checking…"
+        case .idle(let lastChecked):
+            if let stamp = Self.stamp(lastChecked) {
+                return String(
+                    localized: "kinhin \(current) — last checked \(stamp)", bundle: .l10n,
+                    comment: "Settings → App update status; the version, then the date of the last check")
+            }
+            return String(
+                localized: "kinhin \(current)", bundle: .l10n,
+                comment: "Settings → App update status; %@ is the version")
+        case .checking:
+            return String(
+                localized: "kinhin \(current) — checking…", bundle: .l10n,
+                comment: "Settings → App update status; %@ is the version")
         case .upToDate(let lastChecked):
-            return Self.lastCheckedText(version: "\(version) is up to date", lastChecked)
+            if let stamp = Self.stamp(lastChecked) {
+                return String(
+                    localized: "kinhin \(current) is up to date — last checked \(stamp)", bundle: .l10n,
+                    comment: "Settings → App update status; the version, then the date of the last check")
+            }
+            return String(
+                localized: "kinhin \(current) is up to date", bundle: .l10n,
+                comment: "Settings → App update status; %@ is the version")
         case .available(let newVersion):
-            return "Update available — kinhin \(newVersion) (you have \(kinhinVersion.current))."
-        case .downloading(let name): return "Downloading \(name)…"
-        case .failed(let message): return "Update check failed: \(message)"
+            return String(
+                localized: "Update available — kinhin \(newVersion) (you have \(current)).", bundle: .l10n,
+                comment: "Settings → App update status; the new version, then the installed one")
+        case .downloading(let name):
+            return String(
+                localized: "Downloading \(name)…", bundle: .l10n,
+                comment: "Settings → App update status; %@ is the DMG file name")
+        case .failed(let message):
+            return String(
+                localized: "Update check failed: \(message)", bundle: .l10n,
+                comment: "Settings → App update status; %@ is the reason")
         }
     }
 
@@ -280,8 +349,10 @@ final class AppSectionModel {
     func updateButtonClicked() { updates.checkOrDownload() }
 
     var updateButtonTitle: String {
-        if case .available = updateState { return "Download…" }
-        return "Check for Updates…"
+        if case .available = updateState {
+            return String(localized: "Download…", bundle: .l10n, comment: "Settings → App button")
+        }
+        return String(localized: "Check for Updates…", bundle: .l10n, comment: "Settings → App button")
     }
 
     var updateButtonEnabled: Bool {
@@ -291,8 +362,9 @@ final class AppSectionModel {
         }
     }
 
-    private static func lastCheckedText(version: String, _ date: Date?) -> String {
-        guard let date, date > .distantPast else { return version }
-        return "\(version) — last checked \(date.formatted(date: .abbreviated, time: .shortened))"
+    /// The localized date of the last check, or nil when there was none yet.
+    private static func stamp(_ date: Date?) -> String? {
+        guard let date, date > .distantPast else { return nil }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 }

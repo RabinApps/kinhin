@@ -20,10 +20,12 @@ import KinhinKit
 func kinhinPresentCrashAlert(reason: String) {
     let alert = NSAlert()
     alert.alertStyle = .critical
-    alert.messageText = "kinhin hit a problem"
+    alert.messageText = String(localized: "kinhin hit a problem", bundle: .l10n, comment: "Title of the crash alert")
     alert.informativeText =
-        "kinhin crashed unexpectedly:\n\n\(reason)\n\nLogs: ~/Library/Application Support/Kinhin/logs/"
-    alert.addButton(withTitle: "OK")
+        String(
+            localized: "kinhin crashed unexpectedly:\n\n\(reason)\n\nLogs: ~/Library/Application Support/Kinhin/logs/",
+            bundle: .l10n, comment: "Body of the crash alert; %@ is the exception reason; the logs path stays verbatim")
+    alert.addButton(withTitle: String(localized: "OK", bundle: .l10n, comment: "Dismiss button of the crash alert"))
     alert.runModal()
 }
 

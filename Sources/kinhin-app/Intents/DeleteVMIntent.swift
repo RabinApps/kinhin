@@ -16,7 +16,12 @@ struct DeleteVMIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        guard let vm else { return .result(dialog: IntentDialog(stringLiteral: "No VM was chosen.")) }
+        guard let vm else {
+            return .result(
+                dialog: IntentDialog(
+                    stringLiteral: String(
+                        localized: "No VM was chosen.", bundle: .l10n, comment: "Spoken reply when no VM was picked")))
+        }
         let text = try await DeleteVMAction.run(id: vm.id, pauseFirst: pauseFirst)
         return .result(dialog: IntentDialog(stringLiteral: text))
     }

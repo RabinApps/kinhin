@@ -144,8 +144,16 @@ final class PipelineModel {
 
     var logTitle: String {
         switch logTarget {
-        case .step: return openStep?.name ?? "Step"
-        case .job: return selectedJob.map { "\($0.name) — whole job" } ?? "Job"
+        case .step:
+            return openStep?.name
+                ?? String(localized: "Step", bundle: .l10n, comment: "Pipeline output title when no step name is known")
+        case .job:
+            return selectedJob.map {
+                String(
+                    localized: "\($0.name) — whole job", bundle: .l10n,
+                    comment: "Pipeline output title for a whole job; %@ is the job name")
+            } ?? String(localized: "Job", bundle: .l10n, comment: "Pipeline output title when no job name is known")
+
         case nil: return ""
         }
     }
@@ -163,24 +171,45 @@ final class PipelineModel {
     var logPlaceholder: String? {
         if let log, !log.text.isEmpty { return nil }
         if let logError { return logError }
-        guard logLoaded else { return "Loading output…" }
-        if logState == .pending { return "Not started yet." }
-        if log == nil {
-            return
-                "\(detail?.forge.displayName ?? "The forge") has no output for this \(logTarget == .job ? "job" : "step") (yet)."
+        guard logLoaded else {
+            return String(localized: "Loading output…", bundle: .l10n, comment: "Pipeline output placeholder")
         }
-        return "No output yet."
+        if logState == .pending {
+            return String(localized: "Not started yet.", bundle: .l10n, comment: "Pipeline output placeholder")
+        }
+        if log == nil {
+            let forge =
+                detail?.forge.displayName
+                ?? String(
+                    localized: "The forge", bundle: .l10n,
+                    comment: "Generic forge name used in a sentence when the real forge is unknown")
+            return logTarget == .job
+                ? String(
+                    localized: "\(forge) has no output for this job (yet).", bundle: .l10n,
+                    comment: "Pipeline output placeholder; %@ is a forge name")
+                : String(
+                    localized: "\(forge) has no output for this step (yet).", bundle: .l10n,
+                    comment: "Pipeline output placeholder; %@ is a forge name")
+        }
+        return String(localized: "No output yet.", bundle: .l10n, comment: "Pipeline output placeholder")
     }
 
     var logNotice: String? {
-        log?.truncated == true ? "Showing only the most recent output." : nil
+        log?.truncated == true
+            ? String(
+                localized: "Showing only the most recent output.", bundle: .l10n, comment: "Pipeline output notice")
+            : nil
     }
 
     // MARK: - Text
 
     var title: String {
-        guard let detail else { return "Pipeline" }
-        return "\(detail.forge.displayName) · \(detail.title)"
+        guard let detail else {
+            return String(localized: "Pipeline", bundle: .l10n, comment: "Pipeline sheet title before a job is known")
+        }
+        return String(
+            localized: "\(detail.forge.displayName) · \(detail.title)", bundle: .l10n,
+            comment: "Pipeline sheet title; forge name, then the pipeline's title")
     }
 
     /// Repository, ref and short commit on one line.
@@ -194,15 +223,28 @@ final class PipelineModel {
     var emptyMessage: String? {
         if detail != nil { return nil }
         if let error { return error }
-        return loaded ? "No job is running on this VM." : "Loading…"
+        return loaded
+            ? String(localized: "No job is running on this VM.", bundle: .l10n, comment: "Pipeline sheet empty state")
+            : String(localized: "Loading…", bundle: .l10n, comment: "Pipeline sheet loading state")
     }
 
     /// A note about what the forge can show, or that the job has ended.
     var notice: String? {
-        if ended { return "This job has finished; showing its last known state." }
+        if ended {
+            return String(
+                localized: "This job has finished; showing its last known state.", bundle: .l10n,
+                comment: "Pipeline sheet notice")
+        }
         if detail?.granularity == .job {
-            let name = detail?.forge.displayName ?? "This forge"
-            return "\(name) reports jobs, not individual steps."
+            let name =
+                detail?.forge.displayName
+                ?? String(
+                    localized: "This forge", bundle: .l10n,
+                    comment: "Generic forge name used at the start of a sentence when the real forge is unknown")
+            return String(
+                localized: "\(name) reports jobs, not individual steps.", bundle: .l10n,
+                comment: "Pipeline sheet notice; %@ is a forge name")
+
         }
         return nil
     }

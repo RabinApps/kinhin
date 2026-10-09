@@ -44,25 +44,26 @@ struct MacToolsView: View {
                 "Run macOS workflows in disposable virtual machines powered by tart. Skip this if you only need Linux jobs."
         ) {
             statusRow(
-                "tart", line: model.tartLine, visible: model.tartInstallVisible, button: "Install…",
+                "tart", line: model.tartLine, visible: model.tartInstallVisible, button: Text("Install…"),
                 id: "mac-install-tart"
             ) {
                 model.installTart()
             }
             statusRow(
-                "Base image", line: model.imageLine, visible: model.imageButtonVisible, button: model.imageButtonTitle,
+                "Base image", line: model.imageLine, visible: model.imageButtonVisible,
+                button: Text(verbatim: model.imageButtonTitle),
                 id: "mac-prepare-image"
             ) {
                 model.prepareImage()
             }
             if !model.imagePresent && !model.tartLinuxOn {
-                HintText(ImagePrepCost.notice)
+                HintText(verbatim: ImagePrepCost.notice)
                     .accessibilityIdentifier("mac-image-prep-cost")
             }
             if model.tartLinuxOn {
                 HintText(
-                    "tart is serving Linux jobs — its base image is chosen under Linux jobs below. Add a macOS "
-                        + "image under More images so macOS jobs still have somewhere to run.")
+                    "tart is serving Linux jobs — its base image is chosen under Linux jobs below. Add a macOS image under More images so macOS jobs still have somewhere to run."
+                )
             } else {
                 baseImageRow(value: model.tartBaseImage, runtime: .tart)
             }
@@ -70,7 +71,7 @@ struct MacToolsView: View {
             if model.busy || !model.busyLine.text.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
-                    StatusText(text: model.busyLine.text, style: model.busyLine.style)
+                    StatusText(verbatim: model.busyLine.text, style: model.busyLine.style)
                         .textSelection(.enabled)
                     if model.busy {
                         Spacer(minLength: 0)
@@ -102,10 +103,14 @@ struct MacToolsView: View {
                             text: row.present ? "ready ✓" : "not prepared yet",
                             style: row.present ? .secondary : .warn)
                         Spacer(minLength: 0)
-                        smallButton(row.present ? "Rebuild…" : "Prepare", id: "mac-image-prepare-\(row.name)") {
+                        smallButton(
+                            row.present ? Text("Rebuild…") : Text("Prepare"), id: "mac-image-prepare-\(row.name)"
+                        ) {
                             model.namedImages.prepare(row.name)
                         }
-                        smallButton("Remove", id: "mac-image-remove-\(row.name)") { model.namedImages.remove(row.name) }
+                        smallButton(Text("Remove"), id: "mac-image-remove-\(row.name)") {
+                            model.namedImages.remove(row.name)
+                        }
                     }
                     HStack(spacing: 8) {
                         Text("Run jobs with labels").font(.system(size: 11)).foregroundStyle(
@@ -140,7 +145,7 @@ struct MacToolsView: View {
                 )
                 .fixedSize()
                 Spacer(minLength: 0)
-                smallButton("Add image", id: "mac-image-add") {
+                smallButton(Text("Add image"), id: "mac-image-add") {
                     model.namedImages.add(name: newImageName, baseImage: newImageBase)
                     newImageName = ""
                 }
@@ -161,7 +166,7 @@ struct MacToolsView: View {
             if model.tartLinuxOn {
                 baseImageRow(value: model.tartBaseImage, runtime: .tart, catalog: .tartLinux)
                 if let warning = model.tartLinuxLabelWarning {
-                    HintText(warning)
+                    HintText(verbatim: warning)
                         .foregroundStyle(StatusStyle.warn.color)
                         .accessibilityIdentifier("mac-tart-linux-label-warning")
                 }
@@ -169,7 +174,8 @@ struct MacToolsView: View {
             runtimeRow(
                 "Apple container", on: model.containerOn, toggleID: "mac-container-toggle",
                 setOn: { model.setContainer($0) }, line: model.containerLine,
-                installVisible: model.containerInstallVisible, installTitle: model.containerInstallTitle,
+                installVisible: model.containerInstallVisible,
+                installTitle: Text(verbatim: model.containerInstallTitle),
                 installID: "mac-install-container", maturity: MaturityTable.maturity(of: .appleContainer),
                 install: { model.installContainer() })
             if model.containerOn {
@@ -179,7 +185,7 @@ struct MacToolsView: View {
             runtimeRow(
                 "Docker", on: model.dockerOn, toggleID: "mac-docker-toggle",
                 setOn: { model.setDocker($0) }, line: model.dockerLine,
-                installVisible: model.dockerInstallVisible, installTitle: "Install…",
+                installVisible: model.dockerInstallVisible, installTitle: Text("Install…"),
                 installID: "mac-install-docker", maturity: MaturityTable.maturity(of: .docker),
                 install: { model.installDocker() })
             if model.dockerOn {
@@ -213,20 +219,20 @@ struct MacToolsView: View {
     }
 
     private func statusRow(
-        _ title: String, line: StatusLine, visible: Bool, button: String, id: String,
+        _ title: LocalizedStringKey, line: StatusLine, visible: Bool, button: Text, id: String,
         action: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 8) {
             Text(title).font(.system(size: 12, weight: .semibold))
-            StatusText(text: line.text, style: line.style)
+            StatusText(verbatim: line.text, style: line.style)
             Spacer(minLength: 0)
             if visible { smallButton(button, id: id, action: action) }
         }
     }
 
     private func runtimeRow(
-        _ title: String, on: Bool, toggleID: String, setOn: @escaping @MainActor (Bool) -> Void,
-        line: StatusLine, installVisible: Bool, installTitle: String, installID: String,
+        _ title: LocalizedStringKey, on: Bool, toggleID: String, setOn: @escaping @MainActor (Bool) -> Void,
+        line: StatusLine, installVisible: Bool, installTitle: Text, installID: String,
         maturity: Maturity = .liveTested, install: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 8) {
@@ -243,7 +249,7 @@ struct MacToolsView: View {
             .font(.system(size: 12))
             .accessibilityIdentifier(toggleID)
             MaturityBadge(maturity)
-            StatusText(text: line.text, style: line.style)
+            StatusText(verbatim: line.text, style: line.style)
             Spacer(minLength: 0)
             if installVisible { smallButton(installTitle, id: installID, action: install) }
         }
@@ -265,10 +271,10 @@ struct MacToolsView: View {
             .disabled(!model.tartInstalled)
             .accessibilityIdentifier("mac-tart-linux-toggle")
             MaturityBadge(MaturityTable.tartLinux)
-            StatusText(text: model.tartLine.text, style: model.tartLine.style)
+            StatusText(verbatim: model.tartLine.text, style: model.tartLine.style)
             Spacer(minLength: 0)
             if model.tartInstallVisible {
-                smallButton("Install…", id: "mac-install-tart-linux") { model.installTart() }
+                smallButton(Text("Install…"), id: "mac-install-tart-linux") { model.installTart() }
             }
         }
     }
@@ -295,7 +301,9 @@ struct MacToolsView: View {
         HStack(spacing: 8) {
             Text("Image").font(.system(size: 12))
             Spacer(minLength: 0)
-            smallButton("Build image…", id: "mac-build-image-\(runtime.rawValue)") { model.buildLinuxImage(runtime) }
+            smallButton(Text("Build image…"), id: "mac-build-image-\(runtime.rawValue)") {
+                model.buildLinuxImage(runtime)
+            }
         }
     }
 
@@ -316,14 +324,19 @@ struct MacToolsView: View {
                 .accessibilityIdentifier("mac-docker-platform")
             }
             if model.dockerPlatform.isEmulated {
-                HintText(LinuxPlatform.emulationNotice + " Rebuild the Docker image after changing this.")
-                    .accessibilityIdentifier("mac-docker-platform-notice")
+                HintText(
+                    verbatim: LinuxPlatform.emulationNotice + " "
+                        + String(
+                            localized: "Rebuild the Docker image after changing this.", bundle: .l10n,
+                            comment: "Appended to the amd64 emulation notice")
+                )
+                .accessibilityIdentifier("mac-docker-platform-notice")
             }
         }
     }
 
-    private func smallButton(_ title: String, id: String, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
+    private func smallButton(_ title: Text, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { title }
             .controlSize(.small)
             .disabled(model.busy)
             .accessibilityIdentifier(id)

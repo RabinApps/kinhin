@@ -50,7 +50,7 @@ struct AddRouteSheet: View {
             }
 
             if !model.sheetProblem.isEmpty {
-                StatusText(text: model.sheetProblem, style: .error)
+                StatusText(verbatim: model.sheetProblem, style: .error)
             }
 
             HStack {
@@ -68,7 +68,11 @@ struct AddRouteSheet: View {
 
     // MARK: - Form contract (pinned by tests without presenting the sheet)
 
-    static let patternPlaceholder = "acme/api  or  acme/api@Workflow Name"
+    static var patternPlaceholder: String {
+        String(
+            localized: "acme/api  or  acme/api@Workflow Name", bundle: .l10n,
+            comment: "Placeholder of the Add Route pattern field; keep the pattern syntax")
+    }
 
     var runtimeOptions: [String] { runtimes.map(RuntimesModel.runtimeTitle) }
 

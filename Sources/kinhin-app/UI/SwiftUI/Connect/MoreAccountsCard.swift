@@ -37,16 +37,18 @@ struct MoreAccountsCard: View {
             HStack {
                 ForgeIconView(forge: row.account.forge, size: 12)
                 Text(row.account.name).font(.system(size: 12, weight: .semibold))
-                Text(describe(row.account)).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(verbatim: describe(row.account)).font(.system(size: 11)).foregroundStyle(.secondary)
                 Spacer()
                 Button("Remove") { model.removeAccount(row.account.name) }
                     .controlSize(.small)
                     .accessibilityIdentifier("account-remove-\(row.account.name)")
             }
-            StatusText(text: row.status.text, style: row.status.style)
+            StatusText(verbatim: row.status.text, style: row.status.style)
             HStack(spacing: 8) {
                 SecureField(
-                    "Paste a \(row.account.forge == .github ? "personal access" : "\(row.account.forge.displayName) access") token",
+                    row.account.forge == .github
+                        ? "Paste a personal access token"
+                        : "Paste a \(row.account.forge.displayName) access token",
                     text: Binding(
                         get: { model.tokenTexts[row.account.name] ?? "" },
                         set: { model.tokenTexts[row.account.name] = $0 })
@@ -84,7 +86,7 @@ struct MoreAccountsCard: View {
                 Button("Add account") { model.addAccount() }
                     .accessibilityIdentifier("account-add")
                 if !model.addStatus.text.isEmpty {
-                    StatusText(text: model.addStatus.text, style: model.addStatus.style)
+                    StatusText(verbatim: model.addStatus.text, style: model.addStatus.style)
                 }
             }
         }
@@ -105,7 +107,7 @@ struct MoreAccountsCard: View {
             .labelsHidden()
             .frame(width: 110)
             .accessibilityIdentifier("account-new-forge")
-            TextField("", text: $model.newName, prompt: Text(verbatim: "name, e.g. work"))
+            TextField("", text: $model.newName, prompt: Text("name, e.g. work"))
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 130)
                 .accessibilityIdentifier("account-new-name")

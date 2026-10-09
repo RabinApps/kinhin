@@ -70,8 +70,13 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation, NSMenuDeleg
                 // wizard (the old behavior looked like "Start fleet does nothing").
                 setupIncomplete = true
                 AlertKit.notice(
-                    "kinhin can't start the fleet yet",
-                    "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open the Setup tab to finish."
+                    String(
+                        localized: "kinhin can't start the fleet yet", bundle: .l10n,
+                        comment: "Alert title when Start Fleet is pressed before setup finished"),
+                    String(
+                        localized:
+                            "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open the Setup tab to finish.",
+                        bundle: .l10n, comment: "Alert body when Start Fleet is pressed before setup finished")
                 )
                 mainController?.tabs.showSetup()
                 return

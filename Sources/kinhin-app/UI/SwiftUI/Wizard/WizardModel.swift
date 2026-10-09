@@ -21,11 +21,9 @@ import Observation
 @MainActor
 @Observable
 final class WizardModel {
-    /// Every forge by name for prose: "GitHub, GitLab, Gitea or Forgejo".
+    /// Every forge by name for prose, as a locale-aware "or" list ("GitHub, GitLab, or Gitea" in English).
     nonisolated static var forgeNames: String {
-        let names = ForgeID.allCases.map(\.displayName)
-        guard let last = names.last, names.count > 1 else { return names.first ?? "" }
-        return names.dropLast().joined(separator: ", ") + " or " + last
+        ForgeID.allCases.map(\.displayName).formatted(.list(type: .or, width: .standard))
     }
 
     enum Step: Int, CaseIterable {
@@ -35,22 +33,29 @@ final class WizardModel {
 
         var title: String {
             switch self {
-            case .connect: return "Connect your code"
-            case .mac: return "Get this Mac ready"
-            case .review: return "Review & Start"
+            case .connect:
+                return String(localized: "Connect your code", bundle: .l10n, comment: "Setup wizard step title")
+            case .mac: return String(localized: "Get this Mac ready", bundle: .l10n, comment: "Setup wizard step title")
+            case .review: return String(localized: "Review & Start", bundle: .l10n, comment: "Setup wizard step title")
             }
         }
 
         var subtitle: String {
             switch self {
             case .connect:
-                return
-                    "kinhin runs your CI jobs on this Mac. Select the forges to serve — \(WizardModel.forgeNames) — then paste a token and choose the repository, project or group to serve for each."
+                return String(
+                    localized:
+                        "kinhin runs your CI jobs on this Mac. Select the forges to serve — \(WizardModel.forgeNames) — then paste a token and choose the repository, project or group to serve for each.",
+                    bundle: .l10n, comment: "Setup wizard step 1 subtitle; %@ is a localized list of forge names")
             case .mac:
-                return
-                    "Choose what runs your jobs: Linux (Docker, Apple container, or a full Linux VM), macOS virtual machines (tart), or both. You only need one — the button below walks the comparison."
+                return String(
+                    localized:
+                        "Choose what runs your jobs: Linux (Docker, Apple container, or a full Linux VM), macOS virtual machines (tart), or both. You only need one — the button below walks the comparison.",
+                    bundle: .l10n, comment: "Setup wizard step 2 subtitle")
             case .review:
-                return "Everything you chose is saved. You can change any of it later in the Setup tab."
+                return String(
+                    localized: "Everything you chose is saved. You can change any of it later in the Setup tab.",
+                    bundle: .l10n, comment: "Setup wizard step 3 subtitle")
             }
         }
     }
@@ -84,13 +89,21 @@ final class WizardModel {
 
     // MARK: - Derived
 
-    var header: String { "Step \(step.rawValue + 1) of \(Step.allCases.count) — \(step.title)" }
+    var header: String {
+        String(
+            localized: "Step \(step.rawValue + 1) of \(Step.allCases.count) — \(step.title)", bundle: .l10n,
+            comment: "Setup wizard header; the numbers are the current step and the step count, then the step title")
+    }
     /// Steps before the last can be skipped; setup itself cannot be left early.
     var canSkip: Bool { step != .review }
     /// The Setup wizard shows an Open config.yaml button on every step.
     var showsOpenConfigButton: Bool { true }
-    var skipTitle: String { "Skip for now" }
-    var nextTitle: String { step == .review ? "Start fleet" : "Continue" }
+    var skipTitle: String { String(localized: "Skip for now", bundle: .l10n, comment: "Setup wizard button") }
+    var nextTitle: String {
+        step == .review
+            ? String(localized: "Start fleet", bundle: .l10n, comment: "Setup wizard final button")
+            : String(localized: "Continue", bundle: .l10n, comment: "Setup wizard button")
+    }
     var canGoBack: Bool { step != .connect }
     /// Continue / Start fleet is enabled only when nothing blocks the current step.
     var canContinue: Bool { blockers(for: step).isEmpty }
@@ -112,7 +125,12 @@ final class WizardModel {
 
     private var connectBlockers: [String] {
         connect.isConnected
-            ? [] : ["Connect \(Self.forgeNames) and choose a repository, project or group (step 1)."]
+            ? []
+            : [
+                String(
+                    localized: "Connect \(Self.forgeNames) and choose a repository, project or group (step 1).",
+                    bundle: .l10n, comment: "Setup wizard blocker; %@ is a localized list of forge names")
+            ]
     }
 
     /// An image that is being prepared counts: Start does not wait for it.
@@ -120,7 +138,10 @@ final class WizardModel {
         mac.isReady || mac.isPreparingImage
             ? []
             : [
-                "Set up something to run jobs on (step 2): a Linux runtime (Docker or Apple container), or tart for macOS jobs."
+                String(
+                    localized:
+                        "Set up something to run jobs on (step 2): a Linux runtime (Docker or Apple container), or tart for macOS jobs.",
+                    bundle: .l10n, comment: "Setup wizard blocker")
             ]
     }
 
@@ -173,7 +194,7 @@ final class WizardModel {
     private var capacitySummary: String? {
         guard runtimes.showsBudget, !(runtimes.currentRuntimeConfig?.budget.isEmpty ?? true) else { return nil }
         let parts = runtimes.budgetRows.filter { $0.share > 0 }.map {
-            "\($0.id.rawValue) \(Int(($0.share * 100).rounded()))%"
+            "\($0.id.rawValue) \($0.share.formatted(.percent.precision(.fractionLength(0))))"
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
@@ -190,29 +211,46 @@ final class WizardModel {
         }
         var lines: [String] = []
         if accounts.isEmpty {
-            lines.append("Serving:  — not chosen yet")
+            lines.append(
+                String(localized: "Serving:  — not chosen yet", bundle: .l10n, comment: "Setup wizard summary line"))
         } else {
-            lines.append("Serving:")
+            lines.append(String(localized: "Serving:", bundle: .l10n, comment: "Setup wizard summary heading"))
             for account in accounts {
-                var line = "•  \(account.scope)"
+                var target = account.scope
                 if let instance = account.instance, !instance.isEmpty {
-                    line += " @ \(instance)"
+                    target += " @ \(instance)"
                 }
-                line += " — \(account.forge.displayName), account \(account.name)"
-                lines.append(line)
+                lines.append(
+                    String(
+                        localized: "•  \(target) — \(account.forge.displayName), account \(account.name)",
+                        bundle: .l10n,
+                        comment:
+                            "Setup wizard summary row; target is a repository or group, then the forge name and the account name"
+                    ))
             }
         }
-        lines.append("Runs on:  \(mac.runsOnDescription)")
+        lines.append(
+            String(
+                localized: "Runs on:  \(mac.runsOnDescription)", bundle: .l10n,
+                comment: "Setup wizard summary line; %@ describes the chosen runtimes"))
         if mac.isPreparingImage {
             lines.append(
-                "Image:  still being prepared (about \(ImagePrepCost.macOSDiskGB) GB). It keeps going in the background; macOS jobs start once it finishes."
+                String(
+                    localized:
+                        "Image:  still being prepared (about \(ImagePrepCost.macOSDiskGB) GB). It keeps going in the background; macOS jobs start once it finishes.",
+                    bundle: .l10n, comment: "Setup wizard summary line; the number is the image size in GB")
             )
         }
-        if let capacity = capacitySummary { lines.append("Capacity:  \(capacity)") }
+        if let capacity = capacitySummary {
+            lines.append(
+                String(
+                    localized: "Capacity:  \(capacity)", bundle: .l10n,
+                    comment: "Setup wizard summary line; %@ is the runtime split"))
+        }
         let missing = missingItems
         if !missing.isEmpty {
             lines.append("")
-            lines.append("Still needed:")
+            lines.append(String(localized: "Still needed:", bundle: .l10n, comment: "Setup wizard summary heading"))
             lines.append(contentsOf: missing.map { "•  \($0)" })
         }
         summaryText = lines.joined(separator: "\n")

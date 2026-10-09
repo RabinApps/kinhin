@@ -8,7 +8,12 @@ struct ToolchainsCatalogCards: View {
 
     var body: some View {
         ForEach(ToolchainCategory.allCases, id: \.rawValue) { category in
-            CollapsibleFormCard(title: "Available: " + category.title) {
+            CollapsibleFormCard(
+                title: Text(
+                    verbatim: String(
+                        localized: "Available: \(category.title)", bundle: .l10n,
+                        comment: "Card title in the toolchains catalog; %@ is a category such as Languages"))
+            ) {
                 ForEach(ToolchainsCatalogListing.tools(in: category)) { item in itemRow(item, prefix: "tool") }
             }
         }
@@ -29,10 +34,14 @@ struct ToolchainsCatalogCards: View {
                 Text(item.defaultVersion)
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.secondary)
-                copyButton(item.copyText, id: "\(prefix):\(item.id)", label: "Copy \(item.id)")
+                copyButton(
+                    item.copyText, id: "\(prefix):\(item.id)",
+                    label: String(
+                        localized: "Copy \(item.id)", bundle: .l10n,
+                        comment: "VoiceOver label of a Copy button; %@ is a tool id"))
             }
-            HintText(item.summary)
-            if let requirement = item.requirement { HintText(requirement) }
+            HintText(verbatim: item.summary)
+            if let requirement = item.requirement { HintText(verbatim: requirement) }
         }
     }
 
@@ -45,9 +54,13 @@ struct ToolchainsCatalogCards: View {
                     HStack {
                         Text(example.title).font(.system(size: 12, weight: .semibold))
                         Spacer(minLength: 0)
-                        copyButton(example.yaml, id: "example:\(example.title)", label: "Copy \(example.title)")
+                        copyButton(
+                            example.yaml, id: "example:\(example.title)",
+                            label: String(
+                                localized: "Copy \(example.title)", bundle: .l10n,
+                                comment: "VoiceOver label of a Copy button; %@ is an example title"))
                     }
-                    HintText(example.note)
+                    HintText(verbatim: example.note)
                     Text(example.yaml)
                         .font(.system(size: 11, design: .monospaced))
                         .textSelection(.enabled)
@@ -58,8 +71,8 @@ struct ToolchainsCatalogCards: View {
             }
             Divider()
             Text("How images bake").font(.system(size: 12, weight: .semibold))
-            HintText(ToolchainsCatalogListing.howItWorks)
-            HintText(ToolchainsCatalogListing.platformNotes)
+            HintText(verbatim: ToolchainsCatalogListing.howItWorks)
+            HintText(verbatim: ToolchainsCatalogListing.platformNotes)
         }
     }
 

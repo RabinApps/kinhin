@@ -18,7 +18,7 @@ struct AppSectionView: View {
                         ForEach(LaunchMode.allCases, id: \.self) { Text($0.label) }
                     }
                     .accessibilityLabel("What kinhin shows at launch")
-                    HintText(model.launchMode.subtitle)
+                    HintText(verbatim: model.launchMode.subtitle)
                     Toggle(
                         "Launch kinhin at login",
                         isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
@@ -38,7 +38,7 @@ struct AppSectionView: View {
                     Button(model.updateButtonTitle) { model.updateButtonClicked() }
                         .disabled(!model.updateButtonEnabled)
                         .accessibilityIdentifier("check-for-updates")
-                    HintText(model.updateText).accessibilityIdentifier("update-status")
+                    HintText(verbatim: model.updateText).accessibilityIdentifier("update-status")
                 }
 
                 FormCard(
@@ -84,7 +84,7 @@ struct AppSectionView: View {
                     if model.daemonBusy || !model.daemonLine.text.isEmpty {
                         HStack(alignment: .top, spacing: 8) {
                             if model.daemonBusy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
-                            StatusText(text: model.daemonLine.text, style: model.daemonLine.style)
+                            StatusText(verbatim: model.daemonLine.text, style: model.daemonLine.style)
                                 .textSelection(.enabled)
                             if model.daemonBusy {
                                 Spacer(minLength: 0)
@@ -110,7 +110,7 @@ struct AppSectionView: View {
                         if model.resetBusy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
                     }
                     if !model.resetLine.text.isEmpty {
-                        StatusText(text: model.resetLine.text, style: model.resetLine.style)
+                        StatusText(verbatim: model.resetLine.text, style: model.resetLine.style)
                             .textSelection(.enabled)
                             .accessibilityIdentifier("app-reset-status")
                     }
@@ -145,7 +145,7 @@ struct AppSectionView: View {
     }
 
     /// One label/value pair of the daemon card (Installed, Running).
-    private func statusRow(title: String, text: String, style: StatusStyle) -> some View {
+    private func statusRow(title: LocalizedStringKey, text: LocalizedStringKey, style: StatusStyle) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.system(size: 12, weight: .semibold))
             StatusText(text: text, style: style)

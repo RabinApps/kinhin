@@ -54,23 +54,31 @@ struct ToolchainsView: View {
                 Spacer(minLength: 0)
                 Text(ToolchainsModel.sourceTitle(row)).font(.system(size: 10)).foregroundStyle(.secondary)
             }
-            HintText(ToolchainsModel.detail(row))
+            HintText(verbatim: ToolchainsModel.detail(row))
             if row.hasToolchains {
                 chipRow(label: "Tools", items: row.specs)
                 chipRow(label: "Homebrew", items: row.brew)
                 chipRow(label: "Stacks", items: row.stacks)
             }
             if let base = row.baseImage {
-                imageText("Base image: " + model.baseImageLine(base))
+                imageText(
+                    String(
+                        localized: "Base image: \(model.baseImageLine(base))", bundle: .l10n,
+                        comment: "Toolchains tab row; %@ is an image name and size"))
             }
-            ForEach(row.images) { record in imageText("Derived image: " + model.imageLine(record)) }
+            ForEach(row.images) { record in
+                imageText(
+                    String(
+                        localized: "Derived image: \(model.imageLine(record))", bundle: .l10n,
+                        comment: "Toolchains tab row; %@ is an image name, size and last use"))
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("repo:\(row.id)")
     }
 
     @ViewBuilder
-    private func chipRow(label: String, items: [String]) -> some View {
+    private func chipRow(label: LocalizedStringKey, items: [String]) -> some View {
         if !items.isEmpty {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(label).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
@@ -83,7 +91,7 @@ struct ToolchainsView: View {
     }
 
     private func imageText(_ text: String) -> some View {
-        Text(text)
+        Text(verbatim: text)
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
@@ -99,7 +107,7 @@ struct ToolchainsView: View {
             ForEach(model.repoFileImages) { record in
                 VStack(alignment: .leading, spacing: 1) {
                     imageText(model.imageLine(record))
-                    HintText(record.summary)
+                    HintText(verbatim: record.summary)
                 }
             }
         }
@@ -128,7 +136,11 @@ struct ToolchainsView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(ToolchainsModel.runtimeTitle(item.runtime)).font(.system(size: 12, weight: .semibold))
                 if item.runtime != .tart {
-                    HintText("Base image: " + (model.baseImage(for: item.runtime) ?? "default"))
+                    HintText(
+                        verbatim: String(
+                            localized:
+                                "Base image: \(model.baseImage(for: item.runtime) ?? String(localized: "default", bundle: .l10n, comment: "Shown as the base image when none is configured"))",
+                            bundle: .l10n, comment: "Toolchains tab row; %@ is an image name or the word default"))
                 }
             }
             Spacer(minLength: 0)
@@ -144,7 +156,7 @@ struct ToolchainsView: View {
     private var footer: some View {
         HStack(spacing: 8) {
             if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
-            StatusText(text: model.status.text, style: model.status.style)
+            StatusText(verbatim: model.status.text, style: model.status.style)
                 .lineLimit(3)
                 .textSelection(.enabled)
             Spacer(minLength: 0)

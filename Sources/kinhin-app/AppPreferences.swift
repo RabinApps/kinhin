@@ -18,17 +18,33 @@ enum LaunchMode: String, CaseIterable, Equatable {
 extension LaunchMode {
     var label: String {
         switch self {
-        case .mainWindowAndMenuBar: return "Main window + menu bar"
-        case .mainWindowOnly: return "Main window only"
-        case .menuBarOnly: return "Menu bar only"
+        case .mainWindowAndMenuBar:
+            return String(
+                localized: "Main window + menu bar", bundle: .l10n,
+                comment: "Launch-mode picker option in Settings → App")
+        case .mainWindowOnly:
+            return String(
+                localized: "Main window only", bundle: .l10n, comment: "Launch-mode picker option in Settings → App")
+        case .menuBarOnly:
+            return String(
+                localized: "Menu bar only", bundle: .l10n, comment: "Launch-mode picker option in Settings → App")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .mainWindowAndMenuBar: return "Opens a fleet window and keeps the ○ in the menu bar."
-        case .mainWindowOnly: return "A normal app — no menu bar item; closing the window quits kinhin."
-        case .menuBarOnly: return "The classic tray app — open the window any time from the menu."
+        case .mainWindowAndMenuBar:
+            return String(
+                localized: "Opens a fleet window and keeps the ○ in the menu bar.", bundle: .l10n,
+                comment: "Hint under the launch-mode picker; ○ is the menu bar glyph")
+        case .mainWindowOnly:
+            return String(
+                localized: "A normal app — no menu bar item; closing the window quits kinhin.", bundle: .l10n,
+                comment: "Hint under the launch-mode picker")
+        case .menuBarOnly:
+            return String(
+                localized: "The classic tray app — open the window any time from the menu.", bundle: .l10n,
+                comment: "Hint under the launch-mode picker")
         }
     }
 

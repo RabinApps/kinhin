@@ -19,15 +19,27 @@ extension RuntimesModel {
     // MARK: - Pure helpers (shared with tests)
 
     /// The Add Route sheet's checkbox text (replaces RuntimesSheets.hostConsentTitle).
-    static let hostConsentTitle = "Host only: run this repo's code directly on my Mac, unisolated"
+    static var hostConsentTitle: String {
+        String(
+            localized: "Host only: run this repo's code directly on my Mac, unisolated", bundle: .l10n,
+            comment: "Checkbox text of the Add Route sheet")
+    }
 
     /// Popup title for one runtime choice.
     static func runtimeTitle(_ id: RuntimeID) -> String {
         switch id {
-        case .tart: return "tart — macOS VMs"
-        case .appleContainer: return "Apple container — Linux"
-        case .docker: return "Docker — Linux"
-        case .host: return "Host — this Mac, no isolation"
+        case .tart:
+            return String(
+                localized: "tart — macOS VMs", bundle: .l10n, comment: "Runtime choice in the Add Route sheet")
+        case .appleContainer:
+            return String(
+                localized: "Apple container — Linux", bundle: .l10n, comment: "Runtime choice in the Add Route sheet")
+        case .docker:
+            return String(localized: "Docker — Linux", bundle: .l10n, comment: "Runtime choice in the Add Route sheet")
+        case .host:
+            return String(
+                localized: "Host — this Mac, no isolation", bundle: .l10n,
+                comment: "Runtime choice in the Add Route sheet")
         }
     }
 
@@ -39,14 +51,20 @@ extension RuntimesModel {
     ) -> String? {
         let pattern = raw.trimmingCharacters(in: .whitespaces)
         if pattern.isEmpty {
-            return "Enter a repository (owner/repo) first."
+            return String(
+                localized: "Enter a repository (owner/repo) first.", bundle: .l10n,
+                comment: "Add Route sheet validation message")
         }
         if existing.contains(where: { $0.pattern == pattern }) {
-            return "A route for '\(pattern)' already exists."
+            return String(
+                localized: "A route for '\(pattern)' already exists.", bundle: .l10n,
+                comment: "Add Route sheet validation message; %@ is the pattern")
         }
         if runtime == .host && !consent {
-            return
-                "Host routes run this repo's code directly on your Mac with your privileges. Tick the box to confirm, or pick another runtime."
+            return String(
+                localized:
+                    "Host routes run this repo's code directly on your Mac with your privileges. Tick the box to confirm, or pick another runtime.",
+                bundle: .l10n, comment: "Add Route sheet validation message")
         }
         return nil
     }
@@ -70,8 +88,12 @@ extension RuntimesModel {
     func addRouteClicked() {
         guard viewModel != nil, let parsed = parsedConfig else {
             presentNotice(
-                "Routes are still loading",
-                "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Advanced → App → Open config file)."
+                String(localized: "Routes are still loading", bundle: .l10n, comment: "Alert title"),
+                String(
+                    localized:
+                        "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Advanced → App → Open config file).",
+                    bundle: .l10n, comment: "Alert body")
+
             )
             reload()
             return

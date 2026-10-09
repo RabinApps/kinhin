@@ -10,7 +10,10 @@ extension AppDelegate {
     func installStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.title = "○"
-        item.button?.setAccessibilityLabel("kinhin, not running")
+        item.button?.setAccessibilityLabel(
+            String(
+                localized: "kinhin, not running", bundle: .l10n,
+                comment: "VoiceOver label of the status-bar item before the first poll"))
         let m = buildMenu()
         menu = m
         item.menu = m
@@ -27,14 +30,21 @@ extension AppDelegate {
         m.addItem(withTitle: "kinhin", action: nil, keyEquivalent: "").isEnabled = false
         m.addItem(.separator())
 
-        let statusLine = m.addItem(withTitle: "Loading…", action: nil, keyEquivalent: "")
+        let statusLine = m.addItem(
+            withTitle: String(
+                localized: "Loading…", bundle: .l10n,
+                comment: "Placeholder status line in the status-bar menu until the first poll"), action: nil,
+            keyEquivalent: "")
         statusLine.isEnabled = false
         statusLine.identifier = NSUserInterfaceItemIdentifier("statusLine")
 
         // The VM rows sit directly under the status line (extra status lines
         // land between the two). `rebuildVMSection` owns everything between
         // the header and the end marker.
-        let vmHeader = m.addItem(withTitle: "VMs", action: nil, keyEquivalent: "")
+        let vmHeader = m.addItem(
+            withTitle: String(
+                localized: "VMs", bundle: .l10n, comment: "Status-bar menu section header above the VM list"),
+            action: nil, keyEquivalent: "")
         vmHeader.isEnabled = false
         vmHeader.identifier = NSUserInterfaceItemIdentifier("vmSectionStart")
         let vmEnd = NSMenuItem.separator()
@@ -45,23 +55,39 @@ extension AppDelegate {
         // also opens at launch). Always present: in menu-bar-only mode this
         // is the only way in, and in main-window-and-menu-bar mode it
         // re-opens a closed window.
-        let openItem = m.addItem(withTitle: "Open kinhin", action: #selector(openMainWindow), keyEquivalent: "")
+        let openItem = m.addItem(
+            withTitle: String(
+                localized: "Open kinhin", bundle: .l10n, comment: "Status-bar menu item that opens the main window"),
+            action: #selector(openMainWindow), keyEquivalent: "")
         openItem.target = self
         openItem.identifier = NSUserInterfaceItemIdentifier("openMainWindow")
 
         // Shortcuts into the window's tabs.
-        let setupItem = m.addItem(withTitle: "Setup…", action: #selector(openSetupTab), keyEquivalent: "")
+        let setupItem = m.addItem(
+            withTitle: String(localized: "Setup…", bundle: .l10n, comment: "Menu item that opens the Setup tab"),
+            action: #selector(openSetupTab), keyEquivalent: "")
         setupItem.target = self
         setupItem.identifier = NSUserInterfaceItemIdentifier("openSetupTab")
-        let settingsItem = m.addItem(withTitle: "Settings…", action: #selector(openSettingsTab), keyEquivalent: ",")
+        let settingsItem = m.addItem(
+            withTitle: String(localized: "Settings…", bundle: .l10n, comment: "Menu item that opens Settings"),
+            action: #selector(openSettingsTab), keyEquivalent: ",")
         settingsItem.target = self
         settingsItem.identifier = NSUserInterfaceItemIdentifier("openSettingsTab")
 
         m.addItem(.separator())
         for (title, action, key, id) in [
-            ("Start Fleet", #selector(startFleet), "s", "startFleet"),
-            ("Stop Fleet", #selector(stopFleet), "k", "stopFleet"),
-            ("Pause", #selector(togglePauseFleet), "p", "pauseResumeFleet"),
+            (
+                String(localized: "Start Fleet", bundle: .l10n, comment: "Status-bar menu item"), #selector(startFleet),
+                "s", "startFleet"
+            ),
+            (
+                String(localized: "Stop Fleet", bundle: .l10n, comment: "Status-bar menu item"), #selector(stopFleet),
+                "k", "stopFleet"
+            ),
+            (
+                String(localized: "Pause", bundle: .l10n, comment: "Status-bar menu item; toggles with Resume"),
+                #selector(togglePauseFleet), "p", "pauseResumeFleet"
+            ),
         ] as [(String, Selector, String, String)] {
             let item = m.addItem(withTitle: title, action: action, keyEquivalent: key)
             item.keyEquivalentModifierMask = [.command]
@@ -75,20 +101,36 @@ extension AppDelegate {
         // Hidden until a background check finds a newer release; manual checks
         // live in Settings → App.
         let updateItem = m.addItem(
-            withTitle: "Update available…", action: #selector(updateItemClicked), keyEquivalent: "")
+            withTitle: String(
+                localized: "Update available…", bundle: .l10n,
+                comment: "Status-bar menu item, hidden until a newer release is found"),
+            action: #selector(updateItemClicked), keyEquivalent: "")
         updateItem.target = self
         updateItem.identifier = NSUserInterfaceItemIdentifier("updateItem")
         updateItem.isHidden = true
-        let versionItem = m.addItem(withTitle: "  kinhin \(kinhinVersion.current)", action: nil, keyEquivalent: "")
+        let versionItem = m.addItem(
+            withTitle: String(
+                localized: "  kinhin \(kinhinVersion.current)", bundle: .l10n,
+                comment: "Disabled version row in the status-bar menu; %@ is the version"), action: nil,
+            keyEquivalent: "")
         versionItem.isEnabled = false
-        m.addItem(withTitle: "Open Logs", action: #selector(openLogs), keyEquivalent: "").target = self
+        m.addItem(
+            withTitle: String(
+                localized: "Open Logs", bundle: .l10n, comment: "Status-bar menu item that opens the Logs tab"),
+            action: #selector(openLogs), keyEquivalent: ""
+        ).target = self
         let supportItem = m.addItem(
-            withTitle: "Support kinhin…", action: #selector(openSupportPage), keyEquivalent: "")
+            withTitle: String(
+                localized: "Support kinhin…", bundle: .l10n, comment: "Menu item that opens the support page"),
+            action: #selector(openSupportPage), keyEquivalent: "")
         supportItem.target = self
         supportItem.identifier = NSUserInterfaceItemIdentifier("supportKinhin")
 
         m.addItem(.separator())
-        m.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q").target = self
+        m.addItem(
+            withTitle: String(localized: "Quit", bundle: .l10n, comment: "Status-bar menu item that quits the app"),
+            action: #selector(quit), keyEquivalent: "q"
+        ).target = self
 
         return m
     }
@@ -132,7 +174,10 @@ extension AppDelegate {
             case "pauseResumeFleet":
                 // One toggle: Pause while running, Resume while paused, gone when stopped.
                 item.isHidden = !(visibility.pause || visibility.resume)
-                item.title = visibility.resume ? "Resume" : "Pause"
+                item.title =
+                    visibility.resume
+                    ? String(localized: "Resume", bundle: .l10n, comment: "Status-bar menu item; toggles with Pause")
+                    : String(localized: "Pause", bundle: .l10n, comment: "Status-bar menu item; toggles with Resume")
                 item.keyEquivalent = visibility.resume ? "r" : "p"
             default: break
             }
@@ -156,7 +201,11 @@ extension AppDelegate {
     /// The menu's first line: "Starting…"/"Stopping…" while a command runs,
     /// otherwise the shared state line.
     func statusLineText(pending: FleetAction?, status: FleetStatus?) -> String {
-        if let pending { return pending == .start ? "Starting…" : "Stopping…" }
+        if let pending {
+            return pending == .start
+                ? String(localized: "Starting…", bundle: .l10n, comment: "Status line while a start command runs")
+                : String(localized: "Stopping…", bundle: .l10n, comment: "Status line while a stop command runs")
+        }
         guard let status else { return fleet.statusLine }
         return statusLine(for: status)
     }
@@ -196,17 +245,34 @@ extension AppDelegate {
     static func statusItemAccessibilityLabel(pending: FleetAction?, status: FleetStatus?) -> String {
         if let pending {
             switch pending {
-            case .start: return "kinhin, starting"
-            case .stop: return "kinhin, stopping"
-            case .requeueQueuedJobs, .skipQueuedJobs: return "kinhin, updating the queue"
+            case .start:
+                return String(
+                    localized: "kinhin, starting", bundle: .l10n,
+                    comment: "VoiceOver label of the status-bar item while the fleet starts")
+            case .stop:
+                return String(
+                    localized: "kinhin, stopping", bundle: .l10n,
+                    comment: "VoiceOver label of the status-bar item while the fleet stops")
+            case .requeueQueuedJobs, .skipQueuedJobs:
+                return String(
+                    localized: "kinhin, updating the queue", bundle: .l10n,
+                    comment: "VoiceOver label of the status-bar item while the queue is updated")
             }
         }
-        guard let status, status.running else { return "kinhin, not running" }
-        var parts = ["kinhin"]
+        guard let status, status.running else {
+            return String(
+                localized: "kinhin, not running", bundle: .l10n,
+                comment: "VoiceOver label of the status-bar item when the fleet is stopped")
+        }
         let n = status.activeCount
-        parts.append("\(n) runner\(n == 1 ? "" : "s")")
-        if status.paused { parts.append("paused") }
-        return parts.joined(separator: ", ")
+        if status.paused {
+            return String(
+                localized: "kinhin, \(n) runners, paused", bundle: .l10n,
+                comment: "VoiceOver label of the status-bar item; plural by runner count; the fleet is paused")
+        }
+        return String(
+            localized: "kinhin, \(n) runners", bundle: .l10n,
+            comment: "VoiceOver label of the status-bar item; plural by runner count")
     }
 
     static func menuRowTitle(for record: VMRecord) -> String {
@@ -268,7 +334,10 @@ extension AppDelegate {
         }
         var next = startIdx + 1
         guard let status, !status.records.isEmpty else {
-            let none = NSMenuItem(title: "  (no VMs)", action: nil, keyEquivalent: "")
+            let none = NSMenuItem(
+                title: String(
+                    localized: "  (no VMs)", bundle: .l10n, comment: "Status-bar menu placeholder when there are no VMs"
+                ), action: nil, keyEquivalent: "")
             none.isEnabled = false
             menu.insertItem(none, at: next)
             return

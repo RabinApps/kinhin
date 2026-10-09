@@ -97,11 +97,19 @@ final class FleetModel {
     var pausedAutoResumeNote: String? {
         guard paused, let autoResume = status?.autoResume, autoResume else { return nil }
         if let cadence = status?.autoResumeCadence {
-            return "Auto-resume is on — the engine \(cadence)."
+            return String(
+                localized: "Auto-resume is on — the engine \(cadence).", bundle: .l10n,
+                comment: "Fleet tab note; %@ is a clause describing the engine's poll cadence")
         }
-        return "Auto-resume is on — the fleet releases itself when the queue is empty."
+        return String(
+            localized: "Auto-resume is on — the fleet releases itself when the queue is empty.", bundle: .l10n,
+            comment: "Fleet tab note shown while paused with auto-resume on")
     }
-    var pauseTitle: String { paused ? "Resume" : "Pause" }
+    var pauseTitle: String {
+        paused
+            ? String(localized: "Resume", bundle: .l10n, comment: "Fleet tab button that resumes a paused fleet")
+            : String(localized: "Pause", bundle: .l10n, comment: "Fleet tab button that pauses the fleet")
+    }
     var records: [VMRecord] { status?.records ?? [] }
 
     /// The fleet mode (in-process engine / background daemon) and any
@@ -165,6 +173,8 @@ final class FleetModel {
 
     func jobLine(for record: VMRecord) -> String {
         let repoText = record.repos?.joined(separator: ", ") ?? ""
-        return "▸ \(record.job ?? "") — \(repoText)  (\(record.id), \(record.phase.rawValue))"
+        return String(
+            localized: "▸ \(record.job ?? "") — \(repoText)  (\(record.id), \(record.phase.rawValue))", bundle: .l10n,
+            comment: "Fleet tab job row: job, repositories, then VM id and phase")
     }
 }

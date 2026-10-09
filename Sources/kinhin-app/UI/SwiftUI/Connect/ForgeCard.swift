@@ -9,9 +9,9 @@ struct ForgeCard: View {
     @FocusState private var focus: ForgeConnectionModel.Field?
 
     var body: some View {
-        FormCard(title: model.forge.displayName, forge: model.forge) {
+        FormCard(title: Text(verbatim: model.forge.displayName), forge: model.forge) {
             HStack {
-                StatusText(text: model.status.text, style: model.status.style)
+                StatusText(verbatim: model.status.text, style: model.status.style)
                 Spacer()
                 Button("Remove") { onDeselect() }
                     .controlSize(.small)
@@ -56,7 +56,9 @@ struct ForgeCard: View {
                     placeholder: ForgeConnectionModel.scopePlaceholder(enabled: model.scopeEnabled, forge: model.forge),
                     isEnabled: model.scopeEnabled,
                     identifier: "connect-\(model.forge.rawValue)-scope",
-                    accessibilityLabel: "\(model.forge.displayName) repository or organization to serve",
+                    accessibilityLabel: String(
+                        localized: "\(model.forge.displayName) repository or organization to serve", bundle: .l10n,
+                        comment: "VoiceOver label of the repository combo box; %@ is a forge name"),
                     onCommit: { model.commit() }
                 )
                 .frame(width: 300)

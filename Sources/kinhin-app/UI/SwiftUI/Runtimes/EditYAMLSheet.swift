@@ -16,7 +16,7 @@ struct EditYAMLSheet: View {
             if !model.sheetProblem.isEmpty {
                 // The editor's message is the config error's own description
                 // (same words the alert used to show after closing).
-                StatusText(text: model.sheetProblem, style: .error)
+                StatusText(verbatim: model.sheetProblem, style: .error)
             }
             TextEditor(text: $text)
                 .font(.system(size: 12, design: .monospaced))

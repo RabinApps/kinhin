@@ -24,10 +24,17 @@ final class ToolchainsModel {
     /// Confirms a rebuild. Injectable so tests never open a modal.
     @ObservationIgnored var confirmRebuild: (_ runtime: RuntimeID) -> Bool = { runtime in
         let text =
-            "This replaces the base image with a fresh one that has only the runner agents. It can take 10–30 minutes and downloads a lot. Per-repo images with toolchains are baked separately, when a job needs them."
+            String(
+                localized:
+                    "This replaces the base image with a fresh one that has only the runner agents. It can take 10–30 minutes and downloads a lot. Per-repo images with toolchains are baked separately, when a job needs them.",
+                bundle: .l10n, comment: "Rebuild-image confirmation body")
         return AlertKit.confirm(
-            title: "Rebuild the \(ToolchainsModel.runtimeTitle(runtime))?", message: text,
-            confirmTitle: "Rebuild Image", style: .informational)
+            title: String(
+                localized: "Rebuild the \(ToolchainsModel.runtimeTitle(runtime))?", bundle: .l10n,
+                comment: "Rebuild-image confirmation title; %@ is a runtime image name"), message: text,
+            confirmTitle: String(
+                localized: "Rebuild Image", bundle: .l10n, comment: "Confirm button of the rebuild-image alert"),
+            style: .informational)
     }
     /// Runs the actual image build for a runtime (real implementation below).
     @ObservationIgnored var rebuild: (_ runtime: RuntimeID, _ config: KinhinConfig) async throws -> Void = {
@@ -80,7 +87,10 @@ final class ToolchainsModel {
             imageRuntimes = []
             status = Line(
                 text:
-                    "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file.",
+                    String(
+                        localized:
+                            "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file.",
+                        bundle: .l10n, comment: "Toolchains tab status; %@ is the config error"),
                 style: .error)
             return
         }
@@ -129,11 +139,17 @@ final class ToolchainsModel {
 
     /// Where a row's toolchains come from, in one line.
     static func sourceTitle(_ row: ProjectToolchainsRow) -> String {
-        if row.isDefault { return "No toolchains baked" }
+        if row.isDefault {
+            return String(localized: "No toolchains baked", bundle: .l10n, comment: "Toolchains tab row source label")
+        }
         switch row.source {
-        case .repoFile: return ".kinhin.yml honored"
-        case .projectFallback: return "Project toolchains"
-        case .none: return "No toolchains"
+        case .repoFile:
+            return String(
+                localized: ".kinhin.yml honored", bundle: .l10n,
+                comment: "Toolchains tab row source label; keep .kinhin.yml verbatim")
+        case .projectFallback:
+            return String(localized: "Project toolchains", bundle: .l10n, comment: "Toolchains tab row source label")
+        case .none: return String(localized: "No toolchains", bundle: .l10n, comment: "Toolchains tab row source label")
         }
     }
 
@@ -141,38 +157,54 @@ final class ToolchainsModel {
     static func detail(_ row: ProjectToolchainsRow) -> String {
         switch row.source {
         case .repoFile:
-            var text = "Versions come from .kinhin.yml in the repo at each job's branch/tag."
-            text +=
-                row.hasToolchains
-                ? " Used when a repo has no usable file: the project toolchains below."
-                : " With no usable file, jobs use the base image."
-            return text
+            return row.hasToolchains
+                ? String(
+                    localized:
+                        "Versions come from .kinhin.yml in the repo at each job's branch/tag. Used when a repo has no usable file: the project toolchains below.",
+                    bundle: .l10n, comment: "Toolchains tab row explanation; keep .kinhin.yml verbatim")
+                : String(
+                    localized:
+                        "Versions come from .kinhin.yml in the repo at each job's branch/tag. With no usable file, jobs use the base image.",
+                    bundle: .l10n, comment: "Toolchains tab row explanation; keep .kinhin.yml verbatim")
         case .projectFallback:
-            return "The repo's .kinhin.yml is ignored (repo_file is off); these versions apply."
+            return String(
+                localized: "The repo's .kinhin.yml is ignored (repo_file is off); these versions apply.", bundle: .l10n,
+                comment: "Toolchains tab row explanation; keep .kinhin.yml and repo_file verbatim")
         case .none:
             return row.isDefault
-                ? "No toolchains baked: jobs use the base image (they can still run `kinhin-toolchain install` per job)."
-                : "No toolchains on this project entry and repo_file is off: jobs use the base image."
+                ? String(
+                    localized:
+                        "No toolchains baked: jobs use the base image (they can still run `kinhin-toolchain install` per job).",
+                    bundle: .l10n, comment: "Toolchains tab row explanation; the backticked command stays verbatim")
+                : String(
+                    localized: "No toolchains on this project entry and repo_file is off: jobs use the base image.",
+                    bundle: .l10n, comment: "Toolchains tab row explanation; keep repo_file verbatim")
         }
     }
 
     /// "name · 12 GB · last used 2 hours ago", leaving out what is unknown.
     func imageLine(_ record: ProjectImageRecord) -> String {
         var parts = [record.name]
-        if let size = imageSizesGB[record.name] { parts.append("\(size) GB") }
-        parts.append("last used " + Self.relativeDate(record.lastUsedAt))
+        if let size = imageSizesGB[record.name] { parts.append(Self.sizeText(gigabytes: size)) }
+        parts.append(
+            String(
+                localized: "last used \(Self.relativeDate(record.lastUsedAt))", bundle: .l10n,
+                comment: "Toolchains tab image row; %@ is a relative time such as 2 hours ago"))
         return parts.joined(separator: " · ")
     }
 
     /// "name · 33 GB" for the base image on the "other repos" row.
     func baseImageLine(_ name: String) -> String {
-        imageSizesGB[name].map { "\(name) · \($0) GB" } ?? name
+        imageSizesGB[name].map { "\(name) · \(Self.sizeText(gigabytes: $0))" } ?? name
     }
 
     static func relativeDate(_ date: Date, now: Date = Date()) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: date, relativeTo: now)
+        AppFormat.relative(date, to: now)
+    }
+
+    /// An image size given in whole gigabytes, formatted for the user's locale ("33 GB").
+    static func sizeText(gigabytes: Int) -> String {
+        AppFormat.bytes(Int64(gigabytes) * 1_000_000_000)
     }
 
     // MARK: - Copy
@@ -196,25 +228,40 @@ final class ToolchainsModel {
         do {
             cfg = try ConfigLoader.load(from: configURL)
         } catch {
-            status = Line(text: "Not started — \(error.localizedDescription)", style: .error)
+            status = Line(
+                text: String(
+                    localized: "Not started — \(error.localizedDescription)", bundle: .l10n,
+                    comment: "Toolchains tab status; %@ is the reason"), style: .error)
             return nil
         }
         busy = true
-        status = Line(text: "Rebuilding the \(Self.runtimeTitle(runtime))… this can take a while.")
+        status = Line(
+            text: String(
+                localized: "Rebuilding the \(Self.runtimeTitle(runtime))… this can take a while.", bundle: .l10n,
+                comment: "Toolchains tab status; %@ is a runtime image name"))
         let rebuild = self.rebuild
         let task = Task { [weak self] in
             do {
                 try await rebuild(runtime, cfg)
                 self?.busy = false
                 self?.reload()
-                self?.status = Line(text: "Rebuilt the \(Self.runtimeTitle(runtime)) ✓", style: .ok)
+                self?.status = Line(
+                    text: String(
+                        localized: "Rebuilt the \(Self.runtimeTitle(runtime)) ✓", bundle: .l10n,
+                        comment: "Toolchains tab status; %@ is a runtime image name"), style: .ok)
             } catch is CancellationError {
                 self?.busy = false
                 self?.reload()
-                self?.status = Line(text: "Cancelled — the previous image is untouched", style: .warn)
+                self?.status = Line(
+                    text: String(
+                        localized: "Cancelled — the previous image is untouched", bundle: .l10n,
+                        comment: "Toolchains tab status after cancelling"), style: .warn)
             } catch {
                 self?.busy = false
-                self?.status = Line(text: "Not rebuilt — \(error.localizedDescription)", style: .error)
+                self?.status = Line(
+                    text: String(
+                        localized: "Not rebuilt — \(error.localizedDescription)", bundle: .l10n,
+                        comment: "Toolchains tab status; %@ is the reason"), style: .error)
             }
             self?.runningTask = nil
         }
@@ -229,10 +276,15 @@ final class ToolchainsModel {
 
     static func runtimeTitle(_ runtime: RuntimeID) -> String {
         switch runtime {
-        case .tart: return "macOS image (tart)"
-        case .appleContainer: return "Linux image (Apple container)"
-        case .docker: return "Linux image (Docker)"
-        case .host: return "host"
+        case .tart:
+            return String(localized: "macOS image (tart)", bundle: .l10n, comment: "Name of the macOS runtime image")
+        case .appleContainer:
+            return String(
+                localized: "Linux image (Apple container)", bundle: .l10n,
+                comment: "Name of the Apple container runtime image")
+        case .docker:
+            return String(localized: "Linux image (Docker)", bundle: .l10n, comment: "Name of the Docker runtime image")
+        case .host: return String(localized: "host", bundle: .l10n, comment: "Name of the host runtime")
         }
     }
 

@@ -12,7 +12,7 @@ struct RuntimesView: View {
         VStack(alignment: .leading, spacing: 6) {
             header
             if model.loadFailed {
-                StatusText(text: model.emptyMessage, style: .warn)
+                StatusText(verbatim: model.emptyMessage, style: .warn)
                     .frame(width: FormMetrics.width, alignment: .leading)
             } else {
                 ScrollView {
@@ -62,7 +62,7 @@ struct RuntimesView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
-            StatusText(text: model.headline, style: .secondary)
+            StatusText(verbatim: model.headline, style: .secondary)
         }
         .frame(width: FormMetrics.width, alignment: .leading)
     }

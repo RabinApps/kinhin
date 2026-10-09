@@ -78,7 +78,8 @@ private struct LogTextView: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.textContainer?.widthTracksTextView = true
         textView.usesFindBar = true
-        textView.setAccessibilityLabel("Log output")
+        textView.setAccessibilityLabel(
+            String(localized: "Log output", bundle: .l10n, comment: "VoiceOver label of the log text area"))
 
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true

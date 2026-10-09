@@ -54,12 +54,15 @@ struct WizardView: View {
 
     private var blockerNote: some View {
         let blockers = model.currentBlockers
-        return StatusText(text: blockers.joined(separator: " "), style: .warn)
+        return StatusText(verbatim: blockers.joined(separator: " "), style: .warn)
             .lineLimit(3)
             .multilineTextAlignment(.trailing)
             .frame(maxWidth: 340, alignment: .trailing)
             .accessibilityIdentifier("wizard-blockers")
-            .accessibilityLabel("Cannot continue yet: \(blockers.joined(separator: " "))")
+            .accessibilityLabel(
+                String(
+                    localized: "Cannot continue yet: \(blockers.joined(separator: " "))", bundle: .l10n,
+                    comment: "VoiceOver label for the disabled Continue button's note; %@ lists what blocks it"))
     }
 
     @ViewBuilder
@@ -73,7 +76,7 @@ struct WizardView: View {
             @Bindable var model = model
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text(model.summaryText)
+                    Text(verbatim: model.summaryText)
                         .font(.system(size: 13))
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)

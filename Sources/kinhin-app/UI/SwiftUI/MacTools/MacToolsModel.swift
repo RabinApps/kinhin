@@ -36,7 +36,9 @@ final class MacToolsModel: ConfigFormModel {
 
     // MARK: - Display state
 
-    private(set) var tartLine = Line(text: "Checking…")
+    private(set) var tartLine = Line(
+        text: String(
+            localized: "Checking…", bundle: .l10n, comment: "This Mac form: tart status before the first probe"))
     private(set) var tartInstallVisible = false
     /// tart is installed on this Mac (the Linux row's checkbox needs it).
     private(set) var tartInstalled = false
@@ -56,14 +58,23 @@ final class MacToolsModel: ConfigFormModel {
     /// The tart image is being baked right now. The wizard lets Start through
     /// meanwhile: the bake keeps running in the background.
     private(set) var isPreparingImage = false
-    var imageButtonTitle: String { imagePresent ? "Rebuild image…" : "Prepare image" }
+    var imageButtonTitle: String {
+        imagePresent
+            ? String(
+                localized: "Rebuild image…", bundle: .l10n,
+                comment: "This Mac form: button that rebuilds the existing image")
+            : String(
+                localized: "Prepare image", bundle: .l10n,
+                comment: "This Mac form: button that builds the image for the first time")
+    }
     private(set) var containerOn = false
     private(set) var dockerOn = false
     private(set) var containerLine = Line(text: "")
     private(set) var dockerLine = Line(text: "")
     private(set) var containerInstallVisible = false
     private(set) var dockerInstallVisible = false
-    private(set) var containerInstallTitle = "Install…"
+    private(set) var containerInstallTitle = String(
+        localized: "Install…", bundle: .l10n, comment: "This Mac form: button that installs Apple container")
     /// Base image each runtime's image is baked on (nil = default); the
     /// tart value is what `image prepare` starts from.
     internal(set) var tartBaseImage: String?
@@ -109,7 +120,9 @@ final class MacToolsModel: ConfigFormModel {
     func install(_ tool: InstallableTool) { installs.install(tool) }
     @discardableResult
     func run(
-        _ title: String, cancelledLine: String = "Cancelled",
+        _ title: String,
+        cancelledLine: String = String(
+            localized: "Cancelled", bundle: .l10n, comment: "This Mac form: shown after cancelling an action"),
         _ body: @escaping @Sendable () async throws -> Void
     ) -> Task<Void, Never> { installs.run(title, cancelledLine: cancelledLine, body) }
 
@@ -139,7 +152,8 @@ final class MacToolsModel: ConfigFormModel {
         let containerBlocked = HostRequirements.blockingReason(for: .appleContainer, on: host)
         let dockerBlocked = HostRequirements.blockingReason(for: .docker, on: host)
         containerInstallVisible = !containerInstalled && containerBlocked == nil
-        containerInstallTitle = "Install…"
+        containerInstallTitle = String(
+            localized: "Install…", bundle: .l10n, comment: "This Mac form: button that installs Apple container")
         containerServiceNeedsStart = false
         dockerInstallVisible = !dockerInstalled && dockerBlocked == nil
         containerLine = Self.installLine(installed: containerInstalled, blocked: containerBlocked)
@@ -159,10 +173,12 @@ final class MacToolsModel: ConfigFormModel {
         if autoEnableLinuxRuntime, configReadable, !tartInstalled, !containerOn, !dockerOn {
             if dockerInstalled {
                 setDocker(true)
-                noteAutoEnabled("Docker")
+                noteAutoEnabled(
+                    String(localized: "Docker", bundle: .l10n, comment: "Runtime name used inside a sentence"))
             } else if containerInstalled {
                 setContainer(true)
-                noteAutoEnabled("Apple container")
+                noteAutoEnabled(
+                    String(localized: "Apple container", bundle: .l10n, comment: "Runtime name used inside a sentence"))
             }
         }
         tartLine = Line(
@@ -172,12 +188,17 @@ final class MacToolsModel: ConfigFormModel {
         self.tartInstalled = tartInstalled
         if containerInstalled { checkContainerService() }
         guard tartInstalled else {
-            imageLine = Line(text: "needs tart first")
+            imageLine = Line(
+                text: String(
+                    localized: "needs tart first", bundle: .l10n, comment: "This Mac form: Base image row status"))
             imageButtonVisible = false
             setTartReady(false)
             return
         }
-        imageLine = Line(text: "checking \(image)…")
+        imageLine = Line(
+            text: String(
+                localized: "checking \(image)…", bundle: .l10n,
+                comment: "This Mac form: Base image row status; %@ is an image name"))
         imageButtonVisible = false
         Task { [weak self] in
             let preparedNames = await Task.detached { () -> Set<String> in
@@ -195,7 +216,13 @@ final class MacToolsModel: ConfigFormModel {
             let present = preparedNames.contains(image)
             guard let self else { return }
             self.imageLine = Line(
-                text: present ? "\(image) ready ✓" : "\(image) not prepared yet — takes a while, once",
+                text: present
+                    ? String(
+                        localized: "\(image) ready ✓", bundle: .l10n,
+                        comment: "This Mac form: Base image row status; %@ is an image name")
+                    : String(
+                        localized: "\(image) not prepared yet — takes a while, once", bundle: .l10n,
+                        comment: "This Mac form: Base image row status; %@ is an image name"),
                 style: present ? .secondary : .warn)
             self.imagePresent = present
             self.namedImages.rows = extra.map {
@@ -212,7 +239,9 @@ final class MacToolsModel: ConfigFormModel {
 
     private func noteAutoEnabled(_ name: String) {
         installs.busyLine = Line(
-            text: "tart isn't installed, so \(name) is on for Linux jobs. Change it below any time.")
+            text: String(
+                localized: "tart isn't installed, so \(name) is on for Linux jobs. Change it below any time.",
+                bundle: .l10n, comment: "This Mac form notice; %@ is a runtime name"))
     }
 
     private func setTartReady(_ ready: Bool) {
@@ -247,9 +276,18 @@ final class MacToolsModel: ConfigFormModel {
     // MARK: - Actions
 
     private static func installLine(installed: Bool, blocked: String?) -> Line {
-        if installed { return Line(text: "installed ✓") }
-        if let blocked { return Line(text: "not supported — \(blocked)", style: .warn) }
-        return Line(text: "not installed")
+        if installed {
+            return Line(
+                text: String(localized: "installed ✓", bundle: .l10n, comment: "This Mac form: runtime row status"))
+        }
+        if let blocked {
+            return Line(
+                text: String(
+                    localized: "not supported — \(blocked)", bundle: .l10n,
+                    comment: "This Mac form: runtime row status; %@ is the reason"), style: .warn)
+        }
+        return Line(
+            text: String(localized: "not installed", bundle: .l10n, comment: "This Mac form: runtime row status"))
     }
 
     /// The tart row's status text. A configured `tart_path:` the probe cannot
@@ -257,9 +295,15 @@ final class MacToolsModel: ConfigFormModel {
     /// install, which is not what a misconfigured override needs — the path
     /// in config.yaml is the thing to fix (installing elsewhere won't help).
     private static func tartStatus(installed: Bool, configuredPath: String?) -> String {
-        if installed { return "installed ✓" }
-        guard let configuredPath, !configuredPath.isEmpty else { return "not installed" }
-        return "not installed — tart_path: \(configuredPath) does not exist"
+        if installed {
+            return String(localized: "installed ✓", bundle: .l10n, comment: "This Mac form: tart row status")
+        }
+        guard let configuredPath, !configuredPath.isEmpty else {
+            return String(localized: "not installed", bundle: .l10n, comment: "This Mac form: tart row status")
+        }
+        return String(
+            localized: "not installed — tart_path: \(configuredPath) does not exist", bundle: .l10n,
+            comment: "This Mac form: tart row status; %@ is the tart_path from config.yaml (keep tart_path verbatim)")
     }
 
     func installTart() { installs.install(.tart) }
@@ -277,10 +321,15 @@ final class MacToolsModel: ConfigFormModel {
         let shell = seams.installShell
         Task { [weak self] in
             let ready = await Task.detached { await AppleContainerRuntime(shell: shell).health().isReady }.value
-            guard let self, !ready, self.containerLine.text.hasPrefix("installed") else { return }
+            guard let self, !ready, self.readiness.containerInstalled else { return }
             self.containerServiceNeedsStart = true
-            self.containerLine = Line(text: "installed, but its service isn't running", style: .warn)
-            self.containerInstallTitle = "Start service"
+            self.containerLine = Line(
+                text: String(
+                    localized: "installed, but its service isn't running", bundle: .l10n,
+                    comment: "This Mac form: Apple container row status"), style: .warn)
+            self.containerInstallTitle = String(
+                localized: "Start service", bundle: .l10n,
+                comment: "This Mac form: button that starts the Apple container service")
             self.containerInstallVisible = true
         }
     }
@@ -291,15 +340,21 @@ final class MacToolsModel: ConfigFormModel {
     func prepareImage() {
         if imagePresent,
             !seams.confirmRebuild(
-                "Rebuild the runner image?",
-                "This replaces the existing image with a fresh bake from the selected base image and "
-                    + "takes a while. Running VMs keep working; new ones use the rebuilt image.")
+                String(localized: "Rebuild the runner image?", bundle: .l10n, comment: "Confirmation title"),
+                String(
+                    localized:
+                        "This replaces the existing image with a fresh bake from the selected base image and takes a while. Running VMs keep working; new ones use the rebuilt image.",
+                    bundle: .l10n, comment: "Confirmation body"))
         {
             return
         }
         let task = installs.run(
-            "Preparing the runner image — this takes a while…",
-            cancelledLine: "Cancelled — the previous image is untouched"
+            String(
+                localized: "Preparing the runner image — this takes a while…", bundle: .l10n,
+                comment: "This Mac form: progress line while the image builds"),
+            cancelledLine: String(
+                localized: "Cancelled — the previous image is untouched", bundle: .l10n,
+                comment: "This Mac form: shown after cancelling an image build")
         ) {
             try await ImageBuildService.rebuild(.tart, config: ConfigLoader.load())
         }
@@ -315,8 +370,16 @@ final class MacToolsModel: ConfigFormModel {
     func buildLinuxImage(_ runtime: RuntimeID) {
         guard runtime == .appleContainer || runtime == .docker else { return }
         installs.run(
-            "Building the \(runtime == .docker ? "Docker" : "Apple container") image — this takes a while…",
-            cancelledLine: "Cancelled — the previous image is untouched"
+            runtime == .docker
+                ? String(
+                    localized: "Building the Docker image — this takes a while…", bundle: .l10n,
+                    comment: "This Mac form: progress line")
+                : String(
+                    localized: "Building the Apple container image — this takes a while…", bundle: .l10n,
+                    comment: "This Mac form: progress line"),
+            cancelledLine: String(
+                localized: "Cancelled — the previous image is untouched", bundle: .l10n,
+                comment: "This Mac form: shown after cancelling an image build")
         ) {
             try await ImageBuildService.rebuild(runtime, config: ConfigLoader.load())
         }

@@ -13,7 +13,7 @@ struct PipelineView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
             if let message = model.emptyMessage {
-                StatusText(text: message, style: model.error == nil ? .secondary : .error)
+                StatusText(verbatim: message, style: model.error == nil ? .secondary : .error)
                 Spacer(minLength: 0)
             } else if model.logTarget != nil {
                 outputPane
@@ -49,17 +49,22 @@ struct PipelineView: View {
                 Text(model.title).font(.system(size: 18, weight: .bold)).lineLimit(1)
             }
             Text(model.vmID).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
-            if let subtitle = model.subtitle { HintText(subtitle) }
-            if let notice = model.notice { HintText(notice) }
-            if model.detail != nil, let error = model.error { StatusText(text: error, style: .error) }
+            if let subtitle = model.subtitle { HintText(verbatim: subtitle) }
+            if let notice = model.notice { HintText(verbatim: notice) }
+            if model.detail != nil, let error = model.error { StatusText(verbatim: error, style: .error) }
         }
     }
 
     private var footer: some View {
         HStack {
             if model.selectedJob != nil {
-                Button(model.logTarget != nil ? "‹ Steps" : "‹ All jobs") { model.back() }
-                    .accessibilityLabel(model.logTarget != nil ? "Back to the job's steps" : "Back to all jobs")
+                Button {
+                    model.back()
+                } label: {
+                    model.logTarget != nil ? Text("‹ Steps") : Text("‹ All jobs")
+                }
+                .accessibilityLabel(
+                    model.logTarget != nil ? Text("Back to the job's steps") : Text("Back to all jobs"))
             }
             if let url = (model.selectedJob?.url ?? model.detail?.url).flatMap(URL.init(string:)) {
                 Link("Open in browser", destination: url)
@@ -99,9 +104,12 @@ struct PipelineView: View {
                 // Ticks every second between polls, so elapsed time and "ago" stay live.
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text(
-                        [
+                        verbatim: [
                             PipelineModel.label(for: job.state), model.timing(of: job, now: context.date),
-                            job.isCurrent ? "this VM" : nil,
+                            job.isCurrent
+                                ? String(
+                                    localized: "this VM", bundle: .l10n,
+                                    comment: "Pipeline job row tag: this job runs on the VM being inspected") : nil,
                         ].compactMap { $0 }.joined(separator: " · ")
                     )
                     .font(.system(size: 11))
@@ -127,14 +135,15 @@ struct PipelineView: View {
                 Text(job.name).font(.system(size: 14, weight: .semibold)).lineLimit(2)
             }
             if let hint = model.stepsHint(for: job) {
-                HintText(hint)
+                HintText(verbatim: hint)
             }
             ScrollView {
                 VStack(spacing: 6) {
                     Button {
                         model.selectJobOutput()
                     } label: {
-                        outputRow("Whole job output")
+                        outputRow(
+                            String(localized: "Whole job output", bundle: .l10n, comment: "Pipeline job output row"))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Show the output of \(job.name)")
@@ -156,7 +165,7 @@ struct PipelineView: View {
     private func outputRow(_ title: String) -> some View {
         HStack(spacing: 10) {
             Text("≡").font(.system(size: 14, weight: .bold)).foregroundStyle(.secondary).frame(width: 16)
-            Text(title).font(.system(size: 12))
+            Text(verbatim: title).font(.system(size: 12))
             Spacer(minLength: 8)
             Text("›").foregroundStyle(.tertiary)
         }
@@ -200,12 +209,12 @@ struct PipelineView: View {
             }
             if let step = model.openStep {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    if let timing = model.timing(of: step, now: context.date) { HintText(timing) }
+                    if let timing = model.timing(of: step, now: context.date) { HintText(verbatim: timing) }
                 }
             }
-            if let notice = model.logNotice { HintText(notice) }
+            if let notice = model.logNotice { HintText(verbatim: notice) }
             if let placeholder = model.logPlaceholder {
-                StatusText(text: placeholder, style: model.logError == nil ? .secondary : .error)
+                StatusText(verbatim: placeholder, style: model.logError == nil ? .secondary : .error)
                 Spacer(minLength: 0)
             } else if let text = model.log?.text {
                 ScrollViewReader { proxy in

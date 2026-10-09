@@ -61,11 +61,18 @@ struct BudgetAllocationBar: View {
     }
 
     private func percentText(_ share: Double) -> String {
-        "\(Int((share * 100).rounded()))%"
+        share.formatted(.percent.precision(.fractionLength(0)))
     }
 
     private var summary: String {
         let parts = visibleSegments.map { "\($0.id.rawValue) \(percentText($0.share))" }
-        return parts.isEmpty ? "No capacity split yet" : "Capacity split: \(parts.joined(separator: ", "))"
+        guard !parts.isEmpty else {
+            return String(
+                localized: "No capacity split yet", bundle: .l10n,
+                comment: "VoiceOver summary of the capacity split bar")
+        }
+        return String(
+            localized: "Capacity split: \(parts.formatted(.list(type: .and, width: .narrow)))", bundle: .l10n,
+            comment: "VoiceOver summary of the capacity split bar; %@ lists each runtime with its percentage")
     }
 }

@@ -84,7 +84,7 @@ struct WorkflowTestView: View {
                     HStack {
                         Text("Jobs").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
                         Spacer()
-                        Text("\(model.jobs.count) job(s)").font(.system(size: 12))
+                        Text("\(model.jobs.count) jobs").font(.system(size: 12))
                     }
                 }
                 .padding(10)
@@ -152,7 +152,7 @@ struct WorkflowTestView: View {
                 .font(.system(size: 12, design: .monospaced))
             Spacer()
             if let duration = model.jobDuration[job] {
-                Text(duration < 60 ? "\(Int(duration))s" : "\(Int(duration / 60))m \(Int(duration) % 60)s")
+                Text(verbatim: AppFormat.duration(duration))
                     .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
             }
         }
@@ -165,9 +165,14 @@ struct WorkflowTestView: View {
     /// A partial run says so (with how much was skipped) instead of reading as
     /// the generic "skipped".
     static func headline(for report: LocalRunReport?) -> String {
-        guard let report else { return "finished" }
+        guard let report else {
+            return String(
+                localized: "finished", bundle: .l10n, comment: "Workflow test headline when there is no report")
+        }
         if report.outcome == .partial {
-            return "partial — \(report.unsupportedSkips.count) skipped as unsupported"
+            return String(
+                localized: "partial — \(report.unsupportedSkips.count) skipped as unsupported", bundle: .l10n,
+                comment: "Workflow test headline; the number is how many steps were skipped")
         }
         return report.overallState.rawValue
     }
@@ -178,7 +183,7 @@ struct WorkflowTestView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 StateGlyph(state: model.report?.overallState ?? .pending)
-                Text(Self.headline(for: model.report))
+                Text(verbatim: Self.headline(for: model.report))
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 if let failed = model.report?.failedJobs, failed > 0 {
@@ -195,7 +200,7 @@ struct WorkflowTestView: View {
                             .lineLimit(1)
                         Spacer()
                         if let duration = step.duration {
-                            Text(duration < 60 ? "\(Int(duration))s" : "\(Int(duration / 60))m \(Int(duration) % 60)s")
+                            Text(verbatim: AppFormat.duration(duration))
                                 .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                         }
                     }

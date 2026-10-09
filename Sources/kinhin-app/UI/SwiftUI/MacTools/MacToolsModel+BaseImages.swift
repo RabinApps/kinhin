@@ -39,8 +39,12 @@ extension MacToolsModel {
     /// automatically, so macOS and Linux Tart VMs can share one fleet.
     var tartLinuxLabelWarning: String? {
         guard tartLinuxOn, fleetLabels.contains(where: { $0.lowercased() == "macos" }) else { return nil }
-        return "Your fleet labels include “macos”, so macOS jobs would be sent to this Linux VM. In config.yaml, "
-            + "remove “macos” from labels (add “linux” if jobs ask for it)."
+        return String(
+            localized:
+                "Your fleet labels include “macos”, so macOS jobs would be sent to this Linux VM. In config.yaml, remove “macos” from labels (add “linux” if jobs ask for it).",
+            bundle: .l10n,
+            comment: "Warning under the Tart (Linux VM) row; macos, linux and config.yaml are literal names")
+
     }
 
     /// The "Tart (Linux VM)" checkbox: on starts from the default Linux
@@ -55,7 +59,10 @@ extension MacToolsModel {
             try GeneralConfigEditor.setBaseImage(value, for: runtime, at: configURL)
             refreshBaseImages()
             onChanged?()
-            installs.busyLine = Line(text: "Base image saved. Rebuild the image for it to take effect.")
+            installs.busyLine = Line(
+                text: String(
+                    localized: "Base image saved. Rebuild the image for it to take effect.", bundle: .l10n,
+                    comment: "This Mac form status after choosing a base image"))
         } catch {
             installs.busyLine = .notSaved(error)
             refreshBaseImages()

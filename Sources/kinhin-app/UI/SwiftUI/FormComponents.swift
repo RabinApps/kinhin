@@ -29,14 +29,19 @@ struct StatusLine: Equatable {
 
     /// A config write the editor rejected (nothing was written).
     static func notSaved(_ error: Error) -> StatusLine {
-        StatusLine(text: "Not saved — \(error.localizedDescription)", style: .error)
+        StatusLine(
+            text: String(
+                localized: "Not saved — \(error.localizedDescription)", bundle: .l10n,
+                comment: "Form status line; %@ is the error's description"), style: .error)
     }
 
     /// config.yaml doesn't parse: said on the form instead of rendering
     /// defaults as if nothing were configured.
     static func unreadableConfig(_ error: Error) -> StatusLine {
         StatusLine(
-            text: "config.yaml can't be read — \(error.localizedDescription). Fix it in Advanced → Edit YAML.",
+            text: String(
+                localized: "config.yaml can't be read — \(error.localizedDescription). Fix it in Advanced → Edit YAML.",
+                bundle: .l10n, comment: "Form status line; %@ is the YAML parse error"),
             style: .error)
     }
 }
@@ -50,26 +55,44 @@ protocol ConfigFormModel: AnyObject {
 }
 
 /// One line of status feedback ("Connected ✓", "Not saved — …").
+///
+/// A literal (`StatusText(text: "idle")`) is looked up in the String Catalog; text a model already
+/// built (and localized) goes through `verbatim:`.
 struct StatusText: View {
-    let text: String
+    let text: Text
     var style: StatusStyle = .secondary
 
+    init(text: LocalizedStringKey, style: StatusStyle = .secondary) {
+        self.text = Text(text)
+        self.style = style
+    }
+
+    init(verbatim text: String, style: StatusStyle = .secondary) {
+        self.text = Text(verbatim: text)
+        self.style = style
+    }
+
     var body: some View {
-        Text(text)
+        text
             .font(.system(size: 11))
             .foregroundStyle(style.color)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-/// Small secondary text that wraps within its card.
+/// Small secondary text that wraps within its card. A literal is looked up in the String Catalog;
+/// text a model already built (and localized) goes through `verbatim:`.
 struct HintText: View {
-    let text: String
+    let text: Text
 
-    init(_ text: String) { self.text = text }
+    init(_ key: LocalizedStringKey) { self.text = Text(key) }
+
+    init(_ text: Text) { self.text = text }
+
+    init(verbatim text: String) { self.text = Text(verbatim: text) }
 
     var body: some View {
-        Text(text)
+        text
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -78,30 +101,51 @@ struct HintText: View {
 
 /// A small uppercase label that titles a group of cards.
 struct SectionHeader: View {
-    let text: String
+    let key: LocalizedStringKey
 
-    init(_ text: String) { self.text = text }
+    init(_ key: LocalizedStringKey) { self.key = key }
 
     var body: some View {
-        Text(text.uppercased())
+        Text(key)
+            .textCase(.uppercase)
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.tertiary)
     }
 }
 
 /// The rounded, bordered container every form section sits in.
+///
+/// Literal titles and subtitles are looked up in the String Catalog; model-built (already
+/// localized) text is passed as `Text(verbatim:)`.
 struct FormCard<Content: View>: View {
-    let title: String
-    var subtitle: String?
+    let title: Text
+    var subtitle: Text?
     /// A forge whose brand mark leads the title (forge cards).
     var forge: ForgeID?
     @ViewBuilder var content: Content
+
+    init(
+        title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, forge: ForgeID? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = Text(title)
+        self.subtitle = subtitle.map { Text($0) }
+        self.forge = forge
+        self.content = content()
+    }
+
+    init(title: Text, subtitle: Text? = nil, forge: ForgeID? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.subtitle = subtitle
+        self.forge = forge
+        self.content = content()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 if let forge { ForgeIconView(forge: forge, size: 14) }
-                Text(title).font(.system(size: 13, weight: .semibold))
+                title.font(.system(size: 13, weight: .semibold))
             }
             if let subtitle { HintText(subtitle) }
             content
@@ -116,11 +160,29 @@ struct FormCard<Content: View>: View {
 /// A `FormCard` whose body folds away behind its title row. Starts collapsed;
 /// `badge` stays visible in the header (e.g. "2 selected").
 struct CollapsibleFormCard<Content: View>: View {
-    let title: String
-    var subtitle: String?
+    let title: Text
+    var subtitle: Text?
+    /// Already-localized text (e.g. a count), so it is shown verbatim.
     var badge: String?
     @ViewBuilder var content: Content
     @State private var expanded = false
+
+    init(
+        title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, badge: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = Text(title)
+        self.subtitle = subtitle.map { Text($0) }
+        self.badge = badge
+        self.content = content()
+    }
+
+    init(title: Text, subtitle: Text? = nil, badge: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.subtitle = subtitle
+        self.badge = badge
+        self.content = content()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -131,15 +193,15 @@ struct CollapsibleFormCard<Content: View>: View {
                     Image(systemName: expanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
                         .frame(width: 10)
-                    Text(title).font(.system(size: 13, weight: .semibold))
+                    title.font(.system(size: 13, weight: .semibold))
                     Spacer(minLength: 0)
-                    if let badge { Text(badge).font(.system(size: 11)).foregroundStyle(.secondary) }
+                    if let badge { Text(verbatim: badge).font(.system(size: 11)).foregroundStyle(.secondary) }
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(title)
-            .accessibilityValue(expanded ? "expanded" : "collapsed")
+            .accessibilityValue(expanded ? Text("expanded") : Text("collapsed"))
 
             if expanded {
                 if let subtitle { HintText(subtitle) }
@@ -189,24 +251,24 @@ struct TokenRequirementsView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Token permissions needed")
-            .accessibilityValue(expanded ? "expanded" : "collapsed")
+            .accessibilityValue(expanded ? Text("expanded") : Text("collapsed"))
 
             if expanded {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(requirements.options, id: \.kind) { option in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
-                                Text(option.kind).font(.system(size: 11, weight: .semibold))
+                                Text(verbatim: option.kind).font(.system(size: 11, weight: .semibold))
                                 if let url = URL(string: option.url), option.url.hasPrefix("http") {
                                     Link("Create…", destination: url).font(.system(size: 11))
                                 }
                             }
                             ForEach(option.permissions, id: \.self) { line in
-                                HintText("• " + line).textSelection(.enabled)
+                                HintText(verbatim: "• " + line).textSelection(.enabled)
                             }
                         }
                     }
-                    if let note = requirements.note { HintText(note) }
+                    if let note = requirements.note { HintText(verbatim: note) }
                 }
                 .padding(.leading, 14)
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -33,8 +33,14 @@ extension ForgeConnectionModel {
                 connected = tokenStored
                 status =
                     forge == .github
-                    ? Line(text: "Now serving \(scopeValue) ✓", style: .ok)
-                    : Line(text: "Now serving \(scopeValue) on \(forge.displayName) ✓", style: .ok)
+                    ? Line(
+                        text: String(
+                            localized: "Now serving \(scopeValue) ✓", bundle: .l10n,
+                            comment: "Forge card status; %@ is the repository or org being served"), style: .ok)
+                    : Line(
+                        text: String(
+                            localized: "Now serving \(scopeValue) on \(forge.displayName) ✓", bundle: .l10n,
+                            comment: "Forge card status; first is the repository or org, second the forge"), style: .ok)
                 onChanged?()
                 if forge == .github {
                     // Now that there is a scope, check the token can manage its runners.
@@ -68,7 +74,10 @@ extension ForgeConnectionModel {
         } catch ConfigEditError.unsupported {
             // No account entry (a token-only connect): nothing to remove.
         } catch {
-            status = Line(text: "Couldn't remove — \(error.localizedDescription)", style: .error)
+            status = Line(
+                text: String(
+                    localized: "Couldn't remove — \(error.localizedDescription)", bundle: .l10n,
+                    comment: "Forge card status; %@ is the reason"), style: .error)
             throw error
         }
         deleteToken()
@@ -76,7 +85,8 @@ extension ForgeConnectionModel {
         connected = false
         lastWrittenScope = ""
         lastWrittenInstance = ""
-        status = Line(text: "Not connected yet.", style: .warn)
+        status = Line(
+            text: String(localized: "Not connected yet.", bundle: .l10n, comment: "Forge card status"), style: .warn)
         onChanged?()
     }
 

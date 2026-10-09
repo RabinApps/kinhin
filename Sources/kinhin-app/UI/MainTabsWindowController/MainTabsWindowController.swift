@@ -35,7 +35,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "kinhin"
+        window.title = String(localized: "kinhin", bundle: .l10n, comment: "Main window title (product name)")
         window.titlebarAppearsTransparent = true
         window.appearance = nil  // follow the system (light & dark)
         window.backgroundColor = .windowBackgroundColor

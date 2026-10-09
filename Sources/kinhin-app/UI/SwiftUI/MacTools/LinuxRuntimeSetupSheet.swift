@@ -174,12 +174,16 @@ private extension LinuxRuntimeSetup {
     var startInstallButtonTitle: String {
         if isInstalled {
             switch self {
-            case .appleContainer: return "Start service & use it"
-            case .docker: return "Use it"
-            case .tartLinux: return "Use it"
+            case .appleContainer:
+                return String(
+                    localized: "Start service & use it", bundle: .l10n, comment: "Button of the Linux runtime sheet")
+            case .docker:
+                return String(localized: "Use it", bundle: .l10n, comment: "Button of the Linux runtime sheet")
+            case .tartLinux:
+                return String(localized: "Use it", bundle: .l10n, comment: "Button of the Linux runtime sheet")
             }
         }
-        return "Install & use it"
+        return String(localized: "Install & use it", bundle: .l10n, comment: "Button of the Linux runtime sheet")
     }
 
     @discardableResult

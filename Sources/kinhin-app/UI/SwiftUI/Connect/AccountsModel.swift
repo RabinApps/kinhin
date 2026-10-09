@@ -56,18 +56,34 @@ final class AccountsModel: ConfigFormModel {
     var newInstance = ""
     private(set) var addStatus = StatusLine(text: "")
 
-    private static let storedText = "Token stored in your Keychain ✓ — paste a new one only to replace it."
+    private static let storedText = String(
+        localized: "Token stored in your Keychain ✓ — paste a new one only to replace it.", bundle: .l10n,
+        comment: "Account row status when a token is already stored")
 
     // MARK: - Forge-specific add-form text
 
     /// The scope field's prompt: GitLab scopes nest; Buildkite names a cluster.
     func scopePlaceholder(for forge: ForgeID) -> String {
         switch forge {
-        case .gitlab: return "group/subgroup or group/project"
-        case .buildkite: return "org-slug/cluster"
-        case .azuredevops: return "agent pool name"
-        case .bitbucket: return "workspace, or workspace/repo-slug"
-        case .github, .gitea, .forgejo: return "owner/name, or an org"
+        case .gitlab:
+            return String(
+                localized: "group/subgroup or group/project", bundle: .l10n,
+                comment: "Placeholder in the new-account repository field; keep the syntax verbatim")
+        case .buildkite:
+            return String(
+                localized: "org-slug/cluster", bundle: .l10n,
+                comment: "Placeholder in the new-account repository field; keep the syntax verbatim")
+        case .azuredevops:
+            return String(
+                localized: "agent pool name", bundle: .l10n, comment: "Placeholder in the new-account repository field")
+        case .bitbucket:
+            return String(
+                localized: "workspace, or workspace/repo-slug", bundle: .l10n,
+                comment: "Placeholder in the new-account repository field; keep the syntax verbatim")
+        case .github, .gitea, .forgejo:
+            return String(
+                localized: "owner/name, or an org", bundle: .l10n,
+                comment: "Placeholder in the new-account repository field; keep the syntax verbatim")
         }
     }
 
@@ -78,11 +94,20 @@ final class AccountsModel: ConfigFormModel {
     /// ("https://acme.ghe.com").
     func instancePlaceholder(for forge: ForgeID) -> String? {
         switch forge {
-        case .github: return "e.g. https://github.example.com or https://acme.ghe.com"
+        case .github:
+            return String(
+                localized: "e.g. https://github.example.com or https://acme.ghe.com", bundle: .l10n,
+                comment: "Placeholder in the new-account server field; keep the example URLs verbatim")
         case .buildkite, .bitbucket: return nil
         case .gitea, .forgejo: return "https://gitea.example.com"
-        case .gitlab: return "https://gitlab.com (optional)"
-        case .azuredevops: return "https://dev.azure.com/your-org"
+        case .gitlab:
+            return String(
+                localized: "https://gitlab.com (optional)", bundle: .l10n,
+                comment: "Placeholder in the new-account server field; keep the URL verbatim")
+        case .azuredevops:
+            return String(
+                localized: "https://dev.azure.com/your-org", bundle: .l10n,
+                comment: "Placeholder in the new-account server field; keep the example URL verbatim")
         }
     }
 
@@ -149,12 +174,19 @@ final class AccountsModel: ConfigFormModel {
                 return Row(
                     account: account, tokenStored: hasToken,
                     status: StatusLine(
-                        text: hasToken ? Self.storedText : "No token yet — paste one to connect.",
+                        text: hasToken
+                            ? Self.storedText
+                            : String(
+                                localized: "No token yet — paste one to connect.", bundle: .l10n,
+                                comment: "Account row status"),
                         style: hasToken ? .secondary : .warn))
             case .failure(let error):
                 return Row(
                     account: account, tokenStored: false,
-                    status: StatusLine(text: "Keychain error — \(error.localizedDescription)", style: .error))
+                    status: StatusLine(
+                        text: String(
+                            localized: "Keychain error — \(error.localizedDescription)", bundle: .l10n,
+                            comment: "Account row status; %@ is the Keychain error"), style: .error))
             }
         }
         tokenTexts = tokenTexts.filter { name, _ in accounts.contains { $0.name == name } }
@@ -168,7 +200,10 @@ final class AccountsModel: ConfigFormModel {
         let scope = newScope.trimmingCharacters(in: .whitespaces)
         let instance = newInstance.trimmingCharacters(in: .whitespaces)
         if instanceRequired(for: newForge), instance.isEmpty {
-            addStatus = StatusLine(text: "Not added — enter the \(newForge.displayName) server address.", style: .error)
+            addStatus = StatusLine(
+                text: String(
+                    localized: "Not added — enter the \(newForge.displayName) server address.", bundle: .l10n,
+                    comment: "Add-account status; %@ is a forge name"), style: .error)
             return
         }
         // Only forges with a server address store one; a blank GitHub
@@ -181,13 +216,19 @@ final class AccountsModel: ConfigFormModel {
         do {
             try AccountsConfigEditor.add(account, to: configURL)
         } catch {
-            addStatus = StatusLine(text: "Not added — \(error.localizedDescription)", style: .error)
+            addStatus = StatusLine(
+                text: String(
+                    localized: "Not added — \(error.localizedDescription)", bundle: .l10n,
+                    comment: "Add-account status; %@ is the reason"), style: .error)
             return
         }
         newName = ""
         newScope = ""
         newInstance = ""
-        addStatus = StatusLine(text: "Added '\(name)' — paste its token below.", style: .ok)
+        addStatus = StatusLine(
+            text: String(
+                localized: "Added '\(name)' — paste its token below.", bundle: .l10n,
+                comment: "Add-account status; %@ is the account name"), style: .ok)
         reload()
         onChanged?()
     }
@@ -198,11 +239,19 @@ final class AccountsModel: ConfigFormModel {
         do {
             try AccountsConfigEditor.remove(name: name, at: configURL)
         } catch {
-            update(name) { $0.status = StatusLine(text: "Not removed — \(error.localizedDescription)", style: .error) }
+            update(name) {
+                $0.status = StatusLine(
+                    text: String(
+                        localized: "Not removed — \(error.localizedDescription)", bundle: .l10n,
+                        comment: "Account row status; %@ is the reason"), style: .error)
+            }
             return
         }
         deleteToken(row.account)
-        addStatus = StatusLine(text: "Removed '\(name)'.", style: .secondary)
+        addStatus = StatusLine(
+            text: String(
+                localized: "Removed '\(name)'.", bundle: .l10n, comment: "Add-account status; %@ is the account name"),
+            style: .secondary)
         reload()
         onChanged?()
     }
@@ -216,7 +265,10 @@ final class AccountsModel: ConfigFormModel {
         guard !typed.isEmpty else { return }
         update(name) {
             $0.checking = true
-            $0.status = StatusLine(text: "Checking the token…")
+            $0.status = StatusLine(
+                text: String(
+                    localized: "Checking the token…", bundle: .l10n,
+                    comment: "Account row status while the token is verified"))
         }
         Task { [weak self] in
             guard let self else { return }
@@ -237,7 +289,9 @@ final class AccountsModel: ConfigFormModel {
             } catch {
                 self.update(name) {
                     $0.status = StatusLine(
-                        text: "Couldn't save the token — \(error.localizedDescription)", style: .error)
+                        text: String(
+                            localized: "Couldn't save the token — \(error.localizedDescription)", bundle: .l10n,
+                            comment: "Account row status; %@ is the reason"), style: .error)
                 }
             }
         }

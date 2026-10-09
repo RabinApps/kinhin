@@ -125,7 +125,10 @@ final class UpdateController {
             Log.info("app", "update downloaded to \(url.path)")
             guard open(url) else {
                 Log.error("app", "could not open the downloaded update at \(url.path)")
-                updateCardState = .failed("Downloaded the update but couldn't open it — find it at \(url.path)")
+                updateCardState = .failed(
+                    String(
+                        localized: "Downloaded the update but couldn't open it — find it at \(url.path)", bundle: .l10n,
+                        comment: "Update card error; %@ is a file path"))
                 return
             }
             updateCardState = .available(version: info.version)

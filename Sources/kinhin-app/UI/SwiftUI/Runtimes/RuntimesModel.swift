@@ -134,7 +134,9 @@ final class RuntimesModel: ConfigFormModel {
         }
         guard FileManager.default.fileExists(atPath: configURL.path) else {
             loadFailed = true
-            emptyMessage = "No config file yet — finish the Setup tab first."
+            emptyMessage = String(
+                localized: "No config file yet — finish the Setup tab first.", bundle: .l10n,
+                comment: "Routing tab empty state")
             return
         }
         let yaml: String
@@ -144,7 +146,9 @@ final class RuntimesModel: ConfigFormModel {
             parsed = try ConfigLoader.parse(yaml)
         } catch {
             loadFailed = true
-            emptyMessage = "config.yaml has a problem — \(error.localizedDescription). Fix it with Edit YAML…"
+            emptyMessage = String(
+                localized: "config.yaml has a problem — \(error.localizedDescription). Fix it with Edit YAML…",
+                bundle: .l10n, comment: "Routing tab empty state; %@ is the parse error")
             return
         }
         loadFailed = false
@@ -161,7 +165,9 @@ final class RuntimesModel: ConfigFormModel {
             // The config parses but the runtime section does not: surface it
             // instead of silently editing against default-shaped values.
             loadFailed = true
-            emptyMessage = "runtimes section has a problem — \(error.localizedDescription)"
+            emptyMessage = String(
+                localized: "runtimes section has a problem — \(error.localizedDescription)", bundle: .l10n,
+                comment: "Routing tab empty state; %@ is the parse error")
             return
         }
         refreshLabelFields()
@@ -182,23 +188,36 @@ final class RuntimesModel: ConfigFormModel {
         return vm.pools.map { pool in
             let name: String
             switch pool.runtime {
-            case .tart: name = "🍎 Tart VMs (macOS)"
-            case .appleContainer: name = "🐧 Apple containers (Linux)"
-            case .docker: name = "🐳 Docker (Linux)"
-            case .host: name = "Host (this Mac)"
+            case .tart: name = String(localized: "🍎 Tart VMs (macOS)", bundle: .l10n, comment: "Routing tab pool name")
+            case .appleContainer:
+                name = String(localized: "🐧 Apple containers (Linux)", bundle: .l10n, comment: "Routing tab pool name")
+            case .docker: name = String(localized: "🐳 Docker (Linux)", bundle: .l10n, comment: "Routing tab pool name")
+            case .host: name = String(localized: "Host (this Mac)", bundle: .l10n, comment: "Routing tab pool name")
             }
-            var title = name + " — "
-            if let cap = pool.cap {
-                title += "cap \(cap) instance\(cap == 1 ? "" : "s")"
-            } else {
-                title += "cap n/a"
-            }
+            let capText =
+                pool.cap.map { cap in
+                    String(
+                        localized: "cap \(cap) instances", bundle: .l10n,
+                        comment: "Routing tab pool title fragment; plural by the instance cap")
+                }
+                ?? String(
+                    localized: "cap n/a", bundle: .l10n,
+                    comment: "Routing tab pool title fragment: no instance cap (not applicable)")
             // The Budget card owns the share display now — no duplicate
             // "N% of host budget" buried in pool titles.
-            if pool.runtime == vm.defaultRuntime {
-                title += " · default"
-            }
-            var details = ["labels: " + pool.labels.joined(separator: ", ")]
+            let title =
+                pool.runtime == vm.defaultRuntime
+                ? String(
+                    localized: "\(name) — \(capText) · default", bundle: .l10n,
+                    comment: "Routing tab pool title for the default pool; the pool name, then its instance cap")
+                : String(
+                    localized: "\(name) — \(capText)", bundle: .l10n,
+                    comment: "Routing tab pool title; the pool name, then its instance cap")
+            var details = [
+                String(
+                    localized: "labels: \(pool.labels.joined(separator: ", "))", bundle: .l10n,
+                    comment: "Routing tab pool detail; %@ lists runner labels")
+            ]
             if let note = RuntimesPaneViewModel.healthNote(for: pool.health) {
                 details.append("⚠︎ " + note)
             }
@@ -211,18 +230,39 @@ final class RuntimesModel: ConfigFormModel {
     var routeRows: [(pattern: String, title: String)] {
         guard let vm = viewModel else { return [] }
         return vm.routes.map { route in
-            var title =
-                route.isWorkflow
-                ? "\(route.pattern)  →  \(route.runtime.rawValue)  (workflow)"
-                : "\(route.pattern)  →  \(route.runtime.rawValue)"
-            if route.runtime == .host { title += "  ⚠︎ unisolated" }
+            let title: String
+            switch (route.isWorkflow, route.runtime == .host) {
+            case (false, false):
+                title = String(
+                    localized: "\(route.pattern)  →  \(route.runtime.rawValue)", bundle: .l10n,
+                    comment: "Routing tab route row: a repository pattern, then the runtime it goes to")
+            case (true, false):
+                title = String(
+                    localized: "\(route.pattern)  →  \(route.runtime.rawValue)  (workflow)", bundle: .l10n,
+                    comment: "Routing tab route row for one workflow: the pattern, then the runtime")
+            case (false, true):
+                title = String(
+                    localized: "\(route.pattern)  →  \(route.runtime.rawValue)  ⚠︎ unisolated", bundle: .l10n,
+                    comment: "Routing tab route row for a host route: the pattern, then the runtime")
+            case (true, true):
+                title = String(
+                    localized: "\(route.pattern)  →  \(route.runtime.rawValue)  (workflow)  ⚠︎ unisolated",
+                    bundle: .l10n,
+                    comment: "Routing tab route row for a host route of one workflow: the pattern, then the runtime")
+            }
             return (route.pattern, title)
         }
     }
 
     var headline: String {
         guard let vm = viewModel else { return "" }
-        return "Fleet scope: \(repo) — \(vm.routingConfigured ? "routed" : "single-pool") fleet"
+        return vm.routingConfigured
+            ? String(
+                localized: "Fleet scope: \(repo) — routed fleet", bundle: .l10n,
+                comment: "Routing tab headline; %@ is the repository or org")
+            : String(
+                localized: "Fleet scope: \(repo) — single-pool fleet", bundle: .l10n,
+                comment: "Routing tab headline; %@ is the repository or org")
     }
 
     /// Whether the budget card applies: only when the fleet is partitioned.
@@ -264,7 +304,9 @@ final class RuntimesModel: ConfigFormModel {
     // MARK: - Errors
 
     func presentError(_ error: Error) {
-        AlertKit.present(error: error, title: "Couldn't update the routing config")
+        AlertKit.present(
+            error: error,
+            title: String(localized: "Couldn't update the routing config", bundle: .l10n, comment: "Alert title"))
     }
 
     // MARK: - Display helpers (shared with tests)
@@ -274,13 +316,20 @@ final class RuntimesModel: ConfigFormModel {
     static func healthChip(_ health: RuntimeHealth?, probing: Bool) -> (text: String, style: StatusStyle) {
         switch health {
         case .ready:
-            return ("● ready", .ok)
+            return (String(localized: "● ready", bundle: .l10n, comment: "Runtime health chip"), .ok)
         case .missing(let tool, _):
-            return ("● \(tool) missing", .error)
+            return (
+                String(
+                    localized: "● \(tool) missing", bundle: .l10n,
+                    comment: "Runtime health chip; %@ is the missing tool"), .error
+            )
         case .broken:
-            return ("● error", .error)
+            return (String(localized: "● error", bundle: .l10n, comment: "Runtime health chip"), .error)
         case nil:
-            return (probing ? "● checking…" : "", .secondary)
+            return (
+                probing ? String(localized: "● checking…", bundle: .l10n, comment: "Runtime health chip") : "",
+                .secondary
+            )
         }
     }
 }

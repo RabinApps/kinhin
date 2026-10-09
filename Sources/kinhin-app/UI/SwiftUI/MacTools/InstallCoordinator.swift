@@ -33,11 +33,19 @@ final class MacToolsSeams {
     var hostFacts: () -> HostFacts = { .current() }
     /// Confirms replacing an existing image (real alert by default; tests inject a closure).
     var confirmRebuild: (_ title: String, _ message: String) -> Bool = { title, message in
-        AlertKit.confirm(title: title, message: message, confirmTitle: "Rebuild", destructive: true)
+        AlertKit.confirm(
+            title: title, message: message,
+            confirmTitle: String(
+                localized: "Rebuild", bundle: .l10n, comment: "Confirm button of the rebuild-image alert"),
+            destructive: true)
     }
     /// Shown instead of the confirmation when no option can run on this Mac.
     var explainUnsupported: (InstallableTool, Error) -> Void = { tool, error in
-        AlertKit.present(error: error, title: "\(tool.title) can't run on this Mac")
+        AlertKit.present(
+            error: error,
+            title: String(
+                localized: "\(tool.title) can't run on this Mac", bundle: .l10n,
+                comment: "Alert title; %@ is a tool name such as Docker"))
     }
 }
 
@@ -81,7 +89,9 @@ final class InstallCoordinator {
     /// in `runningTask` so `cancelRunning()` can stop it.
     @discardableResult
     func run(
-        _ title: String, cancelledLine: String = "Cancelled",
+        _ title: String,
+        cancelledLine: String = String(
+            localized: "Cancelled", bundle: .l10n, comment: "This Mac form: shown after cancelling an action"),
         _ body: @escaping @Sendable () async throws -> Void
     ) -> Task<Void, Never> {
         busy = true
@@ -93,7 +103,10 @@ final class InstallCoordinator {
             } catch is CancellationError {
                 self?.busyLine = Line(text: cancelledLine, style: .warn)
             } catch {
-                self?.busyLine = Line(text: "Failed — \(error.localizedDescription)", style: .error)
+                self?.busyLine = Line(
+                    text: String(
+                        localized: "Failed — \(error.localizedDescription)", bundle: .l10n,
+                        comment: "This Mac form: failure line; %@ is the reason"), style: .error)
             }
             self?.busy = false
             self?.runningTask = nil
@@ -113,15 +126,21 @@ final class InstallCoordinator {
     @discardableResult
     func startContainerService() -> Task<Void, Never> {
         let shell = seams.installShell
-        return run("Starting the Apple container service…") {
+        return run(
+            String(
+                localized: "Starting the Apple container service…", bundle: .l10n,
+                comment: "This Mac form: progress line")
+        ) {
             try await AppleContainerRuntime.startSystem(shell: shell)
         }
     }
 
     /// Appends the by-hand command to a failed install's busy line.
     func noteManualCommandFallback(_ command: String) {
-        guard busyLine.text.hasPrefix("Failed") else { return }
-        busyLine.text += "\nYou can also run this in Terminal: \(command)"
+        guard busyLine.style == .error else { return }
+        busyLine.text += String(
+            localized: "\nYou can also run this in Terminal: \(command)", bundle: .l10n,
+            comment: "This Mac form: hint appended to a failed install; %@ is a shell command")
     }
 
     // MARK: - Starting an install
@@ -214,7 +233,11 @@ final class InstallCoordinator {
         let brew = seams.brewPath()
         let installed = seams.installedCheck
         let name = tool.title
-        let task = run("Installing \(name)… this can take several minutes.") {
+        let task = run(
+            String(
+                localized: "Installing \(name)… this can take several minutes.", bundle: .l10n,
+                comment: "This Mac form: progress line; %@ is a tool name")
+        ) {
             try await RuntimeInstaller.install(
                 choice, tool: tool, shell: shell, brew: brew, host: host, isInstalled: installed)
         }

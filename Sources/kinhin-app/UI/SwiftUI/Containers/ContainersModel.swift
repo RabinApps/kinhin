@@ -15,6 +15,33 @@ final class ContainersModel {
         case start = "Start"
         case stop = "Stop"
         case restart = "Restart"
+
+        /// The button title (the raw value stays the stable English identifier).
+        var label: String {
+            switch self {
+            case .start: return String(localized: "Start", bundle: .l10n, comment: "Container row button")
+            case .stop: return String(localized: "Stop", bundle: .l10n, comment: "Container row button")
+            case .restart: return String(localized: "Restart", bundle: .l10n, comment: "Container row button")
+            }
+        }
+
+        /// What VoiceOver says for the row button; %@ is the container name.
+        func accessibilityLabel(container name: String) -> String {
+            switch self {
+            case .start:
+                return String(
+                    localized: "Start container \(name)", bundle: .l10n,
+                    comment: "VoiceOver label of a container row button; %@ is the container name")
+            case .stop:
+                return String(
+                    localized: "Stop container \(name)", bundle: .l10n,
+                    comment: "VoiceOver label of a container row button; %@ is the container name")
+            case .restart:
+                return String(
+                    localized: "Restart container \(name)", bundle: .l10n,
+                    comment: "VoiceOver label of a container row button; %@ is the container name")
+            }
+        }
     }
 
     /// Confirms a destructive action. Real UI shows an alert; tests inject a
@@ -61,7 +88,10 @@ final class ContainersModel {
             usage = [:]
             status = StatusLine(
                 text:
-                    "\(tool.title) isn't installed on this Mac. Install Docker Desktop, OrbStack or colima, or Apple's container CLI.",
+                    String(
+                        localized:
+                            "\(tool.title) isn't installed on this Mac. Install Docker Desktop, OrbStack or colima, or Apple's container CLI.",
+                        bundle: .l10n, comment: "Containers tab status; %@ is the container tool name"),
                 style: .error)
             return
         }
@@ -129,8 +159,13 @@ final class ContainersModel {
         guard let item = containers.first(where: { $0.id == id }) else { return nil }
         if item.isKinhinRunner,
             !confirm(
-                "Stop container “\(item.name)”?",
-                "This looks like a kinhin CI runner — stopping it cancels any job it is running.", "Stop")
+                String(
+                    localized: "Stop container “\(item.name)”?", bundle: .l10n,
+                    comment: "Confirmation title; %@ is the container name"),
+                String(
+                    localized: "This looks like a kinhin CI runner — stopping it cancels any job it is running.",
+                    bundle: .l10n, comment: "Confirmation body for stopping a kinhin runner container"),
+                String(localized: "Stop", bundle: .l10n, comment: "Confirm button that stops a container"))
         {
             return nil
         }
@@ -142,8 +177,13 @@ final class ContainersModel {
         guard let item = containers.first(where: { $0.id == id }) else { return nil }
         if item.isKinhinRunner,
             !confirm(
-                "Restart container “\(item.name)”?",
-                "This looks like a kinhin CI runner — restarting it cancels any job it is running.", "Restart")
+                String(
+                    localized: "Restart container “\(item.name)”?", bundle: .l10n,
+                    comment: "Confirmation title; %@ is the container name"),
+                String(
+                    localized: "This looks like a kinhin CI runner — restarting it cancels any job it is running.",
+                    bundle: .l10n, comment: "Confirmation body for restarting a kinhin runner container"),
+                String(localized: "Restart", bundle: .l10n, comment: "Confirm button that restarts a container"))
         {
             return nil
         }
@@ -153,14 +193,44 @@ final class ContainersModel {
     @discardableResult
     func deleteContainer(id: String) -> Task<Void, Never>? {
         guard let item = containers.first(where: { $0.id == id }) else { return nil }
-        var message = "“\(item.name)” will be permanently removed."
-        if item.isRunning { message += " It is running and will be stopped first." }
-        if item.isKinhinRunner {
-            message += " This looks like a kinhin CI runner — deleting it cancels any job it is running."
+        // One whole sentence set per case, so a translation can reword each combination.
+        let message: String
+        switch (item.isRunning, item.isKinhinRunner) {
+        case (false, false):
+            message = String(
+                localized: "“\(item.name)” will be permanently removed. This can’t be undone.", bundle: .l10n,
+                comment: "Delete-container confirmation body; %@ is the container name")
+        case (true, false):
+            message = String(
+                localized:
+                    "“\(item.name)” will be permanently removed. It is running and will be stopped first. This can’t be undone.",
+                bundle: .l10n,
+                comment: "Delete-container confirmation body for a running container; %@ is the container name")
+        case (false, true):
+            message = String(
+                localized:
+                    "“\(item.name)” will be permanently removed. This looks like a kinhin CI runner — deleting it cancels any job it is running. This can’t be undone.",
+                bundle: .l10n,
+                comment: "Delete-container confirmation body for a kinhin runner; %@ is the container name")
+        case (true, true):
+            message = String(
+                localized:
+                    "“\(item.name)” will be permanently removed. It is running and will be stopped first. This looks like a kinhin CI runner — deleting it cancels any job it is running. This can’t be undone.",
+                bundle: .l10n,
+                comment: "Delete-container confirmation body for a running kinhin runner; %@ is the container name")
         }
-        message += " This can’t be undone."
-        guard confirm("Delete container “\(item.name)”?", message, "Delete") else { return nil }
-        return run(done: "Deleted container “\(item.name)”.") {
+        guard
+            confirm(
+                String(
+                    localized: "Delete container “\(item.name)”?", bundle: .l10n,
+                    comment: "Confirmation title; %@ is the container name"), message,
+                String(localized: "Delete", bundle: .l10n, comment: "Destructive confirm button"))
+        else { return nil }
+        return run(
+            done: String(
+                localized: "Deleted container “\(item.name)”.", bundle: .l10n,
+                comment: "Containers tab status; %@ is the container name")
+        ) {
             try await $0.deleteContainer(id: item.id, force: item.isRunning)
         }
     }
@@ -169,11 +239,20 @@ final class ContainersModel {
     func deleteVolume(name: String) -> Task<Void, Never>? {
         guard
             confirm(
-                "Delete volume “\(name)”?",
-                "The volume and all data stored in it will be permanently deleted. This can’t be undone.",
-                "Delete")
+                String(
+                    localized: "Delete volume “\(name)”?", bundle: .l10n,
+                    comment: "Confirmation title; %@ is the volume name"),
+                String(
+                    localized:
+                        "The volume and all data stored in it will be permanently deleted. This can’t be undone.",
+                    bundle: .l10n, comment: "Delete-volume confirmation body"),
+                String(localized: "Delete", bundle: .l10n, comment: "Destructive confirm button"))
         else { return nil }
-        return run(done: "Deleted volume “\(name)”.") { try await $0.deleteVolume(name: name) }
+        return run(
+            done: String(
+                localized: "Deleted volume “\(name)”.", bundle: .l10n,
+                comment: "Containers tab status; %@ is the volume name")
+        ) { try await $0.deleteVolume(name: name) }
     }
 
     /// Runs an operation, then reloads; failures show inline.

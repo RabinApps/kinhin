@@ -18,9 +18,9 @@ struct FleetDiagramView: View {
     var onDelete: (String) -> Void
 
     var body: some View {
-        FormCard(title: "Runtimes", subtitle: subtitle) {
+        FormCard(title: Text("Runtimes"), subtitle: subtitle.map { Text(verbatim: $0) }) {
             if let placeholder {
-                StatusText(text: placeholder, style: .secondary)
+                StatusText(verbatim: placeholder, style: .secondary)
                     .accessibilityIdentifier("fleet-diagram-placeholder")
             } else if model.lanes.isEmpty {
                 StatusText(text: "No runtimes — the fleet is idle.")
@@ -42,7 +42,20 @@ struct FleetDiagramView: View {
     /// summary, so it appears only once something is running.
     private var subtitle: String? {
         guard placeholder == nil, model.instanceCount > 0 else { return nil }
-        return "\(model.instanceCount) instance\(model.instanceCount == 1 ? "" : "s") · \(model.busyCount) busy"
+        return String(
+            localized: "\(model.instanceCount) instances · \(model.busyCount) busy", bundle: .l10n,
+            comment: "Runtime card summary; plural by instance count, then how many hold a job")
+    }
+
+    private func laneAccessibilityLabel(_ lane: FleetDiagramModel.Lane) -> String {
+        let state =
+            lane.isIdle
+            ? String(localized: "idle", bundle: .l10n, comment: "VoiceOver state of an empty runtime lane")
+            : (lane.countText
+                ?? String(localized: "running", bundle: .l10n, comment: "VoiceOver state of a busy runtime lane"))
+        return String(
+            localized: "\(lane.title) — \(state)", bundle: .l10n,
+            comment: "VoiceOver label of a runtime lane: its name, then idle/running/instance count")
     }
 
     // MARK: - Lanes
@@ -75,7 +88,7 @@ struct FleetDiagramView: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(lane.title) — \(lane.isIdle ? "idle" : (lane.countText ?? "running"))")
+        .accessibilityLabel(laneAccessibilityLabel(lane))
     }
 
     /// One instance as a single row — the phase icon leads, then the old VM

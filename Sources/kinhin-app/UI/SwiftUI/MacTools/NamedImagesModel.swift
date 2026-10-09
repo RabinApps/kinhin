@@ -36,7 +36,10 @@ final class NamedImagesModel {
         mutate { images in
             if let index = images.firstIndex(where: { $0.name == name }) { images[index].baseImage = baseImage }
         }
-        owner.installs.busyLine = StatusLine(text: "Base image saved. Rebuild '\(name)' for it to take effect.")
+        owner.installs.busyLine = StatusLine(
+            text: String(
+                localized: "Base image saved. Rebuild '\(name)' for it to take effect.", bundle: .l10n,
+                comment: "This Mac form status; %@ is an image name"))
     }
 
     /// Sets the labels a job requests (`runs-on`) to run on this image; empty = not selectable by label.
@@ -55,21 +58,32 @@ final class NamedImagesModel {
     func remove(_ name: String) {
         mutate { $0.removeAll { $0.name == name } }
         owner.installs.busyLine = StatusLine(
-            text: "Removed '\(name)' from the config. Its prepared VM is still on disk (tart delete \(name)).")
+            text: String(
+                localized: "Removed '\(name)' from the config. Its prepared VM is still on disk (tart delete \(name)).",
+                bundle: .l10n, comment: "This Mac form status; %@ is an image name, used again in the tart command"))
     }
 
     func prepare(_ name: String) {
         let present = rows.first(where: { $0.name == name })?.present ?? false
         if present,
             !owner.seams.confirmRebuild(
-                "Rebuild image “\(name)”?",
-                "This replaces the existing image with a fresh bake from its base image and takes a while.")
+                String(
+                    localized: "Rebuild image “\(name)”?", bundle: .l10n,
+                    comment: "Confirmation title; %@ is an image name"),
+                String(
+                    localized:
+                        "This replaces the existing image with a fresh bake from its base image and takes a while.",
+                    bundle: .l10n, comment: "Confirmation body"))
         {
             return
         }
         owner.installs.run(
-            "Preparing image “\(name)” — this takes a while…",
-            cancelledLine: "Cancelled — the previous image is untouched"
+            String(
+                localized: "Preparing image “\(name)” — this takes a while…", bundle: .l10n,
+                comment: "This Mac form: progress line; %@ is an image name"),
+            cancelledLine: String(
+                localized: "Cancelled — the previous image is untouched", bundle: .l10n,
+                comment: "This Mac form: shown after cancelling an image build")
         ) {
             try await ImageBuildService.rebuild(.tart, config: ConfigLoader.load(), image: name)
         }

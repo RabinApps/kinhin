@@ -26,7 +26,13 @@ struct FleetDiagramModel {
         let opensPipeline: Bool
 
         /// Tooltip text: the title, then the detail facts.
-        var tooltip: String { detail.isEmpty ? title : "\(title) — \(detail)" }
+        var tooltip: String {
+            detail.isEmpty
+                ? title
+                : String(
+                    localized: "\(title) — \(detail)", bundle: .l10n,
+                    comment: "Runtime-lane tooltip: title, then detail")
+        }
 
         /// The phase in words. The icon's colour and shape say it to a
         /// sighted reader; this says it to VoiceOver and to anyone who
@@ -35,8 +41,14 @@ struct FleetDiagramModel {
 
         /// VoiceOver text: the instance, its phase in words, then the detail facts.
         var accessibilityText: String {
-            let head = "\(id), \(phaseDescription)"
-            return detail.isEmpty ? head : "\(head). \(detail)"
+            let head = String(
+                localized: "\(id), \(phaseDescription)", bundle: .l10n,
+                comment: "VoiceOver label of a runtime instance: id, then phase description")
+            return detail.isEmpty
+                ? head
+                : String(
+                    localized: "\(head). \(detail)", bundle: .l10n,
+                    comment: "VoiceOver label of a runtime instance: summary, then detail")
         }
     }
 
@@ -58,9 +70,14 @@ struct FleetDiagramModel {
         /// "3 instances · cap 4"; nil on an idle lane (it says "idle" instead).
         var countText: String? {
             guard !instances.isEmpty else { return nil }
-            var text = "\(instances.count) instance\(instances.count == 1 ? "" : "s")"
-            if let cap { text += " · cap \(cap)" }
-            return text
+            if let cap {
+                return String(
+                    localized: "\(instances.count) instances · cap \(cap)", bundle: .l10n,
+                    comment: "Runtime lane summary; plural by instance count, then the lane's capacity")
+            }
+            return String(
+                localized: "\(instances.count) instances", bundle: .l10n,
+                comment: "Runtime lane summary; plural by instance count")
         }
     }
 
@@ -126,10 +143,29 @@ struct FleetDiagramModel {
     /// (🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host).
     private static func identity(_ id: RuntimeID) -> (mark: String, title: String) {
         switch id {
-        case .tart: return ("🍎", "Tart VMs (macOS)")
-        case .appleContainer: return ("🐧", "Apple containers (Linux)")
-        case .docker: return ("🐳", "Docker (Linux)")
-        case .host: return ("🖥", "Host (this Mac)")
+        case .tart:
+            return (
+                "🍎",
+                String(localized: "Tart VMs (macOS)", bundle: .l10n, comment: "Runtime lane name; Tart runs macOS VMs")
+            )
+        case .appleContainer:
+            return (
+                "🐧",
+                String(
+                    localized: "Apple containers (Linux)", bundle: .l10n,
+                    comment: "Runtime lane name; Apple containers run Linux")
+            )
+        case .docker:
+            return (
+                "🐳", String(localized: "Docker (Linux)", bundle: .l10n, comment: "Runtime lane name; Docker runs Linux")
+            )
+        case .host:
+            return (
+                "🖥",
+                String(
+                    localized: "Host (this Mac)", bundle: .l10n,
+                    comment: "Runtime lane name; jobs run directly on this Mac")
+            )
         }
     }
 
@@ -181,13 +217,22 @@ struct FleetDiagramModel {
 
     /// "busy, running a job", "failed", "has an error": the state the icon colour stands for.
     static func phaseDescription(of record: VMRecord) -> String {
-        if record.error != nil { return "\(record.phase.rawValue), has an error" }
+        if record.error != nil {
+            return String(
+                localized: "\(record.phase.rawValue), has an error", bundle: .l10n,
+                comment: "VoiceOver phase description; %@ is the phase name")
+        }
         switch record.phase {
-        case .busy: return "busy, running a job"
-        case .ready: return "ready, waiting for a job"
-        case .cloning, .booting, .registering: return "starting up (\(record.phase.rawValue))"
-        case .deleting: return "being deleted"
-        case .failed: return "failed"
+        case .busy:
+            return String(localized: "busy, running a job", bundle: .l10n, comment: "VoiceOver phase description")
+        case .ready:
+            return String(localized: "ready, waiting for a job", bundle: .l10n, comment: "VoiceOver phase description")
+        case .cloning, .booting, .registering:
+            return String(
+                localized: "starting up (\(record.phase.rawValue))", bundle: .l10n,
+                comment: "VoiceOver phase description; %@ is the phase name")
+        case .deleting: return String(localized: "being deleted", bundle: .l10n, comment: "VoiceOver phase description")
+        case .failed: return String(localized: "failed", bundle: .l10n, comment: "VoiceOver phase description")
         }
     }
 }

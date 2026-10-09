@@ -14,8 +14,18 @@ struct MacReadiness: Equatable {
     /// Enabled *and* installed Linux runtimes, by display name.
     var activeLinuxRuntimes: [String] {
         var active: [String] = []
-        if containerEnabled, containerInstalled { active.append("Apple container") }
-        if dockerEnabled, dockerInstalled { active.append("Docker") }
+        if containerEnabled, containerInstalled {
+            active.append(
+                String(
+                    localized: "Apple container", bundle: .l10n,
+                    comment: "Runtime name used inside sentences (Linux runtime list)"))
+        }
+        if dockerEnabled, dockerInstalled {
+            active.append(
+                String(
+                    localized: "Docker", bundle: .l10n,
+                    comment: "Runtime name used inside sentences (Linux runtime list)"))
+        }
         return active
     }
 
@@ -23,12 +33,20 @@ struct MacReadiness: Equatable {
 
     /// Plain-language summary of what jobs can run here (for the final step).
     var runsOnDescription: String {
-        let linux = activeLinuxRuntimes.joined(separator: ", ")
+        let linux = activeLinuxRuntimes.formatted(.list(type: .and, width: .narrow))
         switch (tartReady, activeLinuxRuntimes.isEmpty) {
-        case (true, true): return "macOS jobs (tart)"
-        case (true, false): return "macOS jobs (tart) and Linux jobs (\(linux))"
-        case (false, false): return "Linux jobs only (\(linux)) — macOS jobs need tart, which isn't set up"
-        case (false, true): return "nothing yet"
+        case (true, true):
+            return String(localized: "macOS jobs (tart)", bundle: .l10n, comment: "Setup summary of what jobs can run")
+        case (true, false):
+            return String(
+                localized: "macOS jobs (tart) and Linux jobs (\(linux))", bundle: .l10n,
+                comment: "Setup summary of what jobs can run; %@ lists Linux runtimes")
+        case (false, false):
+            return String(
+                localized: "Linux jobs only (\(linux)) — macOS jobs need tart, which isn't set up", bundle: .l10n,
+                comment: "Setup summary of what jobs can run; %@ lists Linux runtimes")
+        case (false, true):
+            return String(localized: "nothing yet", bundle: .l10n, comment: "Setup summary of what jobs can run")
         }
     }
 }

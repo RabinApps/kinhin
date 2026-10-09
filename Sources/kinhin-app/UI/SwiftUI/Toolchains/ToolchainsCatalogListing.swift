@@ -27,13 +27,23 @@ enum ToolchainsCatalogListing {
     static func platformLabel(_ platforms: [ToolchainPlatform]) -> String {
         let set = Set(platforms)
         return set.contains(.macOS) && set.contains(.linux)
-            ? "macOS · Linux" : (set.contains(.macOS) ? "macOS only" : "Linux only")
+            ? String(
+                localized: "macOS · Linux", bundle: .l10n, comment: "Toolchain catalog: platforms an entry supports")
+            : (set.contains(.macOS)
+                ? String(
+                    localized: "macOS only", bundle: .l10n, comment: "Toolchain catalog: platforms an entry supports")
+                : String(
+                    localized: "Linux only", bundle: .l10n, comment: "Toolchain catalog: platforms an entry supports"))
     }
 
     private static func requirementText(_ requires: [ToolchainRequirement]) -> String? {
         requires.isEmpty
             ? nil
-            : "needs " + requires.map(\.example).joined(separator: ", ") + " in specs (never installed implicitly)"
+            : String(
+                localized:
+                    "needs \(requires.map(\.example).joined(separator: ", ")) in specs (never installed implicitly)",
+                bundle: .l10n, comment: "Toolchain catalog: dependency note; %@ lists spec examples such as node@22")
+
     }
 
     static func tools(in category: ToolchainCategory) -> [CatalogListingItem] {
@@ -46,7 +56,14 @@ enum ToolchainsCatalogListing {
             }
             return CatalogListingItem(
                 id: entry.id, summary: entry.summary,
-                defaultVersion: versionable ? (version ?? "latest") : "no @version",
+                defaultVersion: versionable
+                    ? (version
+                        ?? String(
+                            localized: "latest", bundle: .l10n,
+                            comment: "Toolchain catalog: default version is the newest release"))
+                    : String(
+                        localized: "no @version", bundle: .l10n,
+                        comment: "Toolchain catalog: this entry takes no @version suffix; keep @version verbatim"),
                 platforms: platformLabel(entry.platforms), requirement: requirementText(entry.requires),
                 copyText: entry.defaultSpec.isEmpty ? entry.id : entry.defaultSpec)
         }
@@ -57,7 +74,14 @@ enum ToolchainsCatalogListing {
             CatalogListingItem(
                 id: stack.id, summary: stack.summary,
                 defaultVersion: stack.versionKind == nil
-                    ? "no @version" : (stack.defaultVersion.isEmpty ? "latest" : stack.defaultVersion),
+                    ? String(
+                        localized: "no @version", bundle: .l10n,
+                        comment: "Toolchain catalog: this entry takes no @version suffix; keep @version verbatim")
+                    : (stack.defaultVersion.isEmpty
+                        ? String(
+                            localized: "latest", bundle: .l10n,
+                            comment: "Toolchain catalog: default version is the newest release")
+                        : stack.defaultVersion),
                 platforms: platformLabel(stack.platforms), requirement: requirementText(stack.requires),
                 copyText: stack.id)
         }
@@ -69,37 +93,49 @@ enum ToolchainsCatalogListing {
     /// dotnet are listed in `specs` wherever a tool or stack needs them.
     static let examples: [ToolchainExample] = [
         ToolchainExample(
-            title: "Go + Node",
-            note: "Two pinned languages. Repos that resolve to the same set share one image.",
+            title: String(localized: "Go + Node", bundle: .l10n, comment: "Toolchain example title"),
+            note: String(
+                localized: "Two pinned languages. Repos that resolve to the same set share one image.", bundle: .l10n,
+                comment: "Toolchain example note; names like node, pnpm and java stay verbatim"),
             yaml: """
                 toolchains:
                   specs: [go@1.22.5, node@20]
                 """),
         ToolchainExample(
-            title: "Web app with pnpm and Playwright",
-            note: "pnpm and Playwright need Node, so node is listed too.",
+            title: String(
+                localized: "Web app with pnpm and Playwright", bundle: .l10n, comment: "Toolchain example title"),
+            note: String(
+                localized: "pnpm and Playwright need Node, so node is listed too.", bundle: .l10n,
+                comment: "Toolchain example note; names like node, pnpm and java stay verbatim"),
             yaml: """
                 toolchains:
                   specs: [node@22, pnpm, playwright]
                 """),
         ToolchainExample(
-            title: "Flutter stack",
-            note: "macOS and Linux. The version after @ is the Flutter SDK version.",
+            title: String(localized: "Flutter stack", bundle: .l10n, comment: "Toolchain example title"),
+            note: String(
+                localized: "macOS and Linux. The version after @ is the Flutter SDK version.", bundle: .l10n,
+                comment: "Toolchain example note; names like node, pnpm and java stay verbatim"),
             yaml: """
                 toolchains:
                   stacks: [flutter@3.24.0]
                 """),
         ToolchainExample(
-            title: "Expo (React Native with Node)",
-            note: "The expo stack needs Node, so node is in specs.",
+            title: String(
+                localized: "Expo (React Native with Node)", bundle: .l10n, comment: "Toolchain example title"),
+            note: String(
+                localized: "The expo stack needs Node, so node is in specs.", bundle: .l10n,
+                comment: "Toolchain example note; names like node, pnpm and java stay verbatim"),
             yaml: """
                 toolchains:
                   specs: [node@22]
                   stacks: [expo]
                 """),
         ToolchainExample(
-            title: "JVM with Gradle",
-            note: "gradle needs a JDK, so java is listed too.",
+            title: String(localized: "JVM with Gradle", bundle: .l10n, comment: "Toolchain example title"),
+            note: String(
+                localized: "gradle needs a JDK, so java is listed too.", bundle: .l10n,
+                comment: "Toolchain example note; names like node, pnpm and java stay verbatim"),
             yaml: """
                 toolchains:
                   specs: [java@temurin-21, gradle]
@@ -108,8 +144,14 @@ enum ToolchainsCatalogListing {
 
     /// Notes shown with the examples: platform differences and when images bake.
     static let platformNotes =
-        "macOS-only entries (for example react-native) are skipped in Linux images. Tools without @version (php, dotnet, yamllint, composer) install the platform's current release."
+        String(
+            localized:
+                "macOS-only entries (for example react-native) are skipped in Linux images. Tools without @version (php, dotnet, yamllint, composer) install the platform's current release.",
+            bundle: .l10n, comment: "Toolchains tab note under the examples; tool names stay verbatim")
 
     static let howItWorks =
-        "Each project's toolchains are baked once into an image cloned from the base image, so identical sets across repos share an image. A queued job resolves its set from the repo's .kinhin.yml at the job's branch or tag (only when the project entry has repo_file: true), then the project entry's own toolchains. Repos with neither get the plain base image and can still run kinhin-toolchain install per job. If the image is not baked yet, the bake starts in the background and the job runs on the base image meanwhile; later jobs use the baked image. Fork pull requests never use the repo's own file. Derived images that go unused, or exceed the image limit, are pruned."
+        String(
+            localized:
+                "Each project's toolchains are baked once into an image cloned from the base image, so identical sets across repos share an image. A queued job resolves its set from the repo's .kinhin.yml at the job's branch or tag (only when the project entry has repo_file: true), then the project entry's own toolchains. Repos with neither get the plain base image and can still run kinhin-toolchain install per job. If the image is not baked yet, the bake starts in the background and the job runs on the base image meanwhile; later jobs use the baked image. Fork pull requests never use the repo's own file. Derived images that go unused, or exceed the image limit, are pruned.",
+            bundle: .l10n, comment: "Toolchains tab explanation of how images bake; file and key names stay verbatim")
 }

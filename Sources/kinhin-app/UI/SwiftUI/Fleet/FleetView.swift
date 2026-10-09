@@ -60,7 +60,7 @@ struct FleetView: View {
                                     .accessibilityIdentifier("image-notice")
                             }
                             ForEach(model.fleetStatusFooter, id: \.text) { foot in
-                                StatusText(text: foot.text, style: foot.style)
+                                StatusText(verbatim: foot.text, style: foot.style)
                             }
                         }
                         controls
@@ -73,8 +73,10 @@ struct FleetView: View {
 
                     FormCard(title: "Current jobs") {
                         VStack(alignment: .leading, spacing: 3) {
-                            if model.working.isEmpty { secondary("No jobs running.") }
-                            ForEach(model.working, id: \.id) { secondary(model.jobLine(for: $0), mono: true) }
+                            if model.working.isEmpty { secondary(Text("No jobs running.")) }
+                            ForEach(model.working, id: \.id) {
+                                secondary(Text(verbatim: model.jobLine(for: $0)), mono: true)
+                            }
                         }
                     }
 
@@ -143,7 +145,7 @@ struct FleetView: View {
     private var requeueBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
             if model.attachedForges.isEmpty {
-                secondary("No forges attached — queue will always be empty.")
+                secondary(Text("No forges attached — queue will always be empty."))
             } else {
                 ForEach(Array(model.attachedForges.enumerated()), id: \.offset) { _, forge in
                     HStack(spacing: 6) {
@@ -208,8 +210,8 @@ struct FleetView: View {
         .accessibilityIdentifier("disk-pressure-banner")
     }
 
-    private func secondary(_ text: String, mono: Bool = false) -> some View {
-        Text(text)
+    private func secondary(_ text: Text, mono: Bool = false) -> some View {
+        text
             .font(mono ? .system(size: 11, design: .monospaced) : .system(size: 11))
             .foregroundStyle(.secondary)
     }

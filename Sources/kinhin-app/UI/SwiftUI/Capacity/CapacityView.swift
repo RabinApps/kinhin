@@ -39,7 +39,7 @@ struct CapacityView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
-                StatusText(text: model.status.text, style: model.status.style)
+                StatusText(verbatim: model.status.text, style: model.status.style)
                 Spacer()
                 Button("Revert") { model.revert() }
                     .disabled(!model.hasPendingChanges)
@@ -112,8 +112,8 @@ struct CapacityView: View {
 
     /// A label, a number field and a stepper that stay in sync.
     private func row(
-        _ title: String, _ id: String, _ path: WritableKeyPath<GeneralConfigEditor.Snapshot, Int>,
-        _ range: ClosedRange<Int>, _ make: @escaping (Int) -> Field, help: String? = nil
+        _ title: LocalizedStringKey, _ id: String, _ path: WritableKeyPath<GeneralConfigEditor.Snapshot, Int>,
+        _ range: ClosedRange<Int>, _ make: @escaping (Int) -> Field, help: LocalizedStringKey? = nil
     ) -> some View {
         let value = Binding(
             get: { model.draft?[keyPath: path] ?? range.lowerBound },

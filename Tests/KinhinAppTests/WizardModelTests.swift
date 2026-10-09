@@ -18,8 +18,12 @@ final class WizardModelTests: XCTestCase {
     }
 
     nonisolated func testForgeNamesListEveryForgeInOfferOrder() {
+        // A locale-aware "or" list: English reads "…, Azure DevOps, or Bitbucket".
         XCTAssertEqual(
-            WizardModel.forgeNames, "GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps or Bitbucket")
+            WizardModel.forgeNames,
+            ["GitHub", "GitLab", "Gitea", "Forgejo", "Buildkite", "Azure DevOps", "Bitbucket"]
+                .formatted(.list(type: .or, width: .standard)))
+        XCTAssertTrue(WizardModel.forgeNames.hasPrefix("GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps"))
     }
 
     func testThreeStepsEndingInReviewAndStart() {

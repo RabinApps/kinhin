@@ -26,7 +26,7 @@ struct ContainersView: View {
             .frame(width: FormMetrics.width)
 
             if !model.status.text.isEmpty {
-                StatusText(text: model.status.text, style: model.status.style)
+                StatusText(verbatim: model.status.text, style: model.status.style)
                     .frame(width: FormMetrics.width, alignment: .leading)
             }
 
@@ -67,11 +67,14 @@ struct ContainersView: View {
             }
             Spacer()
             ForEach(model.lifecycle(for: item), id: \.self) { action in
-                Button(action.rawValue) { model.perform(action, id: item.id) }
-                    .accessibilityLabel("\(action.rawValue) container \(item.name)")
+                Button(action.label) { model.perform(action, id: item.id) }
+                    .accessibilityLabel(action.accessibilityLabel(container: item.name))
             }
             Button("Delete…") { model.deleteContainer(id: item.id) }
-                .accessibilityLabel("Delete container \(item.name)")
+                .accessibilityLabel(
+                    String(
+                        localized: "Delete container \(item.name)", bundle: .l10n,
+                        comment: "VoiceOver label of a container row button; %@ is the container name"))
         }
         .controlSize(.small)
     }
@@ -81,7 +84,10 @@ struct ContainersView: View {
             rowTitle(item.name)
             Spacer()
             Button("Delete…") { model.deleteVolume(name: item.name) }
-                .accessibilityLabel("Delete volume \(item.name)")
+                .accessibilityLabel(
+                    String(
+                        localized: "Delete volume \(item.name)", bundle: .l10n,
+                        comment: "VoiceOver label of a volume row button; %@ is the volume name"))
         }
         .controlSize(.small)
     }

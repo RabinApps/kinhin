@@ -114,7 +114,11 @@ final class FleetController {
     func detectStaleDaemonPlist() {
         staleDaemonPlist =
             Daemon.isPlistStale
-            ? "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it"
+            ? String(
+                localized:
+                    "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it",
+                bundle: .l10n,
+                comment: "Warning shown under the fleet status; the backticked command must stay verbatim")
             : nil
     }
 
@@ -207,8 +211,14 @@ final class FleetController {
         }
         guard let backend = service as? FleetBackend else { return nil }
         switch backend {
-        case .inProcess: return "in-process engine"
-        case .daemon: return "background daemon"
+        case .inProcess:
+            return String(
+                localized: "in-process engine", bundle: .l10n,
+                comment: "Short label: the fleet runs inside the app process")
+        case .daemon:
+            return String(
+                localized: "background daemon", bundle: .l10n,
+                comment: "Short label: the fleet runs in the background daemon")
         }
     }
 
@@ -221,9 +231,12 @@ final class FleetController {
             base = FleetStatusFormatter.summary(nil)
         }  // setup unfinished
         else if let unreachableReason {
-            base = "Fleet not responding — \(unreachableReason)"
+            base = String(
+                localized: "Fleet not responding — \(unreachableReason)", bundle: .l10n,
+                comment: "Status line when the fleet can't be reached; %@ is the reason")
         } else {
-            base = "Checking the fleet…"
+            base = String(
+                localized: "Checking the fleet…", bundle: .l10n, comment: "Status line while the first poll is pending")
         }
         var line = base
         if let mode = fleetMode {

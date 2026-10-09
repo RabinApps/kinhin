@@ -16,7 +16,8 @@ extension RuntimesModel {
             sheetProblem = ""
             isYAMLEditorOpen = true
         } catch {
-            AlertKit.present(error: error, title: "Can't open config.yaml")
+            AlertKit.present(
+                error: error, title: String(localized: "Can't open config.yaml", bundle: .l10n, comment: "Alert title"))
         }
     }
 

@@ -45,7 +45,9 @@ final class CapacityModel: ConfigFormModel {
         let count = pending.count
         guard count > 0 else { return result }
         return StatusLine(
-            text: "\(count) unapplied change\(count == 1 ? "" : "s") — Apply restarts the fleet if needed.",
+            text: String(
+                localized: "\(count) unapplied changes — Apply restarts the fleet if needed.", bundle: .l10n,
+                comment: "Capacity form status; plural by number of pending edits"),
             style: .warn)
     }
 
@@ -64,7 +66,10 @@ final class CapacityModel: ConfigFormModel {
         } catch {
             result = StatusLine(
                 text:
-                    "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file.",
+                    String(
+                        localized:
+                            "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file.",
+                        bundle: .l10n, comment: "Capacity form status; %@ is the config error"),
                 style: .error)
         }
     }
@@ -149,10 +154,16 @@ final class CapacityModel: ConfigFormModel {
             let failedIDs = Set(remaining.map(\.0))
             pending = pending.filter { failedIDs.contains($0.key) }
             pendingOrder = pendingOrder.filter { failedIDs.contains($0) }
-            result = StatusLine(text: "Not applied — \(lastError.localizedDescription)", style: .error)
+            result = StatusLine(
+                text: String(
+                    localized: "Not applied — \(lastError.localizedDescription)", bundle: .l10n,
+                    comment: "Capacity form status; %@ is the reason the edit wasn't applied"), style: .error)
         } else {
             clearPending()
-            result = StatusLine(text: "Applied ✓", style: .ok)
+            result = StatusLine(
+                text: String(
+                    localized: "Applied ✓", bundle: .l10n, comment: "Capacity form status after a successful apply"),
+                style: .ok)
         }
         do {
             if let snap = try ConfigStore.snapshot(at: configURL) { baseline = snap }

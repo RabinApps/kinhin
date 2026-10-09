@@ -29,7 +29,7 @@ struct BudgetCard: View {
                 shareRow(row)
             }
             if !model.budgetNotice.isEmpty {
-                StatusText(text: model.budgetNotice, style: .warn)
+                StatusText(verbatim: model.budgetNotice, style: .warn)
             }
             HintText(
                 "Shares always total 100%. Drag or type a number; lock a pool to keep its share fixed while the others rebalance. Changes apply on release."
@@ -126,12 +126,29 @@ struct BudgetCard: View {
     // MARK: - Cell text
 
     private func capText(_ row: RuntimesModel.BudgetRow) -> String {
-        row.cap.map { "\($0) inst" } ?? "n/a"
+        row.cap.map { cap in
+            String(
+                localized: "\(cap) inst", bundle: .l10n,
+                comment: "Capacity table cell: instance cap; inst abbreviates instances")
+        }
+            ?? String(
+                localized: "n/a", bundle: .l10n,
+                comment: "Capacity table cell when there is no instance cap (not applicable)")
     }
 
     private func capAccessibilityText(_ row: RuntimesModel.BudgetRow) -> String {
-        guard let cap = row.cap else { return "instance cap not partitioned" }
-        return cap == 0 ? "instance cap 0 — no runner can start" : "\(cap) instances"
+        guard let cap = row.cap else {
+            return String(
+                localized: "instance cap not partitioned", bundle: .l10n,
+                comment: "VoiceOver text of a capacity table cell")
+        }
+        return cap == 0
+            ? String(
+                localized: "instance cap 0 — no runner can start", bundle: .l10n,
+                comment: "VoiceOver text of a capacity table cell")
+            : String(
+                localized: "\(cap) instances", bundle: .l10n,
+                comment: "VoiceOver text of a capacity table cell; plural by the cap")
     }
 }
 
@@ -159,7 +176,7 @@ private struct PercentField: View {
                 .disabled(!isEnabled)
                 .onSubmit(commit)
                 .accessibilityLabel("\(runtime.rawValue) budget percent")
-            Text("%").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+            Text(verbatim: "%").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 3)
         .padding(.vertical, 1)

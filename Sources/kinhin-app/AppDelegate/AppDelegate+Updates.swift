@@ -17,18 +17,28 @@ extension AppDelegate {
             menu.items.indices.contains(idx + 1)
         else { return }
         if case .downloading(let name) = card {
-            menu.items[idx].title = "Downloading \(name)…"
+            menu.items[idx].title = String(
+                localized: "Downloading \(name)…", bundle: .l10n,
+                comment: "Status-bar menu item while an update downloads; %@ is the DMG file name")
             menu.items[idx].isEnabled = false
             menu.items[idx].isHidden = false
-            menu.items[idx + 1].title = "  \("kinhin " + kinhinVersion.current) (up to date)"
+            menu.items[idx + 1].title = String(
+                localized: "  kinhin \(kinhinVersion.current) (up to date)", bundle: .l10n,
+                comment: "Disabled version row in the status-bar menu while an update is pending; %@ is the version")
         } else if let info = pending {
-            menu.items[idx].title = "Update available — kinhin \(info.version)…"
+            menu.items[idx].title = String(
+                localized: "Update available — kinhin \(info.version)…", bundle: .l10n,
+                comment: "Status-bar menu item when a newer release is waiting; %@ is the version")
             menu.items[idx].isEnabled = true
             menu.items[idx].isHidden = false
-            menu.items[idx + 1].title = "  \("kinhin " + kinhinVersion.current) (up to date)"
+            menu.items[idx + 1].title = String(
+                localized: "  kinhin \(kinhinVersion.current) (up to date)", bundle: .l10n,
+                comment: "Disabled version row in the status-bar menu while an update is pending; %@ is the version")
         } else {
             menu.items[idx].isHidden = true
-            menu.items[idx + 1].title = "  \("kinhin " + kinhinVersion.current)"
+            menu.items[idx + 1].title = String(
+                localized: "  kinhin \(kinhinVersion.current)", bundle: .l10n,
+                comment: "Disabled version row in the status-bar menu; %@ is the version")
         }
         menu.items[idx + 1].isEnabled = false
     }

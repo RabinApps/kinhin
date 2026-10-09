@@ -14,7 +14,8 @@ enum AlertKit {
         alert.alertStyle = style
         alert.messageText = title
         alert.informativeText = message
-        alert.addButton(withTitle: "OK")
+        alert.addButton(
+            withTitle: String(localized: "OK", bundle: .l10n, comment: "Dismiss button of an informational alert"))
         _ = runModal(alert)
     }
 
@@ -31,7 +32,8 @@ enum AlertKit {
         alert.messageText = title
         alert.informativeText = message
         alert.addButton(withTitle: confirmTitle)
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(
+            withTitle: String(localized: "Cancel", bundle: .l10n, comment: "Cancel button of a confirmation alert"))
         if destructive { alert.buttons.first?.hasDestructiveAction = true }
         return runModal(alert) == .alertFirstButtonReturn
     }
@@ -43,8 +45,10 @@ enum AlertKit {
         alert.alertStyle = .warning
         alert.messageText = title
         alert.informativeText = message
-        alert.addButton(withTitle: "Continue")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(
+            withTitle: String(localized: "Continue", bundle: .l10n, comment: "Default button of the reset-scope alert"))
+        alert.addButton(
+            withTitle: String(localized: "Cancel", bundle: .l10n, comment: "Cancel button of the reset-scope alert"))
         let checkboxes = ResetScope.allCases.map { scope -> NSButton in
             let button = NSButton(checkboxWithTitle: scope.label, target: nil, action: nil)
             button.toolTip = scope.summary
@@ -92,12 +96,16 @@ enum AlertKit {
         alert.messageText = title
         alert.informativeText = message
         alert.addButton(withTitle: confirmTitle)
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(
+            withTitle: String(
+                localized: "Cancel", bundle: .l10n, comment: "Cancel button of the typed-word confirmation alert"))
         let confirm = alert.buttons[0]
         confirm.hasDestructiveAction = true
         confirm.isEnabled = false
         let field = NSTextField()
-        field.placeholderString = "type \(word)"
+        field.placeholderString = String(
+            localized: "type \(word)", bundle: .l10n,
+            comment: "Placeholder in the typed-confirmation alert; %@ is the word to type, which stays verbatim")
         field.widthAnchor.constraint(equalToConstant: 240).isActive = true
         alert.accessoryView = field
         // The gate: the button enables only on an exact match. Kept alive for

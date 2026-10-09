@@ -45,7 +45,7 @@ struct ConnectView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 6) {
                 Text("Where does your code live?").font(.system(size: 12, weight: .semibold))
-                                Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {

@@ -128,8 +128,20 @@ extension RuntimesModel {
             locked: lockedRuntimes)
         if (wanted * 100).rounded() / 100 > ceiling + 0.000_001 {
             let held = lockedRuntimes.map(\.rawValue).sorted().joined(separator: ", ")
-            budgetNotice =
-                "Capped at \(Int((ceiling * 100).rounded()))% — \(held.isEmpty ? "the others are" : "\(held) \(lockedRuntimes.count == 1 ? "is" : "are")") locked."
+            let limitText = ceiling.formatted(.percent.precision(.fractionLength(0)))
+            if held.isEmpty {
+                budgetNotice = String(
+                    localized: "Capped at \(limitText) — the others are locked.", bundle: .l10n,
+                    comment: "Capacity form notice; %@ is a percentage")
+            } else if lockedRuntimes.count == 1 {
+                budgetNotice = String(
+                    localized: "Capped at \(limitText) — \(held) is locked.", bundle: .l10n,
+                    comment: "Capacity form notice; a percentage, then the name of the one locked runtime")
+            } else {
+                budgetNotice = String(
+                    localized: "Capped at \(limitText) — \(held) are locked.", bundle: .l10n,
+                    comment: "Capacity form notice; a percentage, then the names of several locked runtimes")
+            }
         }
         previewCommitTask?.cancel()
         pendingBudget = nil
@@ -180,7 +192,7 @@ extension RuntimesModel {
 
     func percentText(for runtime: RuntimeID) -> String {
         let share = percentShares[runtime.rawValue] ?? budgetShare(for: runtime)
-        return "\(Int((share * 100).rounded()))%"
+        return share.formatted(.percent.precision(.fractionLength(0)))
     }
 
     /// Default switched: only `default:` moves — every pool keeps the share
@@ -226,7 +238,10 @@ extension RuntimesModel {
         } catch {
             // Leave the fields as they were and say why they are not current.
             Log.warn("runtimes-pane", "could not read labels: \(error.localizedDescription)")
-            labelsStatus = Line(text: "Labels not loaded — \(error.localizedDescription)", style: .error)
+            labelsStatus = Line(
+                text: String(
+                    localized: "Labels not loaded — \(error.localizedDescription)", bundle: .l10n,
+                    comment: "Capacity form status; %@ is the reason"), style: .error)
         }
     }
 

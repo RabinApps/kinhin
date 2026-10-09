@@ -13,11 +13,19 @@ extension FleetController {
             openSetup()
             return
         }
-        run(.start, failureTitle: "Couldn't start the fleet")
+        run(
+            .start,
+            failureTitle: String(
+                localized: "Couldn't start the fleet", bundle: .l10n,
+                comment: "Alert title when starting the fleet fails"))
     }
 
     func userStop() {
-        run(.stop, failureTitle: "Couldn't stop the fleet")
+        run(
+            .stop,
+            failureTitle: String(
+                localized: "Couldn't stop the fleet", bundle: .l10n,
+                comment: "Alert title when stopping the fleet fails"))
     }
 
     func userRequeueQueuedJobs(for forge: ForgeID) {
@@ -27,7 +35,11 @@ extension FleetController {
             do {
                 try await requeueQueuedJobs(for: forge)
             } catch {
-                AlertKit.present(error: error, title: "Couldn't requeue the queued jobs")
+                AlertKit.present(
+                    error: error,
+                    title: String(
+                        localized: "Couldn't requeue the queued jobs", bundle: .l10n,
+                        comment: "Alert title when requeueing queued jobs fails"))
             }
             pendingFleetAction = nil
         }
@@ -40,14 +52,21 @@ extension FleetController {
             do {
                 try await skipQueuedJobs(for: forge)
             } catch {
-                AlertKit.present(error: error, title: "Couldn't skip the queued jobs")
+                AlertKit.present(
+                    error: error,
+                    title: String(
+                        localized: "Couldn't skip the queued jobs", bundle: .l10n,
+                        comment: "Alert title when skipping queued jobs fails"))
             }
             pendingFleetAction = nil
         }
     }
 
     func userSetPaused(_ paused: Bool) {
-        let title = paused ? "Couldn't pause the fleet" : "Couldn't resume the fleet"
+        let title =
+            paused
+            ? String(localized: "Couldn't pause the fleet", bundle: .l10n, comment: "Alert title when pausing fails")
+            : String(localized: "Couldn't resume the fleet", bundle: .l10n, comment: "Alert title when resuming fails")
         Task {
             do {
                 try await setPaused(paused)
@@ -61,15 +80,22 @@ extension FleetController {
     func userDeleteVM(id: String) {
         guard
             AlertKit.confirm(
-                title: "Delete \(id)?",
-                message: "This stops the VM and removes it. Any job running on it is cancelled.",
-                confirmTitle: "Delete", destructive: true)
+                title: String(localized: "Delete \(id)?", bundle: .l10n, comment: "Confirmation title; %@ is a VM id"),
+                message: String(
+                    localized: "This stops the VM and removes it. Any job running on it is cancelled.", bundle: .l10n,
+                    comment: "Confirmation body for deleting a VM"),
+                confirmTitle: String(localized: "Delete", bundle: .l10n, comment: "Destructive confirm button"),
+                destructive: true)
         else { return }
         Task {
             do {
                 try await deleteVM(id: id)
             } catch {
-                AlertKit.present(error: error, title: "Couldn't delete \(id)")
+                AlertKit.present(
+                    error: error,
+                    title: String(
+                        localized: "Couldn't delete \(id)", bundle: .l10n,
+                        comment: "Alert title when deleting a VM fails; %@ is a VM id"))
             }
         }
     }

@@ -67,7 +67,7 @@ final class ForgeConnectionModel: ConfigFormModel {
     var instance = ""
     var scope = ""
     private(set) var repos: [String] = []
-    var status = Line(text: "Not connected yet.")
+    var status = Line(text: String(localized: "Not connected yet.", bundle: .l10n, comment: "Forge card status line"))
     private(set) var checking = false
 
     @ObservationIgnored var tokenStored = false
@@ -88,24 +88,44 @@ final class ForgeConnectionModel: ConfigFormModel {
     var showsInstance: Bool { forge != .buildkite && forge != .bitbucket }
     var instancePlaceholder: String {
         switch forge {
-        case .github: return "e.g. https://github.example.com or https://acme.ghe.com"
+        case .github:
+            return String(
+                localized: "e.g. https://github.example.com or https://acme.ghe.com", bundle: .l10n,
+                comment: "Placeholder in the server address field; keep the example URLs verbatim")
         case .buildkite, .bitbucket: return ""
         case .gitea, .forgejo: return "https://gitea.example.com"
-        case .gitlab: return "https://gitlab.com (optional)"
-        case .azuredevops: return "https://dev.azure.com/your-org"
+        case .gitlab:
+            return String(
+                localized: "https://gitlab.com (optional)", bundle: .l10n,
+                comment: "Placeholder in the server address field; keep the URL verbatim")
+        case .azuredevops:
+            return String(
+                localized: "https://dev.azure.com/your-org", bundle: .l10n,
+                comment: "Placeholder in the server address field; keep the example URL verbatim")
         }
     }
     var scopeLabel: String {
         switch forge {
-        case .gitlab: return "Group or project"
-        case .buildkite: return "Organization and cluster"
-        case .azuredevops: return "Agent pool"
-        case .bitbucket: return "Workspace or workspace/repo"
-        case .github, .gitea, .forgejo: return "Repository or org"
+        case .gitlab:
+            return String(localized: "Group or project", bundle: .l10n, comment: "Label of the repository field")
+        case .buildkite:
+            return String(
+                localized: "Organization and cluster", bundle: .l10n, comment: "Label of the repository field")
+        case .azuredevops:
+            return String(localized: "Agent pool", bundle: .l10n, comment: "Label of the repository field")
+        case .bitbucket:
+            return String(
+                localized: "Workspace or workspace/repo", bundle: .l10n, comment: "Label of the repository field")
+        case .github, .gitea, .forgejo:
+            return String(localized: "Repository or org", bundle: .l10n, comment: "Label of the repository field")
         }
     }
     var scopeEnabled: Bool { tokenStored }
-    var buttonTitle: String { tokenStored ? "Replace" : "Connect" }
+    var buttonTitle: String {
+        tokenStored
+            ? String(localized: "Replace", bundle: .l10n, comment: "Forge card button when a token is already stored")
+            : String(localized: "Connect", bundle: .l10n, comment: "Forge card button that saves the token")
+    }
     var instanceEnabled: Bool { !connected }
 
     /// What the forge's token needs, for the scope currently entered.
@@ -130,13 +150,30 @@ final class ForgeConnectionModel: ConfigFormModel {
     }
 
     static func scopePlaceholder(enabled: Bool, forge: ForgeID) -> String {
-        guard enabled else { return "Connect first to choose a repository" }
+        guard enabled else {
+            return String(
+                localized: "Connect first to choose a repository", bundle: .l10n,
+                comment: "Placeholder in the repository field while disabled")
+        }
         switch forge {
-        case .gitlab: return "group/subgroup or group/project"
-        case .buildkite: return "org-slug/cluster"
-        case .azuredevops: return "agent pool name"
-        case .bitbucket: return "workspace, or workspace/repo-slug"
-        case .github, .gitea, .forgejo: return "owner/name, or an org name"
+        case .gitlab:
+            return String(
+                localized: "group/subgroup or group/project", bundle: .l10n,
+                comment: "Placeholder in the repository field; keep the path syntax verbatim")
+        case .buildkite:
+            return String(
+                localized: "org-slug/cluster", bundle: .l10n,
+                comment: "Placeholder in the repository field; keep the syntax verbatim")
+        case .azuredevops:
+            return String(localized: "agent pool name", bundle: .l10n, comment: "Placeholder in the repository field")
+        case .bitbucket:
+            return String(
+                localized: "workspace, or workspace/repo-slug", bundle: .l10n,
+                comment: "Placeholder in the repository field; keep the syntax verbatim")
+        case .github, .gitea, .forgejo:
+            return String(
+                localized: "owner/name, or an org name", bundle: .l10n,
+                comment: "Placeholder in the repository field; keep the syntax verbatim")
         }
     }
 
@@ -180,16 +217,23 @@ final class ForgeConnectionModel: ConfigFormModel {
             && Self.countsAsConnected(
                 forge: forge, scope: lastWrittenScope, instance: lastWrittenInstance)
         if case .failure(let error) = stored {
-            status = Line(text: "Keychain error — \(error.localizedDescription)", style: .error)
+            status = Line(
+                text: String(
+                    localized: "Keychain error — \(error.localizedDescription)", bundle: .l10n,
+                    comment: "Forge card status; %@ is the Keychain error"), style: .error)
         } else {
             status = Line(
-                text: hasToken ? Self.storedTokenText : "Not connected yet.",
+                text: hasToken
+                    ? Self.storedTokenText
+                    : String(localized: "Not connected yet.", bundle: .l10n, comment: "Forge card status"),
                 style: hasToken ? .secondary : .warn)
         }
         if hasToken { Task { await listRepos(token: nil) } }
     }
 
-    private static let storedTokenText = "Token stored in your Keychain ✓ — paste a new one only to replace it."
+    private static let storedTokenText = String(
+        localized: "Token stored in your Keychain ✓ — paste a new one only to replace it.", bundle: .l10n,
+        comment: "Forge card status when a token is already stored")
 
     /// A forge counts as connected once it has a scope — except the
     /// self-hosted forges, which also need a server address. GitHub is
@@ -223,18 +267,26 @@ final class ForgeConnectionModel: ConfigFormModel {
             forge != .github,
             instance.trimmingCharacters(in: .whitespaces).isEmpty
         {
-            status = Line(text: "Enter your \(forge.displayName) server address first.", style: .warn)
+            status = Line(
+                text: String(
+                    localized: "Enter your \(forge.displayName) server address first.", bundle: .l10n,
+                    comment: "Forge card status; %@ is a forge name"), style: .warn)
             return
         }
         guard !typed.isEmpty else {
-            status = Line(text: "Paste a token first.", style: .warn)
+            status = Line(
+                text: String(localized: "Paste a token first.", bundle: .l10n, comment: "Forge card status"),
+                style: .warn)
             return
         }
         checking = true
         Task { [weak self] in
             guard let self else { return }
             defer { self.checking = false }
-            self.status = Line(text: "Checking the token…")
+            self.status = Line(
+                text: String(
+                    localized: "Checking the token…", bundle: .l10n,
+                    comment: "Forge card status while the token is verified"))
             guard await self.listRepos(token: typed) else { return }
             do {
                 try await self.saveToken(typed)
@@ -242,7 +294,10 @@ final class ForgeConnectionModel: ConfigFormModel {
                 self.didStoreToken()
                 await self.verifyAfterConnect(with: typed)
             } catch {
-                self.status = Line(text: "Couldn't save the token — \(error.localizedDescription)", style: .error)
+                self.status = Line(
+                    text: String(
+                        localized: "Couldn't save the token — \(error.localizedDescription)", bundle: .l10n,
+                        comment: "Forge card status; %@ is the reason"), style: .error)
             }
         }
     }
@@ -310,7 +365,10 @@ final class ForgeConnectionModel: ConfigFormModel {
                 resolved = try await Task.detached { try load() }.value
             }
         } catch {
-            status = Line(text: "Keychain error — \(error.localizedDescription)", style: .error)
+            status = Line(
+                text: String(
+                    localized: "Keychain error — \(error.localizedDescription)", bundle: .l10n,
+                    comment: "Forge card status; %@ is the Keychain error"), style: .error)
             return false
         }
         guard let resolved else { return false }
@@ -320,13 +378,20 @@ final class ForgeConnectionModel: ConfigFormModel {
             repos = refs.prefix(300).map(\.fullName)
             if token != nil {
                 status = Line(
-                    text: "Connected ✓ — \(refs.count) repositories visible. Pick one below.", style: .ok)
+                    text: String(
+                        localized: "Connected ✓ — \(refs.count) repositories visible. Pick one below.", bundle: .l10n,
+                        comment: "Forge card status; plural by the number of repositories the token can see"),
+                    style: .ok)
             }
             return true
         } catch {
             if token != nil {
                 status = Line(
-                    text: "That token didn't work — \(error.localizedDescription)\nIt needs — \(requirements.summary)",
+                    text: String(
+                        localized:
+                            "That token didn't work — \(error.localizedDescription)\nIt needs — \(requirements.summary)",
+                        bundle: .l10n,
+                        comment: "Forge card status; first is the forge's error, second what the token needs"),
                     style: .error)
             }
             return false

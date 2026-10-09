@@ -50,9 +50,16 @@ enum BaseImageChoice {
     static var otherIndex: Int { curated.count }
 
     static func title(at index: Int) -> String {
-        guard curated.indices.contains(index) else { return "Other…" }
+        guard curated.indices.contains(index) else {
+            return String(
+                localized: "Other…", bundle: .l10n,
+                comment: "Last entry of the base-image popup: type a custom reference")
+        }
         let entry = curated[index]
-        return entry.reference == LinuxBaseImage.defaultReference ? "\(entry.title) (default)" : entry.title
+        return entry.reference == LinuxBaseImage.defaultReference
+            ? String(
+                localized: "\(entry.title) (default)", bundle: .l10n,
+                comment: "Base-image popup entry; first is the image's title") : entry.title
     }
 
     /// The curated entry for a stored value, or "Other…" when it isn't one.
@@ -70,7 +77,13 @@ enum BaseImageChoice {
     static func validate(_ text: String) -> Result<String?, ProblemText> {
         let reference = text.trimmingCharacters(in: .whitespaces)
         if let problem = LinuxBaseImage.problem(with: reference) {
-            return .failure(ProblemText(text: "Base image \(problem)."))
+            return .failure(
+                ProblemText(
+                    text: String(
+                        localized: "Base image \(problem).", bundle: .l10n,
+                        comment:
+                            "Base-image validation message; %@ is the reason from the validator, without a trailing period"
+                    )))
         }
         return .success(stored(reference))
     }
@@ -79,10 +92,17 @@ enum BaseImageChoice {
 
     static func title(at index: Int, in catalog: Catalog) -> String {
         let entries = catalog.entries
-        guard entries.indices.contains(index) else { return "Other…" }
+        guard entries.indices.contains(index) else {
+            return String(
+                localized: "Other…", bundle: .l10n,
+                comment: "Last entry of the base-image popup: type a custom reference")
+        }
         let entry = entries[index]
         let isDefault = catalog.defaultStoresNothing && entry.reference == catalog.defaultReference
-        return isDefault ? "\(entry.title) (default)" : entry.title
+        return isDefault
+            ? String(
+                localized: "\(entry.title) (default)", bundle: .l10n,
+                comment: "Base-image popup entry; first is the image's title") : entry.title
     }
 
     static func index(of value: String?, in catalog: Catalog) -> Int {
@@ -97,7 +117,13 @@ enum BaseImageChoice {
     static func validate(_ text: String, in catalog: Catalog) -> Result<String?, ProblemText> {
         let reference = text.trimmingCharacters(in: .whitespaces)
         if let problem = catalog.problem(with: reference) {
-            return .failure(ProblemText(text: "Base image \(problem)."))
+            return .failure(
+                ProblemText(
+                    text: String(
+                        localized: "Base image \(problem).", bundle: .l10n,
+                        comment:
+                            "Base-image validation message; %@ is the reason from the validator, without a trailing period"
+                    )))
         }
         return .success(stored(reference, in: catalog))
     }
@@ -121,10 +147,18 @@ enum BaseImageChoice {
         resolver: any DigestResolving = RegistryDigestResolver()
     ) async -> Result<PinOutcome, ProblemText> {
         guard catalog == .tartVM || catalog == .tartLinux else {
-            return .failure(ProblemText(text: "Pinning applies to tart VM images only."))
+            return .failure(
+                ProblemText(
+                    text: String(
+                        localized: "Pinning applies to tart VM images only.", bundle: .l10n,
+                        comment: "Base-image pin error")))
         }
         guard case .success(.some(let unpinned)) = validate(reference, in: catalog) else {
-            return .failure(ProblemText(text: "Base image is not a usable reference."))
+            return .failure(
+                ProblemText(
+                    text: String(
+                        localized: "Base image is not a usable reference.", bundle: .l10n,
+                        comment: "Base-image pin error")))
         }
         do {
             let result = try await TartBaseImage.pin(
@@ -195,8 +229,8 @@ struct BaseImagePicker: View {
                     }
                 }
             }
-            if let problem { HintText(problem).foregroundStyle(StatusStyle.error.color) }
-            if let status { HintText(status).foregroundStyle(StatusStyle.ok.color) }
+            if let problem { HintText(verbatim: problem).foregroundStyle(StatusStyle.error.color) }
+            if let status { HintText(verbatim: status).foregroundStyle(StatusStyle.ok.color) }
         }
         .onAppear { syncCustom() }
         .onChange(of: value) { _, _ in

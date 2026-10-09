@@ -9,7 +9,10 @@ import Observation
 @Observable
 final class LogsModel {
     static let levels: [(title: String, level: Log.Level)] = [
-        ("All", .debug), ("Info+", .info), ("Warnings+", .warn), ("Errors", .error),
+        (String(localized: "All", bundle: .l10n, comment: "Log level filter option: show every line"), .debug),
+        (String(localized: "Info+", bundle: .l10n, comment: "Log level filter option: info and above"), .info),
+        (String(localized: "Warnings+", bundle: .l10n, comment: "Log level filter option: warnings and above"), .warn),
+        (String(localized: "Errors", bundle: .l10n, comment: "Log level filter option: errors only"), .error),
     ]
 
     /// Lines kept in the view; the buffer may run `slack` past it before
@@ -59,7 +62,11 @@ final class LogsModel {
         }
     }
 
-    var statusText: String { entries.count == 1 ? "1 line" : "\(entries.count) lines" }
+    var statusText: String {
+        String(
+            localized: "\(entries.count) lines", bundle: .l10n,
+            comment: "Log viewer line count; plural by number of lines")
+    }
 
     /// Reads the log lines newer than the last refresh and appends them.
     func refresh() {
@@ -129,7 +136,13 @@ final class LogsModel {
         if matching.isEmpty {
             full.append(
                 NSAttributedString(
-                    string: entries.isEmpty ? "No log lines yet." : "No lines match.",
+                    string: entries.isEmpty
+                        ? String(
+                            localized: "No log lines yet.", bundle: .l10n,
+                            comment: "Log viewer placeholder when the log is empty")
+                        : String(
+                            localized: "No lines match.", bundle: .l10n,
+                            comment: "Log viewer placeholder when the filter hides every line"),
                     attributes: [
                         .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.secondaryLabelColor,
                     ]))

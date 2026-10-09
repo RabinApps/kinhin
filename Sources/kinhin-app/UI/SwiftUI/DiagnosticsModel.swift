@@ -22,7 +22,8 @@ final class DiagnosticsModel {
     private(set) var rows: [Row] = []
     /// The fleet's current image-bake notice, when one is showing.
     @ObservationIgnored var fleetImageNotice: () -> String? = { nil }
-    var status = "Probing this Mac…"
+    var status = String(
+        localized: "Probing this Mac…", bundle: .l10n, comment: "Diagnostics sheet status while probing")
 
     /// Runs the doctor probe set (the same builder `kinhin doctor --json`
     /// uses) and renders the result. Injectable so tests can render a
@@ -30,10 +31,13 @@ final class DiagnosticsModel {
     @ObservationIgnored var loadReport: () async -> DoctorReport = { await DoctorReportBuilder().build() }
 
     func load() async {
-        status = "Probing this Mac…"
+        status = String(
+            localized: "Probing this Mac…", bundle: .l10n, comment: "Diagnostics sheet status while probing")
         render(await loadReport())
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
-        status = "Checked \(stamp)"
+        status = String(
+            localized: "Checked \(stamp)", bundle: .l10n,
+            comment: "Diagnostics sheet status; %@ is the localized time of day")
     }
 
     func render(_ report: DoctorReport) {
@@ -41,21 +45,43 @@ final class DiagnosticsModel {
 
         rows.append(
             Row(
-                title: "Host",
-                detail:
-                    "\(report.host.logicalCores) cores · \(report.host.memoryGB) GB RAM · \(report.host.freeDiskGB) GB free · \(report.host.arm64 ? "Apple silicon" : "Intel")",
+                title: String(localized: "Host", bundle: .l10n, comment: "Diagnostics row title"),
+                detail: report.host.arm64
+                    ? String(
+                        localized:
+                            "\(report.host.logicalCores) cores · \(report.host.memoryGB) GB RAM · \(report.host.freeDiskGB) GB free · Apple silicon",
+                        bundle: .l10n,
+                        comment: "Diagnostics Host row on Apple silicon; cores, then GB of RAM and free disk")
+                    : String(
+                        localized:
+                            "\(report.host.logicalCores) cores · \(report.host.memoryGB) GB RAM · \(report.host.freeDiskGB) GB free · Intel",
+                        bundle: .l10n, comment: "Diagnostics Host row on Intel; cores, then GB of RAM and free disk"),
                 ok: true))
 
         let cltOK = report.clt.ok
         var cltDetail = report.clt.version ?? report.clt.state
         if !cltOK, let fix = report.clt.fixCommand { cltDetail += "\n\(fix)" }
-        rows.append(Row(title: "Command Line Tools", detail: cltDetail, ok: cltOK))
+        rows.append(
+            Row(
+                title: String(localized: "Command Line Tools", bundle: .l10n, comment: "Diagnostics row title"),
+                detail: cltDetail, ok: cltOK))
 
-        var tartDetail = report.tart.reason ?? (report.tart.ok ? "healthy" : report.tart.state)
+        var tartDetail =
+            report.tart.reason
+            ?? (report.tart.ok
+                ? String(localized: "healthy", bundle: .l10n, comment: "Diagnostics Tart row detail")
+                : report.tart.state)
         if !report.tart.repairCommands.isEmpty {
-            tartDetail += "\nFix: \(report.tart.repairCommands[0])"
+            tartDetail +=
+                "\n"
+                + String(
+                    localized: "Fix: \(report.tart.repairCommands[0])", bundle: .l10n,
+                    comment: "Diagnostics Tart row; %@ is a shell command to run")
         }
-        rows.append(Row(title: "Tart (macOS VMs)", detail: tartDetail, ok: report.tart.ok))
+        rows.append(
+            Row(
+                title: String(localized: "Tart (macOS VMs)", bundle: .l10n, comment: "Diagnostics row title"),
+                detail: tartDetail, ok: report.tart.ok))
 
         // The configured `base_image:` — only worth a row when the same
         // warning the fleet-start log prints applies (a mutable tag bakes
@@ -63,56 +89,104 @@ final class DiagnosticsModel {
         if let base = report.tartBaseImage, let warning = base.warning {
             var detail = "\(base.reference) — \(base.fix ?? "")"
             if detail.hasSuffix(" — ") { detail = String(detail.dropLast(3)) }
-            rows.append(Row(title: "Base image (macOS VMs)", detail: detail, ok: base.ok, warning: warning))
+            rows.append(
+                Row(
+                    title: String(localized: "Base image (macOS VMs)", bundle: .l10n, comment: "Diagnostics row title"),
+                    detail: detail, ok: base.ok, warning: warning))
         }
 
         // Containers (only when configured)
         if let container = report.container {
-            var detail = container.fix ?? "ready — image \(container.image)"
+            var detail =
+                container.fix
+                ?? String(
+                    localized: "ready — image \(container.image)", bundle: .l10n,
+                    comment: "Diagnostics Apple container row; %@ is an image name")
             if !container.imageFound {
-                detail += "\nimage \(container.image) not built yet (kinhin image prepare --container)"
+                detail +=
+                    "\n"
+                    + String(
+                        localized: "image \(container.image) not built yet (kinhin image prepare --container)",
+                        bundle: .l10n,
+                        comment: "Diagnostics Apple container row; %@ is an image name; the command stays verbatim")
             }
-            rows.append(Row(title: "Apple container (Linux)", detail: detail, ok: container.ok))
+            rows.append(
+                Row(
+                    title: String(
+                        localized: "Apple container (Linux)", bundle: .l10n, comment: "Diagnostics row title"),
+                    detail: detail, ok: container.ok))
         }
         if let docker = report.docker {
-            var detail = docker.fix ?? "ready — image \(docker.image)"
-            if !docker.imageFound { detail += "\nimage \(docker.image) not built yet (kinhin image prepare --docker)" }
+            var detail =
+                docker.fix
+                ?? String(
+                    localized: "ready — image \(docker.image)", bundle: .l10n,
+                    comment: "Diagnostics Docker row; %@ is an image name")
+            if !docker.imageFound {
+                detail +=
+                    "\n"
+                    + String(
+                        localized: "image \(docker.image) not built yet (kinhin image prepare --docker)", bundle: .l10n,
+                        comment: "Diagnostics Docker row; %@ is an image name; the command stays verbatim")
+            }
             if let note = docker.note { detail += "\n\(note)" }
-            rows.append(Row(title: "Docker (Linux)", detail: detail, ok: docker.ok))
+            rows.append(
+                Row(
+                    title: String(localized: "Docker (Linux)", bundle: .l10n, comment: "Diagnostics row title"),
+                    detail: detail, ok: docker.ok))
         } else if let availability = report.dockerAvailability {
             // Not enabled in the config: still say whether it could be.
             let detail: String
             if let reason = availability.reason {
-                detail = "not supported on this Mac — \(reason)"
+                detail = String(
+                    localized: "not supported on this Mac — \(reason)", bundle: .l10n,
+                    comment: "Diagnostics Docker row; %@ is the reason")
             } else if availability.installed {
-                detail = "installed — not enabled for Linux jobs (turn it on in This Mac)"
+                detail = String(
+                    localized: "installed — not enabled for Linux jobs (turn it on in This Mac)", bundle: .l10n,
+                    comment: "Diagnostics Docker row")
             } else {
-                detail = "not installed — optional, runs Linux jobs (install it from This Mac)"
+                detail = String(
+                    localized: "not installed — optional, runs Linux jobs (install it from This Mac)", bundle: .l10n,
+                    comment: "Diagnostics Docker row")
             }
-            rows.append(Row(title: "Docker (Linux)", detail: detail, ok: availability.supported))
+            rows.append(
+                Row(
+                    title: String(localized: "Docker (Linux)", bundle: .l10n, comment: "Diagnostics row title"),
+                    detail: detail, ok: availability.supported))
         }
 
         // Per-runtime image disk usage — the same line the human doctor
         // prints (`images:` row), so both surfaces say exactly this much.
         // Informational: a big number is bloat to prune, not a fault.
         if let usage = report.imageTotalLine {
-            rows.append(Row(title: "Image disk usage", detail: usage, ok: true))
+            rows.append(
+                Row(
+                    title: String(localized: "Image disk usage", bundle: .l10n, comment: "Diagnostics row title"),
+                    detail: usage, ok: true))
         }
 
         // …and the sweep that would give some of that space back, straight
         // from the report's prune plan — the same line the doctor's `prune:`
         // row prints, present only when something is actually wasting disk.
         if let prune = report.imagePruneLine {
-            rows.append(Row(title: "Unused images", detail: prune, ok: true))
+            rows.append(
+                Row(
+                    title: String(localized: "Unused images", bundle: .l10n, comment: "Diagnostics row title"),
+                    detail: prune, ok: true))
         }
 
         // Capacity (nil when the config can't parse — nothing to plan against)
         if let capacity = report.capacity {
             rows.append(
                 Row(
-                    title: "Capacity",
+                    title: String(localized: "Capacity", bundle: .l10n, comment: "Diagnostics row title"),
                     detail:
-                        "\(capacity.maxConcurrent) VMs · \(capacity.jobSlots) job slots — \(capacity.bindingConstraint)",
+                        String(
+                            localized:
+                                "\(capacity.maxConcurrent) VMs · \(capacity.jobSlots) job slots — \(capacity.bindingConstraint)",
+                            bundle: .l10n,
+                            comment: "Diagnostics Capacity row; VM count, then job slots, then the limiting factor"),
                     ok: capacity.fits))
         }
 
@@ -120,7 +194,10 @@ final class DiagnosticsModel {
         // next spawn is held until disk frees. Same shared line as the
         // doctor's WARNING, image totals and prune lever included.
         if let pressure = report.diskPressureLine {
-            rows.append(Row(title: "Disk pressure", detail: pressure, ok: false))
+            rows.append(
+                Row(
+                    title: String(localized: "Disk pressure", bundle: .l10n, comment: "Diagnostics row title"),
+                    detail: pressure, ok: false))
         }
 
         if let security = report.security {
@@ -128,24 +205,46 @@ final class DiagnosticsModel {
             if security.softnetEnabled {
                 detail =
                     security.softnetInstalled
-                    ? "Softnet on — runner VMs are isolated from each other and the LAN"
-                    : "Softnet is on but not installed — \(security.fix ?? "install softnet"). The fleet will not start."
+                    ? String(
+                        localized: "Softnet on — runner VMs are isolated from each other and the LAN", bundle: .l10n,
+                        comment: "Diagnostics security row")
+                    : String(
+                        localized:
+                            "Softnet is on but not installed — \(security.fix ?? "install softnet"). The fleet will not start.",
+                        bundle: .l10n, comment: "Diagnostics security row; %@ is the fix command")
+
             } else {
-                detail = "Softnet off — runner VMs share one network"
+                detail = String(
+                    localized: "Softnet off — runner VMs share one network", bundle: .l10n,
+                    comment: "Diagnostics security row")
             }
             rows.append(
                 Row(
-                    title: "Isolation & transport", detail: detail, ok: security.ok,
+                    title: String(localized: "Isolation & transport", bundle: .l10n, comment: "Diagnostics row title"),
+                    detail: detail, ok: security.ok,
                     warning: security.warnings.isEmpty ? nil : security.warnings.joined(separator: "\n")))
         }
 
         let cache = report.toolchainCache
-        var cacheDetail = "\(ByteCountFormatter.string(fromByteCount: cache.totalBytes, countStyle: .file)) cached"
-        if cache.warning { cacheDetail += " — shared with runners but empty (run image prepare)" }
-        rows.append(Row(title: "Toolchain cache", detail: cacheDetail, ok: cache.usable))
+        let cacheSize = ByteCountFormatter.string(fromByteCount: cache.totalBytes, countStyle: .file)
+        let cacheDetail =
+            cache.warning
+            ? String(
+                localized: "\(cacheSize) cached — shared with runners but empty (run image prepare)", bundle: .l10n,
+                comment: "Diagnostics toolchain-cache row; %@ is a formatted byte count")
+            : String(
+                localized: "\(cacheSize) cached", bundle: .l10n,
+                comment: "Diagnostics toolchain-cache row; %@ is a formatted byte count")
+        rows.append(
+            Row(
+                title: String(localized: "Toolchain cache", bundle: .l10n, comment: "Diagnostics row title"),
+                detail: cacheDetail, ok: cache.usable))
 
         if let notice = fleetImageNotice(), !notice.isEmpty {
-            rows.append(Row(title: "Project images", detail: notice, ok: true))
+            rows.append(
+                Row(
+                    title: String(localized: "Project images", bundle: .l10n, comment: "Diagnostics row title"),
+                    detail: notice, ok: true))
         }
 
         self.rows = rows

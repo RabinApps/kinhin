@@ -32,13 +32,21 @@ final class FleetAlerts {
             wasReachable = true
             let error = status.lastError
             if let error, error != lastError {
-                poster.post(FleetAlert(title: "kinhin needs attention", body: error))
+                poster.post(
+                    FleetAlert(
+                        title: String(
+                            localized: "kinhin needs attention", bundle: .l10n,
+                            comment: "Notification title when the fleet reports an error"), body: error))
             }
             lastError = error
         } else if let unreachableReason {
             // Only the reachable → unreachable edge: polls repeat every few seconds.
             if wasReachable {
-                poster.post(FleetAlert(title: "kinhin fleet not responding", body: unreachableReason))
+                poster.post(
+                    FleetAlert(
+                        title: String(
+                            localized: "kinhin fleet not responding", bundle: .l10n,
+                            comment: "Notification title when the fleet stops answering"), body: unreachableReason))
             }
             wasReachable = false
         }
@@ -89,7 +97,10 @@ final class SleepPreventer {
     func update(fleetRunning: Bool, paused: Bool) {
         let shouldHold = fleetRunning && !paused
         if shouldHold, activity == nil {
-            activity = begin("kinhin is serving CI jobs")
+            activity = begin(
+                String(
+                    localized: "kinhin is serving CI jobs", bundle: .l10n,
+                    comment: "Reason shown by macOS for keeping the Mac awake while CI jobs run"))
         } else if !shouldHold, let held = activity {
             end(held)
             activity = nil
