@@ -198,6 +198,16 @@ The runner has to be installed (in the base image, or on the host) and started f
     `CONTRIBUTING.md`). Buildkite, Azure DevOps and Bitbucket use `StubProtocol` stubs.
     New test globals use a `Mutex`, not `nonisolated(unsafe)`.
 
+33. **Fleet-serving contract for the fake.** If adding a fake in `KinhinTestSupport` (or any other fake double), add or
+    update its contract test so the fake continues to mirror the real implementation it stands in for. `FakeFleetServing` is
+    the example to follow: `Tests/KinhinAppTests/FakeFleetServingContractTests.swift` pins `start/stop/pause/delete` and the
+    failure paths against a real in-process engine and a dead-daemon RPC client. One divergence is **intentional and
+    documented there**: when a real engine's `start()` has no usable forge it stays stopped and records the reason in
+    `lastError`, while the fake refuses via throwing instead of silently staying stopped — that case is asserted directly
+    (`testStartWithNoUsableForgeStaysStoppedOnTheRealSideWhileTheFakeWouldReportRunning`). When a new fake has a similar
+    intentional divergence between the real side and the fake, mirror it in the same contract test file so the drift is
+    caught instead of silently accepted.
+
 ### H. Docs and website
 
 33. `docs/forges/<id>.md`: the API notes page. Copy the structure of `docs/forges/bitbucket.md` (overview, auth,
