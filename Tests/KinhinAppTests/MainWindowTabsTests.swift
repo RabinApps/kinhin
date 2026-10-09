@@ -46,7 +46,7 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertEqual(MainTab.allCases, [.fleet, .setup, .advanced])
         XCTAssertEqual(
             AdvancedSection.allCases.map(\.label),
-            ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "Benchmarks", "App"])
+            ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "Benchmarks", "Settings"])
     }
 
     func testTabBarIsHiddenWhileSetupIsUnfinished() {

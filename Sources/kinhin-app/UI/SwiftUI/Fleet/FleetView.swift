@@ -108,7 +108,9 @@ struct FleetView: View {
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // A form-width column centered in the window, like the Advanced pages.
+        .frame(maxWidth: FormMetrics.width + 40, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     /// Only the actions that apply: Start when stopped; Stop and Pause/Resume

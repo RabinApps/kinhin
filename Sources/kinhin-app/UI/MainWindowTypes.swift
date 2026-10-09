@@ -83,7 +83,7 @@ enum AdvancedSection: String, CaseIterable {
         case .containers: return String(localized: "Containers", bundle: .l10n, comment: "Advanced section title")
         case .toolchains: return String(localized: "Toolchains", bundle: .l10n, comment: "Advanced section title")
         case .benchmarks: return String(localized: "Benchmarks", bundle: .l10n, comment: "Advanced section title")
-        case .app: return String(localized: "App", bundle: .l10n, comment: "Advanced section title")
+        case .app: return String(localized: "Settings", bundle: .l10n, comment: "Advanced section title")
         }
     }
 }

@@ -87,8 +87,20 @@ struct MainTabsView: View {
     }
 }
 
+/// Widths that make up the Advanced page. The window's minimum width is derived
+/// from them so the form cards are never clipped, even with the sidebar open.
+enum AdvancedLayout {
+    static let sidebarExpanded: CGFloat = 176
+    static let sidebarCollapsed: CGFloat = 52
+    static let detailPadding: CGFloat = 16
+    /// The form column: a card plus the sections' own leading inset and slack.
+    static let contentWidth: CGFloat = FormMetrics.width + 24
+    /// Narrowest window that shows the expanded sidebar and a whole form column.
+    static let minWindowWidth: CGFloat = sidebarExpanded + 1 + 2 * detailPadding + contentWidth
+}
+
 /// Advanced: a collapsible sidebar of sections with the selected section's
-/// form on the right.
+/// form centered on the right.
 private struct AdvancedView: View {
     let model: MainTabsModel
 
@@ -99,8 +111,9 @@ private struct AdvancedView: View {
             sidebar
             Divider()
             section
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 16)
+                .frame(maxWidth: AdvancedLayout.contentWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.horizontal, AdvancedLayout.detailPadding)
                 .padding(.bottom, 12)
         }
     }
@@ -128,7 +141,7 @@ private struct AdvancedView: View {
         }
         .padding(.horizontal, 8)
         .padding(.top, 10)
-        .frame(width: collapsed ? 52 : 176)
+        .frame(width: collapsed ? AdvancedLayout.sidebarCollapsed : AdvancedLayout.sidebarExpanded)
         .frame(maxHeight: .infinity, alignment: .topLeading)
     }
 

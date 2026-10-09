@@ -18,7 +18,7 @@ code signing, test hardware and development time.
 ## Become a sponsor
 
 Companies can sponsor kinhin and have their logo and a link shown on the website's home page and in the app's
-**Advanced → App** section. Pick a company tier on [GitHub Sponsors](https://github.com/sponsors/RabinApps), or email
+**Advanced → Settings** section. Pick a company tier on [GitHub Sponsors](https://github.com/sponsors/RabinApps), or email
 [support@rabinapps.com](mailto:support@rabinapps.com?subject=kinhin%20sponsorship) with your company name, link and
 logo. Sponsorship supports the project; it does not buy influence over the roadmap.
 

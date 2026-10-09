@@ -407,9 +407,6 @@
     "amd64 (emulated)" : {
       "comment" : "Text in MacToolsView"
     },
-    "App" : {
-      "comment" : "Advanced section title"
-    },
     "Apple container" : {
       "comment" : "Linux runtime option name"
     },
@@ -2053,6 +2050,9 @@
     "Set up something to run jobs on (step 2): a Linux runtime (Docker or Apple container), or tart for macOS jobs." : {
       "comment" : "Setup wizard blocker"
     },
+    "Settings" : {
+      "comment" : "Advanced section title"
+    },
     "Settings…" : {
       "comment" : "Menu item that opens Settings"
     },
@@ -2456,6 +2456,12 @@
     },
     "untested" : {
       "comment" : ".accessibilityLabel in MaturityBadge"
+    },
+    "Untested" : {
+      "comment" : "Label in MaturityBadge"
+    },
+    "Untested. Click for details." : {
+      "comment" : ".help in MaturityBadge"
     },
     "Unused images" : {
       "comment" : "Diagnostics row title"

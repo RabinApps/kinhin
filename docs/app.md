@@ -131,7 +131,7 @@ before the app exits. When a background daemon runs the fleet, quitting the app 
 
 ## Launch mode and login item
 
-Under **Advanced → App**, _Show at launch_ controls how kinhin presents itself (stored in UserDefaults, effective
+Under **Advanced → Settings**, _Show at launch_ controls how kinhin presents itself (stored in UserDefaults, effective
 immediately):
 
 | Show at launch                       | Behavior                                                                               |
@@ -150,7 +150,7 @@ regular app with a Dock icon; in menu-bar-only mode it stays an accessory app ex
 
 ## Reset kinhin
 
-**Advanced → App → Reset** wipes kinhin's local state — irreversibly. Nothing goes to the Trash and
+**Advanced → Settings → Reset** wipes kinhin's local state — irreversibly. Nothing goes to the Trash and
 nothing is backed up; the only way back is setting up again (config, `kinhin auth set`, and
 re-baking any image you still want).
 

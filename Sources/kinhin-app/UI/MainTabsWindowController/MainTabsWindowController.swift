@@ -44,7 +44,7 @@ final class MainTabsWindowController: NSWindowController, NSWindowDelegate {
         host.sizingOptions = []
         window.contentView = host
         window.center()
-        window.minSize = NSSize(width: 760, height: 480)
+        window.minSize = NSSize(width: AdvancedLayout.minWindowWidth, height: 480)
         super.init(window: window)
         window.delegate = self
         tabs.onSetupFinished = { [weak self] in self?.delegate?.setupTabFinished() }
