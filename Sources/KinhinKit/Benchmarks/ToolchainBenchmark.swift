@@ -91,6 +91,8 @@ enum ToolchainBenchmark {
             installer: plan.installer, status: .ran,
             workload: plan.workload.skipReason == nil ? workloadName(plan) : nil)
         do {
+            try await ensureGuestPackages(ctx, plan, on: instance)
+            if thorough { try await ensureGuestMiseTools(ctx, plan, on: instance) }
             if thorough {
                 try await ensureRequirements(ctx, plan, on: instance, installed: &installed)
                 let existing = try await timedVerify(ctx, plan, on: instance)
@@ -103,14 +105,18 @@ enum ToolchainBenchmark {
                         try await ctx.run(instance, plan.installScript(runsAsRoot: runsAsRoot(instance)), timeout: 3600)
                     }
                     guard install.value.succeeded else {
-                        return finish(
-                            row, .failed, note: "install failed: \(BenchmarkContext.detail(of: install.value))")
+                        let detail = BenchmarkContext.detail(of: install.value)
+                        // A guest that ran out of disk says nothing about the tool.
+                        if let reason = try await diskFullReason(ctx, on: instance, output: detail) {
+                            return finish(row, .skipped, reason: reason)
+                        }
+                        return finish(row, .failed, note: "install failed: \(detail)")
                     }
                     row.installMs = install.ms
                     let verified = try await timedVerify(ctx, plan, on: instance)
                     row.verifyMs = verified.ms
                     guard verified.succeeded else {
-                        return finish(row, .failed, note: "verify failed after install")
+                        return finish(row, .failed, note: "verify failed after install: \(verified.detail)")
                     }
                 }
                 installed.insert(plan.id)
@@ -177,12 +183,69 @@ enum ToolchainBenchmark {
     private static func runsAsRoot(_ instance: BenchmarkInstance) -> Bool { instance.runtimeID != .tart }
 
     private static func timedVerify(_ ctx: BenchmarkContext, _ plan: ToolchainBenchPlan, on instance: BenchmarkInstance)
-        async throws -> (succeeded: Bool, ms: Double)
+        async throws -> (succeeded: Bool, ms: Double, detail: String)
     {
         let timed = try await BenchmarkContext.measure {
-            try await ctx.run(instance, "{ \(plan.verify); } >/dev/null 2>&1", timeout: 300)
+            try await ctx.run(instance, "{ \(plan.verify); } >/dev/null", timeout: 300)
         }
-        return (timed.value.succeeded, timed.ms)
+        return (timed.value.succeeded, timed.ms, BenchmarkContext.detail(of: timed.value))
+    }
+
+    /// apt packages the entry needs on a Linux guest (a compiler, headers). Untimed; a no-op once present.
+    private static func ensureGuestPackages(
+        _ ctx: BenchmarkContext, _ plan: ToolchainBenchPlan, on instance: BenchmarkInstance
+    ) async throws {
+        guard instance.platform == .linux, let first = plan.guestPackages.first else { return }
+        let sudo = runsAsRoot(instance) ? "" : "sudo "
+        let packages = plan.guestPackages.filter { $0 != ToolchainBenchPlan.libpythonToken }
+            .map(BenchmarkScripts.quote).joined(separator: " ")
+        let python =
+            plan.guestPackages.contains(ToolchainBenchPlan.libpythonToken)
+            ? #"$(apt-cache search --names-only '^libpython3\.[0-9]+$' | sort -V | tail -n 1 | cut -d' ' -f1)"# : ""
+        ctx.sink.set(step: "\(plan.id) › guest packages")
+        let result = try await ctx.run(
+            instance,
+            """
+            export DEBIAN_FRONTEND=noninteractive
+            if ! dpkg-query -W -f='${Status}' \(BenchmarkScripts.quote(first)) 2>/dev/null | grep -q 'install ok installed'; then
+              \(sudo)apt-get update -qq
+              \(sudo)apt-get install -y --no-install-recommends \(packages) \(python)
+            fi
+            """, timeout: 1800)
+        guard result.succeeded else {
+            throw BenchmarkError.stepFailed(step: "guest packages", detail: BenchmarkContext.detail(of: result))
+        }
+    }
+
+    /// A modern Ruby from mise for gem installs on macOS (the system Ruby 2.6 cannot build native extensions).
+    private static func ensureGuestMiseTools(
+        _ ctx: BenchmarkContext, _ plan: ToolchainBenchPlan, on instance: BenchmarkInstance
+    ) async throws {
+        guard instance.platform == .macOS else { return }
+        for tool in plan.guestMiseTools {
+            ctx.sink.set(step: "\(plan.id) › \(tool) from mise")
+            let quoted = BenchmarkScripts.quote(tool)
+            let result = try await ctx.run(
+                instance, "mise which \(quoted) >/dev/null 2>&1 || mise use --global \(quoted)@latest", timeout: 3600)
+            guard result.succeeded else {
+                throw BenchmarkError.stepFailed(step: "\(tool) from mise", detail: BenchmarkContext.detail(of: result))
+            }
+        }
+    }
+
+    /// A reason to skip rather than fail when an install died because the guest had no room: out-of-space
+    /// output, or a failed extraction on a nearly full disk.
+    private static func diskFullReason(
+        _ ctx: BenchmarkContext, on instance: BenchmarkInstance, output: String
+    ) async throws -> String? {
+        let lowered = output.lowercased()
+        let suspicious = lowered.contains("space") || lowered.contains("extract") || lowered.contains("write error")
+        guard suspicious else { return nil }
+        let free = try await ctx.run(instance, #"df -k "$HOME" | awk 'NR==2 {print $4}'"#, timeout: 60)
+        guard let kilobytes = Int(free.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        let gigabytes = Double(kilobytes) / 1_048_576
+        guard gigabytes < 4 else { return nil }
+        return String(format: "the guest has only %.1f GB free; free disk space and re-run", gigabytes)
     }
 
     /// Installs what `plan` requires (node for npm tools, java for the JVM ones) when the guest lacks it. Untimed.

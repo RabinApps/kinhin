@@ -64,7 +64,8 @@ final class ToolchainBenchmarkRunTests: XCTestCase {
 
     func testAWorkloadThatExits77IsSkippedWithItsReason() async throws {
         harness.docker.execResults = [
-            ShellResult(exitCode: 0, stdout: "", stderr: ""),
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),  // cmake's guest packages
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),  // verify
             ShellResult(exitCode: 77, stdout: "no C++ compiler in the guest\n", stderr: ""),
         ]
         let report = try await run(BenchmarkOptions(suites: [.toolchains], runtimes: [.docker], toolchains: ["cmake"]))
@@ -182,5 +183,55 @@ final class ToolchainBenchmarkRunTests: XCTestCase {
     func testTheDefaultSelectionCoversTartAndTheFirstLinuxRuntime() async throws {
         let report = try await run(BenchmarkOptions(suites: [.toolchains], toolchains: ["jq"]))
         XCTAssertEqual(report.suites.map(\.runtime), ["tart", "appleContainer"])
+    }
+
+    // MARK: - Guest prerequisites
+
+    func testLinuxGuestsGetTheirBuildPrerequisitesUntimed() async throws {
+        harness.docker.execResults = [
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),  // guest packages
+            ShellResult(exitCode: 1, stdout: "", stderr: ""),  // not preinstalled
+        ]
+        let report = try await run(
+            BenchmarkOptions(suites: [.toolchains], intensity: .thorough, runtimes: [.docker], toolchains: ["lua"]))
+        let lua = try XCTUnwrap(rows(report, runtime: .docker)["lua"])
+        XCTAssertEqual(lua.status, .ran, lua.note ?? "")
+        let apt = try XCTUnwrap(
+            harness.docker.argvSnapshot().compactMap(\.last).first { $0.contains("apt-get install") })
+        XCTAssertTrue(apt.contains("'build-essential'"))
+    }
+
+    func testPrerequisitePackagesApplyToLinuxOnly() {
+        XCTAssertEqual(
+            ToolchainBenchPlan.plans(platform: .linux, ids: ["lua"]).first?.guestPackages.first, "build-essential")
+        XCTAssertEqual(ToolchainBenchPlan.plans(platform: .macOS, ids: ["lua"]).first?.guestPackages, [])
+        XCTAssertEqual(ToolchainBenchPlan.plans(platform: .linux, ids: ["elixir"]).first?.requires, ["erlang"])
+        XCTAssertEqual(ToolchainBenchPlan.plans(platform: .macOS, ids: ["elixir"]).first?.requires, [])
+    }
+
+    func testAnInstallThatDiedForWantOfDiskIsSkippedNotFailed() async throws {
+        harness.docker.execResults = [
+            ShellResult(exitCode: 1, stdout: "", stderr: ""),  // not preinstalled
+            ShellResult(exitCode: 1, stdout: "", stderr: "failed to extract tar: no space left on device"),
+            ShellResult(exitCode: 0, stdout: "1048576\n", stderr: ""),  // df: 1 GB free
+        ]
+        let report = try await run(
+            BenchmarkOptions(suites: [.toolchains], intensity: .thorough, runtimes: [.docker], toolchains: ["jq"]))
+        let jq = try XCTUnwrap(rows(report, runtime: .docker)["jq"])
+        XCTAssertEqual(jq.status, .skipped)
+        XCTAssertTrue(jq.skipReason?.contains("only 1.0 GB free") == true, jq.skipReason ?? "")
+        XCTAssertFalse(report.hasFailures)
+    }
+
+    func testAnInstallFailureWithRoomToSpareStaysAFailure() async throws {
+        harness.docker.execResults = [
+            ShellResult(exitCode: 1, stdout: "", stderr: ""),
+            ShellResult(exitCode: 1, stdout: "", stderr: "failed to extract tar: corrupt archive"),
+            ShellResult(exitCode: 0, stdout: "52428800\n", stderr: ""),  // 50 GB free
+        ]
+        let report = try await run(
+            BenchmarkOptions(suites: [.toolchains], intensity: .thorough, runtimes: [.docker], toolchains: ["jq"]))
+        XCTAssertEqual(try rows(report, runtime: .docker)["jq"]?.status, .failed)
+        XCTAssertTrue(report.hasFailures)
     }
 }

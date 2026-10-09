@@ -268,9 +268,11 @@ extension RunnerBootstrap {
                   \(s)apt-get update -qq
                   \(s)apt-get install -y --no-install-recommends ruby
                 fi
-                if ! gem list --local \(gems) —exact >/dev/null 2>&1; then
-                  \(s)gem install --no-document \(gems)
-                fi
+                for g in \(gems); do
+                  if ! gem list -i "^$g$" >/dev/null 2>&1; then
+                    \(s)gem install --no-document "$g"
+                  fi
+                done
                 """)
         }
         // Same tail as the macOS script: version-pinned stack installs, then

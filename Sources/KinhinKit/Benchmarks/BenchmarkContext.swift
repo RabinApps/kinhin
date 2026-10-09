@@ -39,6 +39,21 @@ struct BenchmarkContext: Sendable {
     /// Provisions an instance of `runtime`, tracked from before its first call so a failure cannot leak it,
     /// then waits for it and learns its guest OS.
     func acquire(_ runtime: RuntimeID, platform: LinuxPlatform? = nil) async throws -> BenchmarkInstance {
+        do {
+            return try await acquireOnce(runtime, platform: platform)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch  where runtime == .tart {
+            // A VM now and then never gets a network lease (seen under softnet): one fresh VM is a better answer
+            // than a failed suite. The failed one is removed by the tracker at the end of the run.
+            Log.warn(
+                "bench",
+                "a \(runtime.rawValue) guest did not come up (\(error.localizedDescription)); trying a fresh one")
+            return try await acquireOnce(runtime, platform: platform)
+        }
+    }
+
+    private func acquireOnce(_ runtime: RuntimeID, platform: LinuxPlatform?) async throws -> BenchmarkInstance {
         guard let implementation = env.makeRuntime(runtime, platform) else {
             throw BenchmarkError.runtimeUnavailable(runtime: runtime, why: "not supported on this build")
         }
@@ -50,7 +65,7 @@ struct BenchmarkContext: Sendable {
         let guest = try await detectGuest(runtime, implementation, name: name, ip: ip)
         return BenchmarkInstance(
             runtimeID: runtime, runtime: implementation, name: name, ip: ip, platform: guest.toolchainPlatform,
-            benchDirectory: Self.benchDirectory(for: implementation, name: name))
+            benchDirectory: Self.benchDirectory(for: implementation, name: name), isolatesStdin: env.isolatesStdin)
     }
 
     private func detectGuest(_ id: RuntimeID, _ runtime: any Runtime, name: String, ip: String?) async throws

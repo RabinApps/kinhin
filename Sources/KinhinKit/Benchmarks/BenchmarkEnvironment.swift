@@ -36,6 +36,9 @@ public struct BenchmarkEnvironment: Sendable {
     var probeInterval: Duration
     /// How often a pause waits on busy VMs, and for how long before giving up.
     var drainPoll: Duration = .seconds(2)
+    /// Guard scripts against children that read stdin (see `BenchmarkScripts.isolatingStdin`). Tests that
+    /// inspect the raw script turn it off.
+    var isolatesStdin = true
     var drainSeconds: TimeInterval = BenchmarkLimits.drainSeconds
 
     public init(

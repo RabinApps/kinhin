@@ -26,7 +26,7 @@ kinhin bench --json > bench.json     # the report, on stdout only
 | `casual`     | One shared guest: per-exec overhead, a file tree (create, tar+gzip, untar, checksum), `git` commit of hundreds of files, and a `swift build` of a small generated package. |
 | `xcode`      | `xcodebuild` clean and incremental builds of a generated multi-file Swift package, or of your checkout with `--project`. Skipped when the guest has no Xcode. |
 | `large`      | Multi-gigabyte disk write, read and checksum, multi-core gzip throughput, and (with `--network`) a timed shallow `git clone`.                              |
-| `toolchains` | One row per catalog tool and stack, per platform: cold install, verify, and a small offline workload. Opt-in, because the thorough pass takes hours.      |
+| `toolchains` | One row per catalog tool and stack, per platform: cold install, verify, and a small offline workload. Opt-in: a thorough pass over the whole catalog takes tens of minutes (see [How long it takes](#how-long-it-takes)). |
 
 `--quick` (the default) uses one boot iteration and small payloads. `--thorough` uses three iterations and larger
 payloads (still capped at 4 GB), and makes the toolchains suite time the cold install.
@@ -110,6 +110,77 @@ cache):
 The same run reported tools that did not install in that container image as `failed` rows with the installer's output
 (`elixir` needs `erl`, `lua` needs a C toolchain to build, `swift` failed extracting its archive), and `cmake` and `rust`
 as verify-only because the image has no C compiler. That is the point of the table: it doubles as an install check.
+
+## How long it takes
+
+Measured on the M1 Max above (fast home connection, nothing else running):
+
+| Run                                                                  | Time          |
+| -------------------------------------------------------------------- | ------------- |
+| `kinhin bench boot --runtime docker,appleContainer`                  | about 4 s     |
+| `kinhin bench casual large --runtime docker` (with `--network`)      | about 15 s    |
+| `kinhin bench casual xcode large --runtime tart`                     | about 1.5 min |
+| `kinhin bench boot --runtime tart --thorough --iterations 2`         | about 1.5 min |
+| `kinhin bench toolchains --thorough` over the whole catalog, macOS (4 category VMs) | about 15 min  |
+| the same, Linux on Apple container (one container per tool)          | about 25 min  |
+| `kinhin bench toolchains` (quick: verify + workload, nothing installed) | minutes     |
+
+The toolchains pass is dominated by downloads, so a slow connection can multiply it. The app and `bench_status` report
+elapsed time and the current step while it runs.
+
+## What has been tested
+
+Honest status of this feature, as of the first complete implementation.
+
+**Tested by the automated suite** (`swift test`, no VMs or network): the runner against the shared fakes (boot phases,
+every suite's steps, cleanup on success, failure and cancel, fleet pause/resume/drain, the stray sweep, preflight
+errors), the report and history store, the RPC handler and registry, the CLI parser and daemon polling, the app model,
+the toolchain coverage invariants (every catalog tool and stack, on every platform it claims, has a plan and a
+workload or a skip reason), and the stdin-isolating script wrapper against a real `bash`. A ThreadSanitizer run over
+these tests found no races.
+
+**Tested for real**, on an Apple M1 Max (64 GB), against real runtimes:
+
+- **Tart macOS VM** (a 73 GB Xcode 27 image): `boot` (cold and warm, 2 iterations), `casual`, `xcode` (generated
+  package and `--project` with a real Swift package), `large`, and the full toolchain catalog, installed cold.
+- **Apple container** (`kinhin-ci-linux`): `boot` and the full toolchain catalog, installed cold.
+- **Docker** (`kinhin-ci-linux`): `boot`, `casual`, `large` including `--network` (a real shallow clone), and about
+  45 catalog tools installed cold.
+- Cleanup was checked after each run: no `kinhin-bench-*` VM or container remained.
+- The daemon methods (`bench_start`, `bench_status`, `bench_cancel`, including a cancelled run) over a real unix
+  socket served by `RPCServer` with a throwaway engine.
+- The Benchmarks view was rendered to an image from a real report to check its layout.
+
+**Not tested yet:**
+
+- Running through an actual `kinhin daemon` process (it would start the fleet, so the RPC path was exercised with a
+  throwaway engine on a real socket instead).
+- The app as a running window: clicking **Run…**, the confirmation dialog, live progress while a run goes, and the
+  Fleet tab card. The model is unit-tested and the view renders, but nobody has used it end to end.
+- Pausing a real fleet that has live, busy VMs (the pause, drain and resume logic is covered only with fakes), and the
+  interactive confirmation prompt on a terminal.
+- `--include-host` against the real host runtime (only a faked shell).
+- The `linux/amd64` emulation pass on Docker, and a Docker run of the _whole_ catalog (about 45 tools were run; the
+  Docker VM here was nearly out of disk, so `swift` was reported `skipped`, which is the intended behaviour).
+- Tart Linux guests, thorough runs with more than two boot iterations, `--project` with an `.xcodeproj` or
+  `.xcworkspace` (only a bare Swift package was built), and Intel Macs or other Xcode versions.
+
+## What the real runs found and fixed
+
+Running the benchmark for real turned up problems the fakes could not:
+
+- `--project` failed on a bare Swift package: `xcodebuild` needs an explicit `-destination`.
+- A guest command that reads stdin (`brew install` does) swallowed the rest of the script, so a toolchain "installed"
+  without running its remaining steps. Every bench script now runs from a file with stdin closed.
+- The Linux gem install in `image prepare` guarded on `gem list --local fastlane —exact` (an em dash), and `gem list`
+  exits 0 whether or not the gem is installed, so gems such as `fastlane` were never installed on Linux images. That is
+  fixed in the image bake itself.
+- Entries that need build tools the base image lacks (a C toolchain for `lua`, `rust` and `cmake`, Python for
+  `gcloud`, shared libraries for `swift`, Erlang for `elixir`, a modern Ruby and the gem `bin` directory for
+  `fastlane`, the Flutter SDK step for `flutter`) now get them as untimed prerequisites, so they measure the tool and
+  not the base image.
+- An install that dies because the guest ran out of disk is reported `skipped` with the free space, not `failed`.
+- A Tart VM that never gets a network lease now gets one retry with a fresh VM.
 
 ## Flags
 

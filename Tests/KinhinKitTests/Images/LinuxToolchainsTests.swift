@@ -15,6 +15,21 @@ final class LinuxToolchainsTests: XCTestCase {
             mountPath: ToolchainCacheMount.linuxGuestPath)
     }
 
+    func testLinuxGemInstallChecksEachGemByExitStatus() {
+        // Found by `kinhin bench`: the guard was `gem list --local fastlane —exact` (an em dash), and `gem list`
+        // exits 0 whether or not the gem is installed, so the install was always skipped.
+        var selection = ManagedToolchainSelection()
+        selection.gems = ["fastlane", "cocoapods"]
+        for root in [true, false] {
+            let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(
+                selection: selection, mountPath: nil, runsAsRoot: root)
+            XCTAssertFalse(script.contains("—"), "no stray em dash in a shell script")
+            XCTAssertTrue(script.contains("for g in 'fastlane' 'cocoapods'; do"))
+            XCTAssertTrue(script.contains(#"gem list -i "^$g$""#))
+            XCTAssertTrue(script.contains(root ? "gem install --no-document \"$g\"" : "sudo gem install --no-document \"$g\""))
+        }
+    }
+
     func testLinuxSelectionFiltersMacOSOnlyEntries() throws {
         // Raw brew formulas and macOS-only stacks are skipped with a note,
         // never an error. Cross-platform mise/npm tools, catalog tools with a

@@ -82,6 +82,6 @@ What shipped differs from the plan above in these places:
 - **`--force`** is a flag of its own (skip the wait for busy VMs); `--yes` only agrees to the fleet pause.
 - **Exit code 1** also covers a toolchain row that failed to install, verify or build, so a thorough run doubles as
   an install-correctness gate.
-- **Thorough toolchains** requires `--toolchains` or `--all-toolchains` (it takes hours); a quick pass is unscoped by
+- **Thorough toolchains** requires `--toolchains` or `--all-toolchains` (tens of minutes over the whole catalog); a quick pass is unscoped by
   default.
 

@@ -101,6 +101,7 @@ struct BenchHarness {
         env.hostResources = { HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: freeDiskGB, arm64: true) }
         env.hostInfo = { ("Test Chip", "Test OS") }
         env.probeInterval = .milliseconds(1)
+        env.isolatesStdin = false
         return env
     }
 

@@ -12,11 +12,14 @@ struct BenchmarkInstance: Sendable {
     let platform: ToolchainPlatform
     /// Shell assignment of `BENCH`, the guest scratch directory every script `cd`s into.
     let benchDirectory: String
+    /// Run scripts through `BenchmarkScripts.isolatingStdin` (always, outside tests that read raw scripts).
+    var isolatesStdin = true
 
     var platformLabel: String { platform == .macOS ? "macOS" : "linux" }
 
     func exec(_ script: String, timeout: TimeInterval) async throws -> ShellResult {
-        try await runtime.execRegistration(name, ip: ip, script, timeout: timeout)
+        try await runtime.execRegistration(
+            name, ip: ip, isolatesStdin ? BenchmarkScripts.isolatingStdin(script) : script, timeout: timeout)
     }
 
     /// The preamble every generated script starts with: strict mode, the tool

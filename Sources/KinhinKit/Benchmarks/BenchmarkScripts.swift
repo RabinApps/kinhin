@@ -13,6 +13,24 @@ enum BenchmarkScripts {
     /// A workload exits with this to say "cannot run here"; its last stdout line is the reason.
     static let skipExitCode: Int32 = 77
 
+    /// Wraps `script` so no command in it can read the rest of the script off stdin. The script reaches the guest as
+    /// `bash -s` input, and a child that reads stdin (`brew install` does) silently swallows every line after it:
+    /// the install "succeeds" without running its remaining steps. The wrapper writes the script to a temporary
+    /// file inside the guest and runs it with stdin closed; the exit status passes through.
+    static func isolatingStdin(_ script: String) -> String {
+        let payload = Data(script.utf8).base64EncodedString(options: [.lineLength76Characters, .endLineWithLineFeed])
+        return """
+            f=$(mktemp "${TMPDIR:-/tmp}/kinhin-bench.XXXXXX") || exit 1
+            base64 --decode > "$f" <<'KINHIN_BENCH_PAYLOAD'
+            \(payload)
+            KINHIN_BENCH_PAYLOAD
+            bash "$f" </dev/null
+            rc=$?
+            rm -f "$f"
+            exit $rc
+            """
+    }
+
     /// Strict mode, the tool PATH an SSH shell lacks, and the scratch directory.
     static func prelude(platform: ToolchainPlatform, benchDirectory: String) -> String {
         let path: String
@@ -21,6 +39,11 @@ enum BenchmarkScripts {
             path = """
                 export PATH="$HOME/.local/share/mise/shims:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:$PATH"
                 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
+                # `gem install --user-install` puts executables here, which no login profile adds to PATH.
+                if command -v ruby >/dev/null 2>&1; then
+                  gem_bin="$(ruby -e 'print Gem.user_dir' 2>/dev/null || true)/bin"
+                  export PATH="$gem_bin:$PATH"
+                fi
                 """
         case .linux:
             path = #"export PATH="$HOME/.local/share/mise/shims:/opt/flutter/bin:/usr/local/bin:$PATH""#
