@@ -1,6 +1,6 @@
 import { h, onBeforeUnmount, onMounted, onUpdated, nextTick } from "vue";
 import DefaultTheme from "vitepress/theme";
-import type { Theme } from "vitepress";
+import { onContentUpdated, type Theme } from "vitepress";
 import GitHubActions from "./GitHubActions.vue";
 import "./version-banner.css";
 
@@ -11,6 +11,7 @@ function addDiagramExpandButtons(): void {
   for (const diagram of diagrams) {
     const parent = diagram.parentElement;
     if (!parent || parent.classList.contains("diagram-frame")) continue;
+    if (diagram.querySelector("svg") === null) continue;
 
     const frame = document.createElement("div");
     frame.className = "diagram-frame";
@@ -416,66 +417,81 @@ async function loadMermaid(): Promise<typeof import("mermaid").default> {
   return cachedMermaid;
 }
 
-async function renderMermaidDiagrams(): Promise<void> {
-  const theme = document.documentElement.classList.contains("dark")
-    ? "dark"
-    : "default";
-  const diagrams = Array.from(
-    document.querySelectorAll<HTMLElement>("pre.mermaid"),
-  );
-  const needRender = diagrams.filter(
-    (diagram) => diagram.dataset.mermaidTheme !== theme,
-  );
+function hasSvg(diagram: HTMLElement): boolean {
+  return diagram.querySelector("svg") !== null;
+}
 
-  if (needRender.length === 0) {
-    addDiagramExpandButtons();
-    return;
-  }
+// True once every diagram on the page holds a rendered <svg>. Diagrams are
+// derived from the live DOM after the mermaid chunk has loaded, never from a
+// snapshot taken before the await: hydration or a route change can replace
+// the <pre> nodes while the (large, cold-cache) chunk downloads.
+async function renderMermaidDiagrams(): Promise<boolean> {
+  if (document.querySelector("pre.mermaid") === null) return true;
 
   try {
     const mermaid = await loadMermaid();
+    const theme = document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "default";
+    const needRender = Array.from(
+      document.querySelectorAll<HTMLElement>("pre.mermaid"),
+    ).filter(
+      (diagram) => !hasSvg(diagram) || diagram.dataset.mermaidTheme !== theme,
+    );
+
     for (const diagram of needRender) {
-      if (diagram.dataset.mermaidSource === undefined) {
-        diagram.dataset.mermaidSource = diagram.textContent ?? "";
-      } else {
+      if (hasSvg(diagram) && diagram.dataset.mermaidSource !== undefined) {
         diagram.textContent = diagram.dataset.mermaidSource;
+      } else {
+        // Raw text (first render, or Vue re-patched the node): current
+        // content is the source of truth.
+        diagram.dataset.mermaidSource = diagram.textContent ?? "";
       }
       diagram.removeAttribute("data-processed");
+      delete diagram.dataset.mermaidTheme;
     }
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: "strict",
-      theme,
-    });
-    await mermaid.run({ querySelector: ".mermaid:not([data-processed])" });
-    // Fallback: if any diagram still has raw text (mermaid.run skipped it),
-    // render it individually. This can happen when querySelector misses a
-    // freshly-prepared node or when a prior data-processed flag survives.
-    const remaining = Array.from(
-      document.querySelectorAll<HTMLElement>(".mermaid:not([data-processed])"),
-    );
-    for (const diagram of remaining) {
-      const source = diagram.dataset.mermaidSource ?? diagram.textContent ?? "";
-      if (source.trim().length === 0) continue;
+
+    if (needRender.length > 0) {
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "strict",
+        theme,
+      });
       try {
-        const id = `mermaid-fallback-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        diagram.setAttribute("data-processed", "true");
-        const result = await mermaid.render(id, source);
-        const svg = result?.svg;
-        if (svg && svg !== diagram.innerHTML) {
-          diagram.innerHTML = svg;
-        }
-      } catch (inner) {
-        console.warn("Could not render one architecture diagram:", inner);
+        await mermaid.run({ nodes: needRender });
+      } catch (error) {
+        console.warn("Could not render architecture diagrams:", error);
       }
-    }
-    for (const diagram of needRender) {
-      diagram.dataset.mermaidTheme = theme;
+      // Fallback: render individually anything mermaid.run skipped.
+      for (const diagram of needRender) {
+        if (!diagram.isConnected || hasSvg(diagram)) continue;
+        const source = diagram.dataset.mermaidSource ?? "";
+        if (source.trim().length === 0) continue;
+        try {
+          const id = `mermaid-fallback-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          const result = await mermaid.render(id, source);
+          if (result?.svg) {
+            diagram.innerHTML = result.svg;
+            diagram.setAttribute("data-processed", "true");
+          }
+        } catch (inner) {
+          console.warn("Could not render one architecture diagram:", inner);
+        }
+      }
+      // Stamp only diagrams that really rendered, so failures are retried.
+      for (const diagram of needRender) {
+        if (diagram.isConnected && hasSvg(diagram)) {
+          diagram.dataset.mermaidTheme = theme;
+        }
+      }
     }
   } catch (error) {
     console.error("Could not render architecture diagrams:", error);
   }
   addDiagramExpandButtons();
+  return Array.from(document.querySelectorAll<HTMLElement>("pre.mermaid")).every(
+    hasSvg,
+  );
 }
 
 declare const __DOCS_VERSION__: string;
@@ -488,16 +504,28 @@ export default {
     setup() {
       let appearanceObserver: MutationObserver | undefined;
       let renderQueue = Promise.resolve();
+      let attempts = 0;
       const renderAfterUpdate = () => {
         void nextTick(() => {
           renderQueue = renderQueue
             .then(renderMermaidDiagrams)
+            .then((done) => {
+              if (done) {
+                attempts = 0;
+              } else if (attempts < 3) {
+                // Hydration can land after the first pass; try again shortly.
+                attempts += 1;
+                setTimeout(renderAfterUpdate, 150 * attempts);
+              }
+            })
             .catch((error: unknown) => {
               console.error("Could not render architecture diagrams:", error);
             });
         });
       };
       onMounted(() => {
+        // Start the large mermaid chunk download before a page needs it.
+        void loadMermaid().catch(() => undefined);
         appearanceObserver = new MutationObserver(renderAfterUpdate);
         appearanceObserver.observe(document.documentElement, {
           attributes: true,
@@ -505,6 +533,8 @@ export default {
         });
         renderAfterUpdate();
       });
+      // Fires after initial load and every client-side route change.
+      onContentUpdated(renderAfterUpdate);
       onBeforeUnmount(() => appearanceObserver?.disconnect());
       onUpdated(renderAfterUpdate);
       return () =>
