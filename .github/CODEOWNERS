@@ -1,0 +1,8 @@
+# Default owner for everything; later patterns override earlier ones.
+*                   @alexrabin
+
+# Shipped product surface and release/CI plumbing: always reviewed.
+/skills/            @alexrabin
+/.github/           @alexrabin
+/scripts/           @alexrabin
+/SECURITY.md        @alexrabin

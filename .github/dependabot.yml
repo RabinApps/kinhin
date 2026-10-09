@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: swift
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+    groups:
+      swift-dependencies:
+        patterns: ["*"]
+
+  # Workflow actions are pinned by SHA with a version comment; Dependabot bumps both.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+    groups:
+      github-actions:
+        patterns: ["*"]

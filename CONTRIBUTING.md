@@ -3,6 +3,8 @@
 kinhin is built by one developer, and bug reports, feature requests and pull requests are welcome. `swift build` and
 `swift test` need no VMs or network. The package layout is in [docs/architecture.md](docs/architecture.md).
 
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 Not writing code? You can also [add your project to the list](docs/used-by.md) of who uses kinhin, or
 [support the project](docs/support.md).
 
