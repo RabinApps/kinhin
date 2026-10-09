@@ -3,9 +3,11 @@ import XCTest
 @testable import KinhinKit
 
 final class MaturityTableTests: XCTestCase {
-    func testOnlyGitHubIsLiveTestedAmongForges() {
-        XCTAssertEqual(ForgeID.allCases.filter { MaturityTable.maturity(of: $0) == .liveTested }, [.github])
-        for forge in ForgeID.allCases where forge != .github {
+    func testOnlyGitHubAndGiteaAreLiveTestedAmongForges() {
+        // Gitea ran a real job on Docker in the end-to-end suite (docs/e2e-testing.md); Forgejo shares its code but
+        // has no recorded run, so it stays untested.
+        XCTAssertEqual(ForgeID.allCases.filter { MaturityTable.maturity(of: $0) == .liveTested }, [.github, .gitea])
+        for forge in ForgeID.allCases where forge != .github && forge != .gitea {
             XCTAssertTrue(MaturityTable.maturity(of: forge).isUntested, forge.rawValue)
         }
     }

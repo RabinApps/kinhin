@@ -84,7 +84,8 @@ final class WizardModelTests: XCTestCase {
 
     func testUntestedBadgeFollowsTheMaturityTable() {
         for forge in ForgeID.allCases {
-            XCTAssertEqual(MaturityBadge(forge: forge).maturity.isUntested, forge != .github, forge.rawValue)
+            XCTAssertEqual(
+                MaturityBadge(forge: forge).maturity.isUntested, forge != .github && forge != .gitea, forge.rawValue)
         }
         XCTAssertEqual(MaturityBadge(runtime: .appleContainer).maturity, .liveTested)
         XCTAssertEqual(MaturityBadge(runtime: .docker).maturity, .untested)

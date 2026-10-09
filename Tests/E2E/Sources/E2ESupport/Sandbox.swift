@@ -114,9 +114,11 @@ public final class Daemon: @unchecked Sendable {
         guard let process, process.isRunning else { return }
         _ = try? await sandbox.kinhin(["stop"], timeout: 60)
         for _ in 0..<30 where process.isRunning { try? await Task.sleep(for: .seconds(1)) }
+        // A daemon that ignores SIGTERM must not hang the run (a bare waitUntilExit() did): bounded wait, then SIGKILL.
         if process.isRunning {
             process.terminate()
-            process.waitUntilExit()
+            for _ in 0..<10 where process.isRunning { try? await Task.sleep(for: .seconds(1)) }
         }
+        if process.isRunning { kill() }
     }
 }
