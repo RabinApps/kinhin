@@ -13,8 +13,10 @@ real server" for every forge and runtime we ship. Milestones are ordered by what
 | ---- | ----- |
 | GitHub Actions + Tart macOS VMs | Live-tested |
 | apple/container runtime (Linux jobs) | Live-tested |
-| Gitea, Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket | Unit-tested only (stubbed HTTP, fake shells); never run against a real server |
-| Docker, Tart Linux and host runtimes | Unit-tested only |
+| Gitea Actions + Docker (Gitea 1.24) | Live-tested by the end-to-end suite |
+| Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket | Unit-tested only (stubbed HTTP, fake shells); never run against a real server |
+| Docker runtime | Live-tested with Gitea only |
+| Tart Linux and host runtimes | Unit-tested only |
 | In-app updater | Not yet exercised against a published release |
 | Telemetry | None |
 

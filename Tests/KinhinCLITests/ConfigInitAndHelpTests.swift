@@ -30,6 +30,20 @@ final class ConfigInitAndHelpTests: XCTestCase {
         XCTAssertTrue(cfg.accounts.isEmpty, "the template starts with no accounts")
     }
 
+    /// A first run has no support directory yet (found by the end-to-end suite: `config init` failed with
+    /// "The folder “config.yaml” doesn’t exist"), and the config must be private like every other support file.
+    func testConfigInitCreatesTheMissingDirectoryAndKeepsTheFilePrivate() throws {
+        let nested = scratch.appendingPathComponent("fresh/Kinhin/config.yaml")
+        try ConfigCommands.configInit([], configURL: nested)
+
+        let fileMode = try FileManager.default.attributesOfItem(atPath: nested.path)[.posixPermissions] as? Int
+        let dirMode =
+            try FileManager.default.attributesOfItem(atPath: nested.deletingLastPathComponent().path)[.posixPermissions]
+            as? Int
+        XCTAssertEqual(fileMode, 0o600)
+        XCTAssertEqual(dirMode, 0o700)
+    }
+
     func testConfigInitNeverOverwritesExistingFile() throws {
         try "labels: [a]".write(to: configURL, atomically: true, encoding: .utf8)
 

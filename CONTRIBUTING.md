@@ -36,6 +36,7 @@ scripts/check.sh --fast           # same, skips the ~2 min test run — iterate 
 swift build
 swift test                        # ~2300 XCTest tests, ~2 min; no VMs or network needed
 scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
+scripts/e2e.sh                    # end-to-end suite against real forges and runners; see docs/e2e-testing.md
 scripts/l10n-lint.sh              # String Catalog vs. the app's sources; --sync adds/drops entries
 scripts/dev-run.sh                # debug app, signed with a stable identity so Keychain "Always Allow" survives rebuilds
 swift package --disable-sandbox dev   # same, as a SwiftPM command plugin (Plugins/Dev)
@@ -83,6 +84,21 @@ The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--p
   there is no tolerated-race list. The stubs that swap global behavior across threads
   (`StubProtocol.handler`) keep their storage behind a `Mutex`, which is what keeps the run
   clean; give any new test global the same treatment instead of `nonisolated(unsafe)`.
+
+### End-to-end tests (scripts/e2e.sh)
+
+`swift test` proves kinhin agrees with its fakes; `Tests/E2E` proves the fakes agree with reality. It is a **separate
+Swift package** (Swift Testing, driving the real `kinhin` binary) so `swift test` and `scripts/check.sh` never load it,
+and it is **not part of per-PR CI**: it runs real forges in containers and real jobs in real guests on a dedicated Mac
+(`.github/workflows/e2e.yml`). Run `scripts/e2e.sh` (seconds, no Docker) while iterating on CLI or security behavior,
+and `scripts/e2e.sh --local` before changing forge registration, runtimes, the engine or the runner scripts. See
+[docs/e2e-testing.md](docs/e2e-testing.md) for the tiers, switches and what each suite proves.
+
+- **A fake that disagrees with the real thing is a bug in the fake.** When an e2e run finds one, fix the product, then
+  fix the unit test that pinned the wrong behavior, and add a regression test at the unit level too.
+- **Adding a forge or a CLI command** fails `CoverageTests` until you classify it there. That is the point.
+- The e2e suite sandboxes itself with `KINHIN_SUPPORT_DIR` (support files, daemon socket) and the debug-only
+  `KINHIN_TOKEN_STORE=env`; it never touches your real config or Keychain.
 
 ## Layout
 

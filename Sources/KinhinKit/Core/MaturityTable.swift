@@ -18,7 +18,7 @@ public enum Maturity: String, Sendable, Equatable {
 /// Keep each list on a single line: the docs generator parses them.
 public enum MaturityTable {
     /// Forges run against the real service.
-    public static let liveTestedForges: [ForgeID] = [.github]
+    public static let liveTestedForges: [ForgeID] = [.github, .gitea]
     /// Runtimes run for real. `tart` here means macOS VMs; Tart serving Linux VMs is `tartLinux`.
     public static let liveTestedRuntimes: [RuntimeID] = [.tart, .appleContainer]
     /// Tart serving Linux VMs (a Linux base image) has not been live-tested.

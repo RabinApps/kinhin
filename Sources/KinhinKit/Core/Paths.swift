@@ -63,9 +63,16 @@ public enum Paths {
     static var appSupport: URL { cachedAppSupport }
 
     /// Resolved once: `FileManager.urls(for:in:)` is not free and this path is read on every config/state/log access.
-    private static let cachedAppSupport: URL =
-        userLibrarySubdirectory(.applicationSupportDirectory, fallback: "Library/Application Support")
-        .appendingPathComponent("Kinhin", isDirectory: true)
+    private static let cachedAppSupport: URL = {
+        // `KINHIN_SUPPORT_DIR` relocates every support file (config, state, logs, daemon socket and lock) so the
+        // end-to-end suite can run a real daemon without touching the user's own install. Keep it short: the daemon
+        // socket lives inside and a unix socket path is limited to about 100 bytes.
+        if let override = ProcessInfo.processInfo.environment["KINHIN_SUPPORT_DIR"], !override.isEmpty {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        return userLibrarySubdirectory(.applicationSupportDirectory, fallback: "Library/Application Support")
+            .appendingPathComponent("Kinhin", isDirectory: true)
+    }()
 
     /// Support directory used by the pre-rename build ("Orchard").
     static var legacyAppSupport: URL {

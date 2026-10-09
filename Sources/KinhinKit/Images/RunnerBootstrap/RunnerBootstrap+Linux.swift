@@ -153,39 +153,35 @@ extension RunnerBootstrap {
             """
     }
 
-    /// Gitea/Forgejo registration inside a Linux container. Hosts in the
-    /// `.gitea`/`.forgejo` cases route to this script; Forgejo shares the
-    /// Gitea runner binary.
+    /// Gitea/Forgejo registration inside a guest (a Linux container, or a Tart VM of either OS). Forgejo shares the
+    /// Gitea runner binary. `agentDirectory` is where the bake put `gitea-runner` ("/opt/gitea-runner" in a
+    /// container, "$HOME/gitea-runner" in a VM); it is expanded by the guest's shell. Each runner gets its own
+    /// `run-N` directory beside the binary, because `register` writes `.runner` into the working directory and the
+    /// daemon reads it from there. The `gitea-runner` CLI has `register` and `daemon` only (no `run`, no `remove`).
     static func linuxGiteaRegistrationScript(
         instance: String,
         token: String,
         labels: [String],
         name: String,
-        runnerCount: Int = 1
+        runnerCount: Int = 1,
+        agentDirectory: String = "/opt/gitea-runner"
     ) -> String {
         let labelList = labels.joined(separator: ",")
+        let count = max(1, runnerCount)
         var blocks = ""
-        for index in 1...max(1, runnerCount) {
-            let runnerName = runnerCount == 1 ? name : "\(name)-r\(index)"
-            let dir = runnerCount == 1 ? "/opt/actions-runner" : "/opt/actions-runner-\(index)"
+        for index in 1...count {
+            let runnerName = count == 1 ? name : "\(name)-r\(index)"
             blocks += """
-                # Gitea/Forgejo runner \(index) of \(max(1, runnerCount))
-                mkdir -p "\(dir)"
-                cd "\(dir)"
-                if [ ! -x ./config.sh ]; then
-                  cp -a /opt/actions-runner/. "\(dir)" 2>/dev/null || true
-                fi
-                if [ -f .runner ]; then
-                  ./config.sh remove --token \(shellQuote(token)) >/dev/null 2>&1 || true
-                fi
-                ./config.sh --url \(shellQuote(instance)) \\
-                            --token \(shellQuote(token)) \\
-                            --labels \(shellQuote(labelList)) \\
-                            --name \(shellQuote(runnerName)) \\
-                            --unattended \\
-                            --replace \\
-                            --work /opt/work-\(index) >/dev/null
-                nohup ./run.sh > run-\(index).log 2>&1 < /dev/null &
+                # Gitea/Forgejo runner \(index) of \(count)
+                mkdir -p "\(agentDirectory)/run-\(index)"
+                cd "\(agentDirectory)/run-\(index)"
+                rm -f .runner
+                "\(agentDirectory)/gitea-runner" register --no-interactive \\
+                    --instance \(shellQuote(instance)) \\
+                    --token \(shellQuote(token)) \\
+                    --labels \(shellQuote(labelList)) \\
+                    --name \(shellQuote(runnerName)) >/dev/null
+                nohup "\(agentDirectory)/gitea-runner" daemon > daemon.log 2>&1 < /dev/null &
 
                 """
         }

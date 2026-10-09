@@ -1,0 +1,64 @@
+name: E2E
+
+# The end-to-end suite (Tests/E2E, docs/e2e-testing.md) stands up real forges in containers and runs real jobs
+# through real guests. It cannot run on `kinhin-xcode` (that runner is itself a Tart VM, which cannot nest further
+# VMs) or on GitHub-hosted runners (no Docker-for-Mac, no Tart, no Apple container). It needs a dedicated Apple
+# Silicon Mac registered with the label `kinhin-e2e`, with Docker (or Colima/OrbStack), the `container` CLI and
+# Tart installed. Never triggered by pull requests: it executes the checked-out code against real containers.
+
+on:
+  schedule:
+    - cron: "0 9 * * *" # nightly: the local tier
+    - cron: "0 10 * * 0" # weekly: everything, including GitLab CE and the whole toolchain catalog
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "quick | local | full"
+        default: local
+        required: true
+
+concurrency:
+  group: e2e
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: [self-hosted, kinhin-e2e]
+    timeout-minutes: 600
+    env:
+      # Optional lanes: set these repository secrets to turn the GitHub lane on (use a throwaway repository).
+      KINHIN_E2E_GITHUB_TOKEN: ${{ secrets.KINHIN_E2E_GITHUB_TOKEN }}
+      KINHIN_E2E_GITHUB_REPO: ${{ secrets.KINHIN_E2E_GITHUB_REPO }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Pick the tier
+        id: tier
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tier=${{ inputs.tier }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 10 * * 0" ]; then
+            echo "tier=full" >> "$GITHUB_OUTPUT"
+          else
+            echo "tier=local" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check the machine
+        run: |
+          docker info --format 'docker {{.ServerVersion}}'
+          container system status || true
+          tart --version
+          df -h /System/Volumes/Data | tail -1
+
+      - name: Run the suite
+        run: scripts/e2e.sh --${{ steps.tier.outputs.tier }}
+
+      - name: Sweep leftovers
+        # Teardown is part of every test, but a hard-killed run can still leave a forge container behind.
+        if: always()
+        run: |
+          docker ps -aq --filter "name=ke2e-" | xargs -r docker rm -f -v
+          rm -rf /tmp/ke2e-*

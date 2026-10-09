@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **End-to-end test suite.** `scripts/e2e.sh` (a separate package in `Tests/E2E`, Swift Testing) runs a real Gitea or Forgejo in a container, a sandboxed kinhin daemon, a real runner image and real jobs, and judges the result by what the forge reports. It also covers the CLI, security promises, fleet behavior (pause, crash recovery, concurrency cap) and toolchains, with fixtures for GitLab CE and GitHub. See `docs/e2e-testing.md`. `KINHIN_SUPPORT_DIR` relocates every support file (config, state, logs, daemon socket) for sandboxed runs.
+- **Fix — Gitea/Forgejo runners registered with the wrong program.** Containers and Tart VMs ran the GitHub runner's `config.sh`/`run.sh`; macOS VMs called `gitea-runner run` and `remove`, which don't exist. All guests now use `gitea-runner register --no-interactive` then `daemon`. Found by the first live Gitea job on Docker.
+- **Fix — Gitea/Forgejo pools ignored their own labels**, so `runs-on: kinhin-docker` never matched. The pool's labels now win, as for GitHub.
+- **Fix — `kinhin start` crashed on macOS 27** (`dispatch_main` called from a main-queue block). It now waits on a continuation.
+- **Fix — `kinhin config init` failed on a fresh machine** and wrote the config world-readable. It now creates the support directory and writes the file owner-only.
+- Known limitation: Gitea 1.24 reports no queued job until a runner exists, so Gitea needs `min_runners: 1`.
+
 - **Submit an issue.** `kinhin issue` opens GitHub's issue chooser in the browser (`--print` prints the URL, `--json` prints it as JSON), and Advanced → Settings has a **Feedback** card with the same link.
 
 - **Logo.** kinhin has an app icon and site logo: a black ring (unfilled circle) on white. The app bundle ships `AppIcon.icns`; the website gets a new favicon, touch icon, social image and nav logo. Sources and the generator (`swift scripts/make-icons.swift`) live in `assets/brand/`.

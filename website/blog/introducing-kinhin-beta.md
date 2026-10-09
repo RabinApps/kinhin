@@ -7,7 +7,7 @@ aside: false
 
 # Introducing the kinhin beta
 
-*Friday, October 9, 2026 · Alex Rabin*
+*Saturday, October 10, 2026 · Alex Rabin*
 
 Today I'm releasing the first public beta of kinhin (`v0.0.1-beta-1`). It is free, open source (Apache-2.0), and sends no
 telemetry. This post covers who I am, why I built it, what it does, and, most importantly for a beta, what has actually
@@ -15,7 +15,7 @@ been tested and what still needs people who aren't me.
 
 If you only read one section, read [What has been tested](#what-has-been-tested-and-what-has-not). A lot of this code is
 verified only against fakes, and I would rather tell you that up front than have you find out at 2 a.m. with a broken
-pipeline.
+pipeline. The list got a little shorter this week: I built an end-to-end test suite, ran it, and it found real bugs.
 
 ## Who I am
 
@@ -108,23 +108,55 @@ A beta label means little unless it comes with specifics, so here they are. I us
 | ---- | --------------- |
 | GitHub Actions + Tart macOS VMs | Live-tested |
 | GitHub Actions + apple/container (Linux jobs) | Live-tested |
-| Gitea, Forgejo | Unit-tested only |
+| Gitea Actions + Docker containers (Linux jobs) | Live-tested, by the new end-to-end suite (Gitea 1.24) |
+| Forgejo | Unit-tested only (same code path as Gitea; the e2e fixture exists, a passing run is not yet recorded) |
 | GitLab (gitlab.com and self-managed) | Unit-tested only |
 | Buildkite, Azure DevOps, Bitbucket | Unit-tested only |
-| Docker runtime | Unit-tested only |
+| Docker runtime | Live-tested with Gitea only; GitHub and the other forges on Docker are unit-tested only |
 | Tart Linux VM runtime | Unit-tested only |
 | Host mode | Unit-tested only |
 | In-app updater against a published release | Not exercised (this release is the first one) |
-| Long-running soak test, crash and restart recovery at scale | Not done yet |
+| Crash recovery (daemon killed, orphans reconciled) | Covered by the e2e suite; not yet recorded as a passing run |
+| Long-running soak test at scale | Not done yet |
 | ThreadSanitizer run on the full suite | Not yet part of a signed-off pass (it is a release candidate item) |
 
-So the honest summary is: **one forge, GitHub Actions, with two runtimes has been run for real.** Everything else exists,
-is covered by a large automated suite (around 2,300 tests that need no VMs or network), and may well work, but I have not
-watched it work.
+So the honest summary is: **two forges have been run for real: GitHub Actions (Tart and apple/container) and Gitea
+Actions (Docker).** Everything else exists, is covered by a large automated suite (around 2,300 tests that need no VMs or
+network), and may well work, but I have not watched it work.
+
+### The end-to-end suite
+
+Until this week "live-tested" meant me, by hand, once. Just before release I wrote an automated end-to-end suite
+(`scripts/e2e.sh`, described in [the e2e docs](https://github.com/RabinApps/kinhin/blob/main/docs/e2e-testing.md)). It
+starts a real Gitea in a container, runs a real kinhin daemon against it in a sandbox that cannot touch my own setup,
+bakes a real runner image, pushes a workflow, and then checks what the forge itself reports: the job ran inside the
+guest (it files an issue containing the guest's kernel and hostname), the instance was deleted afterwards, the runner
+was deregistered, and no token reached the log. It also runs a job that fails on purpose and checks the fleet recovers.
+Gitea on Docker passes both. The suite also has CLI, security and "every forge and command is accounted for" checks,
+and fixtures for Forgejo, GitLab CE and (with credentials) GitHub. I have **not** run the GitLab or GitHub fixtures yet:
+the GitLab image would not fit in my Docker disk, and GitHub needs a throwaway repository.
 
 ### Why I keep saying "unit-tested is not tested"
 
-Because the live runs found real bugs that no unit test would have. A few from my own test pass on October 1:
+Because the live runs found real bugs that no unit test would have. The first real Gitea job, run this week, found
+four more, and several existing unit tests had been pinning the wrong behavior as correct:
+
+- **`kinhin start` crashed on launch on macOS 27.** It parked the main thread with `dispatchMain()`, which libdispatch now
+  refuses when called from the main queue. It now waits on a continuation instead.
+- **Gitea and Forgejo runners were registered with the wrong program.** In containers the script ran the GitHub runner's
+  `config.sh`, which does not exist in a Gitea image, and the macOS script called `gitea-runner run` and
+  `gitea-runner remove`, which that runner does not have. Its CLI is `register`, then `daemon`. The unit tests asserted
+  the wrong scripts, one with a comment admitting it.
+- **A Docker pool never advertised `kinhin-docker`** for Gitea, because the account's labels overrode the pool's, so
+  `runs-on: kinhin-docker` could never match.
+- **`kinhin config init` failed on a fresh machine** (the support folder did not exist yet) and wrote the config readable
+  by other users.
+
+One limitation came out of it too: Gitea 1.24 does not report a queued job to the API until a runner exists, so with
+`min_runners: 0` kinhin cannot see the work. Gitea needs `min_runners: 1` (one warm runner) for now. A newer Gitea has an
+endpoint for this, and using it is on the list.
+
+The earlier ones came from my own test pass on October 1:
 
 - **GitHub organization runners returned a 404 on registration.** The registration URL I had built for an org scope was
   wrong. The fake server accepted it, the real one did not.
@@ -160,10 +192,12 @@ or outside contributors' code, turn on the settings in the
 I have one Mac, one GitHub setup, and a finite supply of evenings. The fastest way to make this beta better is for you to
 run the parts I could not. In rough order of value:
 
-1. **Gitea and Forgejo.** A self-hosted instance with Actions enabled, any version. I want to know what the real API
-   returns that my fakes got wrong.
-2. **GitLab.** Both gitlab.com and a self-managed instance. They differ, and I have run neither.
-3. **Docker for Linux jobs.** Docker Desktop, OrbStack or colima. Tell me which provider you used.
+1. **Gitea and Forgejo on other versions and runtimes.** I have run Gitea 1.24 on Docker. I want Forgejo, newer Gitea
+   (1.25 and later report queued jobs differently), and Gitea on Tart and apple/container.
+2. **GitLab.** Both gitlab.com and a self-managed instance. They differ, and I have run neither. A fixture for GitLab CE
+   exists in the e2e suite, but I could not fit the image in my Docker disk, so it has never run.
+3. **Docker for Linux jobs.** I have run it with Docker Desktop and Gitea. Tell me about OrbStack or colima, and about
+   GitHub or GitLab jobs on Docker.
 4. **Buildkite, Azure DevOps and Bitbucket Pipelines.** Real accounts, even a free tier and a single job.
 5. **Mixed fleets.** More than one account or forge sharing one pool, and mixed runtimes routed by label.
 6. **Different hardware.** Other Mac sizes and macOS versions, especially 8 GB and 16 GB machines, and the networking
@@ -218,8 +252,9 @@ The goal of this beta is narrow: turn "unit-tested against fakes" into "run agai
 runtime that ships. The milestones are ordered by what has to be true, not by date, and the complete version is the
 [beta roadmap](/guide/beta-roadmap).
 
-- **beta-2: first real-server runs.** Gitea, Forgejo and GitLab against real servers, with fixes for whatever the real
-  APIs do differently. Exercise the updater against a published release. Verify Linux jobs on Docker.
+- **beta-2: first real-server runs.** Gitea is done on Docker. Forgejo and GitLab are next, with fixes for whatever the
+  real APIs do differently. Exercise the updater against a published release. Verify Linux jobs on Docker with more
+  forges, and run the end-to-end suite nightly on a dedicated Mac.
 - **beta-3: the rest.** Buildkite, Azure DevOps and Bitbucket against real accounts. Docker, Tart Linux and host mode run
   for real. Mixed-forge, multi-account fleets on one pool. The exit rule is that every shipped forge and runtime is
   either live-tested or clearly labeled experimental in the docs.

@@ -10,7 +10,11 @@ enum ConfigCommands {
         if FileManager.default.fileExists(atPath: configURL.path), !force {
             print("config already exists at \(configURL.path) (use --force to overwrite)")
         } else {
-            try ConfigLoader.template().write(toFile: configURL.path, atomically: true, encoding: .utf8)
+            // A first run has no support directory yet, and the config stays private like every other support file.
+            try FileManager.default.createDirectory(
+                at: configURL.deletingLastPathComponent(), withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700])
+            try Paths.writePrivateFile(Data(ConfigLoader.template().utf8), to: configURL)
             print("wrote \(configURL.path)")
             print("next: set your repo in \(configURL.path), then `kinhin auth set`")
         }

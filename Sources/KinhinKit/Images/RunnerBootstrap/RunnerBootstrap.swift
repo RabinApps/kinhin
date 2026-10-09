@@ -267,25 +267,11 @@ enum RunnerBootstrap {
         name: String,
         runnerCount: Int = 1
     ) -> String {
-        let labelList = labels.joined(separator: ",")
-        return """
-            set -euo pipefail
-            cd ~/gitea-runner
-
-            # Register (idempotent: remove stale config first).
-            if [ -f .runner ]; then
-              ./gitea-runner remove --token \(shellQuote(token)) >/dev/null 2>&1 || true
-            fi
-            ./gitea-runner register --instance \(shellQuote(instance)) \\
-                                    --token \(shellQuote(token)) \\
-                                    --labels \(shellQuote(labelList)) \\
-                                    --name \(shellQuote(name)) \\
-                                    --ephemeral=\(runnerCount == 1 ? "true" : "false") >/dev/null
-
-            # Start serving jobs, detached from this SSH session.
-            nohup ./gitea-runner run > run.log 2>&1 &
-            echo "gitea runner started"
-            """
+        // Same flow as the Linux guests: `gitea-runner` has `register` and `daemon` (no `run`, no `remove`), and
+        // the macOS bake puts the binary at `$HOME/gitea-runner/gitea-runner`.
+        linuxGiteaRegistrationScript(
+            instance: instance, token: token, labels: labels, name: name, runnerCount: runnerCount,
+            agentDirectory: "$HOME/gitea-runner")
     }
 
 }

@@ -18,14 +18,20 @@ struct GiteaDescriptor: ForgeDescriptor {
     /// Forgejo shares Gitea's runner binary and registration flow.
     func registrationScript(for guest: RegistrationGuest, _ request: RegistrationRequest) throws -> String {
         let forge = request.forge
+        // The pool's labels (with its `kinhin-docker`-style marker) win over the account's own.
+        let labels = request.labels ?? forge.labels
         switch guest {
-        case .tartVM, .linuxContainer:
+        case .tartVM:
             return RunnerBootstrap.linuxGiteaRegistrationScript(
-                instance: forge.registrationURL(), token: request.token, labels: forge.labels, name: request.name,
+                instance: forge.registrationURL(), token: request.token, labels: labels, name: request.name,
+                runnerCount: request.runnerCount, agentDirectory: "$HOME/gitea-runner")
+        case .linuxContainer:
+            return RunnerBootstrap.linuxGiteaRegistrationScript(
+                instance: forge.registrationURL(), token: request.token, labels: labels, name: request.name,
                 runnerCount: request.runnerCount)
         case .host(let host):
             return host.giteaRegistrationScript(
-                instance: forge.registrationURL(), token: request.token, labels: forge.labels, name: request.name,
+                instance: forge.registrationURL(), token: request.token, labels: labels, name: request.name,
                 runnerCount: request.runnerCount)
         }
     }

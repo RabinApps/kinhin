@@ -5,8 +5,9 @@ each job between them.
 
 [← Back to README](../README.md)
 
-> **Beta:** Tart (macOS VMs) and apple/container have been run for real. Docker, Tart Linux VMs and host mode are covered
-> by unit tests against fakes and have not been exercised live.
+> **Beta:** Tart (macOS VMs) and apple/container have been run for real, and Docker has run real Gitea jobs (the
+> [end-to-end suite](e2e-testing.md)). Tart Linux VMs and host mode are covered by unit tests against fakes and have not
+> been exercised live.
 
 | Runtime             | Runs                                                         | Isolation                                    |
 | ------------------- | ------------------------------------------------------------ | -------------------------------------------- |
