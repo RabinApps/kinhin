@@ -6,7 +6,7 @@ aside: false
 ---
 
 <!--
-DRAFT for Saturday, October 17, 2026. NOT for publishing as-is. The gates G1 to G8 are defined in
+DRAFT for Saturday, October 31, 2026. NOT for publishing as-is. The gates G1 to G10 and the optional O1 to O6 are defined in
 docs/plans/beta-launch-checklist.md. Each gate has a target block (GATE:Gn start/end markers) and a fallback block
 (FALLBACK:Gn start/end markers). Keep exactly one, delete the other, markers included. All [MEASURE: ...]
 placeholders and TODO(verify:...) comments must be resolved or removed. Nothing here is true until its gate passed.
@@ -14,7 +14,7 @@ placeholders and TODO(verify:...) comments must be resolved or removed. Nothing 
 
 # Introducing the kinhin beta
 
-*Saturday, October 17, 2026 · Alex Rabin*
+*Saturday, October 31, 2026 · Alex Rabin*
 
 **kinhin** watches your CI queue and, for each queued job, starts a fresh VM or container on your Apple Silicon Mac,
 registers a one-job runner, lets it run, then deletes it. Nothing idles and nothing is left over. It is free, open source
@@ -78,10 +78,10 @@ the path that has been run for real, with Tart macOS VMs or apple/container for 
 
 **Maybe, if** you use Gitea <!-- GATE:G2 start -->or Forgejo <!-- GATE:G2 end -->with Docker <!-- GATE:G2 start -->or apple/container <!-- GATE:G2 end -->for Linux jobs. It ran
 for real on Gitea 1.24, but there is one caveat: Gitea 1.24 shows no queued job to the API until a runner exists, so you
-must set `min_runners: 1` (one warm runner). Newer Gitea reports queued jobs differently, and kinhin does not use that yet.
+must set `min_runners: 1` (one warm runner). <!-- GATE:G9 start -->Newer Gitea (1.25 and later) reports queued jobs and mints runner tokens differently; kinhin now handles that, and the caveat applies to 1.24 only.<!-- GATE:G9 end --><!-- FALLBACK:G9 start -->Newer Gitea reports queued jobs and mints runner tokens differently, and kinhin may not work with it yet: I have only run 1.24.<!-- FALLBACK:G9 end -->
 
 **Not yet, if** you need <!-- GATE:G2 start -->GitLab.com, <!-- GATE:G2 end --><!-- FALLBACK:G2 start -->Forgejo, GitLab, <!-- FALLBACK:G2 end -->Buildkite, Azure DevOps or Bitbucket, Tart Linux VMs or host
-mode in anything you depend on. They are written and unit-tested, and I have not watched them work. Try them on something
+mode<!-- GATE:G10 start --> (host mode has run once, on an isolated machine)<!-- GATE:G10 end --> in anything you depend on. They are written and unit-tested, and I have not watched them work. Try them on something
 disposable and tell me what happens.
 
 **Be careful, whatever you use, if** the code you run is not yours. A VM boundary is real isolation. Docker is weaker (a
@@ -128,8 +128,11 @@ Rows with two versions are resolved at release time from the gate results in the
 | GitLab CE (self-managed) | <!-- GATE:G3 start -->Live-tested once, one job end to end<!-- GATE:G3 end --><!-- FALLBACK:G3 start -->Unit-tested only<!-- FALLBACK:G3 end --> |
 | GitLab.com | Unit-tested only |
 | Buildkite, Azure DevOps, Bitbucket | Unit-tested only |
+| Gitea 1.25 and the latest Gitea | <!-- GATE:G9 start -->Live-tested, by the end-to-end suite: [FILL: versions that passed]. The registration-token and queued-job handling for newer Gitea is fixed and tested.<!-- GATE:G9 end --><!-- FALLBACK:G9 start -->Unit-tested only. Only Gitea 1.24 has been run for real.<!-- FALLBACK:G9 end --> |
 | Docker runtime with other forges | Unit-tested only |
-| Tart Linux VM runtime, host mode | Unit-tested only |
+| Tart Linux VM runtime | Unit-tested only |
+| Host mode | <!-- GATE:G10 start -->Live-tested once on an isolated machine: consent is required, the job runs on the host, and teardown removes its directories and stops the runner<!-- GATE:G10 end --><!-- FALLBACK:G10 start -->Unit-tested only<!-- FALLBACK:G10 end --> |
+| Optional extras (GitHub scale-set mode, mixed fleets, warm pool, per-project toolchains, Buildkite, Bitbucket, Azure DevOps) | <!-- TODO(verify:O1-O6) Add one row per optional gate that passed, naming exactly what ran; delete this row if none did. Anything that did not pass stays "unit-tested only" in the rows above. --> |
 | In-app updater against a published release | Not exercised (this is the first release) |
 | Crash recovery (orphan reconciliation), concurrency cap, pause and resume | <!-- GATE:G2 start -->Live-tested, by the end-to-end suite, on Gitea and Forgejo with Docker and apple/container<!-- GATE:G2 end --><!-- FALLBACK:G2 start -->Written into the e2e suite, not yet recorded as a passing run<!-- FALLBACK:G2 end --> |
 | ThreadSanitizer | <!-- GATE:G5 start -->One clean run of `scripts/tsan.sh`<!-- GATE:G5 end --><!-- FALLBACK:G5 start -->Not done<!-- FALLBACK:G5 end --> |
@@ -165,6 +168,16 @@ The GitLab CE fixture (`--full`) ran once and passed. That is one run on one ver
 There is a GitLab CE fixture and a GitHub fixture (it needs a throwaway repository). I have not recorded a passing run of
 either, and the GitLab image did not fit in my Docker disk the last time I tried.
 <!-- FALLBACK:G3 end -->
+
+<!-- GATE:G9 start -->
+The suite also ran against Gitea 1.25 and the latest Gitea through the image override (`KINHIN_E2E_GITEA_IMAGE`), which
+is how the newer registration-token and queued-job behavior was found and fixed: [FILL: what was found].
+<!-- GATE:G9 end -->
+<!-- GATE:G10 start -->
+Host mode ran once, on a machine used only for this, with a workflow I wrote. Its checks are the reverse of the guest
+ones: the job reports the host's own kernel and hostname, the run is refused without `--consent`, and teardown leaves no
+per-job directory or runner process behind. I would not point host mode at a machine you care about.
+<!-- GATE:G10 end -->
 
 The suite has had bugs of its own: running it found a hang in its own cleanup, which is the same lesson again.
 
