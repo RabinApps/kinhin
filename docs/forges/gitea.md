@@ -91,17 +91,48 @@ Built by diffing the swagger specs shipped in each release (`templates/swagger/v
 | Item | Affects | Detail |
 |---|---|---|
 | Registration-token method | Gitea ≥ 1.26 | **Fixed, verified live on 1.26.4.** Only POST exists there; kinhin sends GET first and falls back to POST on a 404 or 405. Forgejo and Gitea ≤ 1.25 answer GET. |
-| Runner list and delete | Gitea < 1.24, Forgejo through at least v14 | Endpoints absent, so `listRunners` and `deleteRunner` get a 404. |
+| Runner list and delete | Gitea < 1.24, Forgejo through at least v14 | Endpoints absent, so `listRunners` and `deleteRunner` get a 404. kinhin watches running tasks instead; see [Forgejo has no runner list](#forgejo-has-no-runner-list). |
 | `/actions/tasks` | Gitea < 1.23, Forgejo < 11 | Endpoint absent. |
 | Demand source | Gitea ≥ 1.25, Forgejo ≥ 11 | Better endpoints exist: Gitea `/actions/jobs?status=`, Forgejo `/actions/runners/jobs?labels=`. |
 | Runner binary | all | `act_runner` and `gitea-runner` naming. kinhin installs `gitea-runner`; confirm Forgejo's own runner (`forgejo-runner`) is acceptable before relying on the gitea.com download for Forgejo. |
+
+## Forgejo has no runner list
+
+Probed live on Forgejo 11 (`codeberg.org/forgejo/forgejo:11`) with a registered `gitea-runner` v5 and a running job:
+
+| Endpoint | Answer |
+|---|---|
+| `GET …/actions/runners`, `…/runners/{id}`, org, user and admin variants | 404 |
+| `GET …/actions/runs`, `…/actions/jobs`, `…/actions/workflows` | 404 |
+| `GET …/actions/tasks` (any `?status=`) | 200 `{"workflow_runs": [...], "total_count": n}`; the filter is ignored and finished runs are included; newest-updated first; each entry has `id`, `name` (the job), `status` (`running`, `success`, `failure`, ...), `run_number`, `head_branch`, `head_sha`, `display_title`, `url`, timestamps and **no runner name**. A job no runner has fetched yet is not listed. |
+| `GET …/actions/runners/jobs?labels=a` | 200, the waiting jobs for those labels (`id`, `name`, `runs_on`, `task_id`, `status: "waiting"`), `null` without a label match |
+
+So there is no way to ask the server which runner is busy. The exit watch (`idleGrace`, which every Gitea-family runner
+needs because `gitea-runner` daemons never deregister) therefore changes rule when the runner list answers 404 (the 404
+is remembered for ten minutes, not asked on every poll):
+
+- **Registered**: the registration script succeeded (it runs `gitea-runner register` synchronously) before the watch
+  starts, so every expected runner counts as registered at once.
+- **Busy**: any task of the scope that is not finished (`running`, or a status kinhin does not recognize, or none)
+  makes every runner of the account busy. Tasks are read from the first pages of `/actions/tasks` (up to 200
+  newest-updated entries; a running task is touched by its runner every few seconds, so it stays near the top).
+- **Done**: no unfinished task for the idle grace (30 s), then a fresh read confirms it before the instance is deleted.
+  A runner that never gets a job is reclaimed the same way once the scope is quiet.
+
+The trade-off is deliberate: an instance whose own job ended stays until the rest of the scope's jobs end too, and an
+idle instance in a busy scope stays until it quiets (or the 6 h watch deadline). A leaked instance is cheaper than one
+deleted mid-job. The server keeps a stale offline runner record per finished instance because there is no delete
+endpoint (whether the server prunes them was not checked).
+
+The same probe showed the task decoder read the wrong key: `workflow_runs`, not `entries`. It reads both, filters
+`running`/`waiting` client-side, and no longer counts finished runs as queued demand.
 
 ## Audit findings
 
 These are mismatches between the code and the published specs. Only the registration-token method (item 1) has been checked against live servers (Gitea 1.24, 1.25 and 1.26); the existing comment at `GiteaClient.swift:187` says the task queue was "verified on the target instance in the field", so a live check is needed before changing behavior.
 
 1. **Registration-token method breaks on Gitea 1.26+. Fixed.** The spec for 1.26 lists only `POST …/runners/registration-token`; GET was removed after 1.25, and a live 1.26.4 server answers GET with 404 "Runner not found". `GiteaClient.fetchRegistrationToken()` now sends GET first and retries with POST on a 404 or 405 (Forgejo and Gitea ≤ 1.25 answer GET; a real not-found fails on both). Probed on 1.24.7, 1.25.5 and 1.26.4, and the e2e lifecycle passes on 1.26.4.
-2. **Task list response shape differs from the spec.** The spec's `ActionTaskResponse` is `{ "total_count", "workflow_runs": [...] }` and `ActionTask` has no `runner_name`. The decoder (`GiteaClient.swift:~296-358`) reads `entries` and `runner_name`. If a real server follows the spec, entries decode as empty, demand falls back to `total_count`, and running-task attribution never matches.
+2. **Task list response shape differs from the spec. Fixed**: the decoder reads `workflow_runs` too (confirmed live on Forgejo 11). The spec's `ActionTaskResponse` is `{ "total_count", "workflow_runs": [...] }` and `ActionTask` has no `runner_name`. The decoder (`GiteaClient.swift:~296-358`) reads `entries` and `runner_name`. If a real server follows the spec, entries decode as empty, demand falls back to `total_count`, and running-task attribution never matches.
 3. **`status` query parameter is not in the spec.** No Gitea release documents `status` on `/actions/tasks` (Forgejo adds it only on trunk). On a server that ignores it, `status=waiting` and `status=running` return the same list, so `total_count` is not a queue length. Gitea's own `/actions/jobs?status=waiting` (1.25+) and Forgejo's `/actions/runners/jobs?labels=` (11+) are the documented ways to read queued jobs, and the Forgejo one also filters by label.
 4. **Runner list and delete need newer servers** than the setup guide implies (Gitea 1.24+, Forgejo trunk only).
 5. **`GiteaClient.swift:29` has `public var RabinApps: String`**, an `owner` accessor damaged by a global find and replace. It has no callers. Fixed separately from this docs change.

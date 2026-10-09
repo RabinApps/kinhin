@@ -133,6 +133,12 @@ public protocol Forge: Sendable {
     func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String]
     /// This scope's runners (name/id/status/busy), unified shape.
     func runners() async throws -> [ForgeRunner]
+    /// For a server with no runner list (Forgejo through v14): the number of
+    /// jobs running anywhere in the scope, which no runner can be matched to.
+    /// nil whenever `runners()` is authoritative (every other forge, and
+    /// Gitea 1.24+). `fresh` bypasses the forge's short cache; ask for it
+    /// before acting on "nothing is running".
+    func unlistedRunnerActivity(fresh: Bool) async throws -> Int?
     func deleteRunner(id: String) async throws
     /// Jobs waiting for a runner (per-repo attribution when the API gives it).
     func queuedJobs() async throws -> [ForgeJob]
@@ -170,6 +176,8 @@ extension Forge {
     func mintRegistrationTokenExpiring() async throws -> (token: String, expiresAt: Date?) {
         (try await mintRegistrationToken(), nil)
     }
+
+    func unlistedRunnerActivity(fresh: Bool) async throws -> Int? { nil }
 
     public func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? { nil }
 

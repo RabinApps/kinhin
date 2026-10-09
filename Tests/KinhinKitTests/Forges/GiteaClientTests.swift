@@ -131,4 +131,77 @@ final class GiteaClientTests: XCTestCase {
             guard case .decoding = error else { return XCTFail("wrong error: \(error)") }
         }
     }
+
+    // MARK: - Forgejo's task list (found live on Forgejo 11)
+
+    /// Forgejo 11 answers `workflow_runs`, ignores `?status=`, lists finished runs too and names no runner.
+    private var forgejoTasks: String {
+        """
+        {"workflow_runs":[
+          {"id":3,"name":"slow","status":"running","display_title":"probe","run_number":3,"head_branch":"main"},
+          {"id":2,"name":"prove","status":"success","display_title":"probe","run_number":2},
+          {"id":1,"name":"prove","status":"failure","display_title":"hello","run_number":1}
+        ],"total_count":3}
+        """
+    }
+
+    func testTasksReadWorkflowRunsAndFilterByStatusClientSide() async throws {
+        let body = forgejoTasks
+        StubProtocol.handler = { _ in (200, Data(body.utf8), [:]) }
+        defer { StubProtocol.handler = nil }
+        let client = makeClient(scope: "e2e/demo")
+
+        let running = try await client.runningTasks()
+        XCTAssertEqual(running.map(\.name), ["slow"])
+        XCTAssertEqual(running.first?.ref, "main")
+        XCTAssertNil(running.first?.runnerName, "Forgejo reports no runner on a task")
+        let queued = try await client.queuedTasks()
+        XCTAssertEqual(queued, [], "finished runs are not demand")
+    }
+
+    func testActiveTaskCountSeesOnlyUnfinishedTasks() async throws {
+        let body = LockedBox(forgejoTasks)
+        StubProtocol.handler = { _ in (200, Data(body.value.utf8), [:]) }
+        defer { StubProtocol.handler = nil }
+        let client = makeClient(scope: "e2e/demo")
+        let busy = try await client.activeTaskCount()
+        XCTAssertEqual(busy, 1)
+
+        body.value = "{\"workflow_runs\":[{\"id\":1,\"status\":\"success\"}],\"total_count\":1}"
+        let idle = try await client.activeTaskCount()
+        XCTAssertEqual(idle, 0)
+        // A task whose status the server leaves out is treated as active.
+        body.value = "{\"workflow_runs\":[{\"id\":1}],\"total_count\":1}"
+        let unknown = try await client.activeTaskCount()
+        XCTAssertEqual(unknown, 1)
+    }
+
+    func testActiveTaskCountPagesPastAFullPageOfFinishedTasks() async throws {
+        let requested = LockedBox<[String]>([])
+        StubProtocol.handler = { request in
+            let page =
+                URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "page" }?.value ?? "?"
+            requested.value.append(page)
+            let finished = "{\"id\":1,\"status\":\"success\"}"
+            let running = "{\"id\":2,\"status\":\"running\"}"
+            let items = page == "1" ? Array(repeating: finished, count: 50) : [running]
+            return (200, Data("{\"workflow_runs\":[\(items.joined(separator: ","))],\"total_count\":51}".utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let count = try await makeClient(scope: "e2e/demo").activeTaskCount()
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(requested.value, ["1", "2"])
+    }
+}
+
+/// A mutable value a `@Sendable` stub handler can share with its test.
+private final class LockedBox<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+    init(_ value: Value) { stored = value }
+    var value: Value {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
 }

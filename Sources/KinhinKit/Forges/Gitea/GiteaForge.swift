@@ -1,4 +1,56 @@
 import Foundation
+import Synchronization
+
+// MARK: - Runner-list discovery
+
+/// Whether the server answers `GET …/actions/runners`. Gitea 1.24+ does; Gitea < 1.24 and Forgejo through at least
+/// v14 answer 404 (docs/forges/gitea.md). The first 404 is remembered so the endpoint is not asked again on every
+/// poll, and asked once more after `recheckAfter` (a server upgrade).
+///
+/// A reference type so the copies of the forge struct share one answer.
+final class RunnerListSupport: Sendable {
+    private let absentSince = Mutex<ContinuousClock.Instant?>(nil)
+    private let recheckAfter: Duration
+
+    init(recheckAfter: Duration = .seconds(600)) { self.recheckAfter = recheckAfter }
+
+    /// True while the list is known to be absent.
+    var isAbsent: Bool {
+        absentSince.withLock { since in
+            guard let started = since else { return false }
+            if ContinuousClock.now - started >= recheckAfter {
+                since = nil
+                return false
+            }
+            return true
+        }
+    }
+
+    func markAbsent() { absentSince.withLock { $0 = ContinuousClock.now } }
+    func markPresent() { absentSince.withLock { $0 = nil } }
+}
+
+/// The scope's running-task count for forges with no runner list, read at most once per `ttl` unless asked fresh.
+final class ScopeActivityCache: Sendable {
+    private struct Entry {
+        var count: Int
+        var at: ContinuousClock.Instant
+    }
+
+    private let entry = Mutex<Entry?>(nil)
+    private let ttl: Duration
+
+    init(ttl: Duration = .seconds(3)) { self.ttl = ttl }
+
+    func cached() -> Int? {
+        entry.withLock { entry in
+            guard let entry, ContinuousClock.now - entry.at < ttl else { return nil }
+            return entry.count
+        }
+    }
+
+    func store(_ count: Int) { entry.withLock { $0 = Entry(count: count, at: ContinuousClock.now) } }
+}
 
 // MARK: - Gitea-family adapter
 
@@ -27,11 +79,15 @@ struct GiteaForge: Forge {
     let demandFloor: Int
     /// Long-lived registration token captured at construction.
     let registrationToken: String
+    /// What this server turned out to offer (shared by the copies of the forge).
+    let runnerListSupport = RunnerListSupport()
+    let scopeActivity: ScopeActivityCache
 
     init(
         credentials: ForgeCredentials, labels: [String], client: GiteaClient, demandFloor: Int = 0,
-        registrationToken: String, account: String? = nil
+        registrationToken: String, account: String? = nil, activityTTL: Duration = .seconds(3)
     ) {
+        scopeActivity = ScopeActivityCache(ttl: activityTTL)
         id = credentials.forge == .forgejo ? .forgejo : .gitea
         self.account = account ?? id.rawValue
         self.credentials = credentials
@@ -72,9 +128,35 @@ struct GiteaForge: Forge {
     }
 
     func runners() async throws -> [ForgeRunner] {
-        try await client.listRunners().map { runner in
+        // No list on this server: nothing to report; the engine reads `unlistedRunnerActivity` instead.
+        (try await listedRunners() ?? []).map { runner in
             ForgeRunner(id: String(runner.id), name: runner.name, busy: runner.status == "busy")
         }
+    }
+
+    /// The server's runner list, or nil when it has none (a 404 is remembered, see `RunnerListSupport`).
+    private func listedRunners() async throws -> [GiteaRunner]? {
+        if runnerListSupport.isAbsent { return nil }
+        do {
+            let runners = try await client.listRunners()
+            runnerListSupport.markPresent()
+            return runners
+        } catch ForgeAPIError.notFound {
+            runnerListSupport.markAbsent()
+            Log.info(name, "this server has no runner list (Gitea < 1.24, Forgejo); watching running tasks instead")
+            return nil
+        }
+    }
+
+    /// With no runner list the forge cannot say which runner runs what, only whether any task of the scope is
+    /// running (Forgejo's task entries carry no runner name). The count is for the whole scope, so the engine treats
+    /// every instance of the account as busy while it is above zero.
+    func unlistedRunnerActivity(fresh: Bool) async throws -> Int? {
+        guard runnerListSupport.isAbsent else { return nil }
+        if !fresh, let cached = scopeActivity.cached() { return cached }
+        let count = try await client.activeTaskCount()
+        scopeActivity.store(count)
+        return count
     }
 
     func deleteRunner(id: String) async throws {
@@ -133,8 +215,9 @@ struct GiteaForge: Forge {
             }
         }
         // Fallback: busy runners carry per-VM attribution even where per-task
-        // runner names are absent from the queue endpoint.
-        return try await client.listRunners().filter { $0.status == "busy" }.map { runner in
+        // runner names are absent from the queue endpoint. A server with no
+        // runner list has no per-VM attribution to give.
+        return try await (listedRunners() ?? []).filter { $0.status == "busy" }.map { runner in
             ForgeJob(name: taskName, runnerName: runner.name, repository: nil)
         }
     }
