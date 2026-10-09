@@ -981,6 +981,9 @@
     "Failed — %@" : {
       "comment" : "This Mac form: failure line; %@ is the reason"
     },
+    "Feedback" : {
+      "comment" : "FormCard in AppSectionView"
+    },
     "Fewest VMs kept ready" : {
       "comment" : "row in CapacityView"
     },
@@ -1028,6 +1031,9 @@
     },
     "Forge: %@" : {
       "comment" : ".accessibilityLabel in FleetView"
+    },
+    "Found a bug or want something added? Open an issue on GitHub." : {
+      "comment" : "FormCard in AppSectionView"
     },
     "Fresh VM for every job (recommended)" : {
       "comment" : "Toggle in CapacityView"

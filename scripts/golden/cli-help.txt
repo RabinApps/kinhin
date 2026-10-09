@@ -63,6 +63,7 @@ WORKFLOWS:
 
 OTHER:
     support                                 Show ways to donate or sponsor kinhin
+    issue                                   Submit an issue on GitHub
     mcp                                     Serve MCP over stdio for AI agents
     version                                 Print the version
     help [command]                          Show this help, or `help <command>` for one command

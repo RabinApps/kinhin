@@ -173,6 +173,9 @@ struct KinhinCLI {
         case .support:
             print(SupportLinks.summary())
 
+        case .issue:
+            try IssueCommand.run(args)
+
         case .mcp:
             try await MCPCommand.run(args)
 

@@ -31,6 +31,7 @@ enum CLICommand: Equatable, Hashable {
     case requeue
     case skip
     case support
+    case issue
     case version
     case help
     case workflow
@@ -56,7 +57,7 @@ enum CLICommand: Equatable, Hashable {
         if command == .toolchains, args.dropFirst().first == "detect" { return false }
         if command == .workflow { return false }
         switch command {
-        case .help, .version, .support, .configInit:
+        case .help, .version, .support, .issue, .configInit:
             return false
         case .reset:  // Auto-creating a starter config seconds before deleting it would
             // be absurd (and would print the creation note mid-reset).

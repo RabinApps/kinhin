@@ -40,6 +40,11 @@ public enum SupportLinks {
         name: "Become a sponsor", url: link("mailto:support@rabinapps.com?subject=kinhin%20sponsorship"),
         blurb: "Put your logo on kinhin: support@rabinapps.com")
 
+    /// Opens GitHub's issue-template chooser (bug, feature, forge report).
+    public static let reportAnIssue = Channel(
+        name: "Submit an issue on GitHub", url: link("https://github.com/RabinApps/kinhin/issues/new/choose"),
+        blurb: "Report a bug, request a feature or tell us how a forge behaves")
+
     /// Individual donation channels, in display order.
     public static let donate: [Channel] = [githubSponsors, payPal, buyMeACoffee]
 
@@ -74,6 +79,8 @@ public enum SupportLinks {
         for project in projects {
             lines.append("  \(project.name): \(project.url.absoluteString)")
         }
+        lines.append("")
+        lines.append("Found a bug? Run `kinhin issue` to submit it on GitHub.")
         return lines.joined(separator: "\n")
     }
 }

@@ -2,7 +2,7 @@ import AppKit
 import KinhinKit
 import SwiftUI
 
-/// Advanced → App: launch behavior, updates and files. State and actions live
+/// Advanced → Settings: launch behavior, updates and files. State and actions live
 /// in `AppSectionModel`.
 struct AppSectionView: View {
     let model: AppSectionModel
@@ -114,6 +114,14 @@ struct AppSectionView: View {
                             .textSelection(.enabled)
                             .accessibilityIdentifier("app-reset-status")
                     }
+                }
+
+                FormCard(
+                    title: "Feedback",
+                    subtitle: "Found a bug or want something added? Open an issue on GitHub."
+                ) {
+                    Link(SupportLinks.reportAnIssue.name, destination: SupportLinks.reportAnIssue.url)
+                        .accessibilityIdentifier("submit-github-issue")
                 }
 
                 FormCard(

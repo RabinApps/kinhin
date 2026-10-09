@@ -524,6 +524,19 @@ enum CommandCatalog {
             group: .other,
             summary: "Show ways to donate or sponsor kinhin"),
         CommandSpec(
+            name: "issue",
+            command: .issue,
+            group: .other,
+            summary: "Submit an issue on GitHub",
+            flags: [
+                .bool("--print", "Print the URL instead of opening a browser"),
+                .bool("--json", "Print the URL as JSON"),
+            ],
+            details: [
+                "Opens GitHub's issue chooser (bug report, feature request, forge report). "
+                    + "Attach `kinhin doctor --bundle FILE` to a bug report."
+            ]),
+        CommandSpec(
             name: "mcp",
             command: .mcp,
             group: .other,

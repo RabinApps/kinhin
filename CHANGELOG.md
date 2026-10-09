@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Submit an issue.** `kinhin issue` opens GitHub's issue chooser in the browser (`--print` prints the URL, `--json` prints it as JSON), and Advanced → Settings has a **Feedback** card with the same link.
+
 - **Logo.** kinhin has an app icon and site logo: a black ring (unfilled circle) on white. The app bundle ships `AppIcon.icns`; the website gets a new favicon, touch icon, social image and nav logo. Sources and the generator (`swift scripts/make-icons.swift`) live in `assets/brand/`.
 
 - **Advanced sidebar.** The Advanced tab now has a sidebar of its sections (Accounts, Capacity, Routing, Containers, Toolchains, Benchmarks, App), each with an icon, and the selected section on the right. The sidebar collapses to an icon rail (⌥⌘S) and remembers its state. The window opens wider (800pt, 760pt minimum) to fit it.
