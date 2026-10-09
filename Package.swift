@@ -3,6 +3,8 @@ import PackageDescription
 
 let package = Package(
     name: "kinhin",
+    // The app's String Catalog (Resources/Localizable.xcstrings) is authored in English.
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v15),
     ],
@@ -38,9 +40,14 @@ let package = Package(
             name: "kinhin-app",
             dependencies: ["KinhinKit"],
             path: "Sources/kinhin-app",
-            // Forge brand marks; scripts/build-app.sh copies the resulting
-            // bundle into the .app (see ForgeIcon).
-            resources: [.copy("Resources/ForgeIcons")]
+            // Forge brand marks and the String Catalog; scripts/build-app.sh
+            // copies the resulting bundle into the .app (see ForgeIcon) and
+            // hoists its *.lproj folders into the app's own Resources so
+            // `Bundle.main` resolves localized strings.
+            resources: [
+                .copy("Resources/ForgeIcons"),
+                .process("Resources/Localizable.xcstrings"),
+            ]
         ),
         // Headless CLI.
         .executableTarget(

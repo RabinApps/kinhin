@@ -66,11 +66,36 @@ if [ ! -d "$BIN_DIR/$RESOURCE_BUNDLE/Contents/Resources/ForgeIcons" ]; then
 fi
 cp -R "$BIN_DIR/$RESOURCE_BUNDLE" "$APP/Contents/Resources/$RESOURCE_BUNDLE"
 
+# String Catalog: SwiftPM compiles Localizable.xcstrings into <lang>.lproj folders inside that resource
+# bundle. SwiftUI and AppKit resolve user-facing strings through Bundle.main, so hoist the folders into
+# the app's own Resources (the nested copy above stays for code that looks the bundle up by hand).
+LPROJS=()
+for lproj in "$BIN_DIR/$RESOURCE_BUNDLE"/Contents/Resources/*.lproj; do
+    [ -d "$lproj" ] && LPROJS+=("$lproj")
+done
+if [ ${#LPROJS[@]} -eq 0 ]; then
+    echo "FATAL: no *.lproj in $BIN_DIR/$RESOURCE_BUNDLE/Contents/Resources — was Localizable.xcstrings compiled into the resource bundle?" >&2
+    exit 1
+fi
+LOCALIZATIONS_PLIST=""
+for lproj in "${LPROJS[@]}"; do
+    cp -R "$lproj" "$APP/Contents/Resources/"
+    lang="$(basename "$lproj" .lproj)"
+    [ "$lang" = "en" ] || LOCALIZATIONS_PLIST+="        <string>$lang</string>"$'\n'
+done
+echo "==> localizations: $(for l in "${LPROJS[@]}"; do basename "$l" .lproj; done | tr '\n' ' ')"
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+$LOCALIZATIONS_PLIST    </array>
     <key>CFBundleName</key>
     <string>kinhin</string>
     <key>CFBundleDisplayName</key>

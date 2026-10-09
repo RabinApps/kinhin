@@ -82,5 +82,13 @@ if [ -n "$IDENTITY" ]; then
     codesign --force --sign "$IDENTITY" --identifier "${KINHIN_BUNDLE_ID:-com.RabinApps.kinhin}" "$BIN"
 fi
 
+# Localized strings: SwiftUI/AppKit look them up in Bundle.main, which for this bare binary is its build
+# directory, while SwiftPM compiles the String Catalog into the app's resource bundle. Mirror the
+# bundled app (scripts/build-app.sh) by placing the *.lproj folders next to the binary.
+BIN_DIR="$(dirname "$BIN")"
+for lproj in "$BIN_DIR"/kinhin_kinhin-app.bundle/Contents/Resources/*.lproj; do
+    [ -d "$lproj" ] && cp -R "$lproj" "$BIN_DIR/"
+done
+
 echo "==> running $BIN"
 exec "$BIN" "$@"

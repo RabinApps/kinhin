@@ -1,0 +1,2442 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "\nYou can also run this in Terminal: %@" : {
+      "comment" : "This Mac form: hint appended to a failed install; %@ is a shell command"
+    },
+    "  (no VMs)" : {
+      "comment" : "Status-bar menu placeholder when there are no VMs"
+    },
+    "  kinhin %@" : {
+      "comment" : "Disabled version row in the status-bar menu; %@ is the version"
+    },
+    "  kinhin %@ (up to date)" : {
+      "comment" : "Disabled version row in the status-bar menu while an update is pending; %@ is the version"
+    },
+    "  No routes — every job uses the default pool." : {
+      "comment" : "StatusText in RuntimesView"
+    },
+    " (untested)" : {
+      "comment" : "Suffix appended to a forge/runtime name in a menu picker when it hasn't been tested against the real service"
+    },
+    ".kinhin.yml honored" : {
+      "comment" : "Toolchains tab row source label; keep .kinhin.yml verbatim"
+    },
+    "‹ All jobs" : {
+      "comment" : "Text in PipelineView"
+    },
+    "‹ Steps" : {
+      "comment" : "Text in PipelineView"
+    },
+    "“%@” will be permanently removed. It is running and will be stopped first. This can’t be undone." : {
+      "comment" : "Delete-container confirmation body for a running container; %@ is the container name"
+    },
+    "“%@” will be permanently removed. It is running and will be stopped first. This looks like a kinhin CI runner — deleting it cancels any job it is running. This can’t be undone." : {
+      "comment" : "Delete-container confirmation body for a running kinhin runner; %@ is the container name"
+    },
+    "“%@” will be permanently removed. This can’t be undone." : {
+      "comment" : "Delete-container confirmation body; %@ is the container name"
+    },
+    "“%@” will be permanently removed. This looks like a kinhin CI runner — deleting it cancels any job it is running. This can’t be undone." : {
+      "comment" : "Delete-container confirmation body for a kinhin runner; %@ is the container name"
+    },
+    "%@  →  %@  (workflow)" : {
+      "comment" : "Routing tab route row for one workflow: the pattern, then the runtime"
+    },
+    "%@  →  %@  (workflow)  ⚠︎ unisolated" : {
+      "comment" : "Routing tab route row for a host route of one workflow: the pattern, then the runtime"
+    },
+    "%@  →  %@  ⚠︎ unisolated" : {
+      "comment" : "Routing tab route row for a host route: the pattern, then the runtime"
+    },
+    "%@ — %lld · default" : {
+      "comment" : "Routing tab pool title for the default pool; the pool name, then its instance cap"
+    },
+    "%@ — whole job" : {
+      "comment" : "Pipeline output title for a whole job; %@ is the job name"
+    },
+    "%@ (default)" : {
+      "comment" : "Base-image popup entry; first is the image's title"
+    },
+    "%@ access token" : {
+      "comment" : ".accessibilityLabel in MoreAccountsCard"
+    },
+    "%@ budget percent" : {
+      "comment" : ".accessibilityLabel in BudgetCard"
+    },
+    "%@ budget share" : {
+      "comment" : ".accessibilityLabel in BudgetCard"
+    },
+    "%@ cached" : {
+      "comment" : "Diagnostics toolchain-cache row; %@ is a formatted byte count"
+    },
+    "%@ cached — shared with runners but empty (run image prepare)" : {
+      "comment" : "Diagnostics toolchain-cache row; %@ is a formatted byte count"
+    },
+    "%@ can't run on this Mac" : {
+      "comment" : "Alert title; %@ is a tool name such as Docker"
+    },
+    "%@ has no output for this job (yet)." : {
+      "comment" : "Pipeline output placeholder; %@ is a forge name"
+    },
+    "%@ has no output for this step (yet)." : {
+      "comment" : "Pipeline output placeholder; %@ is a forge name"
+    },
+    "%@ isn't installed on this Mac. Install Docker Desktop, OrbStack or colima, or Apple's container CLI." : {
+      "comment" : "Containers tab status; %@ is the container tool name"
+    },
+    "%@ not prepared yet — takes a while, once" : {
+      "comment" : "This Mac form: Base image row status; %@ is an image name"
+    },
+    "%@ ready ✓" : {
+      "comment" : "This Mac form: Base image row status; %@ is an image name"
+    },
+    "%@ reports jobs, not individual steps." : {
+      "comment" : "Pipeline sheet notice; %@ is a forge name"
+    },
+    "%@ repository or organization to serve" : {
+      "comment" : "VoiceOver label of the repository combo box; %@ is a forge name"
+    },
+    "%@ server address" : {
+      "comment" : ".accessibilityLabel in ForgeCard"
+    },
+    "%@, has an error" : {
+      "comment" : "VoiceOver phase description; %@ is the phase name"
+    },
+    "%@: %@ (and %lld more)" : {
+      "comment" : "Spoken diagnostics result; the first two values come from a setup check, the number counts further failing checks"
+    },
+    "%lld cores · %lld GB RAM · %lld GB free · Apple silicon" : {
+      "comment" : "Diagnostics Host row on Apple silicon; cores, then GB of RAM and free disk"
+    },
+    "%lld cores · %lld GB RAM · %lld GB free · Intel" : {
+      "comment" : "Diagnostics Host row on Intel; cores, then GB of RAM and free disk"
+    },
+    "%lld failed" : {
+      "comment" : "Text in WorkflowTestView"
+    },
+    "%lld inst" : {
+      "comment" : "Capacity table cell: instance cap; inst abbreviates instances"
+    },
+    "%lld instances" : {
+      "comment" : "VoiceOver text of a capacity table cell; plural by the cap",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld instance"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld instances"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld instances · %lld busy" : {
+      "comment" : "Runtime card summary; plural by instance count, then how many hold a job",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%#@instances@ · %2$lld busy"
+          },
+          "substitutions" : {
+            "instances" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg instance"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg instances"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld instances · cap %lld" : {
+      "comment" : "Runtime lane summary; plural by instance count, then the lane's capacity",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%#@instances@ · cap %2$lld"
+          },
+          "substitutions" : {
+            "instances" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg instance"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg instances"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld jobs" : {
+      "comment" : "Workflow test sheet job count; plural by number of jobs in the workflow",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld job"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld jobs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld jobs queued." : {
+      "comment" : "Spoken fleet status; plural by queued job count",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld job queued."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld jobs queued."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld lines" : {
+      "comment" : "Log viewer line count; plural by number of lines",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld line"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld lines"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld of %lld VMs active." : {
+      "comment" : "Spoken fleet status; first number is the active VMs, second is the capacity"
+    },
+    "%lld unapplied changes — Apply restarts the fleet if needed." : {
+      "comment" : "Capacity form status; plural by number of pending edits",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unapplied change — Apply restarts the fleet if needed."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld unapplied changes — Apply restarts the fleet if needed."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld VMs · %lld job slots — %@" : {
+      "comment" : "Diagnostics Capacity row; VM count, then job slots, then the limiting factor"
+    },
+    "•  %@ — %@, account %@" : {
+      "comment" : "Setup wizard summary row; target is a repository or group, then the forge name and the account name"
+    },
+    "`kinhin daemon install` failed" : {
+      "comment" : "Settings → App daemon error; the backticked command stays verbatim"
+    },
+    "`kinhin daemon uninstall` failed" : {
+      "comment" : "Settings → App daemon error; the backticked command stays verbatim"
+    },
+    "○  kinhin" : {
+      "comment" : "Text in FleetView"
+    },
+    "● %@ missing" : {
+      "comment" : "Runtime health chip; %@ is the missing tool"
+    },
+    "● checking…" : {
+      "comment" : "Runtime health chip"
+    },
+    "● error" : {
+      "comment" : "Runtime health chip"
+    },
+    "● live" : {
+      "comment" : "Text in PipelineView"
+    },
+    "● ready" : {
+      "comment" : "Runtime health chip"
+    },
+    "🍎 Tart VMs (macOS)" : {
+      "comment" : "Routing tab pool name"
+    },
+    "🐧 Apple containers (Linux)" : {
+      "comment" : "Routing tab pool name"
+    },
+    "🐳 Docker (Linux)" : {
+      "comment" : "Routing tab pool name"
+    },
+    "🩺  Diagnostics" : {
+      "comment" : "Text in DiagnosticsView"
+    },
+    "0 means VMs only start when a job is waiting." : {
+      "comment" : "row in CapacityView"
+    },
+    "20 to 60 minutes" : {
+      "comment" : "Estimated time to prepare the macOS image, shown inside a sentence"
+    },
+    "A normal app — no menu bar item; closing the window quits kinhin." : {
+      "comment" : "Hint under the launch-mode picker"
+    },
+    "A route for '%@' already exists." : {
+      "comment" : "Add Route sheet validation message; %@ is the pattern"
+    },
+    "About kinhin" : {
+      "comment" : "App menu item"
+    },
+    "Accounts" : {
+      "comment" : "Advanced section title"
+    },
+    "acme/api  or  acme/api@Workflow Name" : {
+      "comment" : "Placeholder of the Add Route pattern field; keep the pattern syntax"
+    },
+    "Add" : {
+      "comment" : "Button in AddRouteSheet"
+    },
+    "Add account" : {
+      "comment" : "Button in MoreAccountsCard"
+    },
+    "Add an account" : {
+      "comment" : "Text in MoreAccountsCard"
+    },
+    "Add image" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "Add route" : {
+      "comment" : ".accessibilityLabel in AddRouteSheet"
+    },
+    "Add Route…" : {
+      "comment" : "Button in RuntimesView"
+    },
+    "Added '%@' — paste its token below." : {
+      "comment" : "Add-account status; %@ is the account name"
+    },
+    "Advanced" : {
+      "comment" : "Main window tab title"
+    },
+    "Advanced sections" : {
+      "comment" : "Picker in MainTabsView"
+    },
+    "Agent pool" : {
+      "comment" : "Label of the repository field"
+    },
+    "agent pool name" : {
+      "comment" : "Placeholder in the repository field"
+    },
+    "All" : {
+      "comment" : "Log level filter option: show every line"
+    },
+    "All jobs" : {
+      "comment" : "Text in WorkflowTestView"
+    },
+    "amd64 (emulated)" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "App" : {
+      "comment" : "Advanced section title"
+    },
+    "Apple container" : {
+      "comment" : "Linux runtime option name"
+    },
+    "Apple container — Linux" : {
+      "comment" : "Runtime choice in the Add Route sheet"
+    },
+    "Apple container · Docker · Tart (Linux VM)" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "Apple container (Linux)" : {
+      "comment" : "Diagnostics row title"
+    },
+    "Apple container CLI (brew install container)" : {
+      "comment" : "Linux runtime prerequisite; the brew command stays verbatim"
+    },
+    "Apple containers (Linux)" : {
+      "comment" : "Runtime lane name; Apple containers run Linux"
+    },
+    "Applied ✓" : {
+      "comment" : "Capacity form status after a successful apply"
+    },
+    "Applies to the installed kinhin.app — no effect while running unbundled from `swift run`." : {
+      "comment" : "Text in AppSectionView"
+    },
+    "Apply" : {
+      "comment" : "Button in CapacityView"
+    },
+    "Architecture" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "arm64 (native)" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "Ask the registry which digest it serves and store the pinned reference, so every bake uses identical bits" : {
+      "comment" : ".help in BaseImagePicker"
+    },
+    "Auto-resume is already off." : {
+      "comment" : "Spoken reply to an auto-resume request"
+    },
+    "Auto-resume is already on." : {
+      "comment" : "Spoken reply to an auto-resume request"
+    },
+    "Auto-resume is off. A pause holds until you resume the fleet." : {
+      "comment" : "Spoken reply to an auto-resume request"
+    },
+    "Auto-resume is on — it %@." : {
+      "comment" : "Spoken fleet status; %@ is a clause describing the auto-resume cadence"
+    },
+    "Auto-resume is on — it will release the fleet when the queue is empty." : {
+      "comment" : "Spoken fleet status"
+    },
+    "Auto-resume is on — the engine %@." : {
+      "comment" : "Fleet tab note; %@ is a clause describing the engine's poll cadence"
+    },
+    "Auto-resume is on — the fleet releases itself when the queue is empty." : {
+      "comment" : "Fleet tab note shown while paused with auto-resume on"
+    },
+    "Auto-resume is on. A paused fleet releases itself once the queue is empty." : {
+      "comment" : "Spoken reply to an auto-resume request"
+    },
+    "Available: %@" : {
+      "comment" : "Card title in the toolchains catalog; %@ is a category such as Languages"
+    },
+    "Available: Stacks" : {
+      "comment" : "CollapsibleFormCard in ToolchainsCatalogCards"
+    },
+    "Back" : {
+      "comment" : "Button in WizardView"
+    },
+    "Back to all jobs" : {
+      "comment" : "Text in PipelineView"
+    },
+    "Back to the job's steps" : {
+      "comment" : "Text in PipelineView"
+    },
+    "background daemon" : {
+      "comment" : "Short label: the fleet runs in the background daemon"
+    },
+    "Base image" : {
+      "comment" : "statusRow in MacToolsView"
+    },
+    "Base image (macOS VMs)" : {
+      "comment" : "Diagnostics row title"
+    },
+    "Base image %@." : {
+      "comment" : "Base-image validation message; %@ is the reason from the validator, without a trailing period"
+    },
+    "Base image is not a usable reference." : {
+      "comment" : "Base-image pin error"
+    },
+    "Base image saved. Rebuild '%@' for it to take effect." : {
+      "comment" : "This Mac form status; %@ is an image name"
+    },
+    "Base image saved. Rebuild the image for it to take effect." : {
+      "comment" : "This Mac form status after choosing a base image"
+    },
+    "Base image: %@" : {
+      "comment" : "Toolchains tab row; %@ is an image name and size"
+    },
+    "Base images" : {
+      "comment" : "FormCard in ToolchainsView"
+    },
+    "Become a sponsor" : {
+      "comment" : "Link in SponsorSheet"
+    },
+    "Become a Sponsor…" : {
+      "comment" : "Help menu item"
+    },
+    "being deleted" : {
+      "comment" : "VoiceOver phase description"
+    },
+    "Build image…" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "Building the Apple container image — this takes a while…" : {
+      "comment" : "This Mac form: progress line"
+    },
+    "Building the Docker image — this takes a while…" : {
+      "comment" : "This Mac form: progress line"
+    },
+    "Bundled recipes: several tools installed together." : {
+      "comment" : "CollapsibleFormCard in ToolchainsCatalogCards"
+    },
+    "busy, running a job" : {
+      "comment" : "VoiceOver phase description"
+    },
+    "Can't open config.yaml" : {
+      "comment" : "Alert title"
+    },
+    "Cancel" : {
+      "comment" : "Cancel button of a confirmation alert"
+    },
+    "Cancelled" : {
+      "comment" : "This Mac form: shown after cancelling an action"
+    },
+    "Cancelled — the previous image is untouched" : {
+      "comment" : "This Mac form: shown after cancelling an image build"
+    },
+    "Cannot continue yet: %@" : {
+      "comment" : "VoiceOver label for the disabled Continue button's note; %@ lists what blocks it"
+    },
+    "cap %lld instances" : {
+      "comment" : "Routing tab pool title fragment; plural by the instance cap",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "cap %lld instance"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "cap %lld instances"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "cap n/a" : {
+      "comment" : "Routing tab pool title fragment: no instance cap (not applicable)"
+    },
+    "Capacity" : {
+      "comment" : "Advanced section title"
+    },
+    "Capacity split: %@" : {
+      "comment" : "VoiceOver summary of the capacity split bar; %@ lists each runtime with its percentage"
+    },
+    "Capacity:  %@" : {
+      "comment" : "Setup wizard summary line; %@ is the runtime split"
+    },
+    "Capped at %lld — %@ are locked." : {
+      "comment" : "Capacity form notice; a percentage, then the names of several locked runtimes"
+    },
+    "Capped at %lld — %@ is locked." : {
+      "comment" : "Capacity form notice; a percentage, then the name of the one locked runtime"
+    },
+    "Capped at %lld — the others are locked." : {
+      "comment" : "Capacity form notice; %@ is a percentage"
+    },
+    "Check for Updates…" : {
+      "comment" : "Settings → App button"
+    },
+    "Checked %@" : {
+      "comment" : "Diagnostics sheet status; %@ is the localized time of day"
+    },
+    "checking %@…" : {
+      "comment" : "This Mac form: Base image row status; %@ is an image name"
+    },
+    "Checking the fleet…" : {
+      "comment" : "Status line while the first poll is pending"
+    },
+    "Checking the token…" : {
+      "comment" : "Forge card status while the token is verified"
+    },
+    "Checking…" : {
+      "comment" : "This Mac form: tart status before the first probe"
+    },
+    "Checks that Tart, the container runtimes, credentials and the base image are ready." : {
+      "comment" : "IntentDescription in RunDoctorIntent"
+    },
+    "Choose a Linux runtime" : {
+      "comment" : "Text in LinuxRuntimeSetupSheet"
+    },
+    "Choose a workflow file" : {
+      "comment" : "Text in WorkflowTestView"
+    },
+    "Choose what runs your jobs: Linux (Docker, Apple container, or a full Linux VM), macOS virtual machines (tart), or both. You only need one — the button below walks the comparison." : {
+      "comment" : "Setup wizard step 2 subtitle"
+    },
+    "Choose Workflow File…" : {
+      "comment" : "Text in WorkflowTestView"
+    },
+    "Close" : {
+      "comment" : "Window menu item"
+    },
+    "Close diagnostics" : {
+      "comment" : ".accessibilityLabel in DiagnosticsView"
+    },
+    "Close pipeline" : {
+      "comment" : ".accessibilityLabel in PipelineView"
+    },
+    "collapsed" : {
+      "comment" : "Text in FormComponents"
+    },
+    "Comma-separated. Jobs must request a subset of these via runs-on:." : {
+      "comment" : "HintText in RuntimesView"
+    },
+    "Command Line Tools" : {
+      "comment" : "Diagnostics row title"
+    },
+    "Commit this at the repo root, then enable it in config.yaml with the second snippet." : {
+      "comment" : "Toolchains guide example note"
+    },
+    "config.yaml can't be read — %@. Fix it in Advanced → Edit YAML." : {
+      "comment" : "Form status line; %@ is the YAML parse error"
+    },
+    "config.yaml could not be read; see the message below." : {
+      "comment" : "HintText in ToolchainsView"
+    },
+    "config.yaml editor" : {
+      "comment" : ".accessibilityLabel in EditYAMLSheet"
+    },
+    "config.yaml has a problem — %@. Fix it with Edit YAML…" : {
+      "comment" : "Routing tab empty state; %@ is the parse error"
+    },
+    "config.yaml has a problem — %@. Use Advanced → App → Open config file." : {
+      "comment" : "Capacity form status; %@ is the config error"
+    },
+    "Connect" : {
+      "comment" : "Forge card button that saves the token"
+    },
+    "Connect %@ and choose a repository, project or group (step 1)." : {
+      "comment" : "Setup wizard blocker; %@ is a localized list of forge names"
+    },
+    "Connect first to choose a repository" : {
+      "comment" : "Placeholder in the repository field while disabled"
+    },
+    "Connect your code" : {
+      "comment" : "Setup wizard step title"
+    },
+    "Connected ✓ — %lld repositories visible. Pick one below." : {
+      "comment" : "Forge card status; plural by the number of repositories the token can see",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Connected ✓ — %lld repository visible. Pick one below."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Connected ✓ — %lld repositories visible. Pick one below."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Container extra labels" : {
+      "comment" : ".accessibilityLabel in RuntimesView"
+    },
+    "Container extra labels (appleContainer pool):" : {
+      "comment" : "Text in RuntimesView"
+    },
+    "Container tool" : {
+      "comment" : "Picker in ContainersView"
+    },
+    "Containers" : {
+      "comment" : "Advanced section title"
+    },
+    "Continue" : {
+      "comment" : "Default button of the reset-scope alert"
+    },
+    "Copied" : {
+      "comment" : "Button in ToolchainsCatalogCards"
+    },
+    "Copy" : {
+      "comment" : "Edit menu item"
+    },
+    "Copy %@" : {
+      "comment" : "VoiceOver label of a Copy button; %@ is a tool id"
+    },
+    "Copy Command" : {
+      "comment" : "Button in InstallConfirmationSheet"
+    },
+    "Copy into a .kinhin.yml at the root of a repo (or into config.yaml)." : {
+      "comment" : "CollapsibleFormCard in ToolchainsCatalogCards"
+    },
+    "Couldn't delete %@" : {
+      "comment" : "Alert title when deleting a VM fails; %@ is a VM id"
+    },
+    "couldn't find the kinhin CLI — install it with scripts/install.sh, then try again (a debug build alone can't install the daemon)" : {
+      "comment" : "Settings → App daemon error; the script path stays verbatim"
+    },
+    "Couldn't pause the fleet" : {
+      "comment" : "Alert title when pausing fails"
+    },
+    "Couldn't remove — %@" : {
+      "comment" : "Forge card status; %@ is the reason"
+    },
+    "Couldn't requeue the queued jobs" : {
+      "comment" : "Alert title when requeueing queued jobs fails"
+    },
+    "Couldn't resume the fleet" : {
+      "comment" : "Alert title when resuming fails"
+    },
+    "Couldn't save the token — %@" : {
+      "comment" : "Forge card status; %@ is the reason"
+    },
+    "Couldn't skip the queued jobs" : {
+      "comment" : "Alert title when skipping queued jobs fails"
+    },
+    "Couldn't start the fleet" : {
+      "comment" : "Alert title when starting the fleet fails"
+    },
+    "Couldn't stop the fleet" : {
+      "comment" : "Alert title when stopping the fleet fails"
+    },
+    "Couldn't update the routing config" : {
+      "comment" : "Alert title"
+    },
+    "CPU cores" : {
+      "comment" : "row in CapacityView"
+    },
+    "Create…" : {
+      "comment" : "Link in FormComponents"
+    },
+    "Current jobs" : {
+      "comment" : "FormCard in FleetView"
+    },
+    "Custom base image" : {
+      "comment" : ".accessibilityLabel in BaseImagePicker"
+    },
+    "Cut" : {
+      "comment" : "Edit menu item"
+    },
+    "Daemon" : {
+      "comment" : "FormCard in AppSectionView"
+    },
+    "Daemon mode" : {
+      "comment" : "FormCard in AppSectionView"
+    },
+    "default" : {
+      "comment" : "Text in BudgetCard"
+    },
+    "Delete" : {
+      "comment" : "Destructive confirm button"
+    },
+    "Delete %@" : {
+      "comment" : ".accessibilityLabel in FleetDiagramView"
+    },
+    "Delete %@?" : {
+      "comment" : "Confirmation title; %@ is a VM id"
+    },
+    "Delete container “%@”?" : {
+      "comment" : "Confirmation title; %@ is the container name"
+    },
+    "Delete container %@" : {
+      "comment" : "VoiceOver label of a container row button; %@ is the container name"
+    },
+    "Delete VM" : {
+      "comment" : "LocalizedStringResource in DeleteVMIntent"
+    },
+    "Delete volume “%@”?" : {
+      "comment" : "Confirmation title; %@ is the volume name"
+    },
+    "Delete volume %@" : {
+      "comment" : "VoiceOver label of a volume row button; %@ is the volume name"
+    },
+    "Delete…" : {
+      "comment" : "Button in ContainersView"
+    },
+    "Deleted container “%@”." : {
+      "comment" : "Containers tab status; %@ is the container name"
+    },
+    "Deleted VM %@." : {
+      "comment" : "Spoken reply to a delete request; %@ is a VM id"
+    },
+    "Deleted VM %@. The fleet is paused, so it won't be recreated until you resume." : {
+      "comment" : "Spoken reply to a delete request; %@ is a VM id"
+    },
+    "Deleted VM %@. The fleet is paused; auto-resume will release it when the queue is empty." : {
+      "comment" : "Spoken reply to a delete request; %@ is a VM id"
+    },
+    "Deleted volume “%@”." : {
+      "comment" : "Containers tab status; %@ is the volume name"
+    },
+    "Deletes a stalled runner VM without opening the window. Pauses first so autoscale can't recreate it." : {
+      "comment" : "IntentDescription in DeleteVMIntent"
+    },
+    "Deleting %@ is in progress — check the fleet status in a moment." : {
+      "comment" : "Spoken reply to a delete request; %@ is a VM id"
+    },
+    "Derived image: %@" : {
+      "comment" : "Toolchains tab row; %@ is an image name, size and last use"
+    },
+    "Derived images that no fixed toolchain list accounts for. Their versions came from repo files at job time." : {
+      "comment" : "FormCard in ToolchainsView"
+    },
+    "Diagnose VM" : {
+      "comment" : "AppShortcut in KinhinShortcuts"
+    },
+    "Diagnostics…" : {
+      "comment" : "Button in FleetView"
+    },
+    "Disable Auto-Resume" : {
+      "comment" : "AppShortcut in KinhinShortcuts"
+    },
+    "Disk pressure" : {
+      "comment" : "Diagnostics row title"
+    },
+    "Dismiss" : {
+      "comment" : "Button in FleetView"
+    },
+    "Dismiss the disk pressure warning" : {
+      "comment" : ".accessibilityLabel in FleetView"
+    },
+    "Docker" : {
+      "comment" : "Linux runtime option name"
+    },
+    "Docker — Linux" : {
+      "comment" : "Runtime choice in the Add Route sheet"
+    },
+    "Docker (Linux)" : {
+      "comment" : "Diagnostics row title"
+    },
+    "Docker Desktop, OrbStack or colima" : {
+      "comment" : "Linux runtime prerequisite"
+    },
+    "Done" : {
+      "comment" : "Button in MainTabsView"
+    },
+    "Download %@" : {
+      "comment" : "Button in MissingBrewSheet"
+    },
+    "Download…" : {
+      "comment" : "Settings → App button"
+    },
+    "Downloaded the update but couldn't open it — find it at %@" : {
+      "comment" : "Update card error; %@ is a file path"
+    },
+    "Downloading %@…" : {
+      "comment" : "Settings → App update status; %@ is the DMG file name"
+    },
+    "e.g. debian:12 or ghcr.io/org/image:tag" : {
+      "comment" : "TextField in BaseImagePicker"
+    },
+    "e.g. https://github.example.com or https://acme.ghe.com" : {
+      "comment" : "Placeholder in the server address field; keep the example URLs verbatim"
+    },
+    "e.g. xcode" : {
+      "comment" : "TextField in MacToolsView"
+    },
+    "Each project's toolchains are baked once into an image cloned from the base image, so identical sets across repos share an image. A queued job resolves its set from the repo's .kinhin.yml at the job's branch or tag (only when the project entry has repo_file: true), then the project entry's own toolchains. Repos with neither get the plain base image and can still run kinhin-toolchain install per job. If the image is not baked yet, the bake starts in the background and the job runs on the base image meanwhile; later jobs use the baked image. Fork pull requests never use the repo's own file. Derived images that go unused, or exceed the image limit, are pruned." : {
+      "comment" : "Toolchains tab explanation of how images bake; file and key names stay verbatim"
+    },
+    "Each VM" : {
+      "comment" : "FormCard in CapacityView"
+    },
+    "Edit" : {
+      "comment" : "Title of the Edit menu in the menu bar"
+    },
+    "Edit config.yaml" : {
+      "comment" : "Text in EditYAMLSheet"
+    },
+    "Edit YAML…" : {
+      "comment" : "Button in RuntimesView"
+    },
+    "Enable Auto-Resume" : {
+      "comment" : "AppShortcut in KinhinShortcuts"
+    },
+    "Enter a repository (owner/repo) first." : {
+      "comment" : "Add Route sheet validation message"
+    },
+    "Enter your %@ server address first." : {
+      "comment" : "Forge card status; %@ is a forge name"
+    },
+    "Erase" : {
+      "comment" : "Final reset alert destructive button"
+    },
+    "Erase kinhin's local state — you choose how much: credentials only, the daemon, or everything. This cannot be undone." : {
+      "comment" : "FormCard in AppSectionView"
+    },
+    "Errors" : {
+      "comment" : "Log level filter option: errors only"
+    },
+    "Every repo needs its own toolchains, and nothing is chosen in this app. Declare them in the repo's .kinhin.yml (enabled by a projects: entry with repo_file: true in config.yaml), or list them directly under projects[].toolchains in config.yaml." : {
+      "comment" : "Toolchains guide intro; file and key names stay verbatim"
+    },
+    "Everything above is saved in config.yaml — open it for settings that have no control here." : {
+      "comment" : "FormCard in AppSectionView"
+    },
+    "Everything looks good." : {
+      "comment" : "Spoken diagnostics result"
+    },
+    "Everything you chose is saved. You can change any of it later in the Setup tab." : {
+      "comment" : "Setup wizard step 3 subtitle"
+    },
+    "Examples" : {
+      "comment" : "CollapsibleFormCard in ToolchainsCatalogCards"
+    },
+    "expanded" : {
+      "comment" : "Text in FormComponents"
+    },
+    "Expo (React Native with Node)" : {
+      "comment" : "Toolchain example title"
+    },
+    "Extra prepared images, such as one on an Xcode base or a Linux base. Each has its own base and is rebuilt separately. A Linux-named image strips the fleet's `macos` label automatically." : {
+      "comment" : "HintText in MacToolsView"
+    },
+    "failed" : {
+      "comment" : "VoiceOver phase description"
+    },
+    "Failed — %@" : {
+      "comment" : "This Mac form: failure line; %@ is the reason"
+    },
+    "Fewest VMs kept ready" : {
+      "comment" : "row in CapacityView"
+    },
+    "Files" : {
+      "comment" : "FormCard in AppSectionView"
+    },
+    "Filter by log level" : {
+      "comment" : ".accessibilityLabel in LogsView"
+    },
+    "finished" : {
+      "comment" : "Workflow test headline when there is no report"
+    },
+    "Fix: %@" : {
+      "comment" : "Diagnostics Tart row; %@ is a shell command to run"
+    },
+    "Fleet" : {
+      "comment" : "Main window tab title"
+    },
+    "Fleet base labels" : {
+      "comment" : ".accessibilityLabel in RuntimesView"
+    },
+    "Fleet base labels (every runner):" : {
+      "comment" : "Text in RuntimesView"
+    },
+    "Fleet not responding — %@" : {
+      "comment" : "Status line when the fleet can't be reached; %@ is the reason"
+    },
+    "Fleet scope: %@ — routed fleet" : {
+      "comment" : "Routing tab headline; %@ is the repository or org"
+    },
+    "Fleet scope: %@ — single-pool fleet" : {
+      "comment" : "Routing tab headline; %@ is the repository or org"
+    },
+    "Fleet Status" : {
+      "comment" : "AppShortcut in KinhinShortcuts"
+    },
+    "Flutter stack" : {
+      "comment" : "Toolchain example title"
+    },
+    "Follow" : {
+      "comment" : "Toggle in LogsView"
+    },
+    "Forge: %@" : {
+      "comment" : ".accessibilityLabel in FleetView"
+    },
+    "Fresh VM for every job (recommended)" : {
+      "comment" : "Toggle in CapacityView"
+    },
+    "Full control: your distro, kernel modules, long sudo; lowest density, 50 GB/instance, needs an ISO or published image." : {
+      "comment" : "Linux runtime comparison summary"
+    },
+    "Get Homebrew" : {
+      "comment" : "Button in MissingBrewSheet"
+    },
+    "Get this Mac ready" : {
+      "comment" : "Setup wizard step title"
+    },
+    "Go + Node" : {
+      "comment" : "Toolchain example title"
+    },
+    "gradle needs a JDK, so java is listed too." : {
+      "comment" : "Toolchain example note; names like node, pnpm and java stay verbatim"
+    },
+    "Group or project" : {
+      "comment" : "Label of the repository field"
+    },
+    "group/subgroup or group/project" : {
+      "comment" : "Placeholder in the repository field; keep the path syntax verbatim"
+    },
+    "healthy" : {
+      "comment" : "Diagnostics Tart row detail"
+    },
+    "Help" : {
+      "comment" : "Title of the Help menu in the menu bar"
+    },
+    "Hide kinhin" : {
+      "comment" : "App menu item"
+    },
+    "Hide Others" : {
+      "comment" : "App menu item"
+    },
+    "Highest density if a Docker provider already runs; amd64 via emulation with JIT/Go/Java/.NET caveats; shared kernel." : {
+      "comment" : "Linux runtime comparison summary"
+    },
+    "Homebrew" : {
+      "comment" : "chipRow in ToolchainsView"
+    },
+    "Homebrew isn't installed" : {
+      "comment" : "Label in MissingBrewSheet"
+    },
+    "host" : {
+      "comment" : "Name of the host runtime"
+    },
+    "Host" : {
+      "comment" : "Diagnostics row title"
+    },
+    "Host — this Mac, no isolation" : {
+      "comment" : "Runtime choice in the Add Route sheet"
+    },
+    "Host (this Mac)" : {
+      "comment" : "Routing tab pool name"
+    },
+    "Host only: run this repo's code directly on my Mac, unisolated" : {
+      "comment" : "Checkbox text of the Add Route sheet"
+    },
+    "Host route consent" : {
+      "comment" : ".accessibilityLabel in AddRouteSheet"
+    },
+    "Host routes run this repo's code directly on your Mac with your privileges. Tick the box to confirm, or pick another runtime." : {
+      "comment" : "Add Route sheet validation message"
+    },
+    "How images bake" : {
+      "comment" : "Text in ToolchainsCatalogCards"
+    },
+    "How much runs at once" : {
+      "comment" : "FormCard in CapacityView"
+    },
+    "https://dev.azure.com/your-org" : {
+      "comment" : "Placeholder in the server address field; keep the example URL verbatim"
+    },
+    "https://gitlab.com (optional)" : {
+      "comment" : "Placeholder in the server address field; keep the URL verbatim"
+    },
+    "idle" : {
+      "comment" : "VoiceOver state of an empty runtime lane"
+    },
+    "Image" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "image %@ not built yet (kinhin image prepare --container)" : {
+      "comment" : "Diagnostics Apple container row; %@ is an image name; the command stays verbatim"
+    },
+    "image %@ not built yet (kinhin image prepare --docker)" : {
+      "comment" : "Diagnostics Docker row; %@ is an image name; the command stays verbatim"
+    },
+    "Image disk usage" : {
+      "comment" : "Diagnostics row title"
+    },
+    "Image:  still being prepared (about %lld GB). It keeps going in the background; macOS jobs start once it finishes." : {
+      "comment" : "Setup wizard summary line; the number is the image size in GB"
+    },
+    "Images from .kinhin.yml files" : {
+      "comment" : "FormCard in ToolchainsView"
+    },
+    "Implemented and unit-tested, but not yet run against the real service. Please report errors on GitHub to help us improve support for this forge." : {
+      "comment" : ".help in MaturityBadge"
+    },
+    "In config.yaml: honor the repo file" : {
+      "comment" : "Toolchains guide example title"
+    },
+    "In config.yaml: toolchains listed directly" : {
+      "comment" : "Toolchains guide example title"
+    },
+    "In the repo: .kinhin.yml" : {
+      "comment" : "Toolchains guide example title"
+    },
+    "in-process engine" : {
+      "comment" : "Short label: the fleet runs inside the app process"
+    },
+    "Info+" : {
+      "comment" : "Log level filter option: info and above"
+    },
+    "Install" : {
+      "comment" : "Button in InstallConfirmationSheet"
+    },
+    "Install & use it" : {
+      "comment" : "Button of the Linux runtime sheet"
+    },
+    "Install %@?" : {
+      "comment" : "Text in InstallConfirmationSheet"
+    },
+    "Install daemon…" : {
+      "comment" : "Settings → App button"
+    },
+    "install failed — %@" : {
+      "comment" : "Settings → App daemon error; %@ is the reason"
+    },
+    "Install method" : {
+      "comment" : ".accessibilityLabel in InstallConfirmationSheet"
+    },
+    "Install…" : {
+      "comment" : "This Mac form: button that installs Apple container"
+    },
+    "Installed" : {
+      "comment" : "statusRow in AppSectionView"
+    },
+    "installed — not enabled for Linux jobs (turn it on in This Mac)" : {
+      "comment" : "Diagnostics Docker row"
+    },
+    "installed ✓" : {
+      "comment" : "This Mac form: runtime row status"
+    },
+    "installed, but its service isn't running" : {
+      "comment" : "This Mac form: Apple container row status"
+    },
+    "Installing %@… this can take several minutes." : {
+      "comment" : "This Mac form: progress line; %@ is a tool name"
+    },
+    "Installing the daemon…" : {
+      "comment" : "Settings → App daemon progress line"
+    },
+    "instance cap 0 — no runner can start" : {
+      "comment" : "VoiceOver text of a capacity table cell"
+    },
+    "instance cap not partitioned" : {
+      "comment" : "VoiceOver text of a capacity table cell"
+    },
+    "Instance counts update once you Apply the changes below." : {
+      "comment" : "HintText in CapacityView"
+    },
+    "INSTANCES" : {
+      "comment" : "Text in BudgetCard"
+    },
+    "Isolation & transport" : {
+      "comment" : "Diagnostics row title"
+    },
+    "It is working on job %@." : {
+      "comment" : "Spoken VM diagnosis; %@ is a job name"
+    },
+    "Its last job was %@." : {
+      "comment" : "Spoken VM diagnosis; %@ is a job name"
+    },
+    "Job" : {
+      "comment" : "Pipeline output title when no job name is known"
+    },
+    "Jobs" : {
+      "comment" : "Text in WorkflowTestView"
+    },
+    "Jobs per VM" : {
+      "comment" : "row in CapacityView"
+    },
+    "Jobs with no route run on:" : {
+      "comment" : "Picker in RuntimesView"
+    },
+    "JVM with Gradle" : {
+      "comment" : "Toolchain example title"
+    },
+    "Keep free for your Mac" : {
+      "comment" : "FormCard in CapacityView"
+    },
+    "Keychain error — %@" : {
+      "comment" : "Forge card status; %@ is the Keychain error"
+    },
+    "kinhin" : {
+      "comment" : "Main window title (product name)"
+    },
+    "kinhin %@" : {
+      "comment" : "Settings → App update status; %@ is the version"
+    },
+    "kinhin %@ — checking…" : {
+      "comment" : "Settings → App update status; %@ is the version"
+    },
+    "kinhin %@ — last checked %@" : {
+      "comment" : "Settings → App update status; the version, then the date of the last check"
+    },
+    "kinhin %@ is up to date" : {
+      "comment" : "Settings → App update status; %@ is the version"
+    },
+    "kinhin %@ is up to date — last checked %@" : {
+      "comment" : "Settings → App update status; the version, then the date of the last check"
+    },
+    "kinhin can't start the fleet yet" : {
+      "comment" : "Alert title when Start Fleet is pressed before setup finished"
+    },
+    "kinhin crashed unexpectedly:\n\n%@\n\nLogs: ~/Library/Application Support/Kinhin/logs/" : {
+      "comment" : "Body of the crash alert; %@ is the exception reason; the logs path stays verbatim"
+    },
+    "kinhin fleet not responding" : {
+      "comment" : "Notification title when the fleet stops answering"
+    },
+    "kinhin hit a problem" : {
+      "comment" : "Title of the crash alert"
+    },
+    "kinhin installs %@ with Homebrew. Install Homebrew first, or download %@ yourself." : {
+      "comment" : "Text in MissingBrewSheet"
+    },
+    "kinhin is free and built by one developer. Donations and sponsors keep it going." : {
+      "comment" : "Text in SponsorSheet"
+    },
+    "kinhin is serving CI jobs" : {
+      "comment" : "Reason shown by macOS for keeping the Mac awake while CI jobs run"
+    },
+    "kinhin isn't fully ready. Open Diagnostics for details." : {
+      "comment" : "Spoken diagnostics result"
+    },
+    "kinhin needs attention" : {
+      "comment" : "Notification title when the fleet reports an error"
+    },
+    "kinhin runs your CI jobs on this Mac. Select the forges to serve — %@ — then paste a token and choose the repository, project or group to serve for each." : {
+      "comment" : "Setup wizard step 1 subtitle; %@ is a localized list of forge names"
+    },
+    "kinhin sections" : {
+      "comment" : "Picker in MainTabsView"
+    },
+    "kinhin will permanently delete everything listed above. There is no undo and nothing is kept." : {
+      "comment" : "Final reset alert body"
+    },
+    "kinhin will run this with Homebrew. It may take several minutes, and some installers ask for your password or need a first launch afterwards." : {
+      "comment" : "Text in InstallConfirmationSheet"
+    },
+    "kinhin, %lld runners" : {
+      "comment" : "VoiceOver label of the status-bar item; plural by runner count",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "kinhin, %lld runner"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "kinhin, %lld runners"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "kinhin, %lld runners, paused" : {
+      "comment" : "VoiceOver label of the status-bar item; plural by runner count; the fleet is paused",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "kinhin, %lld runner, paused"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "kinhin, %lld runners, paused"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "kinhin, not running" : {
+      "comment" : "VoiceOver label of the status-bar item before the first poll"
+    },
+    "kinhin, starting" : {
+      "comment" : "VoiceOver label of the status-bar item while the fleet starts"
+    },
+    "kinhin, stopping" : {
+      "comment" : "VoiceOver label of the status-bar item while the fleet stops"
+    },
+    "kinhin, updating the queue" : {
+      "comment" : "VoiceOver label of the status-bar item while the queue is updated"
+    },
+    "Labels" : {
+      "comment" : "SectionHeader in RuntimesView"
+    },
+    "Labels not loaded — %@" : {
+      "comment" : "Capacity form status; %@ is the reason"
+    },
+    "labels: %@" : {
+      "comment" : "Routing tab pool detail; %@ lists runner labels"
+    },
+    "Last error: %@" : {
+      "comment" : "Spoken fleet status; %@ is the engine's error message"
+    },
+    "Last error: %@." : {
+      "comment" : "Spoken VM diagnosis; %@ is the error message"
+    },
+    "last used %@" : {
+      "comment" : "Toolchains tab image row; %@ is a relative time such as 2 hours ago"
+    },
+    "latest" : {
+      "comment" : "Toolchain catalog: default version is the newest release"
+    },
+    "Launch" : {
+      "comment" : "FormCard in AppSectionView"
+    },
+    "Launch kinhin at login" : {
+      "comment" : "Toggle in AppSectionView"
+    },
+    "Lets a paused fleet resume on its own once the job queue is empty." : {
+      "comment" : "IntentDescription in AutoResumeIntent"
+    },
+    "Lets a paused fleet start runner VMs again." : {
+      "comment" : "IntentDescription in PauseFleetIntent"
+    },
+    "Level" : {
+      "comment" : "Picker in LogsView"
+    },
+    "Linux image (Apple container)" : {
+      "comment" : "Name of the Apple container runtime image"
+    },
+    "Linux image (Docker)" : {
+      "comment" : "Name of the Docker runtime image"
+    },
+    "Linux jobs (optional)" : {
+      "comment" : "FormCard in MacToolsView"
+    },
+    "Linux jobs only (%@) — macOS jobs need tart, which isn't set up" : {
+      "comment" : "Setup summary of what jobs can run; %@ lists Linux runtimes"
+    },
+    "Linux only" : {
+      "comment" : "Toolchain catalog: platforms an entry supports"
+    },
+    "Loading output…" : {
+      "comment" : "Pipeline output placeholder"
+    },
+    "Loading…" : {
+      "comment" : "Pipeline sheet loading state"
+    },
+    "Lock %@ share" : {
+      "comment" : ".accessibilityLabel in BudgetCard"
+    },
+    "Lock %@'s share so other sliders leave it alone" : {
+      "comment" : ".help in BudgetCard"
+    },
+    "Log output" : {
+      "comment" : "VoiceOver label of the log text area"
+    },
+    "Logs…" : {
+      "comment" : "Button in FleetView"
+    },
+    "Look for new jobs every (seconds)" : {
+      "comment" : "row in CapacityView"
+    },
+    "macOS · Linux" : {
+      "comment" : "Toolchain catalog: platforms an entry supports"
+    },
+    "macOS and Linux. The version after @ is the Flutter SDK version." : {
+      "comment" : "Toolchain example note; names like node, pnpm and java stay verbatim"
+    },
+    "macOS image (tart)" : {
+      "comment" : "Name of the macOS runtime image"
+    },
+    "macOS jobs (optional)" : {
+      "comment" : "FormCard in MacToolsView"
+    },
+    "macOS jobs (tart)" : {
+      "comment" : "Setup summary of what jobs can run"
+    },
+    "macOS jobs (tart) and Linux jobs (%@)" : {
+      "comment" : "Setup summary of what jobs can run; %@ lists Linux runtimes"
+    },
+    "macOS only" : {
+      "comment" : "Toolchain catalog: platforms an entry supports"
+    },
+    "macOS-only entries (for example react-native) are skipped in Linux images. Tools without @version (php, dotnet, yamllint, composer) install the platform's current release." : {
+      "comment" : "Toolchains tab note under the examples; tool names stay verbatim"
+    },
+    "Main window + menu bar" : {
+      "comment" : "Launch-mode picker option in Settings → App"
+    },
+    "Main window only" : {
+      "comment" : "Launch-mode picker option in Settings → App"
+    },
+    "Makes a pause hold until the fleet is resumed by hand." : {
+      "comment" : "IntentDescription in AutoResumeIntent"
+    },
+    "Memory (GB)" : {
+      "comment" : "row in CapacityView"
+    },
+    "Menu bar only" : {
+      "comment" : "Launch-mode picker option in Settings → App"
+    },
+    "Merged with the kinhin-container marker (always present) at pool build." : {
+      "comment" : "HintText in RuntimesView"
+    },
+    "Method" : {
+      "comment" : "Picker in InstallConfirmationSheet"
+    },
+    "Minimize" : {
+      "comment" : "Window menu item"
+    },
+    "More accounts" : {
+      "comment" : "FormCard in MoreAccountsCard"
+    },
+    "More accounts…" : {
+      "comment" : "Text in MoreAccountsCard"
+    },
+    "More from Rabin Apps:" : {
+      "comment" : "HintText in AppSectionView"
+    },
+    "More images" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "Most VMs at once" : {
+      "comment" : "row in CapacityView"
+    },
+    "name, e.g. work" : {
+      "comment" : "Text in MoreAccountsCard"
+    },
+    "needs %@ in specs (never installed implicitly)" : {
+      "comment" : "Toolchain catalog: dependency note; %@ lists spec examples such as node@22"
+    },
+    "needs tart first" : {
+      "comment" : "This Mac form: Base image row status"
+    },
+    "New account name" : {
+      "comment" : ".accessibilityLabel in MoreAccountsCard"
+    },
+    "New account repository or organization" : {
+      "comment" : ".accessibilityLabel in MoreAccountsCard"
+    },
+    "New account server address" : {
+      "comment" : ".accessibilityLabel in MoreAccountsCard"
+    },
+    "New image name" : {
+      "comment" : "TextField in MacToolsView"
+    },
+    "no @version" : {
+      "comment" : "Toolchain catalog: this entry takes no @version suffix; keep @version verbatim"
+    },
+    "No capacity split yet" : {
+      "comment" : "VoiceOver summary of the capacity split bar"
+    },
+    "No config file yet — finish the Setup tab first." : {
+      "comment" : "Routing tab empty state"
+    },
+    "No containers." : {
+      "comment" : "HintText in ContainersView"
+    },
+    "No forges attached — queue will always be empty." : {
+      "comment" : "Text in FleetView"
+    },
+    "No job is running on this VM." : {
+      "comment" : "Pipeline sheet empty state"
+    },
+    "No jobs running." : {
+      "comment" : "Text in FleetView"
+    },
+    "No jobs to run" : {
+      "comment" : "Text in WorkflowTestView"
+    },
+    "No lines match." : {
+      "comment" : "Log viewer placeholder when the filter hides every line"
+    },
+    "No log lines yet." : {
+      "comment" : "Log viewer placeholder when the log is empty"
+    },
+    "No output yet." : {
+      "comment" : "Pipeline output placeholder"
+    },
+    "No repo file needed. These versions apply to every matching repo." : {
+      "comment" : "Toolchains guide example note"
+    },
+    "No runtime is set up yet. Set one up in Advanced → Capacity." : {
+      "comment" : "HintText in ToolchainsView"
+    },
+    "No runtimes — the fleet is idle." : {
+      "comment" : "StatusText in FleetDiagramView"
+    },
+    "No token yet — paste one to connect." : {
+      "comment" : "Account row status"
+    },
+    "No toolchains" : {
+      "comment" : "Toolchains tab row source label"
+    },
+    "No toolchains baked" : {
+      "comment" : "Toolchains tab row source label"
+    },
+    "No toolchains baked: jobs use the base image (they can still run `kinhin-toolchain install` per job)." : {
+      "comment" : "Toolchains tab row explanation; the backticked command stays verbatim"
+    },
+    "No toolchains on this project entry and repo_file is off: jobs use the base image." : {
+      "comment" : "Toolchains tab row explanation; keep repo_file verbatim"
+    },
+    "No VM named %@ is in the fleet." : {
+      "comment" : "Spoken reply when a VM id is unknown; %@ is the id"
+    },
+    "No VM was chosen." : {
+      "comment" : "Spoken reply when no VM was picked"
+    },
+    "No volumes." : {
+      "comment" : "HintText in ContainersView"
+    },
+    "Not added — %@" : {
+      "comment" : "Add-account status; %@ is the reason"
+    },
+    "Not added — enter the %@ server address." : {
+      "comment" : "Add-account status; %@ is a forge name"
+    },
+    "Not applied — %@" : {
+      "comment" : "Capacity form status; %@ is the reason the edit wasn't applied"
+    },
+    "Not connected yet." : {
+      "comment" : "Forge card status line"
+    },
+    "not installed" : {
+      "comment" : "This Mac form: runtime row status"
+    },
+    "Not installed" : {
+      "comment" : "statusRow in AppSectionView"
+    },
+    "not installed — optional, runs Linux jobs (install it from This Mac)" : {
+      "comment" : "Diagnostics Docker row"
+    },
+    "not installed — tart_path: %@ does not exist" : {
+      "comment" : "This Mac form: tart row status; %@ is the tart_path from config.yaml (keep tart_path verbatim)"
+    },
+    "not prepared yet" : {
+      "comment" : "StatusText in MacToolsView"
+    },
+    "Not rebuilt — %@" : {
+      "comment" : "Toolchains tab status; %@ is the reason"
+    },
+    "Not removed — %@" : {
+      "comment" : "Account row status; %@ is the reason"
+    },
+    "Not saved — %@" : {
+      "comment" : "Form status line; %@ is the error's description"
+    },
+    "Not serving" : {
+      "comment" : "statusRow in AppSectionView"
+    },
+    "Not started — %@" : {
+      "comment" : "Toolchains tab status; %@ is the reason"
+    },
+    "Not started yet." : {
+      "comment" : "Pipeline output placeholder"
+    },
+    "not supported — %@" : {
+      "comment" : "This Mac form: runtime row status; %@ is the reason"
+    },
+    "not supported on this Mac — %@" : {
+      "comment" : "Diagnostics Docker row; %@ is the reason"
+    },
+    "nothing yet" : {
+      "comment" : "Setup summary of what jobs can run"
+    },
+    "Now serving %@ ✓" : {
+      "comment" : "Forge card status; %@ is the repository or org being served"
+    },
+    "Now serving %@ on %@ ✓" : {
+      "comment" : "Forge card status; first is the repository or org, second the forge"
+    },
+    "Off by default: a repo file chooses what is installed on this Mac." : {
+      "comment" : "Toolchains guide example note"
+    },
+    "OK" : {
+      "comment" : "Dismiss button of an informational alert"
+    },
+    "One row per project in config.yaml, then everything else." : {
+      "comment" : "FormCard in ToolchainsView"
+    },
+    "Only one runtime is enabled, so there's nothing to split. Enable another on the previous step (Docker, Apple container or tart) to divide this Mac's capacity." : {
+      "comment" : "StatusText in WizardView"
+    },
+    "Open config file" : {
+      "comment" : "Button in AppSectionView"
+    },
+    "Open config.yaml" : {
+      "comment" : "Button in WizardView"
+    },
+    "Open in browser" : {
+      "comment" : "Link in PipelineView"
+    },
+    "Open kinhin" : {
+      "comment" : "Status-bar menu item that opens the main window"
+    },
+    "Open Logs" : {
+      "comment" : "Status-bar menu item that opens the Logs tab"
+    },
+    "Open logs folder" : {
+      "comment" : "Button in MainTabsView"
+    },
+    "Opens a fleet window and keeps the ○ in the menu bar." : {
+      "comment" : "Hint under the launch-mode picker; ○ is the menu bar glyph"
+    },
+    "org-slug/cluster" : {
+      "comment" : "Placeholder in the repository field; keep the syntax verbatim"
+    },
+    "Organization and cluster" : {
+      "comment" : "Label of the repository field"
+    },
+    "Other repos" : {
+      "comment" : "Text in ToolchainsView"
+    },
+    "Other…" : {
+      "comment" : "Last entry of the base-image popup: type a custom reference"
+    },
+    "owner/name, or an org" : {
+      "comment" : "Placeholder in the new-account repository field; keep the syntax verbatim"
+    },
+    "owner/name, or an org name" : {
+      "comment" : "Placeholder in the repository field; keep the syntax verbatim"
+    },
+    "partial — %lld skipped as unsupported" : {
+      "comment" : "Workflow test headline; the number is how many steps were skipped"
+    },
+    "Paste" : {
+      "comment" : "Edit menu item"
+    },
+    "Paste a %@ access token" : {
+      "comment" : "SecureField in MoreAccountsCard"
+    },
+    "Paste a personal access token" : {
+      "comment" : "SecureField in MoreAccountsCard"
+    },
+    "Paste a token first." : {
+      "comment" : "Forge card status"
+    },
+    "Pause" : {
+      "comment" : "Fleet tab button that pauses the fleet"
+    },
+    "Pause Fleet" : {
+      "comment" : "AppShortcut in KinhinShortcuts"
+    },
+    "Pause Fleet First" : {
+      "comment" : "Parameter in DeleteVMIntent"
+    },
+    "Pause or resume the fleet" : {
+      "comment" : ".accessibilityLabel in FleetView"
+    },
+    "Paused. Running jobs finish, but no new VMs will start." : {
+      "comment" : "Spoken reply to a pause request"
+    },
+    "Pick how this Mac runs Linux jobs. You can change this later in the Setup tab." : {
+      "comment" : "Text in LinuxRuntimeSetupSheet"
+    },
+    "Pick what to erase. The next screen lists exactly what will be deleted — this cannot be undone." : {
+      "comment" : "Reset alert body"
+    },
+    "Pin…" : {
+      "comment" : "Button in BaseImagePicker"
+    },
+    "Pinning applies to tart VM images only." : {
+      "comment" : "Base-image pin error"
+    },
+    "Pipeline" : {
+      "comment" : "Pipeline sheet title before a job is known"
+    },
+    "Pipeline…" : {
+      "comment" : "Button in FleetDiagramView"
+    },
+    "pnpm and Playwright need Node, so node is listed too." : {
+      "comment" : "Toolchain example note; names like node, pnpm and java stay verbatim"
+    },
+    "POOL" : {
+      "comment" : "Text in BudgetCard"
+    },
+    "Pools" : {
+      "comment" : "SectionHeader in RuntimesView"
+    },
+    "Prepare" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "Prepare image" : {
+      "comment" : "This Mac form: button that builds the image for the first time"
+    },
+    "Preparing image “%@” — this takes a while…" : {
+      "comment" : "This Mac form: progress line; %@ is an image name"
+    },
+    "Preparing the macOS image downloads and stores about %lld GB and takes roughly %@, once. You can start the fleet while it runs: it continues in the background and macOS jobs begin when it finishes. Linux runtimes are much smaller." : {
+      "comment" : "Notice beside the base-image row; the number is the download size in GB, then a time estimate phrase"
+    },
+    "Preparing the reset…" : {
+      "comment" : "Settings → App reset progress line"
+    },
+    "Preparing the runner image — this takes a while…" : {
+      "comment" : "This Mac form: progress line while the image builds"
+    },
+    "Probing this Mac…" : {
+      "comment" : "Diagnostics sheet status while probing"
+    },
+    "Project images" : {
+      "comment" : "Diagnostics row title"
+    },
+    "Project toolchains" : {
+      "comment" : "Toolchains tab row source label"
+    },
+    "Queued work" : {
+      "comment" : "FormCard in FleetView"
+    },
+    "Quit" : {
+      "comment" : "Status-bar menu item that quits the app"
+    },
+    "Quit kinhin" : {
+      "comment" : "App menu item"
+    },
+    "Read the docs: per-project toolchains" : {
+      "comment" : "Link in ToolchainsGuideView"
+    },
+    "ready — image %@" : {
+      "comment" : "Diagnostics Apple container row; %@ is an image name"
+    },
+    "ready ✓" : {
+      "comment" : "StatusText in MacToolsView"
+    },
+    "ready, waiting for a job" : {
+      "comment" : "VoiceOver phase description"
+    },
+    "Rebuild" : {
+      "comment" : "Confirm button of the rebuild-image alert"
+    },
+    "Rebuild base image…" : {
+      "comment" : "Button in ToolchainsView"
+    },
+    "Rebuild Image" : {
+      "comment" : "Confirm button of the rebuild-image alert"
+    },
+    "Rebuild image “%@”?" : {
+      "comment" : "Confirmation title; %@ is an image name"
+    },
+    "Rebuild image…" : {
+      "comment" : "This Mac form: button that rebuilds the existing image"
+    },
+    "Rebuild the %@?" : {
+      "comment" : "Rebuild-image confirmation title; %@ is a runtime image name"
+    },
+    "Rebuild the Docker image after changing this." : {
+      "comment" : "Appended to the amd64 emulation notice"
+    },
+    "Rebuild the runner image?" : {
+      "comment" : "Confirmation title"
+    },
+    "Rebuild…" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "Rebuilding the %@… this can take a while." : {
+      "comment" : "Toolchains tab status; %@ is a runtime image name"
+    },
+    "Rebuilt the %@ ✓" : {
+      "comment" : "Toolchains tab status; %@ is a runtime image name"
+    },
+    "Redo" : {
+      "comment" : "Edit menu item"
+    },
+    "Refresh" : {
+      "comment" : "Button in ContainersView"
+    },
+    "Remove" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "Remove account and token" : {
+      "comment" : "Button in ConnectView"
+    },
+    "Remove route %@" : {
+      "comment" : ".accessibilityLabel in RuntimesView"
+    },
+    "Removed '%@' from the config. Its prepared VM is still on disk (tart delete %@)." : {
+      "comment" : "This Mac form status; %@ is an image name, used again in the tart command"
+    },
+    "Removed '%@'." : {
+      "comment" : "Add-account status; %@ is the account name"
+    },
+    "Replace" : {
+      "comment" : "Forge card button when a token is already stored"
+    },
+    "Repo or workflow pattern" : {
+      "comment" : ".accessibilityLabel in AddRouteSheet"
+    },
+    "Reports one runner VM's phase, assigned job, and last error — useful before deleting a stalled VM." : {
+      "comment" : "IntentDescription in DiagnoseVMIntent"
+    },
+    "Reports whether the runner fleet is running, how busy it is and how many jobs are queued." : {
+      "comment" : "IntentDescription in FleetStatusIntent"
+    },
+    "Repos" : {
+      "comment" : "FormCard in ToolchainsView"
+    },
+    "Repos with neither get the plain base image, with no toolchains baked in. Their jobs can still run `kinhin-toolchain install` per job." : {
+      "comment" : "Toolchains guide note; the backticked command stays verbatim"
+    },
+    "Repository or org" : {
+      "comment" : "Label of the repository field"
+    },
+    "Requeue" : {
+      "comment" : "Button in FleetView"
+    },
+    "Requeue queued jobs on %@" : {
+      "comment" : ".accessibilityLabel in FleetView"
+    },
+    "Reset" : {
+      "comment" : "FormCard in AppSectionView"
+    },
+    "reset failed — %@" : {
+      "comment" : "Settings → App reset error; %@ is the reason"
+    },
+    "Reset kinhin" : {
+      "comment" : "Reset alert title"
+    },
+    "Reset kinhin — %@?" : {
+      "comment" : "Reset confirmation title; %@ names what will be erased"
+    },
+    "Reset kinhin…" : {
+      "comment" : "Button in AppSectionView"
+    },
+    "Resetting — deleting files, tokens and VMs…" : {
+      "comment" : "Settings → App reset progress line"
+    },
+    "Resolving…" : {
+      "comment" : "Button in BaseImagePicker"
+    },
+    "Resources kinhin will not hand to VMs, so your Mac stays responsive." : {
+      "comment" : "FormCard in CapacityView"
+    },
+    "Restart" : {
+      "comment" : "Container row button"
+    },
+    "Restart container “%@”?" : {
+      "comment" : "Confirmation title; %@ is the container name"
+    },
+    "Restart container %@" : {
+      "comment" : "VoiceOver label of a container row button; %@ is the container name"
+    },
+    "Resume" : {
+      "comment" : "Fleet tab button that resumes a paused fleet"
+    },
+    "Resume Fleet" : {
+      "comment" : "AppShortcut in KinhinShortcuts"
+    },
+    "Resume on its own once the queue is empty" : {
+      "comment" : "Toggle in CapacityView"
+    },
+    "Resumed." : {
+      "comment" : "Spoken reply to a resume request"
+    },
+    "Revert" : {
+      "comment" : "Button in CapacityView"
+    },
+    "Review & Start" : {
+      "comment" : "Setup wizard step title"
+    },
+    "Routes" : {
+      "comment" : "SectionHeader in RuntimesView"
+    },
+    "Routes are still loading" : {
+      "comment" : "Alert title"
+    },
+    "Routing" : {
+      "comment" : "Advanced section title"
+    },
+    "Run again" : {
+      "comment" : "Text in WorkflowTestView"
+    },
+    "Run Diagnostics" : {
+      "comment" : "AppShortcut in KinhinShortcuts"
+    },
+    "Run jobs with labels" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "Run macOS workflows in disposable virtual machines powered by tart. Skip this if you only need Linux jobs." : {
+      "comment" : "FormCard in MacToolsView"
+    },
+    "Run Workflow" : {
+      "comment" : "Button in WorkflowTestView"
+    },
+    "Runner VM" : {
+      "comment" : "TypeDisplayRepresentation in VMEntity"
+    },
+    "Runners sharing one VM. 1 is safest; more share its CPU and RAM." : {
+      "comment" : "row in CapacityView"
+    },
+    "running" : {
+      "comment" : "VoiceOver state of a busy runtime lane"
+    },
+    "Running" : {
+      "comment" : "statusRow in AppSectionView"
+    },
+    "Runs on:  %@" : {
+      "comment" : "Setup wizard summary line; %@ describes the chosen runtimes"
+    },
+    "Runtime to use" : {
+      "comment" : "Picker in AddRouteSheet"
+    },
+    "Runtimes" : {
+      "comment" : "Text in FleetDiagramView"
+    },
+    "runtimes section has a problem — %@" : {
+      "comment" : "Routing tab empty state; %@ is the parse error"
+    },
+    "Save" : {
+      "comment" : "Button in EditYAMLSheet"
+    },
+    "Saved only if the whole file still passes the engine's config validation." : {
+      "comment" : "HintText in EditYAMLSheet"
+    },
+    "Search logs" : {
+      "comment" : ".accessibilityLabel in LogsView"
+    },
+    "Search logs (message, component, level)" : {
+      "comment" : "TextField in LogsView"
+    },
+    "Select All" : {
+      "comment" : "Edit menu item"
+    },
+    "Select every forge kinhin should serve; each gets its own card below." : {
+      "comment" : "HintText in ConnectView"
+    },
+    "Send a repository, or one workflow, to a runtime. Use owner/repo for a whole repo, or owner/repo@Workflow Name for one workflow." : {
+      "comment" : "Text in AddRouteSheet"
+    },
+    "Serve additional accounts (another org, a second server, a GitLab group) with their own tokens." : {
+      "comment" : "FormCard in MoreAccountsCard"
+    },
+    "Server" : {
+      "comment" : "Text in ForgeCard"
+    },
+    "Serving the fleet" : {
+      "comment" : "statusRow in AppSectionView"
+    },
+    "Serving:" : {
+      "comment" : "Setup wizard summary heading"
+    },
+    "Serving:  — not chosen yet" : {
+      "comment" : "Setup wizard summary line"
+    },
+    "Set up Linux jobs…" : {
+      "comment" : "Text in MacToolsView"
+    },
+    "Set up something to run jobs on (step 2): a Linux runtime (Docker or Apple container), or tart for macOS jobs." : {
+      "comment" : "Setup wizard blocker"
+    },
+    "Settings…" : {
+      "comment" : "Menu item that opens Settings"
+    },
+    "Setup" : {
+      "comment" : "Main window tab title"
+    },
+    "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open the Setup tab to finish." : {
+      "comment" : "Alert body when Start Fleet is pressed before setup finished"
+    },
+    "Setup…" : {
+      "comment" : "Menu item that opens the Setup tab"
+    },
+    "SHARE" : {
+      "comment" : "Text in BudgetCard"
+    },
+    "Shares always total 100%%. Drag or type a number; lock a pool to keep its share fixed while the others rebalance. Changes apply on release." : {
+      "comment" : "HintText in BudgetCard"
+    },
+    "Show All" : {
+      "comment" : "App menu item"
+    },
+    "Show at launch" : {
+      "comment" : "Picker in AppSectionView"
+    },
+    "Show pipeline of %@" : {
+      "comment" : ".accessibilityLabel in FleetDiagramView"
+    },
+    "Show steps of %@, %@" : {
+      "comment" : ".accessibilityLabel in PipelineView"
+    },
+    "Show the output of %@" : {
+      "comment" : ".accessibilityLabel in PipelineView"
+    },
+    "Show the output of %@, %@" : {
+      "comment" : ".accessibilityLabel in PipelineView"
+    },
+    "Showing only the most recent output." : {
+      "comment" : "Pipeline output notice"
+    },
+    "Skip" : {
+      "comment" : "Button in FleetView"
+    },
+    "Skip for now" : {
+      "comment" : "Setup wizard button"
+    },
+    "Skip queued jobs on %@" : {
+      "comment" : ".accessibilityLabel in FleetView"
+    },
+    "Softnet is on but not installed — %@. The fleet will not start." : {
+      "comment" : "Diagnostics security row; %@ is the fix command"
+    },
+    "Softnet off — runner VMs share one network" : {
+      "comment" : "Diagnostics security row"
+    },
+    "Softnet on — runner VMs are isolated from each other and the LAN" : {
+      "comment" : "Diagnostics security row"
+    },
+    "Split between runtimes" : {
+      "comment" : "SectionHeader in CapacityView"
+    },
+    "Split your capacity" : {
+      "comment" : "Text in WizardView"
+    },
+    "Sponsor kinhin" : {
+      "comment" : ".help in MainTabsView"
+    },
+    "Sponsored by" : {
+      "comment" : "HintText in AppSectionView"
+    },
+    "Stacks" : {
+      "comment" : "chipRow in ToolchainsView"
+    },
+    "Start" : {
+      "comment" : "Container row button"
+    },
+    "Start container %@" : {
+      "comment" : "VoiceOver label of a container row button; %@ is the container name"
+    },
+    "Start fleet" : {
+      "comment" : "Setup wizard final button"
+    },
+    "Start Fleet" : {
+      "comment" : "Status-bar menu item"
+    },
+    "Start service" : {
+      "comment" : "This Mac form: button that starts the Apple container service"
+    },
+    "Start service & use it" : {
+      "comment" : "Button of the Linux runtime sheet"
+    },
+    "Start the fleet" : {
+      "comment" : ".accessibilityLabel in FleetView"
+    },
+    "Start the fleet automatically whenever kinhin opens" : {
+      "comment" : "Toggle in WizardView"
+    },
+    "Start the fleet when kinhin opens" : {
+      "comment" : "Toggle in AppSectionView"
+    },
+    "Started. Queued jobs can begin." : {
+      "comment" : "Spoken reply to a start request"
+    },
+    "Starting the Apple container service…" : {
+      "comment" : "This Mac form: progress line"
+    },
+    "Starting the fleet" : {
+      "comment" : ".accessibilityLabel in FleetView"
+    },
+    "starting up (%@)" : {
+      "comment" : "VoiceOver phase description; %@ is the phase name"
+    },
+    "Starting…" : {
+      "comment" : "Status line while a start command runs"
+    },
+    "Starts the runner fleet so queued jobs can begin." : {
+      "comment" : "IntentDescription in StartStopFleetIntent"
+    },
+    "Step" : {
+      "comment" : "Pipeline output title when no step name is known"
+    },
+    "Step %lld of %lld — %@" : {
+      "comment" : "Setup wizard header; the numbers are the current step and the step count, then the step title"
+    },
+    "Still needed:" : {
+      "comment" : "Setup wizard summary heading"
+    },
+    "Stop" : {
+      "comment" : "Container row button"
+    },
+    "Stop container “%@”?" : {
+      "comment" : "Confirmation title; %@ is the container name"
+    },
+    "Stop container %@" : {
+      "comment" : "VoiceOver label of a container row button; %@ is the container name"
+    },
+    "Stop Fleet" : {
+      "comment" : "Status-bar menu item"
+    },
+    "Stop serving %@?" : {
+      "comment" : ".alert in ConnectView"
+    },
+    "Stop the fleet" : {
+      "comment" : ".accessibilityLabel in FleetView"
+    },
+    "Stopped. No new VMs will start." : {
+      "comment" : "Spoken reply to a stop request"
+    },
+    "Stopping the fleet" : {
+      "comment" : ".accessibilityLabel in FleetView"
+    },
+    "Stopping…" : {
+      "comment" : "Status line while a stop command runs"
+    },
+    "Stops the fleet from starting new runner VMs. Running jobs finish." : {
+      "comment" : "IntentDescription in PauseFleetIntent"
+    },
+    "Stops the runner fleet. Running jobs finish before the VMs go down." : {
+      "comment" : "IntentDescription in StartStopFleetIntent"
+    },
+    "Support kinhin" : {
+      "comment" : "Text in SponsorSheet"
+    },
+    "Support kinhin with %@" : {
+      "comment" : ".accessibilityLabel in SponsorSheet"
+    },
+    "Support kinhin…" : {
+      "comment" : "Menu item that opens the support page"
+    },
+    "tart" : {
+      "comment" : "statusRow in MacToolsView"
+    },
+    "tart — macOS VMs" : {
+      "comment" : "Runtime choice in the Add Route sheet"
+    },
+    "tart (for macOS VMs too)" : {
+      "comment" : "Linux runtime prerequisite"
+    },
+    "Tart (Linux VM)" : {
+      "comment" : "Linux runtime option name"
+    },
+    "Tart (macOS VMs)" : {
+      "comment" : "Diagnostics row title"
+    },
+    "tart is serving Linux jobs — its base image is chosen under Linux jobs below. Add a macOS image under More images so macOS jobs still have somewhere to run." : {
+      "comment" : "HintText in MacToolsView"
+    },
+    "tart isn't installed, so %@ is on for Linux jobs. Change it below any time." : {
+      "comment" : "This Mac form notice; %@ is a runtime name"
+    },
+    "Tart VMs (macOS)" : {
+      "comment" : "Runtime lane name; Tart runs macOS VMs"
+    },
+    "Test Workflow" : {
+      "comment" : "Text in WorkflowTestView"
+    },
+    "Test Workflow…" : {
+      "comment" : "Button in FleetView"
+    },
+    "That token didn't work — %@\nIt needs — %@" : {
+      "comment" : "Forge card status; first is the forge's error, second what the token needs"
+    },
+    "The classic tray app — open the window any time from the menu." : {
+      "comment" : "Hint under the launch-mode picker"
+    },
+    "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it" : {
+      "comment" : "Warning shown under the fleet status; the backticked command must stay verbatim"
+    },
+    "The default pool also keeps whatever share the others leave (Advanced → Capacity)." : {
+      "comment" : "HintText in RuntimesView"
+    },
+    "The expo stack needs Node, so node is in specs." : {
+      "comment" : "Toolchain example note; names like node, pnpm and java stay verbatim"
+    },
+    "The fleet can run inside this app (in-process) or in a background LaunchAgent that survives app restarts and reboots." : {
+      "comment" : "FormCard in AppSectionView"
+    },
+    "The fleet is already paused." : {
+      "comment" : "Spoken reply to a pause request"
+    },
+    "The fleet is already running." : {
+      "comment" : "Spoken reply to a start request"
+    },
+    "The fleet is already stopped." : {
+      "comment" : "Spoken reply to a stop request"
+    },
+    "The fleet is paused." : {
+      "comment" : "Spoken fleet status"
+    },
+    "The fleet is running." : {
+      "comment" : "Spoken fleet status"
+    },
+    "The fleet is stopped." : {
+      "comment" : "Spoken fleet status"
+    },
+    "The fleet isn't paused." : {
+      "comment" : "Spoken reply to a resume request"
+    },
+    "The fleet isn't running, so there is nothing to pause." : {
+      "comment" : "Spoken reply to a pause request"
+    },
+    "The fleet isn't running, so there is nothing to resume." : {
+      "comment" : "Spoken reply to a resume request"
+    },
+    "The forge" : {
+      "comment" : "Generic forge name used in a sentence when the real forge is unknown"
+    },
+    "The hard ceiling on VMs running together." : {
+      "comment" : "row in CapacityView"
+    },
+    "The image every job starts from. Per-repo images with toolchains are cloned from it." : {
+      "comment" : "FormCard in ToolchainsView"
+    },
+    "The repo's .kinhin.yml is ignored (repo_file is off); these versions apply." : {
+      "comment" : "Toolchains tab row explanation; keep .kinhin.yml and repo_file verbatim"
+    },
+    "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Advanced → App → Open config file)." : {
+      "comment" : "Alert body"
+    },
+    "The start is in progress — check the fleet status in a moment." : {
+      "comment" : "Spoken reply to a start request"
+    },
+    "The stop is in progress — check the fleet status in a moment." : {
+      "comment" : "Spoken reply to a stop request"
+    },
+    "The volume and all data stored in it will be permanently deleted. This can’t be undone." : {
+      "comment" : "Delete-volume confirmation body"
+    },
+    "This forge" : {
+      "comment" : "Generic forge name used at the start of a sentence when the real forge is unknown"
+    },
+    "This job has finished; showing its last known state." : {
+      "comment" : "Pipeline sheet notice"
+    },
+    "This looks like a kinhin CI runner — restarting it cancels any job it is running." : {
+      "comment" : "Confirmation body for restarting a kinhin runner container"
+    },
+    "This looks like a kinhin CI runner — stopping it cancels any job it is running." : {
+      "comment" : "Confirmation body for stopping a kinhin runner container"
+    },
+    "This Mac" : {
+      "comment" : "SectionHeader in CapacityView"
+    },
+    "This removes its account and token." : {
+      "comment" : "Text in ConnectView"
+    },
+    "This replaces the base image with a fresh one that has only the runner agents. It can take 10–30 minutes and downloads a lot. Per-repo images with toolchains are baked separately, when a job needs them." : {
+      "comment" : "Rebuild-image confirmation body"
+    },
+    "This replaces the existing image with a fresh bake from its base image and takes a while." : {
+      "comment" : "Confirmation body"
+    },
+    "This replaces the existing image with a fresh bake from the selected base image and takes a while. Running VMs keep working; new ones use the rebuilt image." : {
+      "comment" : "Confirmation body"
+    },
+    "This stops the VM and removes it. Any job running on it is cancelled." : {
+      "comment" : "Confirmation body for deleting a VM"
+    },
+    "this VM" : {
+      "comment" : "Pipeline job row tag: this job runs on the VM being inspected"
+    },
+    "Token permissions needed" : {
+      "comment" : "Text in FormComponents"
+    },
+    "Token stored in your Keychain ✓ — paste a new one only to replace it." : {
+      "comment" : "Forge card status when a token is already stored"
+    },
+    "Toolchain cache" : {
+      "comment" : "Diagnostics row title"
+    },
+    "Toolchains" : {
+      "comment" : "Advanced section title"
+    },
+    "Tools" : {
+      "comment" : "chipRow in ToolchainsView"
+    },
+    "Tune it (optional)" : {
+      "comment" : "Text in WizardView"
+    },
+    "Turn one on to run Linux workflows. Without tart, this is all you need." : {
+      "comment" : "FormCard in MacToolsView"
+    },
+    "Two pinned languages. Repos that resolve to the same set share one image." : {
+      "comment" : "Toolchain example note; names like node, pnpm and java stay verbatim"
+    },
+    "type %@" : {
+      "comment" : "Placeholder in the typed-confirmation alert; %@ is the word to type, which stays verbatim"
+    },
+    "Type reset to confirm" : {
+      "comment" : "Final reset alert title; the word `reset` is what the user must type"
+    },
+    "Undo" : {
+      "comment" : "Edit menu item"
+    },
+    "Uninstall daemon…" : {
+      "comment" : "Settings → App button"
+    },
+    "uninstall failed — %@" : {
+      "comment" : "Settings → App daemon error; %@ is the reason"
+    },
+    "Uninstalling the daemon…" : {
+      "comment" : "Settings → App daemon progress line"
+    },
+    "Unlock %@" : {
+      "comment" : ".help in BudgetCard"
+    },
+    "Unlock %@ share" : {
+      "comment" : ".accessibilityLabel in BudgetCard"
+    },
+    "Unmatched jobs → %@" : {
+      "comment" : "StatusText in RuntimesView"
+    },
+    "untested" : {
+      "comment" : ".accessibilityLabel in MaturityBadge"
+    },
+    "Unused images" : {
+      "comment" : "Diagnostics row title"
+    },
+    "Update available — kinhin %@ (you have %@)." : {
+      "comment" : "Settings → App update status; the new version, then the installed one"
+    },
+    "Update available — kinhin %@…" : {
+      "comment" : "Status-bar menu item when a newer release is waiting; %@ is the version"
+    },
+    "Update available…" : {
+      "comment" : "Status-bar menu item, hidden until a newer release is found"
+    },
+    "Update check failed: %@" : {
+      "comment" : "Settings → App update status; %@ is the reason"
+    },
+    "Updates" : {
+      "comment" : "FormCard in AppSectionView"
+    },
+    "Use a path for one repository (or project), or a group/org name to serve everything under it. The token is kept in your Keychain, never in a file." : {
+      "comment" : "HintText in ForgeCard"
+    },
+    "Use it" : {
+      "comment" : "Button of the Linux runtime sheet"
+    },
+    "Use owner/name for one repo, or just an org name to serve every repo in it. The token is kept in your Keychain, never in a file. GitHub is hosted at github.com by default. Add an enterprise host only for GHES (https://github.example.com) or GHEC data residency (https://acme.ghe.com)." : {
+      "comment" : "HintText in ForgeCard"
+    },
+    "Versions come from .kinhin.yml in the repo at each job's branch/tag. Used when a repo has no usable file: the project toolchains below." : {
+      "comment" : "Toolchains tab row explanation; keep .kinhin.yml verbatim"
+    },
+    "Versions come from .kinhin.yml in the repo at each job's branch/tag. With no usable file, jobs use the base image." : {
+      "comment" : "Toolchains tab row explanation; keep .kinhin.yml verbatim"
+    },
+    "VM" : {
+      "comment" : "Parameter in DeleteVMIntent"
+    },
+    "VM %@ failed." : {
+      "comment" : "Spoken VM diagnosis; %@ is a VM id"
+    },
+    "VM %@ is being deleted." : {
+      "comment" : "Spoken VM diagnosis; %@ is a VM id"
+    },
+    "VM %@ is booting." : {
+      "comment" : "Spoken VM diagnosis; %@ is a VM id"
+    },
+    "VM %@ is ready and waiting for a job." : {
+      "comment" : "Spoken VM diagnosis; %@ is a VM id"
+    },
+    "VM %@ is registering." : {
+      "comment" : "Spoken VM diagnosis; %@ is a VM id"
+    },
+    "VM %@ is running a job." : {
+      "comment" : "Spoken VM diagnosis; %@ is a VM id"
+    },
+    "VM %@ is still cloning." : {
+      "comment" : "Spoken VM diagnosis; %@ is a VM id"
+    },
+    "VM-grade isolation, no daemon, high density, 8 GB/instance — Debian/Ubuntu-based image only, no amd64, beta." : {
+      "comment" : "Linux runtime comparison summary"
+    },
+    "VMs" : {
+      "comment" : "Status-bar menu section header above the VM list"
+    },
+    "Volumes" : {
+      "comment" : "FormCard in ContainersView"
+    },
+    "Want your logo here?" : {
+      "comment" : "HintText in SponsorSheet"
+    },
+    "Warning" : {
+      "comment" : ".accessibilityLabel in BudgetCard"
+    },
+    "Warnings+" : {
+      "comment" : "Log level filter option: warnings and above"
+    },
+    "Web app with pnpm and Playwright" : {
+      "comment" : "Toolchain example title"
+    },
+    "What kinhin shows at launch" : {
+      "comment" : ".accessibilityLabel in AppSectionView"
+    },
+    "Where does your code live?" : {
+      "comment" : "Text in ConnectView"
+    },
+    "Whole job output" : {
+      "comment" : "Pipeline job output row"
+    },
+    "Window" : {
+      "comment" : "Title of the Window menu in the menu bar"
+    },
+    "Workflow" : {
+      "comment" : "Text in WorkflowTestView"
+    },
+    "Workflow job" : {
+      "comment" : ".accessibilityLabel in WorkflowTestView"
+    },
+    "Working" : {
+      "comment" : ".accessibilityLabel in MacToolsView"
+    },
+    "Workspace or workspace/repo" : {
+      "comment" : "Label of the repository field"
+    },
+    "workspace, or workspace/repo-slug" : {
+      "comment" : "Placeholder in the repository field; keep the syntax verbatim"
+    },
+    "Your fleet labels include “macos”, so macOS jobs would be sent to this Linux VM. In config.yaml, remove “macos” from labels (add “linux” if jobs ask for it)." : {
+      "comment" : "Warning under the Tart (Linux VM) row; macos, linux and config.yaml are literal names"
+    }
+  },
+  "version" : "1.0"
+}
