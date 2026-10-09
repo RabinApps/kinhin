@@ -139,8 +139,18 @@ final class AppleContainerRuntimeTests: XCTestCase {
             forge: gitea, token: "GT", name: "kinhin-1", runnerCount: 1,
             route: makeRoute(), labels: nil
         )
-        XCTAssertTrue(giteaScript.contains("/opt/actions-runner"))
-        XCTAssertTrue(giteaScript.contains("nohup ./run.sh > run-1.log"))
+        // The Gitea runner is not the GitHub one: its own binary, `register` then `daemon`.
+        XCTAssertTrue(giteaScript.contains("/opt/gitea-runner/gitea-runner\" register --no-interactive"))
+        XCTAssertTrue(giteaScript.contains("/opt/gitea-runner/gitea-runner\" daemon"))
+        XCTAssertFalse(giteaScript.contains("config.sh"))
+        XCTAssertFalse(giteaScript.contains("run.sh"))
+
+        // The pool's labels (with its `kinhin-container` marker) win over the account's own, as for GitHub.
+        let pooled = try await runtime.registrationScript(
+            forge: gitea, token: "GT", name: "kinhin-1", runnerCount: 1,
+            route: makeRoute(), labels: ["linux", "kinhin-container"]
+        )
+        XCTAssertTrue(pooled.contains("--labels 'linux,kinhin-container'"), pooled)
     }
 
     /// The route image is what the container CLI actually uses; the registration

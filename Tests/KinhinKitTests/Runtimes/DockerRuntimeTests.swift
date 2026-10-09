@@ -138,13 +138,12 @@ final class DockerRuntimeTests: XCTestCase {
             forge: gitea, token: "GT", name: "kinhin-1", runnerCount: 1,
             route: makeRoute(), labels: nil
         )
-        // Linux Gitea registration uses the GitHub Actions runner (config.sh)
-        // configured against the Gitea instance, rooted at /opt/actions-runner
-        // (the same agent the GitHub path bakes). The separate gitea-runner
-        // binary at /opt/gitea-runner is baked when a Gitea token exists but
-        // is not what the Linux Gitea registration path currently uses.
-        XCTAssertTrue(giteaScript.contains("/opt/actions-runner"))
-        XCTAssertTrue(giteaScript.contains("--url 'https://gitea.example.com'"))
+        // Linux Gitea registration uses the gitea-runner binary baked at /opt/gitea-runner (`register`, then
+        // `daemon`), not the GitHub Actions runner's config.sh. A live Gitea → Docker run found the old script
+        // failing with "./config.sh: No such file or directory".
+        XCTAssertTrue(giteaScript.contains("/opt/gitea-runner/gitea-runner\" register --no-interactive"))
+        XCTAssertTrue(giteaScript.contains("--instance 'https://gitea.example.com'"))
+        XCTAssertFalse(giteaScript.contains("config.sh"))
     }
 
     func testRegistrationScriptHonorsARouteImageForHumanMessages() async throws {

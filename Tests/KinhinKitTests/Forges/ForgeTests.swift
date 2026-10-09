@@ -307,27 +307,22 @@ final class ForgeTests: XCTestCase {
         XCTAssertTrue(script.contains("--token 'T'"))
         XCTAssertTrue(script.contains("--name 'kinhin-1'"))
         XCTAssertTrue(script.contains("--labels 'macos:host'"))
-        XCTAssertTrue(script.contains("--ephemeral=true"))
-        XCTAssertTrue(script.contains("~/gitea-runner"))
-        XCTAssertTrue(script.contains("nohup ./gitea-runner run"))
-        XCTAssertTrue(script.contains("gitea-runner register"))
+        XCTAssertTrue(script.contains("\"$HOME/gitea-runner/gitea-runner\" register --no-interactive"))
+        XCTAssertTrue(script.contains("\"$HOME/gitea-runner/gitea-runner\" daemon"))
+        XCTAssertFalse(script.contains("gitea-runner run"), "gitea-runner has no `run` command (it is `daemon`)")
+        XCTAssertFalse(script.contains("gitea-runner remove"), "gitea-runner has no `remove` command")
         XCTAssertFalse(script.contains("-r2"))
     }
 
     func testGiteaRegistrationScriptMultipleRunners() {
-        // The macOS Gitea registration script currently registers a single runner
-        // regardless of runnerCount (it only uses runnerCount for the --ephemeral
-        // flag). Multi-runner Gitea support is a follow-up; this test asserts the
-        // current single-runner behavior with runnerCount > 1.
+        // One working directory (and so one `.runner` file) and one daemon per runner.
         let script = RunnerBootstrap.giteaRegistrationScript(
             instance: "https://g.example.com", token: "T", labels: ["macos:host"], name: "vm", runnerCount: 3
         )
-        XCTAssertTrue(script.contains("--name 'vm'"))
-        XCTAssertTrue(script.contains("--ephemeral=false"))
-        XCTAssertTrue(script.contains("cd ~/gitea-runner"))
-        XCTAssertTrue(script.contains("nohup ./gitea-runner run"))
-        XCTAssertEqual(script.components(separatedBy: "nohup ./gitea-runner run").count - 1, 1, "one daemon only today")
-        XCTAssertFalse(script.contains("-r2"))
+        XCTAssertTrue(script.contains("--name 'vm-r1'"))
+        XCTAssertTrue(script.contains("--name 'vm-r3'"))
+        XCTAssertEqual(script.components(separatedBy: "gitea-runner\" daemon").count - 1, 3)
+        XCTAssertEqual(script.components(separatedBy: "gitea-runner\" register").count - 1, 3)
     }
 
     func testGiteaRunnerInstallScriptDownloadsDarwinArm64() {

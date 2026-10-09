@@ -20,13 +20,16 @@ enum RunCommands {
             print("\nstopping…")
             Task {
                 await engine.stop()
-                // The signal handler owns process shutdown: the main queue is
-                // parked in dispatchMain(), so there is no caller to return to.
+                // The signal handler owns process shutdown: this task is parked
+                // forever below, so there is no caller to return to.
                 exit(0)
             }
         }
         signalSource.resume()
-        dispatchMain()
+        // Park without `dispatchMain()`: it traps ("called from a block on the main queue" / "must be called on the
+        // main thread") now that `main` is async, depending on which executor resumed us. A continuation nobody
+        // resumes suspends this task and leaves the main queue free to deliver the SIGINT source.
+        await withUnsafeContinuation { (_: UnsafeContinuation<Void, Never>) in }
     }
 
     static func stop(_ args: [String]) async throws {
