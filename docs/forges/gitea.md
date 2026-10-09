@@ -12,7 +12,7 @@ How kinhin talks to Gitea Actions and Forgejo Actions, and how that compares wit
 | Hosting | Self-hosted (Gitea, Forgejo) or hosted (gitea.com, codeberg.org). `instance` is required. |
 | Scope | `owner/name` or an org. `actionsBase` is `/api/v1/repos/{scope}/actions` or `/api/v1/orgs/{scope}/actions` (`GiteaClient.swift:32-36`). |
 | Source | `Sources/KinhinKit/Forges/GiteaClient.swift`, `GiteaForge.swift`, `GiteaModels.swift` |
-| Live-tested | Gitea 1.24 on Docker, by the [end-to-end suite](../e2e-testing.md) (job runs in the guest, runner deregistered, instance deleted). Forgejo has a fixture but no recorded run. Unit tests stub HTTP (`StubProtocol`); `FakeGitea` in `KinhinTestSupport` is pinned to `GiteaForge` by contract tests. |
+| Live-tested | Gitea 1.24 and 1.26 on Docker, by the [end-to-end suite](../e2e-testing.md) (job runs in the guest, runner deregistered, instance deleted). Forgejo has a fixture but no recorded run. Unit tests stub HTTP (`StubProtocol`); `FakeGitea` in `KinhinTestSupport` is pinned to `GiteaForge` by contract tests. |
 
 ## Auth
 
@@ -90,7 +90,7 @@ Built by diffing the swagger specs shipped in each release (`templates/swagger/v
 
 | Item | Affects | Detail |
 |---|---|---|
-| Registration-token method | Gitea ≥ 1.26 | Only POST exists; kinhin sends GET. Forgejo needs GET (no POST). The method must follow the server. |
+| Registration-token method | Gitea ≥ 1.26 | **Fixed, verified live on 1.26.4.** Only POST exists there; kinhin sends GET first and falls back to POST on a 404 or 405. Forgejo and Gitea ≤ 1.25 answer GET. |
 | Runner list and delete | Gitea < 1.24, Forgejo through at least v14 | Endpoints absent, so `listRunners` and `deleteRunner` get a 404. |
 | `/actions/tasks` | Gitea < 1.23, Forgejo < 11 | Endpoint absent. |
 | Demand source | Gitea ≥ 1.25, Forgejo ≥ 11 | Better endpoints exist: Gitea `/actions/jobs?status=`, Forgejo `/actions/runners/jobs?labels=`. |
@@ -98,9 +98,9 @@ Built by diffing the swagger specs shipped in each release (`templates/swagger/v
 
 ## Audit findings
 
-These are mismatches between the code and the published specs. None were checked against a live Gitea or Forgejo; the existing comment at `GiteaClient.swift:187` says the task queue was "verified on the target instance in the field", so a live check is needed before changing behavior.
+These are mismatches between the code and the published specs. Only the registration-token method (item 1) has been checked against live servers (Gitea 1.24, 1.25 and 1.26); the existing comment at `GiteaClient.swift:187` says the task queue was "verified on the target instance in the field", so a live check is needed before changing behavior.
 
-1. **Registration-token method breaks on Gitea 1.26+.** The spec for 1.26 lists only `POST …/runners/registration-token`; GET was removed after 1.25. kinhin always sends GET (`GiteaClient.swift:73`). Forgejo is the opposite: GET only. Fix needs a per-forge (or per-version) method.
+1. **Registration-token method breaks on Gitea 1.26+. Fixed.** The spec for 1.26 lists only `POST …/runners/registration-token`; GET was removed after 1.25, and a live 1.26.4 server answers GET with 404 "Runner not found". `GiteaClient.fetchRegistrationToken()` now sends GET first and retries with POST on a 404 or 405 (Forgejo and Gitea ≤ 1.25 answer GET; a real not-found fails on both). Probed on 1.24.7, 1.25.5 and 1.26.4, and the e2e lifecycle passes on 1.26.4.
 2. **Task list response shape differs from the spec.** The spec's `ActionTaskResponse` is `{ "total_count", "workflow_runs": [...] }` and `ActionTask` has no `runner_name`. The decoder (`GiteaClient.swift:~296-358`) reads `entries` and `runner_name`. If a real server follows the spec, entries decode as empty, demand falls back to `total_count`, and running-task attribution never matches.
 3. **`status` query parameter is not in the spec.** No Gitea release documents `status` on `/actions/tasks` (Forgejo adds it only on trunk). On a server that ignores it, `status=waiting` and `status=running` return the same list, so `total_count` is not a queue length. Gitea's own `/actions/jobs?status=waiting` (1.25+) and Forgejo's `/actions/runners/jobs?labels=` (11+) are the documented ways to read queued jobs, and the Forgejo one also filters by label.
 4. **Runner list and delete need newer servers** than the setup guide implies (Gitea 1.24+, Forgejo trunk only).

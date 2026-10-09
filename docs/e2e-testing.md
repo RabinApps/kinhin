@@ -49,7 +49,7 @@ Narrow the matrix with environment variables:
 
 - Apple Silicon, with **Docker** (Docker Desktop, OrbStack or Colima), and/or the `container` CLI, and/or Tart.
   Lanes whose runtime is missing are skipped.
-- Plenty of free disk. Forge images, runner images and the Docker VM's own disk add up; a full Docker VM makes pulls
+- Plenty of free disk (the Docker VM filled up once during this work and silently broke pulls and container starts). Forge images, runner images and the Docker VM's own disk add up; a full Docker VM makes pulls
   fail with `no space left on device`.
 - A LAN address. Containers cannot reach the host's `localhost`, so the suite addresses its forges by the Mac's
   address (plain http, with `allow_insecure_http: true` in the sandbox config).
@@ -120,7 +120,7 @@ Follow [adding-a-forge.md](adding-a-forge.md), then:
 - **Gitea 1.24 and Forgejo 11 show no queued job until a runner exists.** Their task API lists a task only after a
   runner asks for it, so with `min_runners: 0` kinhin never sees the work. The suite runs those forges with
   `min_runners: 1` (a warm runner) and pins the blind spot in `FleetBehaviorTests.giteaWithoutFloorIsBlind`. Gitea
-  1.25 added `/actions/jobs?status=waiting`, which kinhin does not use yet.
+  1.25 and later have `/actions/jobs?status=waiting` (probed live on 1.25.5 and 1.26.4), which kinhin does not use yet; using it would remove the floor there.
 
 ## What the first live runs found
 
@@ -136,7 +136,10 @@ Running one real job end to end exposed these. Each now has a fix and a regressi
    kinhin-docker` could not match.
 4. **`kinhin config init` failed on a pristine machine** ("The folder "config.yaml" doesn't exist") and wrote the
    config world-readable.
-5. The Gitea blind spot above, which is a limitation rather than a defect.
+5. **Gitea 1.26 could not be used at all.** It dropped `GET` for the runner registration token (404 "Runner not found";
+   only `POST` works), and kinhin sent `GET`. The client now falls back to `POST`. Found by probing 1.24, 1.25 and 1.26
+   and verified with the lifecycle suite on 1.26.4.
+6. The Gitea blind spot above, which is a limitation rather than a defect.
 
 ## Status
 
@@ -145,9 +148,10 @@ What has actually been run, so the table does not claim more than it checked:
 | Lane                                  | Status                                                                      |
 | ------------------------------------- | --------------------------------------------------------------------------- |
 | Quick tier (CLI, security, coverage)  | Run, passing                                                                |
-| Gitea on Docker                       | Run, passing (lifecycle, failing job)                                       |
+| Gitea 1.24 and 1.26 on Docker         | Run, passing (lifecycle, failing job)                                       |
+| Gitea 1.25                            | Endpoints probed live; lifecycle **not run**                                |
 | Forgejo on Docker, Gitea/Forgejo on Apple container, fleet behavior, toolchains | See the latest run notes in the pull request |
-| GitLab CE                             | Fixture written, **not run**: the image pull ran the Docker VM out of disk   |
+| GitLab CE                             | Fixture written, **not run**: the first image pull ran the Docker VM out of disk (since cleared) |
 | GitHub                                | Fixture written, **not run**: needs a throwaway repository and a token       |
 | Buildkite, Azure DevOps, Bitbucket    | Waived: hosted-only control planes; the fixture protocol is ready for them   |
 | Tart macOS lane                       | Wired (`KINHIN_E2E_TART_BASE`), **not run**                                  |

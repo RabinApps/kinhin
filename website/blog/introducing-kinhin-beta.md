@@ -17,7 +17,7 @@ It is a beta, and the honest summary is short:
 
 |  | State today |
 | -- | -- |
-| **Works, run for real** | GitHub Actions on Tart macOS VMs. GitHub Actions on apple/container (Linux jobs). Gitea Actions on Docker (Linux jobs, Gitea 1.24). |
+| **Works, run for real** | GitHub Actions on Tart macOS VMs. GitHub Actions on apple/container (Linux jobs). Gitea Actions on Docker (Linux jobs, Gitea 1.24 and 1.26). |
 | **Written and unit-tested, never run against a real server** | Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket. Tart Linux VMs. Host mode. |
 | **Hard limit** | Apple allows two macOS guest VMs at once on a Mac, whatever the hardware. Linux containers are not capped by it. |
 
@@ -69,9 +69,9 @@ Orka and GitLab's Tart executor each solve part of the same problem, and the
 **Yes, if** you run GitHub Actions, have an Apple Silicon Mac you control, and mostly run your own trusted code. This is
 the path that has been run for real, with Tart macOS VMs or apple/container for Linux.
 
-**Maybe, if** you use Gitea with Docker for Linux jobs. It ran for real on Gitea 1.24, but there is one caveat: Gitea 1.24
-shows no queued job to the API until a runner exists, so you must set `min_runners: 1` (one warm runner). Newer Gitea
-reports queued jobs differently, and kinhin does not use that yet.
+**Maybe, if** you use Gitea with Docker for Linux jobs. It ran for real on Gitea 1.24 and 1.26, but there is one caveat: those
+versions show no queued job to the API until a runner exists, so you must set `min_runners: 1` (one warm runner). Gitea
+1.25 and later have an endpoint that would remove this, and kinhin does not use it yet.
 
 **Not yet, if** you need Forgejo, GitLab, Buildkite, Azure DevOps or Bitbucket, Tart Linux VMs or host mode in anything
 you depend on. They are written and unit-tested, and I have not watched them work. Try them on something disposable and
@@ -106,7 +106,7 @@ I use two words precisely:
 | ---- | --------------- |
 | GitHub Actions + Tart macOS VMs | Live-tested |
 | GitHub Actions + apple/container (Linux jobs) | Live-tested |
-| Gitea Actions + Docker containers (Linux jobs) | Live-tested, by the end-to-end suite (Gitea 1.24) |
+| Gitea Actions + Docker containers (Linux jobs) | Live-tested, by the end-to-end suite (Gitea 1.24 and 1.26) |
 | Forgejo | Unit-tested only. Same code path as Gitea, and an e2e fixture exists, but there is no recorded passing run. |
 | GitLab (gitlab.com and self-managed) | Unit-tested only |
 | Buildkite, Azure DevOps, Bitbucket | Unit-tested only |
@@ -137,7 +137,7 @@ own: running it found a hang in its own cleanup this week, which is the same les
 
 ### What running the real thing found
 
-The first real Gitea job found four bugs, and several unit tests had been pinning the wrong behavior as correct:
+The first real Gitea job found four bugs, probing newer Gitea found a fifth, and several unit tests had been pinning the wrong behavior as correct:
 
 - **`kinhin start` crashed on launch on macOS 27.** It parked the main thread in a way libdispatch now refuses.
 - **Gitea and Forgejo runners were registered with the wrong program.** The container script ran the GitHub runner's
@@ -145,6 +145,9 @@ The first real Gitea job found four bugs, and several unit tests had been pinnin
   One unit test asserted the wrong script with a comment admitting it.
 - **A Docker pool never advertised `kinhin-docker`** for Gitea, so `runs-on: kinhin-docker` could never match.
 - **`kinhin config init` failed on a fresh machine** and wrote the config readable by other users.
+- **Gitea 1.26 could not register runners at all.** It removed the `GET` request kinhin used to fetch a registration
+  token (it answers 404, and only `POST` works). I found this by probing 1.24, 1.25 and 1.26. kinhin now tries `GET`
+  and falls back to `POST`, and the end-to-end suite passes on 1.26.4.
 
 My own pass on October 1 found others: a 404 on GitHub organization runners, SSH not being ready when `tart ip` said it
 was, an organization's repositories being invisible past the first 20, and a Tart CLI change that broke image detection.
@@ -170,8 +173,8 @@ ThreadSanitizer run. You should weigh that however you like. It is also why the 
 I have one Mac, one GitHub setup, and a finite supply of evenings. The fastest way to improve this beta is to run the parts
 I could not. In rough order of value:
 
-1. **Forgejo, and Gitea on other versions and runtimes.** I have run Gitea 1.24 on Docker. I want Forgejo, newer Gitea
-   (1.25 and later report queued jobs differently), and Gitea on Tart and apple/container.
+1. **Forgejo, and Gitea on other versions and runtimes.** I have run Gitea 1.24 and 1.26 on Docker. I want Forgejo, Gitea 1.25,
+   and Gitea on Tart and apple/container.
 2. **GitLab.** Both gitlab.com and a self-managed instance. They differ, and I have run neither.
 3. **Docker for Linux jobs** with GitHub or GitLab, and with OrbStack or colima. I have used Docker Desktop with Gitea.
 4. **Buildkite, Azure DevOps and Bitbucket Pipelines.** Real accounts, even a free tier and a single job.

@@ -7,6 +7,7 @@
 - **Fix — Gitea/Forgejo pools ignored their own labels**, so `runs-on: kinhin-docker` never matched. The pool's labels now win, as for GitHub.
 - **Fix — `kinhin start` crashed on macOS 27** (`dispatch_main` called from a main-queue block). It now waits on a continuation.
 - **Fix — `kinhin config init` failed on a fresh machine** and wrote the config world-readable. It now creates the support directory and writes the file owner-only.
+- **Fix — Gitea 1.26 could not register runners.** It removed `GET` for the runner registration token (404 "Runner not found"; only `POST` works). kinhin now sends `GET` and falls back to `POST` on a 404 or 405, so Gitea 1.22 to 1.26 and Forgejo all work. Found by probing 1.24, 1.25 and 1.26; verified with the e2e lifecycle on 1.26.4.
 - Known limitation: Gitea 1.24 reports no queued job until a runner exists, so Gitea needs `min_runners: 1`.
 
 - **Submit an issue.** `kinhin issue` opens GitHub's issue chooser in the browser (`--print` prints the URL, `--json` prints it as JSON), and Advanced → Settings has a **Feedback** card with the same link.
