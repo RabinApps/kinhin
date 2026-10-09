@@ -222,6 +222,12 @@ doctor and setup check titles and details, pipeline timing, runtime health notes
 ready-made English `String`s and is shown as is, and the CLI is English only; both belong to later phases of
 [docs/plans/multi-locale.md](docs/plans/multi-locale.md). `docs/`, `website/` and `skills/` are English-only by policy.
 
+## Brand assets
+
+The logo (a black ring on white) lives in `assets/brand/`. The iconset, `AppIcon.icns` and the website favicons,
+touch icon and social image are generated: edit the geometry in `scripts/make-icons.swift`, run
+`swift scripts/make-icons.swift`, and commit the output. Don't hand-edit generated files.
+
 ## Commits
 
 Keep mechanical changes (moves, renames, formatting) in separate commits from behavior changes. `swift build` and `swift test` must pass on every commit.

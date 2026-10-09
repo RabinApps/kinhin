@@ -47,6 +47,70 @@ runtime whose prerequisites are healthy on this Mac, configured or not; a runtim
 - Tools with no meaningful offline workload (`playwright`, `cypress`, `fastlane`, `netlify-cli`, `k9s`, `pulumi`,
   `vault`, …) are verify-only and say why.
 
+## Example results
+
+Measured on a MacBook with an **Apple M1 Max, 10 cores and 64 GB of RAM**, macOS 27 with Xcode 27.0. Tart VMs had
+4 vCPUs and 8 GB (with `tart_softnet: true`), Apple container 1 vCPU and 4 GB, Docker 2 vCPUs and 4 GB, all
+`linux/arm64`. Unless noted these are `--quick` runs, so each number is a single sample. Your Mac, image and load will
+differ: use them to see the shape of the report, not as a promise.
+
+**Boot** (`kinhin bench boot`, thorough, 2 iterations for Tart):
+
+| Runtime         | Phase                        | Median  |
+| --------------- | ---------------------------- | ------- |
+| Tart (macOS VM) | `clone`                      | 74 ms   |
+|                 | `boot-to-IP`                 | 1.1 s   |
+|                 | `IP-to-SSH-ready`            | 30.9 s  |
+|                 | `cold-boot-total`            | 32.0 s  |
+|                 | `warm-stop` / `warm-boot`    | 0.5 s / 10.6 s |
+| Apple container | `start` / `exec-ready`       | 2.1 s / 112 ms |
+| Docker          | `start` / `exec-ready`       | 268 ms / 102 ms |
+
+The Tart `IP-to-SSH-ready` figure includes the 30 s window kinhin spends trying to pin the guest's SSH host key
+through the guest agent; the near-identical 31 s in both iterations suggests this test image's guest agent did not answer, so the
+full window elapsed before the connection was made (see [Security](security.md)).
+
+**Casual, Xcode and Large** (Tart macOS VM versus a Docker container; `swift build` and Xcode need the macOS guest):
+
+| Step                 | Tart (macOS) | Docker (Linux) |
+| -------------------- | ------------ | -------------- |
+| `exec-overhead`      | 161 ms       | 64 ms          |
+| `file-create`        | 237 MB/s     | 647 MB/s       |
+| `tar-gzip`           | 38.9 MB/s    | 42.9 MB/s      |
+| `untar`              | 325 MB/s     | 193 MB/s       |
+| `checksum`           | 151 MB/s     | 224 MB/s       |
+| `git-commit`         | 296 ms       | 109 ms         |
+| `swift-build`        | 16.5 s       | skipped (no Swift in the image) |
+| Xcode `clean-build`  | 13.1 s       | n/a            |
+| Xcode `incremental-build` | 3.2 s   | n/a            |
+| `disk-write`         | 750 MB/s     | 569 MB/s       |
+| `disk-read` (cached) | 2.9 GB/s     | 2.7 GB/s       |
+| `cpu-gzip`           | 163 MB/s     | 53 MB/s        |
+| `git-clone` (`--network`, shallow) | not run | 1.0 s |
+
+**Toolchains** (`kinhin bench toolchains --thorough`, one fresh Docker container per tool, cold install with no shared
+cache):
+
+| Tool       | Install | Workload                    |
+| ---------- | ------- | --------------------------- |
+| `typescript` | 4.7 s | `tsc`, 318 ms (node already present) |
+| `bun`      | 11.6 s  | script, 132 ms              |
+| `just`     | 11.5 s  | `just`, 80 ms               |
+| `helm`     | 11.5 s  | `helm create` + `template`, 123 ms |
+| `terraform` | 12.3 s | `validate`, 121 ms          |
+| `node`     | 13.8 s  | script, 101 ms              |
+| `go`       | 14.2 s  | `go build`, 3.6 s           |
+| `dotnet`   | 16.5 s  | `dotnet new` + `build`, 6.5 s |
+| `python`   | 18.0 s  | script, 252 ms              |
+| `java`     | 22.0 s  | `javac` + `java`, 487 ms    |
+| `zig`      | 24.5 s  | `zig run`, 8.6 s            |
+| `julia`    | 27.0 s  | script, 309 ms              |
+| `maven`    | 43.3 s  | `mvn validate`, 966 ms      |
+
+The same run reported tools that did not install in that container image as `failed` rows with the installer's output
+(`elixir` needs `erl`, `lua` needs a C toolchain to build, `swift` failed extracting its archive), and `cmake` and `rust`
+as verify-only because the image has no C compiler. That is the point of the table: it doubles as an install check.
+
 ## Flags
 
 | Flag                              | Meaning                                                                                  |

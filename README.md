@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/brand/AppIcon.iconset/icon_128x128@2x.png" alt="kinhin" width="96"></p>
+
 # kinhin ○
 
 **The mindful CI — autoscaling runners that live on your Mac: GitHub Actions, GitLab CI/CD, Gitea/Forgejo Actions, Buildkite, Azure Pipelines, and Bitbucket Pipelines.**

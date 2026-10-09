@@ -29,7 +29,11 @@ export default defineConfig({
     "The mindful CI — autoscaling CI runners that live on your Mac. " +
     "macOS jobs on Tart VMs, Linux jobs on apple/container microVMs or Docker.",
   head: [
-    ["link", { rel: "icon", type: "image/svg+xml", href: `${base}enso.svg` }],
+    ["link", { rel: "icon", type: "image/svg+xml", href: `${base}favicon.svg` }],
+    ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: `${base}favicon-32.png` }],
+    ["link", { rel: "apple-touch-icon", href: `${base}apple-touch-icon.png` }],
+    ["meta", { property: "og:image", content: `${base}og.png` }],
+    ["meta", { name: "twitter:card", content: "summary_large_image" }],
   ],
 
   // docs/ is the single source for the guides: the site reads the repo root and publishes only
@@ -38,7 +42,7 @@ export default defineConfig({
   srcDir: "..",
   srcExclude: [
     "*.md",
-    "{Sources,Tests,Plugins,scripts,dist,shots}/**",
+    "{Sources,Tests,Plugins,scripts,dist,shots,assets}/**",
     "**/node_modules/**",
     "docs/plans/**",
     "docs/{app,adding-a-forge}.md",
@@ -93,7 +97,8 @@ export default defineConfig({
   },
 
   themeConfig: {
-    siteTitle: "kinhin ○",
+    logo: "/mark.svg",
+    siteTitle: "kinhin",
     nav: [
       { text: "Guide", link: "/guide/quick-start" },
       { text: "CLI", link: "/cli/commands" },
