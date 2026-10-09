@@ -57,6 +57,47 @@ final class ForgeTests: XCTestCase {
             "\(paths.withLock { $0 })")
     }
 
+    /// Gitea 1.26 answers GET with 404 "Runner not found" and only accepts POST (found against 1.26.4 by the e2e
+    /// suite); 1.22 to 1.25 and Forgejo answer GET. The client tries GET and falls back to POST.
+    func testGiteaRegistrationTokenFallsBackToPostWhenGetIsGone() async throws {
+        let methods = Mutex<[String]>([])
+        StubProtocol.handler = { request in
+            let method = request.httpMethod ?? "?"
+            methods.withLock { $0.append(method) }
+            if method == "GET" { return (404, Data("{\"message\":\"Runner not found\"}".utf8), [:]) }
+            return (200, Data("{\"token\":\"post-token\"}".utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        let token = try await makeGiteaClient(scope: "acme/widgets").fetchRegistrationToken()
+        XCTAssertEqual(token, "post-token")
+        XCTAssertEqual(methods.withLock { $0 }, ["GET", "POST"])
+    }
+
+    func testGiteaRegistrationTokenUsesOnlyGetWhenGetWorks() async throws {
+        let methods = Mutex<[String]>([])
+        StubProtocol.handler = { request in
+            methods.withLock { $0.append(request.httpMethod ?? "?") }
+            return (200, Data("{\"token\":\"get-token\"}".utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        _ = try await makeGiteaClient(scope: "acme/widgets").fetchRegistrationToken()
+        XCTAssertEqual(methods.withLock { $0 }, ["GET"], "a working GET must not trigger a POST")
+    }
+
+    func testGiteaRegistrationTokenReportsARealNotFoundAfterBothMethodsFail() async throws {
+        StubProtocol.handler = { _ in (404, Data("{\"message\":\"not found\"}".utf8), [:]) }
+        defer { StubProtocol.handler = nil }
+
+        do {
+            _ = try await makeGiteaClient(scope: "acme/missing").fetchRegistrationToken()
+            XCTFail("a scope that does not exist must still fail")
+        } catch let error as ForgeAPIError {
+            guard case .notFound = error else { return XCTFail("expected notFound, got \(error)") }
+        }
+    }
+
     func testGiteaAuthHeaderUsesTokenScheme() async throws {
         let auth = Mutex<String?>(nil)
         StubProtocol.handler = { request in

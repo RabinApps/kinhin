@@ -73,7 +73,20 @@ public struct GiteaClient: Sendable {
     /// Mint a runner registration token for the scope. The same call doubles
     /// as the permission probe (free, idempotent, registers nothing).
     public func fetchRegistrationToken() async throws -> String {
-        let (data, _) = try await send(path: "\(credentials.actionsBase)/runners/registration-token")
+        let path = "\(credentials.actionsBase)/runners/registration-token"
+        let data: Data
+        do {
+            // GET is what Gitea up to 1.25 and every Forgejo release answer.
+            data = try await send(path: path).0
+        } catch let error as ForgeAPIError {
+            // Gitea 1.26 dropped GET: it answers 404 "Runner not found" and only accepts POST (found by running the
+            // e2e suite against 1.26.4). A real 404 (wrong scope, Actions off) fails again on POST with the same
+            // error, so falling back never hides it.
+            switch error {
+            case .notFound, .http(_, 405, _): data = try await send(path: path, method: "POST").0
+            default: throw error
+            }
+        }
         do {
             struct TokenResponse: Decodable { let token: String }
             return try JSONDecoder().decode(TokenResponse.self, from: data).token
