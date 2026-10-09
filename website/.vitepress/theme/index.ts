@@ -1,6 +1,7 @@
 import { h, onBeforeUnmount, onMounted, onUpdated, nextTick } from "vue";
 import DefaultTheme from "vitepress/theme";
 import type { Theme } from "vitepress";
+import GitHubActions from "./GitHubActions.vue";
 import "./version-banner.css";
 
 function addDiagramExpandButtons(): void {
@@ -520,6 +521,8 @@ export default {
                   "beta",
                 )
               : null,
+          "nav-bar-content-after": () => h(GitHubActions),
+          "nav-screen-content-after": () => h(GitHubActions),
           "layout-top": () =>
             __DOCS_VERSION__
               ? h("div", { class: "version-banner" }, [
