@@ -5,6 +5,7 @@ public enum VMPhase: String, Codable, Sendable, CaseIterable {
     case cloning  // tart clone running
     case booting  // tart run launched, waiting for IP
     case registering  // SSH: config.sh + run.sh in flight
+    case warm  // booted and SSH-ready, not registered: waiting to be claimed for a job
     case ready  // registered on GitHub, waiting for a job
     case busy  // runner picked up a job (busy=true)
     case deleting  // teardown in progress
@@ -12,7 +13,7 @@ public enum VMPhase: String, Codable, Sendable, CaseIterable {
 
     public var isActive: Bool {
         switch self {
-        case .cloning, .booting, .registering, .ready, .busy: return true
+        case .cloning, .booting, .registering, .warm, .ready, .busy: return true
         case .deleting, .failed: return false
         }
     }

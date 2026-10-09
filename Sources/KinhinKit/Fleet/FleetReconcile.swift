@@ -55,6 +55,9 @@ extension FleetEngine {
                 if r.phase == .cloning {
                     r.phase = .booting
                 }
+                // A warm instance may have been stopped with the host: re-run boot to check it (it
+                // returns to `warm` through the pooled flag).
+                if r.phase == .warm { r.phase = .booting }
                 // Records from builds that did not store a runtime.
                 if r.runtime == nil { r.runtime = owner.rawValue }
                 kept.append(r)
@@ -323,7 +326,8 @@ extension FleetEngine {
                 attached: Set(attached.map(\.account)), failedForges: demand.failedForges,
                 runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
                 maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
-                heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime))
+                heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
+                warmPool: config.warmPool, warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60))
     }
 
     /// Publishes the desired count with the caps and records into the status snapshot.
@@ -362,16 +366,28 @@ extension FleetEngine {
         if !slots.isEmpty, spawnBackoff.withLock({ $0.blocked(now: Date()) }).isEmpty {
             Log.info("engine", "scaling up: \(plan.active) active, want \(plan.target) (queue \(demand.queueDepth))")
         }
+        for id in plan.evict { scheduleDelete(id: id, reason: "warm instance evicted") }
+        var claims = plan.claims[...]
         for slot in slots {
+            let image = slot.runtime == .tart ? chooseImage(demand: demand) : nil
+            // A warm instance is cloned from the base image, so only a base-image job can claim one.
+            if image == nil, slot.runtime == .tart, let warmID = claims.popFirst() {
+                claimWarm(id: warmID, account: slot.account)
+                continue
+            }
             var record = VMRecord(id: VMRecord.newName(), phase: .cloning)
             record.platform = slot.account
             record.runtime = slot.runtime.rawValue
-            if slot.runtime == .tart { record.image = chooseImage(demand: demand) }
+            record.image = image
             store.upsert(record)
             // The lifecycle waits its turn at the engine's `SpawnPacer`, so disk I/O does not
             // stampede; the pass itself never sleeps.
             spawnLifecycle(for: record)
         }
+        // Unused claims (their slot needed a derived image, or the disk held it back) would
+        // overflow the cap: release them.
+        for id in claims { scheduleDelete(id: id, reason: "warm instance not needed") }
+        await topUpWarmPool(plan.warmSpawn, diskBlocked: diskPressureMessage != nil)
         if let diskPressureMessage {
             Log.warn("engine", diskPressureMessage)
             await statusBox.modify { status in
@@ -385,6 +401,25 @@ extension FleetEngine {
                 status.setAlert("disk", nil)
                 status.diskPressureNotice = nil
             }
+        }
+    }
+
+    /// Starts `count` warm instances (cloned and booted, never registered) unless the disk is short.
+    func topUpWarmPool(_ count: Int, diskBlocked: Bool) async {
+        guard count > 0, !diskBlocked else { return }
+        let free = hostProbe().freeDiskGB
+        let perVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: .tart)
+        let slots = ScalePlan.admitByDisk(
+            Array(repeating: ScalePlan.Slot(account: "", runtime: .tart), count: count), freeDiskGB: free,
+            reserveGB: config.reserve.diskGB, diskPerInstanceGB: { _ in perVM }
+        ).admitted
+        for _ in slots {
+            var record = VMRecord(id: VMRecord.newName(), phase: .cloning)
+            record.runtime = RuntimeID.tart.rawValue
+            record.pooled = true
+            store.upsert(record)
+            Log.info(record.id, "starting warm instance")
+            spawnLifecycle(for: record)
         }
     }
 

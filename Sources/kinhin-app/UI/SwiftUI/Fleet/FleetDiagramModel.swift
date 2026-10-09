@@ -183,6 +183,9 @@ struct FleetDiagramModel {
             case .busy:
                 symbol = "bolt.fill"
                 style = .ok
+            case .warm:
+                symbol = "flame"
+                style = .secondary
             case .ready:
                 symbol = "checkmark.circle"
                 style = .secondary
@@ -225,6 +228,9 @@ struct FleetDiagramModel {
         switch record.phase {
         case .busy:
             return String(localized: "busy, running a job", bundle: .l10n, comment: "VoiceOver phase description")
+        case .warm:
+            return String(
+                localized: "warm, waiting to be claimed", bundle: .l10n, comment: "VoiceOver phase description")
         case .ready:
             return String(localized: "ready, waiting for a job", bundle: .l10n, comment: "VoiceOver phase description")
         case .cloning, .booting, .registering:

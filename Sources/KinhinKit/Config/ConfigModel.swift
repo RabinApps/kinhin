@@ -25,6 +25,11 @@ public struct KinhinConfig: Sendable, Equatable {
     public var minRunners: Int
     /// Hard upper bound on simultaneous VMs.
     public var maxRunners: Int
+    /// VMs kept booted and SSH-ready but not yet registered, so a job skips clone and boot.
+    /// They occupy slots under `maxRunners`. 0 = off.
+    public var warmPool: Int = 0
+    /// A warm VM older than this many minutes is recycled so it does not drift stale.
+    public var warmMaxAgeMinutes: Int = 60
     /// Runner processes per VM (many-to-one: one VM serves this many jobs
     /// concurrently). 1 = classic one-runner-per-VM.
     public var runnersPerVM: Int
@@ -259,6 +264,8 @@ public struct KinhinConfig: Sendable, Equatable {
         case labels, image, images, baseImage = "base_image"
         case minRunners = "min_runners"
         case maxRunners = "max_runners"
+        case warmPool = "warm_pool"
+        case warmMaxAgeMinutes = "warm_max_age_minutes"
         case runnersPerVM = "runners_per_vm"
         case pollInterval = "poll_interval"
         case autoResume = "auto_resume"

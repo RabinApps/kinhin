@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Warm pool.** `warm_pool: N` keeps `N` Tart VMs booted and SSH-ready but unregistered; a job claims one and skips clone and boot. Off by default. Warm VMs take slots under `max_runners`, are evicted when a job needs the slot, and are recycled after `warm_max_age_minutes`. New `warm` VM phase.
+
 - **Breaking — exit codes.** `status`, `stop`, `pause`, `resume`, `doctor` and `setup status` now follow one rule: 0 healthy, 1 needs attention, 2 usage error. `status` and `stop` exit 1 when no daemon is running (they used to exit 0), `pause`/`resume` exit 1 instead of 4, and `doctor`/`setup status` exit 1 until ready. Under `--json`, failures print `{"error":…,"code":…}` on stdout.
 - **Breaking — strict config.** Unknown keys in `config.yml` (top level and nested sections) are now an error with a "did you mean" hint, and omitted `max_runners` is 2 everywhere (the loader used 1). New optional `version:` key. `kinhin config migrate [--write]` translates the removed `repo:`, `gitea:`, `forgejo:` and `toolchains:` keys.
 - The CLI is driven by one command catalog: unknown commands/flags exit 2 with a usage line and a suggestion, `kinhin <command> --help` never runs the command, bare `kinhin` prints setup status and the next step, `setup status` is the normalized spelling of `setup-status`, and `auth set|add --token-stdin` reads the token from stdin.

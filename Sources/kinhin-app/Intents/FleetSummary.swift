@@ -188,6 +188,10 @@ enum FleetSummary {
         case .registering:
             return String(
                 localized: "VM \(id) is registering.", bundle: .l10n, comment: "Spoken VM diagnosis; %@ is a VM id")
+        case .warm:
+            return String(
+                localized: "VM \(id) is warm and waiting to be claimed for a job.", bundle: .l10n,
+                comment: "Spoken VM diagnosis; %@ is a VM id")
         case .ready:
             return String(
                 localized: "VM \(id) is ready and waiting for a job.", bundle: .l10n,

@@ -33,6 +33,19 @@ final class ConfigValidationMessagesTests: XCTestCase {
         XCTAssertFalse(why.contains("memoryGB"), why)
     }
 
+    func testWarmPoolParsesAndDefaultsToOff() throws {
+        XCTAssertEqual(try ConfigLoader.parse(Self.account).warmPool, 0)
+        let cfg = try ConfigLoader.parse("\(Self.account)\nwarm_pool: 1\nwarm_max_age_minutes: 30\n")
+        XCTAssertEqual(cfg.warmPool, 1)
+        XCTAssertEqual(cfg.warmMaxAgeMinutes, 30)
+    }
+
+    func testWarmPoolBeyondMaxRunnersIsRejected() {
+        let why = invalidMessage("\(Self.account)\nmax_runners: 2\nwarm_pool: 3\n")
+        XCTAssertTrue(why.contains("warm_pool"), why)
+        XCTAssertTrue(invalidMessage("\(Self.account)\nwarm_max_age_minutes: 1\n").contains("warm_max_age_minutes"))
+    }
+
     func testPollIntervalErrorIsNotGitHubSpecific() {
         let why = invalidMessage("\(Self.account)\npoll_interval: 1\n")
         XCTAssertTrue(why.contains("poll_interval"), why)

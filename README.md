@@ -22,7 +22,8 @@ runs jobs directly on the Mac, with no isolation.
 - **Ephemeral by default** — every job gets a freshly cloned VM; no state leaks between jobs.
 - **Multi-forge, multi-runtime** — seven forges and four runtimes in one fleet, routed per repo, workflow, or `runs-on:`
   label ([Forges](docs/forges.md), [Runtimes & routing](docs/runtimes.md)).
-- **Fast, dense, resource-aware** — linked clones boot in seconds, `runners_per_vm` packs small jobs onto one VM, and the
+- **Fast, dense, resource-aware** — linked clones boot in seconds, an opt-in [warm pool](docs/scaling.md#warm-pool)
+  (`warm_pool`) keeps booted VMs waiting so jobs skip the boot, `runners_per_vm` packs small jobs onto one VM, and the
   scaler never exceeds what your Mac can handle (`kinhin doctor`). Why: [Why kinhin](docs/why.md).
 - **Toolchains your way** — bake, pin per repo, or install per job ([Toolchains](docs/toolchains.md)).
 - **App, menu bar, or headless daemon** — same engine, same config ([The app](docs/app.md)).

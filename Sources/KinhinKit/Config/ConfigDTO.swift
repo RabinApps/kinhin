@@ -15,6 +15,8 @@ public struct PartialConfig: Decodable {
     var labels: [String]?
     var minRunners: Int?
     var maxRunners: Int?
+    var warmPool: Int?
+    var warmMaxAgeMinutes: Int?
     var runnersPerVM: Int?
     var pollInterval: Int?
     var autoResume: Bool?
@@ -213,6 +215,8 @@ public struct PartialConfig: Decodable {
         case labels
         case minRunners = "min_runners"
         case maxRunners = "max_runners"
+        case warmPool = "warm_pool"
+        case warmMaxAgeMinutes = "warm_max_age_minutes"
         case runnersPerVM = "runners_per_vm"
         case pollInterval = "poll_interval"
         case autoResume = "auto_resume"

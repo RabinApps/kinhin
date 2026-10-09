@@ -116,6 +116,7 @@ export default defineConfig({
         text: "Get started",
         items: [
           { text: "Why kinhin", link: "/guide/why-kinhin" },
+          { text: "Compare to other CI", link: "/guide/compare" },
           { text: "Quick start", link: "/guide/quick-start" },
           { text: "Install & updates", link: "/guide/install" },
           { text: "Configuration", link: "/guide/config" },

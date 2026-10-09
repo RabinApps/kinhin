@@ -2386,6 +2386,9 @@
     "VM %@ is still cloning." : {
       "comment" : "Spoken VM diagnosis; %@ is a VM id"
     },
+    "VM %@ is warm and waiting to be claimed for a job." : {
+      "comment" : "Spoken VM diagnosis; %@ is a VM id"
+    },
     "VM-grade isolation, no daemon, high density, 8 GB/instance — Debian/Ubuntu-based image only, no amd64, beta." : {
       "comment" : "Linux runtime comparison summary"
     },
@@ -2397,6 +2400,9 @@
     },
     "Want your logo here?" : {
       "comment" : "HintText in SponsorSheet"
+    },
+    "warm, waiting to be claimed" : {
+      "comment" : "VoiceOver phase description"
     },
     "Warning" : {
       "comment" : ".accessibilityLabel in BudgetCard"

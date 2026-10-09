@@ -61,6 +61,22 @@ cancelled on GitHub before a runner picks it up is not a failure: the idle insta
 GitHub reads are conditional, so a poll that finds nothing changed gets a 304, which doesn't count against the rate
 limit.
 
+## Warm pool
+
+`warm_pool: N` keeps `N` Tart VMs cloned, booted and SSH-ready but **not registered** with any forge. When a job
+arrives, the scaler claims a warm VM, binds it to the account that has the demand, and runs only the registration step,
+so the job skips `tart clone` and boot. With the default `0` the feature is off.
+
+- Warm VMs take slots under `max_runners` and count against the capacity cap, including Apple's limit of two macOS VMs
+  per Mac. They are evicted when a job needs the slot, so a warm VM never delays work that a cold start could serve.
+- The pool tops up only when nothing is queued and `min_runners` is met. In ephemeral mode the replacement for a
+  finished VM is started on the next pass, so the poll interval applies.
+- Only base-image Tart jobs claim a warm VM. Jobs routed to a per-project image, and the other runtimes, start cold.
+- A warm VM older than `warm_max_age_minutes` (default 60) is recycled. After a restart, warm VMs are re-checked rather
+  than trusted.
+
+This differs from `min_runners`, which keeps *registered* idle runners on the forge.
+
 ## Pausing and auto-resume
 
 A paused fleet doesn't spawn new instances. With `auto_resume: true` it keeps watching the queue while paused and

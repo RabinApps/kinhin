@@ -25,6 +25,13 @@ extension ConfigLoader {
         if maxRunners < minRunners {
             throw ConfigError.invalid("max_runners (\(maxRunners)) must be >= min_runners (\(minRunners))")
         }
+        let warmPool = partial.warmPool ?? defaults.warmPool
+        if warmPool < 0 { throw ConfigError.invalid("warm_pool must be >= 0") }
+        if warmPool > maxRunners {
+            throw ConfigError.invalid("warm_pool (\(warmPool)) must be <= max_runners (\(maxRunners))")
+        }
+        let warmMaxAge = partial.warmMaxAgeMinutes ?? defaults.warmMaxAgeMinutes
+        if warmMaxAge < 5 { throw ConfigError.invalid("warm_max_age_minutes must be >= 5") }
         let runnersPerVM = partial.runnersPerVM ?? defaults.runnersPerVM
         if runnersPerVM < 1 { throw ConfigError.invalid("runners_per_vm must be >= 1") }
         if runnersPerVM > 8 {
@@ -37,6 +44,8 @@ extension ConfigLoader {
         }
         cfg.minRunners = minRunners
         cfg.maxRunners = maxRunners
+        cfg.warmPool = warmPool
+        cfg.warmMaxAgeMinutes = warmMaxAge
         cfg.runnersPerVM = runnersPerVM
         cfg.pollInterval = poll
         cfg.autoResume = partial.autoResume ?? defaults.autoResume

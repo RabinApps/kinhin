@@ -36,6 +36,9 @@ register, clean up, and retire them.
   ([Eclectic Light](https://eclecticlight.co/2022/08/04/virtualisation-on-apple-silicon-macs-8-how-apple-limits-vms/),
   [Apple Developer Forums](https://developer.apple.com/forums/thread/830383)).
 
+Weighing kinhin against another tool, such as Woodpecker CI, Actions Runner Controller, Orchard or a hosted Mac service?
+See [Compare kinhin to other CI options](compare.md).
+
 ## What kinhin does instead
 
 kinhin watches the queued jobs on every forge you configure and scales a fleet of ephemeral runners to

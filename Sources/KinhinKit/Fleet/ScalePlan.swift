@@ -41,6 +41,11 @@ struct ScalePlan: Equatable {
         /// Runtimes that have a configured pool.
         var existingPools: Set<RuntimeID>
         var defaultRuntime: RuntimeID
+        /// Booted, unregistered instances to keep (Tart only); 0 = off.
+        var warmPool = 0
+        /// A warm instance older than this is recycled.
+        var warmMaxAge: TimeInterval = 3600
+        var now = Date()
     }
 
     /// Instances that should exist for the queue (published in the status).
@@ -54,6 +59,12 @@ struct ScalePlan: Equatable {
     var slots: [Slot]
     /// Idle instances to delete.
     var scaleDown: [String]
+    /// Warm instances to bind to the leading Tart slots instead of cloning, oldest first.
+    var claims: [String] = []
+    /// Warm instances to delete: stale, or in the way of a slot the cap needs.
+    var evict: [String] = []
+    /// Warm instances to start so the pool is full.
+    var warmSpawn = 0
     /// A surplus exists but an unreadable queue holds the scale-down.
     var scaleDownHeld: Bool
 
@@ -64,7 +75,11 @@ struct ScalePlan: Equatable {
         let desired = Autoscaler.desiredCount(
             queueDepth: queueDepth, minRunners: input.minRunners, maxRunners: input.maxRunners,
             capacityCap: input.capacityCap, runnersPerVM: rpv)
-        let active = input.records.filter { $0.phase.isActive }
+        // Warm instances serve no demand by themselves (they have no account and are not
+        // registered) and are evictable, so every demand figure below counts only live ones.
+        let all = input.records.filter { $0.phase.isActive }
+        let active = all.filter { $0.phase != .warm }
+        let warm = all.filter { $0.phase == .warm }.sorted { $0.createdAt < $1.createdAt }
         let unmet = unmetByPool(records: active, input: input)
 
         // A pool at its cap, backing off, or without a runtime cannot take
@@ -79,6 +94,7 @@ struct ScalePlan: Equatable {
             desired: desired, target: target, active: active.count, unmetByPool: unmet, slots: [], scaleDown: [],
             scaleDownHeld: false)
         plan.slots = slots(count: target - active.count, active: active, input: input)
+        applyWarm(warm, to: &plan, live: active.count, cap: cap, input: input)
 
         if active.count > desired {
             if input.failedForges.isEmpty {
@@ -88,6 +104,35 @@ struct ScalePlan: Equatable {
             }
         }
         return plan
+    }
+
+    // MARK: - Warm pool
+
+    /// Claims warm instances for the Tart slots, evicts the stale and the overflow, and tops the
+    /// pool up when nothing else needs the slots.
+    private static func applyWarm(_ warm: [VMRecord], to plan: inout ScalePlan, live: Int, cap: Int, input: Input) {
+        let tartSlots = plan.slots.count { $0.runtime == .tart }
+        let stale = Set(warm.filter { input.now.timeIntervalSince($0.createdAt) > input.warmMaxAge }.map(\.id))
+        let fresh = warm.filter { !stale.contains($0.id) }
+        plan.claims = fresh.prefix(tartSlots).map(\.id)
+        var evict = warm.filter { stale.contains($0.id) }.map(\.id)
+
+        // Warm instances left after the claims still occupy slots: drop the surplus the cap cannot hold.
+        let unclaimed = fresh.filter { !plan.claims.contains($0.id) }
+        let overflow = live + plan.slots.count + unclaimed.count - cap
+        if overflow > 0 { evict += unclaimed.prefix(overflow).map(\.id) }
+        plan.evict = evict
+
+        let tart = RuntimeID.tart
+        guard input.warmPool > 0, plan.slots.isEmpty, input.failedForges.isEmpty,
+            input.existingPools.contains(tart), !input.heldRuntimes.contains(tart)
+        else { return }
+        let kept = unclaimed.count - max(0, min(overflow, unclaimed.count))
+        let tartRunning = input.records.count { $0.phase.isActive && ($0.runtimeID ?? input.defaultRuntime) == tart }
+        let room = min(
+            cap - max(plan.target, live) - kept,
+            (input.poolCaps[tart] ?? Int.max) - tartRunning)
+        plan.warmSpawn = max(0, min(input.warmPool - kept, room))
     }
 
     // MARK: - Coverage

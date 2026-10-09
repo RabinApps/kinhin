@@ -39,6 +39,13 @@ extension ConfigLoader {
         min_runners: 0
         max_runners: 2
 
+        # Pre-warmed VMs: booted and SSH-ready but not yet registered, so a job
+        # skips clone and boot. They take slots under max_runners and are
+        # evicted when a job needs the slot. Tart base image only. 0 = off.
+        warm_pool: 0
+        # Recycle a warm VM after this many minutes (>= 5).
+        warm_max_age_minutes: 60
+
         # Runner processes per VM (many-to-one): each VM serves this many jobs
         # at once. 1 = one job per VM (default, most isolated). 2-3 works for
         # Xcode jobs on an 8 GB VM; higher densities suit lightweight jobs.

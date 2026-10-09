@@ -20,6 +20,9 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
         set { runtime = newValue?.rawValue }
     }
     public var job: String?
+    /// Spawned into the warm pool: the lifecycle stops at `warm` after boot instead of registering.
+    /// Cleared when a job claims the instance.
+    public var pooled: Bool?
     /// The derived per-project image this instance was cloned from (nil =
     /// the fleet's base image). Recovery re-derives the route from it.
     public var image: String?

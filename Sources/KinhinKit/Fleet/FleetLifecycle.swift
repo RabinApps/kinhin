@@ -16,6 +16,23 @@ extension FleetEngine {
         }
     }
 
+    /// Binds a warm instance to `account` and registers it: the clone and boot are already done.
+    func claimWarm(id: String, account: String) {
+        var claimed: VMRecord?
+        store.update(id: id) { record in
+            guard record.phase == .warm else { return }
+            record.platform = account
+            record.pooled = nil
+            record.phase = .registering
+            claimed = record
+        }
+        guard claimed != nil else { return }
+        Log.info(id, "claimed warm instance for \(account)")
+        spawnLifecycleTask(id: id) { [weak self] in
+            await self?.runLifecycle(id: id, claimed: true)
+        }
+    }
+
     /// Re-enter an instance's lifecycle after a restart or engine hand-over.
     /// An instance that already registered (`ready`/`busy`) must not replay
     /// provisioning and registration: re-registering a classic runner removes
@@ -23,6 +40,8 @@ extension FleetEngine {
     /// rejected, which would fail the record and delete a busy VM. Those
     /// instances go straight back to watching their runner.
     func resumeLifecycle(for record: VMRecord) {
+        // A warm instance is already booted and waits to be claimed: no task, nothing to replay.
+        if record.phase == .warm { return }
         guard record.phase == .ready || record.phase == .busy else {
             spawnLifecycle(for: record)
             return
@@ -77,7 +96,7 @@ extension FleetEngine {
         lifecycleTasks.withLock { $0[id] = nil }
     }
 
-    func runLifecycle(id: String) async {
+    func runLifecycle(id: String, claimed: Bool = false) async {
         defer { finishLifecycle(id: id) }
         do {
             // Resolve this record's runtime and pool (mixed fleets: per-record).
@@ -86,31 +105,44 @@ extension FleetEngine {
             probe.runtime = stored?.runtime
             probe.image = stored?.image
             let recordRuntime = runtime(for: probe)
-            // A freshly spawned instance waits its turn so a burst of clones does not stampede the
-            // disk; a re-entered one (recovery) is already on the host and starts at once.
-            if stored?.phase == .cloning { try await spawnPacer.admit() }
-            // Phase: provisioning (clone+boot for VMs, container run for
-            // containers; idempotent for an existing id — recovery path).
-            updateRecord(id) { $0.phase = .cloning }
-            try await recordRuntime.provision(id: id, route: route(forRecord: id))
-            try Task.checkCancellation()
-
-            // Phase: booting. Runtimes return the address their registration
-            // transport dials (Tart: the VM's IP for SSH); exec transports
-            // (containers) return nil and register without one.
-            updateRecord(id) { $0.phase = .booting }
-            let ip: String? = try await recordRuntime.awaitReady(
-                id: id,
-                timeout: TimeInterval(config.vmBootTimeout)
-            )
-            // After every awaited runtime/forge call: a detached engine's
-            // straggler must exit here, never write to the store.
-            try Task.checkCancellation()
-            updateRecord(id) { $0.ip = ip }
-            if let ip {
-                Log.info(id, "booted at \(ip)")
+            let ip: String?
+            if claimed {
+                // A claimed warm instance is booted and pinned; only registration is left.
+                ip = stored?.ip
             } else {
-                Log.info(id, "instance ready (exec transport)")
+                // A freshly spawned instance waits its turn so a burst of clones does not stampede the
+                // disk; a re-entered one (recovery) is already on the host and starts at once.
+                if stored?.phase == .cloning { try await spawnPacer.admit() }
+                // Phase: provisioning (clone+boot for VMs, container run for
+                // containers; idempotent for an existing id — recovery path).
+                updateRecord(id) { $0.phase = .cloning }
+                try await recordRuntime.provision(id: id, route: route(forRecord: id))
+                try Task.checkCancellation()
+
+                // Phase: booting. Runtimes return the address their registration
+                // transport dials (Tart: the VM's IP for SSH); exec transports
+                // (containers) return nil and register without one.
+                updateRecord(id) { $0.phase = .booting }
+                let bootedIP: String? = try await recordRuntime.awaitReady(
+                    id: id,
+                    timeout: TimeInterval(config.vmBootTimeout)
+                )
+                // After every awaited runtime/forge call: a detached engine's
+                // straggler must exit here, never write to the store.
+                try Task.checkCancellation()
+                updateRecord(id) { $0.ip = bootedIP }
+                if let bootedIP {
+                    Log.info(id, "booted at \(bootedIP)")
+                } else {
+                    Log.info(id, "instance ready (exec transport)")
+                }
+                // A pool instance stops here, booted and waiting to be claimed.
+                if store.all.first(where: { $0.id == id })?.pooled == true {
+                    updateRecord(id) { $0.phase = .warm }
+                    Log.info(id, "warm")
+                    return
+                }
+                ip = bootedIP
             }
 
             // Phase: registering — platform- and runtime-specific bootstrap.
