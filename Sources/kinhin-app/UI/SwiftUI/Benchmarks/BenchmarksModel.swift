@@ -143,7 +143,7 @@ final class BenchmarksModel {
 
     // MARK: - Options
 
-    /// The options the current choices make. A thorough toolchains run covers the whole catalog (hours), which
+    /// The options the current choices make. A thorough toolchains run covers the whole catalog (tens of minutes), which
     /// the confirmation says.
     func makeOptions() -> BenchmarkOptions {
         var options = BenchmarkOptions(
@@ -160,7 +160,7 @@ final class BenchmarksModel {
         guard selectedSuites.contains(.toolchains), intensity == .thorough else { return nil }
         return String(
             localized:
-                "A thorough toolchains run installs every tool in the catalog on a fresh guest and takes hours.",
+                "A thorough toolchains run installs every tool in the catalog on a fresh guest and takes 15 to 30 minutes or more.",
             bundle: .l10n, comment: "Benchmarks warning under the suite toggles")
     }
 

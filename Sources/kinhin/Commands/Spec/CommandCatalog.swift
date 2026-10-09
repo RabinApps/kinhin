@@ -452,7 +452,7 @@ enum CommandCatalog {
             ],
             details: [
                 "SUITE is boot, casual, xcode, large or toolchains. Bare `kinhin bench` runs the first four; the "
-                    + "toolchains suite takes hours when thorough, so it is opt-in. A running fleet is paused while the benchmark runs (--yes "
+                    + "toolchains suite takes 15 to 30 minutes when thorough, so it is opt-in. A running fleet is paused while the benchmark runs (--yes "
                     + "agrees to that without a prompt). Bench VMs and containers are named kinhin-bench-* and are "
                     + "deleted afterwards, also when the run fails or is cancelled.",
                 "The JSON report is kept under Application Support/Kinhin/bench (the newest 20). Exits 1 when a "

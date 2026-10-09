@@ -356,7 +356,7 @@
     "A route for '%@' already exists." : {
       "comment" : "Add Route sheet validation message; %@ is the pattern"
     },
-    "A thorough toolchains run installs every tool in the catalog on a fresh guest and takes hours." : {
+    "A thorough toolchains run installs every tool in the catalog on a fresh guest and takes 15 to 30 minutes or more." : {
       "comment" : "Benchmarks warning under the suite toggles"
     },
     "About kinhin" : {

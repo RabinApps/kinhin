@@ -121,8 +121,8 @@ Measured on the M1 Max above (fast home connection, nothing else running):
 | `kinhin bench casual large --runtime docker` (with `--network`)      | about 15 s    |
 | `kinhin bench casual xcode large --runtime tart`                     | about 1.5 min |
 | `kinhin bench boot --runtime tart --thorough --iterations 2`         | about 1.5 min |
-| `kinhin bench toolchains --thorough` over the whole catalog, macOS (4 category VMs) | about 15 min  |
-| the same, Linux on Apple container (one container per tool)          | about 25 min  |
+| `kinhin bench toolchains --thorough --all-toolchains`, macOS (4 category VMs, 66 rows) | about 15 min  |
+| the same, Linux on Apple container (one container per tool, 65 rows) | about 25 min  |
 | `kinhin bench toolchains` (quick: verify + workload, nothing installed) | minutes     |
 
 The toolchains pass is dominated by downloads, so a slow connection can multiply it. The app and `bench_status` report
@@ -142,8 +142,10 @@ these tests found no races.
 **Tested for real**, on an Apple M1 Max (64 GB), against real runtimes:
 
 - **Tart macOS VM** (a 73 GB Xcode 27 image): `boot` (cold and warm, 2 iterations), `casual`, `xcode` (generated
-  package and `--project` with a real Swift package), `large`, and the full toolchain catalog, installed cold.
-- **Apple container** (`kinhin-ci-linux`): `boot` and the full toolchain catalog, installed cold.
+  package and `--project` with a real Swift package), `large`, and the full toolchain catalog, installed cold (66 rows, none failed, 15 min).
+- **Apple container** (`kinhin-ci-linux`): `boot` and the full toolchain catalog, installed cold. The last complete
+  run predates two late fixes (stdin isolation, the gem path); a final full rerun was interrupted, and the affected
+  entries (`fastlane`, `gcloud`, `swift`, `lua`, `elixir`) were re-run individually and pass.
 - **Docker** (`kinhin-ci-linux`): `boot`, `casual`, `large` including `--network` (a real shallow clone), and about
   45 catalog tools installed cold.
 - Cleanup was checked after each run: no `kinhin-bench-*` VM or container remained.

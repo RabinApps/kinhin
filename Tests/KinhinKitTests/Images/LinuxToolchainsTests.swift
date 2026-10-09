@@ -26,7 +26,8 @@ final class LinuxToolchainsTests: XCTestCase {
             XCTAssertFalse(script.contains("—"), "no stray em dash in a shell script")
             XCTAssertTrue(script.contains("for g in 'fastlane' 'cocoapods'; do"))
             XCTAssertTrue(script.contains(#"gem list -i "^$g$""#))
-            XCTAssertTrue(script.contains(root ? "gem install --no-document \"$g\"" : "sudo gem install --no-document \"$g\""))
+            XCTAssertTrue(
+                script.contains(root ? "gem install --no-document \"$g\"" : "sudo gem install --no-document \"$g\""))
         }
     }
 

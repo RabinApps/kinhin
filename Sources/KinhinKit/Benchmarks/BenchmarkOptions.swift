@@ -19,7 +19,7 @@ public struct BenchmarkOptions: Codable, Sendable, Equatable {
     public enum Suite: String, Codable, Sendable, CaseIterable {
         case boot, casual, xcode, large, toolchains
 
-        /// The suites a bare `kinhin bench` runs: everything except the hours-long toolchains pass.
+        /// The suites a bare `kinhin bench` runs: everything except the slow toolchains pass.
         public static var defaults: [Suite] { [.boot, .casual, .xcode, .large] }
     }
 
@@ -86,7 +86,7 @@ public struct BenchmarkOptions: Codable, Sendable, Equatable {
         }
         if suites.contains(.toolchains), intensity == .thorough, toolchains.isEmpty, !allToolchains {
             throw BenchmarkError.invalidOption(
-                "a thorough toolchains run installs every tool and takes hours: scope it with --toolchains <id,…> or pass --all-toolchains"
+                "a thorough toolchains run installs every tool and takes 15 to 30 minutes or more: scope it with --toolchains <id,…> or pass --all-toolchains"
             )
         }
     }
