@@ -268,7 +268,7 @@ extension FleetEngine {
     func awaitRunnerExit(id: String, forge: Forge) async throws {
         let expected = Self.runnerNames(for: id, count: config.runnersPerVM)
         let forgeName = forge.name
-        let idleGrace: TimeInterval? = forge.exitSemantics == .idleGrace ? 30 : nil
+        let idleGrace: TimeInterval? = forge.exitSemantics == .idleGrace ? watchdog.idleGrace.timeInterval : nil
         let isScaleSetForge = if case .jitConfig = forge.registration { true } else { false }
         let deadline = Date().addingTimeInterval(TimeInterval(max(config.vmBootTimeout, 3600 * 6)))
         // Allowance for the agents inside the instance to finish registering.
@@ -286,7 +286,7 @@ extension FleetEngine {
         // forge itself, so a stale "gone" or "idle" cannot kill a busy instance.
         func confirmedRunners() async throws -> [ForgeRunner]? {
             do {
-                return try await runnerDirectory.freshRunners(of: forge).filter { expected.contains($0.name) }
+                return try await observedRunners(of: forge, expected: expected, fresh: true)
             } catch let error where !(error is CancellationError) && !Task.isCancelled {
                 Log.warn(id, "\(forgeName) runner list failed; retrying: \(error.localizedDescription)")
                 return nil
@@ -294,9 +294,9 @@ extension FleetEngine {
         }
         while Date() < deadline {
             try Task.checkCancellation()
-            let all: [ForgeRunner]
+            let mine: [ForgeRunner]
             do {
-                all = try await runnerDirectory.runners(of: forge)
+                mine = try await observedRunners(of: forge, expected: expected, fresh: false)
             } catch let error where !(error is CancellationError) && !Task.isCancelled {
                 Log.warn(id, "\(forgeName) runner list failed; retrying: \(error.localizedDescription)")
                 try await Task.sleep(for: exitWatchInterval)
@@ -304,7 +304,6 @@ extension FleetEngine {
             }
             // A detached engine's watcher must not delete or re-phase the instance.
             try Task.checkCancellation()
-            let mine = all.filter { expected.contains($0.name) }
             for runner in mine where runner.online { seen.insert(runner.name) }
             // A runner that came online proves the start worked; a script that
             // merely exited 0 does not (the agent can die right after).
@@ -399,6 +398,26 @@ extension FleetEngine {
         }
         Log.warn(id, "ephemeral watch timed out; deleting VM")
         await deleteVMRecord(id: id, reason: "timeout")
+    }
+
+    /// The expected runners as the forge shows them. A server with no runner
+    /// list (Forgejo through v14) cannot say which runner runs what, so each
+    /// expected runner is reported registered (its registration script
+    /// succeeded before the watch began) and busy exactly while any task of
+    /// the scope is running. That keeps the rule safe: an instance is only
+    /// ever judged idle when nothing at all is running in the scope, and a
+    /// runner that never got a job is reclaimed the same way, once the scope
+    /// goes quiet. `fresh` asks the forge itself (before acting on idleness).
+    func observedRunners(of forge: Forge, expected: [String], fresh: Bool) async throws -> [ForgeRunner] {
+        let all =
+            fresh
+            ? try await runnerDirectory.freshRunners(of: forge)
+            : try await runnerDirectory.runners(of: forge)
+        // Asked after the list: that call is what discovers the list is absent.
+        if let running = try await forge.unlistedRunnerActivity(fresh: fresh) {
+            return expected.map { ForgeRunner(id: $0, name: $0, busy: running > 0) }
+        }
+        return all.filter { expected.contains($0.name) }
     }
 
     /// The runtime recorded for `id` (the default pool's when unrecorded).

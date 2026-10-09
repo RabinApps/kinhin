@@ -231,10 +231,39 @@ public struct GiteaClient: Sendable {
     }
 
     private func tasks(status: String) async throws -> [GiteaTask] {
-        let (data, _) = try await send(path: "\(credentials.actionsBase)/tasks?status=\(status)&page=1&limit=50")
+        // Servers that ignore `status` (Forgejo 11 through 14, Gitea 1.23 to 1.24) answer every task the scope has
+        // ever had, finished ones included, so the filter is applied here too. An entry with no status of its own
+        // (the older shapes) is kept.
+        try await taskPage(status: status, page: 1).tasks.filter { $0.status == nil || $0.status == status }
+    }
+
+    /// Whether any task of the scope is not finished: dispatched to a runner and still going. Used where the server
+    /// has no runner list, so the activity of the scope is all there is to tell a busy runner from an idle one.
+    ///
+    /// The list is newest-updated first (a running task is touched by its runner every few seconds, so it stays near
+    /// the top however much history the scope has), so the walk stops at the first finished-only page that is not
+    /// full, and gives up on history after `maxPages`. A task whose status the server leaves out counts as active:
+    /// a leaked instance is the cheaper mistake.
+    func activeTaskCount(maxPages: Int = 4) async throws -> Int {
+        var active = 0
+        for page in 1...max(1, maxPages) {
+            let batch = try await taskPage(status: "running", page: page)
+            active += batch.tasks.filter { !Self.finishedStatuses.contains($0.status ?? "") }.count
+            if active > 0 || batch.rawCount < Self.pageSize { break }
+        }
+        return active
+    }
+
+    /// Terminal task states Gitea and Forgejo report (`unknown` is a task that never ran).
+    private static let finishedStatuses: Set<String> = ["success", "failure", "cancelled", "skipped", "unknown"]
+    private static let pageSize = 50
+
+    private func taskPage(status: String, page: Int) async throws -> (tasks: [GiteaTask], rawCount: Int) {
+        let (data, _) = try await send(
+            path: "\(credentials.actionsBase)/tasks?status=\(status)&page=\(page)&limit=\(Self.pageSize)")
         do {
             let wrapper = try JSONDecoder().decode(TaskQueueWrapper.self, from: data)
-            return wrapper.tasks
+            return (wrapper.tasks, wrapper.entries?.count ?? 0)
         } catch {
             throw ForgeAPIError.decoding(forge: .gitea, what: "tasks: \(error.localizedDescription)")
         }
@@ -278,6 +307,8 @@ public struct GiteaClient: Sendable {
 /// failing the batch, so demand is never lost to attribution gaps.
 struct TaskQueueWrapper: Decodable {
     let total_count: Int?
+    /// `entries` (the shape this decoder was written against) or `workflow_runs` (what Forgejo 11 and the
+    /// published specs use; found live on Forgejo 11, which answers no `entries` at all).
     let entries: [TaskEntry]?
 
     struct TaskEntry: Decodable {
@@ -336,10 +367,11 @@ struct TaskQueueWrapper: Decodable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         total_count = try c.decodeIfPresent(Int.self, forKey: .total_count)
-        entries = try c.decodeIfPresent([TaskEntry].self, forKey: .entries)
+        let named = try c.decodeIfPresent([TaskEntry].self, forKey: .entries)
+        entries = try named ?? c.decodeIfPresent([TaskEntry].self, forKey: .workflow_runs)
     }
 
-    enum CodingKeys: String, CodingKey { case total_count, entries }
+    enum CodingKeys: String, CodingKey { case total_count, entries, workflow_runs }
 
     var tasks: [GiteaTask] {
         let decoded = (entries ?? []).map { entry -> GiteaTask in

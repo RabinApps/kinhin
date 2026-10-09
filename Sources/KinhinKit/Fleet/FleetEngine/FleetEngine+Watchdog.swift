@@ -17,17 +17,22 @@ public struct Watchdog: Sendable {
     /// Allowance for the agents in a booted instance to show up on the forge
     /// (never below `vm_boot_timeout`).
     public var registrationGrace: Duration
+    /// How long every runner of an idle-grace forge (Gitea, Forgejo) must sit
+    /// idle before its instance counts as finished: the next task may still be
+    /// dispatching when the last one ends.
+    public var idleGrace: Duration
 
     public init(
         livenessInterval: Duration = .seconds(15), livenessMisses: Int = 3,
         orphanSweepInterval: Duration = .seconds(120), orphanGrace: Duration = .seconds(600),
-        registrationGrace: Duration = .seconds(120)
+        registrationGrace: Duration = .seconds(120), idleGrace: Duration = .seconds(30)
     ) {
         self.livenessInterval = livenessInterval
         self.livenessMisses = livenessMisses
         self.orphanSweepInterval = orphanSweepInterval
         self.orphanGrace = orphanGrace
         self.registrationGrace = registrationGrace
+        self.idleGrace = idleGrace
     }
 }
 
