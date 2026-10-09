@@ -147,6 +147,44 @@ final class FakeFleetServingContractTests: XCTestCase {
 
     // MARK: - Failures
 
+    /// A start that has no usable forge stays stopped with its reason in
+    /// `lastError` — the app and the CLI both read that and do not throw.
+    /// The fake does not model that refusal: a scripted `commandError` throws
+    /// to the caller (pinned by `FleetRequeueSkipTests`). This case records
+    /// the intentional divergence so a future change that either makes the
+    /// fake refuse too, or makes the engine throw, is caught here instead of
+    /// silently drifting.
+    func testStartWithNoUsableForgeStaysStoppedOnTheRealSideWhileTheFakeWouldReportRunning() async throws {
+        // Real engine with no token → start() refuses, stays stopped.
+        let strandedEngine = FleetEngine(
+            config: makeTestConfig(),
+            github: FakeGitHub(),
+            tart: FakeTart(),
+            store: makeTestStore(),
+            ssh: FakeSSH(),
+            host: testHost
+        )
+        await strandedEngine.start()
+        let strandedStatus = try await strandedEngine.status()
+        XCTAssertFalse(
+            strandedStatus.running,
+            "an engine with no usable forge stays stopped after start()")
+        let reason = try XCTUnwrap(strandedStatus.lastError)
+        XCTAssertTrue(
+            reason.contains("no token stored"),
+            "the stopped state carries the missing-token reason: \(reason)")
+
+        // Fake's start() always reports running; there is no "no forge"
+        // refusal on the fake path — a failing backend throws, it does not
+        // silently stay stopped.
+        let fake = FakeFleetServing()
+        try await fake.start()
+        let fakeRunning = try await fake.status()
+        XCTAssertEqual(
+            fakeRunning.running, true,
+            "the fake always reports running after start() — it refuses via throwing, not via staying stopped")
+    }
+
     func testDeletingAnUnknownOrMalformedVMThrowsTheSameErrorOnBothSides() async throws {
         // A valid-shaped id neither side has.
         let real = makeReal()
