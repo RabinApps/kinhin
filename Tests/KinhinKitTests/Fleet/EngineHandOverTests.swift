@@ -237,9 +237,9 @@ final class EngineHandOverTests: XCTestCase {
     func testMutatesFleetCoversExactlyTheMutatingMethods() {
         let mutating: [RPCMethod] = [
             .start, .stop, .pause, .resume, .deleteVM, .replaceToken, .replaceGiteaToken, .replaceForgejoToken,
-            .replaceAccountToken, .reloadConfig,
+            .replaceAccountToken, .reloadConfig, .benchStart,
         ]
-        let reads: [RPCMethod] = [.status, .ping, .logs, .pipelineDetail, .pipelineLog]
+        let reads: [RPCMethod] = [.status, .ping, .logs, .pipelineDetail, .pipelineLog, .benchStatus, .benchCancel]
         for method in mutating { XCTAssertTrue(method.mutatesFleet, "\(method) mutates the fleet") }
         for method in reads { XCTAssertFalse(method.mutatesFleet, "\(method) is a read") }
     }

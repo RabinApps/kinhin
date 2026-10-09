@@ -83,6 +83,17 @@ struct FleetView: View {
                     FormCard(title: "Queued work") {
                         requeueBlock
                     }
+
+                    FormCard(title: "Benchmarks") {
+                        HintText(
+                            verbatim: model.benchmarkSummary
+                                ?? String(
+                                    localized: "Measure boot, workload and toolchain speed on this Mac.", bundle: .l10n,
+                                    comment: "Fleet tab benchmark card hint, shown before any benchmark has run"))
+                        Button("Open Benchmarks…") { model.onShowBenchmarks() }
+                            .controlSize(.small)
+                            .accessibilityIdentifier("open-benchmarks")
+                    }
                 }
             }
 

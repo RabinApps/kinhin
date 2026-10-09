@@ -54,6 +54,7 @@ RUNNING:
     requeue <forge>                         Re-queue the fleet's queued jobs on a forge
     skip <forge>                            Mark the fleet's queued jobs as skipped on a forge
     cleanup                                 Reclaim disk: leftover VMs, the base image, the cache
+    bench [SUITE]…                          Benchmark runtimes, workloads and toolchains here
     reset                                   Reset config, the daemon install, or everything
 
 WORKFLOWS:

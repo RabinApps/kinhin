@@ -69,3 +69,19 @@ Routing case `.bench` in `CLICommand`; help entry under RUNNING in `helpText()` 
 - Verification: `swift build`, `swift test`, `swift format lint --strict -r Sources Tests`; `scripts/tsan.sh` since the runner is an actor with detached daemon tasks.
 
 File sizes stay under the ~400-line smell by splitting suites into `BootBenchmark.swift` / `WorkflowBenchmark.swift` / `ToolchainBenchmark.swift` etc.
+
+## Implementation notes
+
+What shipped differs from the plan above in these places:
+
+- **`bench_cancel`.** A third RPC method, `bench_cancel`, lets Ctrl-C in the CLI and the app's Cancel button stop a run
+  that lives in the daemon; without it a cancelled client would leave a multi-hour run going unattended.
+- **Container boot phases** are `start` (create + start, one `run --detach`) and `exec-ready`; Docker's `linux/amd64`
+  emulation pass runs in thorough mode when an amd64 image of the configured name is on the Mac, and reads `skipped`
+  otherwise.
+- **`--force`** is a flag of its own (skip the wait for busy VMs); `--yes` only agrees to the fleet pause.
+- **Exit code 1** also covers a toolchain row that failed to install, verify or build, so a thorough run doubles as
+  an install-correctness gate.
+- **Thorough toolchains** requires `--toolchains` or `--all-toolchains` (it takes hours); a quick pass is unscoped by
+  default.
+

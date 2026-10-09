@@ -23,12 +23,30 @@ public protocol FleetServing: Sendable {
     func requeueQueuedJobs(for forge: ForgeID) async throws
     /// Mark the queued jobs for one forge as skipped.
     func skipQueuedJobs(for forge: ForgeID) async throws
+    /// Start a benchmark run (it pauses the fleet while it measures); returns the run id.
+    func benchStart(_ options: BenchmarkOptions) async throws -> String
+    /// Progress, partial results and the finished report of a run (the latest when nil).
+    func benchStatus(runID: String?) async throws -> BenchmarkRunStatus
+    /// Cancel a running benchmark; false when none was running.
+    func benchCancel(runID: String?) async throws -> Bool
     /// A short name for log lines.
     var logName: String { get }
 }
 
 extension FleetServing {
     public func status(includeUsage: Bool) async throws -> FleetStatus { try await status() }
+
+    public func benchStart(_ options: BenchmarkOptions) async throws -> String {
+        throw BenchmarkError.unsupported("\(logName) cannot run benchmarks")
+    }
+
+    public func benchStatus(runID: String?) async throws -> BenchmarkRunStatus {
+        throw BenchmarkError.unsupported("\(logName) cannot run benchmarks")
+    }
+
+    public func benchCancel(runID: String?) async throws -> Bool {
+        throw BenchmarkError.unsupported("\(logName) cannot run benchmarks")
+    }
 }
 
 /// Whoever runs the fleet for this app: an engine in this process, or the
@@ -124,6 +142,32 @@ public enum FleetBackend: Sendable {
         case .inProcess(let engine): await CredentialRotation.apply(target, token: token, to: engine)
         case .daemon(let client):
             try await client.perform { try CredentialRotation.notify(target, token: token, daemon: $0) }
+        }
+    }
+
+    public func benchStart(_ options: BenchmarkOptions) async throws -> String {
+        switch self {
+        case .inProcess(let engine):
+            return try BenchmarkRegistry.shared.start(options: options, environment: engine.benchmarkEnvironment())
+        case .daemon(let client): return try await client.perform { try $0.benchStart(options) }
+        }
+    }
+
+    public func benchStatus(runID: String?) async throws -> BenchmarkRunStatus {
+        switch self {
+        case .inProcess:
+            guard let status = BenchmarkRegistry.shared.status(runID: runID) else {
+                throw BenchmarkError.unknownRun(runID ?? "(none started)")
+            }
+            return status
+        case .daemon(let client): return try await client.perform { try $0.benchStatus(runID: runID) }
+        }
+    }
+
+    public func benchCancel(runID: String?) async throws -> Bool {
+        switch self {
+        case .inProcess: return BenchmarkRegistry.shared.cancel(runID: runID)
+        case .daemon(let client): return try await client.perform { try $0.benchCancel(runID: runID) }
         }
     }
 

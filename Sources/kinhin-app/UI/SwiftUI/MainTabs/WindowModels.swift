@@ -58,6 +58,7 @@ final class WindowModels {
     private(set) var capacityModel: CapacityModel?
     private(set) var containersModel: ContainersModel?
     private(set) var toolchainsModel: ToolchainsModel?
+    private(set) var benchmarksModel: BenchmarksModel?
     private(set) var runtimesModel: RuntimesModel?
     private(set) var logsModel: LogsModel?
     private(set) var diagnosticsModel: DiagnosticsModel?
@@ -135,6 +136,18 @@ final class WindowModels {
             model.configURL = Paths.config
             toolchainsModel = model
             model.reload()
+        case .benchmarks:
+            guard benchmarksModel == nil else { return }
+            let model = BenchmarksModel()
+            // The fleet's own backend runs (and pauses itself for) the benchmark; with no fleet it runs here.
+            let fleet = self.fleet
+            model.runner = {
+                fleet.service.map { ServiceBenchmarkRunner(service: $0) as any BenchmarkRunning }
+                    ?? LocalBenchmarkRunner()
+            }
+            model.onSummaryChanged = { [weak self] in self?.fleetModel.benchmarkSummary = $0 }
+            benchmarksModel = model
+            model.reload()
         case .app:
             _ = appModel
         }
@@ -163,6 +176,7 @@ final class WindowModels {
             macToolsModel?.reload()
             runtimesModel?.reload()
         case .toolchains: toolchainsModel?.reload()
+        case .benchmarks: benchmarksModel?.reload()
         case .app: break
         }
     }

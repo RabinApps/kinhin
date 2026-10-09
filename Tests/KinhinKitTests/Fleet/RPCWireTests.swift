@@ -39,6 +39,9 @@ final class RPCWireTests: XCTestCase {
         case .reloadConfig: return "reload_config"
         case .logs: return "logs"
         case .ping: return "ping"
+        case .benchStart: return "bench_start"
+        case .benchStatus: return "bench_status"
+        case .benchCancel: return "bench_cancel"
         }
     }
 
@@ -48,7 +51,7 @@ final class RPCWireTests: XCTestCase {
             RPCMethod.status, .start, .stop, .pause, .resume,
             .deleteVM, .pipelineDetail, .pipelineLog, .requeueQueuedJobs, .skipQueuedJobs, .replaceToken,
             .replaceGiteaToken, .replaceAccountToken,
-            .reloadConfig, .logs, .ping,
+            .reloadConfig, .logs, .ping, .benchStart, .benchStatus, .benchCancel,
         ] {
             XCTAssertEqual(method.rawValue, wireName(method), "\(method) must keep its wire name")
         }

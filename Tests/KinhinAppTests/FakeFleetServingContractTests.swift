@@ -208,4 +208,39 @@ final class FakeFleetServingContractTests: XCTestCase {
             fakeController.unreachableReason,
             "the fake drives the same not-responding surface the menu shows")
     }
+
+    // MARK: - Benchmarks
+
+    func testAnUnknownBenchmarkRunThrowsTheSameErrorOnBothSides() async {
+        let id = "bench-never-\(UUID().uuidString)"
+        let real = await firstError { _ = try await self.makeReal().benchStatus(runID: id) }
+        let fake = await firstError { _ = try await FakeFleetServing().benchStatus(runID: id) }
+        for error in [real, fake] {
+            guard case BenchmarkError.unknownRun(let unknown)? = error as? BenchmarkError else {
+                return XCTFail("expected unknownRun, got \(String(describing: error))")
+            }
+            XCTAssertEqual(unknown, id)
+        }
+    }
+
+    func testCancellingWithNothingRunningAnswersFalseOnBothSides() async throws {
+        let real = try await makeReal().benchCancel(runID: "bench-never-\(UUID().uuidString)")
+        let fake = try await FakeFleetServing().benchCancel(runID: "bench-never")
+        XCTAssertFalse(real)
+        XCTAssertFalse(fake)
+    }
+
+    func testADeadDaemonRefusesBenchmarkCallsLikeAScriptedFailure() async {
+        let dead = deadDaemon()
+        let scripted = FakeFleetServing()
+        scripted.commandError = RPCError.connectionFailed("daemon.sock")
+        let realStart = await firstError { _ = try await dead.benchStart(BenchmarkOptions()) }
+        let fakeStart = await firstError { _ = try await scripted.benchStart(BenchmarkOptions()) }
+        XCTAssertNotNil(realStart)
+        XCTAssertNotNil(fakeStart)
+        let realStatus = await firstError { _ = try await dead.benchStatus(runID: nil) }
+        XCTAssertNotNil(realStatus)
+        let realCancel = await firstError { _ = try await dead.benchCancel(runID: nil) }
+        XCTAssertNotNil(realCancel)
+    }
 }

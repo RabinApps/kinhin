@@ -37,6 +37,8 @@ extension FleetEngine {
                 // pre-rename build spawned ("orchard-") so in-flight VMs are still
                 // recovered, attributed, and cleaned up across the rename.
                 guard name.hasPrefix("kinhin-") || name.hasPrefix("orchard-") else { continue }
+                // A benchmark's instances are not runners: adopting one would register it on a forge.
+                guard !name.hasPrefix(BenchmarkNaming.instancePrefix) else { continue }
                 if ownerByName[name] == nil {
                     ownerByName[name] = runtimeID
                     ours.append(name)

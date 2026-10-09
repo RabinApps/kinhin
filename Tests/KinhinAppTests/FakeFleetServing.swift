@@ -19,6 +19,9 @@ final class FakeFleetServing: FleetServing {
         var pipelineLog: PipelineLog?
         var requeueResult = true
         var skipResult = true
+        var benchStatuses: [BenchmarkRunStatus] = []
+        var benchStarted: [BenchmarkOptions] = []
+        var benchCancelled: [String?] = []
     }
 
     private let state: Mutex<State>
@@ -175,5 +178,39 @@ final class FakeFleetServing: FleetServing {
 
     func rotate(_ target: CredentialRotation.Target, token: String) async throws {
         try record("rotate(\(target.accountName))")
+    }
+
+    // MARK: - Benchmarks
+
+    /// What successive `benchStatus` calls answer; the last one repeats.
+    var benchStatuses: [BenchmarkRunStatus] {
+        get { state.withLock { $0.benchStatuses } }
+        set { state.withLock { $0.benchStatuses = newValue } }
+    }
+    var benchStarted: [BenchmarkOptions] { state.withLock { $0.benchStarted } }
+    var benchCancelled: [String?] { state.withLock { $0.benchCancelled } }
+
+    func benchStart(_ options: BenchmarkOptions) async throws -> String {
+        try record("benchStart")
+        state.withLock { $0.benchStarted.append(options) }
+        return "bench-fake"
+    }
+
+    func benchStatus(runID: String?) async throws -> BenchmarkRunStatus {
+        try record("benchStatus(\(runID ?? "-"))")
+        return try state.withLock { state in
+            guard let first = state.benchStatuses.first else { throw BenchmarkError.unknownRun(runID ?? "(none)") }
+            if state.benchStatuses.count > 1 { state.benchStatuses.removeFirst() }
+            return first
+        }
+    }
+
+    func benchCancel(runID: String?) async throws -> Bool {
+        try record("benchCancel(\(runID ?? "-"))")
+        // Like the registry: only a live run can be cancelled.
+        return state.withLock { state in
+            state.benchCancelled.append(runID)
+            return state.benchStatuses.first?.state == .running
+        }
     }
 }

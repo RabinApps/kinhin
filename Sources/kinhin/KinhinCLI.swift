@@ -158,6 +158,9 @@ struct KinhinCLI {
         case .cleanup:
             try await CleanupCommand.run(args)
 
+        case .bench:
+            try await BenchCommand.run(rest)
+
         case .reset:
             try await ResetCommand.run(args)
 

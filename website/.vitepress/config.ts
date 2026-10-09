@@ -128,6 +128,7 @@ export default defineConfig({
           { text: "Architecture", link: "/guide/architecture" },
           { text: "Runtimes & routing", link: "/guide/runtimes" },
           { text: "Toolchains & shared cache", link: "/guide/toolchains" },
+          { text: "Benchmarks", link: "/guide/benchmarks" },
           { text: "Forge support", link: "/guide/forges" },
           { text: "Test workflows locally", link: "/guide/workflow-testing" },
           { text: "How scaling works", link: "/guide/scaling" },

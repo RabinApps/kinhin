@@ -109,6 +109,7 @@ Inside the targets, code is organized by domain:
 | `KinhinKit/Images/`        | VM and container image preparation (tart macOS and Linux, container), runner bootstrap scripts, toolchain catalog, registry digest pinning and per-project derived images                                                                                                                                                   |
 | `KinhinKit/Setup/`         | Setup checklist computer, doctor report builder, CLT/tart health probes, host agent installer                                                                                                                                                                                                                               |
 | `KinhinKit/Cache/`         | Managed-toolchain cache pruning (auto-expiry)                                                                                                                                                                                                                                                                               |
+| `KinhinKit/Benchmarks/`    | `kinhin bench`: the runner, suites and report (see [Benchmarks](benchmarks.md))                                                                                                                                                                                                                                             |
 | `KinhinKit/Update/`        | GitHub-release update check + DMG download                                                                                                                                                                                                                                                                                  |
 | `kinhin/KinhinCLI.swift`   | @main entry: arg parsing + dispatch only                                                                                                                                                                                                                                                                                    |
 | `kinhin/Commands/`         | One file per command group (auth, doctor, image, run, runtimes, setup) + the CLICommand routing table; shared exit/output/flags helpers                                                                                                                                                                                     |
@@ -151,6 +152,9 @@ The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Flee
 | `reload_config` | Reload the routing config from disk (the Advanced → Routing tab's edit hook). |
 | `logs` | — |
 | `ping` | — |
+| `bench_start` | Start a benchmark run in the background; answers with its run id at once. |
+| `bench_status` | The progress, partial results and (when finished) report of a benchmark run. |
+| `bench_cancel` | Cancel a running benchmark; it still removes everything it created. |
 <!-- docs-sync:end rpc-methods -->
 
 ## Tests
@@ -165,6 +169,7 @@ The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Flee
   - `Images`: image pipeline (tart + container), runner bootstrap scripts, toolchain selection and helper scripts, digest pinning
   - `Fleet`: engine lifecycle, autoscaler, queue attribution (queued and running, per repo), GitHub Scale Set listener and engine integration, token replacement (Keychain upsert, live engine swap, daemon RPC), multi-account engines, recovery
   - `Setup` / `Update` / `Cache`: setup-checklist parity, doctor report, update check, cache pruner
+  - `Benchmarks`: runner over fake tart/ssh/shell, suites, toolchain coverage invariants, report store, registry and RPC
 - **`KinhinCLITests`**: command routing table, starter-config auto-create policy, flag parsing,
   status rendering, the `config init` matrix, help text, auth command flows, exit-code classification.
 - **`KinhinAppTests`**: `FleetController` (pending transitions, poll failure, config-push debounce) against a

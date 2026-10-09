@@ -46,7 +46,7 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertEqual(MainTab.allCases, [.fleet, .setup, .advanced])
         XCTAssertEqual(
             AdvancedSection.allCases.map(\.label),
-            ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "App"])
+            ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "Benchmarks", "App"])
     }
 
     func testTabBarIsHiddenWhileSetupIsUnfinished() {
@@ -220,6 +220,7 @@ final class MainWindowTabsTests: MainWindowTestCase {
             case .routing: XCTAssertGreaterThanOrEqual(models.runtimesModel?.loads ?? 0, 1)
             case .containers: XCTAssertNotNil(models.containersModel)
             case .toolchains: XCTAssertNotNil(models.toolchainsModel)
+            case .benchmarks: XCTAssertNotNil(models.benchmarksModel)
             case .app: XCTAssertEqual(models.appModel.launchMode, .mainWindowAndMenuBar)
             }
             XCTAssertEqual(fresh.tabs.selectedTab, .advanced)

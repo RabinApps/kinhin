@@ -356,6 +356,9 @@
     "A route for '%@' already exists." : {
       "comment" : "Add Route sheet validation message; %@ is the pattern"
     },
+    "A thorough toolchains run installs every tool in the catalog on a fresh guest and takes hours." : {
+      "comment" : "Benchmarks warning under the suite toggles"
+    },
     "About kinhin" : {
       "comment" : "App menu item"
     },
@@ -521,6 +524,24 @@
     "being deleted" : {
       "comment" : "VoiceOver phase description"
     },
+    "Benchmark" : {
+      "comment" : "Alert title for a benchmark failure"
+    },
+    "Benchmark cancelled." : {
+      "comment" : "Benchmarks status line"
+    },
+    "Benchmark finished." : {
+      "comment" : "Benchmarks status line"
+    },
+    "Benchmark intensity" : {
+      "comment" : "VoiceOver label of the Quick/Thorough picker in Advanced → Benchmarks"
+    },
+    "Benchmarks" : {
+      "comment" : "Advanced section title"
+    },
+    "Boot" : {
+      "comment" : "Benchmark suite name"
+    },
     "Build image…" : {
       "comment" : "Text in MacToolsView"
     },
@@ -595,6 +616,9 @@
     "Capped at %lld — the others are locked." : {
       "comment" : "Capacity form notice; %@ is a percentage"
     },
+    "Casual" : {
+      "comment" : "Benchmark suite name"
+    },
     "Check for Updates…" : {
       "comment" : "Settings → App button"
     },
@@ -627,6 +651,9 @@
     },
     "Choose Workflow File…" : {
       "comment" : "Text in WorkflowTestView"
+    },
+    "Clean and incremental xcodebuild builds" : {
+      "comment" : "Benchmark suite description; xcodebuild stays verbatim"
     },
     "Close" : {
       "comment" : "Window menu item"
@@ -728,6 +755,9 @@
     },
     "Copy into a .kinhin.yml at the root of a repo (or into config.yaml)." : {
       "comment" : "CollapsibleFormCard in ToolchainsCatalogCards"
+    },
+    "Could not read that report — %@" : {
+      "comment" : "Benchmarks status line; %@ is the error's description"
     },
     "Couldn't delete %@" : {
       "comment" : "Alert title when deleting a VM fails; %@ is a VM id"
@@ -960,6 +990,9 @@
     "Fewest VMs kept ready" : {
       "comment" : "row in CapacityView"
     },
+    "File I/O, git and a Swift build in one guest" : {
+      "comment" : "Benchmark suite description; Swift and git stay verbatim"
+    },
     "Files" : {
       "comment" : "FormCard in AppSectionView"
     },
@@ -1041,6 +1074,9 @@
     "Highest density if a Docker provider already runs; amd64 via emulation with JIT/Go/Java/.NET caveats; shared kernel." : {
       "comment" : "Linux runtime comparison summary"
     },
+    "History" : {
+      "comment" : "Title of the card listing earlier benchmark runs in Advanced → Benchmarks"
+    },
     "Homebrew" : {
       "comment" : "chipRow in ToolchainsView"
     },
@@ -1070,6 +1106,9 @@
     },
     "How images bake" : {
       "comment" : "Text in ToolchainsCatalogCards"
+    },
+    "How long each runtime takes to boot" : {
+      "comment" : "Benchmark suite description"
     },
     "How much runs at once" : {
       "comment" : "FormCard in CapacityView"
@@ -1137,6 +1176,9 @@
     "Install method" : {
       "comment" : ".accessibilityLabel in InstallConfirmationSheet"
     },
+    "Install, verify and build with every catalog toolchain" : {
+      "comment" : "Benchmark suite description"
+    },
     "Install…" : {
       "comment" : "This Mac form: button that installs Apple container"
     },
@@ -1169,6 +1211,9 @@
     },
     "INSTANCES" : {
       "comment" : "Text in BudgetCard"
+    },
+    "Intensity" : {
+      "comment" : "Accessibility name of the Quick/Thorough picker in Advanced → Benchmarks"
     },
     "Isolation & transport" : {
       "comment" : "Diagnostics row title"
@@ -1324,11 +1369,17 @@
     "labels: %@" : {
       "comment" : "Routing tab pool detail; %@ lists runner labels"
     },
+    "Large" : {
+      "comment" : "Benchmark suite name"
+    },
     "Last error: %@" : {
       "comment" : "Spoken fleet status; %@ is the engine's error message"
     },
     "Last error: %@." : {
       "comment" : "Spoken VM diagnosis; %@ is the error message"
+    },
+    "Last run %@ on %@" : {
+      "comment" : "Fleet tab benchmark card; %1$@ is a relative time such as 2 hours ago, %2$@ the Mac's chip"
     },
     "last used %@" : {
       "comment" : "Toolchains tab image row; %@ is a relative time such as 2 hours ago"
@@ -1420,6 +1471,15 @@
     "Makes a pause hold until the fleet is resumed by hand." : {
       "comment" : "IntentDescription in AutoResumeIntent"
     },
+    "Measure boot, workload and toolchain speed on this Mac." : {
+      "comment" : "Fleet tab benchmark card hint, shown before any benchmark has run"
+    },
+    "Measure how fast runtimes boot, workloads run and toolchains install on this Mac. Temporary VMs and containers are removed afterwards." : {
+      "comment" : "Subtitle of the main card in Advanced → Benchmarks"
+    },
+    "Median per phase, one row per runtime." : {
+      "comment" : "Subtitle of the boot comparison table in Advanced → Benchmarks"
+    },
     "Memory (GB)" : {
       "comment" : "row in CapacityView"
     },
@@ -1449,6 +1509,9 @@
     },
     "Most VMs at once" : {
       "comment" : "row in CapacityView"
+    },
+    "Multi-gigabyte disk and multi-core CPU throughput" : {
+      "comment" : "Benchmark suite description"
     },
     "name, e.g. work" : {
       "comment" : "Text in MoreAccountsCard"
@@ -1609,6 +1672,9 @@
     "Only one runtime is enabled, so there's nothing to split. Enable another on the previous step (Docker, Apple container or tart) to divide this Mac's capacity." : {
       "comment" : "StatusText in WizardView"
     },
+    "Open Benchmarks…" : {
+      "comment" : "Button on the Fleet tab's benchmark card; opens Advanced → Benchmarks"
+    },
     "Open config file" : {
       "comment" : "Button in AppSectionView"
     },
@@ -1734,6 +1800,9 @@
     },
     "Queued work" : {
       "comment" : "FormCard in FleetView"
+    },
+    "Quick" : {
+      "comment" : "Benchmark intensity"
     },
     "Quit" : {
       "comment" : "Status-bar menu item that quits the app"
@@ -1894,6 +1963,9 @@
     "Routing" : {
       "comment" : "Advanced section title"
     },
+    "Run" : {
+      "comment" : "Benchmarks confirmation button"
+    },
     "Run again" : {
       "comment" : "Text in WorkflowTestView"
     },
@@ -1906,8 +1978,14 @@
     "Run macOS workflows in disposable virtual machines powered by tart. Skip this if you only need Linux jobs." : {
       "comment" : "FormCard in MacToolsView"
     },
+    "Run the benchmark?" : {
+      "comment" : "Benchmarks confirmation title"
+    },
     "Run Workflow" : {
       "comment" : "Button in WorkflowTestView"
+    },
+    "Run…" : {
+      "comment" : "Button in Advanced → Benchmarks that asks for confirmation, then starts the benchmark"
     },
     "Runner VM" : {
       "comment" : "TypeDisplayRepresentation in VMEntity"
@@ -2005,6 +2083,9 @@
     "Show steps of %@, %@" : {
       "comment" : ".accessibilityLabel in PipelineView"
     },
+    "Show the benchmark from %@" : {
+      "comment" : "VoiceOver label of a benchmark history row; %@ is the run's date"
+    },
     "Show the output of %@" : {
       "comment" : ".accessibilityLabel in PipelineView"
     },
@@ -2023,6 +2104,12 @@
     "Skip queued jobs on %@" : {
       "comment" : ".accessibilityLabel in FleetView"
     },
+    "skipped" : {
+      "comment" : "Benchmark step that did not run"
+    },
+    "Skipped — %@" : {
+      "comment" : "Benchmark suite that did not run; %@ is the reason"
+    },
     "Softnet is on but not installed — %@. The fleet will not start." : {
       "comment" : "Diagnostics security row; %@ is the fix command"
     },
@@ -2031,6 +2118,9 @@
     },
     "Softnet on — runner VMs are isolated from each other and the LAN" : {
       "comment" : "Diagnostics security row"
+    },
+    "Sort by %@" : {
+      "comment" : "VoiceOver label of a toolchains table column header; %@ is the column name"
     },
     "Split between runtimes" : {
       "comment" : "SectionHeader in CapacityView"
@@ -2176,6 +2266,9 @@
     "That token didn't work — %@\nIt needs — %@" : {
       "comment" : "Forge card status; first is the forge's error, second what the token needs"
     },
+    "The benchmark creates temporary VMs and containers and removes them when it ends." : {
+      "comment" : "Benchmarks confirmation body"
+    },
     "The classic tray app — open the window any time from the menu." : {
       "comment" : "Hint under the launch-mode picker"
     },
@@ -2190,6 +2283,29 @@
     },
     "The fleet can run inside this app (in-process) or in a background LaunchAgent that survives app restarts and reboots." : {
       "comment" : "FormCard in AppSectionView"
+    },
+    "The fleet has %lld live VMs. It is paused while the benchmark runs and resumed afterwards; busy VMs finish their jobs first." : {
+      "comment" : "Benchmarks confirmation body; plural by the number of live VMs",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The fleet has %lld live VM. It is paused while the benchmark runs and resumed afterwards; busy VMs finish their jobs first."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The fleet has %lld live VMs. It is paused while the benchmark runs and resumed afterwards; busy VMs finish their jobs first."
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "The fleet is already paused." : {
       "comment" : "Spoken reply to a pause request"
@@ -2226,6 +2342,9 @@
     },
     "The image every job starts from. Per-repo images with toolchains are cloned from it." : {
       "comment" : "FormCard in ToolchainsView"
+    },
+    "The newest reports are kept; click one to see it." : {
+      "comment" : "Subtitle of the benchmark history card; the newest 20 reports are kept"
     },
     "The repo's .kinhin.yml is ignored (repo_file is off); these versions apply." : {
       "comment" : "Toolchains tab row explanation; keep .kinhin.yml and repo_file verbatim"
@@ -2275,11 +2394,17 @@
     "this VM" : {
       "comment" : "Pipeline job row tag: this job runs on the VM being inspected"
     },
+    "Thorough" : {
+      "comment" : "Benchmark intensity"
+    },
     "Token permissions needed" : {
       "comment" : "Text in FormComponents"
     },
     "Token stored in your Keychain ✓ — paste a new one only to replace it." : {
       "comment" : "Forge card status when a token is already stored"
+    },
+    "Tool" : {
+      "comment" : "Toolchains benchmark column"
     },
     "Toolchain cache" : {
       "comment" : "Diagnostics row title"
@@ -2355,6 +2480,9 @@
     },
     "Use owner/name for one repo, or just an org name to serve every repo in it. The token is kept in your Keychain, never in a file. GitHub is hosted at github.com by default. Add an enterprise host only for GHES (https://github.example.com) or GHEC data residency (https://acme.ghe.com)." : {
       "comment" : "HintText in ForgeCard"
+    },
+    "Verify" : {
+      "comment" : "Toolchains benchmark column"
     },
     "Versions come from .kinhin.yml in the repo at each job's branch/tag. Used when a repo has no usable file: the project toolchains below." : {
       "comment" : "Toolchains tab row explanation; keep .kinhin.yml verbatim"
@@ -2434,11 +2562,17 @@
     "Working" : {
       "comment" : ".accessibilityLabel in MacToolsView"
     },
+    "Workload" : {
+      "comment" : "Toolchains benchmark column"
+    },
     "Workspace or workspace/repo" : {
       "comment" : "Label of the repository field"
     },
     "workspace, or workspace/repo-slug" : {
       "comment" : "Placeholder in the repository field; keep the syntax verbatim"
+    },
+    "Xcode" : {
+      "comment" : "Benchmark suite name; the product name stays verbatim"
     },
     "Your fleet labels include “macos”, so macOS jobs would be sent to this Linux VM. In config.yaml, remove “macos” from labels (add “linux” if jobs ask for it)." : {
       "comment" : "Warning under the Tart (Linux VM) row; macos, linux and config.yaml are literal names"

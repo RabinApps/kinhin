@@ -103,7 +103,7 @@ private struct AdvancedView: View {
             .labelsHidden()
             .controlSize(.small)
             .accessibilityLabel("Advanced sections")
-            .frame(width: 560)
+            .frame(width: 680)
             .padding(.leading, 4)
 
             section
@@ -131,6 +131,8 @@ private struct AdvancedView: View {
             if let containers = models.containersModel { ContainersView(model: containers) }
         case .toolchains:
             if let toolchains = models.toolchainsModel { ToolchainsView(model: toolchains) }
+        case .benchmarks:
+            if let benchmarks = models.benchmarksModel { BenchmarksView(model: benchmarks) }
         case .app:
             AppSectionView(model: models.appModel)
         }

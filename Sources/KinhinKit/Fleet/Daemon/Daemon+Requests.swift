@@ -30,4 +30,16 @@ extension Daemon {
         public let forge: ForgeID
         public init(forge: ForgeID) { self.forge = forge }
     }
+
+    /// Answer to `bench_start`.
+    public struct BenchStartReply: Codable, Sendable, Equatable {
+        public let runID: String
+        public init(runID: String) { self.runID = runID }
+    }
+
+    /// Payload of `bench_status` and `bench_cancel`: the run to act on, or the most recent one when absent.
+    public struct BenchStatusRequest: Codable, Sendable, Equatable {
+        public let runID: String?
+        public init(runID: String?) { self.runID = runID }
+    }
 }

@@ -59,6 +59,7 @@ enum AdvancedSection: String, CaseIterable {
     case routing
     case containers
     case toolchains
+    case benchmarks
     case app
 
     var label: String {
@@ -68,6 +69,7 @@ enum AdvancedSection: String, CaseIterable {
         case .routing: return String(localized: "Routing", bundle: .l10n, comment: "Advanced section title")
         case .containers: return String(localized: "Containers", bundle: .l10n, comment: "Advanced section title")
         case .toolchains: return String(localized: "Toolchains", bundle: .l10n, comment: "Advanced section title")
+        case .benchmarks: return String(localized: "Benchmarks", bundle: .l10n, comment: "Advanced section title")
         case .app: return String(localized: "App", bundle: .l10n, comment: "Advanced section title")
         }
     }

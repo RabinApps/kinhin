@@ -48,6 +48,7 @@ final class MainTabsModel {
         models.fleetModel.onShowDiagnostics = { [weak self] in self?.present(.diagnostics) }
         models.fleetModel.onShowPipeline = { [weak self] in self?.present(.pipeline(vmID: $0)) }
         models.fleetModel.onShowWorkflowTest = { [weak self] in self?.present(.workflowTest) }
+        models.fleetModel.onShowBenchmarks = { [weak self] in self?.showAdvanced(.benchmarks) }
     }
 
     /// Set while first-run onboarding is up (or no usable config exists): the
@@ -167,6 +168,7 @@ final class MainTabsModel {
         case .routing: models.runtimesModel?.reload()
         case .containers: models.containersModel?.reload()
         case .toolchains: models.toolchainsModel?.reload()
+        case .benchmarks: models.benchmarksModel?.reload()
         case .app: break
         }
     }

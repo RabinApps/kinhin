@@ -90,6 +90,7 @@ For agents that shell out instead of speaking MCP:
 | `kinhin workflow test … --json` | Local workflow-run report with `outcome` (`succeeded`, `partial`, `failed`, …); exit 1 unless `succeeded` (`--lenient` also accepts `partial`) |
 | `kinhin workflow route … --json` | What the route edit did or would do |
 | `kinhin toolchains detect … --json` | Detected toolchains and the evidence, with `--write` to save |
+| `kinhin bench … --json` | The benchmark report (see [Benchmarks](benchmarks.md)); pauses a running fleet and takes minutes, so ask first (needs `--yes` with a live fleet outside a terminal); exit 1 when a suite or toolchain row failed |
 | `kinhin image list --json [--runtime <name>]` | Installed images per runtime: name, role, size, last used, who uses them |
 
 ## Safety rules for agents
@@ -99,6 +100,8 @@ For agents that shell out instead of speaking MCP:
   `kinhin daemon uninstall`** on a fleet that may be serving jobs; `kinhin cleanup --json` and
   `kinhin image list --json` are the safe ways to show a human what would go first (plain `kinhin image prune` is the
   same report without the deletion).
+- **Ask before `kinhin bench`** on a fleet that may be serving jobs: it pauses the fleet while it measures and creates
+  temporary VMs. Pass `--yes` only once the user has agreed to that; never pass `--include-host` unasked.
 - **Host routes are unisolated** — `runtimes route add <pattern> host` requires `--consent` and runs repo code
   directly on the Mac. Don't add one without the user asking.
 - **Tokens never appear in any document.** `auth status --json` reports presence and validity only.

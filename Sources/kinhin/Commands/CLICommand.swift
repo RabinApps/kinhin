@@ -26,6 +26,7 @@ enum CLICommand: Equatable, Hashable {
     case logs
     case daemon
     case cleanup
+    case bench
     case reset
     case requeue
     case skip

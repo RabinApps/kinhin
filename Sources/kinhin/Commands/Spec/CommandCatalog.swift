@@ -427,6 +427,39 @@ enum CommandCatalog {
             ],
             details: ["Reports only unless --yes is given. Stop the fleet first. --json reports only."]),
         CommandSpec(
+            name: "bench",
+            command: .bench,
+            group: .running,
+            summary: "Benchmark runtimes, workloads and toolchains here",
+            positionals: "[SUITE]…",
+            flags: [
+                .bool(
+                    "--quick", "Small payloads, 1 iteration (default); thorough: larger, 3, cold installs",
+                    group: "intensity"),
+                .bool(
+                    "--thorough", "Larger payloads, 3 iterations; toolchains time the cold install", group: "intensity"),
+                .value("--iterations", "N", "Boot iterations (1 to 10)"),
+                .value("--runtime", "tart|appleContainer|docker|host|all", "Only these runtimes (comma-separated)"),
+                .value("--toolchains", "ID,…", "Scope the toolchains suite to these tools or stacks"),
+                .bool("--all-toolchains", "Run the toolchains suite over the whole catalog"),
+                .bool("--include-host", "Also benchmark the unisolated host runtime"),
+                .value("--network", "URL", "Time a shallow git clone of this https, ssh or git URL"),
+                .value("--project", "PATH", "Copy this checkout into the macOS guest and build it with Xcode"),
+                .bool("--keep", "Keep the host scratch directory for debugging"),
+                .bool("--force", "Do not wait for busy fleet VMs to finish"),
+                .bool("--yes", "Agree to pause a running fleet without asking"),
+                jsonFlag,
+            ],
+            details: [
+                "SUITE is boot, casual, xcode, large or toolchains. Bare `kinhin bench` runs the first four; the "
+                    + "toolchains suite takes hours when thorough, so it is opt-in. A running fleet is paused while the benchmark runs (--yes "
+                    + "agrees to that without a prompt). Bench VMs and containers are named kinhin-bench-* and are "
+                    + "deleted afterwards, also when the run fails or is cancelled.",
+                "The JSON report is kept under Application Support/Kinhin/bench (the newest 20). Exits 1 when a "
+                    + "suite or toolchain failed.",
+            ],
+            docs: "docs/benchmarks.md"),
+        CommandSpec(
             name: "reset",
             command: .reset,
             group: .running,

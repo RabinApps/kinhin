@@ -78,6 +78,38 @@ public struct RPCClient: Sendable {
         return try JSONDecoder().decode(PipelineLog.self, from: data)
     }
 
+    /// Starts a benchmark run in the daemon and returns its run id. A daemon that predates benchmarks
+    /// does not know the method and says so.
+    public func benchStart(_ options: BenchmarkOptions) throws -> String {
+        do {
+            let response = try command(.benchStart, payload: JSONEncoder().encode(options))
+            guard let payload = response.payload else { throw RPCError.rejected("daemon returned no run id") }
+            return try JSONDecoder().decode(Daemon.BenchStartReply.self, from: payload).runID
+        } catch RPCError.rejected("undecodable request") {
+            throw BenchmarkError.unsupported("this daemon predates benchmarks — restart it after updating kinhin")
+        }
+    }
+
+    /// The status of a benchmark run (the most recent when `runID` is nil).
+    public func benchStatus(runID: String?) throws -> BenchmarkRunStatus {
+        let response = try command(.benchStatus, payload: JSONEncoder().encode(Daemon.BenchStatusRequest(runID: runID)))
+        guard let payload = response.payload else { throw RPCError.rejected("daemon returned no benchmark status") }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(BenchmarkRunStatus.self, from: payload)
+    }
+
+    /// Cancels a running benchmark (the latest when `runID` is nil); false when none is running.
+    @discardableResult
+    public func benchCancel(runID: String?) throws -> Bool {
+        do {
+            try command(.benchCancel, payload: JSONEncoder().encode(Daemon.BenchStatusRequest(runID: runID)))
+            return true
+        } catch RPCError.rejected(let why) where why.contains("no benchmark run") {
+            return false
+        }
+    }
+
     /// Ask the daemon to swap its PAT (it must already be in the Keychain).
     public func replaceToken(pat: String) throws {
         try command(.replaceToken, payload: JSONEncoder().encode(TokenReplaceRequest(pat: pat)))

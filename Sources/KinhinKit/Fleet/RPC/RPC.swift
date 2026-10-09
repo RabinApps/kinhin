@@ -28,14 +28,21 @@ public enum RPCMethod: String, Codable, Sendable {
     case reloadConfig = "reload_config"
     case logs
     case ping
+    /// Start a benchmark run in the background; answers with its run id at once.
+    case benchStart = "bench_start"
+    /// The progress, partial results and (when finished) report of a benchmark run.
+    case benchStatus = "bench_status"
+    /// Cancel a running benchmark; it still removes everything it created.
+    case benchCancel = "bench_cancel"
 
     /// Methods that change fleet state; the daemon runs them one at a time.
     var mutatesFleet: Bool {
         switch self {
         case .start, .stop, .pause, .resume, .deleteVM, .requeueQueuedJobs, .skipQueuedJobs,
-            .replaceToken, .replaceGiteaToken, .replaceForgejoToken, .replaceAccountToken, .reloadConfig:
+            .replaceToken, .replaceGiteaToken, .replaceForgejoToken, .replaceAccountToken, .reloadConfig,
+            .benchStart:
             return true
-        case .status, .pipelineDetail, .pipelineLog, .logs, .ping:
+        case .status, .pipelineDetail, .pipelineLog, .logs, .ping, .benchStatus, .benchCancel:
             return false
         }
     }

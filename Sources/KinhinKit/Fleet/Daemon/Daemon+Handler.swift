@@ -17,6 +17,7 @@ extension Daemon {
         engineRef: EngineRef,
         configURL: URL = Paths.config,
         engineFactory: (@Sendable (KinhinConfig) throws -> FleetEngine)? = nil,
+        benchmarks: BenchmarkRegistry = .shared,
         holdsGate: Bool = false
     ) async -> RPCResponse {
         // Everything that changes the fleet runs through the same FIFO gate
@@ -27,7 +28,7 @@ extension Daemon {
             return await engineRef.serialized {
                 await handle(
                     request, engineRef: engineRef, configURL: configURL, engineFactory: engineFactory,
-                    holdsGate: true)
+                    benchmarks: benchmarks, holdsGate: true)
             }
         }
         let encoder = JSONEncoder()
@@ -132,6 +133,28 @@ extension Daemon {
                 // leaving an orphan engine driving the fleet. The engine was
                 // resolved after the gate was acquired, so it is current.
                 return await reload(request, engineRef: engineRef, configURL: configURL, engineFactory: engineFactory)
+            case .benchStart:
+                guard let options = decodePayload(BenchmarkOptions.self) else {
+                    return RPCResponse(id: request.id, ok: false, error: "expected benchmark options")
+                }
+                // Starts detached and answers at once: a run outlives the RPC deadline. The run pauses and
+                // resumes the fleet itself.
+                let runID = try benchmarks.start(options: options, environment: engine.benchmarkEnvironment())
+                return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(BenchStartReply(runID: runID)))
+            case .benchStatus:
+                let ask = decodePayload(BenchStatusRequest.self)
+                guard let status = benchmarks.status(runID: ask?.runID) else {
+                    throw BenchmarkError.unknownRun(ask?.runID ?? "(none started)")
+                }
+                let benchEncoder = JSONEncoder()
+                benchEncoder.dateEncodingStrategy = .iso8601
+                return RPCResponse(id: request.id, ok: true, payload: try benchEncoder.encode(status))
+            case .benchCancel:
+                let ask = decodePayload(BenchStatusRequest.self)
+                guard benchmarks.cancel(runID: ask?.runID) else {
+                    throw BenchmarkError.unknownRun(ask?.runID ?? "(none running)")
+                }
+                return RPCResponse(id: request.id, ok: true)
             case .logs:
                 let entries = Log.snapshot(limit: 300)
                 return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(entries))
