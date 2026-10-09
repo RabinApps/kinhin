@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Advanced sidebar.** The Advanced tab now has a sidebar of its sections (Accounts, Capacity, Routing, Containers, Toolchains, Benchmarks, App), each with an icon, and the selected section on the right. The sidebar collapses to an icon rail (⌥⌘S) and remembers its state. The window opens wider (800pt, 760pt minimum) to fit it.
+
 - **Benchmarks.** `kinhin bench [boot|casual|xcode|large|toolchains]` measures, on this Mac, how fast each runtime boots, how fast representative workloads run in it, and how fast every catalog toolchain installs, verifies and builds. It pauses a running fleet while it measures (asking first, `--yes` agrees), writes a JSON report under `Application Support/Kinhin/bench` (newest 20 kept; `--json` prints it) and deletes every `kinhin-bench-*` VM and container it created, also on failure or Ctrl-C. Flags: `--quick`/`--thorough`, `--iterations`, `--runtime`, `--toolchains`/`--all-toolchains`, `--include-host`, `--network`, `--project`, `--force`, `--keep`. The app gets **Advanced → Benchmarks** and a Fleet tab card; the daemon gains `bench_start`, `bench_status` and `bench_cancel`. See `docs/benchmarks.md`.
 
 - **Warm pool.** `warm_pool: N` keeps `N` Tart VMs booted and SSH-ready but unregistered; a job claims one and skips clone and boot. Off by default. Warm VMs take slots under `max_runners`, are evicted when a job needs the slot, and are recycled after `warm_max_age_minutes`. New `warm` VM phase.

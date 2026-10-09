@@ -213,4 +213,31 @@ final class MainTabsModelTests: MainWindowTestCase {
         tabs.present(.sponsor)
         XCTAssertEqual(tabs.sheet, .sponsor)
     }
+
+    // MARK: - Advanced sidebar
+
+    func testEveryAdvancedSectionHasADistinctSidebarIcon() {
+        let symbols = AdvancedSection.allCases.map(\.symbol)
+        XCTAssertFalse(symbols.contains(""))
+        XCTAssertEqual(Set(symbols).count, symbols.count)
+    }
+
+    func testAdvancedSidebarCollapseTogglesAndPersists() {
+        XCTAssertFalse(tabs.advancedSidebarCollapsed)
+        tabs.toggleAdvancedSidebar()
+        XCTAssertTrue(tabs.advancedSidebarCollapsed)
+        XCTAssertTrue(models.prefs.bool(forKey: MainTabsModel.sidebarCollapsedKey))
+
+        let reopened = MainTabsModel(fleet: fleet, models: models)
+        XCTAssertTrue(reopened.advancedSidebarCollapsed, "the choice survives a relaunch")
+        tabs.toggleAdvancedSidebar()
+        XCTAssertFalse(tabs.advancedSidebarCollapsed)
+    }
+
+    func testSelectingASectionWhileCollapsedStillBuildsIt() {
+        tabs.toggleAdvancedSidebar()
+        tabs.showAdvanced(.containers)
+        XCTAssertEqual(tabs.advancedSection, .containers)
+        XCTAssertNotNil(models.containersModel)
+    }
 }

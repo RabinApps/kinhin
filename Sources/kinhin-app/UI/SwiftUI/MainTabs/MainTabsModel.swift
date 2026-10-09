@@ -37,12 +37,15 @@ final class MainTabsModel {
     private var requestedTab: MainTab = .fleet
     private(set) var advancedSection: AdvancedSection = .accounts
     var sheet: MainSheet?
+    /// The Advanced sidebar is folded to its icon rail. Persisted across launches.
+    private(set) var advancedSidebarCollapsed: Bool
     /// The Advanced tab has been opened once (its first section is built then).
     @ObservationIgnored private var advancedInstalled = false
 
     init(fleet: FleetController, models: WindowModels) {
         self.fleet = fleet
         self.models = models
+        advancedSidebarCollapsed = models.prefs.bool(forKey: Self.sidebarCollapsedKey)
         models.fleetModel.onNeedsSetup = { [weak self] in self?.showSetup() }
         models.fleetModel.onShowLogs = { [weak self] in self?.present(.logs) }
         models.fleetModel.onShowDiagnostics = { [weak self] in self?.present(.diagnostics) }
@@ -116,6 +119,13 @@ final class MainTabsModel {
         advancedSection = section
         models.ensureSection(section)
         models.reloadSection(section)
+    }
+
+    static let sidebarCollapsedKey = "advancedSidebarCollapsed"
+
+    func toggleAdvancedSidebar() {
+        advancedSidebarCollapsed.toggle()
+        models.prefs.set(advancedSidebarCollapsed, forKey: Self.sidebarCollapsedKey)
     }
 
     /// Opens Advanced on a given section (used by the menu).
