@@ -35,7 +35,7 @@ description: Diagnose kinhin problems - jobs queued but no VMs, runner never reg
 | Remote Mac keeps prompting for the Keychain | `security unlock-keychain ~/Library/Keychains/login.keychain-db`, enable auto-login, keep FileVault off. |
 | Disk filling | Stop the fleet, then `kinhin cleanup --all` (review the report), then `--yes`. For image bloat specifically: the doctor's `prune:` row shows the waste, then `kinhin image prune` (report-only) and `--yes`. |
 | Older images allow SSH passwords | Re-run `kinhin image prepare`. A fresh prepare turns that off. |
-
+| I want to run Windows containers or a Windows VM on my Mac | **Windows containers are not possible on macOS.** `microsoft/windows` images need a Windows host kernel (Docker Desktop on Mac has none and no Windows-container mode), and "Windows in a container" projects like `dockur/windows` are full QEMU/KVM VMs that need `/dev/kvm` from a Linux host — Docker Desktop on Mac and Apple's `container` CLI do not provide that, and Macs have no Linux KVM to pass down. If you need Windows CI on a Mac fleet, the realistic local path is a [Windows VM on Apple Silicon](https://github.com/RabinApps/kinhin/blob/main/docs/plans/windows-vms-apple-silicon.md) (substrate-probed, not implemented; gated on a bootable Windows ARM guest source and the per-forge Windows runner story). If you do not need to run Windows locally, route Windows jobs to GitHub-hosted Windows runners (`windows-11-arm` for public repos, or standard Windows hosted runners) with the right `runs-on` label instead.\n
 ## Rules for the agent
 
 - Read-only commands first. Do not run `cleanup --yes`, `stop` or reinstall steps without telling the user what they

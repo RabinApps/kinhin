@@ -368,6 +368,18 @@ It:
 `--consent` is required for `host`, and `kinhin runtimes --json` reports the per-runtime `availability` sweep
 (`ready` / `missing:<tool>` / `broken:<reason>`), so scripts can pick a runtime this Mac can actually run.
 
+## Windows (not available as a local runtime on Mac)
+
+Windows CI jobs cannot run locally on a Mac through kinhin's container runtimes, and **Windows containers are not an option on macOS at all**.
+
+- **`microsoft/windows` / `mcr.microsoft.com/windows` are Windows Server containers.** They share the Windows NT kernel with the host and need a Windows host kernel (and, for process isolation, a matching host build). Docker Desktop on macOS runs a Linux VM and has no Windows container mode, so it cannot pull or run these images. There is no way to switch Docker Desktop on a Mac into Windows-container mode.
+- **"Windows in a container" projects (e.g. `dockur/windows`) are not Windows containers.** They are full VMs (QEMU/KVM) packaged to run inside a Linux Docker container, using `/dev/kvm` from the Linux host. Docker Desktop on macOS does not expose `/dev/kvm` to containers, and Apple's `container` CLI is a microVM runtime — not a KVM host — so neither can run these. Macs also have no Linux KVM to pass down in the first place. Even where KVM is available, the result is a full Windows VM, not a lightweight Windows container.
+
+**If you need Windows CI on a Mac fleet, the realistic local path is a Windows VM on Apple Silicon**, driven by kinhin as a fleet runtime — see [Windows VMs on Apple Silicon](https://github.com/RabinApps/kinhin/blob/main/docs/plans/windows-vms-apple-silicon.md). That plan is substrate-probed and not yet implemented; the gating question is a bootable Windows ARM guest source (Parallels template/ISO, or a scripted hypervisor backend) and the per-forge Windows runner install/registration story.
+
+**If you do not need to run Windows locally**, route Windows jobs to GitHub-hosted Windows runners instead. GitHub Actions now has Windows ARM64 hosted runners (`windows-11-arm` label, public repositories) and standard Windows hosted runners — add the appropriate `runs-on` label and kinhin's fleet (macOS + Linux) stays where it is.
+
+
 ## Host mode: run jobs directly on your Mac
 
 Host mode runs a job as an ephemeral runner process **on your Mac itself**: no VM, no container. It's fast and sees
