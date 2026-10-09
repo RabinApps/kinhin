@@ -1,0 +1,56 @@
+#!/bin/bash
+# Run the end-to-end suite (Tests/E2E): real forges in containers, real runners, real guests.
+#
+# This is NOT part of scripts/check.sh or CI's per-PR job: it boots containers/VMs and needs Docker, so it runs on
+# a dedicated Mac (see .github/workflows/e2e.yml and docs/e2e-testing.md).
+#
+#   scripts/e2e.sh                 quick tier: CLI, security and coverage guards (no Docker needed)
+#   scripts/e2e.sh --local         + Gitea/Forgejo lifecycle, fleet behavior, smoke toolchains (Docker/container)
+#   scripts/e2e.sh --full          + GitLab CE and the whole toolchain catalog (hours, GBs)
+#   scripts/e2e.sh --local -- --filter LifecycleTests     extra args after -- go to `swift test`
+#
+# Narrow the matrix with KINHIN_E2E_FORGES=gitea,forgejo and KINHIN_E2E_RUNTIMES=docker,appleContainer.
+# Other switches: KINHIN_E2E_KEEP=1 (keep sandboxes), KINHIN_E2E_TART_BASE=<local macOS tart image> (Tart lane),
+# KINHIN_E2E_GITHUB_TOKEN + KINHIN_E2E_GITHUB_REPO (the gated GitHub lane).
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+tier=quick
+extra=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --quick) tier=quick ;;
+    --local) tier=local ;;
+    --full) tier=full ;;
+    --) shift; extra=("$@"); break ;;
+    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    *) echo "unknown option: $1 (see --help)" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+# The suite needs a DEBUG kinhin: only debug builds read forge tokens from the environment
+# (KINHIN_TOKEN_STORE=env), which keeps the run off the developer's Keychain.
+echo "==> building kinhin (debug)"
+swift build --product kinhin
+
+export KINHIN_E2E=1
+export KINHIN_E2E_BIN="$PWD/.build/debug/kinhin"
+
+case "$tier" in
+  quick) filter=(--filter 'CLITests|SecurityTests|CoverageTests') ;;
+  local) filter=() ;;
+  full)
+    filter=()
+    export KINHIN_E2E_HEAVY=1
+    export KINHIN_E2E_TOOLCHAINS=full
+    ;;
+esac
+
+echo "==> running the $tier tier"
+cd Tests/E2E
+if [ ${#extra[@]} -gt 0 ]; then
+  exec swift test ${filter[@]+"${filter[@]}"} "${extra[@]}"
+fi
+exec swift test ${filter[@]+"${filter[@]}"}

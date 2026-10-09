@@ -46,7 +46,7 @@ export default defineConfig({
     "{Sources,Tests,Plugins,scripts,dist,shots,assets}/**",
     "**/node_modules/**",
     "docs/plans/**",
-    "docs/{app,adding-a-forge}.md",
+    "docs/{app,adding-a-forge,e2e-testing}.md",
     "skills/**",
   ],
   rewrites: {

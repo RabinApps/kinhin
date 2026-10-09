@@ -28,7 +28,7 @@ with an **untested** badge. These are implemented and covered by unit and contra
 been exercised end to end. The list comes from one table in the code (`MaturityTable`).
 
 <!-- docs-sync:begin maturity -->
-Live-tested forges (`MaturityTable`): `github`. Live-tested runtimes: `tart`, `appleContainer` (`tart` means macOS VMs).
+Live-tested forges (`MaturityTable`): `github`, `gitea`. Live-tested runtimes: `tart`, `appleContainer` (`tart` means macOS VMs).
 Every other forge and runtime, and Tart serving Linux VMs, is shown with an **untested** badge.
 <!-- docs-sync:end maturity -->
 
