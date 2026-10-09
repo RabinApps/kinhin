@@ -1,5 +1,11 @@
 # Plan: English + Spanish localization (app, kit, CLI; docs stay English)
 
+> **Status (app groundwork landed).** The menu bar app now localizes through a String Catalog
+> (`Sources/kinhin-app/Resources/Localizable.xcstrings`, `String(localized:bundle:comment:)`, catalog plural variations,
+> `scripts/l10n-lint.sh`) instead of the `L10n.tr` tables described below; see "Localization (menu bar app)" in
+> CONTRIBUTING.md. The language-picker and runtime-override ideas, and the KinhinKit and CLI phases (which cannot use the
+> app's bundle), are still open: for those, the table design below still applies.
+
 ## Confirmed decisions
 
 - **Scope:** menu bar app UI, KinhinKit user-facing text, CLI output and help screen — **all** get Spanish.

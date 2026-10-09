@@ -8,6 +8,8 @@
 #   docs job     : bash scripts/docs-lint.sh          (GitHub-hosted ubuntu runner)
 #                  bash scripts/docs-sync.sh --check
 #                  bash scripts/skills-lint.sh
+# The String Catalog checks (scripts/l10n-lint.sh) are L10nCatalogTests, so CI's `swift test` already runs
+# them; here they get their own stage so a --fast run covers them too.
 # The release-only build (KinhinTestSupport is testable-only) stays CI-only:
 # it is a compile check CI can afford that a local iteration loop cannot.
 #
@@ -48,6 +50,9 @@ fi
 
 stage "swift format lint --strict"
 swift format lint --strict -r Sources Tests
+
+stage "l10n lint (String Catalog)"
+bash scripts/l10n-lint.sh
 
 stage "docs lint (stale strings)"
 bash scripts/docs-lint.sh

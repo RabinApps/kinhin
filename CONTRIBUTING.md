@@ -29,11 +29,12 @@ fails fast with this hint.
 
 ```bash
 scripts/check.sh                  # everything CI runs, in one command, failing fast (build, test,
-                                  # format lint, docs lint, docs-sync --check, skills lint)
+                                  # format lint, l10n lint, docs lint, docs-sync --check, skills lint)
 scripts/check.sh --fast           # same, skips the ~2 min test run — iterate with this
 swift build
 swift test                        # ~2300 XCTest tests, ~2 min; no VMs or network needed
 scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
+scripts/l10n-lint.sh              # String Catalog vs. the app's sources; --sync adds/drops entries
 scripts/dev-run.sh                # debug app, signed with a stable identity so Keychain "Always Allow" survives rebuilds
 swift package --disable-sandbox dev   # same, as a SwiftPM command plugin (Plugins/Dev)
 scripts/dev-run.sh --env-tokens   # debug app with tokens from env vars (.env.dev) instead of the Keychain
@@ -154,6 +155,70 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
 - Never swallow `CancellationError`; let it propagate.
 - UI: show failures with `AlertKit.present(error:)` (modal) or the form's status label. Never leave a failed user action silent. Load config through `ConfigStore` so a parse error is shown instead of rendering an empty config.
 - CLI: failures end through `fail(_:exit:)` or `fail(error)`; `CLIExit` gives the exit code (1 generic, 2 usage, 3 config, 4 runtime/engine, 5 auth), classified from the error via `ErrorCategory` (KinhinKit). Errors and warnings go to stderr; stdout carries only command output (so `--json` stays parseable).
+
+## Localization (menu bar app)
+
+English is the only shipped language, but the app is built so that adding a language is translation work, not code
+work. All user-facing text lives in one String Catalog, `Sources/kinhin-app/Resources/Localizable.xcstrings` (source
+language `en`). SwiftPM compiles it into the app's resource bundle, and `scripts/build-app.sh` hoists the resulting
+`<lang>.lproj` folders into `kinhin.app/Contents/Resources` (and lists them in `CFBundleLocalizations`), so SwiftUI
+and AppKit resolve them through `Bundle.main`. `scripts/dev-run.sh` copies them next to the debug binary for the same
+reason.
+
+**Where text goes**
+
+| Text is… | Write |
+| --- | --- |
+| a SwiftUI literal (`Text`, `Button`, `Label`, `Toggle`, `Picker`, `.help`, `.accessibilityLabel`, `HintText`, `FormCard(title:subtitle:)`, `StatusText(text:)`) | the plain literal; it is already a `LocalizedStringKey` |
+| built in a model, an `NSMenuItem`, an `NSAlert`, an accessibility string, an App Intent reply | `String(localized: "…", bundle: .l10n, comment: "…")` |
+| already localized by a model and handed to a view | `Text(verbatim:)`, `HintText(verbatim:)`, `StatusText(verbatim:)`, `FormCard(title: Text(verbatim: …))` |
+| a log line, identifier, URL, file name or command | an ordinary string, never localized |
+
+- Always pass `bundle: .l10n` (it finds the catalog under `swift run` and `swift test`, where `Bundle.main` is not the
+  app) and a `comment:` that tells a translator where the string appears and what each placeholder is.
+- One whole sentence per string. Interpolate (`"Delete \(id)?"` becomes the key `Delete %@?`); never join fragments
+  (`"Delete " + id + "?"`) or splice a phrase into a template. Give each variant its own key (`"Started."` /
+  `"Stopped."`) so a language can reorder and re-inflect freely.
+- Never branch on displayed text (`text.hasPrefix("Failed")`); keep a state flag next to the string.
+- Plurals are catalog variations, not `n == 1 ? "" : "s"`: write `"\(n) runners"`, give the entry English
+  `one`/`other` forms in the catalog and put "plural by <what is counted>" in its comment (the lint checks for the
+  variations). A string with a second number uses a substitution on the counted argument; see
+  `%lld instances · %lld busy` in the catalog for the shape.
+- Dates, durations, sizes and lists go through formatters, never hand-built English: `AppFormat.duration` / `.bytes` /
+  `.relative` (`DateComponentsFormatter`, `ByteCountFormatter`, `RelativeDateTimeFormatter`), `Date.formatted`,
+  `.formatted(.percent)`, and `.formatted(.list(type: .and))` for name lists.
+- Product and tool names (`kinhin`, `tart`, `Docker`), commands, config keys and example URLs stay verbatim inside the
+  translated sentence; say so in the comment.
+
+**The lint.** `scripts/l10n-lint.sh` (a `scripts/check.sh` stage, and part of `swift test` as `L10nCatalogTests`)
+fails when a localized literal has no catalog entry, an entry is stale, a plural entry lacks plural variations, a
+translation changes its placeholders, or a sentence-like literal sits outside every localizing call (new hard-coded
+English in view or AppKit code). After adding, changing or deleting a string, run `scripts/l10n-lint.sh --sync`: it adds
+the missing keys (with a generated comment you should improve) and drops stale ones, and never touches existing
+translations or comments. The scanner is a small lexer, not a compiler; it picks `%lld` for numeric interpolations from a
+name list (`L10nSourceScanner.numericNames`), so extend that list when a new numeric value is interpolated.
+
+**Trying a pseudo-locale.** Run the debug app with Apple's pseudo-localization flags to spot strings that bypass the
+catalog and layouts that break when text grows:
+
+```bash
+scripts/dev-run.sh -NSDoubleLocalizedStrings YES                 # every localized string doubled: clipped or overflowing layouts
+scripts/dev-run.sh -NSShowNonLocalizedStrings YES                # strings that miss a catalog lookup are logged and upper-cased
+scripts/dev-run.sh -AppleLanguages "(en-XA)"                     # Xcode's accented pseudo-language, once a second language is bundled
+```
+
+Plain English still showing under `-NSDoubleLocalizedStrings` is hard-coded or comes from KinhinKit (below). The bundled
+app takes the same flags: `open dist/kinhin.app --args -NSDoubleLocalizedStrings YES`.
+
+**Adding a language** (once the strings are final): nothing changes in `Package.swift` (`defaultLocalization` is `en`).
+Open the catalog in Xcode (or add `localizations.<lang>` entries by hand), translate every key including the plural
+forms, and run `scripts/build-app.sh`: the new `<lang>.lproj` is bundled and registered automatically.
+`testTranslationsKeepThePlaceholdersOfTheirKey` guards the placeholders.
+
+**Not covered yet.** Text that originates in `KinhinKit` (the fleet status line, `LocalizedError.errorDescription`s,
+doctor and setup check titles and details, pipeline timing, runtime health notes, support-link blurbs) reaches the app as
+ready-made English `String`s and is shown as is, and the CLI is English only; both belong to later phases of
+[docs/plans/multi-locale.md](docs/plans/multi-locale.md). `docs/`, `website/` and `skills/` are English-only by policy.
 
 ## Commits
 
