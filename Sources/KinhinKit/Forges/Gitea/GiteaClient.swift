@@ -214,7 +214,24 @@ public struct GiteaClient: Sendable {
         }
     }
 
-    // MARK: - Task queue (attribution)
+    // MARK: - Queued jobs (Gitea 1.25+, Forgejo 11+)
+
+    /// Queued jobs for the scope, using the server's own queue endpoint when
+    /// it is available (`/actions/jobs?status=waiting` on Gitea 1.25+,
+    /// `/actions/runners/jobs?labels=` on Forgejo 11+) and falling back to
+    /// the task-queue shape on older servers. The caller decides the floor;
+    /// this method only reports what the server actually has queued.
+    func queuedJobs() async throws -> [ForgeJob] {
+        let jobs = try await jobs(status: "waiting")
+        return jobs.map { job in
+            ForgeJob(
+                name: job.name ?? "job",
+                runnerName: nil,
+                repository: job.repository,
+                ref: job.ref,
+                sha: job.sha)
+        }
+    }
 
     /// The scope's task queue with per-task attribution. Requests up to 50
     /// entries (the same cap the count endpoint polls); entries the instance
@@ -266,6 +283,33 @@ public struct GiteaClient: Sendable {
             return (wrapper.tasks, wrapper.entries?.count ?? 0)
         } catch {
             throw ForgeAPIError.decoding(forge: .gitea, what: "tasks: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Jobs endpoint (Gitea 1.25+, Forgejo 11+)
+
+    /// Queued jobs from the server's own queue endpoint when it answers.
+    /// Gitea 1.25+ exposes `/actions/jobs?status=waiting` (org, repo and per
+    /// run); Forgejo 11+ exposes `/actions/runners/jobs?labels=`.
+    /// The shape below is what the swagger specs document for those endpoints;
+    /// for servers that do not have it at all the method returns an empty list
+    /// so the caller can fall back without treating "endpoint absent" as demand.
+    func jobs(status: String) async throws -> [GiteaJob] {
+        let path: String
+        let forge: ForgeID
+        if credentials.instance.contains("forgejo") || credentials.instance.contains("codeberg") {
+            path = "\(credentials.actionsBase)/runners/jobs?labels=&status=\(status)&page=1&limit=50"
+            forge = .forgejo
+        } else {
+            path = "\(credentials.actionsBase)/jobs?status=\(status)&page=1&limit=50"
+            forge = .gitea
+        }
+        let (data, _) = try await send(path: path)
+        do {
+            let wrapper = try JSONDecoder().decode(JobsWrapper.self, from: data)
+            return wrapper.jobs
+        } catch {
+            throw ForgeAPIError.decoding(forge: forge, what: "jobs: \(error.localizedDescription)")
         }
     }
 
@@ -392,4 +436,49 @@ struct TaskQueueWrapper: Decodable {
         }
         return decoded
     }
+}
+
+// MARK: - Jobs endpoint models (Gitea 1.25+, Forgejo 11+)
+
+/// One queued job from the server's own queue endpoint. The fields below are
+/// what the published specs and live probes expose; unknowns decode as nil.
+struct GiteaJob: Decodable {
+    let id: Int?
+    let name: String?
+    let status: String?
+    /// Repo attribution on the job itself (Gitea 1.25+ includes
+    /// `repository.full_name` on org and repo jobs; Forgejo's runner-jobs
+    /// shape is narrower, so this can be nil there).
+    let repository: String?
+    let ref: String?
+    let sha: String?
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(Int.self, forKey: .id)
+        name = try c.decodeIfPresent(String.self, forKey: .name)
+        status = try c.decodeIfPresent(String.self, forKey: .status)
+        repository = try c.decodeIfPresent(String.self, forKey: .repository)
+        ref = try c.decodeIfPresent(String.self, forKey: .ref)
+        sha = try c.decodeIfPresent(String.self, forKey: .sha)
+    }
+
+    enum CodingKeys: String, CodingKey { case id, name, status, repository, ref, sha }
+}
+
+struct JobsWrapper: Decodable {
+    /// Gitea 1.25+ uses `total_count`; Forgejo's runner-jobs endpoint uses
+    /// `count`. Tolerate either.
+    let total_count: Int?
+    let count: Int?
+    let jobs: [GiteaJob]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        total_count = try c.decodeIfPresent(Int.self, forKey: .total_count)
+        count = try c.decodeIfPresent(Int.self, forKey: .count)
+        jobs = try c.decodeIfPresent([GiteaJob].self, forKey: .jobs) ?? []
+    }
+
+    enum CodingKeys: String, CodingKey { case total_count, count, jobs }
 }

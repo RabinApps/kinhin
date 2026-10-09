@@ -60,11 +60,14 @@ final class ScopeActivityCache: Sendable {
 ///
 /// Gitea's runner API differs from
 /// GitHub's: registration tokens are long-lived (not 1 h), so the token is
-/// captured at forge construction instead of minted per VM; queued demand
-/// comes from the instance's task-queue entries (per-task repo attribution
-/// when the instance exposes it) and honors a floor (min_runners) only when
-/// the endpoint fails or reports no usable entries — the fallback for older
-/// Gitea shapes, never overriding a legitimate zero.
+/// captured at forge construction instead of minted per VM.
+///
+/// Queued demand uses the server's own queue endpoint when it exists
+/// (`/actions/jobs?status=waiting` on Gitea 1.25+, `/actions/runners/jobs`
+/// on Forgejo 11+) and falls back to the task-queue shape on older servers.
+/// A `min_runners` floor applies only on servers without that endpoint — the
+/// old task-queue path still needs it because those servers report a count,
+/// not a real queue — never overriding a legitimate zero.
 struct GiteaForge: Forge {
     let id: ForgeID
     var name: String { id.rawValue }
@@ -164,10 +167,15 @@ struct GiteaForge: Forge {
     }
 
     func queuedJobs() async throws -> [ForgeJob] {
-        // Real task entries with per-task repo attribution. A failed request
-        // propagates (the engine's poll handler logs it and keeps the previous
-        // scaling state — the pre-attribution behavior); an empty-but-valid
-        // answer holds the demand floor below.
+        // Preferred: the server's own queue endpoint when it exists (Gitea
+        // 1.25+, Forgejo 11+). It reports real queued jobs, so the floor is
+        // not needed there.
+        if let jobs = try? await client.queuedJobs(), !jobs.isEmpty {
+            return jobs
+        }
+        // Older servers without that endpoint: fall back to the task queue.
+        // A failed request propagates; an empty-but-valid answer holds the
+        // floor only when the server needs that fallback.
         let tasks = try await client.queuedTasks()
         if tasks.isEmpty, demandFloor > 0 {
             // The endpoint answered with no entries (older Gitea reports only
