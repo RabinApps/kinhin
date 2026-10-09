@@ -16,7 +16,8 @@ public actor ImageBaker {
         let key = "\(runtime.rawValue)-\(forges.joined(separator: "+"))"
         if let tag = baked[key] { return tag }
         if let task = inFlight[key] { return try await task.value }
-        let tag = "ke2e-\(key.replacingOccurrences(of: "+", with: "-"))-\(E2E.randomID())"
+        // Image references must be lowercase ("appleContainer" in a tag made `container build` reject it).
+        let tag = "ke2e-\(key.replacingOccurrences(of: "+", with: "-"))-\(E2E.randomID())".lowercased()
         let task = Task { try await Self.bake(runtime, accounts: accounts, tag: tag) }
         inFlight[key] = task
         defer { inFlight[key] = nil }
