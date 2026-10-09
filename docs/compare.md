@@ -17,7 +17,7 @@ the right pick depends on what you already run and how many machines you have.
 - Where a tool's docs did not mention something, this page says "no documented ..." rather than claiming the tool cannot do it.
 - kinhin's own claims use the same words as [Forge support](forges.md#what-has-been-tested). **Live-tested** means run against
   a real server. **Unit-tested only** means automated tests against fakes, never a real instance. Today only GitHub Actions
-  with Tart macOS VMs and with apple/container is live-tested.
+  (Tart macOS VMs and apple/container) and Gitea Actions (Docker) are live-tested.
 - No prices or benchmark numbers appear here. Hosted services change pricing often, so use each vendor's own pricing page.
 
 ## At a glance
@@ -26,7 +26,7 @@ the right pick depends on what you already run and how many machines you have.
 
 | Tool | What it is | Forges | Autoscaling | Hosts | License |
 | ---- | ---------- | ------ | ----------- | ----- | ------- |
-| **kinhin** | Menu bar app, CLI and daemon that autoscales ephemeral runners on one Mac | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket (GitHub live-tested, others unit-tested only) | Yes, from the queue, capped by the Mac's cores, RAM and disk | One Mac | Apache-2.0 |
+| **kinhin** | Menu bar app, CLI and daemon that autoscales ephemeral runners on one Mac | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket (GitHub and Gitea live-tested, others unit-tested only) | Yes, from the queue, capped by the Mac's cores, RAM and disk | One Mac | Apache-2.0 |
 | **runscaler** | Command line autoscaler for Docker containers or Tart macOS VMs | GitHub | Yes, on GitHub's runner scale set API, scales from zero | One host | MIT |
 | **Cilicon** | macOS app that runs ephemeral Tart-format VMs | GitHub Actions, Buildkite, GitLab Runner, custom scripts | No documented queue-based scaling | One Mac | MIT |
 | **Tartelet** | macOS app that runs ephemeral Tart VMs as runners | GitHub | Runs up to two runners | One Mac | MIT |
@@ -142,7 +142,7 @@ a separate autoscaler project, which its docs call not feature-complete, and its
 documented autoscaling for Apple hardware.
 
 **What kinhin does.** Ephemeral Tart VMs (and Linux containers or microVMs) per job with the capacity cap, plus
-queue-driven scaling for the CI you already have. GitHub Actions with Tart macOS VMs and apple/container are live-tested;
+queue-driven scaling for the CI you already have. GitHub Actions (Tart macOS VMs, apple/container) and Gitea Actions (Docker) are live-tested;
 the other forges are not yet.
 
 **What kinhin lacks.** Everything a CI system itself provides: no server, UI, pipeline language or plugins of its own.
@@ -199,8 +199,8 @@ An honest summary, with the roadmap for what is planned:
 - **No CI server, UI or pipeline language of its own.** kinhin relies on your forge for those.
 - **The warm pool is limited to base-image Tart jobs.** Warm VMs also take slots under the two-macOS-VM ceiling. See
   [Warm pool](scaling.md#warm-pool).
-- **Most of it has never run against a real server.** Only GitHub Actions with Tart macOS VMs and apple/container is
-  live-tested. See [what has been tested](forges.md#what-has-been-tested) and the [beta roadmap](beta-roadmap.md).
+- **Most of it has never run against a real server.** Only GitHub Actions (Tart macOS VMs, apple/container) and Gitea
+  Actions (Docker) are live-tested. See [what has been tested](forges.md#what-has-been-tested) and the [beta roadmap](beta-roadmap.md).
 - **The in-app updater is not exercised yet**, and there is no soak-test result.
 - **No commercial support or SLA.** One maintainer.
 

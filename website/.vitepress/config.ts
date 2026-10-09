@@ -46,7 +46,7 @@ export default defineConfig({
     "{Sources,Tests,Plugins,scripts,dist,shots,assets}/**",
     "**/node_modules/**",
     "docs/plans/**",
-    "docs/{app,adding-a-forge,e2e-testing}.md",
+    "docs/{app,adding-a-forge}.md",
     "skills/**",
   ],
   rewrites: {
@@ -141,6 +141,7 @@ export default defineConfig({
           { text: "Runtimes & routing", link: "/guide/runtimes" },
           { text: "Toolchains & shared cache", link: "/guide/toolchains" },
           { text: "Benchmarks", link: "/guide/benchmarks" },
+          { text: "End-to-end testing", link: "/guide/e2e-testing" },
           { text: "Forge support", link: "/guide/forges" },
           { text: "Test workflows locally", link: "/guide/workflow-testing" },
           { text: "How scaling works", link: "/guide/scaling" },
