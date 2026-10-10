@@ -69,46 +69,139 @@ final class BuildkiteForgeTests: XCTestCase {
 
     // MARK: - Construction
 
-    func testMakeReplacesTheAccountsPreviousAgentToken() async throws {
-        let calls = Mutex<[String]>([])
+    private final class CallLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var calls: [String] = []
+        func append(_ call: String) { lock.withLock { calls.append(call) } }
+        var all: [String] { lock.withLock { calls } }
+    }
+
+    private func makeStub(
+        queues: String = #"[{"id":"q-1","key":"kinhin"}]"#, tokens: String, calls: CallLog
+    ) {
         StubProtocol.handler = { request in
             let method = request.httpMethod ?? "GET"
             let path = request.url?.path ?? ""
-            calls.withLock { $0.append("\(method) \(path)") }
+            calls.append("\(method) \(path)")
             switch (method, path) {
             case ("GET", "/v2/access-token"):
                 let scopes = BuildkiteCredentials.requiredScopes.map { "\"\($0)\"" }.joined(separator: ",")
                 return (200, Data(#"{"uuid":"u","scopes":[\#(scopes)]}"#.utf8), [:])
             case ("GET", "/v2/organizations/acme/clusters"):
                 return (200, Data(#"[{"id":"c-1","name":"Mac Fleet"}]"#.utf8), [:])
+            case ("GET", "/v2/organizations/acme/clusters/c-1/queues"):
+                return (200, Data(queues.utf8), [:])
             case ("GET", "/v2/organizations/acme/clusters/c-1/tokens"):
-                return (
-                    200,
-                    Data(
-                        #"[{"id":"old","description":"kinhin: ci"},{"id":"theirs","description":"deploy agents"}]"#
-                            .utf8), [:]
-                )
+                return (200, Data(tokens.utf8), [:])
             case ("DELETE", _):
                 return (204, Data(), [:])
             case ("POST", "/v2/organizations/acme/clusters/c-1/tokens"):
-                return (201, Data(#"{"id":"new","description":"kinhin: ci","token":"bkct_new"}"#.utf8), [:])
+                return (201, Data(#"{"id":"new","description":"x","token":"bkct_new"}"#.utf8), [:])
             default:
                 return (404, Data(), [:])
             }
         }
+    }
+
+    func testMakeRevokesOnlyTokensOfDeadProcessesOfThisAccountOnThisHost() async throws {
+        let calls = CallLog()
+        makeStub(
+            tokens: """
+                [{"id":"dead","description":"kinhin: ci @ mac-1/100"},
+                 {"id":"live","description":"kinhin: ci @ mac-1/200"},
+                 {"id":"other-host","description":"kinhin: ci @ mac-2/100"},
+                 {"id":"other-account","description":"kinhin: cd @ mac-1/100"},
+                 {"id":"legacy","description":"kinhin: ci"},
+                 {"id":"theirs","description":"deploy agents"}]
+                """, calls: calls)
         let forge = try await BuildkiteForge.make(
             credentials: BuildkiteCredentials(token: "bkua", scope: "acme/Mac Fleet"),
-            labels: BuildkiteForge.defaultLabels, account: "ci", session: session())
+            labels: BuildkiteForge.defaultLabels, account: "ci", session: session(), host: "mac-1", processID: 300,
+            isProcessAlive: { $0 == 200 })
 
         let token = try await forge.mintRegistrationToken()
         XCTAssertEqual(token, "bkct_new")
         XCTAssertEqual(forge.cluster, cluster)
         XCTAssertEqual(forge.account, "ci")
         XCTAssertEqual(forge.registration, .sharedLongLived)
-        let deletes = calls.withLock { $0 }.filter { $0.hasPrefix("DELETE") }
         XCTAssertEqual(
-            deletes, ["DELETE /v2/organizations/acme/clusters/c-1/tokens/old"],
-            "only kinhin's own token for this account is revoked")
+            calls.all.filter { $0.hasPrefix("DELETE") },
+            ["DELETE /v2/organizations/acme/clusters/c-1/tokens/dead"],
+            "a second engine's live token, other hosts' and accounts' tokens, and foreign tokens are untouched")
+    }
+
+    func testTokenDescriptionIsUniquePerProcess() {
+        let one = BuildkiteForge.agentTokenDescription(account: "ci", host: "mac-1", processID: 1)
+        let two = BuildkiteForge.agentTokenDescription(account: "ci", host: "mac-1", processID: 2)
+        XCTAssertNotEqual(one, two)
+        let owner = BuildkiteForge.tokenOwner(description: one, account: "ci")
+        XCTAssertEqual(owner?.host, "mac-1")
+        XCTAssertEqual(owner?.processID, 1)
+        XCTAssertNil(BuildkiteForge.tokenOwner(description: one, account: "other"))
+    }
+
+    func testMakeFailsEarlyWhenTheQueueDoesNotExist() async {
+        makeStub(tokens: "[]", calls: CallLog())
+        do {
+            _ = try await BuildkiteForge.make(
+                credentials: BuildkiteCredentials(token: "bkua", scope: "acme/Mac Fleet"),
+                labels: ["queue=macs"], session: session())
+            XCTFail("expected queueNotFound")
+        } catch BuildkiteError.queueNotFound(_, let queue, let available) {
+            XCTAssertEqual(queue, "macs")
+            XCTAssertEqual(available, ["kinhin"])
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+    }
+
+    func testQueueDefaultsToTheClustersDefaultQueue() {
+        XCTAssertEqual(BuildkiteForge.queueKey(labels: ["os=macos"]), "default")
+        XCTAssertEqual(BuildkiteForge.queueKey(labels: ["queue=kinhin", "os=macos"]), "kinhin")
+    }
+
+    // MARK: - Runtime markers
+
+    func testRuntimeRulesRouteAsMarkersAndAreNotTheAccountsToSatisfy() async throws {
+        StubProtocol.handler = { _ in
+            let json = #"""
+                [{"pipeline":{"slug":"api"},"jobs":[
+                  {"id":"j-1","type":"script","name":"Docker job","state":"scheduled",
+                   "agent_query_rules":["queue=kinhin","kinhin-runtime=docker"]},
+                  {"id":"j-2","type":"script","name":"Plain","state":"scheduled","agent_query_rules":["queue=kinhin"]}
+                ]}]
+                """#
+            return (200, Data(json.utf8), [:])
+        }
+        let queued = try await makeForge().queuedJobs()
+        XCTAssertEqual(queued.map(\.name), ["Docker job", "Plain"])
+        XCTAssertEqual(queued[0].labels, ["queue=kinhin", "kinhin-docker"])
+    }
+
+    // MARK: - Build cache
+
+    func testPipelineDetailSharesTheBuildListWithTheJobReads() async throws {
+        let reads = Mutex<Int>(0)
+        StubProtocol.handler = { _ in
+            reads.withLock { $0 += 1 }
+            let json = #"""
+                [{"pipeline":{"slug":"api"},"jobs":[
+                  {"id":"j-1","type":"script","name":"Run","state":"running","agent_query_rules":["queue=kinhin"],
+                   "agent":{"name":"kinhin-1"}}]}]
+                """#
+            return (200, Data(json.utf8), [:])
+        }
+        let forge = BuildkiteForge(
+            credentials: ForgeCredentials(forge: .buildkite, token: "bkua", scope: "acme/Mac Fleet"),
+            labels: ["queue=kinhin"],
+            client: BuildkiteClient(
+                credentials: BuildkiteCredentials(token: "bkua", scope: "acme/Mac Fleet"), session: session()),
+            cluster: cluster, agentToken: "bkct", account: "ci", listTTL: 60)
+        _ = try await forge.runningJobs()
+        _ = try await forge.queuedJobs()
+        let detail = try await forge.pipelineDetail(runnerName: "kinhin-1", repository: nil)
+        XCTAssertNotNil(detail)
+        XCTAssertEqual(reads.withLock { $0 }, 1, "one builds read serves every caller within the TTL")
     }
 
     func testMakeFailsFastOnMissingScopes() async {
