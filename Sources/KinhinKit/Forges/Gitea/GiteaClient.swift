@@ -222,7 +222,9 @@ public struct GiteaClient: Sendable {
     /// the task-queue shape on older servers. The caller decides the floor;
     /// this method only reports what the server actually has queued.
     func queuedJobs() async throws -> [ForgeJob] {
-        let jobs = try await jobs(status: "waiting")
+        // Gitea reports a job nobody has picked up as `queued`; `waiting` matches nothing (probed on 1.25.5 and
+        // 1.26.4: the unfiltered list showed the job, `?status=waiting` returned an empty list).
+        let jobs = try await jobs(status: "queued")
         return jobs.map { job in
             ForgeJob(
                 name: job.name ?? "job",

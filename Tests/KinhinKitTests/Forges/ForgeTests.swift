@@ -98,6 +98,44 @@ final class ForgeTests: XCTestCase {
         }
     }
 
+    /// Gitea 1.25+ lists queued jobs on `/actions/jobs?status=waiting`, which (unlike the task queue) shows work before
+    /// any runner exists, so no `min_runners` floor is needed there.
+    func testGiteaQueuedJobsUseTheJobsEndpointWhenTheServerHasIt() async throws {
+        let paths = Mutex<[String]>([])
+        StubProtocol.handler = { request in
+            paths.withLock { $0.append(request.url?.path ?? "") }
+            if request.url?.path.hasSuffix("/actions/jobs") == true {
+                // Only `queued` matches a job nobody has picked up, as on a real Gitea 1.25/1.26.
+                let isQueued = request.url?.query?.contains("status=queued") == true
+                return (
+                    200,
+                    Data((isQueued ? #"{"total_count":1,"jobs":[{"id":7,"name":"build"}]}"# : #"{"jobs":[]}"#).utf8),
+                    [:]
+                )
+            }
+            return (200, Data(#"{"total_count":0,"workflow_runs":[]}"#.utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        let forge = makeStubbedGiteaForge(demandFloor: 0)
+        let jobs = try await forge.queuedJobs()
+        XCTAssertEqual(jobs.map(\.name), ["build"])
+        XCTAssertFalse(
+            paths.withLock { $0 }.contains { $0.hasSuffix("/actions/tasks") }, "the tasks queue is only a fallback")
+    }
+
+    func testGiteaQueuedJobsFallBackToTheTaskQueueOnAnOlderServer() async throws {
+        StubProtocol.handler = { request in
+            if request.url?.path.hasSuffix("/actions/jobs") == true { return (404, Data("{}".utf8), [:]) }
+            return (200, Data(#"{"total_count":0,"workflow_runs":[]}"#.utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        // An older server reports no queue until a runner exists: the floor holds one job so a runner can start.
+        let jobs = try await makeStubbedGiteaForge(demandFloor: 1).queuedJobs()
+        XCTAssertEqual(jobs.count, 1)
+    }
+
     func testGiteaAuthHeaderUsesTokenScheme() async throws {
         let auth = Mutex<String?>(nil)
         StubProtocol.handler = { request in

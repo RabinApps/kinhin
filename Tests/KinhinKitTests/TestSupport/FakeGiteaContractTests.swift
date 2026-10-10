@@ -92,6 +92,8 @@ final class FakeGiteaContractTests: XCTestCase {
 
     func testQueuedJobsCarryRepoAttributionLikeTheRealTaskQueue() async throws {
         StubProtocol.handler = { request in
+            // An older server (this stub) has no `/actions/jobs`; the client asks it first and falls back to tasks.
+            if request.url!.path.hasSuffix("/actions/jobs") { return (404, Data("{}".utf8), [:]) }
             XCTAssertTrue(request.url!.path.hasSuffix("/api/v1/repos/acme/api/actions/tasks"), request.url!.path)
             XCTAssertTrue(request.url!.query?.contains("status=waiting") == true, "queued demand is the waiting list")
             let body = """
