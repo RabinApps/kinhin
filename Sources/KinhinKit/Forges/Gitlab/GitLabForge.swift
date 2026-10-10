@@ -9,15 +9,19 @@ import Synchronization
 /// created through the API (`POST /user/runners`) with their own
 /// authentication token, then run one job (`gitlab-runner run-single
 /// --max-builds 1`) and delete themselves, so the GitHub-style "every runner
-/// came and went" watch applies. Jobs pick runners by tags: a job is kinhin's
-/// demand when its tags include every one of the account's labels, the same
-/// rule GitHub's `runs-on:` matching uses.
+/// came and went" watch applies. Jobs pick runners by tags, and GitLab hands a
+/// job to a runner whose tags include every tag the job asks for, so a job is
+/// kinhin's demand when its tags are a subset of the labels some pool of the
+/// fleet registers runners with (`poolLabels`).
 struct GitLabForge: Forge {
     let id: ForgeID = .gitlab
     let name = "gitlab"
     let account: String
     let credentials: ForgeCredentials
     let labels: [String]
+    /// Every label some pool registers runners with; the demand filter. Empty
+    /// (tests, a forge built outside the engine) falls back to `labels`.
+    let poolLabels: [String]
     let registration: ForgeRegistration = .perRunner
     let exitSemantics: ForgeExitSemantics = .deregisters
     let client: GitLabClient
@@ -25,27 +29,44 @@ struct GitLabForge: Forge {
     let snapshot: GitLabRunnerSnapshot
 
     init(
-        credentials: ForgeCredentials, labels: [String], client: GitLabClient, scope: GitLabScope,
-        account: String = "gitlab", runnerListTTL: TimeInterval = 3
+        credentials: ForgeCredentials, labels: [String], poolLabels: [String] = [], client: GitLabClient,
+        scope: GitLabScope, account: String = "gitlab", runnerListTTL: TimeInterval = 3
     ) {
         self.account = account
         self.credentials = credentials
         self.labels = labels
+        self.poolLabels = poolLabels
         self.client = client
         self.gitlabScope = scope
         self.snapshot = GitLabRunnerSnapshot(ttl: runnerListTTL)
     }
 
+    /// The same forge (client, scope and runner snapshot) with a new set of
+    /// pool labels, for a hot config reload that changed the pools.
+    func replacingPoolLabels(_ poolLabels: [String]) -> GitLabForge {
+        GitLabForge(copying: self, poolLabels: poolLabels)
+    }
+
+    private init(copying other: GitLabForge, poolLabels: [String]) {
+        account = other.account
+        credentials = other.credentials
+        labels = other.labels
+        self.poolLabels = poolLabels
+        client = other.client
+        gitlabScope = other.gitlabScope
+        snapshot = other.snapshot
+    }
+
     /// Builds the forge, resolving the scope up front (fails fast on a bad
     /// token, instance, or path).
-    static func make(credentials: GitLabCredentials, labels: [String], account: String = "gitlab") async throws
-        -> GitLabForge
-    {
+    static func make(
+        credentials: GitLabCredentials, labels: [String], poolLabels: [String] = [], account: String = "gitlab"
+    ) async throws -> GitLabForge {
         let client = GitLabClient(credentials: credentials)
         let scope = try await client.resolveScope()
         return GitLabForge(
             credentials: .gitlab(token: credentials.token, scope: credentials.scope, instance: credentials.instance),
-            labels: labels, client: client, scope: scope, account: account)
+            labels: labels, poolLabels: poolLabels, client: client, scope: scope, account: account)
     }
 
     /// Group scopes aggregate several projects, so they attribute by project.
@@ -62,12 +83,13 @@ struct GitLabForge: Forge {
             vm: account, stderr: "GitLab has no shared registration token; runners are created per instance")
     }
 
-    /// Creates one runner per name. The tags are the account's labels plus
-    /// the pool's (runtime markers), so a pool-specific job only lands on a
-    /// runner of that pool.
+    /// Creates one runner per name. The tags are the pool's labels (fleet
+    /// labels plus the runtime marker, minus what the pool's platform cannot
+    /// serve), falling back to the account's own labels when the engine names
+    /// no pool. Unioning the two would re-add labels routing removed (`macos`
+    /// on a Linux VM, `arm64` on an amd64 container).
     func registrationTokens(runnerNames: [String], labels poolLabels: [String]) async throws -> [String: String] {
-        var tags = labels
-        for label in poolLabels where !tags.contains(label) { tags.append(label) }
+        let tags = poolLabels.isEmpty ? labels : poolLabels
         var tokens: [String: String] = [:]
         defer { snapshot.invalidate() }  // the new runners must show up in the next list
         for name in runnerNames {
@@ -154,10 +176,13 @@ struct GitLabForge: Forge {
         }
     }
 
-    /// A job targets this fleet when its tags include every account label.
-    /// Untagged jobs never do (kinhin's runners do not run untagged jobs).
+    /// A job targets this fleet when every tag it asks for is one some pool
+    /// advertises: GitLab runs a job on a runner whose tags are a superset of
+    /// the job's. Untagged jobs never match (kinhin's runners do not run
+    /// untagged jobs).
     func isOurs(_ job: GitLabJob) -> Bool {
-        !labels.isEmpty && Set(labels).isSubset(of: Set(job.tags))
+        let served = Set((poolLabels.isEmpty ? labels : poolLabels).map { $0.lowercased() })
+        return !job.tags.isEmpty && job.tags.allSatisfy { served.contains($0.lowercased()) }
     }
 }
 

@@ -36,6 +36,10 @@ struct ForgeBuild {
     let verify: Bool
     /// The top-level `labels:` accounts fall back to.
     let fleetLabels: [String]
+    /// Every label some pool of the fleet registers runners with (fleet labels
+    /// plus runtime markers, container and image labels). GitLab matches a job
+    /// when its tags are a subset of a runner's, so this is its demand filter.
+    let poolLabels: [String]
     /// The config's `min_runners`, a demand floor for Gitea-family forges.
     let minRunners: Int
     let githubClient: (GitHubCredentials) -> GitHubServing

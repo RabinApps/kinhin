@@ -62,6 +62,7 @@ extension FleetEngine {
             let forge = try await account.forge.descriptor.makeForge(
                 ForgeBuild(
                     account: account, token: token, verify: verify, fleetLabels: fleetLabels,
+                    poolLabels: router.snapshot.servedLabels,
                     minRunners: config.minRunners, githubClient: { self.githubFactory.make($0) },
                     scaleSetTargets: { client, scaleSet in
                         await self.makeScaleSetTargets(

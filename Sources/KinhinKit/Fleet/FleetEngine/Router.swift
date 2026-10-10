@@ -25,6 +25,19 @@ final class Router: Sendable {
         /// The fleet labels forges query demand with and runners advertise.
         var labels: [String]
 
+        /// The union of the labels every pool (and every named image) registers
+        /// runners with, de-duplicated case-insensitively, in first-seen order.
+        var servedLabels: [String] {
+            var seen = Set<String>()
+            var union: [String] = []
+            let pools = model.pools.values.sorted { $0.runtime.rawValue < $1.runtime.rawValue }
+            for label in pools.flatMap(\.labels) + images.flatMap({ $0.labels ?? [] })
+            where seen.insert(label.lowercased()).inserted {
+                union.append(label)
+            }
+            return union
+        }
+
         /// The routing state `config` describes, on `host`.
         static func make(config: KinhinConfig, host: HostResources) -> Snapshot {
             Snapshot(

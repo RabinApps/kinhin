@@ -85,8 +85,8 @@ public actor GitLabFixture: ForgeFixture {
     public func pushWorkflow(name: String, runsOn: String, nonce: String, script: String) async throws {
         let indented = script.split(separator: "\n", omittingEmptySubsequences: false)
             .map { "      \($0)" }.joined(separator: "\n")
-        // A pending job counts as demand only when its tags include all of the account's labels, which default to
-        // the fleet's `self-hosted, linux, arm64`.
+        // A pending job counts as demand only when every tag is one a pool advertises: the fleet labels, which
+        // default to `self-hosted, linux, arm64`, plus the runtime marker `runsOn` names.
         let yaml = """
             prove:
               tags: [self-hosted, linux, arm64, \(runsOn)]

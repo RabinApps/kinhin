@@ -14,7 +14,8 @@ final class GitLabForgeTests: XCTestCase {
     }
 
     private func makeForge(
-        server: FakeGitLabServer, scope: GitLabScope = .project(id: 7, path: "acme/api"), labels: [String] = ["macos"]
+        server: FakeGitLabServer, scope: GitLabScope = .project(id: 7, path: "acme/api"), labels: [String] = ["macos"],
+        poolLabels: [String] = []
     ) -> GitLabForge {
         StubProtocol.handler = { server.handle($0) }
         let config = URLSessionConfiguration.ephemeral
@@ -24,7 +25,7 @@ final class GitLabForgeTests: XCTestCase {
             session: URLSession(configuration: config))
         return GitLabForge(
             credentials: .gitlab(token: "glpat", scope: "acme/api", instance: GitLabCredentials.defaultInstance),
-            labels: labels, client: client, scope: scope, runnerListTTL: 0)
+            labels: labels, poolLabels: poolLabels, client: client, scope: scope, runnerListTTL: 0)
     }
 
     // MARK: - Forge surface
@@ -55,18 +56,60 @@ final class GitLabForgeTests: XCTestCase {
         XCTAssertTrue(runners.allSatisfy { !$0.online })
     }
 
-    func testQueuedJobsNeedEveryAccountLabel() async throws {
+    /// The pool's labels replace the account's: a Linux pool must not re-gain
+    /// the account's `macos`/`arm64`, which routing deliberately removed.
+    func testPoolLabelsReplaceAccountLabelsOnTheRunner() async throws {
+        let server = FakeGitLabServer()
+        let forge = makeForge(server: server, labels: ["self-hosted", "macos", "arm64"])
+        _ = try await forge.registrationTokens(
+            runnerNames: ["kinhin-1"], labels: ["self-hosted", "x64", "kinhin-docker"])
+        XCTAssertEqual(server.createdTags, [["self-hosted", "x64", "kinhin-docker"]])
+    }
+
+    func testRegistrationFallsBackToAccountLabelsWithoutAPool() async throws {
+        let server = FakeGitLabServer()
+        let forge = makeForge(server: server, labels: ["self-hosted", "macos"])
+        _ = try await forge.registrationTokens(runnerNames: ["kinhin-1"], labels: [])
+        XCTAssertEqual(server.createdTags, [["self-hosted", "macos"]])
+    }
+
+    /// GitLab dispatches a job to a runner whose tags include every job tag, so
+    /// demand is the jobs whose tags a pool can all satisfy.
+    func testQueuedJobsNeedEveryJobTagServedByAPool() async throws {
         let server = FakeGitLabServer()
         server.pending = [
             (1, "build", ["macos"]),
             (2, "host-build", ["macos", "kinhin-host"]),
             (3, "linux", ["docker"]),
             (4, "untagged", []),
+            (5, "subset", ["arm64"]),
+            (6, "mixed", ["macos", "gpu"]),
+            (7, "cased", ["MacOS"]),
         ]
-        let jobs = try await makeForge(server: server).queuedJobs()
-        XCTAssertEqual(jobs.map(\.name), ["build", "host-build"])
+        let forge = makeForge(
+            server: server, labels: ["macos", "arm64"], poolLabels: ["macos", "arm64", "kinhin-host", "xcode"])
+        let jobs = try await forge.queuedJobs()
+        XCTAssertEqual(jobs.map(\.name), ["build", "host-build", "subset", "cased"])
+        XCTAssertEqual(jobs[1].labels, ["macos", "kinhin-host"], "tags route the job to a pool")
         XCTAssertEqual(jobs.first?.repository, "acme/api")
-        XCTAssertEqual(jobs.last?.labels, ["macos", "kinhin-host"], "tags route the job to a pool")
+    }
+
+    func testReplacingPoolLabelsChangesDemandFilter() async throws {
+        let server = FakeGitLabServer()
+        server.pending = [(1, "build", ["macos"]), (2, "gpu", ["gpu"])]
+        let forge = makeForge(server: server, poolLabels: ["macos"])
+        let reloaded = forge.replacingPoolLabels(["macos", "gpu"])
+        let before = try await forge.queuedJobs()
+        let after = try await reloaded.queuedJobs()
+        XCTAssertEqual(before.map(\.name), ["build"])
+        XCTAssertEqual(after.map(\.name), ["build", "gpu"])
+    }
+
+    func testQueuedJobsFallBackToAccountLabelsWithoutPools() async throws {
+        let server = FakeGitLabServer()
+        server.pending = [(1, "build", ["macos"]), (2, "host-build", ["macos", "kinhin-host"])]
+        let jobs = try await makeForge(server: server).queuedJobs()
+        XCTAssertEqual(jobs.map(\.name), ["build"])
     }
 
     func testRunningJobsMarkTheirRunnersBusy() async throws {
