@@ -34,7 +34,8 @@ Because the request carries no version, the **server release decides what exists
 | GET | `{actionsBase}/runners/registration-token` | Mint a registration token; doubles as the permission probe | `GiteaClient.swift:73` (`send` defaults to GET, line 231) |
 | GET | `{actionsBase}/runners` | List runners | `GiteaClient.swift:169` |
 | DELETE | `{actionsBase}/runners/{id}` | Remove a runner | `GiteaClient.swift:184` |
-| GET | `{actionsBase}/jobs?status=waiting&page=1&limit=50` | Queued demand (Gitea 1.25+) | `GiteaClient.swift:275` |
+| GET | `{actionsBase}/jobs?status=queued&page=1&limit=50` | Queued demand (Gitea 1.25+); the status of an unclaimed job is `queued` | `GiteaClient.jobs(runnerLabels:)` |
+| GET | `{actionsBase}/runners/jobs?labels=a,b` | Queued demand (Forgejo 11+); `labels` is the runner's label set, returns a bare array or `null` | `GiteaClient.jobs(runnerLabels:)` |
 | GET | `{actionsBase}/tasks?status=waiting&page=1&limit=50` | Queued demand fallback for older servers | `GiteaClient.swift:191` |
 | GET | `{actionsBase}/tasks?status=running&page=1&limit=50` | Running tasks, attributed by `runner_name` | `GiteaClient.swift:218` |
 | GET | `/api/v1/repos/search?limit=50&private=true&sorted=updated&page=N` | Repository picker | `GiteaClient.swift:91` |
@@ -94,7 +95,7 @@ Built by diffing the swagger specs shipped in each release (`templates/swagger/v
 | Registration-token method | Gitea ≥ 1.26 | **Fixed, verified live on 1.26.4.** Only POST exists there; kinhin sends GET first and falls back to POST on a 404 or 405. Forgejo and Gitea ≤ 1.25 answer GET. |
 | Runner list and delete | Gitea < 1.24, Forgejo through at least v14 | Endpoints absent, so `listRunners` and `deleteRunner` get a 404. kinhin watches running tasks instead; see [Forgejo has no runner list](#forgejo-has-no-runner-list). |
 | `/actions/tasks` | Gitea < 1.23, Forgejo < 11 | Endpoint absent. |
-| Demand source | Gitea ≥ 1.25, Forgejo ≥ 11 | Better endpoints are now used: Gitea `/actions/jobs?status=waiting`, Forgejo `/actions/runners/jobs?labels=`. They report real queued jobs, so the `min_runners` floor is no longer applied on those versions. |
+| Demand source | Gitea ≥ 1.25, Forgejo ≥ 11 | Better endpoints are used: Gitea `/actions/jobs?status=queued`, Forgejo `/actions/runners/jobs?labels=` (account labels plus kinhin's pool markers). They report real queued jobs before any runner exists, so `min_runners: 0` works. Verified live on Gitea 1.26.4 and Forgejo 11; Gitea 1.24 and older still need `min_runners: 1`. |
 | Runner binary | all | `act_runner` and `gitea-runner` naming. kinhin installs `gitea-runner`; confirm Forgejo's own runner (`forgejo-runner`) is acceptable before relying on the gitea.com download for Forgejo. |
 
 ## Forgejo has no runner list

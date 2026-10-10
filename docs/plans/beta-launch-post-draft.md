@@ -78,7 +78,7 @@ the path that has been run for real, with Tart macOS VMs or apple/container for 
 
 **Maybe, if** you use Gitea <!-- GATE:G2 start -->or Forgejo <!-- GATE:G2 end -->with Docker <!-- GATE:G2 start -->or apple/container <!-- GATE:G2 end -->for Linux jobs. It ran
 for real on Gitea 1.24, but there is one caveat: Gitea 1.24 shows no queued job to the API until a runner exists, so you
-must set `min_runners: 1` (one warm runner). <!-- GATE:G9 start -->Newer Gitea (1.25 and later) reports queued jobs and mints runner tokens differently; kinhin now handles that, and the caveat applies to 1.24 only.<!-- GATE:G9 end --><!-- FALLBACK:G9 start -->Newer Gitea reports queued jobs and mints runner tokens differently, and kinhin may not work with it yet: I have only run 1.24.<!-- FALLBACK:G9 end -->
+must set `min_runners: 1` (one warm runner). <!-- GATE:G9 start -->Gitea 1.26 and Forgejo 11 list queued jobs themselves and ran with no warm runner (1.25 is not run yet: [FILL: 1.25 result]); the caveat applies to 1.24 and older.<!-- GATE:G9 end --><!-- FALLBACK:G9 start -->Newer Gitea reports queued jobs and mints runner tokens differently, and kinhin may not work with it yet: I have only run 1.24.<!-- FALLBACK:G9 end -->
 
 **Not yet, if** you need <!-- GATE:G2 start -->GitLab.com, <!-- GATE:G2 end --><!-- FALLBACK:G2 start -->Forgejo, GitLab, <!-- FALLBACK:G2 end -->Buildkite, Azure DevOps or Bitbucket, Tart Linux VMs or host
 mode<!-- GATE:G10 start --> (host mode has run once, on an isolated machine)<!-- GATE:G10 end --> in anything you depend on. They are written and unit-tested, and I have not watched them work. Try them on something

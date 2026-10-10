@@ -33,8 +33,9 @@ reading of each API, not that the real service agrees, so expect surprises there
 | Forgejo 11 + Docker, apple/container (Linux)               | yes         | yes         |
 | GitLab, Buildkite, Azure DevOps, Bitbucket                 | **no**      | yes         |
 
-Gitea was run by the [end-to-end suite](e2e-testing.md) (a real Gitea in a container, a real job in a Docker runner). Gitea
-with `min_runners: 0` is not supported on 1.24: it reports no queued job until a runner exists, so use `min_runners: 1`.
+Gitea was run by the [end-to-end suite](e2e-testing.md) (a real Gitea in a container, a real job in a Docker runner). Gitea 1.24 and
+older report no queued job until a runner exists, so they need `min_runners: 1`; Gitea 1.25+ and Forgejo 11+ list queued
+jobs themselves and work with `min_runners: 0`.
 
 Runtimes follow the same rule: Tart macOS VMs and apple/container are live-tested; Docker has been run for real with
 Gitea only, while Tart Linux VMs and host mode are not (see [Runtimes](runtimes.md)).

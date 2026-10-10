@@ -69,9 +69,9 @@ Orka and GitLab's Tart executor each solve part of the same problem, and the
 **Yes, if** you run GitHub Actions, have an Apple Silicon Mac you control, and mostly run your own trusted code. This is
 the path that has been run for real, with Tart macOS VMs or apple/container for Linux.
 
-**Maybe, if** you use Gitea with Docker for Linux jobs. It ran for real on Gitea 1.24 and 1.26, but there is one caveat: those
-versions show no queued job to the API until a runner exists, so you must set `min_runners: 1` (one warm runner). Gitea
-1.25 and later have an endpoint that would remove this, and kinhin does not use it yet.
+**Maybe, if** you use Gitea with Docker for Linux jobs. It ran for real on Gitea 1.24 and 1.26, with one caveat for
+older servers: Gitea 1.24 and earlier show no queued job to the API until a runner exists, so you must set
+`min_runners: 1` (one warm runner). Gitea 1.26 and Forgejo 11 list queued jobs themselves and ran with no warm runner.
 
 **Not yet, if** you need GitLab, Buildkite, Azure DevOps or Bitbucket, Tart Linux VMs or host mode in anything
 you depend on. They are written and unit-tested, and I have not watched them work. Try them on something disposable and

@@ -117,9 +117,14 @@ Follow [adding-a-forge.md](adding-a-forge.md), then:
 
 ## Known limitations
 
-- **Gitea 1.24 and Forgejo 11 show no queued job until a runner exists.** Their task API lists a task only after a
-  runner asks for it, so with `min_runners: 0` kinhin never sees the work. The suite runs those forges with
-  `min_runners: 1` (a warm runner) and pins the blind spot in `FleetBehaviorTests.giteaWithoutFloorIsBlind`. Gitea   1.25 and later have `/actions/jobs?status=waiting` (probed live on 1.25.5 and 1.26.4). kinhin now uses it on Gitea 1.25+, so those versions no longer need `min_runners: 1`.
+- **Gitea 1.24 and older show no queued job until a runner exists.** The task API lists a task only after a runner
+  asks for it, so with `min_runners: 0` kinhin never sees the work. The suite runs those versions with
+  `min_runners: 1` (a warm runner) and pins the blind spot in `FleetBehaviorTests.queuedJobIsSeenWithoutAFloor`, which
+  expects it as a known issue on Gitea 1.24.
+- **Gitea 1.25+ and Forgejo 11+ do not have that limit.** kinhin reads `/actions/jobs?status=queued` (Gitea; a job
+  nobody has picked up is `queued`, and `waiting` matches nothing) and `/actions/runners/jobs?labels=` (Forgejo; the
+  labels are the runner's label set). Verified live with no floor on Gitea 1.26.4 and Forgejo 11. Gitea 1.25.5 listed
+  the same job on the same endpoint; the no-floor lifecycle has not been run on 1.25 itself.
 
 ## What the first live runs found
 
