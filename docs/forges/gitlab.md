@@ -11,7 +11,7 @@ How kinhin talks to GitLab CI, and how that compares with GitLab's current REST 
 | Forge id | `gitlab` |
 | Hosting | gitlab.com (default) or self-managed. `instance` is optional (`GitLabModels.swift:10`). |
 | Scope | A project path or a group path. Paths nest (`group/sub/project`) and are percent-encoded with `%2F`. The client resolves `GET /projects/{enc}` and falls back to `GET /groups/{enc}`. |
-| Source | `Sources/KinhinKit/Forges/GitLabClient.swift`, `GitLabForge.swift`, `GitLabModels.swift` |
+| Source | `Sources/KinhinKit/Forges/Gitlab/GitLabClient.swift`, `GitLabForge.swift`, `GitLabModels.swift`; config check in `Sources/KinhinKit/Config/ConfigLoader/ConfigLoader+Ephemeral.swift` |
 | Live-tested | No (stubbed HTTP). |
 
 ## Auth
@@ -38,7 +38,7 @@ The server release decides what exists. The code requires **GitLab 16.0 or later
 | GET | `/projects/{id}/runners?type=project_type`, `/groups/{id}/runners?type=group_type` | List runners | `GitLabClient.swift:109,112` |
 | DELETE | `/runners/{id}` | Remove a runner | `GitLabClient.swift:117` |
 | GET | `/projects/{id}/jobs?scope[]=pending\|running&per_page=100` | Demand and running jobs | `GitLabClient.swift:158` |
-| GET | `/groups/{id}/projects?include_subgroups=true&archived=false&simple=true&order_by=last_activity_at&last_activity_after=…` | Projects to poll for a group scope | `GitLabClient.swift:185` |
+| GET | `/groups/{id}/projects?include_subgroups=true&archived=false&with_shared=false&simple=true&order_by=last_activity_at&last_activity_after=…` | Projects to poll for a group scope | `GitLabClient.swift:185` |
 | GET | `/projects?membership=true&min_access_level=40`, `/groups?min_access_level=50` | Pickers | `GitLabClient.swift:67,76` |
 | GET | `/personal_access_tokens/self` | Token scope check | `GitLabClient.swift:203` |
 | GET | `/version` | Minimum version check | `GitLabClient.swift:211` |
@@ -56,20 +56,24 @@ Output is the job trace, `GET /projects/{id}/jobs/{job}/trace` (live while the j
 ## Registration flow
 
 - Registration mode `perRunner`: one runner is created per VM runner name (`GitLabForge.swift:68-77`). Exit semantics `deregisters`.
-- `tag_list` is the account labels plus the pool labels.
+- `tag_list` is the pool's labels (fleet labels plus the runtime marker, minus what the pool's platform cannot serve). When the engine names no pool it falls back to the account's labels. The two are not unioned, because that re-added labels routing had removed (`macos` on a Linux VM).
+- `vm.ephemeral: false` is rejected at config load for a GitLab account: the runner takes one job (`run-single --max-builds 1`) and deletes itself, so a persistent VM would sit idle after its first job.
 - Each runner runs `gitlab-runner run-single --description ... --executor shell` and removes itself afterwards (`RunnerBootstrap+GitLab.swift:68`).
 - `mintRegistrationToken` throws: kinhin never uses GitLab's legacy shared registration tokens.
 - The authentication token is returned once. GitLab's docs: it "cannot be retrieved again".
 
 ## Demand and label matching
 
-- GitLab has no group-wide job queue. For a group, the client reads at most 50 recently active projects per poll, 8 at a time. The project list is cached for 300 s, projects with no activity for 24 h are skipped, and projects that return 403 or 404 are skipped with a warning.
-- `isOurs` (`GitLabForge.swift:~112`) requires `labels ⊆ job.tag_list`. An empty label set, or an untagged job, never matches.
+- GitLab has no group-wide job queue. For a group, the client reads at most 50 recently active projects per poll, 8 at a time. The project list is cached for 300 s, excludes projects merely shared into the group (`with_shared=false`) and skips projects with no activity for 24 h. A project that fails to read (403, 404, 5xx) is skipped with a warning so it cannot hide the others' demand; when every project fails the first error is thrown, and a 401 always is.
+- A single-project scope has nothing to fall back to: every read failure surfaces as an error rather than an empty queue.
+- `isOurs` requires `job.tag_list ⊆ pool labels` (case-insensitive), where the pool labels are the union of the labels every pool and named image registers runners with. An untagged job never matches. This is the opposite direction from GitHub's rule (`labels ⊆ job.labels`). The reason: GitLab hands a job to a runner whose tags are a superset of the job's tags, so a job is servable exactly when its tags are a subset of what some pool advertises, whereas GitHub's `runs-on:` is matched against the single set of labels kinhin registers.
+- Jobs of merge-request pipelines (`merge_request_event` source, or a `refs/merge-requests/` ref) are flagged `isFork`, because that ref can carry a fork's code: no repository file and no cache trust.
+- The pipeline view reuses the poll's running-jobs read while it is under 10 s old instead of fanning out again. The runner list is dropped before "gone" or "idle" is decided.
 
 ## Pagination, rate limits, retries
 
 - Offset pagination, following `X-Next-Page`, `per_page=100`, up to 50 pages (`GitLabClient.swift:230-245`). GitLab documents `per_page` max 100.
-- `withTransientRetry` on network errors, 429 and 5xx. There is no `RateLimit-*` header handling.
+- `withTransientRetry` on network errors, 429 and 5xx. `RateLimit-*` and `X-RateLimit-*` headers are parsed and kept as the account's rate-limit state; self-managed instances often send none.
 
 ## Self-hosted notes and minimum versions
 
@@ -86,7 +90,31 @@ Output is the job trace, `GET /projects/{id}/jobs/{job}/trace` (live while the j
 | Runner response attributes | `active`, `ip_address`, `version`, `revision`, `platform`, `architecture` are deprecated; moved to the GraphQL `CiRunnerManager`. kinhin should not rely on them. |
 | Jobs listing | `scope` accepts many statuses; `waiting_for_callback` and `canceling` exist on newer releases. kinhin uses only `pending` and `running`. |
 
-## Audit findings
+## Audit findings (live-run lessons, 2026-10-09)
+
+Found by reading the code against what the live runs of other forges taught. These fixes were **made by code reading and unit tests with fakes only; none has been run against a GitLab server.**
+
+What was wrong, and what changed:
+
+- **Pool labels were unioned with account labels** for runner tags, re-adding labels routing had removed. Pool labels now win.
+- **Demand used the wrong direction of the subset test.** It required the account's labels to be a subset of the job's tags, so a job tagged only `kinhin-docker` never counted. Demand is now job tags subset of pool labels (see Demand and label matching for why this differs from GitHub).
+- **`vm.ephemeral: false` produced an idle VM** after the first job; it is now rejected at config load.
+- **Read failures were hidden.** A 403 or 404 on a single project returned no jobs, so a revoked token looked like an empty queue. They now surface; groups skip individual failing projects with a warning.
+- **Projects shared into a group** were polled as the group's own (`with_shared=false` now).
+- **Merge-request pipelines** were treated like branch jobs; they are now flagged `isFork`.
+- **Rate-limit headers** were ignored; they are now parsed.
+- The pipeline view re-read every project's running jobs on each call; it reuses the poll's read.
+
+Still to verify live:
+
+- That `with_shared=false` is honoured on `GET /groups/{id}/projects` on the minimum supported release.
+- That `pipeline.source` and the `refs/merge-requests/` ref are present on job payloads as assumed, including for fork pipelines.
+- That a runner created with the pool's tags receives a job whose tags are a subset of them.
+- That the `RateLimit-*` headers carry the units assumed (reset as epoch seconds) on gitlab.com.
+- That a group scope with a mix of readable and unreadable projects behaves as designed.
+
+### Earlier findings (2026-10-01)
+
 
 1. **Pagination mode.** GitLab recommends keyset pagination for large job lists and orders `/projects/:id/jobs` by id descending. Offset pagination works but gets slower and is limited on large collections. With `scope[]=pending|running` the result sets are small, so this is low risk.
 2. **Scope names.** `TokenRequirements` already matches the docs (`create_runner`, `manage_runner`, `read_api`).
