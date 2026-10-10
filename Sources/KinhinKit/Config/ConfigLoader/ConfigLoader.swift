@@ -90,6 +90,7 @@ public struct ConfigLoader {
         }
         try parseReserve(partial.reserve, into: &cfg)
         try validateHostScopes(cfg)
+        try validateEphemeralForges(cfg)
         return cfg
     }
 

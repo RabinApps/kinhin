@@ -67,6 +67,39 @@ final class GitLabAccountConfigTests: XCTestCase {
                 """))
     }
 
+    /// A GitLab runner takes one job and deletes itself; a persistent VM
+    /// would idle forever behind it, so the config is rejected up front.
+    func testRejectsNonEphemeralVMs() {
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                """
+                labels: [macos]
+                vm:
+                  ephemeral: false
+                accounts:
+                  - name: gl
+                    forge: gitlab
+                    scope: acme/api
+                """)
+        ) { error in
+            XCTAssertTrue("\(error)".contains("vm.ephemeral"), "\(error)")
+        }
+    }
+
+    func testNonEphemeralVMsRemainValidForOtherForges() throws {
+        let cfg = try ConfigLoader.parse(
+            """
+            labels: [macos]
+            vm:
+              ephemeral: false
+            accounts:
+              - name: gh
+                forge: github
+                scope: acme/api
+            """)
+        XCTAssertFalse(cfg.vm.ephemeral)
+    }
+
     func testOtherForgesStillTakeTwoSegmentsAtMost() {
         XCTAssertThrowsError(
             try parse(
