@@ -133,7 +133,7 @@ struct GiteaForge: Forge {
     func runners() async throws -> [ForgeRunner] {
         // No list on this server: nothing to report; the engine reads `unlistedRunnerActivity` instead.
         (try await listedRunners() ?? []).map { runner in
-            ForgeRunner(id: String(runner.id), name: runner.name, busy: runner.status == "busy")
+            ForgeRunner(id: String(runner.id), name: runner.name, busy: runner.isBusy)
         }
     }
 
@@ -225,7 +225,7 @@ struct GiteaForge: Forge {
         // Fallback: busy runners carry per-VM attribution even where per-task
         // runner names are absent from the queue endpoint. A server with no
         // runner list has no per-VM attribution to give.
-        return try await (listedRunners() ?? []).filter { $0.status == "busy" }.map { runner in
+        return try await (listedRunners() ?? []).filter { $0.isBusy }.map { runner in
             ForgeJob(name: taskName, runnerName: runner.name, repository: nil)
         }
     }

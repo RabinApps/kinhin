@@ -159,6 +159,26 @@ public actor GiteaFixture: ForgeFixture {
         return []
     }
 
+    public func debugState() async -> String {
+        var lines: [String] = []
+        for path in ["/actions/runs", "/actions/jobs", "/actions/tasks", "/actions/runners"] {
+            guard let response = try? await call("GET", "/repos/\(owner)/\(repo)\(path)") else { continue }
+            var summary = response.text
+            if let object = response.json as? [String: Any] {
+                let list =
+                    (object["workflow_runs"] ?? object["jobs"] ?? object["runners"]) as? [[String: Any]] ?? []
+                summary = list.map { entry in
+                    let keys = [
+                        "id", "name", "status", "conclusion", "display_title", "runner_name", "labels", "run_id",
+                    ]
+                    return keys.compactMap { key in entry[key].map { "\(key)=\($0)" } }.joined(separator: " ")
+                }.joined(separator: " | ")
+            }
+            lines.append("\(path): \(summary.prefix(900))")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     public func diagnostics() async -> String {
         let logs = try? await Shell.run("docker", ["logs", "--tail", "40", containerName], timeout: 30)
         return "[\(kind) logs]\n\(logs?.output ?? "unavailable")"

@@ -402,6 +402,27 @@ final class ForgeTests: XCTestCase {
         XCTAssertEqual(running.first?.repository, "acme/api")
     }
 
+    /// A real Gitea 1.24 reports a runner that is executing a job as `"status":"online","busy":true` (probed live);
+    /// `status` itself is never "busy". Reading only `status` made kinhin treat a working runner as idle and delete
+    /// it after the idle grace, in the middle of any job longer than about half a minute.
+    func testGiteaRunnerIsBusyWhenTheBusyFlagIsSetEvenThoughStatusIsOnline() async throws {
+        StubProtocol.handler = { _ in
+            (
+                200,
+                Data(
+                    #"""
+                    {"total_count":2,"runners":[
+                      {"id":1,"name":"kinhin-a","status":"online","busy":true,"ephemeral":false},
+                      {"id":2,"name":"kinhin-b","status":"online","busy":false,"ephemeral":false}]}
+                    """#.utf8), [:]
+            )
+        }
+        defer { StubProtocol.handler = nil }
+        let runners = try await makeStubbedGiteaForge().runners()
+        XCTAssertEqual(runners.map(\.name), ["kinhin-a", "kinhin-b"])
+        XCTAssertEqual(runners.map(\.busy), [true, false])
+    }
+
     func testGiteaRunningJobsFallBackToBusyRunners() async throws {
         StubProtocol.handler = { request in
             if request.url?.query?.contains("status=running") == true {

@@ -7,9 +7,15 @@ public struct GiteaRunner: Codable, Sendable, Equatable {
     public let id: Int
     public let name: String
     public let status: String?
+    /// Whether the runner is executing a job. Gitea (probed on 1.24) reports a working runner as
+    /// `status: "online"` with `busy: true`; `status` itself never says "busy".
+    public let busy: Bool?
+
+    /// Executing a job, by either signal.
+    public var isBusy: Bool { busy ?? (status == "busy") }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, status
+        case id, name, status, busy
     }
 }
 

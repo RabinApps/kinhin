@@ -43,6 +43,16 @@ public protocol ForgeFixture: Sendable {
     func registeredRunners() async throws -> [String]
     /// Container logs, for a failure message.
     func diagnostics() async -> String
+    /// The forge's own record of runs, jobs and runners, as text, for a failure message.
+    func debugState() async -> String
+}
+
+extension ForgeFixture {
+    public func debugState() async -> String {
+        let statuses = (try? await runStatuses()) ?? []
+        let runners = (try? await registeredRunners()) ?? []
+        return "run statuses: \(statuses)\nregistered runners: \(runners)"
+    }
 }
 
 extension ForgeFixture {

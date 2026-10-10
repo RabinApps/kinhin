@@ -81,9 +81,24 @@ extension Infra {
                     if firstDone && secondDone { break }
                     try await Task.sleep(for: .seconds(2))
                 }
+                let state = await lane.fixture.debugState()
                 #expect(peak <= 1, "saw \(peak) concurrent runners with max_runners: 1")
-                #expect(try await lane.fixture.proof(nonce: first) != nil, "job A never finished")
-                #expect(try await lane.fixture.proof(nonce: second) != nil, "job B never finished")
+                #expect(try await lane.fixture.proof(nonce: first) != nil, "job A never finished\n\(state)")
+                #expect(try await lane.fixture.proof(nonce: second) != nil, "job B never finished\n\(state)")
+            }
+        }
+
+        @Test(
+            "a job that outlasts the idle grace is not killed mid-run", arguments: [ForgeKind.gitea, ForgeKind.forgejo])
+        func longJobSurvivesTheIdleGrace(_ forge: ForgeKind) async throws {
+            try await Lane.with(forge: forge, runtime: .docker) { lane in
+                // 75 s of work is more than twice the 30 s idle grace. A watch that misreads a working runner as
+                // idle (Gitea reports `status: online` with `busy: true`) deletes it partway through, and the job
+                // never writes its proof.
+                let (_, proof) = try await lane.runJob(
+                    name: "long", extraStep: "sleep 75", timeout: 420)
+                #expect(proof.hasPrefix(lane.runtime.guestKernel), "proof was: \(proof)")
+                #expect(!lane.sandbox.log().contains("job complete; deleting VM") || proof.contains("Linux"))
             }
         }
 
