@@ -14,7 +14,8 @@ final class GitLabForgeTests: XCTestCase {
     }
 
     private func makeForge(
-        server: FakeGitLabServer, scope: GitLabScope = .project(id: 7, path: "acme/api"), labels: [String] = ["macos"]
+        server: FakeGitLabServer, scope: GitLabScope = .project(id: 7, path: "acme/api"), labels: [String] = ["macos"],
+        poolLabels: [String] = []
     ) -> GitLabForge {
         StubProtocol.handler = { server.handle($0) }
         let config = URLSessionConfiguration.ephemeral
@@ -24,7 +25,7 @@ final class GitLabForgeTests: XCTestCase {
             session: URLSession(configuration: config))
         return GitLabForge(
             credentials: .gitlab(token: "glpat", scope: "acme/api", instance: GitLabCredentials.defaultInstance),
-            labels: labels, client: client, scope: scope, runnerListTTL: 0)
+            labels: labels, poolLabels: poolLabels, client: client, scope: scope, runnerListTTL: 0)
     }
 
     // MARK: - Forge surface
@@ -55,18 +56,74 @@ final class GitLabForgeTests: XCTestCase {
         XCTAssertTrue(runners.allSatisfy { !$0.online })
     }
 
-    func testQueuedJobsNeedEveryAccountLabel() async throws {
+    /// The pool's labels replace the account's: a Linux pool must not re-gain
+    /// the account's `macos`/`arm64`, which routing deliberately removed.
+    func testPoolLabelsReplaceAccountLabelsOnTheRunner() async throws {
+        let server = FakeGitLabServer()
+        let forge = makeForge(server: server, labels: ["self-hosted", "macos", "arm64"])
+        _ = try await forge.registrationTokens(
+            runnerNames: ["kinhin-1"], labels: ["self-hosted", "x64", "kinhin-docker"])
+        XCTAssertEqual(server.createdTags, [["self-hosted", "x64", "kinhin-docker"]])
+    }
+
+    func testRegistrationFallsBackToAccountLabelsWithoutAPool() async throws {
+        let server = FakeGitLabServer()
+        let forge = makeForge(server: server, labels: ["self-hosted", "macos"])
+        _ = try await forge.registrationTokens(runnerNames: ["kinhin-1"], labels: [])
+        XCTAssertEqual(server.createdTags, [["self-hosted", "macos"]])
+    }
+
+    /// GitLab dispatches a job to a runner whose tags include every job tag, so
+    /// demand is the jobs whose tags a pool can all satisfy.
+    func testQueuedJobsNeedEveryJobTagServedByAPool() async throws {
         let server = FakeGitLabServer()
         server.pending = [
             (1, "build", ["macos"]),
             (2, "host-build", ["macos", "kinhin-host"]),
             (3, "linux", ["docker"]),
             (4, "untagged", []),
+            (5, "subset", ["arm64"]),
+            (6, "mixed", ["macos", "gpu"]),
+            (7, "cased", ["MacOS"]),
         ]
-        let jobs = try await makeForge(server: server).queuedJobs()
-        XCTAssertEqual(jobs.map(\.name), ["build", "host-build"])
+        let forge = makeForge(
+            server: server, labels: ["macos", "arm64"], poolLabels: ["macos", "arm64", "kinhin-host", "xcode"])
+        let jobs = try await forge.queuedJobs()
+        XCTAssertEqual(jobs.map(\.name), ["build", "host-build", "subset", "cased"])
+        XCTAssertEqual(jobs[1].labels, ["macos", "kinhin-host"], "tags route the job to a pool")
         XCTAssertEqual(jobs.first?.repository, "acme/api")
-        XCTAssertEqual(jobs.last?.labels, ["macos", "kinhin-host"], "tags route the job to a pool")
+    }
+
+    func testMergeRequestJobsAreForkJobs() async throws {
+        let server = FakeGitLabServer()
+        server.pending = [(1, "build", ["macos"])]
+        server.mergeRequestJobIDs = [1]
+        let forge = makeForge(server: server)
+        let queued = try await forge.queuedJobs()
+        XCTAssertEqual(queued.map(\.isFork), [true], "an MR ref may carry a fork's code")
+        server.pending = []
+        server.running = [(2, "test", ["macos"], "kinhin-1")]
+        server.mergeRequestJobIDs = [2]
+        let running = try await forge.runningJobs()
+        XCTAssertEqual(running.map(\.isFork), [true])
+    }
+
+    func testReplacingPoolLabelsChangesDemandFilter() async throws {
+        let server = FakeGitLabServer()
+        server.pending = [(1, "build", ["macos"]), (2, "gpu", ["gpu"])]
+        let forge = makeForge(server: server, poolLabels: ["macos"])
+        let reloaded = forge.replacingPoolLabels(["macos", "gpu"])
+        let before = try await forge.queuedJobs()
+        let after = try await reloaded.queuedJobs()
+        XCTAssertEqual(before.map(\.name), ["build"])
+        XCTAssertEqual(after.map(\.name), ["build", "gpu"])
+    }
+
+    func testQueuedJobsFallBackToAccountLabelsWithoutPools() async throws {
+        let server = FakeGitLabServer()
+        server.pending = [(1, "build", ["macos"]), (2, "host-build", ["macos", "kinhin-host"])]
+        let jobs = try await makeForge(server: server).queuedJobs()
+        XCTAssertEqual(jobs.map(\.name), ["build"])
     }
 
     func testRunningJobsMarkTheirRunnersBusy() async throws {
@@ -146,6 +203,7 @@ final class FakeGitLabServer: Sendable {
         var createdTags: [[String]] = []
         var pending: [(Int, String, [String])] = []
         var running: [(Int, String, [String], String)] = []
+        var mergeRequestJobIDs: Set<Int> = []
     }
 
     private let state = Mutex(State())
@@ -159,6 +217,11 @@ final class FakeGitLabServer: Sendable {
     var running: [(Int, String, [String], String)] {
         get { state.withLock { $0.running } }
         set { state.withLock { $0.running = newValue } }
+    }
+    /// Jobs reported as belonging to a merge-request pipeline.
+    var mergeRequestJobIDs: Set<Int> {
+        get { state.withLock { $0.mergeRequestJobIDs } }
+        set { state.withLock { $0.mergeRequestJobIDs = newValue } }
     }
 
     func setStatus(_ name: String, _ status: String) {
@@ -193,12 +256,18 @@ final class FakeGitLabServer: Sendable {
             return (200, Data("[\(body.joined(separator: ","))]".utf8), [:])
         case ("GET", "/api/v4/projects/7/jobs"):
             let rows: [String]
+            let mergeRequests = mergeRequestJobIDs
+            func pipeline(_ id: Int) -> String {
+                mergeRequests.contains(id) ? #","pipeline":{"id":1,"source":"merge_request_event"}"# : ""
+            }
             if query.contains("running") {
                 rows = running.map { job in
-                    #"{"id":\#(job.0),"name":"\#(job.1)","tag_list":\#(tags(job.2)),"runner":{"description":"\#(job.3)"}}"#
+                    #"{"id":\#(job.0),"name":"\#(job.1)","tag_list":\#(tags(job.2)),"runner":{"description":"\#(job.3)"}\#(pipeline(job.0))}"#
                 }
             } else {
-                rows = pending.map { #"{"id":\#($0.0),"name":"\#($0.1)","tag_list":\#(tags($0.2))}"# }
+                rows = pending.map {
+                    #"{"id":\#($0.0),"name":"\#($0.1)","tag_list":\#(tags($0.2))\#(pipeline($0.0))}"#
+                }
             }
             return (200, Data("[\(rows.joined(separator: ","))]".utf8), [:])
         case ("DELETE", _) where path.hasPrefix("/api/v4/runners/"):

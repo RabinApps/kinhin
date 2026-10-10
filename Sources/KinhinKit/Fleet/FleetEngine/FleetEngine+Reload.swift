@@ -180,6 +180,9 @@ extension FleetEngine {
                         client: githubForge.client,
                         account: githubForge.account
                     )
+                } else if let gitlabForge = forge as? GitLabForge {
+                    // GitLab's demand filter is the labels the pools advertise.
+                    state.byPlatform[key] = gitlabForge.replacingPoolLabels(snapshot.servedLabels)
                 }
             }
         }

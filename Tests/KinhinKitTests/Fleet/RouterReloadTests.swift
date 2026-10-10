@@ -62,6 +62,15 @@ final class RouterReloadTests: XCTestCase {
         XCTAssertEqual(torn.withLock { $0 }, 0, "labels, images and the routing model swap together")
     }
 
+    /// GitLab filters demand by the labels every pool and image advertises.
+    func testServedLabelsAreThePoolAndImageUnion() {
+        let cfg = Self.mixedConfig(
+            labels: ["self-hosted", "arm64"], images: [.init(name: "xcode-img", labels: ["xcode", "ARM64"])])
+        let served = Router.Snapshot.make(config: cfg, host: host).servedLabels
+        XCTAssertEqual(Set(served.map { $0.lowercased() }), ["self-hosted", "arm64", "kinhin-container", "xcode"])
+        XCTAssertEqual(served.count, 4, "case-insensitive duplicates collapse")
+    }
+
     // MARK: - Reload reaches the next consumer
 
     func testReloadedLabelsReachTheNextAttach() async {

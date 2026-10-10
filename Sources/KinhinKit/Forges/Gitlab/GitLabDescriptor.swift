@@ -49,6 +49,7 @@ struct GitLabDescriptor: ForgeDescriptor {
                 token: build.token, scope: account.scope, instance: account.instance,
                 allowInsecureHTTP: account.allowInsecureHTTP ?? false),
             labels: account.labels ?? build.fleetLabels,
+            poolLabels: build.poolLabels,
             account: account.name
         )
     }

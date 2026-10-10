@@ -62,6 +62,34 @@ final class RunnerDirectoryTests: XCTestCase {
         XCTAssertTrue(afterwards.isEmpty, "and refreshes what the watchers see")
     }
 
+    /// GitLab keeps its own 3 s list behind `runners()`; a fresh read must get
+    /// past it too, or "the runner is gone" is decided on a stale list.
+    func testFreshReadGetsPastTheForgesOwnListCache() async throws {
+        let server = FakeGitLabServer()
+        StubProtocol.handler = { server.handle($0) }
+        defer { StubProtocol.handler = nil }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        let forge = GitLabForge(
+            credentials: .gitlab(token: "glpat", scope: "acme/api", instance: GitLabCredentials.defaultInstance),
+            labels: ["macos"],
+            client: GitLabClient(
+                credentials: GitLabCredentials(token: "glpat", scope: "acme/api"),
+                session: URLSession(configuration: config)),
+            scope: .project(id: 7, path: "acme/api"), runnerListTTL: 60)
+        _ = try await forge.registrationTokens(runnerNames: ["kinhin-1"], labels: [])
+        let directory = RunnerDirectory(ttl: .seconds(0))
+
+        let listed = try await directory.runners(of: forge)
+        XCTAssertEqual(listed.map(\.name), ["kinhin-1"])
+        server.deleteRunner(named: "kinhin-1")
+        let stale = try await directory.runners(of: forge)
+        XCTAssertEqual(stale.map(\.name), ["kinhin-1"], "the forge's snapshot is still inside its TTL")
+
+        let fresh = try await directory.freshRunners(of: forge)
+        XCTAssertTrue(fresh.isEmpty)
+    }
+
     func testAccountsAreCachedSeparately() async throws {
         let github = FakeGitHub()
         let other = FakeGitHub()
