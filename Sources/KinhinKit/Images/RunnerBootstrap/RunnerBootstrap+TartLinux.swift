@@ -182,8 +182,7 @@ extension RunnerBootstrap {
           mkdir -p "$HOME/buildkite-agent"
           cd "$HOME/buildkite-agent"
           \(buildkiteAgentDownloadScript(version: version, platform: "linux-arm64", file: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
-          tar xzf agent.tar.gz ./buildkite-agent
-          rm agent.tar.gz
+          \(buildkiteAgentExtractScript(archive: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
           ./buildkite-agent --version
           echo "buildkite agent v\(version) installed"
         else

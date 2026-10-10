@@ -114,6 +114,24 @@ final class RunnerDownloadVerificationTests: XCTestCase {
         XCTAssertEqual(digest.trimmingCharacters(in: .whitespacesAndNewlines), "bbb")
     }
 
+    /// Buildkite's SHA256SUMS may name archives `*name` or `./name`.
+    func testBuildkiteDigestPipelineStripsNamePrefixes() throws {
+        let command = RunnerBootstrap.buildkiteAgentDigestCommand(
+            version: "3.100.0", asset: "buildkite-agent-darwin-arm64-3.100.0.tar.gz")
+        let pipeline = String(command[try XCTUnwrap(command.range(of: "awk ")).lowerBound...])
+        let sums =
+            "aaa  buildkite-agent-linux-arm64-3.100.0.tar.gz\nbbb  ./buildkite-agent-darwin-arm64-3.100.0.tar.gz\n"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "printf '\(sums)' | \(pipeline)"]
+        let out = Pipe()
+        process.standardOutput = out
+        try process.run()
+        process.waitUntilExit()
+        let digest = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        XCTAssertEqual(digest.trimmingCharacters(in: .whitespacesAndNewlines), "bbb")
+    }
+
     private func shellSyntaxStatus(_ script: String) -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
