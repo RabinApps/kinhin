@@ -140,7 +140,11 @@ Running one real job end to end exposed these. Each now has a fix and a regressi
    kinhin-docker` could not match.
 4. **`kinhin config init` failed on a pristine machine** ("The folder "config.yaml" doesn't exist") and wrote the
    config world-readable.
-5. **Gitea 1.26 could not be used at all.** It dropped `GET` for the runner registration token (404 "Runner not found";
+5. **Gitea runners were deleted mid-job.** kinhin read a runner's `status`, but Gitea reports a working runner as
+   `status: "online"` with `busy: true`, so it looked idle and the 30 s idle grace removed it partway through any job
+   longer than about half a minute. Found by the concurrency-cap test; the old behavior was reproduced on purpose
+   (a runner deleted 36 s into a 75 s job, repeatedly) and `longJobSurvivesTheIdleGrace` guards it.
+6. **Gitea 1.26 could not be used at all.** It dropped `GET` for the runner registration token (404 "Runner not found";
    only `POST` works), and kinhin sent `GET`. The client now falls back to `POST`. Found by probing 1.24, 1.25 and 1.26
    and verified with the lifecycle suite on 1.26.4.
 6. **Forgejo instances were never deleted after their job.** Forgejo 11 (through at least v14) has no runner list

@@ -138,7 +138,7 @@ own: running it found a hang in its own cleanup this week, which is the same les
 
 ### What running the real thing found
 
-The first real Gitea job found four bugs, and running the rest of the matrix found three more, below. Several unit tests had been pinning the wrong behavior as correct:
+The first real Gitea job found four bugs, and running the rest of the matrix found four more, below. Several unit tests had been pinning the wrong behavior as correct:
 
 - **`kinhin start` crashed on launch on macOS 27.** It parked the main thread in a way libdispatch now refuses.
 - **Gitea and Forgejo runners were registered with the wrong program.** The container script ran the GitHub runner's
@@ -152,6 +152,11 @@ The first real Gitea job found four bugs, and running the rest of the matrix fou
 - **Gitea and Forgejo never worked on apple/container.** The runner binary was decompressed as a sparse file, and
   apple/container filled the holes with stale data when it saved the image, so the runner segfaulted on `register`. I
   found it by comparing the checksum of the baked binary with the release.
+- **Gitea runners were deleted in the middle of a job.** This is the one I am least happy about. kinhin judged a runner
+  busy from its `status`, but Gitea reports a working runner as `online` with a separate `busy: true`, so every runner
+  looked idle and was removed after the 30-second idle grace: any job longer than about half a minute could be killed
+  partway. My lifecycle tests missed it because their jobs finish in seconds. The concurrency test, whose jobs run
+  longer, caught it, and a test with a 75-second job now guards it.
 - **Gitea 1.26 could not register runners at all.** It removed the `GET` request kinhin used to fetch a registration
   token (it answers 404, and only `POST` works). I found this by probing 1.24, 1.25 and 1.26. kinhin now tries `GET`
   and falls back to `POST`, and the end-to-end suite passes on 1.26.4.

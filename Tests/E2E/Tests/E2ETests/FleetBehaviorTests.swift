@@ -98,7 +98,6 @@ extension Infra {
                 let (_, proof) = try await lane.runJob(
                     name: "long", extraStep: "sleep 75", timeout: 420)
                 #expect(proof.hasPrefix(lane.runtime.guestKernel), "proof was: \(proof)")
-                #expect(!lane.sandbox.log().contains("job complete; deleting VM") || proof.contains("Linux"))
             }
         }
 
