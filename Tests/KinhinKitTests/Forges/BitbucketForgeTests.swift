@@ -72,6 +72,33 @@ final class BitbucketForgeTests: XCTestCase {
             "runners register with self.hosted + the platform marker + the account's labels")
     }
 
+    /// The pool's labels reach the forge-side runner (they were dropped, leaving only the account's), and the
+    /// platform label follows the pool: a Docker pool is `linux.shell`, never `macos` from the fleet's defaults.
+    func testPoolLabelsDecideThePlatformAndReachTheRunner() async throws {
+        let created = Mutex<[[String]]>([])
+        StubProtocol.handler = { request in
+            let body = (try? JSONSerialization.jsonObject(with: Self.bodyData(request))) as? [String: Any] ?? [:]
+            created.withLock { $0.append(body["labels"] as? [String] ?? []) }
+            return Self.json(
+                #"{"uuid": "{r-1}", "name": "n", "state": {"status": "UNREGISTERED"}, "oauth_client": {"id": "c", "secret": "s"}}"#
+            )
+        }
+        let forge = makeForge(labels: ["team"])
+        _ = try await forge.registrationTokens(
+            runnerNames: ["kinhin-1"], labels: ["self-hosted", "macos", "x64", "kinhin-docker"])
+        _ = try await forge.registrationTokens(runnerNames: ["kinhin-2"], labels: ["self-hosted", "macos", "arm64"])
+        let labels = created.withLock { $0 }
+        XCTAssertEqual(labels[0], ["self.hosted", "linux.shell", "team", "self-hosted", "x64", "kinhin-docker"])
+        XCTAssertEqual(labels[1], ["self.hosted", "macos", "team", "self-hosted", "arm64"])
+    }
+
+    func testPlatformMarkerKnowsLinuxGuestsFromTheirLabels() {
+        XCTAssertEqual(BitbucketForge.platformMarker(forPoolLabels: ["self-hosted", "macos"]), "macos")
+        XCTAssertEqual(BitbucketForge.platformMarker(forPoolLabels: ["kinhin-host"]), "macos")
+        XCTAssertEqual(BitbucketForge.platformMarker(forPoolLabels: ["arm64", "Linux"]), "linux.shell")
+        XCTAssertEqual(BitbucketForge.platformMarker(forPoolLabels: ["kinhin-docker"]), "linux.shell")
+    }
+
     func testRunnerLabelsAddSelfHostedAndPlatform() {
         XCTAssertEqual(
             BitbucketForge.runnerLabels(accountLabels: ["kinhin", "xcode=16"], platform: "macos"),

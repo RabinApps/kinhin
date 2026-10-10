@@ -246,13 +246,8 @@ extension RunnerBootstrap {
           echo "Temurin JDK already installed"
         fi
 
-        cat > runner.sh <<'LAUNCH'
-        #!/bin/bash
-        set -euo pipefail
-        export PATH="$HOME/bitbucket-runner/jdk/bin:$PATH"
-        exec "$HOME/bitbucket-runner/bin/start.sh" "$@"
-        LAUNCH
-        chmod +x runner.sh
+        cd "$HOME/bitbucket-runner"
+        \(bitbucketLauncherScript(root: #""$HOME/bitbucket-runner""#))
         echo "bitbucket runner v\(version) installed"
         """
     }

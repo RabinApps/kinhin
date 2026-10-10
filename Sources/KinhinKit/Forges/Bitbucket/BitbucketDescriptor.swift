@@ -22,9 +22,14 @@ struct BitbucketDescriptor: ForgeDescriptor {
         case .tartVM:
             // A tart base VM may be a macOS or a Linux guest; `auto` lets the
             // guest resolve its own --runtime (Darwin -> macos, else linux-shell).
+            // The runners' platform label was fixed at creation from the pool's
+            // labels (the same union `registrationTokens` used); a guest of the
+            // other OS fails registration instead of idling under labels no step matches.
+            let platform = BitbucketForge.platformMarker(
+                forPoolLabels: (request.labels ?? []) + (request.forge.labels))
             return RunnerBootstrap.bitbucketRegistrationScript(
                 runners: try runners(), runtime: "auto", runnerCommand: "\"$HOME/bitbucket-runner/runner.sh\"",
-                baseDir: "\"$HOME/bitbucket-runners\"")
+                baseDir: "\"$HOME/bitbucket-runners\"", expectedPlatform: platform)
         case .linuxContainer:
             return RunnerBootstrap.bitbucketRegistrationScript(
                 runners: try runners(), runtime: "linux-shell", runnerCommand: "/opt/bitbucket-runner/runner.sh",
@@ -71,9 +76,11 @@ extension RunnerAgentSpec {
                 RunnerBootstrap.tartLinuxBitbucketRunnerInstallScript(
                     version: versions.bitbucket, jdkVersion: versions.bitbucketJDK)
             },
-            container: { versions, _ in
+            container: { versions, platform in
+                // The JDK is the one native binary: an amd64 container needs the x64 build.
                 RunnerBootstrap.linuxBitbucketRunnerInstallScript(
-                    version: versions.bitbucket, jdkVersion: versions.bitbucketJDK)
+                    version: versions.bitbucket, jdkVersion: versions.bitbucketJDK,
+                    jdkPlatform: platform == .arm64 ? "aarch64_linux" : "x64_linux")
             }),
         host: HostAgentSpec(
             required: false, installedPath: "bitbucket-runner/runner.sh", mustBeExecutable: true,

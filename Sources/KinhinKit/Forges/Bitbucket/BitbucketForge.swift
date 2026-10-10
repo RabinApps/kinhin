@@ -101,16 +101,32 @@ struct BitbucketForge: Forge {
 
     /// The labels a runner registers with: the self-hosted and platform
     /// markers every `runs-on:` needs, plus the account's own labels.
-    static func runnerLabels(accountLabels: [String], platform: String) -> [String] {
-        ["self.hosted", platform] + accountLabels
+    /// The pool's own labels (its runtime marker, image labels, the
+    /// architecture) join the account's, so a pool's routing labels reach the
+    /// forge-side runner; labels naming the other platform are dropped so a
+    /// runner never advertises both `macos` and `linux.shell`.
+    static func runnerLabels(accountLabels: [String], poolLabels: [String] = [], platform: String) -> [String] {
+        let conflicting: Set<String> = platform == "macos" ? ["linux.shell", "linux"] : ["macos"]
+        var seen: Set<String> = []
+        var labels: [String] = []
+        for label in ["self.hosted", platform] + accountLabels + poolLabels {
+            let key = label.lowercased()
+            guard !conflicting.contains(key), seen.insert(key).inserted else { continue }
+            labels.append(label)
+        }
+        return labels
     }
 
-    /// The Bitbucket platform label for a pool, from the runtime markers the
-    /// pool's GitHub-style labels carry: Linux runtimes (containers) get
-    /// `linux.shell`, macOS runtimes (VMs, the host) get `macos`.
+    /// The Bitbucket platform label for a pool, from the labels the pool's
+    /// runners register with: a Linux runtime marker (`kinhin-container`,
+    /// `kinhin-docker`) or an explicit `linux`/`linux.shell` label gives
+    /// `linux.shell`; everything else (macOS VMs, the host) is `macos`. The
+    /// guest OS is not known when runners are created, so a Tart *Linux* VM
+    /// needs a `linux` label on its pool or image; the registration script
+    /// fails, naming that label, when the guest disagrees.
     static func platformMarker(forPoolLabels poolLabels: [String]) -> String {
-        let linuxMarkers: Set<String> = ["kinhin-container", "kinhin-docker"]
-        return poolLabels.contains(where: linuxMarkers.contains) ? "linux.shell" : "macos"
+        let linuxLabels: Set<String> = ["kinhin-container", "kinhin-docker", "linux", "linux.shell"]
+        return poolLabels.contains { linuxLabels.contains($0.lowercased()) } ? "linux.shell" : "macos"
     }
 
     /// How a runner's per-runner credential bundle is assembled: everything
@@ -147,8 +163,10 @@ struct BitbucketForge: Forge {
     /// be captured. The runner's platform label comes from the pool's
     /// runtime markers (`platformMarker`).
     func registrationTokens(runnerNames: [String], labels poolLabels: [String]) async throws -> [String: String] {
+        // Same union the Tart registration script derives its platform guard from.
         let runnerLabels = Self.runnerLabels(
-            accountLabels: labels, platform: Self.platformMarker(forPoolLabels: poolLabels))
+            accountLabels: labels, poolLabels: poolLabels,
+            platform: Self.platformMarker(forPoolLabels: poolLabels + labels))
         var tokens: [String: String] = [:]
         defer { runnerList.invalidate() }  // the new runners must show up in the next list
         for name in runnerNames {

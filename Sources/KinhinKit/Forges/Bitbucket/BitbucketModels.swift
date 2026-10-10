@@ -316,7 +316,10 @@ public struct BitbucketJob: Sendable, Equatable {
 /// "recently active repos first" demand poll.
 struct BitbucketRepoRef: Decodable, Sendable, Equatable {
     let fullName: String
-    let updatedOn: Date?
+    /// Bitbucket's ISO-8601 string (`2024-05-01T12:34:56.789012+00:00`). Kept as
+    /// text: a default `JSONDecoder` date strategy rejects it, which failed every
+    /// workspace-scope poll.
+    let updatedOn: String?
 
     enum CodingKeys: String, CodingKey {
         case fullName = "full_name"

@@ -33,8 +33,9 @@ extension RunnerBootstrap {
           echo "bitbucket runner already installed"
         fi
 
-        # Temurin JDK 25 (the package's `start.sh` needs `java` on PATH).
-        if [ ! -x "$HOME/bitbucket-runner/jdk/bin/java" ]; then
+        # Temurin JDK 25 (the package's `start.sh` needs `java` on PATH). The macOS
+        # tarball nests the JDK under Contents/Home.
+        if [ ! -x "$HOME/bitbucket-runner/jdk/Contents/Home/bin/java" ]; then
           cd "$HOME/bitbucket-runner"
           \(temurinJDKDownloadScript(version: jdkVersion, platform: jdkPlatform, file: "jdk.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
           mkdir -p jdk
@@ -44,45 +45,57 @@ extension RunnerBootstrap {
           echo "Temurin JDK already installed"
         fi
 
-        cat > runner.sh <<'LAUNCH'
-        #!/bin/bash
-        set -euo pipefail
-        export PATH="$HOME/bitbucket-runner/jdk/bin:$PATH"
-        exec "$HOME/bitbucket-runner/bin/start.sh" "$@"
-        LAUNCH
-        chmod +x runner.sh
+        cd "$HOME/bitbucket-runner"
+        \(bitbucketLauncherScript(root: #""$HOME/bitbucket-runner""#))
         echo "bitbucket runner v\(version) installed"
         """
     }
 
     /// The Linux variant: installs into `/opt/bitbucket-runner` (the
     /// container bake), same package and JDK layout. `jdkPlatform` is the
-    /// Temurin arch_os segment ("aarch64_linux", "x64_linux").
+    /// Temurin arch_os segment of the container's `LinuxPlatform`
+    /// ("aarch64_linux" for arm64 containers, "x64_linux" for amd64).
     static func linuxBitbucketRunnerInstallScript(
         version: String, jdkVersion: String, jdkPlatform: String = "aarch64_linux"
     ) -> String {
         """
         set -euo pipefail
         \(linuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git")]))
+        mkdir -p /opt/bitbucket-runner
+        cd /opt/bitbucket-runner
         if [ ! -x /opt/bitbucket-runner/bin/start.sh ]; then
-          mkdir -p /opt/bitbucket-runner
-          cd /opt/bitbucket-runner
           \(bitbucketRunnerDownloadScript(version: version, file: "runner.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
           tar xzf runner.tar.gz
           rm runner.tar.gz
+        fi
+        if [ ! -x /opt/bitbucket-runner/jdk/bin/java ]; then
           \(temurinJDKDownloadScript(version: jdkVersion, platform: jdkPlatform, file: "jdk.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
           mkdir -p jdk
           tar xzf jdk.tar.gz -C jdk --strip-components 1
           rm jdk.tar.gz
         fi
+        \(bitbucketLauncherScript(root: "/opt/bitbucket-runner"))
+        echo "linux bitbucket runner v\(version) installed"
+        """
+    }
+
+    /// Writes `runner.sh` into the current directory: the wrapper every
+    /// registration script execs. It points `JAVA_HOME` and `PATH` at the
+    /// bundled Temurin JDK (macOS tarballs nest it under `Contents/Home`,
+    /// Linux ones do not), then execs the package's `bin/start.sh`. `root`
+    /// is the install directory as a shell word.
+    static func bitbucketLauncherScript(root: String) -> String {
+        """
         cat > runner.sh <<'LAUNCH'
         #!/bin/bash
         set -euo pipefail
-        export PATH="/opt/bitbucket-runner/jdk/bin:$PATH"
-        exec /opt/bitbucket-runner/bin/start.sh "$@"
+        JDK=\(root)/jdk
+        if [ -d "$JDK/Contents/Home" ]; then JDK="$JDK/Contents/Home"; fi
+        export JAVA_HOME="$JDK"
+        export PATH="$JDK/bin:$PATH"
+        exec \(root)/bin/start.sh "$@"
         LAUNCH
         chmod +x runner.sh
-        echo "linux bitbucket runner v\(version) installed"
         """
     }
 
@@ -114,17 +127,36 @@ extension RunnerBootstrap {
     /// `linux-shell`) — or `auto`, resolved by the guest itself
     /// (Darwin → `macos`, anything else → `linux-shell`), so a tart base
     /// VM works whichever OS its guest runs.
+    ///
+    /// The script fails (exit 1, with each dead runner's log) when a runner
+    /// is no longer alive after `startupGrace` seconds, so a bad credential,
+    /// a missing JDK or a wrong path is a registration failure rather than a
+    /// started-looking instance that never connects. `expectedPlatform` is
+    /// the platform label the runners were created with (`macos` or
+    /// `linux.shell`); a guest of the other OS fails registration with a
+    /// message instead of idling under labels no step can match.
     static func bitbucketRegistrationScript(
-        runners: [(name: String, bundle: String)], runtime: String, runnerCommand: String, baseDir: String
+        runners: [(name: String, bundle: String)], runtime: String, runnerCommand: String, baseDir: String,
+        expectedPlatform: String? = nil, startupGrace: Int = 5
     ) -> String {
-        // `auto` defers to the guest: a tart base VM may be macOS or Linux.
-        let runtimeLine =
-            runtime == "auto"
-            ? "case \"$(uname -s)\" in Darwin) KINHIN_RUNTIME=macos ;; *) KINHIN_RUNTIME=linux-shell ;; esac"
-            : "KINHIN_RUNTIME=\(shellQuote(runtime))"
+        var guestGuard = ""
+        if let expectedPlatform {
+            guestGuard = """
+                case "$(uname -s)" in Darwin) KINHIN_GUEST=macos ;; *) KINHIN_GUEST=linux.shell ;; esac
+                if [ "$KINHIN_GUEST" != \(shellQuote(expectedPlatform)) ]; then
+                  echo "this guest is $KINHIN_GUEST but its Bitbucket runners were created with the \(expectedPlatform) label; add a matching label (for example linux) to the pool or image labels"
+                  exit 1
+                fi
+
+                """
+        }
         var blocks = ""
+        var checks = ""
         for (index, runner) in runners.enumerated() {
             let dir = "\(baseDir)/\(shellQuote(runner.name))"
+            // The inner script receives the credential file, the runner
+            // command and the runtime as arguments ($1..$3), so none of them
+            // need quoting inside the single-quoted `bash -c` body.
             blocks += """
                 # Bitbucket runner \(index + 1) of \(runners.count)
                 mkdir -p \(dir)/work
@@ -134,22 +166,39 @@ extension RunnerBootstrap {
                   IFS="|" read -r WORKSPACE_UUID REPOSITORY_UUID RUNNER_UUID OAUTH_CLIENT_ID OAUTH_CLIENT_SECRET < "$1"
                   # Read once, then gone: job steps must not find the client secret on disk.
                   rm -f "$1"
-                  \(runtimeLine)
-                  exec "$2" \\
-                    --accountUuid "$WORKSPACE_UUID" --runnerUuid "$RUNNER_UUID" \\
-                    --OAuthClientId "$OAUTH_CLIENT_ID" \\
-                    --OAuthClientSecret "$OAUTH_CLIENT_SECRET" \\
-                    --workingDirectory "$PWD/work" --runtime "$KINHIN_RUNTIME" $REPOSITORY_UUID_FLAG
-                ' bash \(dir)/credentials \(shellQuote(runnerCommand)) \
+                  runner_command="$2"
+                  runtime="$3"
+                  if [ "$runtime" = auto ]; then
+                    case "$(uname -s)" in Darwin) runtime=macos ;; *) runtime=linux-shell ;; esac
+                  fi
+                  set -- "$runner_command" --accountUuid "$WORKSPACE_UUID" --runnerUuid "$RUNNER_UUID" \\
+                    --OAuthClientId "$OAUTH_CLIENT_ID" --OAuthClientSecret "$OAUTH_CLIENT_SECRET" \\
+                    --workingDirectory "$PWD/work" --runtime "$runtime"
+                  if [ -n "$REPOSITORY_UUID" ]; then set -- "$@" --repositoryUuid "$REPOSITORY_UUID"; fi
+                  exec "$@"
+                ' bash \(dir)/credentials \(runnerCommand) \(shellQuote(runtime)) \\
                   > runner.log 2>&1 < /dev/null &
                 echo $! > runner.pid
+
+                """
+            checks += """
+                if ! kill -0 "$(cat \(dir)/runner.pid)" 2>/dev/null; then
+                  echo "bitbucket runner \(runner.name) exited during start-up:"
+                  tail -n 20 \(dir)/runner.log
+                  failed=1
+                fi
 
                 """
         }
         return """
             set -euo pipefail
 
-            \(blocks)echo "\(runners.count) bitbucket runner(s) started"
+            \(guestGuard)\(blocks)# A runner that dies at once (no JDK, bad path or credentials) must fail
+            # registration with its own output, not look started.
+            sleep \(startupGrace)
+            failed=0
+            \(checks)if [ "$failed" -ne 0 ]; then exit 1; fi
+            echo "\(runners.count) bitbucket runner(s) started"
             """
     }
 

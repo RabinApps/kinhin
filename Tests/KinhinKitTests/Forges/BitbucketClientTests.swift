@@ -221,6 +221,49 @@ final class BitbucketClientTests: XCTestCase {
         XCTAssertEqual(pages.withLock { $0 }, 2)
     }
 
+    /// A repository list in the shape Bitbucket Cloud returns: `updated_on` is an ISO-8601 string with microseconds
+    /// and an offset. Decoded as a `Date` it threw, and every workspace-scope poll failed with it.
+    func testActiveRepositoriesDecodeTheRealRepositoryPayload() async throws {
+        StubProtocol.handler = { request in
+            XCTAssertEqual(Self.path(request), "/2.0/repositories/acme")
+            return Self.json(
+                #"""
+                {
+                  "pagelen": 100,
+                  "size": 2,
+                  "page": 1,
+                  "values": [
+                    {
+                      "type": "repository",
+                      "full_name": "acme/api",
+                      "name": "api",
+                      "slug": "api",
+                      "uuid": "{2c3a8b1e-8f2c-4f4e-9d52-0c0f0b4b9c11}",
+                      "is_private": true,
+                      "scm": "git",
+                      "created_on": "2023-11-02T09:15:03.123456+00:00",
+                      "updated_on": "2026-02-14T18:42:09.987654+00:00",
+                      "size": 18874368,
+                      "language": "swift",
+                      "mainbranch": {"name": "main", "type": "branch"},
+                      "workspace": {"slug": "acme", "type": "workspace", "uuid": "{a1}"},
+                      "links": {"self": {"href": "https://api.bitbucket.org/2.0/repositories/acme/api"}}
+                    },
+                    {
+                      "type": "repository",
+                      "full_name": "acme/web",
+                      "slug": "web",
+                      "uuid": "{9d2c}",
+                      "updated_on": "2025-12-01T00:00:00+00:00"
+                    }
+                  ]
+                }
+                """#)
+        }
+        let repos = try await makeClient().activeRepositories(scope: .workspace("acme"))
+        XCTAssertEqual(repos, ["acme/api", "acme/web"])
+    }
+
     // MARK: - Errors
 
     func testTransienceAndCategory() {
