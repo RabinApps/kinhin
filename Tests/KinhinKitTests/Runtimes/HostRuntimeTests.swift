@@ -279,6 +279,35 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: pidFile.path))
     }
 
+    /// The Bitbucket runner `exec`s `runner.sh` -> `start.sh` -> the JVM, so the recorded pid's command line no
+    /// longer says `runner.sh`; the sweep matched on that and leaked the runner. It does carry the instance's
+    /// unique `--workingDirectory`.
+    func testBitbucketStopFindsTheRunnerByItsWorkingDirectory() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kinhin-host-tests-\(UUID().uuidString)", isDirectory: true)
+        let runtime = HostRuntime(shell: Shell(), agentDir: dir)
+        let id = "kinhin-bb\(UUID().uuidString.prefix(6))"
+        let runnerDir = runtime.workDirectory(for: id).appendingPathComponent(id, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: runnerDir.appendingPathComponent("work"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: runtime.workDirectory(for: id)) }  // scratch dir
+        // Stands in for the JVM: its command line names no wrapper, only the runner's arguments.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [
+            "-c", "sleep 60; :", "java", "--workingDirectory", runnerDir.appendingPathComponent("work").path,
+        ]
+        try process.run()
+        defer { if process.isRunning { process.terminate() } }
+        let pidFile = runnerDir.appendingPathComponent("runner.pid")
+        try Data("\(process.processIdentifier)".utf8).write(to: pidFile)
+
+        await runtime.stopBitbucketRunners(id: id)
+        process.waitUntilExit()
+        XCTAssertFalse(process.isRunning, "the runner is stopped although no wrapper name is in its command line")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: pidFile.path))
+    }
+
     func testHostLabelsForceTheHostSchemeAndAddTheMarker() {
         XCTAssertEqual(
             HostRuntime.hostLabels(["macos:host", "ubuntu-latest:docker://node:20", "arm64", "arm64:host"]),

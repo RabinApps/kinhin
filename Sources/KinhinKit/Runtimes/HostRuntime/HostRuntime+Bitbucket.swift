@@ -20,8 +20,13 @@ extension HostRuntime {
     }
 
     /// Stops this instance's Bitbucket runners that have not finished their
-    /// step (a scale-down or engine stop mid-job).
+    /// step (a scale-down or engine stop mid-job). `runner.sh` and `start.sh`
+    /// `exec` into the JVM, so the recorded pid's command line no longer
+    /// names the wrapper; it does carry the `--workingDirectory` argument,
+    /// which is unique to this instance (`<work dir>/<runner>/work`).
     func stopBitbucketRunners(id: String) async {
-        await stopRecordedAgents(id: id, pidFile: "runner.pid", command: "runner.sh", what: "bitbucket runners")
+        await stopRecordedAgents(
+            id: id, pidFile: "runner.pid", command: "--workingDirectory \(workDirectory(for: id).path)/",
+            what: "bitbucket runners")
     }
 }

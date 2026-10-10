@@ -125,7 +125,7 @@ final class HostRuntime: Runtime {
             for f in \(pidList); do
               [ -f "$f" ] || continue
               pid="$(cat "$f")"
-              if ps -p "$pid" -o command= | grep -q \(RunnerBootstrap.shellQuote(command)); then
+              if ps -p "$pid" -o command= | grep -qF -e \(RunnerBootstrap.shellQuote(command)); then
                 pkill -TERM -P "$pid" || true
                 kill "$pid" || true
                 rm -f "$f"

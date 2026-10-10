@@ -1,8 +1,6 @@
 import Foundation
 import Synchronization
 
-// MARK: - Bitbucket busy state
-
 // MARK: - Bitbucket adapter
 
 /// Forge implementation for Bitbucket Cloud Pipelines self-hosted runners
@@ -23,22 +21,11 @@ import Synchronization
 /// its one repo; a workspace-scoped account polls the recently active
 /// repositories (one page of repos, one page of pipelines each), which
 /// keeps the poll inside Bitbucket's roughly 1000 requests/hour budget.
-/// The public step payload does not expose `runs_on` either, so every step
-/// of an active pipeline counts as this fleet's demand — the runner itself
-/// matches `runs-on` labels against the labels it registered with (the
-/// account's labels plus `self.hosted` and the platform marker).
-/// Whether any step of the scope is running right now — shared because
-/// runner lists and running-job reads happen on different tasks. A box
-/// (not a plain property) so the forge stays a value type.
-final class BitbucketBusyState: Sendable {
-    private let running = Mutex(false)
-
-    var isBusy: Bool { running.withLock { $0 } }
-
-    func setBusy(_ busy: Bool) {
-        running.withLock { $0 = busy }
-    }
-}
+/// The public step payload does not expose `runs_on` either, so each
+/// active pipeline's `bitbucket-pipelines.yml` is read at the pipeline's
+/// commit (`BitbucketPipelinesFile`) and only steps that run on
+/// `self.hosted` count as this fleet's demand; cloud steps and steps still
+/// waiting behind a running one do not.
 
 struct BitbucketForge: Forge {
     let id: ForgeID = .bitbucket
@@ -60,11 +47,15 @@ struct BitbucketForge: Forge {
     let runnerList: SharedListCache<BitbucketRunner>
     /// Queued and running steps come from one poll read per interval.
     let jobList: SharedListCache<BitbucketJob>
-    /// Whether any step is running right now. Steps do not name the runner
-    /// that took them, so a running step marks every runner of the scope
-    /// busy — the same coarse signal the Gitea-family forge derives from
-    /// its runners' own busy state.
-    private let busyState = BitbucketBusyState()
+    /// The workspace's recently active repositories (workspace scopes). The
+    /// list changes slowly and every demand read needs it, so it is read far
+    /// less often than the pipelines are.
+    let repositoryList: SharedListCache<String>
+    /// The parsed `bitbucket-pipelines.yml` per repository commit.
+    let pipelinesFiles = BitbucketPipelinesFileCache()
+    /// Whether this token can list the scope's runners (a 403/404 is
+    /// remembered; the engine then reads `unlistedRunnerActivity`).
+    let runnerListSupport = RunnerListSupport()
 
     init(
         credentials: ForgeCredentials, labels: [String], client: BitbucketClient, scope: BitbucketScope,
@@ -80,6 +71,8 @@ struct BitbucketForge: Forge {
         self.repositoryUUID = repositoryUUID
         self.runnerList = SharedListCache(ttl: listTTL)
         self.jobList = SharedListCache(ttl: listTTL)
+        // A zero list TTL means "never cache" (tests); otherwise repos change slowly.
+        self.repositoryList = SharedListCache(ttl: listTTL > 0 ? 30 : 0)
     }
 
     /// Builds the forge, resolving the scope and the agent start command's
@@ -101,16 +94,32 @@ struct BitbucketForge: Forge {
 
     /// The labels a runner registers with: the self-hosted and platform
     /// markers every `runs-on:` needs, plus the account's own labels.
-    static func runnerLabels(accountLabels: [String], platform: String) -> [String] {
-        ["self.hosted", platform] + accountLabels
+    /// The pool's own labels (its runtime marker, image labels, the
+    /// architecture) join the account's, so a pool's routing labels reach the
+    /// forge-side runner; labels naming the other platform are dropped so a
+    /// runner never advertises both `macos` and `linux.shell`.
+    static func runnerLabels(accountLabels: [String], poolLabels: [String] = [], platform: String) -> [String] {
+        let conflicting: Set<String> = platform == "macos" ? ["linux.shell", "linux"] : ["macos"]
+        var seen: Set<String> = []
+        var labels: [String] = []
+        for label in ["self.hosted", platform] + accountLabels + poolLabels {
+            let key = label.lowercased()
+            guard !conflicting.contains(key), seen.insert(key).inserted else { continue }
+            labels.append(label)
+        }
+        return labels
     }
 
-    /// The Bitbucket platform label for a pool, from the runtime markers the
-    /// pool's GitHub-style labels carry: Linux runtimes (containers) get
-    /// `linux.shell`, macOS runtimes (VMs, the host) get `macos`.
+    /// The Bitbucket platform label for a pool, from the labels the pool's
+    /// runners register with: a Linux runtime marker (`kinhin-container`,
+    /// `kinhin-docker`) or an explicit `linux`/`linux.shell` label gives
+    /// `linux.shell`; everything else (macOS VMs, the host) is `macos`. The
+    /// guest OS is not known when runners are created, so a Tart *Linux* VM
+    /// needs a `linux` label on its pool or image; the registration script
+    /// fails, naming that label, when the guest disagrees.
     static func platformMarker(forPoolLabels poolLabels: [String]) -> String {
-        let linuxMarkers: Set<String> = ["kinhin-container", "kinhin-docker"]
-        return poolLabels.contains(where: linuxMarkers.contains) ? "linux.shell" : "macos"
+        let linuxLabels: Set<String> = ["kinhin-container", "kinhin-docker", "linux", "linux.shell"]
+        return poolLabels.contains { linuxLabels.contains($0.lowercased()) } ? "linux.shell" : "macos"
     }
 
     /// How a runner's per-runner credential bundle is assembled: everything
@@ -147,26 +156,88 @@ struct BitbucketForge: Forge {
     /// be captured. The runner's platform label comes from the pool's
     /// runtime markers (`platformMarker`).
     func registrationTokens(runnerNames: [String], labels poolLabels: [String]) async throws -> [String: String] {
+        // Same union the Tart registration script derives its platform guard from.
         let runnerLabels = Self.runnerLabels(
-            accountLabels: labels, platform: Self.platformMarker(forPoolLabels: poolLabels))
+            accountLabels: labels, poolLabels: poolLabels,
+            platform: Self.platformMarker(forPoolLabels: poolLabels + labels))
         var tokens: [String: String] = [:]
+        var created: [String] = []  // runner UUIDs of this call, deleted again when a later one fails
         defer { runnerList.invalidate() }  // the new runners must show up in the next list
-        for name in runnerNames {
-            let runner = try await client.createRunner(scope: scope, name: name, labels: runnerLabels)
-            guard let bundle = credentialBundle(runner: runner) else {
-                throw BitbucketError.missingOAuthClientSecret(name)
+        await removeStaleRecords(named: runnerNames)
+        do {
+            for name in runnerNames {
+                let runner = try await client.createRunner(scope: scope, name: name, labels: runnerLabels)
+                created.append(runner.uuid)
+                guard let bundle = credentialBundle(runner: runner) else {
+                    throw BitbucketError.missingOAuthClientSecret(name)
+                }
+                tokens[name] = bundle
             }
-            tokens[name] = bundle
+        } catch {
+            // The instance is not going to start: its half-created runners
+            // would otherwise sit UNREGISTERED on the forge for good.
+            for uuid in created {
+                await bestEffortAsync(account, "deleting runner \(uuid) of a failed registration") {
+                    try await client.deleteRunner(scope: scope, uuid: uuid)
+                }
+            }
+            throw error
         }
         return tokens
     }
 
-    /// The scope's runners, busy while any step is running.
+    /// Runner records already carrying one of `names` (left by an earlier
+    /// crashed run that reused the instance id) are deleted first: they would
+    /// show as an offline runner of the new instance and mask its own state.
+    private func removeStaleRecords(named names: [String]) async {
+        await bestEffortAsync(account, "removing stale runner records") {
+            let existing = try await client.listRunners(scope: scope)
+            for runner in existing where names.contains(runner.name) {
+                try await client.deleteRunner(scope: scope, uuid: runner.uuid)
+            }
+        }
+    }
+
+    /// The scope's runners. Steps do not name the runner that took them, so
+    /// every runner reads busy while any step of the scope that this fleet
+    /// serves is running, derived from a read of the steps now (not from
+    /// whichever caller last looked). A token that cannot list runners (403
+    /// or 404) reports none and is remembered; the engine then watches
+    /// `unlistedRunnerActivity` instead of retrying the list to its deadline.
     func runners() async throws -> [ForgeRunner] {
-        let runners = try await runnerList.elements { try await client.listRunners(scope: scope) }
+        guard !runnerListSupport.isAbsent else { return [] }
+        let runners: [BitbucketRunner]
+        do {
+            runners = try await runnerList.elements { try await client.listRunners(scope: scope) }
+            runnerListSupport.markPresent()
+        } catch ForgeAPIError.notFound, ForgeAPIError.forbidden {
+            runnerListSupport.markAbsent()
+            Log.info(name, "this token cannot list runners; watching running steps instead")
+            return []
+        }
+        let busy = await scopeIsBusy()
         return runners.map { runner in
-            ForgeRunner(
-                id: runner.uuid, name: runner.name, busy: busyState.isBusy, online: runner.isOnline)
+            ForgeRunner(id: runner.uuid, name: runner.name, busy: busy, online: runner.isOnline)
+        }
+    }
+
+    /// With no runner list: the number of this fleet's steps running in the
+    /// scope, which no runner can be matched to.
+    func unlistedRunnerActivity(fresh: Bool) async throws -> Int? {
+        guard runnerListSupport.isAbsent else { return nil }
+        if fresh { jobList.invalidate() }
+        return try await jobs().filter { $0.isRunning && $0.isSelfHosted }.count
+    }
+
+    /// Whether a step this fleet serves is running. A failed read counts as
+    /// busy: an instance is never reclaimed on a guess.
+    private func scopeIsBusy() async -> Bool {
+        do {
+            return try await jobs().contains { $0.isRunning && $0.isSelfHosted }
+        } catch {
+            if error is CancellationError { return true }
+            Log.warn(name, "could not read running steps; treating runners as busy: \(error.localizedDescription)")
+            return true
         }
     }
 
@@ -175,21 +246,19 @@ struct BitbucketForge: Forge {
         try await client.deleteRunner(scope: scope, uuid: id)
     }
 
-    /// Queued steps of the scope's active pipelines. The public API does
-    /// not expose a step's `runs-on` yet, so every step counts; once it
-    /// does, `isOurs` already filters. Attribution is by repository.
+    /// Queued steps of the scope's active pipelines that run on a
+    /// self-hosted runner and are waiting for one now. Attribution is by
+    /// repository.
     func queuedJobs() async throws -> [ForgeJob] {
-        try await jobs().filter { $0.isQueued && isOurs($0) }.map {
+        try await jobs().filter { $0.isQueued && $0.isSelfHosted }.map {
             ForgeJob(name: $0.name, runnerName: nil, repository: $0.repository, labels: $0.runsOn)
         }
     }
 
-    /// Running steps (they mark every runner of the scope busy — see
-    /// `hasRunningSteps`).
+    /// Running steps on self-hosted runners (they mark every runner of the
+    /// scope busy — see `runners()`).
     func runningJobs() async throws -> [ForgeJob] {
-        let jobs = try await jobs().filter(\.isRunning)
-        busyState.setBusy(!jobs.isEmpty)
-        return jobs.filter(isOurs).map {
+        try await jobs().filter { $0.isRunning && $0.isSelfHosted }.map {
             ForgeJob(name: $0.name, runnerName: nil, repository: $0.repository, labels: $0.runsOn)
         }
     }
@@ -243,28 +312,85 @@ struct BitbucketForge: Forge {
         }
     }
 
+    /// The repositories to poll: the scope's one repo, or the workspace's
+    /// most recently active ones (cached, see `repositoryList`).
     private func detailRepositories() async throws -> [String] {
         switch scope {
-        case .workspace: return Array(try await client.activeRepositories(scope: scope).prefix(20))
-        case .repository: return [scope.description]
-        }
-    }
-
-    /// A step is this fleet's when the API does not say its `runs-on` (no
-    /// filtering is possible yet) or when its `runs-on` includes every
-    /// label — the same subset rule GitHub's `runs-on:` matching uses.
-    func isOurs(_ job: BitbucketJob) -> Bool {
-        job.runsOn.isEmpty || Set(labels).isSubset(of: Set(job.runsOn))
-    }
-
-    private func jobs() async throws -> [BitbucketJob] {
-        let repos: [String]
-        switch scope {
         case .workspace:
-            repos = Array(try await client.activeRepositories(scope: scope).prefix(20))
+            return try await repositoryList.elements {
+                Array(try await client.activeRepositories(scope: scope).prefix(20))
+            }
         case .repository:
-            repos = [scope.description]
+            return [scope.description]
         }
-        return try await jobList.elements { try await client.activeJobs(scope: scope, repos: repos) }
+    }
+
+    /// Steps of the scope's active pipelines with their `runs-on` resolved.
+    /// The cache is asked first: the repository list and the pipelines are
+    /// only read when the cached steps have expired, so a poll costs the
+    /// requests of one read per interval however many callers ask.
+    private func jobs() async throws -> [BitbucketJob] {
+        try await jobList.elements {
+            let repos = try await detailRepositories()
+            let pipelines = try await client.activePipelines(scope: scope, repos: repos)
+            var jobs: [BitbucketJob] = []
+            for pipeline in pipelines {
+                jobs.append(contentsOf: await resolveJobs(of: pipeline))
+            }
+            return jobs
+        }
+    }
+
+    /// One pipeline's steps as jobs: `runs-on` from the pipeline file (the
+    /// payload carries none), and whether each PENDING step is waiting for a
+    /// runner now. Steps run in listed order, so a PENDING step behind a
+    /// running one is a future step (it needs no runner yet), and a PAUSED or
+    /// HALTED one is waiting for a person.
+    func resolveJobs(of pipeline: BitbucketClient.ActivePipeline) async -> [BitbucketJob] {
+        let file = await pipelinesFile(
+            repository: pipeline.repository, commit: pipeline.pipeline.commit)
+        var started = false
+        var jobs: [BitbucketJob] = []
+        for step in pipeline.steps {
+            let runsOn: [String]
+            if !step.runsOn.isEmpty {
+                runsOn = step.runsOn
+            } else if let file {
+                runsOn = file.runsOn(stepNamed: step.name)
+            } else {
+                // No readable file (a failed read): counting the step errs towards one idle
+                // runner that times out, rather than a pipeline waiting for ever.
+                runsOn = ["self.hosted"]
+            }
+            let blocked = ["PAUSED", "HALTED"].contains(step.stageName ?? "")
+            jobs.append(BitbucketJob(step: step, runsOn: runsOn, isReady: !started && !blocked))
+            if step.isRunning { started = true }
+        }
+        return jobs
+    }
+
+    /// The pipeline file at `commit`: nil when the commit has none (every
+    /// step is then a cloud step) and also when the read failed — the second
+    /// case is distinguished by `Log`, and not cached.
+    private func pipelinesFile(repository: String, commit: String?) async -> BitbucketPipelinesFile? {
+        guard let commit else { return nil }
+        let key = "\(repository)@\(commit)"
+        if let cached = pipelinesFiles.lookup(key) { return cached }
+        do {
+            guard
+                let data = try await client.sourceFile(
+                    repository: repository, commit: commit, path: BitbucketPipelinesFile.fileName)
+            else {
+                pipelinesFiles.store(.empty, for: key)
+                return .empty
+            }
+            let file = try BitbucketPipelinesFile(yaml: data)
+            pipelinesFiles.store(file, for: key)
+            return file
+        } catch {
+            if error is CancellationError { return nil }
+            Log.warn(name, "could not read \(BitbucketPipelinesFile.fileName) of \(key): \(error.localizedDescription)")
+            return nil
+        }
     }
 }

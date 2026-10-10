@@ -105,9 +105,13 @@ final class BitbucketClientTests: XCTestCase {
         XCTAssertEqual(runner.oauthClient?.secret, "shh")
     }
 
-    func testCreateRunnerWithoutASecretIsNamed() async {
-        StubProtocol.handler = { _ in
-            Self.json(#"{"uuid": "{r1}", "name": "kinhin-1-r1", "state": {"status": "UNREGISTERED"}}"#)
+    /// The created record cannot be used (its secret is shown once) and must not linger UNREGISTERED.
+    func testCreateRunnerWithoutASecretIsNamedAndDeleted() async {
+        let calls = Mutex<[String]>([])
+        StubProtocol.handler = { request in
+            calls.withLock { $0.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")") }
+            if request.httpMethod == "DELETE" { return (204, Data(), [:]) }
+            return Self.json(#"{"uuid": "{r1}", "name": "kinhin-1-r1", "state": {"status": "UNREGISTERED"}}"#)
         }
         do {
             _ = try await makeClient().createRunner(scope: .workspace("acme"), name: "kinhin-1-r1", labels: [])
@@ -117,6 +121,12 @@ final class BitbucketClientTests: XCTestCase {
         } catch {
             XCTFail("unexpected \(error)")
         }
+        XCTAssertEqual(
+            calls.withLock { $0 },
+            [
+                "POST /2.0/workspaces/acme/pipelines-config/runners",
+                "DELETE /2.0/workspaces/acme/pipelines-config/runners/{r1}",
+            ])
     }
 
     func testDeletingAGoneRunnerSucceeds() async throws {
@@ -219,6 +229,49 @@ final class BitbucketClientTests: XCTestCase {
         let runners = try await makeClient().listRunners(scope: .workspace("acme"))
         XCTAssertEqual(runners.map(\.uuid), ["{r1}", "{r2}"])
         XCTAssertEqual(pages.withLock { $0 }, 2)
+    }
+
+    /// A repository list in the shape Bitbucket Cloud returns: `updated_on` is an ISO-8601 string with microseconds
+    /// and an offset. Decoded as a `Date` it threw, and every workspace-scope poll failed with it.
+    func testActiveRepositoriesDecodeTheRealRepositoryPayload() async throws {
+        StubProtocol.handler = { request in
+            XCTAssertEqual(Self.path(request), "/2.0/repositories/acme")
+            return Self.json(
+                #"""
+                {
+                  "pagelen": 100,
+                  "size": 2,
+                  "page": 1,
+                  "values": [
+                    {
+                      "type": "repository",
+                      "full_name": "acme/api",
+                      "name": "api",
+                      "slug": "api",
+                      "uuid": "{2c3a8b1e-8f2c-4f4e-9d52-0c0f0b4b9c11}",
+                      "is_private": true,
+                      "scm": "git",
+                      "created_on": "2023-11-02T09:15:03.123456+00:00",
+                      "updated_on": "2026-02-14T18:42:09.987654+00:00",
+                      "size": 18874368,
+                      "language": "swift",
+                      "mainbranch": {"name": "main", "type": "branch"},
+                      "workspace": {"slug": "acme", "type": "workspace", "uuid": "{a1}"},
+                      "links": {"self": {"href": "https://api.bitbucket.org/2.0/repositories/acme/api"}}
+                    },
+                    {
+                      "type": "repository",
+                      "full_name": "acme/web",
+                      "slug": "web",
+                      "uuid": "{9d2c}",
+                      "updated_on": "2025-12-01T00:00:00+00:00"
+                    }
+                  ]
+                }
+                """#)
+        }
+        let repos = try await makeClient().activeRepositories(scope: .workspace("acme"))
+        XCTAssertEqual(repos, ["acme/api", "acme/web"])
     }
 
     // MARK: - Errors
