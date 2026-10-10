@@ -19,23 +19,28 @@ struct AzureDevOpsDescriptor: ForgeDescriptor {
     func registrationScript(for guest: RegistrationGuest, _ request: RegistrationRequest) throws -> String {
         let forge = request.forge
         let runnerNames = FleetEngine.runnerNames(for: request.name, count: request.runnerCount)
-        let capabilities = AzureDevOpsForge.capabilityEnvironment(forge.labels)
+        // The pool's labels (its `kinhin-docker`-style marker, image labels) are advertised as capabilities
+        // next to the account's own, so a job's demands can route to the pool.
+        let capabilities = AzureDevOpsForge.capabilityEnvironment(forge.labels, poolLabels: request.labels)
+        let ephemeral = request.route.ephemeral
         switch guest {
         case .tartVM:
             return RunnerBootstrap.azureRegistrationScript(
                 organization: forge.registrationURL(), token: request.token, pool: forge.scope,
                 runnerNames: runnerNames, capabilities: capabilities,
-                template: "\"$HOME/azure-agent\"", baseDir: "\"$HOME/azure-agents\"", copy: .vmGuest)
+                template: "\"$HOME/azure-agent\"", baseDir: "\"$HOME/azure-agents\"", copy: .vmGuest,
+                ephemeral: ephemeral)
         case .linuxContainer:
             // Containers run as root, which the agent refuses unless allowed.
             return RunnerBootstrap.azureRegistrationScript(
                 organization: forge.registrationURL(), token: request.token, pool: forge.scope,
                 runnerNames: runnerNames, capabilities: capabilities,
                 template: "/opt/azure-agent", baseDir: "/opt/azure-agents", copy: .archive,
-                extraEnvironment: ["AGENT_ALLOW_RUNASROOT=1"])
+                ephemeral: ephemeral, extraEnvironment: ["AGENT_ALLOW_RUNASROOT=1"])
         case .host(let host):
             return host.azureRegistrationScript(
-                forge: forge, token: request.token, name: request.name, runnerCount: request.runnerCount)
+                forge: forge, token: request.token, name: request.name, runnerCount: request.runnerCount,
+                labels: request.labels)
         }
     }
 

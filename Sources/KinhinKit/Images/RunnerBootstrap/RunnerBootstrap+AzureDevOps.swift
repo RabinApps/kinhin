@@ -37,6 +37,7 @@ extension RunnerBootstrap {
           tar xzf agent.tar.gz
           rm agent.tar.gz
           ./bin/installdependencies.sh
+          ./bin/Agent.Listener --version
         fi
         echo "linux azure pipelines agent v\(version) installed"
         """
@@ -74,34 +75,35 @@ extension RunnerBootstrap {
         }
     }
 
-    /// Starts one single-job Azure Pipelines agent per runner name. Each runner
-    /// copies the installed agent (`template`) into `baseDir/<name>`, writes
-    /// the PAT to a private file, and in the background reads and deletes that
-    /// file, registers (`config.sh --unattended`, the token handed over in
+    /// Starts one Azure Pipelines agent per runner name. Each runner copies
+    /// the installed agent (`template`) into `baseDir/<name>` and registers it
+    /// in the foreground (`config.sh --unattended`, the PAT handed over in
     /// `VSTS_AGENT_INPUT_TOKEN` for that one command only, never a command
-    /// line), runs one job (`run.sh --once`), and removes
-    /// itself from the pool: the "deregistered" signal the engine's ephemeral
-    /// watch waits for. `capabilities` (`name=value`) are exported so the agent
-    /// advertises them; `extraEnvironment` is for the runtime (e.g. allowing
-    /// root in containers).
+    /// line), so a registration failure fails this script: it exits non-zero
+    /// with the tail of `agent.log` on stderr instead of vanishing into a
+    /// background shell. The registered agent then runs in the background
+    /// (`run.sh --once` when `ephemeral`, plain `run.sh` otherwise) and removes
+    /// itself from the pool afterwards: the "deregistered" signal the engine's
+    /// ephemeral watch waits for. `capabilities` (`name=value`, names already
+    /// valid environment variable names) and `extraEnvironment` (for the
+    /// runtime, e.g. allowing root in containers) are exported before
+    /// registration so the agent advertises them.
     ///
     /// Residual exposure (not changed, cannot be verified without a real
-    /// agent): the PAT stays in the agent shell's *unexported* variable `tok`
-    /// until the final `config.sh remove`, because the engine's ephemeral watch
-    /// treats the agent leaving the pool as "job finished", so removal has to
-    /// stay in the guest. `tok` is in no environment and no argv; the file is
-    /// deleted before the agent starts.
+    /// agent): the background shell keeps the PAT in its *unexported*
+    /// variable `tok` until the final `config.sh remove`, because the engine's
+    /// ephemeral watch treats the agent leaving the pool as "job finished", so
+    /// removal has to stay in the guest. The PAT reaches that shell through a
+    /// pipe (a shell builtin writes it, so it is on no command line), `tok` is
+    /// in no environment, and no file holds it.
     ///
     /// `template` and `baseDir` are shell words (already quoted, or `$HOME/…`).
     static func azureRegistrationScript(
         organization: String, token: String, pool: String, runnerNames: [String], capabilities: [String],
-        template: String, baseDir: String, copy: AgentCopy, extraEnvironment: [String] = []
+        template: String, baseDir: String, copy: AgentCopy, ephemeral: Bool = true, extraEnvironment: [String] = []
     ) -> String {
-        // Passed to the agent shell as positional arguments (after the three
-        // fixed ones) and exported there with `export "$kv"`: the single-quoted
-        // `bash -c` body can't carry shellQuote'd values, whose quotes would
-        // end the outer string and leave the value unquoted.
-        let environment = (extraEnvironment + capabilities).map(shellQuote).joined(separator: " ")
+        let exports = (extraEnvironment + capabilities).map { "export \(shellQuote($0))" }.joined(separator: "\n")
+        let run = ephemeral ? "./run.sh --once < /dev/null || true" : "./run.sh < /dev/null || true"
         var blocks = ""
         for (index, runner) in runnerNames.enumerated() {
             let dir = "\(baseDir)/\(shellQuote(runner))"
@@ -111,23 +113,29 @@ extension RunnerBootstrap {
                 rm -rf \(dir)
                 \(copy.copyLine(template: template, dir: dir))
                 cd \(dir)
-                (umask 077 && printf '%s' \(shellQuote(token)) > .pat)
-                nohup /bin/bash -c '
-                  for kv in "${@:4}"; do export "$kv"; done
-                  tok="$(cat .pat)"
-                  rm -f .pat
-                  VSTS_AGENT_INPUT_TOKEN="$tok" ./config.sh --unattended --url "$1" --auth pat --pool "$2" --agent "$3" \\
-                    --replace --acceptTeeEula --work "$PWD/_work" || exit 1
-                  ./run.sh --once || true
+                tok=\(shellQuote(token))
+                rc=0
+                VSTS_AGENT_INPUT_TOKEN="$tok" ./config.sh --unattended --url \(shellQuote(organization)) --auth pat \\
+                  --pool \(shellQuote(pool)) --agent \(shellQuote(runner)) --replace --acceptTeeEula \\
+                  --work "$PWD/_work" > agent.log 2>&1 < /dev/null || rc=$?
+                if [ "$rc" -ne 0 ]; then
+                  echo "error: azure pipelines agent \(shellQuote(runner)) failed to register (config.sh exit $rc):" >&2
+                  tail -n 40 agent.log >&2
+                  exit 1
+                fi
+                printf '%s\\n' "$tok" | nohup /bin/bash -c '
+                  IFS= read -r tok
+                  \(run)
                   VSTS_AGENT_INPUT_TOKEN="$tok" ./config.sh remove --unattended --auth pat
-                ' azure-agent \(shellQuote(organization)) \(shellQuote(pool)) \(shellQuote(runner)) \(environment) \\
-                  > agent.log 2>&1 < /dev/null &
+                ' azure-agent >> agent.log 2>&1 &
                 echo $! > agent.pid
+                unset tok
 
                 """
         }
         return """
             set -euo pipefail
+            \(exports)
 
             \(blocks)echo "\(runnerNames.count) azure pipelines agent(s) started"
             """

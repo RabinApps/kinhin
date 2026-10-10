@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 // MARK: - Azure DevOps adapter
 
@@ -33,10 +34,13 @@ struct AzureDevOpsForge: Forge {
     let agentList: SharedListCache<AzureDevOpsAgent>
     /// Queued and running requests come from one read per poll.
     let requestList: SharedListCache<AzureDevOpsJobRequest>
+    /// Which agents were seen online, and which have since stayed offline.
+    let presence: AgentPresence
 
     init(
         credentials: ForgeCredentials, labels: [String], client: AzureDevOpsClient, pool: AzureDevOpsPool,
-        account: String = "azuredevops", listTTL: TimeInterval = 3
+        account: String = "azuredevops", listTTL: TimeInterval = 3, offlineGrace: TimeInterval = 60,
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.account = account
         self.credentials = credentials
@@ -45,6 +49,7 @@ struct AzureDevOpsForge: Forge {
         self.pool = pool
         self.agentList = SharedListCache(ttl: listTTL)
         self.requestList = SharedListCache(ttl: listTTL)
+        self.presence = AgentPresence(grace: offlineGrace, now: now)
     }
 
     /// Builds the forge, resolving the pool up front (fails fast on a bad
@@ -77,8 +82,20 @@ struct AzureDevOpsForge: Forge {
         credentials.token
     }
 
+    /// The pool's agents. An agent that was seen online and has stayed
+    /// offline past the grace period is reported gone and its record deleted:
+    /// when `config.sh remove` fails inside the guest (network, expired PAT)
+    /// the record would otherwise stay "offline" forever and the instance's
+    /// exit watch would never see its runners leave.
     func runners() async throws -> [ForgeRunner] {
-        try await agentList.elements { try await client.listAgents(pool: pool) }.map { agent in
+        let agents = try await agentList.elements { try await client.listAgents(pool: pool) }
+        let verdict = presence.observe(agents)
+        for agent in verdict.reap {
+            await bestEffortAsync(name, "deleting the stale offline agent \(agent.name)") {
+                try await deleteRunner(id: String(agent.id))
+            }
+        }
+        return agents.filter { !verdict.gone.contains($0.id) }.map { agent in
             ForgeRunner(id: String(agent.id), name: agent.name, busy: agent.busy, online: agent.status == "online")
         }
     }
@@ -88,9 +105,13 @@ struct AzureDevOpsForge: Forge {
         try await client.deleteAgent(pool: pool, id: try numericRunnerID(id))
     }
 
+    /// Queued requests this fleet can serve: ours by demands, not already
+    /// reserved for an agent, and not asking for an OS no guest runs.
     func queuedJobs() async throws -> [ForgeJob] {
-        try await requests().filter { $0.isQueued && isOurs($0) }.map {
-            ForgeJob(name: $0.jobName ?? "azure-job", runnerName: nil, repository: $0.pipeline, labels: $0.demands)
+        try await requests().filter { $0.isQueued && isOurs($0) && Self.guestCanSatisfy($0.demands) }.map {
+            ForgeJob(
+                name: $0.jobName ?? "azure-job", runnerName: nil, repository: $0.pipeline,
+                labels: Self.routingLabels($0.demands))
         }
     }
 
@@ -98,7 +119,7 @@ struct AzureDevOpsForge: Forge {
         try await requests().filter { $0.isRunning && $0.reservedAgent?.name != nil && isOurs($0) }.map {
             ForgeJob(
                 name: $0.jobName ?? "azure-job", runnerName: $0.reservedAgent?.name, repository: $0.pipeline,
-                labels: $0.demands)
+                labels: Self.routingLabels($0.demands))
         }
     }
 
@@ -208,9 +229,132 @@ struct AzureDevOpsForge: Forge {
         return (name, words[2])
     }
 
-    /// The environment an agent exports so it advertises the labels as
-    /// capabilities: `name` → `name=true`, `name=value` as is.
-    static func capabilityEnvironment(_ labels: [String]) -> [String] {
-        labels.map { $0.contains("=") ? $0 : "\($0)=true" }
+    /// The operating systems kinhin's guests run (`Agent.OS` values): macOS
+    /// VMs and the host are Darwin, containers and Linux VMs are Linux.
+    static let guestOperatingSystems: Set<String> = ["darwin", "linux"]
+
+    /// Whether some guest could take a job with these demands: an `Agent.OS
+    /// -equals X` demand for a system kinhin has no guest for (Windows) would
+    /// otherwise count as demand and spawn runners that can never take it.
+    static func guestCanSatisfy(_ demands: [String]) -> Bool {
+        demands.map(parse).allSatisfy { demand in
+            guard demand.name.caseInsensitiveCompare("Agent.OS") == .orderedSame, let os = demand.equals else {
+                return true
+            }
+            return guestOperatingSystems.contains(os.lowercased())
+        }
+    }
+
+    // MARK: - Capabilities
+
+    /// The capability name for a label: Azure agents read capabilities from
+    /// environment variables, so a name is letters, digits and `_`
+    /// (`kinhin-docker` becomes `kinhin_docker`). nil when nothing usable is left.
+    static func capabilityName(_ name: String) -> String? {
+        var result = String(
+            name.map { character -> Character in
+                character.isASCII && (character.isLetter || character.isNumber || character == "_") ? character : "_"
+            })
+        guard result.contains(where: { $0 != "_" }) else { return nil }
+        if result.first?.isNumber == true { result = "_" + result }
+        return result
+    }
+
+    /// One label as an exported `name=value` capability: `name` becomes
+    /// `name=true`, `name=value` stays, with the name made a valid variable
+    /// name. nil for a label with no usable name or a control character in its
+    /// value.
+    static func capability(_ label: String) -> String? {
+        let parts = label.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        guard let name = capabilityName(parts[0].trimmingCharacters(in: .whitespaces)) else { return nil }
+        let value = parts.count == 2 ? parts[1] : "true"
+        if value.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) { return nil }
+        return "\(name)=\(value)"
+    }
+
+    /// The environment an agent exports so it advertises its labels as
+    /// capabilities. The account's labels come first, then the pool's (its
+    /// runtime marker such as `kinhin-docker`, image labels); a pool label
+    /// whose capability name the account already sets is dropped.
+    static func capabilityEnvironment(_ labels: [String], poolLabels: [String]? = nil) -> [String] {
+        var result: [String] = []
+        var names = Set<String>()
+        for label in labels + (poolLabels ?? []) {
+            guard let capability = capability(label),
+                let name = capability.split(separator: "=", maxSplits: 1).first
+            else { continue }
+            if names.insert(name.lowercased()).inserted { result.append(capability) }
+        }
+        return result
+    }
+
+    /// The labels a job's demands stand for in routing: the demands, plus the
+    /// runtime marker a `kinhin_docker` capability demand was translated from
+    /// (`kinhin-docker`), which is what the router and image routing look for.
+    static func routingLabels(_ demands: [String]) -> [String] {
+        var labels = demands
+        for demand in demands {
+            let name = parse(demand).name
+            guard name.lowercased().hasPrefix("kinhin_") else { continue }
+            let marker = name.replacingOccurrences(of: "_", with: "-")
+            if !labels.contains(marker) { labels.append(marker) }
+        }
+        return labels
+    }
+}
+
+// MARK: - Agent presence
+
+/// Remembers which pool agents were seen online and for how long they have
+/// stayed offline since, shared by every reader of the forge's agent list.
+final class AgentPresence: Sendable {
+    struct Verdict {
+        /// Agents that were online and have been offline past the grace period.
+        let gone: Set<Int>
+        /// The subset of `gone` not yet reaped: their records should be deleted.
+        let reap: [AzureDevOpsAgent]
+    }
+
+    private struct State {
+        var seenOnline: Set<Int> = []
+        var offlineSince: [Int: Date] = [:]
+        var reaped: Set<Int> = []
+    }
+
+    private let grace: TimeInterval
+    private let now: @Sendable () -> Date
+    private let state = Mutex(State())
+
+    init(grace: TimeInterval, now: @escaping @Sendable () -> Date) {
+        self.grace = grace
+        self.now = now
+    }
+
+    func observe(_ agents: [AzureDevOpsAgent]) -> Verdict {
+        let present = Set(agents.map(\.id))
+        let time = now()
+        return state.withLock { state in
+            // Forget agents that left the list (their record is gone).
+            state.seenOnline.formIntersection(present)
+            state.offlineSince = state.offlineSince.filter { present.contains($0.key) }
+            state.reaped.formIntersection(present)
+            var gone = Set<Int>()
+            var reap: [AzureDevOpsAgent] = []
+            for agent in agents {
+                if agent.status == "online" {
+                    state.seenOnline.insert(agent.id)
+                    state.offlineSince[agent.id] = nil
+                    state.reaped.remove(agent.id)
+                } else if state.seenOnline.contains(agent.id) {
+                    let since = state.offlineSince[agent.id] ?? time
+                    state.offlineSince[agent.id] = since
+                    if time.timeIntervalSince(since) >= grace {
+                        gone.insert(agent.id)
+                        if state.reaped.insert(agent.id).inserted { reap.append(agent) }
+                    }
+                }
+            }
+            return Verdict(gone: gone, reap: reap)
+        }
     }
 }

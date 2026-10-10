@@ -203,8 +203,9 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
         }
     }
 
-    /// Waiting for an agent.
-    var isQueued: Bool { assignTime == nil && result == nil && finishTime == nil }
+    /// Waiting for an agent: not assigned, and not already reserved for one
+    /// (a reserved request has its agent, so it is no demand for another).
+    var isQueued: Bool { assignTime == nil && result == nil && finishTime == nil && reservedAgent == nil }
     /// Handed to an agent and not finished.
     var isRunning: Bool { assignTime != nil && result == nil && finishTime == nil }
     /// The pipeline the request belongs to.

@@ -205,7 +205,9 @@ extension RunnerBootstrap {
           \(azureAgentDownloadScript(version: version, platform: "linux-arm64", file: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
           tar xzf agent.tar.gz
           rm agent.tar.gz
-          ./bin/installdependencies.sh
+          # The agent's script refuses to run unprivileged; $SUDO comes from the prerequisites above.
+          $SUDO ./bin/installdependencies.sh
+          ./bin/Agent.Listener --version
           echo "azure pipelines agent v\(version) installed"
         else
           echo "azure pipelines agent already installed"
