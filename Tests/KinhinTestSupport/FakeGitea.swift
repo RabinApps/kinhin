@@ -122,6 +122,7 @@ final class FakeGitLab: Forge, Sendable {
         var queueDepth = 0
         var queuedJobsCallCount = 0
         var runnerList: [ForgeRunner] = []
+        var deletedRunnerIDs: [String] = []
         var runningJobs: [ForgeJob] = []
         var queueForks = false
         /// Extra job labels beyond the account's own (pool markers).
@@ -147,6 +148,15 @@ final class FakeGitLab: Forge, Sendable {
     var rateLimit: ForgeRateLimit? { nil }
     var name: String { "gitlab" }
     var id: ForgeID { .gitlab }
+
+    /// The runners the fake lists (the tests flip it while a watch runs).
+    var runnerList: [ForgeRunner] {
+        get { state.withLock { $0.runnerList } }
+        set { state.withLock { $0.runnerList = newValue } }
+    }
+
+    /// Ids passed to `deleteRunner`, which also drops them from `runnerList`.
+    var deletedRunnerIDs: [String] { state.withLock { $0.deletedRunnerIDs } }
 
     var queueDepth: Int {
         get { state.withLock { $0.queueDepth } }
@@ -203,6 +213,10 @@ final class FakeGitLab: Forge, Sendable {
     /// identically instead of silently succeeding.
     func deleteRunner(id: String) async throws {
         _ = try numericRunnerID(id)
+        state.withLock { state in
+            state.deletedRunnerIDs.append(id)
+            state.runnerList.removeAll { $0.id == id }
+        }
     }
 
     func queuedJobs() async throws -> [ForgeJob] {

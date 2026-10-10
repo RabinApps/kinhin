@@ -275,6 +275,10 @@ extension FleetEngine {
         let registrationDeadline = Date().addingTimeInterval(
             max(TimeInterval(config.vmBootTimeout), watchdog.registrationGrace.timeInterval))
         var seen: Set<String> = []
+        // Runners that were ever listed, online or not. A runner that appeared
+        // and then vanished completed its lifecycle even when no poll caught it
+        // online (a short job finishes between two reads of the shared list).
+        var appeared: Set<String> = []
         var idleSince: Date?
         // The runtime is asked less often than the forge: a dead instance
         // otherwise waits out the deadline below (hours) with its record.
@@ -305,6 +309,7 @@ extension FleetEngine {
             // A detached engine's watcher must not delete or re-phase the instance.
             try Task.checkCancellation()
             for runner in mine where runner.online { seen.insert(runner.name) }
+            for runner in mine { appeared.insert(runner.name) }
             // A runner that came online proves the start worked; a script that
             // merely exited 0 does not (the agent can die right after).
             if !reportedOnline, !seen.isEmpty {
@@ -312,8 +317,12 @@ extension FleetEngine {
                 noteSpawnSuccess(id)
             }
             let allSeen = expected.allSatisfy { seen.contains($0) }
+            // Deregistering forges: a listed-then-gone runner is a finished
+            // one. Idle-grace forges never remove their runners, so for them
+            // only a runner seen online can have finished.
+            let allFinished = allSeen || (idleGrace == nil && expected.allSatisfy { appeared.contains($0) })
 
-            if allSeen, mine.isEmpty {
+            if allFinished, mine.isEmpty {
                 guard let confirmed = try await confirmedRunners(), confirmed.isEmpty else {
                     try await Task.sleep(for: exitWatchInterval)
                     continue
@@ -361,7 +370,11 @@ extension FleetEngine {
             }
             // Deregistering forges wait while some runners are up; idle-grace
             // forges need every runner registered to judge idleness at all.
-            if !allSeen, mine.isEmpty || idleGrace != nil, Date() > registrationDeadline {
+            // A runner listed but never online (the forge made the record, the
+            // agent never started) is not "up": it must not hold the instance
+            // past the registration deadline.
+            let nobodyOnline = !mine.contains(where: \.online)
+            if !allSeen, nobodyOnline || idleGrace != nil, Date() > registrationDeadline {
                 guard let confirmed = try await confirmedRunners() else {
                     try await Task.sleep(for: exitWatchInterval)
                     continue

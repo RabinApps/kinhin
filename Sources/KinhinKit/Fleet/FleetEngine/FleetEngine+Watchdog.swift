@@ -44,6 +44,9 @@ extension Duration {
 struct OrphanState: Sendable {
     /// When each unmanaged instance was first seen without a record.
     var firstSeen: [String: Date] = [:]
+    /// When each forge-side runner record of ours (no instance record, not
+    /// online) was first seen, keyed `account/runnerID`.
+    var runnerFirstSeen: [String: Date] = [:]
     var lastSweep: Date?
 }
 
@@ -93,7 +96,85 @@ extension FleetEngine {
             state.lastSweep = now
             return true
         }
-        if due { await sweepOrphans(now: now) }
+        if due {
+            await sweepOrphans(now: now)
+            await sweepOrphanRunnerRecords(now: now)
+        }
+    }
+
+    /// Removes runner records on the forge that name an instance this engine
+    /// has no record of and whose agent is not connected. Forges that create
+    /// the runner before the agent starts (GitLab, Bitbucket) and agents that
+    /// failed their own deregistration (Azure DevOps) leave such records when
+    /// the engine or host dies between registration and teardown, and nothing
+    /// else ever deletes them.
+    ///
+    /// Only generated instance names are touched, only offline records, and
+    /// only after they stay unclaimed for `orphanGrace`, which is longer than
+    /// the registration grace: another engine sharing the account is mid
+    /// registration for far less. An online runner is never removed.
+    func sweepOrphanRunnerRecords(now: Date = Date()) async {
+        let known = Set(store.all.map(\.id))
+        let grace = watchdog.orphanGrace.timeInterval
+        let attached = forgeState.withLock { Array($0.byPlatform.values) }
+        var stillOrphaned: Set<String> = []
+        var listed: Set<String> = []
+        for forge in attached {
+            let runners: [ForgeRunner]
+            do {
+                runners = try await runnerDirectory.freshRunners(of: forge)
+            } catch is CancellationError {
+                return
+            } catch {
+                // No runner list (or a failing one): says nothing about records.
+                continue
+            }
+            listed.insert(forge.account)
+            for runner in runners where !runner.online && !runner.busy {
+                let instance = Self.instanceName(ofRunner: runner.name)
+                guard Self.isGeneratedInstanceName(instance), !known.contains(instance) else { continue }
+                let key = "\(forge.account)/\(runner.id)"
+                stillOrphaned.insert(key)
+                let first = orphanState.withLock { state -> Date in
+                    if let seen = state.runnerFirstSeen[key] { return seen }
+                    state.runnerFirstSeen[key] = now
+                    return now
+                }
+                guard now.timeIntervalSince(first) >= grace else { continue }
+                // A record created while we were listing makes it managed.
+                guard !store.all.contains(where: { $0.id == instance }) else { continue }
+                Log.warn(
+                    "engine",
+                    "removing orphaned \(forge.name) runner record \(runner.name): no instance record for \(Int(grace))s"
+                )
+                do {
+                    try await forge.deleteRunner(id: runner.id)
+                    runnerDirectory.invalidate(account: forge.account)
+                    orphanState.withLock { _ = $0.runnerFirstSeen.removeValue(forKey: key) }
+                    stillOrphaned.remove(key)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    Log.warn("engine", "could not remove orphaned runner \(runner.name): \(error.localizedDescription)")
+                }
+            }
+        }
+        // Forget records that are gone, but only for accounts we could re-list.
+        orphanState.withLock { state in
+            state.runnerFirstSeen = state.runnerFirstSeen.filter { entry in
+                let account = entry.key.split(separator: "/", maxSplits: 1).first.map(String.init) ?? ""
+                return !listed.contains(account) || stillOrphaned.contains(entry.key)
+            }
+        }
+    }
+
+    /// The instance a runner name belongs to: a runner of an instance hosting
+    /// several is named `<instance>-r<N>`.
+    static func instanceName(ofRunner name: String) -> String {
+        if let range = name.range(of: #"-r\d+$"#, options: .regularExpression) {
+            return String(name[..<range.lowerBound])
+        }
+        return name
     }
 
     /// Compares every runtime's instances with the store. An instance of ours
