@@ -241,10 +241,17 @@ struct BitbucketStep: Decodable, Sendable, Equatable {
     var repository: String?
     /// `state.result.name` once completed (SUCCESSFUL, FAILED, STOPPED, …).
     let resultName: String?
+    /// `state.stage.name` when present (a PENDING step that is PAUSED or HALTED
+    /// is not waiting for a runner).
+    let stageName: String?
     let startedOn: String?
     let completedOn: String?
 
-    init(uuid: String, name: String? = nil, stateName: String, runsOn: [String] = [], repository: String? = nil) {
+    init(
+        uuid: String, name: String? = nil, stateName: String, runsOn: [String] = [], repository: String? = nil,
+        stageName: String? = nil
+    ) {
+        self.stageName = stageName
         self.resultName = nil
         self.startedOn = nil
         self.completedOn = nil
@@ -263,7 +270,7 @@ struct BitbucketStep: Decodable, Sendable, Equatable {
     }
 
     enum StateKeys: String, CodingKey {
-        case name, result
+        case name, result, stage
     }
 
     struct Result: Decodable { let name: String? }
@@ -280,6 +287,9 @@ struct BitbucketStep: Decodable, Sendable, Equatable {
         resultName =
             try? container.nestedContainer(keyedBy: StateKeys.self, forKey: .state)
             .decodeIfPresent(Result.self, forKey: .result)?.name
+        stageName =
+            try? container.nestedContainer(keyedBy: StateKeys.self, forKey: .state)
+            .decodeIfPresent(Result.self, forKey: .stage)?.name
         startedOn = try container.decodeIfPresent(String.self, forKey: .startedOn)
         completedOn = try container.decodeIfPresent(String.self, forKey: .completedOn)
     }
@@ -294,22 +304,36 @@ struct BitbucketStep: Decodable, Sendable, Equatable {
 /// instead (see `BitbucketForge`).
 public struct BitbucketJob: Sendable, Equatable {
     public let name: String
-    /// The `runs-on` labels the step asked for (empty: the API does not
-    /// expose them).
+    /// The `runs-on` labels the step asked for. The API payload carries none,
+    /// so the forge fills them from the pipeline's `bitbucket-pipelines.yml`
+    /// (empty: a cloud step, or unknown).
     public let runsOn: [String]
     public let stateName: String
     /// "workspace/repo" the pipeline belongs to.
     public let repository: String
+    /// A PENDING step that is really waiting for a runner now, not a future
+    /// step behind a running one or a paused/halted one.
+    let isReady: Bool
 
-    init(step: BitbucketStep) {
+    init(step: BitbucketStep, runsOn: [String]? = nil, isReady: Bool = true) {
         self.name = step.name ?? step.uuid
-        self.runsOn = step.runsOn
+        self.runsOn = runsOn ?? step.runsOn
         self.stateName = step.stateName
         self.repository = step.repository ?? ""
+        self.isReady = isReady
     }
 
-    var isQueued: Bool { stateName == "PENDING" }
+    /// Waiting for a runner right now.
+    var isQueued: Bool { stateName == "PENDING" && isReady }
     var isRunning: Bool { stateName == "IN_PROGRESS" }
+
+    /// Whether the step runs on a self-hosted runner, the only kind this fleet
+    /// can serve. Cloud steps (no `runs-on`) and Windows runners are not
+    /// ours.
+    var isSelfHosted: Bool {
+        let labels = Set(runsOn.map { $0.lowercased() })
+        return labels.contains("self.hosted") && !labels.contains("windows")
+    }
 }
 
 /// A repository of the workspace with its last-activity timestamp, for the
@@ -348,7 +372,7 @@ enum BitbucketError: LocalizedError, Equatable {
         case .missingOAuthClientSecret(let name):
             return
                 "Bitbucket created runner '\(name)' but did not return its OAuth client secret: the secret is shown "
-                + "only once, so delete the runner on the forge and let kinhin create it again"
+                + "only once, so kinhin deleted the runner again and will create a new one on the next attempt"
         case .untrustedPageLink(let link):
             return "Bitbucket returned a pagination link outside its API (\(link)); refusing to send the token there"
         }

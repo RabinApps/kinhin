@@ -85,6 +85,11 @@ public struct BitbucketClient: Sendable {
         let (data, _) = try await send("POST", scope.runnerPath, body: body)
         let runner: BitbucketRunner = try decode(data, "created runner")
         guard let secret = runner.oauthClient?.secret, !secret.isEmpty else {
+            // The record exists on the forge and its secret can never be read
+            // again: leaving it would orphan an UNREGISTERED runner.
+            await bestEffortAsync("bitbucket", "deleting runner \(name) created without a secret") {
+                try await deleteRunner(scope: scope, uuid: runner.uuid)
+            }
             throw BitbucketError.missingOAuthClientSecret(name)
         }
         return runner
@@ -108,7 +113,7 @@ public struct BitbucketClient: Sendable {
     /// suffices). Workspace scopes poll the recently active repos the caller
     /// passes; repository scopes poll their one repo.
     func activeJobs(scope: BitbucketScope, repos: [String]) async throws -> [BitbucketJob] {
-        try await activePipelines(scope: scope, repos: repos).flatMap(\.steps).map(BitbucketJob.init)
+        try await activePipelines(scope: scope, repos: repos).flatMap(\.steps).map { BitbucketJob(step: $0) }
     }
 
     /// A pending or in-progress pipeline with its steps.
@@ -146,6 +151,18 @@ public struct BitbucketClient: Sendable {
             }
         }
         return active
+    }
+
+    /// A file of `repository` ("workspace/repo") at `commit` through the `src`
+    /// endpoint, or nil when the commit has no such file.
+    func sourceFile(repository: String, commit: String, path: String) async throws -> Data? {
+        do {
+            let (data, _) = try await send(
+                "GET", "/2.0/repositories/\(repository)/src/\(commit)/\(path)", accept: "*/*")
+            return data
+        } catch ForgeAPIError.notFound {
+            return nil
+        }
     }
 
     /// A step's log so far (`repository` is "workspace/repo").

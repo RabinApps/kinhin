@@ -105,9 +105,13 @@ final class BitbucketClientTests: XCTestCase {
         XCTAssertEqual(runner.oauthClient?.secret, "shh")
     }
 
-    func testCreateRunnerWithoutASecretIsNamed() async {
-        StubProtocol.handler = { _ in
-            Self.json(#"{"uuid": "{r1}", "name": "kinhin-1-r1", "state": {"status": "UNREGISTERED"}}"#)
+    /// The created record cannot be used (its secret is shown once) and must not linger UNREGISTERED.
+    func testCreateRunnerWithoutASecretIsNamedAndDeleted() async {
+        let calls = Mutex<[String]>([])
+        StubProtocol.handler = { request in
+            calls.withLock { $0.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")") }
+            if request.httpMethod == "DELETE" { return (204, Data(), [:]) }
+            return Self.json(#"{"uuid": "{r1}", "name": "kinhin-1-r1", "state": {"status": "UNREGISTERED"}}"#)
         }
         do {
             _ = try await makeClient().createRunner(scope: .workspace("acme"), name: "kinhin-1-r1", labels: [])
@@ -117,6 +121,12 @@ final class BitbucketClientTests: XCTestCase {
         } catch {
             XCTFail("unexpected \(error)")
         }
+        XCTAssertEqual(
+            calls.withLock { $0 },
+            [
+                "POST /2.0/workspaces/acme/pipelines-config/runners",
+                "DELETE /2.0/workspaces/acme/pipelines-config/runners/{r1}",
+            ])
     }
 
     func testDeletingAGoneRunnerSucceeds() async throws {
