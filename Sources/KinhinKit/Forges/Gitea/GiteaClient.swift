@@ -16,12 +16,24 @@ public struct GiteaCredentials: Sendable {
     /// token then travels in cleartext. Redirect and pagination host checks
     /// still apply.
     public let allowInsecureHTTP: Bool
+    /// Which server family this account talks to (`.gitea` or `.forgejo`). Gitea and Forgejo share this client but
+    /// differ in a few endpoints (queued jobs), so the account's declared forge decides, never the host name.
+    public let forge: ForgeID
 
-    public init(token: String, scope: String, instance: String, allowInsecureHTTP: Bool = false) {
+    public init(
+        token: String, scope: String, instance: String, allowInsecureHTTP: Bool = false, forge: ForgeID = .gitea
+    ) {
         self.token = token
         self.scope = scope
         self.instance = instance
         self.allowInsecureHTTP = allowInsecureHTTP
+        self.forge = forge
+    }
+
+    /// The same credentials for `forge`.
+    func with(forge: ForgeID) -> GiteaCredentials {
+        GiteaCredentials(
+            token: token, scope: scope, instance: instance, allowInsecureHTTP: allowInsecureHTTP, forge: forge)
     }
 
     var isOrgScope: Bool { !scope.contains("/") }
@@ -216,22 +228,15 @@ public struct GiteaClient: Sendable {
 
     // MARK: - Queued jobs (Gitea 1.25+, Forgejo 11+)
 
-    /// Queued jobs for the scope, using the server's own queue endpoint when
-    /// it is available (`/actions/jobs?status=waiting` on Gitea 1.25+,
-    /// `/actions/runners/jobs?labels=` on Forgejo 11+) and falling back to
-    /// the task-queue shape on older servers. The caller decides the floor;
-    /// this method only reports what the server actually has queued.
-    func queuedJobs() async throws -> [ForgeJob] {
-        // Gitea reports a job nobody has picked up as `queued`; `waiting` matches nothing (probed on 1.25.5 and
-        // 1.26.4: the unfiltered list showed the job, `?status=waiting` returned an empty list).
-        let jobs = try await jobs(status: "queued")
-        return jobs.map { job in
+    /// Queued jobs for the scope from the server's own queue endpoint (`/actions/jobs?status=queued` on Gitea
+    /// 1.25+, `/actions/runners/jobs?labels=` on Forgejo 11+). Throws when the server has no such endpoint; the
+    /// caller falls back to the task queue and decides the floor. `runnerLabels` is the label set a runner of this
+    /// fleet would register with: Forgejo returns only the waiting jobs whose `runs-on` fits inside it.
+    func queuedJobs(runnerLabels: [String] = []) async throws -> [ForgeJob] {
+        try await jobs(runnerLabels: runnerLabels).map { job in
             ForgeJob(
-                name: job.name ?? "job",
-                runnerName: nil,
-                repository: job.repository,
-                ref: job.ref,
-                sha: job.sha)
+                name: job.name ?? "job", runnerName: nil, repository: job.repository, labels: job.labels,
+                ref: job.ref, sha: job.sha)
         }
     }
 
@@ -290,29 +295,45 @@ public struct GiteaClient: Sendable {
 
     // MARK: - Jobs endpoint (Gitea 1.25+, Forgejo 11+)
 
-    /// Queued jobs from the server's own queue endpoint when it answers.
-    /// Gitea 1.25+ exposes `/actions/jobs?status=waiting` (org, repo and per
-    /// run); Forgejo 11+ exposes `/actions/runners/jobs?labels=`.
-    /// The shape below is what the swagger specs document for those endpoints;
-    /// for servers that do not have it at all the method returns an empty list
-    /// so the caller can fall back without treating "endpoint absent" as demand.
-    func jobs(status: String) async throws -> [GiteaJob] {
-        let path: String
-        let forge: ForgeID
-        if credentials.instance.contains("forgejo") || credentials.instance.contains("codeberg") {
-            path = "\(credentials.actionsBase)/runners/jobs?labels=&status=\(status)&page=1&limit=50"
-            forge = .forgejo
-        } else {
-            path = "\(credentials.actionsBase)/jobs?status=\(status)&page=1&limit=50"
-            forge = .gitea
+    /// Waiting jobs of the scope. Both shapes were probed live (Gitea 1.25.5 and 1.26.4, Forgejo 11):
+    ///
+    /// - Gitea: `GET …/actions/jobs?status=queued` returns `{"jobs":[{"name","labels",…}],"total_count"}`. The
+    ///   status of a job nobody has picked up is `queued`; `waiting` matches nothing.
+    /// - Forgejo: `GET …/actions/runners/jobs?labels=a,b` returns a bare array (or `null`) of
+    ///   `{"id","name","runs_on":[…],"status":"waiting"}`, only the jobs whose `runs_on` fits inside `labels`. An
+    ///   empty `labels` matches nothing, and the entries name no repository.
+    func jobs(runnerLabels: [String]) async throws -> [GiteaJob] {
+        if credentials.forge == .forgejo {
+            let labels = Self.runnerLabelQuery(runnerLabels)
+            guard !labels.isEmpty else { return [] }
+            let encoded = labels.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? labels
+            let (data, _) = try await send(path: "\(credentials.actionsBase)/runners/jobs?labels=\(encoded)")
+            do {
+                // `null` (nothing waiting) decodes as an empty list.
+                let list = try JSONDecoder().decode([GiteaJob]?.self, from: data) ?? []
+                return list.filter { ($0.status ?? "waiting") == "waiting" }
+            } catch {
+                throw ForgeAPIError.decoding(forge: .forgejo, what: "runner jobs: \(error.localizedDescription)")
+            }
         }
-        let (data, _) = try await send(path: path)
+        let (data, _) = try await send(path: "\(credentials.actionsBase)/jobs?status=queued&page=1&limit=50")
         do {
-            let wrapper = try JSONDecoder().decode(JobsWrapper.self, from: data)
-            return wrapper.jobs
+            return try JSONDecoder().decode(JobsWrapper.self, from: data).jobs
         } catch {
-            throw ForgeAPIError.decoding(forge: forge, what: "jobs: \(error.localizedDescription)")
+            throw ForgeAPIError.decoding(forge: .gitea, what: "jobs: \(error.localizedDescription)")
         }
+    }
+
+    /// The labels a runner of this fleet answers to, as a `runs-on` name list: the account's labels without
+    /// Gitea's `:host` / `:docker://…` scheme, plus kinhin's exclusive pool markers (a Docker pool registers with
+    /// `kinhin-docker`, so a job asking for it must fit).
+    static func runnerLabelQuery(_ labels: [String]) -> String {
+        var names: [String] = []
+        for label in labels + ["kinhin-container", "kinhin-docker", "kinhin-host"] {
+            let name = label.split(separator: ":", maxSplits: 1).first.map(String.init) ?? label
+            if !name.isEmpty, !names.contains(name) { names.append(name) }
+        }
+        return names.joined(separator: ",")
     }
 
     // MARK: - Plumbing
@@ -454,6 +475,8 @@ struct GiteaJob: Decodable {
     let repository: String?
     let ref: String?
     let sha: String?
+    /// The job's `runs-on` labels: `labels` on Gitea, `runs_on` on Forgejo. Routing opts a job into a pool by them.
+    let labels: [String]?
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -463,9 +486,15 @@ struct GiteaJob: Decodable {
         repository = try c.decodeIfPresent(String.self, forKey: .repository)
         ref = try c.decodeIfPresent(String.self, forKey: .ref)
         sha = try c.decodeIfPresent(String.self, forKey: .sha)
+        labels =
+            try c.decodeIfPresent([String].self, forKey: .labels)
+            ?? c.decodeIfPresent([String].self, forKey: .runsOn)
     }
 
-    enum CodingKeys: String, CodingKey { case id, name, status, repository, ref, sha }
+    enum CodingKeys: String, CodingKey {
+        case id, name, status, repository, ref, sha, labels
+        case runsOn = "runs_on"
+    }
 }
 
 struct JobsWrapper: Decodable {

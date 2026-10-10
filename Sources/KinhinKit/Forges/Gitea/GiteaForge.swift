@@ -106,7 +106,7 @@ struct GiteaForge: Forge {
         forge: ForgeID = .gitea, credentials: GiteaCredentials, labels: [String], demandFloor: Int = 0,
         account: String? = nil
     ) async throws -> GiteaForge {
-        let client = GiteaClient(credentials: credentials)
+        let client = GiteaClient(credentials: credentials.with(forge: forge))
         let token = try await client.fetchRegistrationToken()
         return GiteaForge(
             credentials: ForgeCredentials(
@@ -170,7 +170,7 @@ struct GiteaForge: Forge {
         // Preferred: the server's own queue endpoint when it exists (Gitea
         // 1.25+, Forgejo 11+). It reports real queued jobs, so the floor is
         // not needed there.
-        if let jobs = try? await client.queuedJobs(), !jobs.isEmpty {
+        if let jobs = try? await client.queuedJobs(runnerLabels: labels), !jobs.isEmpty {
             return jobs
         }
         // Older servers without that endpoint: fall back to the task queue.

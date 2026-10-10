@@ -6,9 +6,10 @@ import Foundation
 /// their environment-variable configuration. Pinned image versions keep runs reproducible; bump them on purpose.
 public actor GiteaFixture: ForgeFixture {
     public nonisolated let kind: ForgeKind
-    /// Gitea 1.24 (and Forgejo 11) list no waiting task until a runner is registered, so kinhin sees no queued
-    /// work for them. The floor (`min_runners: 1`) keeps one runner alive to pick the job up.
-    public nonisolated let needsRunnerFloor = true
+    /// Gitea before 1.25 lists no waiting task until a runner is registered, so kinhin sees no queued work for it
+    /// and needs the floor (`min_runners: 1`) to keep one runner alive. Gitea 1.25+ (`/actions/jobs?status=queued`)
+    /// and Forgejo 11+ (`/actions/runners/jobs?labels=`) show queued jobs before any runner exists.
+    public nonisolated let needsRunnerFloor: Bool
 
     private let image: String
     private let binary: String
@@ -36,6 +37,16 @@ public actor GiteaFixture: ForgeFixture {
             binary = "forgejo"
             envPrefix = "FORGEJO"
         }
+        needsRunnerFloor = GiteaFixture.needsFloor(kind: kind, image: image)
+    }
+
+    /// True for a Gitea older than 1.25 (or an image whose version cannot be read, to stay on the safe side).
+    static func needsFloor(kind: ForgeKind, image: String) -> Bool {
+        guard kind == .gitea else { return false }
+        let tag = image.split(separator: ":").last.map(String.init) ?? ""
+        let parts = tag.split(separator: ".").compactMap { Int($0) }
+        guard parts.count >= 2, parts[0] == 1 else { return tag != "latest" ? true : false }
+        return parts[1] < 25
     }
 
     private nonisolated var base: String { "http://\(host):\(port)" }

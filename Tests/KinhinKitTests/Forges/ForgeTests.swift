@@ -124,6 +124,51 @@ final class ForgeTests: XCTestCase {
             paths.withLock { $0 }.contains { $0.hasSuffix("/actions/tasks") }, "the tasks queue is only a fallback")
     }
 
+    private func makeForgejoClient(instance: String = "http://192.168.68.101:3000") -> GiteaClient {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        return GiteaClient(
+            credentials: GiteaCredentials(
+                token: "ft", scope: "acme/widgets", instance: instance, allowInsecureHTTP: true, forge: .forgejo),
+            session: URLSession(configuration: config))
+    }
+
+    /// Forgejo 11 (probed live): `GET …/actions/runners/jobs?labels=a,b` returns a bare array of the waiting jobs whose
+    /// `runs_on` fits inside the runner's labels, or `null`. The account's declared forge picks this endpoint, not the
+    /// instance's host name (an IP address here, as in the e2e fixture).
+    func testForgejoQueuedJobsUseTheRunnerJobsEndpointByForgeNotHostname() async throws {
+        let queries = Mutex<[String]>([])
+        StubProtocol.handler = { request in
+            queries.withLock { $0.append("\(request.url?.path ?? "")?\(request.url?.query ?? "")") }
+            let body = #"[{"id":1,"name":"build","runs_on":["kinhin-docker"],"status":"waiting","repo_id":1}]"#
+            return (200, Data(body.utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        let jobs = try await makeForgejoClient().queuedJobs(runnerLabels: ["self-hosted", "linux:host", "arm64"])
+        XCTAssertEqual(jobs.map(\.name), ["build"])
+        XCTAssertEqual(jobs.first?.labels, ["kinhin-docker"], "runs-on labels reach runtime routing")
+        let sent = queries.withLock { $0 }
+        XCTAssertEqual(sent.count, 1)
+        XCTAssertTrue(sent[0].hasPrefix("/api/v1/repos/acme/widgets/actions/runners/jobs?"), sent[0])
+        // The runner's label set: account labels without the `:host` scheme, plus the pool markers.
+        XCTAssertTrue(
+            sent[0].contains("labels=self-hosted,linux,arm64,kinhin-container,kinhin-docker,kinhin-host"), sent[0])
+    }
+
+    func testForgejoQueuedJobsTreatNullAsNothingWaiting() async throws {
+        StubProtocol.handler = { _ in (200, Data("null".utf8), [:]) }
+        defer { StubProtocol.handler = nil }
+        let jobs = try await makeForgejoClient().queuedJobs(runnerLabels: ["self-hosted"])
+        XCTAssertTrue(jobs.isEmpty)
+    }
+
+    func testRunnerLabelQueryStripsSchemesAndAddsPoolMarkers() {
+        XCTAssertEqual(
+            GiteaClient.runnerLabelQuery(["macos:host", "ubuntu:docker://node:20", "macos:host"]),
+            "macos,ubuntu,kinhin-container,kinhin-docker,kinhin-host")
+    }
+
     func testGiteaQueuedJobsFallBackToTheTaskQueueOnAnOlderServer() async throws {
         StubProtocol.handler = { request in
             if request.url?.path.hasSuffix("/actions/jobs") == true { return (404, Data("{}".utf8), [:]) }

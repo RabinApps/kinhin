@@ -108,20 +108,26 @@ extension Infra {
             }
         }
 
-        @Test("a forge that reports no queued jobs until a runner exists needs the floor (known limitation)")
-        func giteaWithoutFloorIsBlind() async throws {
+        @Test(
+            "a queued job is seen with no warm runner where the server lists queued jobs (Gitea 1.25+, Forgejo 11+)",
+            arguments: [ForgeKind.gitea, ForgeKind.forgejo])
+        func queuedJobIsSeenWithoutAFloor(_ forge: ForgeKind) async throws {
             var options = Lane.Options()
             options.minRunners = 0
-            try await Lane.with(forge: .gitea, runtime: .docker, options: options) { lane in
-                // Gitea 1.24 lists a waiting task only after a runner asks for it, so with min_runners: 0 kinhin never
-                // sees the queued job and never starts a runner. Newer Gitea (1.25+) has /actions/jobs?status=waiting,
-                // which kinhin does not use yet. When that lands this expectation flips and the test says so.
-                await withKnownIssue("Gitea 1.24 hides queued jobs from the task API until a runner exists") {
-                    let nonce = E2E.randomID() + E2E.randomID()
-                    try await lane.fixture.pushWorkflow(
-                        name: "blind", runsOn: lane.runtime.runsOn, nonce: nonce,
-                        script: lane.fixture.proofScript(extra: ""))
-                    _ = try await lane.fixture.awaitProof(nonce: nonce, timeout: 75)
+            try await Lane.with(forge: forge, runtime: .docker, options: options) { lane in
+                let nonce = E2E.randomID() + E2E.randomID()
+                try await lane.fixture.pushWorkflow(
+                    name: "nofloor", runsOn: lane.runtime.runsOn, nonce: nonce,
+                    script: lane.fixture.proofScript(extra: ""))
+                if lane.fixture.needsRunnerFloor {
+                    // Gitea before 1.25 hides a queued job until a runner exists: with no floor kinhin never sees
+                    // it. When a newer default image lands this stops being a known issue and says so.
+                    await withKnownIssue("Gitea before 1.25 hides queued jobs from the task API until a runner exists")
+                    {
+                        _ = try await lane.fixture.awaitProof(nonce: nonce, timeout: 75)
+                    }
+                } else {
+                    _ = try await lane.fixture.awaitProof(nonce: nonce, timeout: 300)
                 }
             }
         }
