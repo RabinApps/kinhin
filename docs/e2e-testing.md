@@ -45,6 +45,12 @@ Narrow the matrix with environment variables:
 | `KINHIN_E2E_KEEP=1`                                 | Keep the sandbox directories (config, logs) of a failed run                    |
 | `KINHIN_E2E_GITEA_IMAGE`, `_FORGEJO_IMAGE`, `_GITLAB_IMAGE` | Override the pinned forge images                                       |
 
+A run that is killed (a closed terminal, a `pkill` from another session, a sleeping Mac) can leave a daemon, forge
+containers and `/tmp/ke2e-*` sandboxes behind. `scripts/e2e.sh` sweeps those before it starts and again when it exits,
+and `scripts/e2e-sweep.sh` does the same on its own. It only touches things the suite created (sandboxes named `ke2e-*`,
+containers named `ke2e-*` or built from a `ke2e-*` image, and daemons recorded in a sandbox's `daemon.pid`), and does
+nothing while another run is active.
+
 ### What the machine needs
 
 - Apple Silicon, with **Docker** (Docker Desktop, OrbStack or Colima), and/or the `container` CLI, and/or Tart.

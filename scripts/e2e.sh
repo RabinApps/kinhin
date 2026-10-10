@@ -35,6 +35,10 @@ done
 echo "==> building kinhin (debug)"
 swift build --product kinhin
 
+# An earlier run that was killed leaves daemons, containers and sandboxes behind; clear them first and again on exit.
+scripts/e2e-sweep.sh
+trap 'scripts/e2e-sweep.sh --force >/dev/null 2>&1' EXIT
+
 export KINHIN_E2E=1
 export KINHIN_E2E_BIN="$PWD/.build/debug/kinhin"
 
@@ -50,7 +54,11 @@ esac
 
 echo "==> running the $tier tier"
 cd Tests/E2E
+# Not `exec`: the EXIT trap above must run to sweep leftovers, also when the tests fail or are interrupted.
+status=0
 if [ ${#extra[@]} -gt 0 ]; then
-  exec swift test ${filter[@]+"${filter[@]}"} "${extra[@]}"
+  swift test ${filter[@]+"${filter[@]}"} "${extra[@]}" || status=$?
+else
+  swift test ${filter[@]+"${filter[@]}"} || status=$?
 fi
-exec swift test ${filter[@]+"${filter[@]}"}
+exit $status

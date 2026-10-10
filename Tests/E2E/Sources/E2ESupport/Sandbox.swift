@@ -100,6 +100,9 @@ public final class Daemon: @unchecked Sendable {
         process.standardError = FileHandle.nullDevice
         try process.run()
         self.process = process
+        // Lets scripts/e2e.sh find and stop this daemon if the test process is killed before it can tear down.
+        try? Data("\(process.processIdentifier)\n".utf8).write(
+            to: sandbox.supportDirectory.appendingPathComponent("daemon.pid"))
     }
 
     /// SIGKILL: no cleanup runs, the way a crash or power loss leaves things.
