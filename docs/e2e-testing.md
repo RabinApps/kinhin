@@ -146,6 +146,19 @@ Running one real job end to end exposed these. Each now has a fix and a regressi
    the 404 and watches the scope's running tasks instead (see [Gitea and Forgejo](forges/gitea.md)).
 7. The Gitea blind spot above, which is a limitation rather than a defect.
 
+### Defect classes the fakes missed
+
+Each of the above sat behind a green unit suite. The pattern is the same: a test pinned what the code *did*, not what the real program accepts. Looking for the same classes in the forges no live run covers (2026-10-09) turned up:
+
+- **Start commands built for a shell, not the real runner.** Bitbucket's runner command was quoted twice, so a VM or host runner never started, and its `repositoryUuid` was never passed.
+- **Assumptions about an archive or install layout.** The Bitbucket JDK nests under `Contents/Home` on macOS; the Buildkite tarball's member name varies; the Azure Linux dependency script refuses to run unprivileged.
+- **Registration failures swallowed by a background shell**, so an instance looked started (Buildkite, Azure DevOps, Bitbucket).
+- **Label and routing rules that only a real job exercises**: GitLab's demand used the wrong direction of the tag subset test and ignored the pool's labels; a pool marker is not a valid Buildkite tag or Azure capability name as written.
+- **Payload shapes the stub made up**: Bitbucket's `updated_on` is an ISO string the decoder rejected; a step carries no `runs_on`.
+- **Read failures reported as an empty queue** (GitLab).
+
+The fixes for GitLab, Buildkite, Azure DevOps and Bitbucket were made by **code reading and unit tests with fakes only. They are unverified live**: none of these forges has an e2e lane (Buildkite, Azure DevOps and Bitbucket are waived as hosted-only; the GitLab CE fixture has not been run). Each forge page lists what is still to verify.
+
 ## Status
 
 What has actually been run, so the table does not claim more than it checked:

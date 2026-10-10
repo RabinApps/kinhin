@@ -26,10 +26,10 @@ Forge IDs recognized by the config and the CLI (`ForgeID`): `github`, `gitlab`, 
 |---|---|---|---|---|
 | GitHub | Shared token, 1 h | Deregisters | Workflow runs, then jobs | `labels ⊆ job.labels` |
 | Gitea, Forgejo | Shared token, long-lived | Idle grace | `/actions/tasks` | None |
-| GitLab | One runner per VM | Deregisters | `/projects/{id}/jobs` per project | `labels ⊆ tag_list` |
-| Buildkite | Cluster agent token | Deregisters | Org builds | Agent query rules |
-| Azure DevOps | PAT | Deregisters | Pool job requests | Demands |
-| Bitbucket | One runner per VM | Idle grace | Steps of active pipelines | `labels ⊆ runs_on` (or empty) |
+| GitLab | One runner per VM | Deregisters | `/projects/{id}/jobs` per project | `job.tag_list ⊆ pool labels` |
+| Buildkite | Cluster agent token | Deregisters | Org builds | Agent query rules (`kinhin-runtime=<x>` carries a pool marker) |
+| Azure DevOps | PAT | Deregisters | Pool job requests | Demands (labels are capabilities) |
+| Bitbucket | One runner per VM | Idle grace | Steps of active pipelines, `runs-on` from `bitbucket-pipelines.yml` | Self-hosted steps only |
 
 ## Audit summary (2026-10-01)
 
@@ -44,6 +44,17 @@ Highest-impact findings, most severe first. Details and evidence are in each pag
 
 
 7. **Buildkite and Bitbucket**: no mismatches with the docs or spec; minor efficiency notes only.
+
+## Live-run lessons (2026-10-09)
+
+The first live runs of GitHub and Gitea showed classes of defect that kinhin's stubbed-HTTP tests had not caught, so the GitLab, Buildkite, Azure DevOps and Bitbucket start-up scripts, label rules and demand reads were re-read against them. The fixes are recorded in each forge's page under "Audit findings (live-run lessons, 2026-10-09)", each with a "Still to verify live" list. **They were made by code reading and unit tests with fakes only; none of these four forges is live-tested** and the table above is unchanged.
+
+| Forge | Headline fixes |
+|---|---|
+| [GitLab](gitlab.md#audit-findings-live-run-lessons-2026-10-09) | Pool labels win for runner tags; demand is job tags subset of pool labels; `vm.ephemeral: false` rejected; read failures surface; MR pipelines flagged as forks |
+| [Buildkite](buildkite.md#audit-findings-live-run-lessons-2026-10-09) | Agent failures visible; `kinhin-runtime=<x>` tag for runtime markers; per-process token description (legacy tokens need one manual revoke); queue validated |
+| [Azure DevOps](azuredevops.md#audit-findings-live-run-lessons-2026-10-09) | Foreground registration, PAT never on disk; labels become capabilities; `ephemeral: false` honoured; offline agents reaped; unverified: empty pool with `demands:` may fail fast |
+| [Bitbucket](bitbucket.md#audit-findings-live-run-lessons-2026-10-09) | Runner command quoting, JDK layout, `updated_on` decode, host teardown fixed; demand from the pipeline file; Tart Linux needs a `linux` label |
 
 ## Where versions matter (input for a version setting)
 

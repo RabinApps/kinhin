@@ -97,7 +97,7 @@ accounts:
 
 Token: a personal, project or group access token with `create_runner`, `manage_runner` and `read_api` (or `api`)
 scopes. Creating runners needs Maintainer on a project or Owner on a group. kinhin creates each runner through the API,
-runs one job, and deletes it. A pending job counts as demand when its tags include every one of the account's labels.
+runs one job, and deletes it. A pending job counts as demand when every tag it asks for is one some pool advertises (the runners carry the pool's labels). `vm.ephemeral: false` is rejected for a GitLab account, because the runner deletes itself after one job. Only the tagged jobs of projects the token can read count; a single project the token cannot read is an error, not an empty queue.
 
 ### Buildkite
 
@@ -113,7 +113,7 @@ accounts:
 
 Token: a REST API token with `read_agents`, `write_agents`, `read_builds`, `read_clusters` and `write_clusters`.
 `kinhin auth status --buildkite` checks the scopes and that the cluster exists. The cluster needs a queue matching the
-`queue=` tag. Each agent runs one job and disconnects.
+`queue=` tag, and kinhin refuses to start the account when it does not. Each agent runs one job and disconnects. A pool's runtime marker (`kinhin-docker`) is carried as the tag `kinhin-runtime=docker`; to route a Buildkite job to that pool, give the step the agent query rule `kinhin-runtime=docker`. kinhin names its agent tokens `kinhin: <account> @ <host>/<pid>`; tokens from earlier versions (`kinhin: <account>`) need a one-time manual revoke.
 
 ### Azure DevOps
 
@@ -131,7 +131,7 @@ accounts:
 Token: a PAT with only **Agent Pools (Read & manage)**, from a user with the Administrator role on the pool. Azure
 agents register with this PAT, so **it is copied into every runner**: use a dedicated token with nothing else in it.
 **Without labels, every request in the pool counts as demand**, so give kinhin its own pool, or set a label and add
-`demands: [kinhin]` to the pipelines it should run.
+`demands: [kinhin]` to the pipelines it should run. A pool's runtime marker becomes a capability with `-` written as `_` (`kinhin-docker` is `kinhin_docker`), so a job for a docker pool demands both `kinhin` and `kinhin_docker`. Requests already reserved for an agent, or demanding an OS kinhin has no guest for, are not counted.
 
 ### Bitbucket
 
@@ -147,7 +147,7 @@ accounts:
 
 Token: a **workspace** or **repository access token** with the runner and pipeline scopes (app passwords don't cover
 runners). The runner is Java-based, so images also bake a Temurin JDK. Bitbucket's public API has no queued-steps
-endpoint, so kinhin polls active pipelines, and every active step counts as demand.
+endpoint, so kinhin polls active pipelines and reads each one's `bitbucket-pipelines.yml` at its commit: only steps that run on `self.hosted`, and are waiting for a runner now, count as demand. A Tart **Linux** VM needs a `linux` label on its pool or image, otherwise registration fails with a message saying so.
 
 ## Multiple accounts
 
