@@ -13,8 +13,7 @@ extension RunnerBootstrap {
           mkdir -p "$HOME/buildkite-agent"
           cd "$HOME/buildkite-agent"
           \(buildkiteAgentDownloadScript(version: version, platform: "darwin-arm64", file: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
-          tar xzf agent.tar.gz ./buildkite-agent
-          rm agent.tar.gz
+          \(buildkiteAgentExtractScript(archive: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
           ./buildkite-agent --version
           echo "buildkite agent v\(version) installed"
         else
@@ -33,11 +32,25 @@ extension RunnerBootstrap {
           mkdir -p /opt/buildkite-agent
           cd /opt/buildkite-agent
           \(buildkiteAgentDownloadScript(version: version, platform: "linux-\(arch)", file: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
-          tar xzf agent.tar.gz ./buildkite-agent
-          rm agent.tar.gz
+          \(buildkiteAgentExtractScript(archive: "agent.tar.gz").replacingOccurrences(of: "\n", with: "\n  "))
           ./buildkite-agent --version
         fi
         echo "linux buildkite-agent v\(version) installed"
+        """
+    }
+
+    /// Unpacks the release archive in the current directory and asserts the
+    /// binary landed at `./buildkite-agent`. The member name is not relied on
+    /// (`./buildkite-agent` or `buildkite-agent`, depending on how the release
+    /// was tarred): everything is extracted, then the result is checked.
+    static func buildkiteAgentExtractScript(archive: String) -> String {
+        """
+        tar xzf \(archive)
+        rm -f \(archive)
+        if [ ! -x ./buildkite-agent ]; then
+          echo "buildkite-agent is missing from the release archive" >&2
+          exit 1
+        fi
         """
     }
 
@@ -55,12 +68,17 @@ extension RunnerBootstrap {
     /// the agent process's environment, which a job running as the same user can
     /// read with `ps eww`. Use a cluster token scoped to this pool.
     ///
+    /// Each agent is given `settleSeconds` to register; one that has exited by
+    /// then (bad token, unknown queue, bad flags) fails the script with its
+    /// own `agent.log` and stops the others, instead of looking started. An
+    /// agent that exited 0 already finished its one job, which is success.
+    ///
     /// `binary` and `baseDir` are shell words (already quoted, or `$HOME/…`);
     /// each agent lives in `baseDir/<name>` with its builds, plugins, log and
     /// the pid of its background job.
     static func buildkiteRegistrationScript(
         token: String, tags: [String], runnerNames: [String], ephemeral: Bool = true, binary: String,
-        baseDir: String
+        baseDir: String, settleSeconds: Int = 5
     ) -> String {
         let tagList = tags.joined(separator: ",")
         let lifetime = ephemeral ? " --disconnect-after-job" : ""
@@ -78,24 +96,50 @@ extension RunnerBootstrap {
                   exec "$0" start --name "$1" --tags "$2"\(lifetime) \\
                     --build-path "$PWD/builds" --plugins-path "$PWD/plugins"
                 ' \(binary) \(shellQuote(runner)) \(shellQuote(tagList)) > agent.log 2>&1 < /dev/null &
-                echo $! > agent.pid
+                pid_\(index)=$!
+                echo "$pid_\(index)" > agent.pid
+
+                """
+        }
+        let pids = runnerNames.indices.map { "\"$pid_\($0)\"" }.joined(separator: " ")
+        var checks = ""
+        for (index, runner) in runnerNames.enumerated() {
+            checks += """
+                if ! kill -0 "$pid_\(index)" 2>/dev/null; then
+                  status=0
+                  wait "$pid_\(index)" || status=$?
+                  if [ "$status" -ne 0 ]; then
+                    echo "buildkite agent '\(runner)' exited immediately (status $status):"
+                    tail -n 20 \(baseDir)/\(shellQuote(runner))/agent.log
+                    kill \(pids) 2>/dev/null || true
+                    exit 1
+                  fi
+                fi
 
                 """
         }
         return """
             set -euo pipefail
 
-            \(blocks)echo "\(runnerNames.count) buildkite agent(s) started"
+            \(blocks)# An agent that cannot register dies within seconds: fail with its log.
+            sleep \(settleSeconds)
+            \(checks)echo "\(runnerNames.count) buildkite agent(s) started"
             """
     }
 
-    /// The agents' tags: the account's labels, plus any `key=value` pool
-    /// labels (runtime markers) whose key the account does not set already.
-    /// Pool labels without a key are GitHub-style and mean nothing here.
+    /// The agents' tags: the account's labels, plus the pool's `key=value`
+    /// labels whose key the account does not set already, plus the pool's
+    /// runtime marker (`kinhin-docker`, ...) as a `kinhin-runtime=docker` tag,
+    /// the only form an agent query rule can target. Other pool labels
+    /// without a key are GitHub-style and mean nothing here.
     static func buildkiteTags(accountLabels: [String], poolLabels: [String]?) -> [String] {
         var tags = accountLabels
         var keys = Set(accountLabels.compactMap { BuildkiteForge.split($0)?.key })
         for label in poolLabels ?? [] {
+            if let tag = BuildkiteForge.runtimeTag(forMarker: label) {
+                if keys.insert(BuildkiteForge.runtimeTagKey).inserted { tags.append(tag) }
+                continue
+            }
             guard let key = BuildkiteForge.split(label)?.key, keys.insert(key).inserted else { continue }
             tags.append(label)
         }

@@ -112,7 +112,8 @@ final class ImagePreparerTests: XCTestCase {
 
         let baked = ssh.scripts.joined(separator: "\n")
         XCTAssertTrue(baked.contains("buildkite-agent-darwin-arm64-"), "the agent is baked")
-        XCTAssertTrue(baked.contains("tar xzf agent.tar.gz ./buildkite-agent"))
+        XCTAssertTrue(baked.contains("tar xzf agent.tar.gz"))
+        XCTAssertTrue(baked.contains("[ ! -x ./buildkite-agent ]"), "the binary is asserted, not assumed at ./")
         XCTAssertFalse(baked.contains("actions-runner-osx"), "no GitHub token: no actions-runner")
     }
 

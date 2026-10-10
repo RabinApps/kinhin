@@ -137,7 +137,12 @@ public struct BuildkiteClient: Sendable {
     /// Script jobs of the organization's active builds, each attributed to
     /// its pipeline. Waiter, block and trigger steps are left out.
     func activeJobs() async throws -> [BuildkiteJob] {
-        try await activeBuilds().flatMap { build in
+        Self.scriptJobs(of: try await activeBuilds())
+    }
+
+    /// The script jobs of `builds`, each attributed to its pipeline.
+    static func scriptJobs(of builds: [BuildkiteBuild]) -> [BuildkiteJob] {
+        builds.flatMap { build in
             build.jobs.filter { $0.type == "script" }.map { job in
                 BuildkiteJob(
                     id: job.id, name: job.name ?? job.id, state: job.state ?? "", agentQueryRules: job.agentQueryRules,

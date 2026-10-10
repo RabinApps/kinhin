@@ -78,8 +78,7 @@ extension RunnerAgentSpec {
             installScript: { versions, arm64, _ in
                 """
                 \(RunnerBootstrap.buildkiteAgentDownloadScript(version: versions.buildkite, platform: arm64 ? "darwin-arm64" : "darwin-amd64", file: "buildkite-agent.tar.gz"))
-                tar xzf buildkite-agent.tar.gz ./buildkite-agent
-                rm buildkite-agent.tar.gz
+                \(RunnerBootstrap.buildkiteAgentExtractScript(archive: "buildkite-agent.tar.gz"))
                 """
             }))
 }

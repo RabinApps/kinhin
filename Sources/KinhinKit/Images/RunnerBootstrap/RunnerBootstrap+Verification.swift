@@ -87,7 +87,7 @@ extension RunnerBootstrap {
         let sums =
             "https://github.com/buildkite/agent/releases/download/v\(version)/buildkite-agent-\(version).SHA256SUMS"
         return
-            "curl --proto-redir '=https' --tlsv1.2 -fsSL \(shellQuote(sums)) | awk -v a=\(shellQuote(asset)) '$2 == a { print $1 }' | head -1"
+            "curl --proto-redir '=https' --tlsv1.2 -fsSL \(shellQuote(sums)) | awk -v a=\(shellQuote(asset)) '{ sub(/^[*.\\/]+/, \"\", $2) } $2 == a { print $1 }' | head -1"
     }
 
     /// `platform` is e.g. "darwin-arm64", "linux-amd64".
