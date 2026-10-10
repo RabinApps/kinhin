@@ -147,13 +147,13 @@ Running one real job end to end exposed these. Each now has a fix and a regressi
 6. **Gitea 1.26 could not be used at all.** It dropped `GET` for the runner registration token (404 "Runner not found";
    only `POST` works), and kinhin sent `GET`. The client now falls back to `POST`. Found by probing 1.24, 1.25 and 1.26
    and verified with the lifecycle suite on 1.26.4.
-6. **Forgejo instances were never deleted after their job.** Forgejo 11 (through at least v14) has no runner list
+7. **Forgejo instances were never deleted after their job.** Forgejo 11 (through at least v14) has no runner list
    (`GET …/actions/runners` is a 404), and the idle-grace exit watch decides "job finished" from that list, so it
    retried the 404 forever and the instance leaked until the engine stopped. Probed live on Forgejo 11:
    `/actions/tasks` answers `{"workflow_runs": [...]}` (not `entries`), ignores `?status=` and returns finished runs
    too, and names no runner on a task; `/actions/runners/jobs?labels=` lists waiting jobs only. kinhin now remembers
    the 404 and watches the scope's running tasks instead (see [Gitea and Forgejo](forges/gitea.md)).
-7. The Gitea blind spot above, which is a limitation rather than a defect.
+8. The Gitea blind spot above, which is a limitation rather than a defect.
 
 ### Defect classes the fakes missed
 
