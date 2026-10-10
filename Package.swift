@@ -15,7 +15,7 @@ let package = Package(
     ],
     dependencies: [
         // YAML parsing for the config file.
-        .package(url: "https://github.com/jpsim/Yams.git", from: "5.1.0"),
+        .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2"),
     ],
     targets: [
         // `swift package --disable-sandbox dev`: runs scripts/dev-run.sh.
