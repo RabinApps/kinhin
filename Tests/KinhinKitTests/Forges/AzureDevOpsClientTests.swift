@@ -108,6 +108,24 @@ final class AzureDevOpsClientTests: XCTestCase {
         }
     }
 
+    /// A bad PAT can redirect to the sign-in host. The session refuses a cross-host hop, so the 3xx itself arrives:
+    /// that is a rejected token, not an outage worth retrying.
+    func testARedirectToTheSignInHostMeansTheTokenWasRejected() async {
+        for status in [301, 302, 303, 307, 308] {
+            StubProtocol.handler = { _ in
+                (status, Data(), ["Location": "https://app.vssps.visualstudio.com/_signin?realm=dev.azure.com"])
+            }
+            do {
+                _ = try await makeClient().resolvePool()
+                XCTFail("expected unauthorized for \(status)")
+            } catch let error as ForgeAPIError {
+                XCTAssertEqual(error, .unauthorized(forge: .azuredevops), "status \(status)")
+            } catch {
+                XCTFail("unexpected \(error)")
+            }
+        }
+    }
+
     // MARK: - Agents
 
     func testListsAgentsWithTheirAssignedRequest() async throws {

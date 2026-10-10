@@ -13,14 +13,17 @@ final class AzureDevOpsForgeTests: XCTestCase {
         return URLSession(configuration: config)
     }
 
-    private func makeForge(labels: [String] = ["kinhin"]) -> AzureDevOpsForge {
+    private func makeForge(
+        labels: [String] = ["kinhin"], offlineGrace: TimeInterval = 60,
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) -> AzureDevOpsForge {
         let credentials = AzureDevOpsCredentials(
             token: "pat", scope: "Mac Fleet", instance: "https://dev.azure.com/acme/")
         return AzureDevOpsForge(
             credentials: ForgeCredentials(
                 forge: .azuredevops, token: "pat", scope: "Mac Fleet", instance: "https://dev.azure.com/acme/"),
             labels: labels, client: AzureDevOpsClient(credentials: credentials, session: session()), pool: pool,
-            account: "ado", listTTL: 0)
+            account: "ado", listTTL: 0, offlineGrace: offlineGrace, now: now)
     }
 
     override func tearDown() {
@@ -42,6 +45,35 @@ final class AzureDevOpsForgeTests: XCTestCase {
 
     func testLabelsBecomeCapabilityEnvironment() {
         XCTAssertEqual(AzureDevOpsForge.capabilityEnvironment(["kinhin", "xcode=16"]), ["kinhin=true", "xcode=16"])
+    }
+
+    /// A pool's runtime marker (`kinhin-docker`) has a hyphen, which `export` and the agent's environment-variable
+    /// capabilities refuse: it becomes `kinhin_docker=true`, and the pool's labels join the account's.
+    func testPoolMarkersBecomeValidCapabilities() {
+        XCTAssertEqual(
+            AzureDevOpsForge.capabilityEnvironment(
+                ["kinhin"], poolLabels: ["kinhin", "kinhin-docker", "xcode=16", "9lives", "---", "self-hosted"]),
+            ["kinhin=true", "kinhin_docker=true", "xcode=16", "_9lives=true", "self_hosted=true"])
+        XCTAssertEqual(
+            AzureDevOpsForge.capabilityEnvironment(["xcode=16"], poolLabels: ["xcode=15"]), ["xcode=16"],
+            "the account's value wins")
+        XCTAssertEqual(AzureDevOpsForge.capabilityEnvironment([], poolLabels: ["a=b\nINJECT=1"]), [])
+    }
+
+    /// A job demanding the translated capability routes to the pool whose marker it stands for.
+    func testDemandsOfTranslatedMarkersMirrorTheMarkerLabel() {
+        XCTAssertEqual(
+            AzureDevOpsForge.routingLabels(["kinhin", "kinhin_docker -equals true", "xcode"]),
+            ["kinhin", "kinhin_docker -equals true", "xcode", "kinhin-docker"])
+        XCTAssertEqual(AzureDevOpsForge.routingLabels(["kinhin_host"]), ["kinhin_host", "kinhin-host"])
+        XCTAssertEqual(AzureDevOpsForge.routingLabels(["kinhin"]), ["kinhin"])
+    }
+
+    func testOnlyOperatingSystemsWithAGuestCountAsDemand() {
+        XCTAssertTrue(AzureDevOpsForge.guestCanSatisfy(["kinhin", "Agent.OS -equals Darwin"]))
+        XCTAssertTrue(AzureDevOpsForge.guestCanSatisfy(["agent.os -equals linux"]))
+        XCTAssertTrue(AzureDevOpsForge.guestCanSatisfy(["Agent.OS"]), "existence only")
+        XCTAssertFalse(AzureDevOpsForge.guestCanSatisfy(["kinhin", "Agent.OS -equals Windows_NT"]))
     }
 
     // MARK: - Construction
@@ -106,5 +138,88 @@ final class AzureDevOpsForgeTests: XCTestCase {
         }
         try await makeForge().deleteRunner(id: "7")
         XCTAssertEqual(calls.withLock { $0 }, ["DELETE /acme/_apis/distributedtask/pools/12/agents/7"])
+    }
+
+    // MARK: - Demand
+
+    func testReservedAndUnsatisfiableRequestsAreNotDemand() async throws {
+        StubProtocol.handler = { _ in
+            let json = #"""
+                {"count":4,"value":[
+                  {"requestId":1,"jobName":"Open","demands":["kinhin"],"definition":{"name":"a"}},
+                  {"requestId":2,"jobName":"Reserved","demands":["kinhin"],"reservedAgent":{"name":"kinhin-9"},
+                   "definition":{"name":"a"}},
+                  {"requestId":3,"jobName":"Windows","demands":["kinhin","Agent.OS -equals Windows_NT"],
+                   "definition":{"name":"a"}},
+                  {"requestId":4,"jobName":"Docker","demands":["kinhin","kinhin_docker -equals true"],
+                   "definition":{"name":"a"}}
+                ]}
+                """#
+            return (200, Data(json.utf8), [:])
+        }
+        let queued = try await makeForge().queuedJobs()
+        XCTAssertEqual(queued.map(\.name), ["Open", "Docker"])
+        XCTAssertTrue(queued[1].labels?.contains("kinhin-docker") == true, "the router sees the marker")
+    }
+
+    // MARK: - Offline agents
+
+    private static func agents(_ entries: [(Int, String, String)]) -> Data {
+        let items = entries.map { #"{"id":\#($0.0),"name":"\#($0.1)","status":"\#($0.2)"}"# }
+        return Data(#"{"count":\#(entries.count),"value":[\#(items.joined(separator: ","))]}"#.utf8)
+    }
+
+    /// `config.sh remove` can fail in the guest, leaving the record "offline" forever. The exit watch needs the
+    /// runner gone: an agent seen online and then offline past the grace period is reported gone and its record
+    /// deleted. One that never came online is still registering, and a brief blip stays visible.
+    func testAnAgentSeenOnlineThatStaysOfflineIsReapedAndReportedGone() async throws {
+        let clock = Mutex(Date(timeIntervalSince1970: 1_000_000))
+        let listing = Mutex(Self.agents([(1, "kinhin-1", "online"), (2, "kinhin-2", "offline")]))
+        let deletes = Mutex<[String]>([])
+        StubProtocol.handler = { request in
+            if request.httpMethod == "DELETE" {
+                deletes.withLock { $0.append(request.url?.path ?? "") }
+                return (204, Data(), [:])
+            }
+            return (200, listing.withLock { $0 }, [:])
+        }
+        let forge = makeForge(offlineGrace: 60, now: { clock.withLock { $0 } })
+
+        var runners = try await forge.runners()
+        XCTAssertEqual(runners.map(\.name), ["kinhin-1", "kinhin-2"], "an agent still registering stays")
+
+        listing.withLock { $0 = Self.agents([(1, "kinhin-1", "offline"), (2, "kinhin-2", "offline")]) }
+        clock.withLock { $0 = $0.addingTimeInterval(10) }
+        runners = try await forge.runners()
+        XCTAssertEqual(runners.map(\.name), ["kinhin-1", "kinhin-2"], "a short blip is not gone")
+        XCTAssertTrue(deletes.withLock { $0 }.isEmpty)
+
+        clock.withLock { $0 = $0.addingTimeInterval(61) }
+        runners = try await forge.runners()
+        XCTAssertEqual(runners.map(\.name), ["kinhin-2"], "kinhin-1 was online, then offline past the grace")
+        XCTAssertEqual(deletes.withLock { $0 }, ["/acme/_apis/distributedtask/pools/12/agents/1"])
+
+        // Still listed by a server that did not honour the delete: reported gone, not deleted again.
+        runners = try await forge.runners()
+        XCTAssertEqual(runners.map(\.name), ["kinhin-2"])
+        XCTAssertEqual(deletes.withLock { $0 }.count, 1)
+    }
+
+    func testAnAgentThatComesBackOnlineIsNeverReaped() async throws {
+        let clock = Mutex(Date(timeIntervalSince1970: 1_000_000))
+        let listing = Mutex(Self.agents([(1, "kinhin-1", "online")]))
+        StubProtocol.handler = { _ in (200, listing.withLock { $0 }, [:]) }
+        let forge = makeForge(offlineGrace: 30, now: { clock.withLock { $0 } })
+        _ = try await forge.runners()
+        listing.withLock { $0 = Self.agents([(1, "kinhin-1", "offline")]) }
+        clock.withLock { $0 = $0.addingTimeInterval(20) }
+        _ = try await forge.runners()
+        listing.withLock { $0 = Self.agents([(1, "kinhin-1", "online")]) }
+        clock.withLock { $0 = $0.addingTimeInterval(20) }
+        _ = try await forge.runners()
+        listing.withLock { $0 = Self.agents([(1, "kinhin-1", "offline")]) }
+        clock.withLock { $0 = $0.addingTimeInterval(20) }
+        let runners = try await forge.runners()
+        XCTAssertEqual(runners.map(\.name), ["kinhin-1"], "the offline clock restarted when it was seen online")
     }
 }

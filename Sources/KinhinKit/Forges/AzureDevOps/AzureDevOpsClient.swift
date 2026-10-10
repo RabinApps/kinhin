@@ -147,12 +147,16 @@ public struct AzureDevOpsClient: Sendable {
         return try await transport.send(method, target, accept: accept, classify: Self.rejectSignInPage)
     }
 
-    /// A rejected PAT can come back as a sign-in page (203, or a redirect
-    /// URLSession followed to an HTML 200) instead of a 401.
+    /// A rejected PAT can come back as a sign-in page (203, an HTML 200 after
+    /// a followed redirect) or as a redirect to the sign-in host, which the
+    /// session refuses to follow (the credentials must not leave the host), so
+    /// the 3xx itself arrives here. None of these is an outage.
     private static func rejectSignInPage(_ http: HTTPURLResponse, _ data: Data) -> ForgeAPIError? {
         let html = http.value(forHTTPHeaderField: "Content-Type")?.lowercased().contains("text/html") == true
         switch http.statusCode {
         case 203:
+            return .unauthorized(forge: .azuredevops)
+        case 301, 302, 303, 307, 308:
             return .unauthorized(forge: .azuredevops)
         case 200...299 where html:
             return .unauthorized(forge: .azuredevops)

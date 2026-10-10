@@ -36,6 +36,103 @@ final class TartLinuxBakeScriptTests: XCTestCase {
         XCTAssertTrue(script.contains("installdependencies.sh"), "the Linux agent needs ICU and friends")
     }
 
+    /// Runs the Azure bake script as a non-root guest user would: `installdependencies.sh` refuses to run
+    /// unprivileged (so it needs the `$SUDO` the prerequisites pick), and the baked agent is smoke-tested.
+    func testAzureAgentBakeRunsItsDependencyInstallerPrivilegedAndSmokeTestsTheAgent() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("azure-bake-" + UUID().uuidString)
+        defer { try? fm.removeItem(at: root) }
+        let bin = root.appendingPathComponent("bin")
+        let payload = root.appendingPathComponent("payload/bin")
+        let home = root.appendingPathComponent("home")
+        for dir in [bin, payload, home] { try fm.createDirectory(at: dir, withIntermediateDirectories: true) }
+        func write(_ url: URL, _ body: String) throws {
+            try body.write(to: url, atomically: true, encoding: .utf8)
+            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        }
+        // The "agent": a config.sh, the dependency installer and the listener.
+        try write(
+            root.appendingPathComponent("payload/config.sh"), "#!/bin/bash\nexit 0\n")
+        try write(
+            payload.appendingPathComponent("installdependencies.sh"),
+            """
+            #!/bin/bash
+            if [ "$(id -u)" -ne 0 ] && [ "${SUDO_STUB:-}" != 1 ]; then echo "need sudo" >&2; exit 1; fi
+            echo "installdependencies" >> "$STUB_LOG"
+            """)
+        try write(
+            payload.appendingPathComponent("Agent.Listener"),
+            """
+            #!/bin/bash
+            echo "listener $*" >> "$STUB_LOG"
+            exit "${LISTENER_EXIT:-0}"
+            """)
+        let tarball = root.appendingPathComponent("agent.tar.gz")
+        let tar = Process()
+        tar.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+        tar.arguments = ["czf", tarball.path, "-C", root.appendingPathComponent("payload").path, "."]
+        try tar.run()
+        tar.waitUntilExit()
+        XCTAssertEqual(tar.terminationStatus, 0)
+        let digest = Process()
+        digest.executableURL = URL(fileURLWithPath: "/usr/bin/shasum")
+        digest.arguments = ["-a", "256", tarball.path]
+        let digestOut = Pipe()
+        digest.standardOutput = digestOut
+        try digest.run()
+        let sum =
+            String(decoding: digestOut.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .split(separator: " ").first.map(String.init) ?? ""
+        digest.waitUntilExit()
+        XCTAssertEqual(sum.count, 64)
+        // curl serves the release notes row for the digest query and the tarball for the download.
+        try write(
+            bin.appendingPathComponent("curl"),
+            """
+            #!/bin/bash
+            out=""
+            while [ $# -gt 0 ]; do if [ "$1" = -o ]; then out="$2"; fi; shift; done
+            if [ -n "$out" ]; then cp "\(tarball.path)" "$out"; else
+              echo "| Linux ARM64 | [vsts-agent-linux-arm64-5.279.0.tar.gz](https://x/vsts-agent-linux-arm64-5.279.0.tar.gz) | \(sum) |"
+            fi
+            """)
+        try write(
+            bin.appendingPathComponent("sudo"),
+            "#!/bin/bash\n[ \"$1\" = -n ] && shift\nexport SUDO_STUB=1\nexec \"$@\"\n")
+        try write(bin.appendingPathComponent("apt-get"), "#!/bin/bash\nexit 0\n")
+
+        let script = RunnerBootstrap.tartLinuxAzureAgentInstallScript(version: "5.279.0")
+        func run(listenerExit: String?) throws -> (Int32, String, String) {
+            let log = root.appendingPathComponent("stub.log")
+            try? fm.removeItem(at: log)
+            try? fm.removeItem(at: home.appendingPathComponent("azure-agent"))
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = ["-c", script]
+            var env = [
+                "HOME": home.path, "PATH": "\(bin.path):/usr/bin:/bin", "STUB_LOG": log.path,
+            ]
+            if let listenerExit { env["LISTENER_EXIT"] = listenerExit }
+            process.environment = env
+            let err = Pipe()
+            process.standardError = err
+            process.standardOutput = Pipe()
+            try process.run()
+            let stderr = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            process.waitUntilExit()
+            return (
+                process.terminationStatus, stderr, (try? String(contentsOf: log, encoding: .utf8)) ?? ""
+            )
+        }
+
+        let ok = try run(listenerExit: nil)
+        XCTAssertEqual(ok.0, 0, ok.1)
+        XCTAssertEqual(ok.2, "installdependencies\nlistener --version\n")
+
+        let broken = try run(listenerExit: "1")
+        XCTAssertNotEqual(broken.0, 0, "a listener that cannot start fails the bake")
+    }
+
     func testBitbucketRunnerUsesTheLinuxJDKAndTheMacWrapperPath() {
         let script = RunnerBootstrap.tartLinuxBitbucketRunnerInstallScript(version: "6.0.8", jdkVersion: "25.0.4.1+1")
         XCTAssertTrue(script.contains("OpenJDK25U-jdk_aarch64_linux_hotspot_25.0.4.1_1.tar.gz"), script)
