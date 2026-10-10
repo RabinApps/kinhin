@@ -5,9 +5,12 @@
 **The mindful CI — autoscaling runners that live on your Mac: GitHub Actions, Gitea and Forgejo Actions, and GitLab
 CI/CD.**
 
-> **Beta (`v0.0.1-beta-1`).** Supported: **GitHub, Gitea, Forgejo and GitLab CE**, on every runtime (Tart macOS and
-> Linux VMs, Apple container, Docker, host mode). Buildkite, Azure Pipelines and Bitbucket Pipelines are planned for a
-> later release. Please [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose); see
+**[kinhin.dev](https://kinhin.dev)** · [Quick start](https://kinhin.dev/guide/quick-start) ·
+[Introducing the beta](https://kinhin.dev/blog/introducing-kinhin-beta)
+
+> **Beta (`v0.0.1-beta-1`).** Supported: **GitHub, Gitea, Forgejo and GitLab CE**. Gitea, Forgejo and GitLab CE are
+> tested on every runtime (Tart macOS and Linux VMs, Apple container, Docker, host mode); GitHub on Tart macOS VMs and
+> Apple container. Buildkite, Azure Pipelines and Bitbucket Pipelines are planned for a later release. Please [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose); see
 > [what has been tested](docs/forges.md#what-has-been-tested) and the [roadmap to v0.1.0](docs/beta-roadmap.md).
 > kinhin sends no telemetry. [Support kinhin](docs/support.md).
 

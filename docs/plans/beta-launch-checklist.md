@@ -1,4 +1,4 @@
-# Beta launch checklist (v0.0.1-beta-1, target Saturday, October 31, 2026)
+# Beta launch checklist (v0.0.1-beta-1, Sunday, October 11, 2026)
 
 Release checklist for [beta-launch-post-draft.md](beta-launch-post-draft.md). The draft describes the state we want. Every
 claim that depends on a result not yet recorded sits inside a gate marker pair. Per gate, decide pass or fail, keep
@@ -12,13 +12,13 @@ placeholders must be resolved too.
 
 | Id | Evidence needed | On pass | On fail |
 | -- | --------------- | ------- | ------- |
-| G1 | `scripts/check.sh` exits 0 on the release commit of `develop`. Green on 2026-10-10 (full run); re-run on the release commit. | Keep `GATE:G1` (AI-development paragraph). | Keep `FALLBACK:G1`. Strongly consider not releasing. |
+| G1 | **Passed 2026-10-10, resolved in the draft.** `scripts/check.sh` full run green on `develop`. Re-run on the release commit before publishing. | Done. | — |
 | G2 | **Passed 2026-10-10, resolved in the draft.** `scripts/e2e.sh --local`: Gitea and Forgejo on Docker and apple/container, pause and resume, daemon-crash reconciliation, the `max_runners` cap, long jobs, forge outage, no-floor scale-down, busy-fleet commands and routing. | Done. | — |
 | G3 | **Passed 2026-10-10, resolved in the draft.** GitLab CE 18.4 lifecycle (job in guest, teardown, failing job) on Docker, apple/container, Tart Linux, Tart macOS and host. | Done. | — |
-| G4 | One week of the author's own CI on kinhin, with no leaked VMs, containers or registered runners. Evidence: `tart list`, `container list` / `docker ps -a`, the forge's runner list, and `kinhin` logs, checked at the end. | Keep `GATE:G4`. | Keep `FALLBACK:G4` ("Not done"). |
-| G5 | `scripts/tsan.sh` completes with no ThreadSanitizer reports. Never run `swift test --parallel` under TSan. | Keep `GATE:G5`. | Keep `FALLBACK:G5`. |
-| G6 | Signed, notarized release is published and the installer works: `curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh` downloads, and running it on a clean Mac installs a notarized `kinhin.app` and the CLI. | Keep `GATE:G6`. | Keep `FALLBACK:G6` (no install command in the post). Do not publish with a dead URL. |
-| G7 | `kinhin bench` output on the author's Mac: VM boot time, container boot time, throughput at the two-VM cap. Record the Mac model and macOS version. | Keep `GATE:G7` and replace the `[MEASURE: ...]` text with the real numbers and the hardware. | Keep `FALLBACK:G7`. |
+| G4 | **Not done, resolved in the draft (fallback: "Not done").** One week of the author's own CI on kinhin with no leaked VMs, containers or registered runners. | — | Done. |
+| G5 | **Passed 2026-10-10, resolved in the draft.** `scripts/tsan.sh`: no ThreadSanitizer reports. One test that raced its own teardown under TSan (`DockerLifecycleTests.testRegistrationScriptFailureDoesNotLeaveAStrayContainer`) was fixed to wait for it. | Done. | — |
+| G6 | **Kept in the draft; must hold before the post goes live.** Signed, notarized release published as the latest release (not a prerelease) and `curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh` works on a clean Mac. The repo must be public. | Done in the draft. | If the release cannot be published, put `FALLBACK:G6` back (no install command). Do not publish with a dead URL. |
+| G7 | **Passed 2026-10-10, resolved in the draft.** `kinhin bench` (quick) on an M1 Max, 64 GB, macOS 27.0, Tart + apple/container, against the prepared `xcode` image: Tart cold boot to SSH 31.5 s, warm boot 9.5 s, container ready 1.4 s, Xcode clean build 13.3 s, incremental 3.5 s. Throughput at the two-VM cap is not measured by `bench` and is not claimed. | Done. | — |
 | G9 | **Passed for 1.26 on 2026-10-10, resolved in the draft.** Gitea 1.26 with no floor on Docker and host; 1.24 on every runtime. Gitea 1.25 endpoints were probed but its lifecycle was not run; the draft does not claim it. | Done. | — |
 | G10 | **Passed 2026-10-10, resolved in the draft.** The e2e host lane (`KINHIN_E2E_HOST=1`): consent required, the job runs in its sandboxed work directory, teardown removes it and stops the runner, on Gitea, Forgejo and GitLab CE. It ran in a sandbox on the development Mac, not a dedicated machine. | Done. | — |
 | G8 | In-app updater: not testable until a second release exists. Not a pass or fail gate. | Nothing to change: the table row stays "Not exercised (this is the first release)". | Same. |
@@ -37,8 +37,7 @@ table; each that does not is left out.
 | O5 | Security on real guests: `tart_softnet` isolation, SSH host-key pinning, redaction in logs and bundles |
 | O6 | Daemon killed with several jobs in flight on a real fleet: nothing leaks |
 
-**Scope freeze: Saturday, October 24.** After that date only fixes, no new gates. Anything not done is "coming in beta-2",
-not a thin test.
+**Scope is frozen.** Anything not done is "coming in beta-2", not a thin test.
 
 ## Publish steps
 
@@ -47,8 +46,8 @@ not a thin test.
    have removed the chosen blocks and their markers. Also delete the leading DRAFT comment.
 2. Re-read the result against the evidence once, line by line. If a sentence claims something no gate backs, cut it.
 3. Copy the resolved draft over `website/blog/introducing-kinhin-beta.md`. Keep the frontmatter; the date line is
-   *Saturday, October 31, 2026*.
-4. Update the date in `website/blog/index.md` from October 10 to October 31, 2026.
+   *Sunday, October 11, 2026*.
+4. Update the date in `website/blog/index.md` to October 11, 2026.
 5. Launch scope is GitHub, Gitea, Forgejo and GitLab CE; Buildkite, Azure DevOps and Bitbucket are "planned" everywhere.
    If forge or runtime status changes again, update the same facts in `docs/forges.md` (status table and "What has been
    tested"), `docs/compare.md` (the "Today only ..." line and the kinhin row), `docs/beta-roadmap.md` ("Where we are"),

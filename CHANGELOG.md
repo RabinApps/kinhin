@@ -1,76 +1,48 @@
 # Changelog
 
-## Unreleased
-
-- **Supported forges: GitHub, Gitea, Forgejo and GitLab CE.** Buildkite, Azure DevOps and Bitbucket are planned for a later release and are not supported in this one; the app marks them untested.
-
-- **Fix — runners scaled down in the middle of their job** (Gitea 1.25+, Forgejo, GitLab, with `min_runners: 0`). The job leaving the queue made its own instance look surplus, and scale-down trusted a phase read from a cached runner list, so the next pass deleted the runner that had just picked the job up; only jobs shorter than one poll finished. Scale-down now confirms with the forge first and keeps a busy runner (or holds while the runner list is unreadable).
-- **Fix — Tart Linux images were baked empty.** `tart stop` powers a Linux guest off at once and the bake never flushed it, so the runner agents, toolchain helper and SSH key were lost and no clone could be reached. The bake now runs `sync` before committing and fails if it cannot.
-- **Fix — intermittent Tart Linux bake failure** ("SSH password login is still on"): Ubuntu starts sshd on demand, and `sshd -t`/`-T` need `/run/sshd`. The hardening now creates it (so the early, pre-SSH hardening also succeeds) and a failure quotes what sshd said.
-- **Fix — macOS Gitea/Forgejo bakes and host installs needed `xz`**, which stock macOS lacks; the bake then ran steps copied from the GitHub installer. The runner is now decoded with the system's `compression_tool`.
-- **Fix — Tart macOS jobs could not find `kinhin-toolchain`, Homebrew or mise.** Agents started over SSH passed the session's minimal PATH to every job; registration now starts them with the login PATH.
-- **Fix — Tart Linux toolchain installs failed** with "Permission denied": the guest's admin user installed mise into `/usr/local/bin` (and the flutter stack into `/opt` and `/etc/profile.d`) without sudo, both in `image prepare` and in `kinhin-toolchain`, which now decides at run time.
-- **Fix — Forgejo never saw jobs for most pools**: its queue was asked about the account's labels (default `macos:host`) instead of the labels the pools register, so `runs-on: linux` or `[self-hosted, linux]` never matched.
-- **Fix — repo routes never applied on Gitea 1.25+ or Forgejo**: neither queue names a job's repository. kinhin reads it from the job's URL (Gitea) or the account's repo scope, and decodes Gitea's `head_branch`/`head_sha`. Known limitation: workflow routes (`owner/repo@Workflow`) cannot match on Gitea or Forgejo, whose APIs do not name a job's workflow.
-- **Fix — `kinhin image prepare --source` and `--target` were ignored** for Tart, so the documented `--linux` then `--source <vm>` recipe baked the default macOS image.
-- **Fix — `kinhin logs` printed nothing useful**: it read its own process's in-memory log. It now prints the log file's redacted tail (`-n`, up to 5000), like the MCP `logs` tool.
-- Fix — `kinhin runtimes` titled Docker and host pools "Apple containers (Linux)".
-- **End-to-end suite: every runtime.** Tart Linux (`KINHIN_E2E_TART_LINUX_BASE`) and host (`KINHIN_E2E_HOST=1`) lanes join Docker, Apple container and Tart macOS, and GitLab CE (pinned to the multi-arch 18.4) runs on all of them; `--full` turns the Tart and host lanes on. New scenarios: a forge outage mid-job, no-floor scale-down, the warm pool, busy-fleet `status`/`pipeline`/`logs`/`requeue`/`skip`, routing precedence, thorough toolchain installs and per-job installs on every guest. A coverage guard fails when kinhin gains a runtime with no lane, and a lane refuses to start next to `kinhin-*` instances it does not own (kinhin adopts every one its runtimes list).
-
-- Fix — a runner that was listed and then vanished before any poll saw it online is a finished runner, not a failed spawn; a listed runner that never comes online times out instead of holding its instance for hours; the orphan sweep removes offline forge runner records of ours that no instance claims (all forges).
-- **End-to-end test suite.** `scripts/e2e.sh` (a separate package in `Tests/E2E`, Swift Testing) runs a real Gitea or Forgejo in a container, a sandboxed kinhin daemon, a real runner image and real jobs, and judges the result by what the forge reports. It also covers the CLI, security promises, fleet behavior (pause, crash recovery, concurrency cap) and toolchains, with fixtures for GitLab CE and GitHub. See `docs/e2e-testing.md`. `KINHIN_SUPPORT_DIR` relocates every support file (config, state, logs, daemon socket) for sandboxed runs.
-- **Fix — Gitea/Forgejo runners registered with the wrong program.** Containers and Tart VMs ran the GitHub runner's `config.sh`/`run.sh`; macOS VMs called `gitea-runner run` and `remove`, which don't exist. All guests now use `gitea-runner register --no-interactive` then `daemon`.
-- **Fix — Gitea/Forgejo pools ignored their own labels**, so `runs-on: kinhin-docker` never matched. The pool's labels now win, as for GitHub.
-- **Fix — `kinhin start` crashed on macOS 27** (`dispatch_main` called from a main-queue block). It now waits on a continuation.
-- **Fix — `kinhin config init` failed on a fresh machine** and wrote the config world-readable. It now creates the support directory and writes the file owner-only.
-- **Fix — Gitea runners were deleted in the middle of a job.** kinhin read only a runner's `status`, but Gitea reports a working runner as `status: "online"` with `busy: true`, so every runner looked idle and the 30-second idle grace removed it mid-job (any job running longer than about half a minute). It now reads the `busy` flag.24 runner.
-- **Fix — Gitea 1.26 could not register runners.** It removed `GET` for the runner registration token (404 "Runner not found"; only `POST` works). kinhin now sends `GET` and falls back to `POST` on a 404 or 405, so Gitea 1.22 to 1.26 and Forgejo all work.24, 1.25 and 1.26.26.4.
-- **Fix — Forgejo instances leaked after their job finished.** Forgejo 11 through at least v14 has no runner list, so the exit watch retried a 404 forever and only the engine stop removed the instance. kinhin now remembers the missing list and, on such servers, treats every runner of the account as busy while any task of the scope is running, then deletes an instance after the scope has been idle for the grace period (30 s) and a fresh read confirms it. A job's instance can therefore outlive its own job by as long as another job runs in the same repository. Gitea 1.24+ keeps the runner-list path.
-- **Fix — finished runs counted as queued jobs on Forgejo.** The task decoder read `entries`, but Forgejo answers `workflow_runs` and ignores `?status=`, so completed runs became demand placeholders. It now reads both shapes and filters by status client-side.
-- **Fix — queued jobs on Gitea 1.25+ and Forgejo 11+.** kinhin reads `/actions/jobs?status=queued` (Gitea) and `/actions/runners/jobs?labels=` (Forgejo), chosen by the account's forge, not the host name, so `min_runners: 0` works there.26.4 and Forgejo 11.
-- Known limitation: Gitea 1.24 and older report no queued job until a runner exists, so they need `min_runners: 1`.
-- **Fix — GitLab labels and demand.** Pool labels win for runner tags; a job is demand when its tags are a subset of the pool labels (GitLab's own rule, unlike GitHub's); `vm.ephemeral: false` is rejected at config load; single-project read failures surface instead of reading as an empty queue; shared projects are excluded from group polls; merge-request pipelines are flagged as forks; rate-limit headers are parsed.
-
-- **Submit an issue.** `kinhin issue` opens GitHub's issue chooser in the browser (`--print` prints the URL, `--json` prints it as JSON), and Advanced → Settings has a **Feedback** card with the same link.
-
-- **Logo.** kinhin has an app icon and site logo: a black ring (unfilled circle) on white. The app bundle ships `AppIcon.icns`; the website gets a new favicon, touch icon, social image and nav logo. Sources and the generator (`swift scripts/make-icons.swift`) live in `assets/brand/`.
-
-- **Advanced sidebar.** The Advanced tab now has a sidebar of its sections (Accounts, Capacity, Routing, Containers, Toolchains, Benchmarks, App), each with an icon, and the selected section on the right. The sidebar collapses to an icon rail (⌥⌘S) and remembers its state. The window opens wider (800pt, 760pt minimum) to fit it.
-
-- **Benchmarks.** `kinhin bench [boot|casual|xcode|large|toolchains]` measures, on this Mac, how fast each runtime boots, how fast representative workloads run in it, and how fast every catalog toolchain installs, verifies and builds. It pauses a running fleet while it measures (asking first, `--yes` agrees), writes a JSON report under `Application Support/Kinhin/bench` (newest 20 kept; `--json` prints it) and deletes every `kinhin-bench-*` VM and container it created, also on failure or Ctrl-C. Flags: `--quick`/`--thorough`, `--iterations`, `--runtime`, `--toolchains`/`--all-toolchains`, `--include-host`, `--network`, `--project`, `--force`, `--keep`. The app gets **Advanced → Benchmarks** and a Fleet tab card; the daemon gains `bench_start`, `bench_status` and `bench_cancel`. See `docs/benchmarks.md`.
-
-- **Warm pool.** `warm_pool: N` keeps `N` Tart VMs booted and SSH-ready but unregistered; a job claims one and skips clone and boot. Off by default. Warm VMs take slots under `max_runners`, are evicted when a job needs the slot, and are recycled after `warm_max_age_minutes`. New `warm` VM phase.
-
-- **Breaking — exit codes.** `status`, `stop`, `pause`, `resume`, `doctor` and `setup status` now follow one rule: 0 healthy, 1 needs attention, 2 usage error. `status` and `stop` exit 1 when no daemon is running (they used to exit 0), `pause`/`resume` exit 1 instead of 4, and `doctor`/`setup status` exit 1 until ready. Under `--json`, failures print `{"error":…,"code":…}` on stdout.
-- **Breaking — strict config.** Unknown keys in `config.yml` (top level and nested sections) are now an error with a "did you mean" hint, and omitted `max_runners` is 2 everywhere (the loader used 1). New optional `version:` key. `kinhin config migrate [--write]` translates the removed `repo:`, `gitea:`, `forgejo:` and `toolchains:` keys.
-- The CLI is driven by one command catalog: unknown commands/flags exit 2 with a usage line and a suggestion, `kinhin <command> --help` never runs the command, bare `kinhin` prints setup status and the next step, `setup status` is the normalized spelling of `setup-status`, and `auth set|add --token-stdin` reads the token from stdin.
-- Reliability: instances that already took a job are no longer re-registered after a restart or engine hand-over; a forge outage no longer scales idle runners down or shows an empty queue; a failed `tart delete`/container removal keeps the record and is retried; dead and orphaned instances are detected; busy runners no longer hide queued jobs from the autoscaler; status shows per-source alerts.
-- Forge API errors: a permissions 403 is no longer retried for ~14 s, `Retry-After` is honored, outages are classified as runtime (not auth) errors, and multi-account token checks use each account's own token.
-- Docs: Apple container is now listed as live-tested alongside GitHub and Tart macOS.
-- `kinhin workflow test` no longer reports a pass when it skipped work: matrix jobs, `uses:` actions other than checkout and unsupported `if:` conditions make the result `partial` (new `outcome` and `unsupportedSkips` in `--json`), which exits 1 unless `--lenient` is passed. `bash` steps now run with `--noprofile --norc -e -o pipefail` like GitHub (a failing pipeline stage fails the step). Each run notes that steps execute directly on this Mac, not isolated.
-
-- `kinhin doctor --check-tokens` probes every configured account's token against its own forge (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket), reports ok/failed per account with the `kinhin auth set` fix, adds `tokenChecks` to `--json` and makes a failed check exit 1. Plain `kinhin doctor` is now fully offline (it no longer mints a GitHub org registration token) and says when tokens were not checked.
-
-- kinhin's own CI runs its docs gates on kinhin: the `docs-lint` job and the VitePress build job use `runs-on: [kinhin-container]` (fork PRs keep the same skip guard as `test`; the Pages deploy job stays on ubuntu-latest), and baked Linux images — Apple container, Docker and tart Linux VMs — now install `git` and `jq` next to the runner agents so `actions/checkout`, `git ls-files` and jq-piping steps work in the container. Existing images gain them after a re-bake: `kinhin image prepare --container` / `--docker`, or `--source <name>` for a tart Linux VM.
-
-- Route a workflow to any runtime with `kinhin workflow route <FILE|name> <tart|appleContainer|docker|host>`: comment-preserving `runs-on:` edits (GitHub-hosted labels replaced with the pool's exact labels; `${{ … }}`, mapping and reusable-workflow jobs refused), automatic `owner/repo@Workflow` route reconciliation only when routing precedence needs it, `--job` / `--dry-run` / `--json`, `--consent` for host. `kinhin runtimes --json` now carries the per-runtime availability sweep, `workflow test --list` shows each job's `runs-on`, and a new `kinhin-route-workflow` skill covers the runtime choice.
-
-- Reset kinhin: `kinhin reset [--scope config|daemon|all] [--yes]` and an Advanced → Settings **Reset** card wipe local state by scope — config & credentials, the daemon install, or everything (VMs, images, cache, logs included). Both surfaces show the exact plan and confirm twice (plan + typed `reset`); `--yes` is the scripts-only bypass. There is no undo.
-- Test GitHub Actions workflow scripts locally with `kinhin workflow test` or the Fleet tab's **Test Workflow…** sheet (host-only; matrices and non-checkout actions are skipped).
-- Support and sponsors: `docs/support.md`, GitHub funding links, `kinhin support`, and a Support card and Help menu in the app.
-- CLI queue operations: `kinhin requeue <forge> [--yes]` and `kinhin skip <forge> [--yes]` re-queue or skip the fleet's queued jobs on a forge through the daemon (dry-run intent unless `--yes`); the Fleet tab buttons and status-bar menu keep their pending-state / AlertKit UX.
-
 ## v0.0.1-beta-1
 
-First public beta.
+First public beta. kinhin watches your CI queue and, for each queued job, starts a fresh VM or container on your Apple
+Silicon Mac, registers a one-job runner, lets it run, then deletes it. Free, Apache-2.0, no telemetry.
 
-**Tested for real:** GitHub Actions with Tart macOS VMs.
+**Supported forges:** GitHub Actions, Gitea Actions, Forgejo Actions and GitLab CE. Buildkite, Azure Pipelines and
+Bitbucket Pipelines are planned for a later release; the app marks them untested.
 
-**Not tested against a real server (unit tests with fakes/stubs only):** Gitea, Forgejo, GitLab, Buildkite,
-Azure DevOps, Bitbucket; the apple/container, Docker and host runtimes.
+**Runtimes:** Tart macOS and Linux VMs, apple/container, Docker, and an opt-in host mode with no isolation (behind an
+explicit consent flag).
+
+**What is in it**
+
+- **Autoscaling.** Ephemeral runners between `min_runners` and `max_runners`, capped by what this Mac can hold after
+  reserving headroom (`kinhin doctor` shows the number). `runners_per_vm` packs several jobs into one VM; `warm_pool: N`
+  keeps booted, unregistered Tart VMs ready to claim.
+- **Routing.** Pools per runtime with their own labels; route by repository, workflow or `runs-on:` label.
+  `kinhin workflow route` edits a workflow's `runs-on:` for a runtime.
+- **Toolchains.** Bake tools into the image, pin them per repository (`.kinhin.yml`), or install them per job, with an
+  opt-in shared cache.
+- **App, CLI and daemon.** A menu bar app with a setup wizard, a full CLI, and a LaunchAgent daemon on one engine and one
+  config. Tokens live in the Keychain. Every read command has `--json`; `kinhin mcp` is an MCP server; seven agent
+  skills ship in `skills/`.
+- **Operating.** `status`, `pipeline`, `logs` (redacted), `pause`/`resume`, `requeue`/`skip`, `cleanup`, `doctor`
+  (`--check-tokens`, `--bundle`), `reset`, and `kinhin bench` for boot and workload timings on this Mac.
+- **Workflows locally.** `kinhin workflow test` runs a GitHub Actions workflow's scripts on this Mac and reports
+  `partial` when it had to skip something.
+- **Strict config.** Unknown keys are an error with a suggestion; `kinhin config validate` and `kinhin config migrate`.
+
+**Tested for real:** GitHub Actions on Tart macOS VMs and apple/container, by hand. Gitea 1.24 and 1.26, Forgejo 11 and
+GitLab CE 18.4 on every runtime, by the end-to-end suite (`scripts/e2e.sh`), including crash recovery, the concurrency
+cap, pause and resume, forge outages, the warm pool, routing and toolchain installs.
 
 **Not yet exercised:** the in-app updater against a published release (this is the first one).
 
-The path to the full **v0.1.0** release is in [docs/beta-roadmap.md](docs/beta-roadmap.md).
+**Known limitations**
 
-Known limits are listed in [docs/security.md](docs/security.md#known-limits). No telemetry.
+- Gitea 1.24 and older report no queued job until a runner exists: set `min_runners: 1`.
+- Workflow routes (`owner/repo@Workflow`) do not match on Gitea or Forgejo, whose APIs do not name a job's workflow.
+- On Forgejo, which has no runner list, a job's instance can outlive the job while another job runs in the same
+  repository.
+- kinhin adopts every `kinhin-*` VM or container on the Mac as its own.
+- Apple allows two macOS guest VMs at once on a Mac.
+
+More in [docs/security.md](docs/security.md#known-limits). The path to **v0.1.0** is in
+[docs/beta-roadmap.md](docs/beta-roadmap.md).

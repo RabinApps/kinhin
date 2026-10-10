@@ -76,8 +76,22 @@ git push origin v<version>
 The tag triggers `.github/workflows/release.yml`, which runs the tests, stamps `Version.swift` from
 the tag, requires the signing secrets, rebuilds, and runs **the same `scripts/release-artifacts.sh`**
 your local run executed — so a checkout release and a tag publish cannot drift apart. It then uploads
-the four files to a GitHub Release. The workflow runs in the protected `release` environment, so
-secrets are only reachable after a reviewer approves.
+the four files to a GitHub Release, with the version's CHANGELOG section as its notes. The workflow
+runs in the protected `release` environment, so secrets are only reachable after a reviewer approves.
+It needs a runner labelled `kinhin-xcode` (a Tart pool on a kinhin fleet).
+
+**Local publish** — when no `kinhin-xcode` runner is available, publish the verified local `dist/`
+instead. `gh` creates the tag on GitHub together with the release, so when the tag's
+`release.yml` run starts, its `existing` job finds the release and skips the rebuild. The commit you
+built must already be pushed.
+
+```bash
+awk -v h="## v<version>" '$0 == h {f=1; next} /^## /{f=0} f' CHANGELOG.md > dist/release-notes.md
+gh release create v<version> --target "$(git rev-parse HEAD)" --latest --title "v<version>" \
+  --notes-file dist/release-notes.md \
+  dist/kinhin-<version>-arm64.dmg dist/kinhin-cli-<version>-arm64.zip dist/install.sh dist/checksums.txt
+git fetch --tags
+```
 
 ## The scripts
 
@@ -135,7 +149,8 @@ resumes an old submission.
   [CONTRIBUTING.md](../CONTRIBUTING.md#docs-versions)).
 - The in-app updater checks GitHub Releases at most once a day; a Developer ID build only accepts a
   DMG signed by **its own Team ID** and accepted by Gatekeeper ([Install](install.md)).
-- A pre-release (`-beta-N`) is published as a prerelease; beta builds see those too.
+- A beta (`-beta-N`) is published as the latest release, not a prerelease: GitHub's
+  `releases/latest`, which the install URL and `install.sh` resolve, never returns a prerelease.
 
 ## Verifying a shipped artifact
 

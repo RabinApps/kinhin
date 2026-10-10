@@ -11,5 +11,5 @@ News and notes from kinhin, the mindful CI.
 
 ## Posts
 
-- **October 10, 2026: [Introducing the kinhin beta](/blog/introducing-kinhin-beta)**
+- **October 11, 2026: [Introducing the kinhin beta](/blog/introducing-kinhin-beta)**
   The first public beta. Why I built it, what has been tested for real, what hasn't, and where I need your help.

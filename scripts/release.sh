@@ -239,7 +239,8 @@ touches git. When you are ready:
 The tag triggers .github/workflows/release.yml, which rebuilds from the tag in
 the protected 'release' environment and publishes dist/ to GitHub Releases.
 Your local dist/ is a rehearsal: it proves the build, the signing and the
-installer stamping before the tag exists.
+installer stamping before the tag exists. With no kinhin-xcode runner, publish
+this dist/ instead: see "Local publish" in docs/releasing.md.
 
 Afterwards: add v$VERSION to website/versions.json for the docs snapshot
 (see CONTRIBUTING.md, "Docs versions"), and move the CHANGELOG heading into

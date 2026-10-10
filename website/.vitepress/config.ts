@@ -22,6 +22,8 @@ const isBeta = docsVersion
   ? isPrerelease(docsVersion)
   : !(versions as string[]).some((v) => !isPrerelease(v));
 const base = docsVersion ? `/${docsVersion}/` : "/";
+// The custom domain GitHub Pages serves (website/public/CNAME). Social cards need absolute URLs.
+const siteURL = "https://kinhin.dev";
 
 export default defineConfig({
   base,
@@ -29,11 +31,12 @@ export default defineConfig({
   description:
     "The mindful CI — autoscaling CI runners that live on your Mac. " +
     "macOS jobs on Tart VMs, Linux jobs on apple/container microVMs or Docker.",
+  sitemap: { hostname: `${siteURL}${base}` },
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: `${base}favicon.svg` }],
     ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: `${base}favicon-32.png` }],
     ["link", { rel: "apple-touch-icon", href: `${base}apple-touch-icon.png` }],
-    ["meta", { property: "og:image", content: `${base}og.png` }],
+    ["meta", { property: "og:image", content: `${siteURL}${base}og.png` }],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
   ],
 

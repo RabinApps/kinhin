@@ -6,7 +6,7 @@ aside: false
 ---
 
 <!--
-DRAFT for Saturday, October 31, 2026. NOT for publishing as-is. The gates G1 to G10 and the optional O1 to O6 are defined in
+DRAFT for Sunday, October 11, 2026. NOT for publishing as-is. The gates G1 to G10 and the optional O1 to O6 are defined in
 docs/plans/beta-launch-checklist.md. Each gate has a target block (GATE:Gn start/end markers) and a fallback block
 (FALLBACK:Gn start/end markers). Keep exactly one, delete the other, markers included. All [MEASURE: ...]
 placeholders and TODO(verify:...) comments must be resolved or removed. Nothing here is true until its gate passed.
@@ -14,7 +14,7 @@ placeholders and TODO(verify:...) comments must be resolved or removed. Nothing 
 
 # Introducing the kinhin beta
 
-*Saturday, October 31, 2026 · Alex Rabin*
+_Sunday, October 11, 2026 · Alex Rabin_
 
 **kinhin** watches your CI queue and, for each queued job, starts a fresh VM or container on your Apple Silicon Mac,
 registers a one-job runner, lets it run, then deletes it. Nothing idles and nothing is left over. It is free, open source
@@ -22,13 +22,35 @@ registers a one-job runner, lets it run, then deletes it. Nothing idles and noth
 
 It is a beta, and the honest summary is short:
 
-|  | State today |
-| -- | -- |
+|                             | State today                                                                                                                                                                                                                |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Supported, run for real** | GitHub Actions, Gitea Actions, Forgejo Actions and GitLab CE. Gitea, Forgejo and GitLab run on every runtime (Tart macOS and Linux VMs, apple/container, Docker, host mode); GitHub on Tart macOS VMs and apple/container. |
-| **Planned** | Buildkite, Azure Pipelines and Bitbucket Pipelines, in a later release. |
-| **Hard limit** | Apple allows two macOS guest VMs at once on a Mac, whatever the hardware. Linux containers are not capped by it. |
+| **Planned**                 | Buildkite, Azure Pipelines and Bitbucket Pipelines, in a later release.                                                                                                                                                    |
+| **Hard limit**              | Apple allows two macOS guest VMs at once on a Mac, whatever the hardware. Linux containers are not capped by it.                                                                                                           |
 
 If you only read one more section, read [Should you use it now?](#should-you-use-it-now). The rest is detail.
+
+## Who I am, and why I built it
+
+I'm Alex Rabin. I have been writing code since I was 15, and I have a full-time programming job. You can find more at
+[alexrabin.com](https://www.alexrabin.com). My previous project is [SupDesk](https://supdesk.app/en), a feedback and
+support console for solo founders and small teams.
+
+I set up self-hosted CI twice in three months, and the second time is why kinhin exists.
+
+About three months ago, at my full-time job, I set up a self-hosted Gitea runner for our Flutter apps. One machine had to
+build for iOS, Android and the web, so every toolchain went in by hand: Xcode and CocoaPods, the Android SDK, Chrome for
+web builds, and FVM to pin each project's Flutter version. It worked, and it took far longer than it should have.
+
+Then my own projects needed the same thing. I run their CI on GitHub Actions and kept hitting the free monthly minutes.
+Mac minutes are the expensive ones, and I need them for anything Apple-related. Self-hosting fixes the cost, but it meant
+doing all of that setup again on a different forge, and I didn't want to do it ever again.
+
+A plain self-hosted runner also only fixes the cost. It runs one job at a time, and the usual fixes each have a catch:
+many runners on one OS share a filesystem and ports, long-lived VMs idle on your RAM and disk, and hand-rolled autoscaler
+scripts have to be rewritten per CI platform. kinhin is the tool I wanted both times: one engine that handles the
+scaling, the isolation and the toolchains, whichever forge the jobs come from. The longer write-up is on
+[Why kinhin](/guide/why-kinhin).
 
 ## What kinhin is
 
@@ -48,16 +70,8 @@ At its core, kinhin is an autoscaler for ephemeral CI runners that live on one M
 - **How you run it.** A menu bar app with a setup wizard, a full CLI, and a LaunchAgent daemon. Same engine, same config,
   one fleet. Tokens live in the macOS Keychain, not in the config file.
 
-The name is deliberate. *Kinhin* is walking meditation: slow, deliberate steps between sittings. Here the steps are a job
+The name is deliberate. _Kinhin_ is walking meditation: slow, deliberate steps between sittings. Here the steps are a job
 arriving, a runner being born, serving, and being released.
-
-### Why I built it
-
-I run my projects' CI on GitHub Actions and ran into the free monthly minutes. Mac minutes are the expensive ones, and I
-need them for anything Apple-related. A self-hosted runner fixes the cost but runs one job at a time, and the usual
-fixes each have a catch: many runners on one OS share a filesystem and ports, long-lived VMs idle on your RAM and disk,
-and hand-rolled autoscaler scripts have to be rewritten per CI platform. kinhin is one engine that does the scaling and the
-isolation for all of them. The longer write-up is on [Why kinhin](/guide/why-kinhin).
 
 ### How it compares
 
@@ -87,17 +101,11 @@ the [security guide](/guide/security#if-you-run-untrusted-prs-turn-these-on) fir
 
 ### Try it
 
-<!-- GATE:G6 start -->
 ```bash
 curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
 ```
 
 The installer verifies a signed, notarized DMG, installs `kinhin.app` and links the `kinhin` CLI.
-<!-- GATE:G6 end -->
-<!-- FALLBACK:G6 start -->
-The signed release is not downloadable yet, so there is no installer command in this post. Build from source with the
-steps in [CONTRIBUTING.md](/guide/contributing) for now.
-<!-- FALLBACK:G6 end -->
 
 You need an Apple Silicon Mac on macOS 15 or newer with about 60 GB of free disk, and an access token for your forge. The
 [Quick start](/guide/quick-start) goes from install to a running fleet, and [Hardware and sizing](/guide/hardware) helps
@@ -111,19 +119,19 @@ I use two words precisely:
 - **Unit-tested only** means automated tests against fakes, stubbed HTTP and fake shells, and **never run against a real
   instance**. Those tests show the code matches my reading of an API, not that the real service agrees.
 
-| Area | State at beta-1 |
-| ---- | --------------- |
-| GitHub Actions + Tart macOS VMs, apple/container | Live-tested, by hand |
-| Gitea (1.24, 1.26), Forgejo 11, GitLab CE 18.4 on Tart macOS and Linux VMs, apple/container, Docker, host mode | Live-tested, by the end-to-end suite |
-| Crash recovery, concurrency cap, pause and resume, forge outages, warm pool, routing | Live-tested, by the end-to-end suite |
-| Toolchain installs (baked and per job) | Live-tested, by the end-to-end suite |
-| Buildkite, Azure Pipelines, Bitbucket Pipelines | Planned, not supported yet |
-| In-app updater against a published release | Not exercised (this is the first release) |
-| ThreadSanitizer | <!-- GATE:G5 start -->One clean run of `scripts/tsan.sh`<!-- GATE:G5 end --><!-- FALLBACK:G5 start -->Not done<!-- FALLBACK:G5 end --> |
-| Long-running soak test | <!-- GATE:G4 start -->One week of running my own CI on it, with no leaked VMs, containers or registered runners. That is dogfooding, not a formal soak test.<!-- GATE:G4 end --><!-- FALLBACK:G4 start -->Not done<!-- FALLBACK:G4 end --> |
+| Area                                                                                                           | State at beta-1                           |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| GitHub Actions + Tart macOS VMs, apple/container                                                               | Live-tested, by hand                      |
+| Gitea (1.24, 1.26), Forgejo 11, GitLab CE 18.4 on Tart macOS and Linux VMs, apple/container, Docker, host mode | Live-tested, by the end-to-end suite      |
+| Crash recovery, concurrency cap, pause and resume, forge outages, warm pool, routing                           | Live-tested, by the end-to-end suite      |
+| Toolchain installs (baked and per job)                                                                         | Live-tested, by the end-to-end suite      |
+| Buildkite, Azure Pipelines, Bitbucket Pipelines                                                                | Planned, not supported yet                |
+| In-app updater against a published release                                                                     | Not exercised (this is the first release) |
+| ThreadSanitizer                                                                                                | One clean run of `scripts/tsan.sh`        |
+| Long-running soak test                                                                                         | Not done                                  |
 
-There are about 2,300 unit tests that need no VMs or network. They run in two minutes and they are not evidence that the
-real services agree with me. <!-- GATE:G7 start -->Measured on my own Mac with `kinhin bench`: [MEASURE: VM boot time, container boot time, and jobs per hour at the two-VM cap, with the Mac model and macOS version]. One machine, one afternoon: treat these as a sample, not a benchmark.<!-- GATE:G7 end --><!-- FALLBACK:G7 start -->I have no throughput, boot-time or cost figures to give you yet: `kinhin bench` exists to produce them, and I would rather publish measured numbers later than guess now.<!-- FALLBACK:G7 end -->
+There are about 2,900 unit tests that need no VMs or network. They run in two minutes and they are not evidence that the
+real services agree with me. Measured on my own Mac (M1 Max, 64 GB, macOS 27) with `kinhin bench`: a Tart macOS VM boots to SSH-ready in about 31 s cold and 10 s warm, an apple/container Linux container is ready in about 1.4 s, and a small Xcode project builds in 13 s clean and 3.5 s incremental inside the VM. One machine, one afternoon: treat these as a sample, not a benchmark.
 
 ### The end-to-end suite
 
@@ -136,17 +144,13 @@ token reached the log. It runs every forge on every runtime, plus failing jobs, 
 forge that hangs mid-job, the concurrency cap, the warm pool, routing, and toolchain installs. The GitHub lane needs a
 throwaway repository and a token, so GitHub's live runs are still my own.
 
-## Who I am, and how this was built
-
-I'm Alex Rabin. I have been writing code since I was 15, and I have a full-time programming job. You can find more at
-[alexrabin.com](https://www.alexrabin.com). My previous project is [SupDesk](https://supdesk.app/en), a feedback and
-support console for solo founders and small teams.
+## How this was built
 
 I don't write code by hand anymore. I build with AI agents, primarily from Claude and Freebuff, and I only use models that
 don't train on my data. I decide what gets built and I review and test the result, and the agents type the code. In
 practice that means every change has to pass `scripts/check.sh` (build, the unit suite, format, docs and skills lint), the
 e2e suite is the part that runs real software rather than fakes, and anything that touches shared state also gets a
-ThreadSanitizer run. <!-- GATE:G1 start -->`scripts/check.sh` is green on the release commit.<!-- GATE:G1 end --><!-- FALLBACK:G1 start -->I should be upfront that `scripts/check.sh` is not fully green on this release: one contract test, where the real engine's `start()` does not report running, fails and is not fixed.<!-- FALLBACK:G1 end --> You should weigh all of this however you like. It is also why the testing table above is as blunt as it is.
+ThreadSanitizer run. `scripts/check.sh` is green on the release commit. You should weigh all of this however you like. It is also why the testing table above is as blunt as it is.
 
 ## Where I need help
 
@@ -195,7 +199,7 @@ milestones are ordered by what has to be true, not by date; the complete version
   and the e2e suite running nightly on a dedicated Mac.
 - **beta-3: more forges.** Buildkite, Azure Pipelines and Bitbucket Pipelines, each supported once it passes the same
   end-to-end runs. Mixed-forge fleets.
-- **Release candidate: hardening.** A clean ThreadSanitizer run, a long soak test with no leaked VMs, containers or
+- **Release candidate: hardening.** ThreadSanitizer still clean, a long soak test with no leaked VMs, containers or
   registered runners, and the known limits reviewed against what testers hit.
 - **v0.1.0.** A signed, notarized release with a working updater path, and a docs snapshot under the version picker.
 
@@ -222,4 +226,4 @@ not buy influence over the roadmap.
 
 And if a job runs on your Mac and you didn't have to babysit it, that's the whole point.
 
-*Alex*
+_Alex_

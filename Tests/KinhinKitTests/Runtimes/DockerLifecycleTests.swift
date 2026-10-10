@@ -418,9 +418,11 @@ final class DockerLifecycleTests: XCTestCase {
         }
         // Give the engine another pass at draining the failed record.
         try await engine.reconcileOnce()
-        let status = await engine.status()
-        // The failed record is still expected to exist momentarily; the key
-        // teardown contract here is the argv shape, not the exact record timing.
+        // The phase flips to failed before the teardown runs, so wait for the
+        // removal itself; the contract here is the argv shape, not the timing.
+        try await waitUntil(timeout: 10) {
+            shell.argvSnapshot().contains { $0.contains("rm") && $0.contains("--force") }
+        }
         let argvs = shell.argvSnapshot()
         XCTAssertTrue(
             argvs.contains { $0.contains("run") && $0.contains("--name") },
