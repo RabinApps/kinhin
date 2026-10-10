@@ -223,7 +223,7 @@ public struct ImagePreparer: Sendable {
             try await run(userScriptProvisionStep(provisionScript, timeout: options.provisionTimeout), in: session)
         }
 
-        try await commitSwap(scratch: tmp, target: options.target)
+        try await commitSwap(scratch: tmp, target: options.target, session: session)
     }
 
     // MARK: - Guest SSH key

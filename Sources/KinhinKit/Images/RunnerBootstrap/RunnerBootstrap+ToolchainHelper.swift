@@ -73,7 +73,9 @@ struct ToolchainHelperEntry: Sendable, Equatable {
             return RunnerBootstrap.managedToolchainsInstallScript(
                 selection: selection, mountPath: mountPath, session: .job)
         case .linux:
-            return RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: selection, mountPath: mountPath)
+            // One helper serves root containers and a tart VM's admin user: sudo is decided when it runs.
+            return RunnerBootstrap.linuxManagedToolchainsInstallScript(
+                selection: selection, mountPath: mountPath, runsAsRoot: nil)
         }
     }
 }

@@ -9,7 +9,7 @@ name: E2E
 on:
   schedule:
     - cron: "0 9 * * *" # nightly: the local tier
-    - cron: "0 10 * * 0" # weekly: everything, including GitLab CE and the whole toolchain catalog
+    - cron: "0 10 * * 0" # weekly: everything: GitLab CE, the Tart and host lanes, the whole toolchain catalog
   workflow_dispatch:
     inputs:
       tier:
@@ -57,8 +57,7 @@ jobs:
         run: scripts/e2e.sh --${{ steps.tier.outputs.tier }}
 
       - name: Sweep leftovers
-        # Teardown is part of every test, but a hard-killed run can still leave a forge container behind.
+        # Teardown is part of every test, but a hard-killed run can still leave daemons, host agents, forge
+        # containers, baked images and sandboxes behind.
         if: always()
-        run: |
-          docker ps -aq --filter "name=ke2e-" | xargs -r docker rm -f -v
-          rm -rf /tmp/ke2e-*
+        run: scripts/e2e-sweep.sh --force

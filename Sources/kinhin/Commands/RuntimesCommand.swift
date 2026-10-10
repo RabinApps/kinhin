@@ -204,14 +204,23 @@ enum RuntimesCommand {
 
     // MARK: - Text output
 
+    /// The pool title, matching the app's Routing pane (🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host).
+    static func poolTitle(_ runtime: RuntimeID) -> String {
+        switch runtime {
+        case .tart: return "🍎 Tart VMs (macOS)"
+        case .appleContainer: return "🐧 Apple containers (Linux)"
+        case .docker: return "🐳 Docker (Linux)"
+        case .host: return "🖥 Host (this Mac)"
+        }
+    }
+
     static func printText(_ vm: RuntimesPaneViewModel, repo: String, budget: [String: Double]) {
         print("kinhin runtimes — scope: \(repo) (\(vm.routingConfigured ? "routed" : "single-pool") fleet)")
         print("")
 
         print("Pools & capacity")
         for pool in vm.pools {
-            let name = pool.runtime == .tart ? "🍎 Tart VMs (macOS)" : "🐧 Apple containers (Linux)"
-            var line = "  \(name)"
+            var line = "  \(poolTitle(pool.runtime))"
             line += pool.cap.map { " — cap \($0)" } ?? " — cap n/a"
             if let pct = pool.budgetPercent {
                 line += String(format: " · %.0f%% of budget", pct)

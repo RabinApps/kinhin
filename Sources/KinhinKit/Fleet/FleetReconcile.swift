@@ -464,6 +464,7 @@ extension FleetEngine {
             return
         }
         for id in plan.scaleDown {
+            guard await confirmIdleForScaleDown(id) else { continue }
             Log.info("engine", "scaling down: deleting idle \(id)")
             scheduleDelete(id: id, reason: "scale down")
         }

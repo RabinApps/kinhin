@@ -12,7 +12,7 @@ extension Infra {
         /// One tool per installer family: mise (node, go), a brew/apt formula (jq), and a mise-installed Python tool (uv).
         static let smokeSet = ["jq", "node", "go", "uv"]
 
-        static let lanes: [RuntimeKind] = [.docker, .appleContainer].filter {
+        static let lanes: [RuntimeKind] = [.docker, .appleContainer, .tartLinux].filter {
             $0.isAvailable && E2E.selected("KINHIN_E2E_RUNTIMES", $0.rawValue)
         }
 
@@ -41,7 +41,11 @@ extension Infra {
             sandbox.setToken("unused", account: "gitea")
             try sandbox.writeConfig(FleetConfig(accounts: [account], runtime: runtime, image: image).yaml())
 
-            var arguments = ["bench", "toolchains", "--runtime", runtime.rawValue, "--json", "--yes"]
+            // --thorough: cold installs. The default intensity only checks what the image already has, so it
+            // skipped every tool not baked in and proved nothing about installing them.
+            var arguments = [
+                "bench", "toolchains", "--thorough", "--runtime", runtime.kinhinRuntime, "--json", "--yes",
+            ]
             arguments += full ? ["--all-toolchains"] : ["--toolchains", Self.smokeSet.joined(separator: ",")]
             let result = try await sandbox.kinhin(arguments, timeout: full ? 4 * 3600 : 1800)
 
@@ -64,15 +68,17 @@ extension Infra {
                     !((row["skipReason"] as? String) ?? "").isEmpty, "\(row["tool"] ?? "?") skipped without a reason")
             }
             if !full {
-                let covered = Set(rows.compactMap { $0["tool"] as? String })
-                #expect(covered.isSuperset(of: Self.smokeSet), "smoke set not covered: \(covered)")
+                let ranTools = Set(ran.compactMap { $0["tool"] as? String })
+                #expect(
+                    ranTools.isSuperset(of: Self.smokeSet),
+                    "smoke tools that did not run on \(runtime): \(Set(Self.smokeSet).subtracting(ranTools).sorted())")
             }
             #expect(result.ok, "bench exited \(result.status)")
         }
 
         @Test(
             "a per-job toolchain install works inside a real runner job",
-            arguments: LifecycleCase.all.filter { $0.runtime != .tartMacOS && $0.forge != .gitlab })
+            arguments: LifecycleCase.all.filter { $0.runtime != .host })
         func perJobInstall(_ cell: LifecycleCase) async throws {
             try await Lane.with(forge: cell.forge, runtime: cell.runtime) { lane in
                 let (_, proof) = try await lane.runJob(

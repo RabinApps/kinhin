@@ -261,9 +261,12 @@ extension ToolchainCatalog {
             ],
             linuxSteps: [
                 """
-                # Flutter SDK (git install into /opt/flutter; blobless clone keeps history + tags small)
+                # Flutter SDK (git install into /opt/flutter; blobless clone keeps history + tags small). /opt is
+                # root's, so the directory is made and handed to the installing user first (a tart guest installs
+                # as its admin user through sudo; a container bake runs as root).
                 flutter_ref=<version>
                 if [ ! -x /opt/flutter/bin/flutter ]; then
+                  <sudo>mkdir -p /opt/flutter && <sudo>chown "$(id -u):$(id -g)" /opt/flutter
                   git clone --filter=blob:none https://github.com/flutter/flutter.git /opt/flutter
                 fi
                 git -C /opt/flutter fetch --tags --force --quiet origin
@@ -276,7 +279,7 @@ extension ToolchainCatalog {
                 """
                 # PATH for this script and for every runner login shell
                 export PATH="/opt/flutter/bin:$PATH"
-                printf '%s\\n' 'export PATH="/opt/flutter/bin:$PATH"' > /etc/profile.d/kinhin-flutter.sh
+                printf '%s\\n' 'export PATH="/opt/flutter/bin:$PATH"' | <sudo>tee /etc/profile.d/kinhin-flutter.sh >/dev/null
                 """,
                 """
                 # fetch the Dart SDK plus web and Linux-desktop artifacts now, not during the first job

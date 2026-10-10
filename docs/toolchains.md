@@ -88,8 +88,7 @@ deliberately limited, because it is untrusted input that decides what gets insta
   absent. It never blocks the fleet.
 - Fork pull requests never use the repo file. See [Security](security.md#per-project-toolchains).
 
-GitHub, Gitea/Forgejo and GitLab supply the ref and the file. Buildkite, Bitbucket and Azure DevOps don't, so their
-jobs use only `projects:` toolchains.
+GitHub, Gitea/Forgejo and GitLab supply the ref and the file.
 
 ### Generating toolchains
 

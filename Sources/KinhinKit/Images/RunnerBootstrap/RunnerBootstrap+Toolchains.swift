@@ -159,7 +159,7 @@ extension RunnerBootstrap {
 
         if !selection.stackSteps.isEmpty {
             lines.append("# Stack steps (version-pinned installs, e.g. fvm)")
-            lines.append(contentsOf: selection.stackSteps)
+            lines.append(contentsOf: selection.stackSteps.map { $0.replacingOccurrences(of: "<sudo>", with: "") })
         }
 
         if !selection.verifications.isEmpty {
@@ -190,17 +190,29 @@ extension RunnerBootstrap {
     /// The managed-toolchains script baked by `image prepare --container` when a
     /// `toolchains:` section is configured. The Linux container bake runs as root
     /// (plain apt, no sudo); a tart Linux VM guest runs an admin user and goes
-    /// through passwordless sudo for apt and /usr/local/bin.
+    /// through passwordless sudo for apt and /usr/local/bin. `runsAsRoot: nil`
+    /// decides when the script runs (`$SUDO`, set by the prerequisites block):
+    /// the `kinhin-toolchain` helper is one script for root containers and the
+    /// admin user of a tart Linux VM, where its root-only bodies failed.
     static func linuxManagedToolchainsInstallScript(
-        selection: ManagedToolchainSelection, mountPath: String?, runsAsRoot: Bool = true
+        selection: ManagedToolchainSelection, mountPath: String?, runsAsRoot: Bool? = true
     ) -> String {
-        let s = runsAsRoot ? "" : "sudo "
-        var lines: [String] = [
-            "set -euo pipefail",
-            runsAsRoot
-                ? linuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")])
-                : tartLinuxPrerequisitesScript(tools: [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")]),
-        ]
+        let tools: [(command: String, package: String)] = [("curl", "curl"), ("git", "git"), ("xz", "xz-utils")]
+        let s: String
+        let prerequisites: String
+        switch runsAsRoot {
+        case true?:
+            s = ""
+            prerequisites = linuxPrerequisitesScript(tools: tools)
+        case false?:
+            s = "sudo "
+            prerequisites = tartLinuxPrerequisitesScript(tools: tools)
+        case nil:
+            // `$SUDO` is "" as root and "sudo" otherwise; unquoted, `$SUDO apt-get` is `apt-get` or `sudo apt-get`.
+            s = "$SUDO "
+            prerequisites = tartLinuxPrerequisitesScript(tools: tools)
+        }
+        var lines: [String] = ["set -euo pipefail", prerequisites]
         if let mountPath {
             lines.append(Self.cacheEnvExports(cacheEnvs: selection.cacheEnvs, mountPath: mountPath))
         }
@@ -221,9 +233,10 @@ extension RunnerBootstrap {
         if !selection.miseSpecs.isEmpty {
             lines.append(
                 """
-                # mise bootstrap (Linux base images don't ship it) + shims on PATH
+                # mise bootstrap (Linux base images don't ship it) + shims on PATH. /usr/local/bin is root's: a tart
+                # guest's admin user installs through sudo (`env` because sudo resets the environment).
                 if ! command -v mise >/dev/null 2>&1; then
-                  curl --proto-redir '=https' --tlsv1.2 -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+                  curl --proto-redir '=https' --tlsv1.2 -fsSL https://mise.run | \(s)env MISE_INSTALL_PATH=/usr/local/bin/mise sh
                 fi
                 export PATH="$HOME/.local/share/mise/shims:$PATH"
                 printf '%s\\n' 'export PATH="$HOME/.local/share/mise/shims:$PATH"' | \(s)tee /etc/profile.d/kinhin-mise.sh > /dev/null
@@ -280,7 +293,7 @@ extension RunnerBootstrap {
         // cannot run fails `image prepare`, not the first job).
         if !selection.stackSteps.isEmpty {
             lines.append("# Stack steps (version-pinned installs, e.g. flutter)")
-            lines.append(contentsOf: selection.stackSteps)
+            lines.append(contentsOf: selection.stackSteps.map { $0.replacingOccurrences(of: "<sudo>", with: s) })
         }
         if !selection.verifications.isEmpty {
             lines.append("# Audit trail: verify every managed tool (output is logged)")

@@ -2,44 +2,38 @@
 
 Which CI platforms kinhin serves, how to connect each one, and how to serve many accounts from one fleet.
 
-[← Back to README](../README.md) · [Per-forge API notes](forges/README.md) (endpoints, versions, audit)
+[← Back to README](../README.md) · [Per-forge API notes](forges/README.md) (endpoints, versions)
 
 A **forge** is a CI platform. kinhin speaks one protocol to all of them (get a registration token, list and remove
-runners, report queued demand), and each platform implements it behind that interface. One fleet can serve **all of
-them at once**: each VM is assigned to whichever forge has the most pending work, registers there, and is deleted when
+runners, report queued demand), and each platform implements it behind that interface. One fleet can serve **several
+at once**: each VM is assigned to whichever forge has the most pending work, registers there, and is deleted when
 its job finishes.
 
-| Forge               | Status         | Runner agent                  | Scope                                                  |
-| ------------------- | -------------- | ----------------------------- | ------------------------------------------------------ |
-| GitHub Actions      | ✅ live-tested | actions-runner                | `owner/name` repo or org, optional enterprise instance |
-| Gitea Actions       | ✅ live-tested | gitea-runner                  | `owner/name` repo or org, any instance                 |
-| Forgejo             | ✅ live-tested | gitea-runner                  | `owner/name` repo or org, any instance                 |
-| GitLab CI/CD        | 🧪 untested    | gitlab-runner                 | project or group path (`group/sub/proj`)               |
-| Buildkite           | 🧪 untested    | buildkite-agent               | `org/cluster`                                          |
-| Azure Pipelines     | 🧪 untested    | Azure Pipelines agent         | an agent pool in an organization                       |
-| Bitbucket Pipelines | 🧪 untested    | Bitbucket shell runner (Java) | a workspace, or `workspace/repo-slug`                  |
+| Forge               | Status       | Runner agent   | Scope                                                  |
+| ------------------- | ------------ | -------------- | ------------------------------------------------------ |
+| GitHub Actions      | ✅ supported | actions-runner | `owner/name` repo or org, optional enterprise instance |
+| Gitea Actions       | ✅ supported | gitea-runner   | `owner/name` repo or org, any instance                 |
+| Forgejo Actions     | ✅ supported | gitea-runner   | `owner/name` repo or org, any instance                 |
+| GitLab CE           | ✅ supported | gitlab-runner  | project or group path (`group/sub/proj`)               |
+| Buildkite           | 🔜 planned   | —              | —                                                      |
+| Azure Pipelines     | 🔜 planned   | —              | —                                                      |
+| Bitbucket Pipelines | 🔜 planned   | —              | —                                                      |
 
 ## What has been tested
 
-This is a beta. **Live-tested** means it was run against a real server. **Untested** means the code has unit tests
-(stubbed HTTP, fake shells) but has **never been run against a real instance**. Unit tests show the code matches our
-reading of each API, not that the real service agrees, so expect surprises there.
+Every supported forge runs real jobs, on every runtime, in kinhin's [end-to-end suite](e2e-testing.md): a real server
+in a container (or a real GitHub repository), a real runner, and a job whose result the forge itself reports.
 
-| Forge                                                      | Live-tested | Unit-tested |
-| ---------------------------------------------------------- | ----------- | ----------- |
-| GitHub Actions + Tart macOS VMs                            | yes         | yes         |
-| GitHub Actions + apple/container (Linux)                   | yes         | yes         |
-| Gitea Actions + Docker, apple/container (Linux), Gitea 1.24, 1.26 | yes  | yes         |
-| Forgejo 11 + Docker, apple/container (Linux)               | yes         | yes         |
-| GitLab, Buildkite, Azure DevOps, Bitbucket                 | **no**      | yes         |
+| Forge                 | Versions run                     | Runtimes                                                           |
+| --------------------- | -------------------------------- | ------------------------------------------------------------------ |
+| GitHub Actions        | github.com                       | Tart macOS VMs, apple/container                                    |
+| Gitea Actions         | 1.24, 1.26                       | Tart macOS and Linux VMs, apple/container, Docker, host            |
+| Forgejo Actions       | 11                               | Tart macOS and Linux VMs, apple/container, Docker, host            |
+| GitLab CE             | 18.4                             | Tart macOS and Linux VMs, apple/container, Docker, host            |
 
-Gitea was run by the [end-to-end suite](e2e-testing.md) (a real Gitea in a container, a real job in a Docker runner). Gitea 1.24 and
-older report no queued job until a runner exists, so they need `min_runners: 1`; Gitea 1.25+ and Forgejo 11+ list queued
-jobs themselves and work with `min_runners: 0`.
-
-Runtimes follow the same rule: Tart macOS VMs and apple/container are live-tested; Docker has been run for real with
-Gitea only, while Tart Linux VMs and host mode are not (see [Runtimes](runtimes.md)).
-If you try one, please open a "Forge report" issue and say whether it worked.
+Gitea 1.24 and older report no queued job until a runner exists, so they need `min_runners: 1`; Gitea 1.25+ and
+Forgejo 11+ list queued jobs themselves and work with `min_runners: 0`. If something doesn't work for you, please open a
+"Forge report" issue.
 
 ## Connecting a forge
 
@@ -85,70 +79,28 @@ runner has no single-job mode, so kinhin deletes the VM shortly after its runner
 
 ### GitLab
 
-Works with gitlab.com and self-managed GitLab 16.0 or later.
+Self-managed GitLab CE 16.0 or later (run end to end on 18.4).
 
 ```yaml
 accounts:
   - name: gitlab
     forge: gitlab
     scope: "group/project" # or a group path; subgroups nest
-    instance: "https://gitlab.example.com" # optional; gitlab.com when absent
+    instance: "https://gitlab.example.com"
     labels: ["macos"] # runner tags
 ```
 
 Token: a personal, project or group access token with `create_runner`, `manage_runner` and `read_api` (or `api`)
 scopes. Creating runners needs Maintainer on a project or Owner on a group. kinhin creates each runner through the API,
-runs one job, and deletes it. A pending job counts as demand when every tag it asks for is one some pool advertises (the runners carry the pool's labels). `vm.ephemeral: false` is rejected for a GitLab account, because the runner deletes itself after one job. Only the tagged jobs of projects the token can read count; a single project the token cannot read is an error, not an empty queue.
+runs one job, and deletes it. A pending job counts as demand when every tag it asks for is one some pool advertises
+(the runners carry the pool's labels). `vm.ephemeral: false` is rejected for a GitLab account, because the runner
+deletes itself after one job. Only the tagged jobs of projects the token can read count; a single project the token
+cannot read is an error, not an empty queue.
 
-### Buildkite
+### Planned: Buildkite, Azure Pipelines, Bitbucket Pipelines
 
-Hosted only, so there is no `instance`.
-
-```yaml
-accounts:
-  - name: ci
-    forge: buildkite
-    scope: "acme/Mac Fleet" # org slug / cluster name (or id)
-    labels: ["queue=kinhin"] # agent tags; this is the default
-```
-
-Token: a REST API token with `read_agents`, `write_agents`, `read_builds`, `read_clusters` and `write_clusters`.
-`kinhin auth status --buildkite` checks the scopes and that the cluster exists. The cluster needs a queue matching the
-`queue=` tag, and kinhin refuses to start the account when it does not. Each agent runs one job and disconnects. A pool's runtime marker (`kinhin-docker`) is carried as the tag `kinhin-runtime=docker`; to route a Buildkite job to that pool, give the step the agent query rule `kinhin-runtime=docker`. kinhin names its agent tokens `kinhin: <account> @ <host>/<pid>`; tokens from earlier versions (`kinhin: <account>`) need a one-time manual revoke.
-
-### Azure DevOps
-
-Agents join an **agent pool**. `instance` is the organization URL and `scope` is the pool name.
-
-```yaml
-accounts:
-  - name: ado
-    forge: azuredevops
-    instance: "https://dev.azure.com/acme"
-    scope: "Mac Fleet"
-    labels: ["kinhin"] # optional: capabilities pipelines demand
-```
-
-Token: a PAT with only **Agent Pools (Read & manage)**, from a user with the Administrator role on the pool. Azure
-agents register with this PAT, so **it is copied into every runner**: use a dedicated token with nothing else in it.
-**Without labels, every request in the pool counts as demand**, so give kinhin its own pool, or set a label and add
-`demands: [kinhin]` to the pipelines it should run. A pool's runtime marker becomes a capability with `-` written as `_` (`kinhin-docker` is `kinhin_docker`), so a job for a docker pool demands both `kinhin` and `kinhin_docker`. Requests already reserved for an agent, or demanding an OS kinhin has no guest for, are not counted.
-
-### Bitbucket
-
-Hosted only. The scope is a workspace, or `workspace/repo-slug` for one repository.
-
-```yaml
-accounts:
-  - name: bb
-    forge: bitbucket
-    scope: "acme" # or acme/api-server
-    labels: ["xcode=16"] # optional: extra runs-on selectors
-```
-
-Token: a **workspace** or **repository access token** with the runner and pipeline scopes (app passwords don't cover
-runners). The runner is Java-based, so images also bake a Temurin JDK. Bitbucket's public API has no queued-steps
-endpoint, so kinhin polls active pipelines and reads each one's `bitbucket-pipelines.yml` at its commit: only steps that run on `self.hosted`, and are waiting for a runner now, count as demand. A Tart **Linux** VM needs a `linux` label on its pool or image, otherwise registration fails with a message saying so.
+Support for these is planned for a later release and is not part of the beta. Follow the
+[roadmap](beta-roadmap.md) for progress.
 
 ## Multiple accounts
 
@@ -188,7 +140,7 @@ accounts:
 
 kinhin logs a warning each time such an account attaches.
 
-This flag applies only to self-hosted forges (Gitea, Forgejo, GitLab, Azure DevOps, or any GHES host). GitHub is
+This flag applies only to self-hosted forges (Gitea, Forgejo, GitLab, or any GHES host). GitHub is
 hosted by default, so it must never use `http://`; when a GitHub account does declare `instance: http://...`, the
 account's `allow_insecure_http` opt-in lets the token cross the network in cleartext.
 
@@ -221,8 +173,7 @@ still requires https: `allow_insecure_http` is accepted for GHES accounts, but h
 ## Per-project toolchains and forges
 
 [Per-project toolchains](toolchains.md#per-project-toolchains) need the branch or tag a job runs at and the repo's
-`.kinhin.yml`. GitHub, Gitea/Forgejo and GitLab supply both. Buildkite, Bitbucket and Azure DevOps don't, so their jobs
-use only `projects[].toolchains`, or the plain base image.
+`.kinhin.yml`. GitHub, Gitea/Forgejo and GitLab supply both.
 
 ## More forges
 

@@ -144,9 +144,30 @@ enum RunnerBootstrap {
         """
     }
 
+    /// Prepended to every registration script run in a tart VM. The runner agents it starts pass their PATH on to
+    /// every job, and a non-login SSH session on macOS has only `/usr/bin:/bin:/usr/sbin:/sbin`: jobs could not find
+    /// `kinhin-toolchain` (`/usr/local/bin`), Homebrew or mise's shims (found by the e2e per-job install on the Tart
+    /// macOS lane). This gives the agents the login PATH: `path_helper` on macOS, then the toolchain directories that
+    /// exist. Guest-agnostic: a Linux guest has no `path_helper` and keeps what it has.
+    static let guestLoginPathPrelude = """
+        if [ -x /usr/libexec/path_helper ]; then eval "$(/usr/libexec/path_helper -s)"; fi
+        for kinhin_dir in /usr/local/bin /opt/homebrew/sbin /opt/homebrew/bin "$HOME/.local/share/mise/shims"; do
+          case ":$PATH:" in *":$kinhin_dir:"*) ;; *) if [ -d "$kinhin_dir" ]; then PATH="$kinhin_dir:$PATH"; fi ;; esac
+        done
+        export PATH
+        """
+
     /// Installer for the Gitea runner on macOS (called by
     /// `kinhin image prepare` when a Gitea credential exists). Same contract
-    /// as `installScript`: into the directory `giteaRegistrationScript` cd's.
+    /// as `installScript`: into the directory `giteaRegistrationScript` cd's,
+    /// leaving the executable `gitea-runner` it runs.
+    ///
+    /// The release asset is a single xz-compressed binary (no tar). Stock macOS
+    /// has no `xz`, so it is decoded with the system's `compression_tool`
+    /// (Apple's LZMA is the xz container). This script once ran `xz`, then
+    /// `tar xf runner.tar` and the GitHub runner's `installdependencies.sh`
+    /// (copied from the GitHub installer), so every macOS Gitea bake failed;
+    /// found by the e2e Tart macOS lane.
     static func giteaRunnerInstallScript(version: String) -> String {
         """
         set -euo pipefail
@@ -154,12 +175,16 @@ enum RunnerBootstrap {
           mkdir -p "$HOME/gitea-runner"
           cd "$HOME/gitea-runner"
           \(giteaRunnerDownloadScript(version: version, platform: "darwin-arm64", file: "runner.xz").replacingOccurrences(of: "\n", with: "\n  "))
-          xz -d --no-sparse runner.xz
-          tar xf runner.tar
-          rm -f runner.tar
-          ./bin/installdependencies.sh || echo "warning: installdependencies.sh reported issues"
+          \(macOSXZDecodeScript(from: "runner.xz", to: "gitea-runner"))
+          ./gitea-runner --version
         fi
         """
+    }
+
+    /// Decodes the xz file `from` into the executable `to` with macOS's own `compression_tool` (stock macOS has no
+    /// `xz`), removing the compressed file.
+    static func macOSXZDecodeScript(from: String, to: String) -> String {
+        "/usr/bin/compression_tool -decode -a lzma -i \(shellQuote(from)) -o \(shellQuote(to)) && rm -f \(shellQuote(from)) && chmod +x \(shellQuote(to))"
     }
 
     /// Register and start `runnerCount` runner processes in the VM. GitHub's

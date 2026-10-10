@@ -31,6 +31,46 @@ final class LinuxToolchainsTests: XCTestCase {
         }
     }
 
+    /// A tart Linux guest installs as its admin user, so everything that writes root's directories goes through
+    /// sudo: the mise bootstrap into /usr/local/bin failed with "Permission denied" (e2e bench on the Tart Linux
+    /// lane), and the flutter stack's /opt and /etc/profile.d writes would have too.
+    func testANonRootGuestInstallsMiseAndStacksThroughSudo() throws {
+        let sel = try linuxSelection(
+            """
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
+            labels: ["self-hosted"]
+            projects:
+              - pattern: acme/widgets
+                toolchains: {specs: ["node@22"], stacks: ["flutter@3.24.0"]}
+            """)
+        let admin = RunnerBootstrap.linuxManagedToolchainsInstallScript(
+            selection: sel, mountPath: nil, runsAsRoot: false)
+        XCTAssertTrue(admin.contains("https://mise.run | sudo env MISE_INSTALL_PATH=/usr/local/bin/mise sh"), admin)
+        XCTAssertTrue(admin.contains("sudo mkdir -p /opt/flutter && sudo chown"), admin)
+        XCTAssertTrue(admin.contains("| sudo tee /etc/profile.d/kinhin-flutter.sh"), admin)
+        XCTAssertFalse(admin.contains("<sudo>"), "the placeholder is always filled in")
+
+        let root = RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: sel, mountPath: nil)
+        XCTAssertTrue(root.contains("https://mise.run | env MISE_INSTALL_PATH=/usr/local/bin/mise sh"), root)
+        XCTAssertTrue(root.contains("  mkdir -p /opt/flutter && chown"), root)
+        XCTAssertFalse(root.contains("| sudo "), "a container bake runs as root and has no sudo")
+        XCTAssertFalse(root.contains("sudo mkdir"), "a container bake runs as root and has no sudo")
+        XCTAssertFalse(root.contains("<sudo>"))
+    }
+
+    /// The `kinhin-toolchain` helper is one script for a root container and a tart Linux VM's admin user, so it
+    /// decides on sudo when it runs. Rendered for root, `kinhin-toolchain install node@22` in a tart Linux job failed
+    /// to install mise (e2e per-job install on the Tart Linux lane).
+    func testTheLinuxHelperDecidesOnSudoWhenItRuns() {
+        let body = ToolchainHelperEntry.passThroughBody(platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath)
+        XCTAssertTrue(body.contains(#"if [ "$(id -u)" -ne 0 ]"#), "detects a non-root user: \(body)")
+        XCTAssertTrue(body.contains("https://mise.run | $SUDO env MISE_INSTALL_PATH=/usr/local/bin/mise sh"), body)
+        XCTAssertFalse(body.contains("| sudo env"), "no unconditional sudo: containers have none")
+    }
+
     func testLinuxSelectionFiltersMacOSOnlyEntries() throws {
         // Raw brew formulas and macOS-only stacks are skipped with a note,
         // never an error. Cross-platform mise/npm tools, catalog tools with a

@@ -167,22 +167,14 @@ these tests found no races.
 - Tart Linux guests, thorough runs with more than two boot iterations, `--project` with an `.xcodeproj` or
   `.xcworkspace` (only a bare Swift package was built), and Intel Macs or other Xcode versions.
 
-## What the real runs found and fixed
+## How results are judged
 
-Running the benchmark for real turned up problems the fakes could not:
-
-- `--project` failed on a bare Swift package: `xcodebuild` needs an explicit `-destination`.
-- A guest command that reads stdin (`brew install` does) swallowed the rest of the script, so a toolchain "installed"
-  without running its remaining steps. Every bench script now runs from a file with stdin closed.
-- The Linux gem install in `image prepare` guarded on `gem list --local fastlane —exact` (an em dash), and `gem list`
-  exits 0 whether or not the gem is installed, so gems such as `fastlane` were never installed on Linux images. That is
-  fixed in the image bake itself.
 - Entries that need build tools the base image lacks (a C toolchain for `lua`, `rust` and `cmake`, Python for
   `gcloud`, shared libraries for `swift`, Erlang for `elixir`, a modern Ruby and the gem `bin` directory for
-  `fastlane`, the Flutter SDK step for `flutter`) now get them as untimed prerequisites, so they measure the tool and
+  `fastlane`, the Flutter SDK step for `flutter`) get them as untimed prerequisites, so the run measures the tool and
   not the base image.
 - An install that dies because the guest ran out of disk is reported `skipped` with the free space, not `failed`.
-- A Tart VM that never gets a network lease now gets one retry with a fresh VM.
+- A Tart VM that never gets a network lease gets one retry with a fresh VM.
 
 ## Flags
 

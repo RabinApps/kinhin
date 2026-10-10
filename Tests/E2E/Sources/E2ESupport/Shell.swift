@@ -110,6 +110,7 @@ public enum Shell {
 }
 
 /// Polls `condition` until it returns a value, or throws when `timeout` passes.
+@discardableResult
 public func eventually<T: Sendable>(
     _ what: String, timeout: TimeInterval, interval: TimeInterval = 2,
     _ condition: @Sendable () async throws -> T?

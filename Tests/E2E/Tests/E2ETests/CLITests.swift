@@ -145,6 +145,30 @@ struct CLITests {
         }
     }
 
+    /// `kinhin logs` once printed its own fresh process's (empty) in-memory log, never the daemon's history.
+    @Test("logs prints the log file's tail, redacted, honouring -n")
+    func logsShowTheFileTailRedacted() async throws {
+        try await withSandbox { sandbox in
+            try sandbox.writeConfig("version: 1\n")
+            let secret = "ghp_" + String(repeating: "a1B2", count: 9)
+            let logs = sandbox.supportDirectory.appendingPathComponent("logs")
+            try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+            try """
+            2026-01-01 00:00:00 [info] [engine] first line
+            2026-01-01 00:00:01 [info] [kinhin-1-a] registering with \(secret)
+            2026-01-01 00:00:02 [info] [kinhin-1-a] last line
+
+            """.write(to: logs.appendingPathComponent("kinhin.log"), atomically: true, encoding: .utf8)
+
+            let result = try await sandbox.kinhin(["logs", "-n", "2"])
+            #expect(result.ok, "\(result.output)")
+            #expect(result.stdout.contains("last line"))
+            #expect(result.stdout.contains("kinhin-1-a] registering"))
+            #expect(!result.stdout.contains("first line"), "-n 2 prints two lines")
+            #expect(!result.output.contains(secret), "the token must be redacted: \(result.output)")
+        }
+    }
+
     @Test("doctor --bundle writes a support bundle that contains no token")
     func doctorBundleHasNoSecrets() async throws {
         try await withSandbox { sandbox in

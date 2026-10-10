@@ -2,13 +2,13 @@
 
 # kinhin ○
 
-**The mindful CI — autoscaling runners that live on your Mac: GitHub Actions, GitLab CI/CD, Gitea/Forgejo Actions, Buildkite, Azure Pipelines, and Bitbucket Pipelines.**
+**The mindful CI — autoscaling runners that live on your Mac: GitHub Actions, Gitea and Forgejo Actions, and GitLab
+CI/CD.**
 
-> **Beta (`v0.0.1-beta-1`).** **GitHub Actions with Tart macOS VMs and Apple container** have been run for real. Docker,
-> Tart Linux VMs, host mode, and every other forge (Gitea, Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket) are
-> covered by unit tests against fakes and stubbed HTTP only, and have **never been run against a real server**. Expect
-> surprises there, and please [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose).
-> See [what has been tested](docs/forges.md#what-has-been-tested) and the [roadmap to v0.1.0](docs/beta-roadmap.md).
+> **Beta (`v0.0.1-beta-1`).** Supported: **GitHub, Gitea, Forgejo and GitLab CE**, on every runtime (Tart macOS and
+> Linux VMs, Apple container, Docker, host mode). Buildkite, Azure Pipelines and Bitbucket Pipelines are planned for a
+> later release. Please [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose); see
+> [what has been tested](docs/forges.md#what-has-been-tested) and the [roadmap to v0.1.0](docs/beta-roadmap.md).
 > kinhin sends no telemetry. [Support kinhin](docs/support.md).
 
 > ○ kinhin (kin-hin) is walking meditation: slow, deliberate steps between sittings.
@@ -22,7 +22,7 @@ Mac stays usable. For fully trusted repos an opt-in [host mode](docs/runtimes.md
 runs jobs directly on the Mac, with no isolation.
 
 - **Ephemeral by default** — every job gets a freshly cloned VM; no state leaks between jobs.
-- **Multi-forge, multi-runtime** — seven forges and four runtimes in one fleet, routed per repo, workflow, or `runs-on:`
+- **Multi-forge, multi-runtime** — four forges and four runtimes in one fleet, routed per repo, workflow, or `runs-on:`
   label ([Forges](docs/forges.md), [Runtimes & routing](docs/runtimes.md)).
 - **Fast, dense, resource-aware** — linked clones boot in seconds, an opt-in [warm pool](docs/scaling.md#warm-pool)
   (`warm_pool`) keeps booted VMs waiting so jobs skip the boot, `runners_per_vm` packs small jobs onto one VM, and the

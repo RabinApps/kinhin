@@ -8,8 +8,7 @@ runners. This page gets you from zero to a working fleet. New here? Read [why ki
 - Apple Silicon Mac (arm64), macOS 15+
 - [Tart](https://tart.run) — macOS runner VMs. `kinhin setup repair tart` installs it (or the setup
   window does); manual commands are in [Installing Tart](/guide/install#installing-tart)
-- An access token for at least one CI platform: GitHub, Gitea, Forgejo, GitLab, Buildkite, Azure DevOps or
-  Bitbucket (see [Pick your forge](#pick-your-forge) and [Forge support](/guide/forges))
+- An access token for at least one CI platform: GitHub, Gitea, Forgejo or GitLab CE (see [Pick your forge](#pick-your-forge) and [Forge support](/guide/forges))
 - Optional — Linux jobs. Three options — [apple/container](https://github.com/apple/container)
   microVMs (`brew install container && container system start`), Docker containers, or
   [Tart Linux VMs](/guide/runtimes#tart-linux-vms), which need nothing beyond tart itself;
@@ -47,17 +46,13 @@ One fleet can serve several forges at once. Start with one; you can add more lat
 | GitHub Actions | `owner/name` repo or org | PAT with `repo` scope | `kinhin auth set` |
 | Gitea | `owner/name` or org, plus `instance` URL | Access token with runner rights | `kinhin auth set --gitea` |
 | Forgejo | `owner/name` or org, plus `instance` URL | Access token with runner rights | `kinhin auth set --forgejo` |
-| GitLab | `group/project` or group path (`instance` optional, gitlab.com by default) | Access token with `create_runner`, `manage_runner`, `read_api` | `kinhin auth set --gitlab` |
-| Buildkite | `org/cluster` | REST API token with agent, build and cluster scopes | `kinhin auth set --buildkite` |
-| Azure DevOps | Agent pool name, plus organization `instance` URL | PAT with **Agent Pools (Read & manage)** only | `kinhin auth set --azuredevops` |
-| Bitbucket | Workspace, or `workspace/repo-slug` | Workspace or repository access token with runner and pipeline scopes | `kinhin auth set --bitbucket` |
+| GitLab CE | `group/project` or group path, plus `instance` URL | Access token with `create_runner`, `manage_runner`, `read_api` | `kinhin auth set --gitlab` |
 
 GitHub is the default account. Every other forge is an entry under `accounts:` in `config.yaml`, or
 you can create it from the CLI:
 
 ```bash
-kinhin auth add gitlab --gitlab --scope group/project
-kinhin auth add ado --azuredevops --scope "Mac Fleet" --instance https://dev.azure.com/acme
+kinhin auth add gitlab --gitlab --scope group/project --instance https://gitlab.example.com
 ```
 
 ```yaml
@@ -88,7 +83,7 @@ kinhin config init
 
 # 2. Store a token for your forge — it goes in your Keychain, not a file
 kinhin auth set                  # GitHub PAT (repo scope)
-kinhin auth set --gitlab         # or --gitea, --forgejo, --buildkite, --azuredevops, --bitbucket
+kinhin auth set --gitlab         # or --gitea, --forgejo
 
 # 3. Check prerequisites and see how many VMs your Mac can host
 kinhin doctor
@@ -112,9 +107,8 @@ jobs:
       - run: uname -m # arm64 — you're running on your own Mac
 ```
 
-That example is for GitHub. On other forges, jobs select runners differently: by runner tags (GitLab),
-`runs-on` labels (Gitea, Forgejo, Bitbucket), agent query rules such as `queue=kinhin` (Buildkite), or
-pool and capabilities (Azure DevOps). See [Forge support](/guide/forges).
+That example is for GitHub. On other forges, jobs select runners by runner tags (GitLab) or `runs-on` labels
+(Gitea, Forgejo). See [Forge support](/guide/forges).
 
 Watch the fleet: `kinhin watch` (live) or `kinhin status` (one shot).
 

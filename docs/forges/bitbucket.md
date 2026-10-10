@@ -4,6 +4,8 @@ How kinhin talks to Bitbucket Pipelines runners, and how that compares with Atla
 
 [← Back to README](../../README.md) · [Forge reference index](README.md) · [Setup guide](../forges.md)
 
+> **Planned.** Bitbucket Pipelines support is not part of the beta. This page records the implementation for the work ahead; see the [roadmap](../beta-roadmap.md).
+
 ## Overview
 
 | | |
@@ -12,7 +14,7 @@ How kinhin talks to Bitbucket Pipelines runners, and how that compares with Atla
 | Hosting | Bitbucket Cloud only. The base is fixed at `https://api.bitbucket.org`; `instance` is unused. Bitbucket Data Center is not supported (not researched). |
 | Scope | A workspace, or `workspace/repo`. |
 | Source | `Sources/KinhinKit/Forges/Bitbucket/BitbucketClient.swift`, `BitbucketForge.swift`, `BitbucketModels.swift`, `BitbucketPipelinesFile.swift`; runner start-up in `Sources/KinhinKit/Images/RunnerBootstrap/RunnerBootstrap+Bitbucket.swift` |
-| Live-tested | No (stubbed HTTP). |
+| Status | **Planned, not supported yet.** Implemented and unit-tested; not yet run against the real service. |
 
 ## Auth
 
@@ -81,24 +83,7 @@ Bitbucket Cloud has no instance version. Bitbucket Data Center is a different AP
 
 None. There is a single 2.0 API.
 
-## Audit findings (live-run lessons, 2026-10-09)
-
-Found by reading the code against what the live runs of other forges taught. These fixes were **made by code reading and unit tests with fakes only; none has been run against Bitbucket Cloud.**
-
-What was wrong, and what changed:
-
-- **The runner command was quoted twice**, so a VM or host runner exec'd a path with literal quotes and never started. The command is now passed as one shell word.
-- **`repositoryUuid` was never passed** (the script referenced a flag variable nothing set). It is now `--repositoryUuid` when the credential bundle has one.
-- **JDK layout.** The macOS Temurin tarball nests the JDK under `Contents/Home`; the launcher assumed `jdk/bin`. `runner.sh` now sets `JAVA_HOME` and `PATH` for either layout, and amd64 containers get the x64 JDK.
-- **`updated_on` did not decode.** The workspace repository list modelled it as a `Date`, which Bitbucket's ISO string with microseconds fails, so every workspace-scope poll failed. It is kept as text.
-- **Host teardown** matched `runner.sh`, but the wrapper `exec`s into the JVM, so the recorded pid no longer named it. It now matches the instance's `--workingDirectory`.
-- **Labels** were `self.hosted` + platform + account labels only. Pool labels now join them (see Registration flow).
-- **A Tart Linux VM could not be told from macOS.** It now needs a `linux` label, and registration fails with a clear message otherwise.
-- **Demand counted every active step.** It now reads the pipeline file and counts only self-hosted steps that are waiting for a runner now.
-- **A runner that died at start-up looked started.** Registration now fails with the runner's log.
-- A token that cannot list runners no longer retries the list to its deadline; running steps are watched instead.
-
-Still to verify live:
+## Before support: to verify against a live service
 
 - That `/2.0/repositories/{repo}/src/{commit}/bitbucket-pipelines.yml` answers with the raw file for the commit taken from the pipeline payload, and that the commit is present for every pipeline kind.
 - That a step's `name` in the steps API equals the `name:` in the YAML (unnamed steps are matched by a heuristic).
@@ -107,14 +92,6 @@ Still to verify live:
 - That `--repositoryUuid` and the `runner.sh` wrapper behave as the runner package expects, and that `JAVA_HOME` is honoured.
 - That a 5 s start-up liveness window catches a bad credential without failing slow starts.
 - That a workspace access token can list runners (otherwise the 403 fallback path applies).
-
-### Earlier findings (2026-10-01)
-
-
-1. **Runner endpoints and scopes match the published spec.**
-2. **Demand is approximate by design.** The step list does not carry the runner it ran on, and the payload has no `runs_on`, so kinhin reads the pipeline file instead (see the 2026-10-09 findings) and "busy" is a guess. That is an API limitation.
-3. **Pipelines list is one page per repository**, newest first, so a burst of more than a page of recent pipelines can hide older queued ones. Low risk; recorded for completeness.
-4. **Pipeline path has a trailing slash** (`/pipelines/`). The spec lists the collection path without one. Whether the server treats both forms alike was not verified.
 
 ## Verified
 

@@ -40,9 +40,11 @@ struct LifecycleCase: Sendable, CustomTestStringConvertible {
     let runtime: RuntimeKind
     var testDescription: String { "\(forge) on \(runtime)" }
 
-    /// Every cell this machine can run. `KINHIN_E2E_FORGES` / `KINHIN_E2E_RUNTIMES` narrow it. GitLab CE is heavy
-    /// (GBs, minutes to boot), so it runs only when asked for by name or with `KINHIN_E2E_HEAVY=1`. GitHub runs only
-    /// when `KINHIN_E2E_GITHUB_TOKEN` and `KINHIN_E2E_GITHUB_REPO` are set.
+    /// Every cell this machine can run, out of every `ForgeKind` × `RuntimeKind` pair (so a new forge or runtime
+    /// joins the matrix by existing; `CoverageTests` fails if kinhin gains a runtime with no `RuntimeKind`).
+    /// `KINHIN_E2E_FORGES` / `KINHIN_E2E_RUNTIMES` narrow it. GitLab CE is heavy (GBs, minutes to boot), so it runs
+    /// only when asked for by name or with `KINHIN_E2E_HEAVY=1`. GitHub runs only when `KINHIN_E2E_GITHUB_TOKEN` and
+    /// `KINHIN_E2E_GITHUB_REPO` are set. Tart and host lanes are opt-in (see `RuntimeKind.isAvailable`).
     static let all: [LifecycleCase] = {
         let heavy = E2E.flag("KINHIN_E2E_HEAVY") != nil
         var cases: [LifecycleCase] = []

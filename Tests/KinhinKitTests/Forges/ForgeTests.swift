@@ -156,6 +156,55 @@ final class ForgeTests: XCTestCase {
             sent[0].contains("labels=self-hosted,linux,arm64,kinhin-container,kinhin-docker,kinhin-host"), sent[0])
     }
 
+    /// The forge asks Forgejo about every label its pools register with, not only the account's (default
+    /// `macos:host`): a job for a Tart Linux pool (`runs-on: linux`) was never seen (e2e Tart Linux lane).
+    func testForgejoDemandAsksAboutThePoolLabels() async throws {
+        let queries = Mutex<[String]>([])
+        StubProtocol.handler = { request in
+            queries.withLock { $0.append(request.url?.query ?? "") }
+            return (200, Data(#"[{"id":1,"name":"build","runs_on":["linux"],"status":"waiting"}]"#.utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        var forge = GiteaForge(
+            credentials: ForgeCredentials(
+                forge: .forgejo, token: "ft", scope: "acme/widgets", instance: "http://192.168.68.101:3000"),
+            labels: ["macos:host"], client: makeForgejoClient(), registrationToken: "reg")
+        forge.poolLabels = ["self-hosted", "linux", "arm64"]
+
+        let jobs = try await forge.queuedJobs()
+        XCTAssertEqual(jobs.map(\.name), ["build"])
+        let sent = try XCTUnwrap(queries.withLock { $0 }.first)
+        XCTAssertTrue(sent.contains("labels=macos,self-hosted,linux,arm64,"), sent)
+    }
+
+    /// A queued job exactly as Gitea 1.26 returns it (probed live): no `repository`, the repo only in `url`, and the
+    /// branch and commit as `head_branch` / `head_sha`. Without the repository a repo route never applied (e2e).
+    func testGitea126QueuedJobShapeCarriesRepositoryRefAndSha() throws {
+        let body = """
+            {"jobs":[{"id":1,"url":"http://localhost:3000/api/v1/repos/e2e/demo/actions/jobs/1",
+              "html_url":"http://localhost:3000/e2e/demo/actions/runs/1/jobs/1","run_id":1,
+              "run_url":"http://localhost:3000/api/v1/repos/e2e/demo/actions/runs/1","name":"prove","labels":["linux"],
+              "run_attempt":0,"head_sha":"bf081d5a14e37d843f9e20bd82c846e42dcbb014","head_branch":"main",
+              "status":"queued","runner_id":0,"steps":[]}],"total_count":1}
+            """
+        let job = try XCTUnwrap(try JSONDecoder().decode(JobsWrapper.self, from: Data(body.utf8)).jobs.first)
+        XCTAssertEqual(job.repository, "e2e/demo")
+        XCTAssertEqual(job.ref, "main")
+        XCTAssertEqual(job.sha, "bf081d5a14e37d843f9e20bd82c846e42dcbb014")
+        XCTAssertEqual(job.labels, ["linux"])
+        XCTAssertNil(GiteaJob.repository(fromJobURL: "http://x/api/v1/repos/e2e"), "a short path names no repo")
+    }
+
+    /// A Forgejo entry names no repository; a repo-scoped account's jobs are that repo's.
+    func testForgejoJobsOfARepoScopedAccountBelongToItsRepository() async throws {
+        StubProtocol.handler = { _ in
+            (200, Data(#"[{"id":1,"name":"build","runs_on":["linux"],"status":"waiting","repo_id":1}]"#.utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let jobs = try await makeForgejoClient().queuedJobs(runnerLabels: ["linux"])
+        XCTAssertEqual(jobs.first?.repository, "acme/widgets")
+    }
+
     func testForgejoQueuedJobsTreatNullAsNothingWaiting() async throws {
         StubProtocol.handler = { _ in (200, Data("null".utf8), [:]) }
         defer { StubProtocol.handler = nil }
@@ -476,12 +525,24 @@ final class ForgeTests: XCTestCase {
             script.contains(
                 "https://gitea.com/gitea/runner/releases/download/v3.5.0/gitea-runner-3.5.0-darwin-arm64.xz"),
             "URL should point at the .xz asset")
+        // The asset is one xz-compressed binary, and stock macOS has no `xz`: the system's compression_tool decodes
+        // it straight into the binary registration runs (this test once pinned an `xz` + `tar xf runner.tar` +
+        // `installdependencies.sh` sequence that could not work).
         XCTAssertTrue(
-            script.contains("xz -d --no-sparse runner.xz"),
-            "should decompress the .xz download")
-        XCTAssertTrue(
-            script.contains("tar xf runner.tar"),
-            "should extract the tar after decompressing")
+            script.contains("/usr/bin/compression_tool -decode -a lzma -i 'runner.xz' -o 'gitea-runner'"), script)
+        XCTAssertFalse(script.contains("xz -d"), "no xz on stock macOS")
+        XCTAssertFalse(script.contains("tar "), "the asset is not an archive")
+        XCTAssertFalse(script.contains("installdependencies"), "that is the GitHub runner's script")
+        XCTAssertTrue(script.contains("./gitea-runner --version"), "the bake proves the binary runs")
+    }
+
+    /// The host install runs on the user's own Mac, which has no `xz` either.
+    func testGiteaHostAgentInstallNeedsNoXZ() {
+        let script = RunnerAgentSpec.gitea.host.installScript(
+            RunnerVersionResolver.Versions(github: "2.0.0", gitea: "5.0.0"), true,
+            URL(fileURLWithPath: "/tmp/agents"))
+        XCTAssertTrue(script.contains("compression_tool -decode -a lzma"), script)
+        XCTAssertFalse(script.contains("xz -d"), script)
     }
 
     // MARK: - Token-gated image provisioning

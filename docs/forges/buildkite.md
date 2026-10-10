@@ -4,6 +4,8 @@ How kinhin talks to Buildkite, and how that compares with Buildkite's current RE
 
 [← Back to README](../../README.md) · [Forge reference index](README.md) · [Setup guide](../forges.md)
 
+> **Planned.** Buildkite support is not part of the beta. This page records the implementation for the work ahead; see the [roadmap](../beta-roadmap.md).
+
 ## Overview
 
 | | |
@@ -12,7 +14,7 @@ How kinhin talks to Buildkite, and how that compares with Buildkite's current RE
 | Hosting | Buildkite SaaS only. The base is fixed at `https://api.buildkite.com`; `instance` is unused. |
 | Scope | `org/cluster` (organization slug and cluster name or UUID). |
 | Source | `Sources/KinhinKit/Forges/Buildkit/BuildkiteClient.swift`, `BuildkiteForge.swift`, `BuildkiteModels.swift`; agent start-up in `Sources/KinhinKit/Images/RunnerBootstrap/RunnerBootstrap+Buildkite.swift` |
-| Live-tested | No (stubbed HTTP). |
+| Status | **Planned, not supported yet.** Implemented and unit-tested; not yet run against the real service. |
 
 ## Auth
 
@@ -85,35 +87,13 @@ Buildkite has no self-hosted API. The agents run on your machines but the contro
 
 None for the server. The REST API is a single v2. The `buildkite-agent` binary version is separate (see `Images/RunnerVersions.swift`).
 
-## Audit findings (live-run lessons, 2026-10-09)
-
-Found by reading the code against what the live runs of other forges taught. These fixes were **made by code reading and unit tests with fakes only; none has been run against Buildkite.**
-
-What was wrong, and what changed:
-
-- **Agent failures were invisible.** The start script backgrounded each agent and reported success; a bad token or queue looked like a started instance. It now fails with the agent log.
-- **Runtime markers meant nothing.** An agent tag has to be `key=value`, so `kinhin-docker` on a pool never reached a job's agent query rules. Markers are now carried as `kinhin-runtime=<x>`.
-- **Archive extraction** named a member (`./buildkite-agent`) the release tarball may not use; the whole archive is extracted and checked.
-- **The SHA256SUMS lookup** missed entries written as `*name` or `./name`; the prefix is stripped.
-- **Token ownership.** Every build revoked every `kinhin: <account>` token, so a second engine or host would revoke the first's. Descriptions now name host and process.
-- **A mistyped queue** silently left every job waiting; it is now rejected when the forge is built.
-- **The build list was read separately** for demand and for the pipeline view; both use one cached read.
-
-Still to verify live:
+## Before support: to verify against a live service
 
 - That the agent accepts `kinhin-runtime=docker` in `--tags` and that a job's `agent_query_rules` entry arrives as `kinhin-runtime=docker`.
 - That the queues endpoint lists the `default` queue under the key `default` and works with the token's scopes.
 - That a real release archive extracts to `./buildkite-agent` and that `SHA256SUMS` entries match the lookup for every asset name.
 - That host name and pid in a token description round-trip through the API, and that the one-time manual revoke of legacy `kinhin: <account>` tokens is enough.
 - That an agent that fails to register exits non-zero within the 5 s settle window.
-
-### Earlier findings (2026-10-01)
-
-
-1. **All calls match the documented endpoints and scopes.** No mismatches found.
-2. **Agent list is organization-wide.** `GET …/agents` is documented as organization-level, not cluster-scoped. The docs list a `cluster_queue_id` filter. The client lists every agent in the organization and filters afterward; passing `cluster_queue_id` would shrink the response on busy organizations.
-3. **Stop only works on connected agents** (documented). `BuildkiteClient.swift:127` treats a 400 as "already gone", which fits that rule.
-4. **Builds can be wide.** The docs offer `exclude_jobs=true` for list calls, but kinhin needs the jobs, so it correctly does not use it.
 
 ## Verified
 

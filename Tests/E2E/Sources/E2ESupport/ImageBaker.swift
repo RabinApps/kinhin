@@ -35,7 +35,7 @@ public actor ImageBaker {
         var config = FleetConfig(accounts: accounts, runtime: runtime, image: tag)
         config.minRunners = 0
         try sandbox.writeConfig(config.yaml())
-        guard runtime != .tartMacOS else { return try await bakeTart(sandbox: sandbox, tag: tag) }
+        guard !runtime.isTart else { return try await bakeTart(runtime, sandbox: sandbox, tag: tag) }
         let result = try await sandbox.kinhin(
             ["image", "prepare"] + runtime.imageFlags + ["--target", tag], timeout: 1200)
         guard result.ok else {
@@ -45,15 +45,12 @@ public actor ImageBaker {
         return tag
     }
 
-    private static func bakeTart(sandbox: Sandbox, tag: String) async throws -> String {
-        guard let base = E2E.flag("KINHIN_E2E_TART_BASE") else {
-            throw E2EError.unavailable(RuntimeKind.tartMacOS.unavailableReason)
-        }
-        // `base_image` is what prepare starts from (a local tart VM name works); the result is `image: tag`.
-        var config = try String(contentsOf: sandbox.configURL, encoding: .utf8)
-        config += "base_image: \"\(base)\"\n"
-        try sandbox.writeConfig(config)
-        let result = try await sandbox.kinhin(["image", "prepare"], timeout: 3600)
+    private static func bakeTart(_ runtime: RuntimeKind, sandbox: Sandbox, tag: String) async throws -> String {
+        let variable = runtime == .tartLinux ? "KINHIN_E2E_TART_LINUX_BASE" : "KINHIN_E2E_TART_BASE"
+        guard let base = E2E.flag(variable) else { throw E2EError.unavailable(runtime.unavailableReason) }
+        // `--source` is what prepare starts from: a local tart VM or a registry reference (prepare detects a Linux
+        // guest itself). Not `base_image:`, which maps a bare name it does not know to the default macOS image.
+        let result = try await sandbox.kinhin(["image", "prepare", "--source", base, "--target", tag], timeout: 3600)
         guard result.ok else {
             throw E2EError.failed("tart image prepare failed (\(result.status)):\n\(result.output.suffix(2000))")
         }

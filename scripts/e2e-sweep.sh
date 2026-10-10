@@ -14,6 +14,8 @@ if [ "${1:-}" != "--force" ] && pgrep -f "E2ETests.xctest" >/dev/null 2>&1; then
 fi
 
 swept=0
+# Host-lane runner agents live in a sandbox (/tmp/ke2e-<id>/host-runner/...), so their command lines name it.
+pkill -f "/ke2e-[a-z0-9]*/host-runner/" 2>/dev/null
 for dir in /tmp/ke2e-*; do
   [ -d "$dir" ] || continue
   if [ -f "$dir/daemon.pid" ]; then
@@ -33,6 +35,14 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   docker ps -a --format '{{.Names}} {{.Image}}' | while read -r name image; do
     case "$name" in ke2e-*) docker rm -f -v "$name" >/dev/null 2>&1 ;; esac
     case "$image" in ke2e-*) docker rm -f -v "$name" >/dev/null 2>&1 ;; esac
+  done
+fi
+
+# Tart images the suite baked are named ke2e-*. Its runner clones are kinhin-* and cannot be told apart from a real
+# fleet's, so they are left alone (the suite refuses to start next to them and says so).
+if command -v tart >/dev/null 2>&1; then
+  tart list --source local --quiet 2>/dev/null | while read -r name; do
+    case "$name" in ke2e-*) tart stop "$name" >/dev/null 2>&1; tart delete "$name" >/dev/null 2>&1 ;; esac
   done
 fi
 

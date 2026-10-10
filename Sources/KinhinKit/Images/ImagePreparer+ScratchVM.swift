@@ -232,8 +232,20 @@ extension ImagePreparer {
     // MARK: - Commit swap
 
     /// Stops the scratch VM and replaces `target` with a clone of it.
-    func commitSwap(scratch tmp: String, target: String) async throws {
-        Log.info("image", "provisioning done; stopping scratch VM")
+    ///
+    /// The guest's page cache is flushed first. `tart stop` powers a Linux guest off at once (no clean shutdown), so
+    /// without the flush everything the bake wrote in the last seconds, often all of it, never reached the disk:
+    /// the e2e suite's first Tart Linux lane found images with no runner agents and an empty `authorized_keys`, so
+    /// no clone could be reached over SSH. A failed flush fails the bake rather than commit an image that may be
+    /// missing its agents.
+    func commitSwap(scratch tmp: String, target: String, session: ScratchVMSession) async throws {
+        Log.info("image", "provisioning done; flushing the guest's disks")
+        let flushed = try await ssh.exec(vm: tmp, user: session.user, ip: session.ip, script: "sync", timeout: 300)
+        guard flushed.succeeded else {
+            throw ImageError.provisioningFailed(
+                "could not flush the scratch VM's disks before committing it: \(flushed.failureExcerpt)")
+        }
+        Log.info("image", "stopping scratch VM")
         // Cancellation stops HERE: once the commit swap begins it runs to
         // completion, in a fresh task that inherits no cancellation — a
         // cancelled caller's shell calls would be refused outright, and stop,

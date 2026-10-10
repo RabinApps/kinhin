@@ -12,7 +12,7 @@ How kinhin talks to GitLab CI, and how that compares with GitLab's current REST 
 | Hosting | gitlab.com (default) or self-managed. `instance` is optional (`GitLabModels.swift:10`). |
 | Scope | A project path or a group path. Paths nest (`group/sub/project`) and are percent-encoded with `%2F`. The client resolves `GET /projects/{enc}` and falls back to `GET /groups/{enc}`. |
 | Source | `Sources/KinhinKit/Forges/Gitlab/GitLabClient.swift`, `GitLabForge.swift`, `GitLabModels.swift`; config check in `Sources/KinhinKit/Config/ConfigLoader/ConfigLoader+Ephemeral.swift` |
-| Live-tested | No (stubbed HTTP). |
+| Live-tested | GitLab CE 18.4 on every runtime, by the [end-to-end suite](../e2e-testing.md). |
 
 ## Auth
 
@@ -90,36 +90,15 @@ Output is the job trace, `GET /projects/{id}/jobs/{job}/trace` (live while the j
 | Runner response attributes | `active`, `ip_address`, `version`, `revision`, `platform`, `architecture` are deprecated; moved to the GraphQL `CiRunnerManager`. kinhin should not rely on them. |
 | Jobs listing | `scope` accepts many statuses; `waiting_for_callback` and `canceling` exist on newer releases. kinhin uses only `pending` and `running`. |
 
-## Audit findings (live-run lessons, 2026-10-09)
+## Open notes
 
-Found by reading the code against what the live runs of other forges taught. These fixes were **made by code reading and unit tests with fakes only; none has been run against a GitLab server.**
-
-What was wrong, and what changed:
-
-- **Pool labels were unioned with account labels** for runner tags, re-adding labels routing had removed. Pool labels now win.
-- **Demand used the wrong direction of the subset test.** It required the account's labels to be a subset of the job's tags, so a job tagged only `kinhin-docker` never counted. Demand is now job tags subset of pool labels (see Demand and label matching for why this differs from GitHub).
-- **`vm.ephemeral: false` produced an idle VM** after the first job; it is now rejected at config load.
-- **Read failures were hidden.** A 403 or 404 on a single project returned no jobs, so a revoked token looked like an empty queue. They now surface; groups skip individual failing projects with a warning.
-- **Projects shared into a group** were polled as the group's own (`with_shared=false` now).
-- **Merge-request pipelines** were treated like branch jobs; they are now flagged `isFork`.
-- **Rate-limit headers** were ignored; they are now parsed.
-- The pipeline view re-read every project's running jobs on each call; it reuses the poll's read.
-
-Still to verify live:
-
-- That `with_shared=false` is honoured on `GET /groups/{id}/projects` on the minimum supported release.
-- That `pipeline.source` and the `refs/merge-requests/` ref are present on job payloads as assumed, including for fork pipelines.
-- That a runner created with the pool's tags receives a job whose tags are a subset of them.
-- That the `RateLimit-*` headers carry the units assumed (reset as epoch seconds) on gitlab.com.
-- That a group scope with a mix of readable and unreadable projects behaves as designed.
-
-### Earlier findings (2026-10-01)
-
-
-1. **Pagination mode.** GitLab recommends keyset pagination for large job lists and orders `/projects/:id/jobs` by id descending. Offset pagination works but gets slower and is limited on large collections. With `scope[]=pending|running` the result sets are small, so this is low risk.
-2. **Scope names.** `TokenRequirements` already matches the docs (`create_runner`, `manage_runner`, `read_api`).
-3. **`/jobs` has no group endpoint**, so large groups depend on the 50-project and 24-hour limits. That is a documented API gap, not a bug; keep the limitation visible in the setup guide.
-4. **The 16.0 floor is unverified** against GitLab's release notes (the fetched page omits the introduction release).
+1. **Pagination mode.** GitLab recommends keyset pagination for large job lists. Offset pagination works but gets
+   slower on large collections; with `scope[]=pending|running` the result sets are small, so this is low risk.
+2. **`/jobs` has no group endpoint**, so large groups depend on the 50-project and 24-hour limits. This is a documented
+   API gap.
+3. **The 16.0 floor** comes from the code; GitLab's release notes do not name the release that introduced
+   `POST /user/runners`.
+4. **gitlab.com** uses the same API but is not part of the tested launch set; self-managed GitLab CE is.
 
 ## Verified
 

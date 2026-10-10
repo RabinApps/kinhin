@@ -4,8 +4,8 @@ What other tools do, what kinhin does, and what kinhin is missing.
 
 [← Back to README](../README.md) · [Why kinhin](why.md)
 
-kinhin is a runner autoscaler: it keeps your existing CI (GitHub Actions, GitLab, Gitea, Forgejo, Buildkite, Azure
-Pipelines, Bitbucket) and feeds it fresh, isolated Mac capacity. Plenty of other tools solve a neighbouring problem, and
+kinhin is a runner autoscaler: it keeps your existing CI (GitHub Actions, GitLab, Gitea, Forgejo) and feeds it fresh,
+isolated Mac capacity. Plenty of other tools solve a neighbouring problem, and
 several solve this exact one. This page is a guide to the landscape, not a leaderboard. Most of these tools are good, and
 the right pick depends on what you already run and how many machines you have.
 
@@ -16,41 +16,41 @@ the right pick depends on what you already run and how many machines you have.
   [open an issue](https://github.com/RabinApps/kinhin/issues/new/choose) and it will be fixed.
 - Where a tool's docs did not mention something, this page says "no documented ..." rather than claiming the tool cannot do it.
 - kinhin's own claims use the same words as [Forge support](forges.md#what-has-been-tested). **Live-tested** means run against
-  a real server. **Unit-tested only** means automated tests against fakes, never a real instance. Today only GitHub Actions
-  (Tart macOS VMs and apple/container) and Gitea Actions (Docker) are live-tested.
+  a real server. **Unit-tested only** means automated tests against fakes, never a real instance. GitHub Actions, Gitea, Forgejo and
+  GitLab CE are live-tested; Buildkite, Azure Pipelines and Bitbucket Pipelines are planned.
 - No prices or benchmark numbers appear here. Hosted services change pricing often, so use each vendor's own pricing page.
 
 ## At a glance
 
 ### Self-hosted Mac runner tools (the same layer as kinhin)
 
-| Tool | What it is | Forges | Autoscaling | Hosts | License |
-| ---- | ---------- | ------ | ----------- | ----- | ------- |
-| **kinhin** | Menu bar app, CLI and daemon that autoscales ephemeral runners on one Mac | GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket (GitHub and Gitea live-tested, others unit-tested only) | Yes, from the queue, capped by the Mac's cores, RAM and disk | One Mac | Apache-2.0 |
-| **runscaler** | Command line autoscaler for Docker containers or Tart macOS VMs | GitHub | Yes, on GitHub's runner scale set API, scales from zero | One host | MIT |
-| **Cilicon** | macOS app that runs ephemeral Tart-format VMs | GitHub Actions, Buildkite, GitLab Runner, custom scripts | No documented queue-based scaling | One Mac | MIT |
-| **Tartelet** | macOS app that runs ephemeral Tart VMs as runners | GitHub | Runs up to two runners | One Mac | MIT |
-| **Orchard** | Orchestrator for Tart VMs across a cluster of Macs | None (not a CI integration) | Schedules VMs on request | Many Macs | See repository |
-| **GitLab Runner + Tart executor** | GitLab custom executor that creates a Tart VM per job | GitLab | Concurrency set by hand with `concurrent` | One or more Macs | See repository |
-| **Anka Build** (Veertu) | Commercial macOS VM platform with controller and registry | Jenkins, TeamCity, GitLab, GitHub Actions, Buildkite, Azure DevOps | Controller queues and load balances | Many Macs, own or hosted | Commercial |
-| **Orka** (MacStadium) | Kubernetes-native macOS VM platform | Plugins for GitHub Actions, GitLab, Buildkite, Azure DevOps, Jenkins, Drone, TeamCity | Elastic pools, burst capacity | MacStadium cloud, AWS, or your own Macs | Commercial |
+| Tool                              | What it is                                                                | Forges                                                                                                         | Autoscaling                                                  | Hosts                                   | License        |
+| --------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------- | -------------- |
+| **kinhin**                        | Menu bar app, CLI and daemon that autoscales ephemeral runners on one Mac | GitHub, GitLab CE, Gitea, Forgejo (Buildkite, Azure DevOps, Bitbucket united-tested only, not tested live yet) | Yes, from the queue, capped by the Mac's cores, RAM and disk | One Mac                                 | Apache-2.0     |
+| **runscaler**                     | Command line autoscaler for Docker containers or Tart macOS VMs           | GitHub                                                                                                         | Yes, on GitHub's runner scale set API, scales from zero      | One host                                | MIT            |
+| **Cilicon**                       | macOS app that runs ephemeral Tart-format VMs                             | GitHub Actions, Buildkite, GitLab Runner, custom scripts                                                       | No documented queue-based scaling                            | One Mac                                 | MIT            |
+| **Tartelet**                      | macOS app that runs ephemeral Tart VMs as runners                         | GitHub                                                                                                         | Runs up to two runners                                       | One Mac                                 | MIT            |
+| **Orchard**                       | Orchestrator for Tart VMs across a cluster of Macs                        | None (not a CI integration)                                                                                    | Schedules VMs on request                                     | Many Macs                               | See repository |
+| **GitLab Runner + Tart executor** | GitLab custom executor that creates a Tart VM per job                     | GitLab                                                                                                         | Concurrency set by hand with `concurrent`                    | One or more Macs                        | See repository |
+| **Anka Build** (Veertu)           | Commercial macOS VM platform with controller and registry                 | Jenkins, TeamCity, GitLab, GitHub Actions, Buildkite, Azure DevOps                                             | Controller queues and load balances                          | Many Macs, own or hosted                | Commercial     |
+| **Orka** (MacStadium)             | Kubernetes-native macOS VM platform                                       | Plugins for GitHub Actions, GitLab, Buildkite, Azure DevOps, Jenkins, Drone, TeamCity                          | Elastic pools, burst capacity                                | MacStadium cloud, AWS, or your own Macs | Commercial     |
 
 ### Full CI systems and Linux-oriented tools
 
-| Tool | What it is | macOS jobs | Autoscaling |
-| ---- | ---------- | ---------- | ----------- |
-| **Woodpecker CI** | A complete CI server with agents and plugins (replaces your CI) | Local backend only, with no isolation | Separate autoscaler, described as not feature-complete, documented for Hetzner Cloud |
-| **Actions Runner Controller (ARC)** | Kubernetes operator for GitHub Actions runners | No documented macOS support | Runner scale sets, ephemeral container runners |
+| Tool                                | What it is                                                      | macOS jobs                            | Autoscaling                                                                          |
+| ----------------------------------- | --------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Woodpecker CI**                   | A complete CI server with agents and plugins (replaces your CI) | Local backend only, with no isolation | Separate autoscaler, described as not feature-complete, documented for Hetzner Cloud |
+| **Actions Runner Controller (ARC)** | Kubernetes operator for GitHub Actions runners                  | No documented macOS support           | Runner scale sets, ephemeral container runners                                       |
 
 ### Hosted macOS CI (no hardware to own)
 
-| Service | What it is |
-| ------- | ---------- |
-| **GitHub-hosted runners** | macOS images on Apple Silicon and Intel, a fresh VM for each job |
-| **GitLab hosted runners** | macOS runners on Apple Silicon, in beta and limited to some plans |
-| **Cirrus Runners** | Hosted GitHub Actions runners on Apple Silicon, single-use VMs built on Tart |
-| **Namespace** | Hosted runners including macOS on Apple Silicon |
-| **Depot** | Hosted GitHub Actions runners including macOS on some plans |
+| Service                   | What it is                                                                   |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| **GitHub-hosted runners** | macOS images on Apple Silicon and Intel, a fresh VM for each job             |
+| **GitLab hosted runners** | macOS runners on Apple Silicon, in beta and limited to some plans            |
+| **Cirrus Runners**        | Hosted GitHub Actions runners on Apple Silicon, single-use VMs built on Tart |
+| **Namespace**             | Hosted runners including macOS on Apple Silicon                              |
+| **Depot**                 | Hosted GitHub Actions runners including macOS on some plans                  |
 
 ## Closest tools: self-hosted Mac runners
 
@@ -100,10 +100,10 @@ you have a rack of Macs, an orchestrator like Orchard, Anka or Orka is the bette
 **What it does.** A GitLab custom executor creates an isolated, ephemeral Tart VM for each job. Concurrency is a number you
 set in `config.toml`.
 
-**What kinhin does.** Scaling follows the queue instead of a fixed number, and the same fleet can serve other forges. GitLab
-support in kinhin is unit-tested only so far.
+**What kinhin does.** Scaling follows the queue instead of a fixed number, and the same fleet can serve other forges. kinhin's
+GitLab support is live-tested on GitLab CE.
 
-**What kinhin lacks.** Maturity on GitLab: the executor is the documented, proven path today.
+**What kinhin lacks.** Maturity on GitLab: the executor has a longer track record.
 
 ### Anka Build and Orka
 
@@ -207,7 +207,7 @@ An honest summary, with the roadmap for what is planned:
 ## What kinhin has
 
 - **An opt-in warm pool** of pre-booted Tart macOS VMs, so a job skips clone and boot ([Warm pool](scaling.md#warm-pool)).
-- **One engine for seven forges and four runtimes**, with routing per repo, workflow or `runs-on:` label
+- **One engine for four forges and four runtimes**, with routing per repo, workflow or `runs-on:` label
   ([Runtimes](runtimes.md)).
 - **Fresh, isolated, ephemeral instances** by default, with the runner deregistered and the instance deleted after each job.
 - **A capacity cap computed from your Mac,** with host headroom reserved ([How scaling works](scaling.md)).

@@ -4,6 +4,8 @@ How kinhin talks to Azure Pipelines agent pools, and how that compares with Micr
 
 [← Back to README](../../README.md) · [Forge reference index](README.md) · [Setup guide](../forges.md)
 
+> **Planned.** Azure DevOps support is not part of the beta. This page records the implementation for the work ahead; see the [roadmap](../beta-roadmap.md).
+
 ## Overview
 
 | | |
@@ -12,7 +14,7 @@ How kinhin talks to Azure Pipelines agent pools, and how that compares with Micr
 | Hosting | Azure DevOps Services (`https://dev.azure.com/{org}`) or Azure DevOps Server (self-hosted). `instance` is required and is the organization (or collection) URL. |
 | Scope | An agent pool name. |
 | Source | `Sources/KinhinKit/Forges/AzureDevOps/AzureDevOpsClient.swift`, `AzureDevOpsForge.swift`, `AzureDevOpsModels.swift`; agent start-up in `Sources/KinhinKit/Images/RunnerBootstrap/RunnerBootstrap+AzureDevOps.swift` |
-| Live-tested | No (stubbed HTTP). |
+| Status | **Planned, not supported yet.** Implemented and unit-tested; not yet run against the real service. |
 
 ## Auth
 
@@ -87,22 +89,7 @@ No pagination: every list is a single `{value: [...]}` read. `withTransientRetry
 | Endpoints used | The pool and agent operations exist in the 5.1, 6.0, 6.1, 7.0 and 7.1 references, so lowering `api-version` for older Server is plausible. Not tested. |
 | Preview versions | After a release, its `-preview` form is deprecated and can be removed after 12 weeks. kinhin uses only stable versions. |
 
-## Audit findings (live-run lessons, 2026-10-09)
-
-Found by reading the code against what the live runs of other forges taught. These fixes were **made by code reading and unit tests with fakes only; none has been run against Azure DevOps.**
-
-What was wrong, and what changed:
-
-- **Registration failures vanished.** `config.sh` ran inside a background shell, so a bad PAT or pool name looked like a started instance. It now runs in the foreground and fails with the log tail.
-- **The PAT touched disk** (a `.pat` file removed after reading). It is now piped to the background shell.
-- **Pool labels and runtime markers never became capabilities**, and `kinhin-docker` is not a valid variable name. Labels are sanitised and the pool's join the account's.
-- **Linux guests**: the agent's `installdependencies.sh` refuses to run unprivileged; it now runs under `sudo`, followed by an `Agent.Listener --version` smoke test.
-- **`ephemeral: false` was ignored**; the agent always ran `--once`. It is now honoured.
-- **Offline agents lingered** when `config.sh remove` failed; they are reaped after 60 s.
-- **A sign-in redirect** was not classified as unauthorized; it is now.
-- **Reserved and unsatisfiable requests counted as demand**, spawning runners that could not take them.
-
-Still to verify live:
+## Before support: to verify against a live service
 
 - **Highest-impact risk: an empty pool plus a `demands:` job may fail fast rather than queue.** Azure may reject a request whose demands no agent in the pool satisfies instead of leaving it waiting, so kinhin would never see demand to scale up from. If so, the pool needs a placeholder offline agent that advertises the capabilities, or `min_runners >= 1`. Not verified.
 - That an exported `kinhin_docker=true` environment variable is picked up as a capability by the agent, and that the demand arrives as `kinhin_docker`.
@@ -111,14 +98,6 @@ Still to verify live:
 - That a request carries `reservedAgent` before `assignTime`, as the queued rule assumes.
 - That a redirect really is how an expired PAT presents on Azure DevOps Services and Server.
 - That sequential registration of several runners in one VM is fast enough.
-
-### Earlier findings (2026-10-01)
-
-
-1. **`jobrequests` is not in the REST reference.** The docs list agent, pool and agent-cloud operations, and a "Requests - List" operation, but that one lives under `agentclouds/{id}/requests`. The `pools/{id}/jobrequests` path that kinhin uses for demand was not found on the pages checked. It was not verified against a live organization here; as an undocumented path it may change without a version bump.
-2. **Pinned to 7.0.** Fine for Services and Server 2022, but it excludes Server 2020 and earlier, and it trails the documented 7.1. This is the clearest candidate for a version picker.
-3. **No pagination.** kinhin reads each list once. The pages fetched did not say whether pool and agent lists are paged, so large pools are unverified.
-4. **PAT reuse.** The same PAT that manages the pool is on every VM (documented design limit, not a code bug).
 
 ## Verified
 

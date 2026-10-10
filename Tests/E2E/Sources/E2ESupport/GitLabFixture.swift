@@ -7,7 +7,8 @@ public actor GitLabFixture: ForgeFixture {
     public nonisolated let kind = ForgeKind.gitlab
     public nonisolated let needsRunnerFloor = false
 
-    private let image = E2E.flag("KINHIN_E2E_GITLAB_IMAGE") ?? "gitlab/gitlab-ce:17.11.7-ce.0"
+    // Pinned to a multi-arch tag: 17.x tags are amd64-only and crawl under emulation on Apple Silicon.
+    private let image = E2E.flag("KINHIN_E2E_GITLAB_IMAGE") ?? "gitlab/gitlab-ce:18.4.2-ce.0"
     private let containerName = "ke2e-gitlab-\(E2E.randomID())"
     private let port: Int
     private let host: String
@@ -75,21 +76,21 @@ public actor GitLabFixture: ForgeFixture {
         """
         set -e
         \(extra)
-        BODY="$(uname -s) $(hostname) ${E2E_EXTRA:-}"
+        BODY="$(uname -s) $(hostname) $(pwd) ${E2E_EXTRA:-}"
         curl -sf -X POST "$E2E_API/issues" -H "PRIVATE-TOKEN: $E2E_TOKEN" \\
           -H "Content-Type: application/json" \\
           -d "{\\"title\\":\\"proof-$E2E_NONCE\\",\\"description\\":\\"$BODY\\"}"
         """
     }
 
-    public func pushWorkflow(name: String, runsOn: String, nonce: String, script: String) async throws {
+    public func pushWorkflow(name: String, labels: [String], nonce: String, script: String) async throws {
         let indented = script.split(separator: "\n", omittingEmptySubsequences: false)
             .map { "      \($0)" }.joined(separator: "\n")
-        // A pending job counts as demand only when every tag is one a pool advertises: the fleet labels, which
-        // default to `self-hosted, linux, arm64`, plus the runtime marker `runsOn` names.
+        // A pending job counts as demand only when every tag is one a pool advertises: the fleet labels plus the
+        // pool's marker.
         let yaml = """
             prove:
-              tags: [self-hosted, linux, arm64, \(runsOn)]
+              tags: [\(labels.joined(separator: ", "))]
               variables:
                 E2E_NONCE: "\(nonce)"
                 E2E_API: "\(base)/api/v4/projects/\(projectID)"

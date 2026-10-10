@@ -183,6 +183,10 @@ extension FleetEngine {
                 } else if let gitlabForge = forge as? GitLabForge {
                     // GitLab's demand filter is the labels the pools advertise.
                     state.byPlatform[key] = gitlabForge.replacingPoolLabels(snapshot.servedLabels)
+                } else if var giteaForge = forge as? GiteaForge {
+                    // Forgejo's queue endpoint matches jobs against the labels it is asked about.
+                    giteaForge.poolLabels = snapshot.servedLabels
+                    state.byPlatform[key] = giteaForge
                 }
             }
         }

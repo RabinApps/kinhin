@@ -5,9 +5,9 @@ each job between them.
 
 [← Back to README](../README.md)
 
-> **Beta:** Tart (macOS VMs) and apple/container have been run for real, and Docker has run real Gitea jobs (the
-> [end-to-end suite](e2e-testing.md)). Tart Linux VMs and host mode are covered by unit tests against fakes and have not
-> been exercised live.
+> **Beta:** every runtime has run real jobs from Gitea, Forgejo and GitLab CE in the
+> [end-to-end suite](e2e-testing.md): Tart macOS and Linux VMs, apple/container, Docker and host mode. GitHub has run on
+> Tart macOS and apple/container.
 
 | Runtime             | Runs                                                         | Isolation                                    |
 | ------------------- | ------------------------------------------------------------ | -------------------------------------------- |
@@ -86,7 +86,7 @@ labels plus the image's labels. Notes:
 - Prepare the image first. A job for an image that was never prepared cannot clone it and shows a clone error.
 - A runner with extra labels can also pick up a plain job, because the forge only checks that a runner has every label
   the job asks for. Plain jobs are still counted against the main image.
-- Label selection works for GitHub and Buildkite. Other forges register runners with the fleet labels only, so their jobs
+- Label selection works for GitHub. Other forges register runners with the fleet labels only, so their jobs
   always run on `image:`.
 - Per-project toolchain images (`projects:`) are derived from `image:` only, so a job routed to an extra image does not
   get one.
@@ -277,7 +277,7 @@ kinhin image prepare --linux --target <name> --from
 # or from an install ISO: creates a bare VM; you install the OS by hand in its window
 kinhin image prepare --linux --target <name> --iso <arm64.iso>
 # then bake the runner agents into it
-kinhin image prepare --source <name>
+kinhin image prepare --source <name> [--target <runner-image>]
 ```
 
 Guests need an apt-based distro with passwordless `sudo` (the published Cirrus Labs images have both). macOS-only
@@ -406,4 +406,4 @@ runtimes:
 - **Workflows can opt in** with `runs-on: [kinhin-host]`. Only opted-in workflows can ever land on your Mac.
 - **The machine isn't reset between jobs.** Each runner is ephemeral and gets a work directory that is scrubbed
   afterwards, but anything a job installs outside it persists.
-- Host routes work for GitHub, Gitea and Forgejo.
+- Host routes work for GitHub, Gitea, Forgejo and GitLab (the last three run live in the e2e suite).

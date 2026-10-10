@@ -3,22 +3,21 @@ import XCTest
 @testable import KinhinKit
 
 final class MaturityTableTests: XCTestCase {
-    func testOnlyGitHubGiteaAndForgejoAreLiveTestedAmongForges() {
-        // Gitea and Forgejo each ran real jobs on Docker and apple/container in the end-to-end suite
-        // (docs/e2e-testing.md).
-        XCTAssertEqual(
-            ForgeID.allCases.filter { MaturityTable.maturity(of: $0) == .liveTested }, [.github, .gitea, .forgejo])
-        for forge in ForgeID.allCases where forge != .github && forge != .gitea && forge != .forgejo {
+    /// The launch forges ran real jobs in the end-to-end suite (docs/e2e-testing.md); Buildkite, Azure DevOps and
+    /// Bitbucket are not supported yet.
+    func testTheLaunchForgesAreLiveTestedAndTheRestAreNot() {
+        let launch: [ForgeID] = [.github, .gitea, .forgejo, .gitlab]
+        XCTAssertEqual(Set(ForgeID.allCases.filter { MaturityTable.maturity(of: $0) == .liveTested }), Set(launch))
+        for forge in ForgeID.allCases where !launch.contains(forge) {
             XCTAssertTrue(MaturityTable.maturity(of: forge).isUntested, forge.rawValue)
         }
     }
 
-    func testTartMacOSAndAppleContainerAreLiveTestedAndTheRestAreNot() {
-        XCTAssertEqual(MaturityTable.maturity(of: .tart), .liveTested)
-        XCTAssertEqual(MaturityTable.maturity(of: .appleContainer), .liveTested)
-        XCTAssertEqual(MaturityTable.maturity(of: .docker), .untested)
-        XCTAssertEqual(MaturityTable.maturity(of: .host), .untested)
-        XCTAssertEqual(MaturityTable.tartLinux, .untested, "Tart serving Linux VMs is a separate, untested path")
+    func testEveryRuntimeIsLiveTested() {
+        for runtime in RuntimeID.allCases {
+            XCTAssertEqual(MaturityTable.maturity(of: runtime), .liveTested, runtime.rawValue)
+        }
+        XCTAssertEqual(MaturityTable.tartLinux, .liveTested)
     }
 
     func testEveryRuntimeAndForgeHasAnAnswer() {

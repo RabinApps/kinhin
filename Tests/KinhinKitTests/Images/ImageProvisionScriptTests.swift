@@ -57,8 +57,9 @@ final class ImageProvisionScriptTests: XCTestCase {
 
         try await preparer.run(options)
 
-        // Probe (guest OS), agent install, user script.
-        XCTAssertEqual(ssh.scripts.count, 3, "guest probe, agent install, user script second")
+        // Probe (guest OS), agent install, user script, then the disk flush before the commit.
+        XCTAssertEqual(ssh.scripts.count, 4, "guest probe, agent install, user script second, flush")
+        XCTAssertEqual(ssh.scripts[3], "sync")
         XCTAssertTrue(ssh.scripts[0].contains("uname -s"), "first exec detects the guest OS")
         XCTAssertTrue(ssh.scripts[1].contains("actions-runner-osx-arm64"), "second exec bakes the GitHub agent")
         XCTAssertTrue(ssh.scripts[2].contains("bash /tmp/kinhin-provision.sh"), "third exec runs the user script")
@@ -91,7 +92,7 @@ final class ImageProvisionScriptTests: XCTestCase {
             ImagePreparer.Options(
                 storedTokens: [.github]))
 
-        XCTAssertEqual(ssh.scripts.count, 2, "guest probe + agent install")
+        XCTAssertEqual(ssh.scripts.count, 3, "guest probe + agent install + disk flush")
         XCTAssertFalse(ssh.scripts[1].contains("kinhin-provision.sh"))
     }
 

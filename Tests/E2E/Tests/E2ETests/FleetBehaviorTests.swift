@@ -68,7 +68,7 @@ extension Infra {
                 let second = E2E.randomID() + E2E.randomID()
                 for (name, nonce) in [("cap-a", first), ("cap-b", second)] {
                     try await lane.fixture.pushWorkflow(
-                        name: name, runsOn: lane.runtime.runsOn, nonce: nonce,
+                        name: name, runtime: lane.runtime, nonce: nonce,
                         script: lane.fixture.proofScript(extra: "sleep 20"))
                 }
                 // Sample while both jobs are in flight: the cap is a hard ceiling on concurrent instances.
@@ -88,16 +88,95 @@ extension Infra {
             }
         }
 
-        @Test(
-            "a job that outlasts the idle grace is not killed mid-run", arguments: [ForgeKind.gitea, ForgeKind.forgejo])
-        func longJobSurvivesTheIdleGrace(_ forge: ForgeKind) async throws {
-            try await Lane.with(forge: forge, runtime: .docker) { lane in
+        /// Every Gitea-family lane: they leave by idle grace, so each runtime's busy detection is what keeps the job alive.
+        static let idleGraceCells = LifecycleCase.all.filter { $0.forge == .gitea || $0.forge == .forgejo }
+
+        @Test("a job that outlasts the idle grace is not killed mid-run", arguments: idleGraceCells)
+        func longJobSurvivesTheIdleGrace(_ cell: LifecycleCase) async throws {
+            try await Lane.with(forge: cell.forge, runtime: cell.runtime) { lane in
                 // 75 s of work is more than twice the 30 s idle grace. A watch that misreads a working runner as
                 // idle (Gitea reports `status: online` with `busy: true`) deletes it partway through, and the job
                 // never writes its proof.
                 let (_, proof) = try await lane.runJob(
                     name: "long", extraStep: "sleep 75", timeout: 420)
                 #expect(proof.hasPrefix(lane.runtime.guestKernel), "proof was: \(proof)")
+            }
+        }
+
+        /// With no floor, the job leaving the queue is exactly what makes its own instance look surplus. The pass right
+        /// after a pickup used to scale that instance down mid-job (it still read `.ready` from a cached runner list);
+        /// a short job won the race, which is how the no-floor lifecycle passed while this was broken.
+        @Test(
+            "with no floor, the instance that picked up a job is not scaled down under it",
+            // Every self-hosted forge whose Docker lane is on (GitLab's queue also lists only waiting jobs).
+            arguments: LifecycleCase.all.filter { $0.runtime == .docker && $0.forge != .github }.map(\.forge))
+        func pickedUpJobIsNotScaledDown(_ forge: ForgeKind) async throws {
+            var options = Lane.Options()
+            options.minRunners = 0
+            if forge == .gitea { options.forgeImage = GiteaFixture.floorFreeGiteaImage }
+            try await Lane.with(forge: forge, runtime: .docker, options: options) { lane in
+                let (_, proof) = try await lane.runJob(name: "nofloor-long", extraStep: "sleep 45", timeout: 420)
+                // A runner deleted under its job never writes the proof, so arriving at all is the assertion.
+                #expect(proof.hasPrefix("Linux"), "proof was: \(proof)")
+            }
+        }
+
+        /// An outage is not an empty queue and not a finished job: kinhin must keep the busy instance (and its
+        /// runner, which retries on its own) through it, and the job finishes once the forge is back.
+        @Test("a forge that hangs mid-job does not cost the job its runner, and the fleet recovers")
+        func forgeOutageMidJob() async throws {
+            var options = Lane.Options()
+            options.minRunners = 0
+            options.forgeImage = GiteaFixture.floorFreeGiteaImage
+            try await Lane.with(forge: .gitea, runtime: .docker, options: options) { lane in
+                let gitea = try #require(lane.fixture as? GiteaFixture)
+                let nonce = E2E.randomID() + E2E.randomID()
+                // The job outlives the outage: it is mid-run when the forge freezes and still running when it thaws.
+                try await lane.fixture.pushWorkflow(
+                    name: "outage", runtime: .docker, nonce: nonce, script: lane.fixture.proofScript(extra: "sleep 75"))
+                let running = try await eventually("the job's instance to start", timeout: 240, interval: 2) {
+                    let names = await Instances.docker(image: lane.image)
+                    return names.isEmpty ? nil : names
+                }
+                try await Task.sleep(for: .seconds(15))  // registered and picked up
+
+                try await gitea.pause()
+                try await Task.sleep(for: .seconds(45))
+                let during = await Instances.docker(image: lane.image)
+                try await gitea.resume()
+
+                #expect(Set(running).isSubset(of: during), "an instance was deleted during the outage: \(during)")
+                #expect(lane.daemon?.isRunning == true, "the daemon died during the outage")
+                let proof = try await lane.fixture.awaitProof(nonce: nonce, timeout: 300)
+                #expect(proof.hasPrefix("Linux"), "proof was: \(proof)")
+                // The fleet still takes new work after the outage.
+                let (_, after) = try await lane.runJob(name: "after-outage", timeout: 300)
+                #expect(after.hasPrefix("Linux"))
+            }
+        }
+
+        /// `warm_pool` keeps booted, unregistered Tart VMs ready so a job skips the clone and boot. Never run live
+        /// before this test.
+        @Test(
+            "a warm Tart VM waits before any job, and the next job claims it",
+            .enabled(if: RuntimeKind.tartLinux.isAvailable, "needs the Tart Linux lane (KINHIN_E2E_TART_LINUX_BASE)"))
+        func warmPoolIsClaimed() async throws {
+            var options = Lane.Options()
+            options.minRunners = 0
+            options.forgeImage = GiteaFixture.floorFreeGiteaImage
+            options.extraConfig = "warm_pool: 1"
+            try await Lane.with(forge: .gitea, runtime: .tartLinux, options: options) { lane in
+                let warm = try await eventually("a warm instance with no job queued", timeout: 300, interval: 3) {
+                    let result = try await lane.sandbox.kinhin(["status", "--json"], timeout: 30)
+                    let status = (try? JSONSerialization.jsonObject(with: Data(result.stdout.utf8))) as? [String: Any]
+                    let records = ((status?["fleet"] as? [String: Any])?["records"] as? [[String: Any]]) ?? []
+                    return records.first { ($0["phase"] as? String) == "warm" }?["id"] as? String
+                }
+                let (_, proof) = try await lane.runJob(name: "warm", timeout: 420)
+                #expect(proof.hasPrefix("Linux"), "proof was: \(proof)")
+                #expect(
+                    lane.sandbox.log().contains("[\(warm)] claimed warm instance"),
+                    "the job did not claim the warm instance \(warm)\n\(lane.logTail())")
             }
         }
 
@@ -131,7 +210,7 @@ extension Infra {
             try await Lane.with(forge: forge, runtime: .docker, options: options) { lane in
                 let nonce = E2E.randomID() + E2E.randomID()
                 try await lane.fixture.pushWorkflow(
-                    name: "nofloor", runsOn: lane.runtime.runsOn, nonce: nonce,
+                    name: "nofloor", runtime: lane.runtime, nonce: nonce,
                     script: lane.fixture.proofScript(extra: ""))
                 if lane.fixture.needsRunnerFloor {
                     // Gitea before 1.25 hides a queued job until a runner exists: with no floor kinhin never sees

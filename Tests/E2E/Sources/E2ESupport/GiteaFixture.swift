@@ -21,7 +21,11 @@ public actor GiteaFixture: ForgeFixture {
     private let repo = "demo"
     private var adminToken = ""
 
-    public init(kind: ForgeKind) throws {
+    /// The Gitea image for lanes that cannot use a runner floor (host mode: the floor lands in the default pool).
+    public static let floorFreeGiteaImage = "gitea/gitea:1.26"
+
+    /// `image` overrides the pinned (or `KINHIN_E2E_*_IMAGE`) default.
+    public init(kind: ForgeKind, image: String? = nil) throws {
         guard kind == .gitea || kind == .forgejo else { throw E2EError.failed("\(kind) is not a Gitea-family forge") }
         guard let address = E2E.lanAddress else { throw E2EError.unavailable("no LAN address for containers to reach") }
         self.kind = kind
@@ -29,15 +33,15 @@ public actor GiteaFixture: ForgeFixture {
         port = try E2E.freePort()
         containerName = "ke2e-\(kind.rawValue)-\(E2E.randomID())"
         if kind == .gitea {
-            image = E2E.flag("KINHIN_E2E_GITEA_IMAGE") ?? "gitea/gitea:1.24"
+            self.image = image ?? E2E.flag("KINHIN_E2E_GITEA_IMAGE") ?? "gitea/gitea:1.24"
             binary = "gitea"
             envPrefix = "GITEA"
         } else {
-            image = E2E.flag("KINHIN_E2E_FORGEJO_IMAGE") ?? "codeberg.org/forgejo/forgejo:11"
+            self.image = image ?? E2E.flag("KINHIN_E2E_FORGEJO_IMAGE") ?? "codeberg.org/forgejo/forgejo:11"
             binary = "forgejo"
             envPrefix = "FORGEJO"
         }
-        needsRunnerFloor = GiteaFixture.needsFloor(kind: kind, image: image)
+        needsRunnerFloor = GiteaFixture.needsFloor(kind: kind, image: self.image)
     }
 
     /// True for a Gitea older than 1.25 (or an image whose version cannot be read, to stay on the safe side).
@@ -108,7 +112,22 @@ public actor GiteaFixture: ForgeFixture {
         _ = try? await Shell.run("docker", ["rm", "-f", "-v", containerName], timeout: 60)
     }
 
-    public func pushWorkflow(name: String, runsOn: String, nonce: String, script: String) async throws {
+    /// Freezes the server: connections are accepted by Docker's proxy but never answered, the way a hung or
+    /// partitioned forge looks to kinhin and to the runners. `resume()` thaws it.
+    public func pause() async throws {
+        let paused = try await Shell.run("docker", ["pause", containerName], timeout: 60)
+        guard paused.ok else { throw E2EError.failed("docker pause failed: \(paused.output)") }
+    }
+
+    public func resume() async throws {
+        let resumed = try await Shell.run("docker", ["unpause", containerName], timeout: 60)
+        guard resumed.ok else { throw E2EError.failed("docker unpause failed: \(resumed.output)") }
+    }
+
+    /// Gitea jobs here ask for the pool's one selecting label, as the docs show (`runs-on: kinhin-docker`).
+    public nonisolated func jobLabels(for runtime: RuntimeKind) -> [String] { [runtime.runsOn] }
+
+    public func pushWorkflow(name: String, labels: [String], nonce: String, script: String) async throws {
         let indented = script.split(separator: "\n", omittingEmptySubsequences: false)
             .map { "          \($0)" }.joined(separator: "\n")
         let yaml = """
@@ -116,7 +135,7 @@ public actor GiteaFixture: ForgeFixture {
             on: [push]
             jobs:
               prove:
-                runs-on: \(runsOn)
+                runs-on: \(labels.count == 1 ? labels[0] : "[" + labels.joined(separator: ", ") + "]")
                 steps:
                   - name: run
                     env:
@@ -192,7 +211,7 @@ public actor GiteaFixture: ForgeFixture {
         """
         set -e
         \(extra)
-        BODY="$(uname -s) $(hostname) ${E2E_EXTRA:-}"
+        BODY="$(uname -s) $(hostname) $(pwd) ${E2E_EXTRA:-}"
         curl -sf -X POST "$E2E_API/issues" -H "Authorization: token $E2E_TOKEN" \\
           -H "Content-Type: application/json" \\
           -d "{\\"title\\":\\"proof-$E2E_NONCE\\",\\"body\\":\\"$BODY\\"}"

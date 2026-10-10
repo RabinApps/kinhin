@@ -230,8 +230,9 @@ final class ImagePreparerTests: XCTestCase {
 
         try await preparer.run(options)
 
-        // Execs: probe, agents, managed toolchains.
-        XCTAssertEqual(ssh.scripts.count, 3)
+        // Execs: probe, agents, managed toolchains, then the disk flush before the commit.
+        XCTAssertEqual(ssh.scripts.count, 4)
+        XCTAssertEqual(ssh.scripts.last, "sync")
         let managed = ssh.scripts[2]
         XCTAssertTrue(managed.contains("mise use --global 'node@22'"), managed)
         XCTAssertTrue(managed.contains("$SUDO apt-get"), "a tart Linux guest elevates through sudo")
@@ -320,6 +321,33 @@ final class ImagePreparerTests: XCTestCase {
         XCTAssertFalse(ssh.scripts[0].contains("mount -t virtiofs"))
     }
 
+    /// `tart stop` powers a Linux guest off at once, so a bake whose writes were still in the page cache committed an
+    /// image without its agents or SSH key (found live by the e2e Tart Linux lane). The guest is flushed last, and a
+    /// flush that fails aborts the bake before the target is touched.
+    func testTheGuestIsFlushedBeforeTheCommitAndAFailedFlushAbortsIt() async throws {
+        let ssh = FakeSSH()
+        ssh.setStdout("Linux", forCall: 0)
+        let tart = FakeTart()
+        try await ImagePreparer(tart: tart, ssh: ssh).run(ImagePreparer.Options(storedTokens: [.github]))
+        XCTAssertEqual(ssh.scripts.last, "sync", "the flush is the last guest command")
+        XCTAssertFalse(tart.cloneCalls.filter { $0.source.hasPrefix(ImagePreparer.scratchPrefix) }.isEmpty)
+
+        let failing = FakeSSH()
+        failing.setStdout("Linux", forCall: 0)
+        failing.setStderr("I/O error", forCall: 2)  // probe, agents, flush
+        let failingTart = FakeTart()
+        do {
+            try await ImagePreparer(tart: failingTart, ssh: failing).run(
+                ImagePreparer.Options(storedTokens: [.github]))
+            XCTFail("a failed flush must fail the bake")
+        } catch {
+            XCTAssertTrue("\(error)".contains("flush"), "\(error)")
+        }
+        XCTAssertTrue(
+            failingTart.cloneCalls.filter { $0.source.hasPrefix(ImagePreparer.scratchPrefix) }.isEmpty,
+            "nothing was committed from an unflushed scratch VM")
+    }
+
     func testAGuestOSOverrideSkipsTheProbe() async throws {
         let ssh = FakeSSH()
         let preparer = ImagePreparer(tart: FakeTart(), ssh: ssh)
@@ -327,7 +355,8 @@ final class ImagePreparerTests: XCTestCase {
             ImagePreparer.Options(
                 storedTokens: [.github], guestOS: .linux))
 
-        XCTAssertEqual(ssh.scripts.count, 1, "no probe exec when the guest OS is overridden: just the bake")
+        XCTAssertEqual(
+            ssh.scripts.count, 2, "no probe exec when the guest OS is overridden: just the bake and the disk flush")
         XCTAssertTrue(ssh.scripts[0].contains("actions-runner-linux-arm64-"), "Linux agents baked directly")
     }
 

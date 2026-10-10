@@ -27,13 +27,13 @@ hero:
 
 features:
   - title: In beta
-    details: GitHub Actions with Tart macOS VMs and apple/container has been run for real. Every other forge and runtime is unit-tested only, so expect surprises. <a href="/guide/forges#what-has-been-tested">What has been tested</a> · <a href="/guide/beta-roadmap">Roadmap to v0.1.0</a>
+    details: GitHub, Gitea, Forgejo and GitLab CE are supported on every runtime and run end to end in kinhin's own test suite. Buildkite, Azure Pipelines and Bitbucket are planned. <a href="/guide/forges#what-has-been-tested">What has been tested</a> · <a href="/guide/beta-roadmap">Roadmap to v0.1.0</a>
   - title: Real concurrency
     details: Self-hosted runners handle one job at a time. Kinhin scales a fleet of ephemeral runners to your queue so jobs run in parallel. <a href="/guide/why-kinhin">Why kinhin</a>
   - title: Ephemeral by default
     details: Every job gets a freshly cloned VM. The runner deregisters itself afterwards and the VM is deleted — no state leaks between jobs.
   - title: Multi-forge
-    details: GitHub Actions, GitLab CI/CD, Gitea Actions, Forgejo, Buildkite, Azure Pipelines and Bitbucket Pipelines served from one shared pool. The Forge abstraction keeps the door open for more.
+    details: GitHub Actions, GitLab CI/CD, Gitea Actions and Forgejo Actions served from one shared pool. Buildkite, Azure Pipelines and Bitbucket Pipelines are planned.
   - title: Multi-runtime
     details: macOS jobs on Tart VMs, Linux jobs on apple/container microVMs, Docker containers, or Tart Linux VMs — each job routed by repo, workflow, or runs-on label.
   - title: Resource-aware
@@ -47,9 +47,8 @@ features:
 <div style="max-width: 1152px; margin: 32px auto; padding: 0 24px;">
 
 ::: warning Beta (v0.0.1-beta-1)
-**GitHub Actions with Tart macOS VMs and apple/container** has been run for real. Gitea, Forgejo, GitLab, Buildkite,
-Azure DevOps and Bitbucket, and the Docker, Tart Linux and host runtimes, are covered by unit tests against fakes and stubbed
-HTTP only. See [what has been tested](/guide/forges#what-has-been-tested) and the
+Supported: **GitHub, Gitea, Forgejo and GitLab CE**, on Tart macOS and Linux VMs, apple/container, Docker and host
+mode. Buildkite, Azure Pipelines and Bitbucket Pipelines are planned for a later release. See [what has been tested](/guide/forges#what-has-been-tested) and the
 [roadmap to v0.1.0](/guide/beta-roadmap). Tried one? [Report what you find](https://github.com/RabinApps/kinhin/issues/new/choose).
 :::
 

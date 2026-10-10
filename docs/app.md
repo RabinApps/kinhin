@@ -21,15 +21,15 @@ press **Start fleet** while the macOS image is still being prepared: the prepara
 macOS jobs begin when it finishes. Everything can be changed later in the Setup tab. The fleet lives in kinhin's single
 main window (and the ○ in your menu bar shows the number of live runner VMs).
 
-### Untested forges and runtimes
+### Supported forges and runtimes
 
-The forge grid, the Linux runtime choices and the runtime pickers mark anything not yet run against the real service
-with an **untested** badge. These are implemented and covered by unit and contract tests, but only the items below have
-been exercised end to end. The list comes from one table in the code (`MaturityTable`).
+The beta supports GitHub, Gitea, Forgejo and GitLab CE on every runtime. The forge grid also shows Buildkite, Azure
+DevOps and Bitbucket with an **untested** badge: their support is planned for a later release and is not part of the
+beta. The list comes from one table in the code (`MaturityTable`).
 
 <!-- docs-sync:begin maturity -->
-Live-tested forges (`MaturityTable`): `github`, `gitea`, `forgejo`. Live-tested runtimes: `tart`, `appleContainer` (`tart` means macOS VMs).
-Every other forge and runtime, and Tart serving Linux VMs, is shown with an **untested** badge.
+Live-tested forges (`MaturityTable`): `github`, `gitea`, `forgejo`, `gitlab`. Live-tested runtimes: `tart`, `appleContainer`, `docker`, `host` (`tart` means macOS VMs).
+Tart serving Linux VMs is live-tested too. Every other forge and runtime is shown with an **untested** badge.
 <!-- docs-sync:end maturity -->
 
 ## One window, three tabs
@@ -39,7 +39,7 @@ Everything kinhin does happens in a single main window. A segmented control swit
 | Tab          | Contents                                                                                                                                                                                                                                                                                |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Fleet**    | The **Runtimes** diagram: a lane per execution runtime — 🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host — holding one icon-led row per live instance — the phase-colored icon, that instance's VM-row detail, and its **Pipeline…**/**Delete** actions (a busy row opens its pipeline) — or the word *idle* when the runtime has nothing running; then live status, Start/Stop/Pause, Current jobs, Queued work, and buttons for Logs and Diagnostics. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason) rather than sending you back to Setup.                                                         |
-| **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps and Bitbucket — select every one to serve), pick each account's repo, org, project or group (its `scope` in `accounts:`), get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a three-step wizard.                                                  |
+| **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea and Forgejo — select every one to serve; the planned forges carry an **untested** badge), pick each account's repo, org, project or group (its `scope` in `accounts:`), get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a three-step wizard.                                                  |
 | **Advanced** | **Accounts** (forges), **Capacity** (this Mac's macOS and Linux runtimes, the reserve, the budget split between runtimes, VM counts and sizes, with Apply), **Routing** (pools, routes, the default pool, labels), **Containers** (containers and volumes), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, config file).                           |
 
 ### This Mac: macOS and Linux jobs
@@ -77,10 +77,7 @@ What a forge exposes decides how deep it goes (the sheet says so when a forge re
 | Forge          | Jobs                      | Steps within a job                         | Output                              |
 | -------------- | ------------------------- | ------------------------------------------ | ----------------------------------- |
 | GitHub         | every job of the run      | yes                                        | per step (sliced from the job log)  |
-| Azure DevOps   | the build timeline's jobs | yes (the job's tasks)                      | per step, and per job               |
 | GitLab         | the pipeline's jobs       | no (GitLab's API has no steps below a job) | per job (the trace)                 |
-| Buildkite      | the build's script jobs   | no                                         | per job (needs `read_build_logs`)   |
-| Bitbucket      | the pipeline's steps      | no (every running step is marked as yours) | per step (Bitbucket's unit)         |
 | Gitea, Forgejo | the running task          | no                                         | not available (no stable public API) |
 
 Output is cleaned of terminal colors and keeps the most recent 200,000 characters. A forge may not serve a log until the
@@ -101,8 +98,7 @@ kinhin pipeline --json                   # machine-readable: [{"vm": …, "pipel
 
 It reads from the running daemon, so it needs `kinhin daemon install` (or `kinhin daemon`) and fails without one.
 
-The data comes from the forge APIs your token already uses, so no extra permission is needed beyond reading jobs
-(Azure DevOps also reads the build timeline). Lookups are cached for two seconds per VM to spare the API budget.
+The data comes from the forge APIs your token already uses, so no extra permission is needed beyond reading jobs. Lookups are cached for two seconds per VM to spare the API budget.
 
 ## Live CPU and RAM usage
 

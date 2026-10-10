@@ -6,11 +6,12 @@
 #
 #   scripts/e2e.sh                 quick tier: CLI, security and coverage guards (no Docker needed)
 #   scripts/e2e.sh --local         + Gitea/Forgejo lifecycle, fleet behavior, smoke toolchains (Docker/container)
-#   scripts/e2e.sh --full          + GitLab CE and the whole toolchain catalog (hours, GBs)
+#   scripts/e2e.sh --full          + GitLab CE, the Tart macOS/Linux and host lanes, the whole toolchain catalog (hours, GBs)
 #   scripts/e2e.sh --local -- --filter LifecycleTests     extra args after -- go to `swift test`
 #
 # Narrow the matrix with KINHIN_E2E_FORGES=gitea,forgejo and KINHIN_E2E_RUNTIMES=docker,appleContainer.
-# Other switches: KINHIN_E2E_KEEP=1 (keep sandboxes), KINHIN_E2E_TART_BASE=<local macOS tart image> (Tart lane),
+# Other switches: KINHIN_E2E_KEEP=1 (keep sandboxes), KINHIN_E2E_TART_BASE=<macOS tart image> (Tart macOS lane),
+# KINHIN_E2E_TART_LINUX_BASE=<Linux tart image> (Tart Linux lane), KINHIN_E2E_HOST=1 (host lane),
 # KINHIN_E2E_GITHUB_TOKEN + KINHIN_E2E_GITHUB_REPO (the gated GitHub lane).
 set -euo pipefail
 
@@ -24,7 +25,7 @@ while [ $# -gt 0 ]; do
     --local) tier=local ;;
     --full) tier=full ;;
     --) shift; extra=("$@"); break ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
     *) echo "unknown option: $1 (see --help)" >&2; exit 2 ;;
   esac
   shift
@@ -49,6 +50,12 @@ case "$tier" in
     filter=()
     export KINHIN_E2E_HEAVY=1
     export KINHIN_E2E_TOOLCHAINS=full
+    # Every runtime: the curated Tart bases (tens of GB once) and the host lane, unless the caller chose otherwise.
+    if command -v tart >/dev/null 2>&1; then
+      export KINHIN_E2E_TART_BASE="${KINHIN_E2E_TART_BASE:-ghcr.io/cirruslabs/macos-tahoe-base:latest}"
+      export KINHIN_E2E_TART_LINUX_BASE="${KINHIN_E2E_TART_LINUX_BASE:-ghcr.io/cirruslabs/ubuntu:latest}"
+    fi
+    export KINHIN_E2E_HOST="${KINHIN_E2E_HOST:-1}"
     ;;
 esac
 

@@ -15,7 +15,13 @@ extension Infra {
 
                 // The job really ran in the guest: the kernel it reports is the guest's, not this Mac's.
                 #expect(proof.hasPrefix(cell.runtime.guestKernel), "proof \(nonce) was: \(proof)")
-                #expect(!proof.contains(ProcessInfo.processInfo.hostName), "the job ran on the host: \(proof)")
+                if cell.runtime.isIsolated {
+                    #expect(!proof.contains(ProcessInfo.processInfo.hostName), "the job ran on the host: \(proof)")
+                } else {
+                    // Host mode: the job must run inside its instance's scrubbed work directory in this sandbox.
+                    let workDirs = "\(lane.sandbox.supportDirectory.lastPathComponent)/host-instances/kinhin-"
+                    #expect(proof.contains(workDirs), "the host job ran outside its work directory: \(proof)")
+                }
 
                 // The instance that ran it goes away (after the forge's exit rule: deregistration or idle grace).
                 let during = await Instances.running(cell.runtime, image: lane.image)
@@ -42,7 +48,7 @@ extension Infra {
             try await Lane.with(forge: cell.forge, runtime: cell.runtime) { lane in
                 let nonce = E2E.randomID()
                 try await lane.fixture.pushWorkflow(
-                    name: "boom", runsOn: cell.runtime.runsOn, nonce: nonce, script: "echo failing on purpose\nexit 1")
+                    name: "boom", runtime: cell.runtime, nonce: nonce, script: "echo failing on purpose\nexit 1")
                 let statuses = try await eventually("the forge to report the run failed", timeout: 480, interval: 4) {
                     let statuses = try await lane.fixture.runStatuses()
                     return statuses.contains("failure") ? statuses : nil

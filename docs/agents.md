@@ -14,7 +14,7 @@ Seven skills ship in the repository — one per workflow an agent actually perfo
 | `kinhin-install` | Install kinhin and Tart, first-time setup, a rented or remote Mac |
 | `kinhin-configure` | Write `config.yaml` safely: accounts, labels, capacity, routes |
 | `kinhin-operate` | Start/stop/pause, status, logs, pipeline view, daemon, cleanup, scaling |
-| `kinhin-add-forge-account` | Connect a GitHub, GitLab, Gitea/Forgejo, Buildkite, Azure DevOps or Bitbucket account |
+| `kinhin-add-forge-account` | Connect a GitHub, GitLab, Gitea or Forgejo account |
 | `kinhin-images-toolchains` | `image prepare`, base-image pinning, `.kinhin.yml`, per-project toolchains |
 | `kinhin-route-workflow` | Choose and route a workflow to tart, appleContainer, docker or host |
 | `kinhin-troubleshoot` | Jobs queued but no VMs, registration failures, token rejected, disk filling |

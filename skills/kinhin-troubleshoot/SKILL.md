@@ -41,7 +41,8 @@ description: Diagnose kinhin problems - jobs queued but no VMs, runner never reg
 - Read-only commands first. Do not run `cleanup --yes`, `stop` or reinstall steps without telling the user what they
   remove.
 - Never ask the user to paste a token into chat. Point them to `kinhin auth set`.
-- If the forge is not GitHub with Tart macOS VMs, say it is untested in the wild and ask for a "Forge report" issue.
+- If the forge is Buildkite, Azure DevOps or Bitbucket, say it is planned and not supported yet. For a supported forge
+  (GitHub, Gitea, Forgejo, GitLab CE) that misbehaves, ask for a "Forge report" issue with `kinhin doctor --bundle`.
 - If the symptom is not listed, run `kinhin help` for the current commands and read the troubleshooting guide.
 
 ## More

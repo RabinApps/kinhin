@@ -196,6 +196,45 @@ final class FleetEdgeTests: XCTestCase {
         try await waitUntil(timeout: 10) { tart.deleteCalls.count == 2 }
     }
 
+    /// The plan reads phases the exit watch set from a cached runner list, so a runner that just took the job (which
+    /// is what emptied the queue) can still read `.ready`. Scale-down must ask the forge first and keep a busy one;
+    /// it deleted it mid-job on Gitea 1.26 with no floor (e2e: longJobSurvivesTheIdleGrace).
+    func testScaleDownKeepsAReadyInstanceWhoseRunnerIsBusy() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        let engine = makeEngine(tart: tart, github: github, ssh: FakeSSH())
+        for (name, busy) in [("kinhin-working", true), ("kinhin-idle", false)] {
+            var record = VMRecord(id: name, phase: .ready)
+            record.runtimeID = .tart
+            record.platform = "github"
+            engine.store.upsert(record)
+            tart.vms[name] = TartVM(name: name, source: "base", status: "running")
+            github.register(name: name, busy: busy)
+        }
+
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { tart.deleteCalls.count == 1 }
+        XCTAssertEqual(tart.deleteCalls, ["kinhin-idle"], "only the idle instance may go")
+        XCTAssertEqual(engine.store.all.first { $0.id == "kinhin-working" }?.phase, .busy)
+    }
+
+    /// A runner list that cannot be read is not proof of idleness: the scale-down waits.
+    func testScaleDownIsHeldWhileTheRunnerListIsUnreadable() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        let engine = makeEngine(tart: tart, github: github, ssh: FakeSSH())
+        var record = VMRecord(id: "kinhin-unknown", phase: .ready)
+        record.runtimeID = .tart
+        record.platform = "github"
+        engine.store.upsert(record)
+        tart.vms["kinhin-unknown"] = TartVM(name: "kinhin-unknown", source: "base", status: "running")
+        github.failRunnerList = true
+
+        try await engine.reconcileOnce()
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(tart.deleteCalls.isEmpty, "an unreadable runner list must not read as idle")
+    }
+
     /// A failed `tart delete` must not make the engine forget the VM: the
     /// record stays (`.deleting`) and the next pass retries until it is gone.
     func testFailedTeardownKeepsTheRecordAndRetries() async throws {

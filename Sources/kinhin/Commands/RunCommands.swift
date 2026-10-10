@@ -305,14 +305,18 @@ enum RunCommands {
         print("skipped queued jobs for '\(forge.displayName)'")
     }
 
+    /// The tail of the log file, redacted for tokens: the same lines the MCP `logs` tool returns. This read the
+    /// in-memory log of its own (fresh) process, which is always empty, so it never showed the daemon's history
+    /// (found by the e2e suite on a busy fleet).
     static func logs(_ args: [String]) {
-        let count = Int(flag("-n", in: args) ?? "50") ?? 50
-        let entries = Log.snapshot(limit: count)
-        if entries.isEmpty {
-            print("no in-memory logs; daemon logs live at \(Paths.logsDirectory.path)")
-        } else {
-            for entry in entries { print(entry.formatted) }
+        let count = max(1, min(Int(flag("-n", in: args) ?? "50") ?? 50, 5000))
+        let file = Paths.logsDirectory.appendingPathComponent("kinhin.log")
+        let tail = SupportBundle.tail(of: file, lines: count)
+        guard !tail.isEmpty else {
+            print("no log lines yet; logs live at \(Paths.logsDirectory.path)")
+            return
         }
+        for line in tail.components(separatedBy: "\n") { print(Log.redact(line)) }
     }
 
     /// The `kinhin daemon install` core, shared with the MCP `daemon_install`

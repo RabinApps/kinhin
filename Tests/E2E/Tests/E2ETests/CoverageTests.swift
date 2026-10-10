@@ -24,9 +24,9 @@ struct CoverageTests {
         "forgejo": .live("Forgejo in Docker (LifecycleTests)"),
         "gitlab": .live("GitLab CE in Docker (LifecycleTests; heavy: KINHIN_E2E_HEAVY=1 or KINHIN_E2E_FORGES=gitlab)"),
         "github": .gated("KINHIN_E2E_GITHUB_TOKEN + KINHIN_E2E_GITHUB_REPO (LifecycleTests, once configured)"),
-        "buildkite": .waived("hosted-only control plane; needs a Buildkite org and cluster token"),
-        "azuredevops": .waived("Azure DevOps Services only; needs an organization, agent pool and PAT"),
-        "bitbucket": .waived("Bitbucket Cloud only; needs a workspace and access token"),
+        "buildkite": .waived("planned, not supported yet; hosted-only, needs a Buildkite org and cluster token"),
+        "azuredevops": .waived("planned, not supported yet; needs an organization, agent pool and PAT"),
+        "bitbucket": .waived("planned, not supported yet; Bitbucket Cloud only, needs a workspace and token"),
     ]
 
     /// Command → the test (or reason) that exercises it. Keyed by the words `kinhin help` prints.
@@ -41,7 +41,7 @@ struct CoverageTests {
         "setup repair": "waived: installs software on the machine",
         "runtimes": "CLITests.runtimesAndRoutes", "runtimes route add": "CLITests.runtimesAndRoutes",
         "runtimes route remove": "CLITests.runtimesAndRoutes",
-        "image prepare": "ImageBaker (every lifecycle lane bakes through it)",
+        "image prepare": "ImageBaker (every lifecycle lane bakes through it; Tart lanes use --source/--target)",
         "image list": "CLITests.readOnlyInventory",
         "image delete": "ImageBaker.removeAll", "image prune": "waived: deletes the developer's unused images",
         "image digest": "waived: needs a registry round trip",
@@ -49,16 +49,17 @@ struct CoverageTests {
         "toolchains list-images": "CLITests.readOnlyInventory",
         "toolchains prune": "waived: deletes shared cache entries",
         "toolchains helper": "ToolchainTests.perJobInstall",
-        "start": "waived: foreground twin of daemon (covered by the live probe in docs/e2e-testing.md)",
+        "start": "waived: foreground twin of daemon (same engine; Sandbox.startDaemon covers it)",
         "daemon": "Sandbox.startDaemon (every lane)", "daemon install": "waived: installs a LaunchAgent",
         "daemon uninstall": "waived: removes a LaunchAgent",
-        "status": "FleetBehaviorTests (status --json)", "pause": "FleetBehaviorTests.pauseAndResume",
+        "status": "FeatureTests.readCommandsOnABusyFleet (status --json on a busy fleet)",
+        "pause": "FleetBehaviorTests.pauseAndResume",
         "resume": "FleetBehaviorTests.pauseAndResume", "stop": "Daemon.stop (every lane)",
-        "logs": "waived: reads the in-memory log of a running daemon",
+        "logs": "CLITests.logsShowTheFileTailRedacted, FeatureTests.readCommandsOnABusyFleet",
         "watch": "waived: interactive refresh loop",
-        "pipeline": "waived: Gitea/Forgejo/GitLab give job-level detail only; GitHub once configured",
-        "requeue": "waived: acts on a forge's queue; needs a queued job to exist",
-        "skip": "waived: acts on a forge's queue; needs a queued job to exist",
+        "pipeline": "FeatureTests.readCommandsOnABusyFleet (Gitea: job-level detail only; steps need GitHub)",
+        "requeue": "FeatureTests.readCommandsOnABusyFleet (refused on Gitea; GitHub-only, runs once that lane exists)",
+        "skip": "FeatureTests.readCommandsOnABusyFleet (refused on Gitea; GitHub-only, runs once that lane exists)",
         "cleanup": "waived: deletes the developer's VMs, images and cache",
         "bench": "ToolchainTests.installAndRun", "reset": "CLITests.resetConfigScope",
         "workflow test": "CLITests.localWorkflows", "workflow route": "CLITests.localWorkflows",
@@ -136,6 +137,27 @@ struct CoverageTests {
         #expect(unclassified.isEmpty, "forges with no e2e classification: \(unclassified)")
         let stale = Set(Self.forges.keys).subtracting(supported).sorted()
         #expect(stale.isEmpty, "classified forges kinhin no longer supports: \(stale)")
+    }
+
+    @Test("every runtime kinhin can route to has a lane, and every lane names a runtime kinhin has")
+    func everyRuntimeHasALane() async throws {
+        let sandbox = try Sandbox()
+        defer { sandbox.dispose() }
+        // "<runtime> is tart, appleContainer, docker or host." (the help text may wrap the list across lines)
+        let help = try await sandbox.kinhin(["runtimes", "route", "add", "--help"]).stdout
+            .replacingOccurrences(of: "\n", with: " ")
+        let sentence = try #require(help.range(of: "<runtime> is ").map { help[$0.upperBound...] }, "\(help)")
+        let list = sentence.prefix { $0 != "." }
+        let supported = Set(
+            list.replacingOccurrences(of: " or ", with: ", ").split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
+        #expect(supported.count >= 4, "parsed too few runtimes: \(supported)")
+        let lanes = Set(RuntimeKind.allCases.map(\.kinhinRuntime))
+        #expect(supported.subtracting(lanes).isEmpty, "runtimes with no e2e lane: \(supported.subtracting(lanes))")
+        #expect(
+            lanes.subtracting(supported).isEmpty, "lanes for runtimes kinhin lacks: \(lanes.subtracting(supported))")
+        // Tart runs two guest OSes, built and labelled differently: both need a lane.
+        #expect(RuntimeKind.allCases.filter(\.isTart).count == 2)
     }
 
     @Test("every fixture is classified live or gated, and every live or gated forge has a fixture")

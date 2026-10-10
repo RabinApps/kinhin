@@ -53,14 +53,14 @@ public actor GitHubFixture: ForgeFixture {
         """
         set -e
         \(extra)
-        BODY="$(uname -s) $(hostname) ${E2E_EXTRA:-}"
+        BODY="$(uname -s) $(hostname) $(pwd) ${E2E_EXTRA:-}"
         curl -sf -X POST "$E2E_API/issues" -H "Authorization: Bearer $E2E_TOKEN" \\
           -H "Accept: application/vnd.github+json" -H "Content-Type: application/json" \\
           -d "{\\"title\\":\\"proof-$E2E_NONCE\\",\\"body\\":\\"$BODY\\"}"
         """
     }
 
-    public func pushWorkflow(name: String, runsOn: String, nonce: String, script: String) async throws {
+    public func pushWorkflow(name: String, labels: [String], nonce: String, script: String) async throws {
         let path = ".github/workflows/e2e-\(name)-\(nonce).yml"
         let indented = script.split(separator: "\n", omittingEmptySubsequences: false)
             .map { "          \($0)" }.joined(separator: "\n")
@@ -74,7 +74,7 @@ public actor GitHubFixture: ForgeFixture {
               issues: write
             jobs:
               prove:
-                runs-on: [self-hosted, linux, arm64, \(runsOn)]
+                runs-on: [\(labels.joined(separator: ", "))]
                 steps:
                   - name: run
                     env:

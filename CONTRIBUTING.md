@@ -1,6 +1,6 @@
 # Contributing
 
-kinhin is built by one developer, and bug reports, feature requests and pull requests are welcome. `swift build` and
+kinhin is built by one developer with a bunch of help from AI. Bug reports, feature requests and pull requests are welcome. `swift build` and
 `swift test` need no VMs or network. The package layout is in [docs/architecture.md](docs/architecture.md).
 
 Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -113,7 +113,7 @@ and `scripts/e2e.sh --local` before changing forge registration, runtimes, the e
 
 ## Skills
 
-`skills/<name>/SKILL.md` files are shipped product surface — the agent skills for *using* kinhin — published through
+`skills/<name>/SKILL.md` files are shipped product surface — the agent skills for _using_ kinhin — published through
 `.claude-plugin/plugin.json`, with `.claude-plugin/marketplace.json` making the repo a one-command Claude Code
 marketplace (`claude plugin marketplace add RabinApps/kinhin`). They are not contributor docs (those live in `docs/`);
 edit them only when the CLI or a workflow an agent needs changes.
@@ -185,12 +185,12 @@ reason.
 
 **Where text goes**
 
-| Text is… | Write |
-| --- | --- |
-| a SwiftUI literal (`Text`, `Button`, `Label`, `Toggle`, `Picker`, `.help`, `.accessibilityLabel`, `HintText`, `FormCard(title:subtitle:)`, `StatusText(text:)`) | the plain literal; it is already a `LocalizedStringKey` |
-| built in a model, an `NSMenuItem`, an `NSAlert`, an accessibility string, an App Intent reply | `String(localized: "…", bundle: .l10n, comment: "…")` |
-| already localized by a model and handed to a view | `Text(verbatim:)`, `HintText(verbatim:)`, `StatusText(verbatim:)`, `FormCard(title: Text(verbatim: …))` |
-| a log line, identifier, URL, file name or command | an ordinary string, never localized |
+| Text is…                                                                                                                                                        | Write                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| a SwiftUI literal (`Text`, `Button`, `Label`, `Toggle`, `Picker`, `.help`, `.accessibilityLabel`, `HintText`, `FormCard(title:subtitle:)`, `StatusText(text:)`) | the plain literal; it is already a `LocalizedStringKey`                                                 |
+| built in a model, an `NSMenuItem`, an `NSAlert`, an accessibility string, an App Intent reply                                                                   | `String(localized: "…", bundle: .l10n, comment: "…")`                                                   |
+| already localized by a model and handed to a view                                                                                                               | `Text(verbatim:)`, `HintText(verbatim:)`, `StatusText(verbatim:)`, `FormCard(title: Text(verbatim: …))` |
+| a log line, identifier, URL, file name or command                                                                                                               | an ordinary string, never localized                                                                     |
 
 - Always pass `bundle: .l10n` (it finds the catalog under `swift run` and `swift test`, where `Bundle.main` is not the
   app) and a `comment:` that tells a translator where the string appears and what each placeholder is.

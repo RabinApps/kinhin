@@ -25,6 +25,8 @@ public final class Lane: @unchecked Sendable {
         public var extraConfig = ""
         /// Skip starting the daemon (the scenario starts it itself).
         public var startDaemon = true
+        /// A Gitea/Forgejo image instead of the pinned (or `KINHIN_E2E_*_IMAGE`) one.
+        public var forgeImage: String?
         public init() {}
     }
 
@@ -33,23 +35,50 @@ public final class Lane: @unchecked Sendable {
         -> Lane
     {
         guard runtime.isAvailable else { throw E2EError.unavailable(runtime.unavailableReason) }
+        // kinhin adopts every `kinhin-*` instance its runtimes list, whoever made it. Starting next to a real fleet
+        // (or a previous run's leak) would let this sandbox adopt, and later delete, instances it does not own.
+        let foreign = await Instances.foreign()
+        guard foreign.isEmpty else {
+            throw E2EError.failed(
+                "refusing to start a lane next to kinhin instances it does not own: \(foreign). Stop the other fleet "
+                    + "(or remove the leftovers) first.")
+        }
         let fixture: any ForgeFixture
         switch forge {
-        case .gitea, .forgejo: fixture = try GiteaFixture(kind: forge)
+        // Host lanes run with no floor, so they need a Gitea that lists queued jobs before a runner exists.
+        case .gitea where options.forgeImage == nil && runtime == .host && E2E.flag("KINHIN_E2E_GITEA_IMAGE") == nil:
+            fixture = try GiteaFixture(kind: forge, image: GiteaFixture.floorFreeGiteaImage)
+        case .gitea, .forgejo: fixture = try GiteaFixture(kind: forge, image: options.forgeImage)
         case .gitlab: fixture = try GitLabFixture()
         case .github: fixture = try GitHubFixture()
+        }
+        let minRunners = options.minRunners ?? (fixture.needsRunnerFloor ? 1 : 0)
+        if runtime == .host, minRunners > 0 {
+            throw E2EError.unavailable("a min_runners floor lands in the default pool, not the host route")
         }
         try await fixture.start()
         do {
             let account = await fixture.account
-            let image = try await ImageBaker.shared.ensure(runtime, accounts: [account])
             let sandbox = try Sandbox()
+            let image: String
+            if runtime == .host {
+                // Nothing to bake: the "image" of a host lane is its sandbox, where the agents and work dirs live.
+                image = sandbox.supportDirectory.path
+            } else {
+                image = try await ImageBaker.shared.ensure(runtime, accounts: [account])
+            }
             sandbox.setToken(await fixture.token, account: account.name)
             var config = FleetConfig(accounts: [account], runtime: runtime, image: image)
-            config.minRunners = options.minRunners ?? (fixture.needsRunnerFloor ? 1 : 0)
+            config.minRunners = minRunners
             config.maxRunners = options.maxRunners
             config.extra = options.extraConfig
             try sandbox.writeConfig(config.yaml())
+            if runtime == .host {
+                let installed = try await sandbox.kinhin(["setup", "repair", "host-agent"], timeout: 900)
+                guard installed.ok else {
+                    throw E2EError.failed("host agent install failed (\(installed.status)): \(installed.output)")
+                }
+            }
             let lane = Lane(fixture: fixture, sandbox: sandbox, runtime: runtime, image: image)
             if options.startDaemon { try await lane.startDaemon() }
             return lane
@@ -85,7 +114,7 @@ public final class Lane: @unchecked Sendable {
     ) async throws -> (nonce: String, proof: String) {
         let nonce = E2E.randomID() + E2E.randomID()
         try await fixture.pushWorkflow(
-            name: name, runsOn: runtime.runsOn, nonce: nonce, script: fixture.proofScript(extra: extraStep))
+            name: name, runtime: runtime, nonce: nonce, script: fixture.proofScript(extra: extraStep))
         let proof = try await fixture.awaitProof(nonce: nonce, timeout: timeout)
         return (nonce, proof)
     }

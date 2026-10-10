@@ -233,10 +233,13 @@ public struct GiteaClient: Sendable {
     /// caller falls back to the task queue and decides the floor. `runnerLabels` is the label set a runner of this
     /// fleet would register with: Forgejo returns only the waiting jobs whose `runs-on` fits inside it.
     func queuedJobs(runnerLabels: [String] = []) async throws -> [ForgeJob] {
-        try await jobs(runnerLabels: runnerLabels).map { job in
+        // A repo-scoped account's jobs all belong to its one repository, whatever the entry says (Forgejo's
+        // names none), so repo routes apply to them.
+        let scopeRepository = credentials.scope.contains("/") ? credentials.scope : nil
+        return try await jobs(runnerLabels: runnerLabels).map { job in
             ForgeJob(
-                name: job.name ?? "job", runnerName: nil, repository: job.repository, labels: job.labels,
-                ref: job.ref, sha: job.sha)
+                name: job.name ?? "job", runnerName: nil, repository: job.repository ?? scopeRepository,
+                labels: job.labels, ref: job.ref, sha: job.sha)
         }
     }
 
@@ -469,10 +472,11 @@ struct GiteaJob: Decodable {
     let id: Int?
     let name: String?
     let status: String?
-    /// Repo attribution on the job itself (Gitea 1.25+ includes
-    /// `repository.full_name` on org and repo jobs; Forgejo's runner-jobs
-    /// shape is narrower, so this can be nil there).
+    /// The job's repository (`owner/name`). Neither queue endpoint names it outright (probed live: a Gitea 1.26
+    /// job carries only `url`, `…/repos/<owner>/<name>/actions/jobs/<id>`; a Forgejo 11 entry only `repo_id`), so
+    /// it is read from a `repository` field when a server sends one, else from that `url`. Nil when neither says.
     let repository: String?
+    /// Branch and commit: `head_branch` / `head_sha` on Gitea 1.25+ (`ref` / `sha` on older shapes).
     let ref: String?
     let sha: String?
     /// The job's `runs-on` labels: `labels` on Gitea, `runs_on` on Forgejo. Routing opts a job into a pool by them.
@@ -483,17 +487,38 @@ struct GiteaJob: Decodable {
         id = try c.decodeIfPresent(Int.self, forKey: .id)
         name = try c.decodeIfPresent(String.self, forKey: .name)
         status = try c.decodeIfPresent(String.self, forKey: .status)
-        repository = try c.decodeIfPresent(String.self, forKey: .repository)
-        ref = try c.decodeIfPresent(String.self, forKey: .ref)
-        sha = try c.decodeIfPresent(String.self, forKey: .sha)
+        // A string on some shapes, an object with `full_name` on others.
+        let asString = try? c.decodeIfPresent(String.self, forKey: .repository)
+        let asObject = try? c.decodeIfPresent(RepositoryRef.self, forKey: .repository)
+        let named = (asString ?? nil) ?? (asObject ?? nil)?.fullName
+        let jobURL = try c.decodeIfPresent(String.self, forKey: .url)
+        repository = named ?? Self.repository(fromJobURL: jobURL)
+        ref = try c.decodeIfPresent(String.self, forKey: .ref) ?? c.decodeIfPresent(String.self, forKey: .headBranch)
+        sha = try c.decodeIfPresent(String.self, forKey: .sha) ?? c.decodeIfPresent(String.self, forKey: .headSHA)
         labels =
             try c.decodeIfPresent([String].self, forKey: .labels)
             ?? c.decodeIfPresent([String].self, forKey: .runsOn)
     }
 
+    /// `owner/name` from a job's API URL (`…/api/v1/repos/<owner>/<name>/actions/jobs/<id>`), nil for any other shape.
+    static func repository(fromJobURL url: String?) -> String? {
+        guard let url, let path = URL(string: url)?.path else { return nil }
+        let parts = path.split(separator: "/").map(String.init)
+        guard let repos = parts.firstIndex(of: "repos"), parts.count > repos + 3, parts[repos + 3] == "actions"
+        else { return nil }
+        return "\(parts[repos + 1])/\(parts[repos + 2])"
+    }
+
+    private struct RepositoryRef: Decodable {
+        let fullName: String?
+        enum CodingKeys: String, CodingKey { case fullName = "full_name" }
+    }
+
     enum CodingKeys: String, CodingKey {
-        case id, name, status, repository, ref, sha, labels
+        case id, name, status, repository, ref, sha, labels, url
         case runsOn = "runs_on"
+        case headBranch = "head_branch"
+        case headSHA = "head_sha"
     }
 }
 

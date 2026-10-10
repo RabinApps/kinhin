@@ -226,12 +226,12 @@ Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirec
 | Base path                  | github.com vs GHES/GHEC | `/` for github.com, `/api/v3` for GHES, `/api/v3` for GHEC data residency (`api.<subdomain>.ghe.com`). |
 | `/orgs/{org}/actions/runs` | all                     | Not used (undocumented).                                                                               |
 
-## Audit findings
+## Open notes
 
-1. **Resolved (2026-10-01): undocumented endpoint.** `GET /orgs/{org}/actions/runs` is absent from the OpenAPI descriptions for both github.com versions and from GHES 3.14 and 3.22. It used to be the classic-token fast path, with a per-repository fallback on 404. kinhin never calls it now: org scope reads each repository's runs via the documented `GET /repos/{repo}/actions/runs`.
-2. **JIT config unused** (see Registration flow). Ephemeral runners with a shared registration token are valid, but JIT is GitHub's recommended path for ephemeral runners.
-3. **GitHub Enterprise Server and GHEC data residency are supported through the optional `instance` field.** The base URL is no longer hard-coded; it falls back to `https://api.github.com` and github.com for the default case.
-4. **Documented status values are wider than the ones used.** GitHub lists `queued`, `in_progress`, `waiting`, `pending`, `requested` as run statuses. kinhin polls only `queued` and `in_progress`, so a run held in `waiting` (for example on an environment approval) is not counted as demand, which is arguably correct. Recorded here as intent, not a bug.
+1. **JIT config unused** (see Registration flow). Ephemeral runners with a shared registration token are valid, but JIT
+   is GitHub's recommended path for ephemeral runners.
+2. **Only `queued` and `in_progress` runs count.** A run held in `waiting` (for example on an environment approval) is
+   not demand, by design.
 
 ## Verified
 

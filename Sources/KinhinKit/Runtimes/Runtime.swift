@@ -315,7 +315,9 @@ struct TartRuntime: Runtime {
         let request = RegistrationRequest(
             forge: forge, token: token, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount,
             route: route, labels: labels)
-        return cachePrefix + (try forge.credentials.forge.descriptor.registrationScript(for: .tartVM, request))
+        // The agents the script starts pass its PATH on to every job; see `guestLoginPathPrelude`.
+        return RunnerBootstrap.guestLoginPathPrelude + "\n" + cachePrefix
+            + (try forge.credentials.forge.descriptor.registrationScript(for: .tartVM, request))
     }
 
     func teardown(id: String) async throws {

@@ -11,6 +11,15 @@ extension RunnerBootstrap {
     /// value it sees and macOS ships its own `100-macos.conf`. The result is
     /// checked with `sshd -T`: a guest whose sshd ignores the drop-in fails
     /// the bake instead of quietly keeping password login.
+    ///
+    /// On Linux both `sshd -t` and `sshd -T` refuse to run without the
+    /// privilege-separation directory `/run/sshd`, which systemd creates only
+    /// while `ssh.service` runs. Ubuntu starts that service on demand (socket
+    /// activation), so a check before the first SSH connection, or racing the
+    /// service, failed with "Missing privilege separation directory" and was
+    /// reported as a rejected config or "password login still on" (found by
+    /// the e2e Tart Linux lane: about one bake in three). The directory is
+    /// created first, as sshd's own unit does; a failure quotes what sshd said.
     static func sshHardeningScript() -> String {
         """
         # Key-only SSH: no password or keyboard-interactive login.
@@ -22,15 +31,19 @@ extension RunnerBootstrap {
           'AuthenticationMethods publickey' \\
           | sudo tee /etc/ssh/sshd_config.d/000-kinhin-hardening.conf >/dev/null
         SSHD="$(command -v sshd || echo /usr/sbin/sshd)"
-        if ! sudo "$SSHD" -t; then
+        # sshd's config check needs its privilege-separation directory, which exists only while the service runs.
+        if [ "$(uname -s)" = Linux ]; then sudo mkdir -p -m 0755 /run/sshd; fi
+        if ! CHECK="$(sudo "$SSHD" -t 2>&1)"; then
           sudo rm -f /etc/ssh/sshd_config.d/000-kinhin-hardening.conf
-          echo "sshd rejected the hardening config; removed it" >&2
+          echo "sshd rejected the hardening config; removed it: $CHECK" >&2
           exit 1
         fi
         # Linux sshd runs as a service and needs a reload; macOS starts one per connection.
         sudo systemctl reload ssh 2>/dev/null || sudo systemctl reload sshd 2>/dev/null || true
-        if ! sudo "$SSHD" -T | grep -qi '^passwordauthentication no$'; then
-          echo "sshd did not pick up /etc/ssh/sshd_config.d (missing 'Include /etc/ssh/sshd_config.d/*'?); SSH password login is still on" >&2
+        EFFECTIVE="$(sudo "$SSHD" -T 2>&1)" || true
+        if ! printf '%s\\n' "$EFFECTIVE" | grep -qi '^passwordauthentication no$'; then
+          SAID="$(printf '%s\\n' "$EFFECTIVE" | grep -iE '^passwordauthentication|error|missing|bad' | head -3 | tr '\\n' ' ')"
+          echo "sshd did not pick up /etc/ssh/sshd_config.d; SSH password login is still on (sshd -T: $SAID)" >&2
           exit 1
         fi
         """

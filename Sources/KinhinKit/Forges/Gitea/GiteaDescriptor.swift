@@ -47,6 +47,7 @@ struct GiteaDescriptor: ForgeDescriptor {
                 token: build.token, scope: account.scope, instance: instance,
                 allowInsecureHTTP: account.allowInsecureHTTP ?? false),
             labels: account.labels ?? ["macos:host"],
+            poolLabels: build.poolLabels,
             demandFloor: build.minRunners,
             account: account.name
         )
@@ -95,9 +96,7 @@ extension RunnerAgentSpec {
             installScript: { versions, arm64, _ in
                 """
                 \(RunnerBootstrap.giteaRunnerDownloadScript(version: versions.gitea, platform: arm64 ? "darwin-arm64" : "darwin-amd64", file: "runner.xz"))
-                xz -d --no-sparse runner.xz
-                chmod +x runner
-                mv runner gitea-runner
+                \(RunnerBootstrap.macOSXZDecodeScript(from: "runner.xz", to: "gitea-runner"))
                 """
             }))
 }

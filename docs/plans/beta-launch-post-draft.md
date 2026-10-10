@@ -24,8 +24,8 @@ It is a beta, and the honest summary is short:
 
 |  | State today |
 | -- | -- |
-| **Works, run for real** | GitHub Actions on Tart macOS VMs. GitHub Actions on apple/container (Linux jobs). Gitea Actions on Docker (Linux jobs, Gitea 1.24). <!-- GATE:G2 start -->Forgejo on Docker. Gitea and Forgejo on apple/container.<!-- GATE:G2 end --> <!-- GATE:G3 start -->GitLab CE (self-managed), one job end to end.<!-- GATE:G3 end --> |
-| **Written and unit-tested, never run against a real server** | <!-- GATE:G2 start -->GitLab.com, Buildkite, Azure DevOps, Bitbucket. Tart Linux VMs. Host mode.<!-- GATE:G2 end --> <!-- FALLBACK:G2 start -->Forgejo, GitLab, Buildkite, Azure DevOps, Bitbucket. Tart Linux VMs. Host mode.<!-- FALLBACK:G2 end --> <!-- TODO(verify:G3) If G3 passed, GitLab.com is still unrun: say "self-managed GitLab CE only", not "GitLab". If G3 failed, put GitLab back in this list. --> |
+| **Supported, run for real** | GitHub Actions, Gitea Actions, Forgejo Actions and GitLab CE. Gitea, Forgejo and GitLab run on every runtime (Tart macOS and Linux VMs, apple/container, Docker, host mode); GitHub on Tart macOS VMs and apple/container. |
+| **Planned** | Buildkite, Azure Pipelines and Bitbucket Pipelines, in a later release. |
 | **Hard limit** | Apple allows two macOS guest VMs at once on a Mac, whatever the hardware. Linux containers are not capped by it. |
 
 If you only read one more section, read [Should you use it now?](#should-you-use-it-now). The rest is detail.
@@ -38,8 +38,8 @@ At its core, kinhin is an autoscaler for ephemeral CI runners that live on one M
   [apple/container](https://github.com/apple/container) microVMs, Docker containers, or Tart Linux VMs. Which runtime a
   job gets is routed per repo, per workflow, or by `runs-on:` label. An opt-in host mode runs jobs directly on the Mac
   with no isolation, behind an explicit consent flag.
-- **Forges.** One pool can serve GitHub Actions, GitLab CI/CD, Gitea and Forgejo Actions, Buildkite, Azure Pipelines and
-  Bitbucket Pipelines, subject to the testing state above. Adding another is a documented, step-by-step job
+- **Forges.** One pool can serve GitHub Actions, GitLab CI/CD, and Gitea and Forgejo Actions. Buildkite, Azure Pipelines
+  and Bitbucket Pipelines are next. Adding another is a documented, step-by-step job
   ([adding a forge](https://github.com/RabinApps/kinhin/blob/main/docs/adding-a-forge.md)).
 - **Resource awareness.** The scaler works out how many instances your Mac can hold from its cores, memory and free disk,
   after reserving headroom. `kinhin doctor` shows the number ([scaling](/guide/scaling)).
@@ -65,24 +65,19 @@ kinhin is not the only tool in this space, and for some setups it is the wrong o
 Orka and GitLab's Tart executor each solve part of the same problem, and the
 [comparison page](/guide/compare) says what each does and where kinhin is missing something. Rough guide:
 
-- **Only GitHub, and you want the most mature path today:** kinhin's GitHub support is the part that has been run for real,
-  but read the comparison before choosing it over a tool built only for GitHub.
+- **Only GitHub:** read the comparison before choosing kinhin over a tool built only for GitHub.
 - **You need many Macs behind one scheduler, or a commercial support contract:** that is Orchard, Anka or Orka. kinhin runs
   one fleet on one Mac.
 - **You need Windows:** kinhin does not do Windows (see the end of this post).
 
 ## Should you use it now?
 
-**Yes, if** you run GitHub Actions, have an Apple Silicon Mac you control, and mostly run your own trusted code. This is
-the path that has been run for real, with Tart macOS VMs or apple/container for Linux.
+**Yes, if** you run GitHub Actions, Gitea, Forgejo or GitLab CE, have an Apple Silicon Mac you control, and mostly run
+your own trusted code. One caveat for older Gitea servers: Gitea 1.24 and earlier show no queued job to the API until a
+runner exists, so you must set `min_runners: 1` (one warm runner). Gitea 1.25+ and Forgejo 11 list queued jobs
+themselves.
 
-**Maybe, if** you use Gitea <!-- GATE:G2 start -->or Forgejo <!-- GATE:G2 end -->with Docker <!-- GATE:G2 start -->or apple/container <!-- GATE:G2 end -->for Linux jobs. It ran
-for real on Gitea 1.24, but there is one caveat: Gitea 1.24 shows no queued job to the API until a runner exists, so you
-must set `min_runners: 1` (one warm runner). <!-- GATE:G9 start -->Gitea 1.26 and Forgejo 11 list queued jobs themselves and ran with no warm runner (1.25 is not run yet: [FILL: 1.25 result]); the caveat applies to 1.24 and older.<!-- GATE:G9 end --><!-- FALLBACK:G9 start -->Newer Gitea reports queued jobs and mints runner tokens differently, and kinhin may not work with it yet: I have only run 1.24.<!-- FALLBACK:G9 end -->
-
-**Not yet, if** you need <!-- GATE:G2 start -->GitLab.com, <!-- GATE:G2 end --><!-- FALLBACK:G2 start -->Forgejo, GitLab, <!-- FALLBACK:G2 end -->Buildkite, Azure DevOps or Bitbucket, Tart Linux VMs or host
-mode<!-- GATE:G10 start --> (host mode has run once, on an isolated machine)<!-- GATE:G10 end --> in anything you depend on. They are written and unit-tested, and I have not watched them work. Try them on something
-disposable and tell me what happens.
+**Not yet, if** you need Buildkite, Azure Pipelines or Bitbucket Pipelines. They are planned for a later release.
 
 **Be careful, whatever you use, if** the code you run is not yours. A VM boundary is real isolation. Docker is weaker (a
 shared kernel and default capabilities). Host mode has no isolation at all. The shared toolchain cache is writable and
@@ -116,25 +111,14 @@ I use two words precisely:
 - **Unit-tested only** means automated tests against fakes, stubbed HTTP and fake shells, and **never run against a real
   instance**. Those tests show the code matches my reading of an API, not that the real service agrees.
 
-Rows with two versions are resolved at release time from the gate results in the checklist.
-
 | Area | State at beta-1 |
 | ---- | --------------- |
-| GitHub Actions + Tart macOS VMs | Live-tested, by hand |
-| GitHub Actions + apple/container (Linux jobs) | Live-tested, by hand |
-| Gitea Actions + Docker containers (Linux jobs) | Live-tested, by the end-to-end suite (Gitea 1.24) |
-| Gitea Actions + apple/container | <!-- GATE:G2 start -->Live-tested, by the end-to-end suite<!-- GATE:G2 end --><!-- FALLBACK:G2 start -->Unit-tested only<!-- FALLBACK:G2 end --> |
-| Forgejo + Docker, Forgejo + apple/container | <!-- GATE:G2 start -->Live-tested, by the end-to-end suite<!-- GATE:G2 end --><!-- FALLBACK:G2 start -->Unit-tested only. Same code path as Gitea, and an e2e fixture exists, but there is no recorded passing run.<!-- FALLBACK:G2 end --> |
-| GitLab CE (self-managed) | <!-- GATE:G3 start -->Live-tested once, one job end to end<!-- GATE:G3 end --><!-- FALLBACK:G3 start -->Unit-tested only<!-- FALLBACK:G3 end --> |
-| GitLab.com | Unit-tested only |
-| Buildkite, Azure DevOps, Bitbucket | Unit-tested only |
-| Gitea 1.25 and the latest Gitea | <!-- GATE:G9 start -->Live-tested, by the end-to-end suite: [FILL: versions that passed]. The registration-token and queued-job handling for newer Gitea is fixed and tested.<!-- GATE:G9 end --><!-- FALLBACK:G9 start -->Unit-tested only. Only Gitea 1.24 has been run for real.<!-- FALLBACK:G9 end --> |
-| Docker runtime with other forges | Unit-tested only |
-| Tart Linux VM runtime | Unit-tested only |
-| Host mode | <!-- GATE:G10 start -->Live-tested once on an isolated machine: consent is required, the job runs on the host, and teardown removes its directories and stops the runner<!-- GATE:G10 end --><!-- FALLBACK:G10 start -->Unit-tested only<!-- FALLBACK:G10 end --> |
-| Optional extras (GitHub scale-set mode, mixed fleets, warm pool, per-project toolchains, Buildkite, Bitbucket, Azure DevOps) | <!-- TODO(verify:O1-O6) Add one row per optional gate that passed, naming exactly what ran; delete this row if none did. Anything that did not pass stays "unit-tested only" in the rows above. --> |
+| GitHub Actions + Tart macOS VMs, apple/container | Live-tested, by hand |
+| Gitea (1.24, 1.26), Forgejo 11, GitLab CE 18.4 on Tart macOS and Linux VMs, apple/container, Docker, host mode | Live-tested, by the end-to-end suite |
+| Crash recovery, concurrency cap, pause and resume, forge outages, warm pool, routing | Live-tested, by the end-to-end suite |
+| Toolchain installs (baked and per job) | Live-tested, by the end-to-end suite |
+| Buildkite, Azure Pipelines, Bitbucket Pipelines | Planned, not supported yet |
 | In-app updater against a published release | Not exercised (this is the first release) |
-| Crash recovery (orphan reconciliation), concurrency cap, pause and resume | <!-- GATE:G2 start -->Live-tested, by the end-to-end suite, on Gitea and Forgejo with Docker and apple/container<!-- GATE:G2 end --><!-- FALLBACK:G2 start -->Written into the e2e suite, not yet recorded as a passing run<!-- FALLBACK:G2 end --> |
 | ThreadSanitizer | <!-- GATE:G5 start -->One clean run of `scripts/tsan.sh`<!-- GATE:G5 end --><!-- FALLBACK:G5 start -->Not done<!-- FALLBACK:G5 end --> |
 | Long-running soak test | <!-- GATE:G4 start -->One week of running my own CI on it, with no leaked VMs, containers or registered runners. That is dogfooding, not a formal soak test.<!-- GATE:G4 end --><!-- FALLBACK:G4 start -->Not done<!-- FALLBACK:G4 end --> |
 
@@ -143,63 +127,14 @@ real services agree with me. <!-- GATE:G7 start -->Measured on my own Mac with `
 
 ### The end-to-end suite
 
-Until recently "live-tested" meant me, by hand, once. Now there is an automated end-to-end suite
-(`scripts/e2e.sh`, described in the
-[e2e docs](https://github.com/RabinApps/kinhin/blob/main/docs/e2e-testing.md)). It starts a real Gitea in a container,
-runs a real kinhin daemon against it in a sandbox that cannot touch my own setup, bakes a real runner image, pushes a
-workflow, and then checks what the forge itself reports: the job ran inside the guest (it files an issue containing the
-guest's kernel and hostname), the instance was deleted afterwards, the runner was deregistered, and no token reached the
-log. It also runs a job that fails on purpose and checks the fleet recovers. **Gitea 1.24 on Docker passes all of that.**
-
-<!-- GATE:G2 start -->
-The local tier (`scripts/e2e.sh --local`) also passes for Forgejo, and for both forges on apple/container. That tier adds
-pause and resume (a paused fleet starts nothing), a daemon killed with `SIGKILL` whose orphaned runner the next daemon
-reconciles away, and the `max_runners` cap with two concurrent jobs.
-<!-- GATE:G2 end -->
-<!-- FALLBACK:G2 start -->
-The suite also has Forgejo and apple/container lanes, pause and resume, daemon-crash reconciliation and the
-`max_runners` cap. I have not recorded a fully passing run of those, so I am not claiming them.
-<!-- FALLBACK:G2 end -->
-
-<!-- GATE:G3 start -->
-The GitLab CE fixture (`--full`) ran once and passed. That is one run on one version of one GitLab, not a matrix.
-<!-- GATE:G3 end -->
-<!-- FALLBACK:G3 start -->
-There is a GitLab CE fixture and a GitHub fixture (it needs a throwaway repository). I have not recorded a passing run of
-either, and the GitLab image did not fit in my Docker disk the last time I tried.
-<!-- FALLBACK:G3 end -->
-
-<!-- GATE:G9 start -->
-The suite also ran against Gitea 1.25 and the latest Gitea through the image override (`KINHIN_E2E_GITEA_IMAGE`), which
-is how the newer registration-token and queued-job behavior was found and fixed: [FILL: what was found].
-<!-- GATE:G9 end -->
-<!-- GATE:G10 start -->
-Host mode ran once, on a machine used only for this, with a workflow I wrote. Its checks are the reverse of the guest
-ones: the job reports the host's own kernel and hostname, the run is refused without `--consent`, and teardown leaves no
-per-job directory or runner process behind. I would not point host mode at a machine you care about.
-<!-- GATE:G10 end -->
-
-The suite has had bugs of its own: running it found a hang in its own cleanup, which is the same lesson again.
-
-### What running the real thing found
-
-The first real Gitea job found four bugs, and several unit tests had been pinning the wrong behavior as correct:
-
-- **`kinhin start` crashed on launch on macOS 27.** It parked the main thread in a way libdispatch now refuses.
-- **Gitea and Forgejo runners were registered with the wrong program.** The container script ran the GitHub runner's
-  `config.sh`, which does not exist in a Gitea image, and the macOS script called commands the Gitea runner does not have.
-  One unit test asserted the wrong script with a comment admitting it.
-- **A Docker pool never advertised `kinhin-docker`** for Gitea, so `runs-on: kinhin-docker` could never match.
-- **`kinhin config init` failed on a fresh machine** and wrote the config readable by other users.
-
-<!-- TODO(verify:G2) If the extra Forgejo/apple-container/fleet-behavior runs found more bugs, list them here from the run notes. Do not invent any. -->
-
-My own pass on October 1 found others: a 404 on GitHub organization runners, SSH not being ready when `tart ip` said it
-was, an organization's repositories being invisible past the first 20, and a Tart CLI change that broke image detection.
-The full notes are in the [beta roadmap](/guide/beta-roadmap) and the forge matrix is in
-[what has been tested](/guide/forges#what-has-been-tested).
-
-The pattern is why I label things "unit-tested only" and why I expect the untested forges to have their own surprises.
+"Live-tested" is not me, by hand, once. An automated end-to-end suite (`scripts/e2e.sh`, described in the
+[e2e docs](https://github.com/RabinApps/kinhin/blob/main/docs/e2e-testing.md)) starts a real Gitea, Forgejo or GitLab CE
+in a container, runs a real kinhin daemon against it in a sandbox that cannot touch my own setup, bakes a real runner
+image, pushes a workflow, and then checks what the forge itself reports: the job ran inside the guest (it files an issue
+containing the guest's kernel and hostname), the instance was deleted afterwards, the runner was deregistered, and no
+token reached the log. It runs every forge on every runtime, plus failing jobs, long jobs, a daemon killed mid-run, a
+forge that hangs mid-job, the concurrency cap, the warm pool, routing, and toolchain installs. The GitHub lane needs a
+throwaway repository and a token, so GitHub's live runs are still my own.
 
 ## Who I am, and how this was built
 
@@ -218,16 +153,15 @@ ThreadSanitizer run. <!-- GATE:G1 start -->`scripts/check.sh` is green on the re
 I have one Mac, one GitHub setup, and a finite supply of evenings. The fastest way to improve this beta is to run the parts
 I could not. In rough order of value:
 
-1. <!-- GATE:G2 start -->**Gitea and Forgejo on other versions.** I have run Gitea 1.24 and Forgejo on Docker and apple/container. I want newer Gitea (1.25 and later report queued jobs differently), and Gitea and Forgejo on Tart.<!-- GATE:G2 end --><!-- FALLBACK:G2 start -->**Forgejo, and Gitea on other versions and runtimes.** I have run Gitea 1.24 on Docker. I want Forgejo, newer Gitea (1.25 and later report queued jobs differently), and Gitea on Tart and apple/container.<!-- FALLBACK:G2 end -->
-2. **GitLab.** <!-- GATE:G3 start -->I have run one self-managed CE instance. I want gitlab.com and other self-managed versions; they differ.<!-- GATE:G3 end --><!-- FALLBACK:G3 start -->Both gitlab.com and a self-managed instance. They differ, and I have run neither.<!-- FALLBACK:G3 end -->
-3. **Docker for Linux jobs** with GitHub or GitLab, and with OrbStack or colima. I have used Docker Desktop with Gitea.
-4. **Buildkite, Azure DevOps and Bitbucket Pipelines.** Real accounts, even a free tier and a single job.
-5. **Mixed fleets:** more than one account or forge sharing one pool, and mixed runtimes routed by label.
-6. **Different hardware:** other Mac sizes and macOS versions, especially 8 GB and 16 GB machines.
-7. **The updater**, once a later release is published.
-8. **Docs and first run.** If you got stuck, that is a bug in the docs or the app.
+1. **Real projects on the supported forges.** Your workflows, not my test jobs: GitHub, Gitea, Forgejo and GitLab CE.
+2. **Other versions:** newer Forgejo, Gitea 1.25, older GitLab CE releases.
+3. **GitHub on Docker and host mode**, and Docker through OrbStack or colima. I have used Docker Desktop.
+4. **Mixed fleets:** more than one account or forge sharing one pool, and mixed runtimes routed by label.
+5. **Different hardware:** other Mac sizes and macOS versions, especially 8 GB and 16 GB machines.
+6. **The updater**, once a later release is published.
+7. **Docs and first run.** If you got stuck, that is a bug in the docs or the app.
 
-One job through a forge I haven't touched is a valuable report, including when it fails.
+One real job is a valuable report, including when it fails.
 
 ### How to report
 
@@ -253,15 +187,14 @@ mechanical changes in separate commits, and own the change whether a human or a 
 
 ## Goals
 
-The goal of this beta is narrow: turn "unit-tested against fakes" into "run against a real server" for every forge and
-runtime that ships. The milestones are ordered by what has to be true, not by date; the complete version is the
+The goal of this beta is narrow: make the four supported forges solid on real projects, then add the next ones. The
+milestones are ordered by what has to be true, not by date; the complete version is the
 [beta roadmap](/guide/beta-roadmap).
 
-- **beta-2: first real-server runs.** Whatever is still unit-tested in the table above among Forgejo, GitLab and Docker
-  with other forges, with fixes for whatever the real APIs do differently. Exercise the updater against a published
-  release. Run the e2e suite nightly on a dedicated Mac.
-- **beta-3: the rest.** Buildkite, Azure DevOps and Bitbucket against real accounts. Tart Linux and host mode for real.
-  Mixed-forge fleets. Every shipped forge and runtime is either live-tested or clearly labeled experimental.
+- **beta-2: hardening the supported forges.** Fixes from beta testers, the updater exercised against a published release,
+  and the e2e suite running nightly on a dedicated Mac.
+- **beta-3: more forges.** Buildkite, Azure Pipelines and Bitbucket Pipelines, each supported once it passes the same
+  end-to-end runs. Mixed-forge fleets.
 - **Release candidate: hardening.** A clean ThreadSanitizer run, a long soak test with no leaked VMs, containers or
   registered runners, and the known limits reviewed against what testers hit.
 - **v0.1.0.** A signed, notarized release with a working updater path, and a docs snapshot under the version picker.

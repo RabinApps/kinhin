@@ -86,11 +86,11 @@ final class WizardModelTests: XCTestCase {
         for forge in ForgeID.allCases {
             XCTAssertEqual(
                 MaturityBadge(forge: forge).maturity.isUntested,
-                forge != .github && forge != .gitea && forge != .forgejo, forge.rawValue)
+                ![.github, .gitea, .forgejo, .gitlab].contains(forge), forge.rawValue)
         }
         XCTAssertEqual(MaturityBadge(runtime: .appleContainer).maturity, .liveTested)
-        XCTAssertEqual(MaturityBadge(runtime: .docker).maturity, .untested)
-        XCTAssertEqual(LinuxRuntimeSetup.tartLinux.maturity, .untested)
+        XCTAssertEqual(MaturityBadge(runtime: .docker).maturity, .liveTested)
+        XCTAssertEqual(LinuxRuntimeSetup.tartLinux.maturity, .liveTested)
         XCTAssertEqual(LinuxRuntimeSetup.appleContainer.maturity, .liveTested)
         XCTAssertEqual(Maturity.untested.pickerSuffix, " (untested)")
         XCTAssertEqual(Maturity.liveTested.pickerSuffix, "")

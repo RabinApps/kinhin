@@ -15,7 +15,6 @@ Every job runs in a fresh VM or container that is deleted afterwards, but VMs ru
 | `tart_softnet: true`                       | Runner VMs reach the internet but not each other or your LAN ([setup](runtimes.md#isolating-runner-vms-from-each-other)).                                 |
 | `projects[].share_cache: false` (default)   | The shared cache is writable and holds code other jobs execute ([why](toolchains.md)).                                                                    |
 | Re-run `kinhin image prepare`              | Images baked by older builds still accept the default `admin` SSH password; a fresh prepare turns password login off.                                     |
-| Agent Pools-only Azure DevOps PAT          | Azure agents register with the PAT, so it reaches every runner instance ([forges](forges.md)).                                                            |
 | No `runtime: host` for those repositories  | Host mode runs jobs directly on your Mac.                                                                                                                 |
 
 ## Check your settings with doctor
@@ -26,7 +25,7 @@ Every job runs in a fresh VM or container that is deleted afterwards, but VMs ru
 
 - **Guest SSH is key-only.** `image prepare` turns off password login in the guest and fails the bake if sshd doesn't honour it.
 - **Tokens stay out of reach.** They live in the Keychain (this-device-only), never in `config.yaml`. Registration scripts travel over stdin, so tokens don't appear in `ps` on the host, and the log redactor masks every token format kinhin knows (plus any token it has loaded). `kinhin doctor --bundle` writes a redacted report for bug reports.
-- **Forge instances use https.** Gitea, Forgejo, GitLab and Azure DevOps instances must be `https://` unless the host is loopback or the account sets `allow_insecure_http: true` ([details](forges.md#plain-http-instances)). Redirects must stay on the same host.
+- **Forge instances use https.** Gitea, Forgejo and GitLab instances must be `https://` unless the host is loopback or the account sets `allow_insecure_http: true` ([details](forges.md#plain-http-instances)). Redirects must stay on the same host.
 - **Config values can't inject shell.** Toolchain entries are limited to a strict character set and quoted again where they enter a script.
 - **The daemon socket and local files are private.** The socket is `0600` in a `0700` directory and only your user can connect. The support directory, logs and state are owner-only.
 - **Host mode is repo-scoped.** A config with a `runtime: host` route is refused unless every account is scoped to a single repository (`owner/name`).

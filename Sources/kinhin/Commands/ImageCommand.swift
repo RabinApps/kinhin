@@ -22,6 +22,25 @@ enum ImageCommand {
         return [flag("--image", in: args)]
     }
 
+    /// `--source NAME` bakes from that VM (a local tart VM, such as the one `--linux` creates, or a registry
+    /// reference) and `--target NAME` writes the result there, for a tart bake. Both were accepted and silently
+    /// ignored, so the documented `image prepare --linux …` then `image prepare --source <vm>` flow baked from the
+    /// default macOS image instead (found by the e2e Tart lanes).
+    static func applySourceAndTarget(_ args: [String], to options: inout ImagePreparer.Options) throws {
+        if let source = flag("--source", in: args) {
+            if let problem = TartBaseImage.problem(with: source) {
+                throw CLIError("--source \(source): \(problem)", exit: .usage)
+            }
+            options.source = source
+        }
+        if let target = flag("--target", in: args) {
+            if let problem = TartBaseImage.problem(with: target) {
+                throw CLIError("--target \(target): \(problem)", exit: .usage)
+            }
+            options.target = target
+        }
+    }
+
     /// The interactive menu over `TartBaseImage`'s pre-configured Linux
     /// images (bare `--from`). Returns the picked reference.
     static func pickCuratedLinuxImage() throws -> String {
@@ -227,6 +246,7 @@ enum ImageCommand {
                 // The flag wins over the config key; either may be absent (no
                 // user script is baked in that case).
                 options.provisionScriptPath = flag("--provision-script", in: args) ?? options.provisionScriptPath
+                try Self.applySourceAndTarget(args, to: &options)
                 try await preparer.run(options)
                 await ProjectImageService.invalidate(base: options.target, tart: tart)
                 print("image ready: \(options.target)")

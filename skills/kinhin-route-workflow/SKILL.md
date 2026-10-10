@@ -21,8 +21,10 @@ forge/runtime pair is fakes-tested only — say so when the user picks one.
 - The command refuses what it can't safely edit: `${{ … }}` expressions, `{group:, labels:}` mappings, and
   reusable-workflow (`uses:`) jobs. Those route through config instead:
   `kinhin runtimes route add <owner/repo>@<Workflow> <runtime>`.
-- GitLab, Buildkite and Azure DevOps jobs target by tags/queues/demands, not `runs-on:` — the command refuses them
-  and points at `kinhin runtimes route add`. Label forges: GitHub, Gitea, Forgejo, Bitbucket.
+- GitLab jobs target by tags, not `runs-on:` — the command refuses them and points at `kinhin runtimes route add`.
+  Label forges: GitHub, Gitea, Forgejo.
+- On Gitea and Forgejo, workflow routes (`owner/repo@Workflow`) do not match (their APIs don't name a job's workflow);
+  use a repo route or the `runs-on:` marker instead.
 
 ## Decide the runtime, in order
 

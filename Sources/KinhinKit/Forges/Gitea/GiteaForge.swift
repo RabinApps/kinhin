@@ -63,7 +63,7 @@ final class ScopeActivityCache: Sendable {
 /// captured at forge construction instead of minted per VM.
 ///
 /// Queued demand uses the server's own queue endpoint when it exists
-/// (`/actions/jobs?status=waiting` on Gitea 1.25+, `/actions/runners/jobs`
+/// (`/actions/jobs?status=queued` on Gitea 1.25+, `/actions/runners/jobs`
 /// on Forgejo 11+) and falls back to the task-queue shape on older servers.
 /// A `min_runners` floor applies only on servers without that endpoint — the
 /// old task-queue path still needs it because those servers report a count,
@@ -74,6 +74,12 @@ struct GiteaForge: Forge {
     let account: String
     let credentials: ForgeCredentials
     let labels: [String]
+    /// Every label some pool of the fleet registers runners with (`ForgeBuild.poolLabels`). Forgejo lists only the
+    /// waiting jobs whose `runs-on` fits inside the labels it is asked about, so the demand query must name what the
+    /// runners really advertise: with the account's labels alone (default `macos:host`) a job asking for
+    /// `[self-hosted, linux]` or a Tart pool's `linux` was never seen. A `var` so a hot reload swaps it on a copy
+    /// that keeps the shared caches below.
+    var poolLabels: [String] = []
     let registration: ForgeRegistration = .sharedLongLived
     let exitSemantics: ForgeExitSemantics = .idleGrace
     let client: GiteaClient
@@ -103,12 +109,12 @@ struct GiteaForge: Forge {
     /// Builds the forge from credentials, resolving the registration token
     /// up front (the same call the permission probe uses — fail fast here).
     static func make(
-        forge: ForgeID = .gitea, credentials: GiteaCredentials, labels: [String], demandFloor: Int = 0,
-        account: String? = nil
+        forge: ForgeID = .gitea, credentials: GiteaCredentials, labels: [String], poolLabels: [String] = [],
+        demandFloor: Int = 0, account: String? = nil
     ) async throws -> GiteaForge {
         let client = GiteaClient(credentials: credentials.with(forge: forge))
         let token = try await client.fetchRegistrationToken()
-        return GiteaForge(
+        var built = GiteaForge(
             credentials: ForgeCredentials(
                 forge: forge, token: credentials.token, scope: credentials.scope, instance: credentials.instance),
             labels: labels,
@@ -117,6 +123,15 @@ struct GiteaForge: Forge {
             registrationToken: token,
             account: account
         )
+        built.poolLabels = poolLabels
+        return built
+    }
+
+    /// The labels the queue is asked about: the account's own plus every pool's.
+    var demandLabels: [String] {
+        var result = labels
+        for label in poolLabels where !result.contains(label) { result.append(label) }
+        return result
     }
 
     func registrationURL() -> String {
@@ -170,7 +185,7 @@ struct GiteaForge: Forge {
         // Preferred: the server's own queue endpoint when it exists (Gitea
         // 1.25+, Forgejo 11+). It reports real queued jobs, so the floor is
         // not needed there.
-        if let jobs = try? await client.queuedJobs(runnerLabels: labels), !jobs.isEmpty {
+        if let jobs = try? await client.queuedJobs(runnerLabels: demandLabels), !jobs.isEmpty {
             return jobs
         }
         // Older servers without that endpoint: fall back to the task queue.

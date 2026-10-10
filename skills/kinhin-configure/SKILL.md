@@ -28,17 +28,13 @@ accounts:
   - {name: github, forge: github, scope: "owner/repo"}
   # Gitea or Forgejo (forge: forgejo for Forgejo)
   - {name: gitea, forge: gitea, instance: "https://gitea.example.com", scope: "owner/name", labels: ["macos:host"]}
-  # GitLab (16.0+). Instance is optional. A job's tags must include every label.
-  - {name: gitlab, forge: gitlab, scope: "group/project", labels: ["macos"]}
-  # Buildkite (hosted only). The cluster needs a matching queue.
-  - {name: ci, forge: buildkite, scope: "acme/Mac Fleet", labels: ["queue=kinhin"]}
-  # Azure DevOps: instance is the org URL, scope is the pool name
-  - {name: ado, forge: azuredevops, instance: "https://dev.azure.com/acme", scope: "Mac Fleet", labels: ["kinhin"]}
-  # Bitbucket (hosted only): scope is a workspace or workspace/repo-slug
-  - {name: bb, forge: bitbucket, scope: "acme", labels: ["xcode=16"]}
+  # GitLab CE (16.0+). A job's tags must include every label.
+  - {name: gitlab, forge: gitlab, instance: "https://gitlab.example.com", scope: "group/project", labels: ["macos"]}
 ```
 
-Self-hosted Gitea, Forgejo, GitLab and Azure DevOps must use `https://` unless the host is loopback or the account sets
+Buildkite, Azure DevOps and Bitbucket are planned and not supported yet; do not configure them.
+
+Self-hosted Gitea, Forgejo and GitLab must use `https://` unless the host is loopback or the account sets
 `allow_insecure_http: true`.
 
 ## Token scopes
@@ -48,9 +44,6 @@ Self-hosted Gitea, Forgejo, GitLab and Azure DevOps must use `https://` unless t
 | GitHub | PAT with `repo` (org runner-admin for an org scope) |
 | Gitea / Forgejo | Access token with runner-management rights |
 | GitLab | `create_runner`, `manage_runner`, `read_api` or `api`; Maintainer on a project or Owner on a group |
-| Buildkite | REST token with `read_agents`, `write_agents`, `read_builds`, `read_clusters`, `write_clusters` |
-| Azure DevOps | PAT with Agent Pools (Read & manage) only. It is copied into every runner, so use a dedicated PAT and pool. |
-| Bitbucket | Workspace or repository access token with runner and pipeline scopes. App passwords do not work. |
 
 `kinhin auth add NAME --<forge> --scope S` prints the exact requirements for that forge.
 
@@ -58,10 +51,8 @@ Self-hosted Gitea, Forgejo, GitLab and Azure DevOps must use `https://` unless t
 
 | Forge | Job targeting |
 | --- | --- |
-| GitHub, Gitea, Forgejo, Bitbucket | `runs-on:` labels |
+| GitHub, Gitea, Forgejo | `runs-on:` labels |
 | GitLab | Runner tags |
-| Buildkite | Agent query rules such as `queue=kinhin` |
-| Azure DevOps | Pool and `demands:`. With no labels set, every request in the pool counts as demand. |
 
 A job must request all of the account's labels (default `["self-hosted","macos","arm64"]`). A repo `.kinhin.yml` is
 only honored on GitHub, Gitea/Forgejo and GitLab.
