@@ -27,11 +27,18 @@ public struct GitLabClient: Sendable {
     /// stdlib `Mutex` is non-Copyable, so a struct cannot store one directly;
     /// the cache lives in a shared class box instead.
     private let projectCache = ProjectListCache()
+    /// The budget the last response reported (`RateLimit-*` headers); shared
+    /// across copies of the client.
+    private let rateLimits = RateLimitBox()
 
     /// Reference cell for the group project list plus its fetch time.
     private final class ProjectListCache: Sendable {
         let mutex = Mutex<(fetched: Date, projects: [GitLabProjectRef])?>(nil)
     }
+
+    /// The API budget the last response reported; nil when the instance sends
+    /// no rate-limit headers (self-managed instances often do not).
+    var rateLimit: ForgeRateLimit? { rateLimits.current }
 
     public init(credentials: GitLabCredentials, session: URLSession? = nil) {
         self.credentials = credentials
@@ -123,28 +130,60 @@ public struct GitLabClient: Sendable {
 
     enum JobStatus: String { case pending, running }
 
+    /// One project's contribution to a job read.
+    private enum ProjectRead: Sendable {
+        case jobs([GitLabJob])
+        case failed(project: String, error: any Error)
+    }
+
     /// The scope's jobs with the given status, attributed to their project.
-    /// A project the token cannot read (403/404) is skipped rather than
-    /// failing the whole read: it contributes no jobs kinhin could run.
+    ///
+    /// A single-project scope has nothing to fall back to: every failure
+    /// (403, 404, 5xx) reaches the caller, so a revoked or mistyped scope is
+    /// an error, not an empty queue. A group fans out over its projects: one
+    /// project the token cannot read, or that errors, is skipped with a
+    /// warning so it cannot hide the others' demand. When every project fails
+    /// the first error is rethrown (an outage is not "no jobs"), and a 401
+    /// always is (the token is wrong for all of them).
     func jobs(_ status: JobStatus, in scope: GitLabScope) async throws -> [GitLabJob] {
         let projects = try await projects(in: scope)
-        return try await withThrowingTaskGroup(of: [GitLabJob].self) { group in
+        let skipsFailures = scope.isGroup
+        let reads = try await withThrowingTaskGroup(of: ProjectRead.self) { group in
             var remaining = projects.prefix(maxProjectsPerPoll).makeIterator()
             func addNext() -> Bool {
                 guard let project = remaining.next() else { return false }
-                group.addTask { try await jobs(status, project: project) }
+                group.addTask {
+                    do {
+                        return .jobs(try await jobs(status, project: project))
+                    } catch let error as ForgeAPIError where skipsFailures && error != .unauthorized(forge: .gitlab) {
+                        return .failed(project: project.path, error: error)
+                    }
+                }
                 return true
             }
             for _ in 0..<maxConcurrentReads {
                 guard addNext() else { break }
             }
-            var all: [GitLabJob] = []
-            while let batch = try await group.next() {
-                all.append(contentsOf: batch)
+            var reads: [ProjectRead] = []
+            while let read = try await group.next() {
+                reads.append(read)
                 _ = addNext()
             }
-            return all.sorted { $0.id < $1.id }
+            return reads
         }
+        var all: [GitLabJob] = []
+        var failures: [(project: String, error: any Error)] = []
+        for read in reads {
+            switch read {
+            case .jobs(let jobs): all.append(contentsOf: jobs)
+            case .failed(let project, let error): failures.append((project, error))
+            }
+        }
+        for failure in failures {
+            Log.warn("gitlab", "skipping jobs of \(failure.project): \(failure.error.localizedDescription)")
+        }
+        if let first = failures.first, failures.count == reads.count { throw first.error }
+        return all.sorted { $0.id < $1.id }
     }
 
     private func jobs(_ status: JobStatus, project: GitLabProjectRef) async throws -> [GitLabJob] {
@@ -156,24 +195,25 @@ public struct GitLabClient: Sendable {
             let ref: String?
             let commit: Commit?
             let pipeline: Pipeline?
-            struct Pipeline: Decodable { let id: Int? }
+            struct Pipeline: Decodable {
+                let id: Int?
+                let source: String?
+                let ref: String?
+            }
             struct Runner: Decodable { let description: String? }
             struct Commit: Decodable { let id: String? }
         }
-        do {
-            let (data, _) = try await send(
-                "GET", "/projects/\(project.id)/jobs",
-                [URLQueryItem(name: "scope[]", value: status.rawValue), URLQueryItem(name: "per_page", value: "100")])
-            let jobs: [Job] = try decode(data, "jobs")
-            return jobs.map {
-                GitLabJob(
-                    id: $0.id, name: $0.name, tags: $0.tag_list ?? [], project: project.path,
-                    runnerDescription: $0.runner?.description, ref: $0.ref, sha: $0.commit?.id,
-                    projectID: project.id, pipelineID: $0.pipeline?.id)
-            }
-        } catch ForgeAPIError.notFound, ForgeAPIError.forbidden {
-            Log.warn("gitlab", "skipping jobs of \(project.path): not readable with this token")
-            return []
+        let (data, _) = try await send(
+            "GET", "/projects/\(project.id)/jobs",
+            [URLQueryItem(name: "scope[]", value: status.rawValue), URLQueryItem(name: "per_page", value: "100")])
+        let jobs: [Job] = try decode(data, "jobs")
+        return jobs.map {
+            GitLabJob(
+                id: $0.id, name: $0.name, tags: $0.tag_list ?? [], project: project.path,
+                runnerDescription: $0.runner?.description, ref: $0.ref, sha: $0.commit?.id, projectID: project.id,
+                pipelineID: $0.pipeline?.id,
+                fromMergeRequest: $0.pipeline?.source == "merge_request_event"
+                    || ($0.ref ?? $0.pipeline?.ref ?? "").hasPrefix("refs/merge-requests/"))
         }
     }
 
@@ -213,6 +253,8 @@ public struct GitLabClient: Sendable {
                 [
                     URLQueryItem(name: "include_subgroups", value: "true"),
                     URLQueryItem(name: "archived", value: "false"),
+                    // Projects shared INTO the group are not the group's to serve.
+                    URLQueryItem(name: "with_shared", value: "false"),
                     URLQueryItem(name: "simple", value: "true"),
                     URLQueryItem(name: "order_by", value: "last_activity_at"),
                     URLQueryItem(name: "last_activity_after", value: since),
@@ -282,7 +324,9 @@ public struct GitLabClient: Sendable {
         _ method: String, _ path: String, _ query: [URLQueryItem] = [], body: Data? = nil,
         accept: String = "application/json"
     ) async throws -> (Data, HTTPURLResponse) {
-        try await transport.send(method, try url(path, query), body: body, accept: accept)
+        let result = try await transport.send(method, try url(path, query), body: body, accept: accept)
+        if let limit = ForgeRateLimit(headers: result.1) { rateLimits.record(limit) }
+        return result
     }
 
     func url(_ path: String, _ query: [URLQueryItem]) throws -> URL {

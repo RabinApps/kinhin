@@ -133,6 +133,10 @@ public protocol Forge: Sendable {
     func registrationTokens(runnerNames: [String], labels: [String]) async throws -> [String: String]
     /// This scope's runners (name/id/status/busy), unified shape.
     func runners() async throws -> [ForgeRunner]
+    /// `runners()` bypassing the forge's own short-lived list cache. The
+    /// engine asks for it before acting on a runner being gone or idle. The
+    /// default is `runners()` (forges without such a cache).
+    func freshRunners() async throws -> [ForgeRunner]
     /// For a server with no runner list (Forgejo through v14): the number of
     /// jobs running anywhere in the scope, which no runner can be matched to.
     /// nil whenever `runners()` is authoritative (every other forge, and
@@ -178,6 +182,8 @@ extension Forge {
     }
 
     func unlistedRunnerActivity(fresh: Bool) async throws -> Int? { nil }
+
+    func freshRunners() async throws -> [ForgeRunner] { try await runners() }
 
     public func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? { nil }
 

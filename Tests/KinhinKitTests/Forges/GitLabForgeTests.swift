@@ -94,6 +94,20 @@ final class GitLabForgeTests: XCTestCase {
         XCTAssertEqual(jobs.first?.repository, "acme/api")
     }
 
+    func testMergeRequestJobsAreForkJobs() async throws {
+        let server = FakeGitLabServer()
+        server.pending = [(1, "build", ["macos"])]
+        server.mergeRequestJobIDs = [1]
+        let forge = makeForge(server: server)
+        let queued = try await forge.queuedJobs()
+        XCTAssertEqual(queued.map(\.isFork), [true], "an MR ref may carry a fork's code")
+        server.pending = []
+        server.running = [(2, "test", ["macos"], "kinhin-1")]
+        server.mergeRequestJobIDs = [2]
+        let running = try await forge.runningJobs()
+        XCTAssertEqual(running.map(\.isFork), [true])
+    }
+
     func testReplacingPoolLabelsChangesDemandFilter() async throws {
         let server = FakeGitLabServer()
         server.pending = [(1, "build", ["macos"]), (2, "gpu", ["gpu"])]
@@ -189,6 +203,7 @@ final class FakeGitLabServer: Sendable {
         var createdTags: [[String]] = []
         var pending: [(Int, String, [String])] = []
         var running: [(Int, String, [String], String)] = []
+        var mergeRequestJobIDs: Set<Int> = []
     }
 
     private let state = Mutex(State())
@@ -202,6 +217,11 @@ final class FakeGitLabServer: Sendable {
     var running: [(Int, String, [String], String)] {
         get { state.withLock { $0.running } }
         set { state.withLock { $0.running = newValue } }
+    }
+    /// Jobs reported as belonging to a merge-request pipeline.
+    var mergeRequestJobIDs: Set<Int> {
+        get { state.withLock { $0.mergeRequestJobIDs } }
+        set { state.withLock { $0.mergeRequestJobIDs = newValue } }
     }
 
     func setStatus(_ name: String, _ status: String) {
@@ -236,12 +256,18 @@ final class FakeGitLabServer: Sendable {
             return (200, Data("[\(body.joined(separator: ","))]".utf8), [:])
         case ("GET", "/api/v4/projects/7/jobs"):
             let rows: [String]
+            let mergeRequests = mergeRequestJobIDs
+            func pipeline(_ id: Int) -> String {
+                mergeRequests.contains(id) ? #","pipeline":{"id":1,"source":"merge_request_event"}"# : ""
+            }
             if query.contains("running") {
                 rows = running.map { job in
-                    #"{"id":\#(job.0),"name":"\#(job.1)","tag_list":\#(tags(job.2)),"runner":{"description":"\#(job.3)"}}"#
+                    #"{"id":\#(job.0),"name":"\#(job.1)","tag_list":\#(tags(job.2)),"runner":{"description":"\#(job.3)"}\#(pipeline(job.0))}"#
                 }
             } else {
-                rows = pending.map { #"{"id":\#($0.0),"name":"\#($0.1)","tag_list":\#(tags($0.2))}"# }
+                rows = pending.map {
+                    #"{"id":\#($0.0),"name":"\#($0.1)","tag_list":\#(tags($0.2))\#(pipeline($0.0))}"#
+                }
             }
             return (200, Data("[\(rows.joined(separator: ","))]".utf8), [:])
         case ("DELETE", _) where path.hasPrefix("/api/v4/runners/"):

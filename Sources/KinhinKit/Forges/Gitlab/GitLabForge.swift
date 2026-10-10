@@ -110,6 +110,14 @@ struct GitLabForge: Forge {
         }
     }
 
+    /// The runner list read right now: the shared few-second snapshot is
+    /// dropped first, so "the runner is gone" or "idle" is never decided on
+    /// a list from before the event.
+    func freshRunners() async throws -> [ForgeRunner] {
+        snapshot.invalidate()
+        return try await runners()
+    }
+
     func deleteRunner(id: String) async throws {
         try await client.deleteRunner(id: try numericRunnerID(id))
         snapshot.invalidate()
@@ -117,7 +125,9 @@ struct GitLabForge: Forge {
 
     func queuedJobs() async throws -> [ForgeJob] {
         try await client.jobs(.pending, in: gitlabScope).filter(isOurs).map {
-            ForgeJob(name: $0.name, runnerName: nil, repository: $0.project, labels: $0.tags, ref: $0.ref, sha: $0.sha)
+            ForgeJob(
+                name: $0.name, runnerName: nil, repository: $0.project, labels: $0.tags, ref: $0.ref, sha: $0.sha,
+                isFork: $0.fromMergeRequest)
         }
     }
 
@@ -130,17 +140,38 @@ struct GitLabForge: Forge {
     /// say.
     func runningJobs() async throws -> [ForgeJob] {
         let jobs = try await client.jobs(.running, in: gitlabScope)
-        snapshot.setBusy(Set(jobs.compactMap(\.runnerDescription)))
+        snapshot.setRunning(jobs)
         return jobs.filter(isOurs).map {
-            ForgeJob(name: $0.name, runnerName: $0.runnerDescription, repository: $0.project, labels: $0.tags)
+            ForgeJob(
+                name: $0.name, runnerName: $0.runnerDescription, repository: $0.project, labels: $0.tags,
+                isFork: $0.fromMergeRequest)
         }
     }
+
+    var rateLimit: ForgeRateLimit? { client.rateLimit }
+
+    /// The job `runnerName` is executing. The running-jobs read fans out over
+    /// every project of a group, so the result of the engine's own poll is
+    /// reused while it is recent and still names the runner; only a miss
+    /// reads again.
+    private func runningJob(of runnerName: String) async throws -> GitLabJob? {
+        if let cached = snapshot.recentRunning(maxAge: Self.runningJobsReuse),
+            let job = cached.first(where: { $0.runnerDescription == runnerName })
+        {
+            return job
+        }
+        let jobs = try await client.jobs(.running, in: gitlabScope)
+        snapshot.setRunning(jobs)
+        return jobs.first { $0.runnerDescription == runnerName }
+    }
+
+    /// How long the poll's running-jobs result serves `pipelineDetail`.
+    private static let runningJobsReuse: TimeInterval = 10
 
     /// The pipeline of the job `runnerName` is running, with its jobs. GitLab
     /// exposes no steps below a job, so the detail is job-level.
     func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? {
-        let running = try await client.jobs(.running, in: gitlabScope)
-        guard let mine = running.first(where: { $0.runnerDescription == runnerName }),
+        guard let mine = try await runningJob(of: runnerName),
             let projectID = mine.projectID, let pipelineID = mine.pipelineID
         else { return nil }
         let (info, jobs) = try await client.pipeline(projectID: projectID, pipelineID: pipelineID)
@@ -192,7 +223,7 @@ struct GitLabForge: Forge {
 /// watches polling every second cost one API call per few seconds.
 final class GitLabRunnerSnapshot: Sendable {
     private let list: SharedListCache<GitLabRunner>
-    private let busy = Mutex<Set<String>>([])
+    private let busy = Mutex<(names: Set<String>, jobs: [GitLabJob], at: Date?)>(([], [], nil))
 
     init(ttl: TimeInterval) {
         self.list = SharedListCache(ttl: ttl)
@@ -202,10 +233,19 @@ final class GitLabRunnerSnapshot: Sendable {
         try await list.elements(fetch: fetch)
     }
 
-    var busyRunnerNames: Set<String> { busy.withLock { $0 } }
+    var busyRunnerNames: Set<String> { busy.withLock { $0.names } }
 
-    func setBusy(_ names: Set<String>) {
-        busy.withLock { $0 = names }
+    /// Records the scope's running jobs (and so which runners are busy).
+    func setRunning(_ jobs: [GitLabJob]) {
+        busy.withLock { $0 = (Set(jobs.compactMap(\.runnerDescription)), jobs, Date()) }
+    }
+
+    /// The last running-jobs read when it is younger than `maxAge`.
+    func recentRunning(maxAge: TimeInterval) -> [GitLabJob]? {
+        busy.withLock { state in
+            guard let at = state.at, Date().timeIntervalSince(at) < maxAge else { return nil }
+            return state.jobs
+        }
     }
 
     func invalidate() {

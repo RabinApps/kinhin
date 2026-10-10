@@ -21,11 +21,17 @@ public struct ForgeRateLimit: Sendable, Equatable {
 
     var isLow: Bool { fractionRemaining < Self.lowFraction }
 
-    /// Parses the rate-limit headers; nil when the response carries none.
+    /// Parses the rate-limit headers (`X-RateLimit-*`, or GitLab's unprefixed
+    /// `RateLimit-*`, whose reset is also epoch seconds); nil when the
+    /// response carries none.
     init?(headers response: HTTPURLResponse) {
-        guard let remaining = response.value(forHTTPHeaderField: "X-RateLimit-Remaining").flatMap({ Int($0) }),
-            let limit = response.value(forHTTPHeaderField: "X-RateLimit-Limit").flatMap({ Int($0) }),
-            let reset = response.value(forHTTPHeaderField: "X-RateLimit-Reset").flatMap({ TimeInterval($0) })
+        func header(_ name: String) -> String? {
+            response.value(forHTTPHeaderField: "X-RateLimit-\(name)")
+                ?? response.value(forHTTPHeaderField: "RateLimit-\(name)")
+        }
+        guard let remaining = header("Remaining").flatMap({ Int($0) }),
+            let limit = header("Limit").flatMap({ Int($0) }),
+            let reset = header("Reset").flatMap({ TimeInterval($0) })
         else { return nil }
         self.init(remaining: remaining, limit: limit, resetAt: Date(timeIntervalSince1970: reset))
     }

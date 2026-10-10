@@ -124,6 +124,8 @@ final class GitLabClientTests: XCTestCase {
             if path.hasSuffix("/groups/3/projects") {
                 XCTAssertTrue(request.url!.query!.contains("include_subgroups=true"))
                 XCTAssertTrue(request.url!.query!.contains("last_activity_after="))
+                XCTAssertTrue(
+                    request.url!.query!.contains("with_shared=false"), "shared-in projects are not the group's")
                 let body = """
                     [{"id":10,"path_with_namespace":"acme/api"},
                      {"id":11,"path_with_namespace":"acme/web"},
@@ -149,6 +151,110 @@ final class GitLabClientTests: XCTestCase {
                     id: 1, name: "build", tags: ["macos"], project: "acme/api", runnerDescription: nil, projectID: 10),
                 GitLabJob(id: 2, name: "lint", tags: [], project: "acme/web", runnerDescription: nil, projectID: 11),
             ])
+    }
+
+    /// One project has nothing to fall back to: a revoked or mistyped scope
+    /// must be an error, not "no jobs".
+    func testSingleProjectJobReadFailuresAreNotAnEmptyQueue() async {
+        for status in [403, 404, 422] {
+            StubProtocol.handler = { _ in (status, Data("nope".utf8), [:]) }
+            do {
+                _ = try await makeClient().jobs(.pending, in: .project(id: 7, path: "acme/api"))
+                XCTFail("status \(status) must throw")
+            } catch is ForgeAPIError {
+                // expected
+            } catch {
+                XCTFail("unexpected \(error)")
+            }
+        }
+    }
+
+    func testGroupSkipsAProjectThatErrorsOrReturnsGarbage() async throws {
+        StubProtocol.handler = { request in
+            let path = request.url!.path
+            if path.hasSuffix("/groups/3/projects") {
+                let body = """
+                    [{"id":10,"path_with_namespace":"acme/api"},{"id":11,"path_with_namespace":"acme/broken"},
+                     {"id":12,"path_with_namespace":"acme/garbage"}]
+                    """
+                return (200, Data(body.utf8), [:])
+            }
+            if path.hasSuffix("/projects/11/jobs") { return (422, Data("unprocessable".utf8), [:]) }
+            if path.hasSuffix("/projects/12/jobs") { return (200, Data("<html>".utf8), [:]) }
+            return (200, Data(#"[{"id":1,"name":"build","tag_list":["macos"]}]"#.utf8), [:])
+        }
+        let jobs = try await makeClient(scope: "acme").jobs(.pending, in: .group(id: 3, path: "acme"))
+        XCTAssertEqual(jobs.map(\.name), ["build"], "the healthy project's demand survives")
+    }
+
+    func testGroupRethrowsWhenEveryProjectFails() async {
+        StubProtocol.handler = { request in
+            if request.url!.path.hasSuffix("/groups/3/projects") {
+                let body = #"[{"id":10,"path_with_namespace":"acme/api"},{"id":11,"path_with_namespace":"acme/web"}]"#
+                return (200, Data(body.utf8), [:])
+            }
+            return (422, Data("unprocessable".utf8), [:])
+        }
+        do {
+            _ = try await makeClient(scope: "acme").jobs(.pending, in: .group(id: 3, path: "acme"))
+            XCTFail("an outage is not an empty queue")
+        } catch is ForgeAPIError {
+            // expected
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+    }
+
+    func testGroupRethrowsUnauthorizedEvenWhenOtherProjectsWork() async {
+        StubProtocol.handler = { request in
+            let path = request.url!.path
+            if path.hasSuffix("/groups/3/projects") {
+                let body = #"[{"id":10,"path_with_namespace":"acme/api"},{"id":11,"path_with_namespace":"acme/web"}]"#
+                return (200, Data(body.utf8), [:])
+            }
+            if path.hasSuffix("/projects/11/jobs") { return (401, Data(), [:]) }
+            return (200, Data("[]".utf8), [:])
+        }
+        do {
+            _ = try await makeClient(scope: "acme").jobs(.pending, in: .group(id: 3, path: "acme"))
+            XCTFail("a rejected token must surface")
+        } catch let error as ForgeAPIError {
+            XCTAssertEqual(error, .unauthorized(forge: .gitlab))
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+    }
+
+    func testMergeRequestPipelinesAreFlagged() async throws {
+        StubProtocol.handler = { _ in
+            let body = """
+                [{"id":1,"name":"mr","tag_list":["macos"],"ref":"refs/merge-requests/4/head",
+                  "pipeline":{"id":9,"source":"merge_request_event"}},
+                 {"id":2,"name":"branch","tag_list":["macos"],"ref":"main","pipeline":{"id":10,"source":"push"}},
+                 {"id":3,"name":"detached","tag_list":["macos"],"ref":"refs/merge-requests/5/head",
+                  "pipeline":{"id":11}}]
+                """
+            return (200, Data(body.utf8), [:])
+        }
+        let jobs = try await makeClient().jobs(.pending, in: .project(id: 7, path: "acme/api"))
+        XCTAssertEqual(jobs.map(\.fromMergeRequest), [true, false, true])
+    }
+
+    func testRateLimitHeadersAreRecorded() async throws {
+        let client = makeClient()
+        XCTAssertNil(client.rateLimit)
+        let reset = Int(Date().addingTimeInterval(60).timeIntervalSince1970)
+        StubProtocol.handler = { _ in
+            (
+                200, Data("[]".utf8),
+                ["RateLimit-Limit": "2000", "RateLimit-Remaining": "150", "RateLimit-Reset": "\(reset)"]
+            )
+        }
+        _ = try await client.jobs(.pending, in: .project(id: 7, path: "acme/api"))
+        let limit = try XCTUnwrap(client.rateLimit)
+        XCTAssertEqual(limit.limit, 2000)
+        XCTAssertEqual(limit.remaining, 150)
+        XCTAssertEqual(limit.resetAt.timeIntervalSince1970, TimeInterval(reset), accuracy: 1)
     }
 
     func testRunningJobsCarryTheirRunner() async throws {

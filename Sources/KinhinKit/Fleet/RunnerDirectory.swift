@@ -68,7 +68,10 @@ final class RunnerDirectory: Sendable {
         // moment the call started, not the (possibly slow) moment it arrived.
         let flight = state.withLock { state -> Flight in
             if joiningInflight, let running = state.inflight[account] { return running }
-            let flight = Flight(task: Task { try await forge.runners() }, startedAt: now())
+            // A fresh read must also get past the forge's own short list cache.
+            let flight = Flight(
+                task: Task { joiningInflight ? try await forge.runners() : try await forge.freshRunners() },
+                startedAt: now())
             state.inflight[account] = flight
             return flight
         }

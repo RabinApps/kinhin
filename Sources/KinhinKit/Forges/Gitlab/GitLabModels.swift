@@ -98,13 +98,18 @@ public struct GitLabJob: Sendable, Equatable {
     /// job list is read through them).
     let projectID: Int?
     let pipelineID: Int?
+    /// The job belongs to a merge-request pipeline (`merge_request_event`, ref
+    /// `refs/merge-requests/N/…`). Such a ref can carry a fork's code, so the
+    /// job is treated like a fork pull request: no repo file, no cache trust.
+    let fromMergeRequest: Bool
 
     public init(
         id: Int, name: String, tags: [String], project: String, runnerDescription: String?, ref: String? = nil,
-        sha: String? = nil, projectID: Int? = nil, pipelineID: Int? = nil
+        sha: String? = nil, projectID: Int? = nil, pipelineID: Int? = nil, fromMergeRequest: Bool = false
     ) {
         self.projectID = projectID
         self.pipelineID = pipelineID
+        self.fromMergeRequest = fromMergeRequest
         self.id = id
         self.name = name
         self.tags = tags
