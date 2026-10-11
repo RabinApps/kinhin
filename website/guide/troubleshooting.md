@@ -26,6 +26,17 @@
   job normally lands on the replacement, so an isolated occurrence is harmless. If it repeats:
   raise `vm_boot_timeout` (e.g. `600`) for slow images, keep the host quiet during boot storms,
   and re-prepare the image if the guest agent is flaky on every boot.
+- **Tart: `Error Domain=VZErrorDomain Code=-9 "The virtual machine encountered a security error."`** (with
+  `Failed to create new HostKey`; `tart ip` then says `no IP address found, is your VM running?`) — the
+  macOS login keychain's password often differs from your account password. Check it with
+  `security unlock-keychain ~/Library/Keychains/login.keychain-db`: if that says _The user name or passphrase
+  you entered is not correct._, reset the keychain. In a reported case, over Screen Sharing, **Keychain
+  Access → Settings → Reset My Default Keychain** fixed it. This deletes the passwords saved in the login
+  keychain, so re-enter the ones you need, then confirm the kinhin token with `kinhin doctor --check-tokens`.
+  Do not delete the keychain instead; that removes the same passwords without fixing the mismatch. Full
+  steps: [Tart FAQ, Keychain password mismatch](https://tart.run/faq/#keychain-password-mismatch). Other
+  errors such as `SecKeyCreateRandomKey_ios failed` can share this cause. Steps that did not help in the
+  reported cases: reinstalling Tart, rebooting, stopping Multipass, updating the Command Line Tools.
 - **Token rejected** — re-run `kinhin auth set`; the PAT needs `repo` scope and access to the
   repo.
 - **First launch blocked** — only applies to old releases or locally built copies (official

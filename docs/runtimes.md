@@ -269,6 +269,50 @@ any toolchains into it yourself; kinhin bakes none for Docker.
 software (JITs, certain Go/Java/.NET builds) fails under emulation. Prefer arm64 unless a job needs x86_64. amd64 slots
 register with an `x64` label instead of `arm64`, and you must rebuild the image after changing `platform`.
 
+### Start at login
+
+kinhin does not start either container runtime, so after a reboot Linux jobs queue until it is running again. Set
+it to start at login. On a headless Mac, also turn on automatic login (see
+[Keep it running unattended](rented-mac.md#keep-it-running-unattended)), because both need a login session.
+
+**apple/container.** `container system start` launches the API server as a launch agent, but it registers that
+agent from a plist in the container app data directory, not from `~/Library/LaunchAgents`, so nothing starts it at
+the next login. Add your own LaunchAgent. Use the path from `which container` (Homebrew on Apple silicon puts it at
+`/opt/homebrew/bin/container`):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>local.container-system-start</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/container</string>
+        <string>system</string>
+        <string>start</string>
+        <string>--disable-kernel-install</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+```
+
+Save it as `~/Library/LaunchAgents/local.container-system-start.plist`. The `--disable-kernel-install` flag stops the
+command from prompting at login, so install the kernel first by running `container system start --enable-kernel-install`
+once by hand. To test, log out and back in, then run `container system status`. To remove it, run
+`launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/local.container-system-start.plist` and delete the file.
+
+**Docker.** Use the start-at-login setting of your provider:
+
+- **Docker Desktop:** Settings → General → turn on **Start Docker Desktop when you sign in to your computer**
+  (off by default).
+- **colima:** `brew services start colima` runs colima as a service that starts at login (see the
+  [colima FAQ](https://github.com/abiosoft/colima/blob/main/docs/FAQ.md)).
+- **OrbStack:** see the [OrbStack documentation](https://docs.orbstack.dev) for its start-at-login setting.
+
 ### Tart Linux VMs
 
 Choose **Tart (Linux VM)** under **This Mac → Linux jobs** in the app, or point `base_image:` at a Linux VM. A tart

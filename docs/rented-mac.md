@@ -74,6 +74,8 @@ rented Mac that means:
   machines.
 - Keep FileVault off, or you will need to unlock the disk by hand after every reboot. Weigh that
   against the data on the Mac: it holds only a forge token and throwaway VMs.
+- If the fleet runs Linux jobs on apple/container or Docker, start those at login as well. See
+  [Start at login](runtimes.md#start-at-login).
 - Install the daemon from that session (a VNC or Screen Sharing login works), then confirm
   with `kinhin status` over SSH.
 
