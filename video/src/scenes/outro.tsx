@@ -2,11 +2,11 @@ import {Circle, Txt, makeScene2D} from '@motion-canvas/2d';
 import {createRef, waitFor} from '@motion-canvas/core';
 import {content} from '../content';
 import {timing} from '../timing';
-import {FONT, INK, MUTED, PAPER} from '../theme';
+import {BACKGROUND, FONT, INK, MUTED, PAPER} from '../theme';
 
 // 62-70 s: the line the README ends on, then where to get it.
 export default makeScene2D(function* (view) {
-  view.fill(PAPER);
+  view.fill(BACKGROUND);
   const line = createRef<Txt>();
   const url = createRef<Txt>();
   const facts = createRef<Txt>();

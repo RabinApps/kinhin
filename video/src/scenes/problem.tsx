@@ -2,11 +2,11 @@ import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, createRefArray, waitFor} from '@motion-canvas/core';
 import {content} from '../content';
 import {timing} from '../timing';
-import {FONT, INK, MUTED, PAPER} from '../theme';
+import {BACKGROUND, FONT, INK, MUTED, PAPER} from '../theme';
 
 // 6-16 s: one runner, one job at a time, a queue that only grows.
 export default makeScene2D(function* (view) {
-  view.fill(PAPER);
+  view.fill(BACKGROUND);
   const jobs = createRefArray<Rect>();
   const runner = createRef<Rect>();
   const caption = createRef<Txt>();

@@ -23,13 +23,13 @@
       "id": "problem",
       "visual": "Motion Canvas opening: problem",
       "minLength": 7.9,
-      "narration": "A self-hosted runner does one job at a time. Your queue waits its turn, and whatever one job leaves behind, the next one inherits."
+      "narration": "Self-hosted runners do one job at a time. Jobs queue up, and whatever one job leaves behind, the next one inherits."
     },
     {
       "id": "solution",
       "visual": "Motion Canvas opening: solution (one job, one fresh VM, gone when done)",
-      "minLength": 7.8,
-      "narration": "kinhin is a free, open-source Mac app. It starts a fresh VM or container for each job, and deletes it when the job is done."
+      "minLength": 4.6,
+      "narration": "kinhin fixes that. Every job gets its own fresh VM or container, deleted when the job is done."
     },
     {
       "id": "app",
@@ -45,15 +45,15 @@
         },
         {
           "at": 9.0,
-          "text": "macOS VMs and Linux containers run side by side."
+          "text": "macOS VMs and Linux containers, side by side."
         },
         {
           "at": 14.2,
-          "text": "When one fails, the next still starts on a clean machine."
+          "text": "When one fails, the next still starts clean."
         },
         {
           "at": 18.4,
-          "text": "Then every instance is deleted. Nothing lingers."
+          "text": "Every instance is deleted. Nothing lingers."
         }
       ],
       "speed": 1.7
@@ -65,7 +65,7 @@
       "cues": [
         {
           "at": 0.4,
-          "text": "Install with one line."
+          "text": "One line to install."
         },
         {
           "at": 5.0,
@@ -77,7 +77,7 @@
       "id": "lanes",
       "visual": "Motion Canvas closing: lanes",
       "minLength": 6,
-      "narration": "It works with GitHub, GitLab, Gitea and Forgejo, on Tart, apple container, or Docker."
+      "narration": "It works with GitHub, GitLab, Gitea and Forgejo, on Tart, apple container or Docker."
     },
     {
       "id": "outro",
@@ -88,8 +88,8 @@
           "text": "One job. One VM. Gone when it's done."
         },
         {
-          "text": "kinhin.dev. Free, Apache 2.0, no telemetry, in beta.",
-          "say": "kinhin dot dev. Free, Apache 2, no telemetry, in beta."
+          "text": "kinhin.dev. Free, open source, no telemetry.",
+          "say": "kinhin dot dev. Free, open source, no telemetry."
         }
       ]
     }

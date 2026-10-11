@@ -2,11 +2,11 @@ import {Circle, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, waitFor} from '@motion-canvas/core';
 import {content} from '../content';
 import {timing} from '../timing';
-import {FONT, INK, MUTED, PAPER} from '../theme';
+import {BACKGROUND, FONT, INK, MUTED, PAPER} from '../theme';
 
 // 0-6 s: the ring draws itself, then the tagline.
 export default makeScene2D(function* (view) {
-  view.fill(PAPER);
+  view.fill(BACKGROUND);
   const ring = createRef<Circle>();
   const title = createRef<Txt>();
   const sub = createRef<Txt>();

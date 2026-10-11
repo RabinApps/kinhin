@@ -7,65 +7,62 @@ Meet kinhin.
 The mindful CI.
 
 3
-00:00:06,120 --> 00:00:09,650
-A self-hosted runner does one job at a time.
+00:00:06,120 --> 00:00:09,400
+Self-hosted runners do one job at a time.
 
 4
-00:00:09,950 --> 00:00:15,570
-Your queue waits its turn, and whatever one
-job leaves behind, the next one inherits.
+00:00:09,700 --> 00:00:14,770
+Jobs queue up, and whatever one job
+leaves behind, the next one inherits.
 
 5
-00:00:16,870 --> 00:00:19,920
-kinhin is a free, open-source Mac app.
+00:00:16,070 --> 00:00:17,990
+kinhin fixes that.
 
 6
-00:00:20,220 --> 00:00:26,120
-It starts a fresh VM or container for each job,
-and deletes it when the job is done.
+00:00:18,290 --> 00:00:24,070
+Every job gets its own fresh VM or container,
+deleted when the job is done.
 
 7
-00:00:27,420 --> 00:00:32,100
+00:00:25,370 --> 00:00:30,050
 Jobs arrive, and kinhin scales to
 the queue, within your Mac's limits.
 
 8
-00:00:32,220 --> 00:00:35,070
+00:00:30,170 --> 00:00:33,020
 Each job gets its own clean instance.
 
 9
-00:00:35,920 --> 00:00:40,250
-macOS VMs and Linux
-containers run side by side.
+00:00:33,870 --> 00:00:38,200
+macOS VMs and Linux containers,
+side by side.
 
 10
-00:00:41,120 --> 00:00:44,720
-When one fails, the next still
-starts on a clean machine.
+00:00:39,070 --> 00:00:42,090
+When one fails, the next still starts clean.
 
 11
-00:00:45,320 --> 00:00:49,020
-Then every instance is
-deleted. Nothing lingers.
+00:00:43,270 --> 00:00:46,720
+Every instance is deleted. Nothing lingers.
 
 12
-00:00:50,220 --> 00:00:52,300
-Install with one line.
+00:00:47,920 --> 00:00:49,870
+One line to install.
 
 13
-00:00:54,820 --> 00:00:57,420
+00:00:52,520 --> 00:00:55,120
 Then kinhin doctor checks your Mac.
 
 14
-00:01:01,320 --> 00:01:07,750
+00:00:59,020 --> 00:01:05,600
 It works with GitHub, GitLab, Gitea and Forgejo,
-on Tart, apple container, or Docker.
+on Tart, apple container or Docker.
 
 15
-00:01:09,050 --> 00:01:12,480
+00:01:06,900 --> 00:01:10,330
 One job. One VM. Gone when it's done.
 
 16
-00:01:12,770 --> 00:01:17,350
-kinhin.dev. Free, Apache 2.0,
-no telemetry, in beta.
+00:01:10,620 --> 00:01:14,600
+kinhin.dev. Free, open source, no telemetry.

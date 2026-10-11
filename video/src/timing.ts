@@ -2,10 +2,10 @@
 // Edit script/launch.json and re-run the script instead of changing these by hand.
 export const timing = {
   intro: 5.62,
-  problem: 10.75,
-  solution: 10.55,
-  app: 22.9,
+  problem: 9.95,
+  solution: 9.3,
+  app: 22.65,
   install: 11,
-  lanes: 7.73,
-  outro: 9.6,
+  lanes: 7.88,
+  outro: 9,
 };

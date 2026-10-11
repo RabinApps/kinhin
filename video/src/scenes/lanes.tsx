@@ -2,14 +2,14 @@ import {Circle, Line, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, createRefArray, waitFor} from '@motion-canvas/core';
 import {content} from '../content';
 import {timing} from '../timing';
-import {FONT, INK, MUTED, PAPER} from '../theme';
+import {BACKGROUND, FONT, INK, MUTED, PAPER} from '../theme';
 
 const FORGES = content.lanes.forges;
 const RUNTIMES = content.lanes.runtimes;
 
 // 40-52 s: four forges, three runtimes, one fleet.
 export default makeScene2D(function* (view) {
-  view.fill(PAPER);
+  view.fill(BACKGROUND);
   const forges = createRefArray<Txt>();
   const runtimes = createRefArray<Txt>();
   const lines = createRefArray<Line>();

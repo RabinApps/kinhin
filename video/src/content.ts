@@ -12,6 +12,7 @@ export const content = {
     jobsInQueue: 7,
   },
   solution: {
+    jobs: ['acme/api', 'acme/web', 'lab/infra'],
     vm: 'fresh VM',
     caption: 'A fresh VM for every job.',
     done: 'Deleted when the job is done.',
