@@ -16,9 +16,18 @@ const repoFiles = /^https:\/\/github\.com\/RabinApps\/kinhin\/(blob|tree|raw)\/(
 
 const baseMarkdownConfig = base.markdown?.config;
 
+// Older tags styled the banner without --vp-layout-top-height, so the fixed nav covered it.
+// Same rules as the current .vitepress/theme/version-banner.css, injected for any tag.
+const bannerFix = `:root:has(.version-banner){--vp-layout-top-height:40px}
+.version-banner{position:fixed;top:0;left:0;right:0;z-index:31;box-sizing:border-box;display:flex;align-items:center;
+justify-content:center;height:var(--vp-layout-top-height);padding:0 16px;overflow:hidden;white-space:nowrap}
+@media (max-width:640px){:root:has(.version-banner){--vp-layout-top-height:56px}
+.version-banner{white-space:normal;font-size:13px;line-height:1.3}}`;
+
 export default {
   ...base,
   ignoreDeadLinks: true,
+  head: [...(base.head ?? []), ["style", {}, bannerFix]],
   markdown: {
     ...base.markdown,
     config: (md: any) => {
