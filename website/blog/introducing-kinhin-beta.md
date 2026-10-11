@@ -110,7 +110,8 @@ I use two words precisely:
 
 - **Live-tested** means it was run against a real server, with a real workflow job, on a real Mac.
 - **Unit-tested only** means automated tests against fakes, stubbed HTTP and fake shells, and **never run against a real
-  instance**. Those tests show the code matches my reading of an API, not that the real service agrees.
+  instance**. Those tests show the code matches my reading of an API, not that the real service agrees. Buildkite, Azure
+  Pipelines and Bitbucket Pipelines are at this stage, which is why they are not supported yet.
 
 | Area                                                                                                           | State at beta-1                           |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
@@ -123,8 +124,13 @@ I use two words precisely:
 | ThreadSanitizer                                                                                                | One clean run of `scripts/tsan.sh`        |
 | Long-running soak test                                                                                         | Not done                                  |
 
-There are about 2,900 unit tests that need no VMs or network. They run in two minutes and they are not evidence that the
-real services agree with me. Measured on my own Mac (M1 Max, 64 GB, macOS 27) with `kinhin bench`: a Tart macOS VM boots to SSH-ready in about 31 s cold and 10 s warm, an apple/container Linux container is ready in about 1.4 s, and a small Xcode project builds in 13 s clean and 3.5 s incremental inside the VM. One machine, one afternoon: treat these as a sample, not a benchmark.
+There are about 2,900 unit tests that need no VMs or network. They run in about two minutes, and they are not evidence that
+the real services agree with me.
+
+Measured once on my own Mac (M1 Max, 64 GB, macOS 27) with `kinhin bench`: a Tart macOS VM boots to SSH-ready in about
+31 s cold and 10 s warm, an apple/container Linux container is ready in about 1.4 s, and `xcodebuild` builds a small
+generated Swift package inside the VM in 13 s clean and 3.5 s incremental. One machine, one run: treat these as a sample,
+not a benchmark.
 
 ### The end-to-end suite
 
@@ -133,7 +139,7 @@ real services agree with me. Measured on my own Mac (M1 Max, 64 GB, macOS 27) wi
 in a container, runs a real kinhin daemon against it in a sandbox that cannot touch my own setup, bakes a real runner
 image, pushes a workflow, and then checks what the forge itself reports: the job ran inside the guest (it files an issue
 containing the guest's kernel and hostname), the instance was deleted afterwards, the runner was deregistered, and no
-token reached the log. It runs every forge on every runtime, plus failing jobs, long jobs, a daemon killed mid-run, a
+token reached the log. It runs Gitea, Forgejo and GitLab CE on every runtime, plus failing jobs, long jobs, a daemon killed mid-run, a
 forge that hangs mid-job, the concurrency cap, the warm pool, routing, and toolchain installs. The GitHub lane needs a
 throwaway repository and a token, so GitHub's live runs are still my own.
 
@@ -143,7 +149,8 @@ I don't write code by hand anymore. I build with AI agents, primarily from Claud
 don't train on my data. I decide what gets built and I review and test the result, and the agents type the code. In
 practice that means every change has to pass `scripts/check.sh` (build, the unit suite, format, docs and skills lint), the
 e2e suite is the part that runs real software rather than fakes, and anything that touches shared state also gets a
-ThreadSanitizer run. `scripts/check.sh` is green on the release commit. You should weigh all of this however you like. It is also why the testing table above is as blunt as it is.
+ThreadSanitizer run. `scripts/check.sh` is green on the release commit. You should weigh all of this however you like.
+It is also why the testing table above is as blunt as it is.
 
 ## Where I need help
 

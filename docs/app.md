@@ -23,7 +23,8 @@ main window (and the ○ in your menu bar shows the number of live runner VMs).
 
 ### Supported forges and runtimes
 
-The beta supports GitHub, Gitea, Forgejo and GitLab CE on every runtime. The forge grid also shows Buildkite, Azure
+The beta supports GitHub, Gitea, Forgejo and GitLab CE. Gitea, Forgejo and GitLab CE are tested on every runtime;
+GitHub on Tart macOS VMs and apple/container. The forge grid also shows Buildkite, Azure
 DevOps and Bitbucket with an **untested** badge: their support is planned for a later release and is not part of the
 beta. The list comes from one table in the code (`MaturityTable`).
 

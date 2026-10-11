@@ -27,11 +27,11 @@ hero:
 
 features:
   - title: In beta
-    details: GitHub, Gitea, Forgejo and GitLab CE are supported on every runtime and run end to end in kinhin's own test suite. Buildkite, Azure Pipelines and Bitbucket are planned. <a href="/guide/forges#what-has-been-tested">What has been tested</a> · <a href="/guide/beta-roadmap">Roadmap to v0.1.0</a>
+    details: GitHub, Gitea, Forgejo and GitLab CE are supported. Gitea, Forgejo and GitLab CE run end to end on every runtime in kinhin's own test suite; GitHub has run on Tart macOS VMs and apple/container. Buildkite, Azure Pipelines and Bitbucket are planned. <a href="/guide/forges#what-has-been-tested">What has been tested</a> · <a href="/guide/beta-roadmap">Roadmap to v0.1.0</a>
   - title: Real concurrency
     details: Self-hosted runners handle one job at a time. Kinhin scales a fleet of ephemeral runners to your queue so jobs run in parallel. <a href="/guide/why-kinhin">Why kinhin</a>
   - title: Ephemeral by default
-    details: Every job gets a freshly cloned VM. The runner deregisters itself afterwards and the VM is deleted — no state leaks between jobs.
+    details: Every job gets a fresh VM or container. The runner deregisters itself afterwards and the instance is deleted — no state leaks between jobs.
   - title: Multi-forge
     details: GitHub Actions, GitLab CI/CD, Gitea Actions and Forgejo Actions served from one shared pool. Buildkite, Azure Pipelines and Bitbucket Pipelines are planned.
   - title: Multi-runtime

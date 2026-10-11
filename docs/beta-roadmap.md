@@ -15,6 +15,8 @@ Pipelines and Bitbucket Pipelines follow in later betas. Milestones are ordered 
 | Gitea, Forgejo, GitLab CE | Supported; live-tested on every runtime by the [end-to-end suite](e2e-testing.md) |
 | Runtimes: Tart macOS and Linux VMs, apple/container, Docker, host mode | Live-tested |
 | Buildkite, Azure Pipelines, Bitbucket Pipelines | Planned (implemented and unit-tested, not supported yet) |
+| ThreadSanitizer | Clean (`scripts/tsan.sh`) |
+| Long-running soak test | Not done |
 | In-app updater | Not yet exercised against a published release |
 | Telemetry | None |
 
@@ -22,7 +24,8 @@ Pipelines and Bitbucket Pipelines follow in later betas. Milestones are ordered 
 
 ### beta-1: first public beta (current)
 
-- GitHub, Gitea, Forgejo and GitLab CE supported on every runtime.
+- GitHub, Gitea, Forgejo and GitLab CE supported. Gitea, Forgejo and GitLab CE live-tested on every runtime; GitHub on
+  Tart macOS VMs and apple/container.
 - Menu bar app, CLI and LaunchAgent daemon released, signed and notarized.
 - Docs, forge reference and the forge-report issue template published.
 
@@ -45,7 +48,7 @@ Pipelines and Bitbucket Pipelines follow in later betas. Milestones are ordered 
 
 ### rc: hardening
 
-- ThreadSanitizer run is clean (`scripts/tsan.sh`).
+- ThreadSanitizer still clean (`scripts/tsan.sh`).
 - Long-running soak test: scaling up and down, crash and restart recovery, no leaked VMs, containers or registered runners.
 - Troubleshooting and security [known limits](security.md#known-limits) reviewed against what beta testers hit.
 - Docs read-through against the shipped CLI and app.

@@ -21,8 +21,9 @@ its job finishes.
 
 ## What has been tested
 
-Every supported forge runs real jobs, on every runtime, in kinhin's [end-to-end suite](e2e-testing.md): a real server
-in a container (or a real GitHub repository), a real runner, and a job whose result the forge itself reports.
+Gitea, Forgejo and GitLab CE run real jobs on every runtime in kinhin's [end-to-end suite](e2e-testing.md): a real
+server in a container, a real runner, and a job whose result the forge itself reports. GitHub Actions has been run by
+hand against github.com; its e2e lane needs a throwaway repository and is not run yet.
 
 | Forge                 | Versions run                     | Runtimes                                                           |
 | --------------------- | -------------------------------- | ------------------------------------------------------------------ |

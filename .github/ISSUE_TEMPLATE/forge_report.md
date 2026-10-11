@@ -1,6 +1,6 @@
 ---
 name: Forge or runtime report
-about: Tell us whether kinhin worked against your forge or runtime (most are untested)
+about: Tell us whether kinhin worked against your forge or runtime, including versions we have not tested
 labels: verification
 ---
 

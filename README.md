@@ -24,7 +24,7 @@ container) boots for each job, runs it, and is deleted. Host CPU, memory, and di
 Mac stays usable. For fully trusted repos an opt-in [host mode](docs/runtimes.md#host-mode-run-jobs-directly-on-your-mac)
 runs jobs directly on the Mac, with no isolation.
 
-- **Ephemeral by default** — every job gets a freshly cloned VM; no state leaks between jobs.
+- **Ephemeral by default** — every job gets a fresh VM or container; no state leaks between jobs.
 - **Multi-forge, multi-runtime** — four forges and four runtimes in one fleet, routed per repo, workflow, or `runs-on:`
   label ([Forges](docs/forges.md), [Runtimes & routing](docs/runtimes.md)).
 - **Fast, dense, resource-aware** — linked clones boot in seconds, an opt-in [warm pool](docs/scaling.md#warm-pool)
