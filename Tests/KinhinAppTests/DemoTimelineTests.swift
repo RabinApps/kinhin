@@ -104,7 +104,7 @@ final class DemoTimelineTests: XCTestCase {
         XCTAssertNotNil(invalid(script(capacity: 0, [job()])))
         XCTAssertNotNil(invalid(script([])))
         XCTAssertTrue(invalid(script([job(arrive: 5, start: 2)]))?.contains("start must be") == true)
-        XCTAssertTrue(invalid(script([job(account: "bitbucket")]))?.contains("not a forge") == true)
+        XCTAssertTrue(invalid(script([job(account: "notaforge")]))?.contains("not a forge") == true)
         XCTAssertTrue(invalid(script(period: 8, [job()]))?.contains("after the") == true)
         XCTAssertNil(invalid(script([job()])))
     }
