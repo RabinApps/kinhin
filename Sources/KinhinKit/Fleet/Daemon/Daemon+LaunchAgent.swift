@@ -23,9 +23,13 @@ extension Daemon {
         path.contains("/.build/debug/") || path.contains("/.build/arm64-apple-macosx/debug/")
     }
 
-    /// Loads the installed LaunchAgent, which starts the daemon.
+    /// Loads the installed LaunchAgent, which starts the daemon. An agent that is already
+    /// loaded is booted out first: `launchctl load` alone ignores it, so a re-install (an
+    /// upgrade, a new binary path) kept the old daemon running.
     public static func loadAgent(shell: ShellRunning = Shell()) async throws -> ShellResult {
-        try await shell.run([launchctlPath, "load", agentPlistPath().path], cwd: nil, timeout: 30)
+        let plist = agentPlistPath().path
+        _ = try? await shell.run([launchctlPath, "bootout", "gui/\(getuid())", plist], cwd: nil, timeout: 30)
+        return try await shell.run([launchctlPath, "load", plist], cwd: nil, timeout: 30)
     }
 
     /// Escapes the five XML special characters for text inside a plist

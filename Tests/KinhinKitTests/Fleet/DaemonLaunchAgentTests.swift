@@ -5,10 +5,14 @@ import XCTest
 
 /// `kinhin daemon install`: the launchctl call and the debug-build refusal.
 final class DaemonLaunchAgentTests: XCTestCase {
-    func testLoadRunsLaunchctlByItsAbsolutePath() async throws {
+    func testLoadBootsOutARunningAgentThenLoadsByAbsolutePath() async throws {
         let shell = FakeShell()
         _ = try await Daemon.loadAgent(shell: shell)
-        XCTAssertEqual(shell.calls, [["/bin/launchctl", "load", Daemon.agentPlistPath().path]])
+        let plist = Daemon.agentPlistPath().path
+        XCTAssertEqual(
+            shell.calls,
+            [["/bin/launchctl", "bootout", "gui/\(getuid())", plist], ["/bin/launchctl", "load", plist]],
+            "a re-install restarts the daemon instead of leaving the old one running")
     }
 
     func testASymlinkIntoADebugBuildIsADebugBuild() throws {
