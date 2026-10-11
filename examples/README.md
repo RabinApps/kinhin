@@ -44,5 +44,7 @@ upload to real stores. The React Native and Flutter iOS builds also need CocoaPo
 
 ## Regenerate
 
+The Flutter example's iOS deployment target is 15.0. `flutter create` still writes 13.0, which Xcode 26 rejects.
+
 `ios_native_app` is defined by `ios_native_app/project.yml`. Run `xcodegen generate` in that folder after changing it.
 The other apps came from the framework CLIs listed above.

@@ -79,7 +79,9 @@ change it in `.github/workflows/mobile-release.yml`. kinhin does not store any o
 **Flutter.** Build first, then upload. `flutter build appbundle` and `flutter build ipa` produce the artifacts. Set
 `AAB_PATH` to the AAB so the Android lane skips Gradle. `FLUTTER_ROOT` must be set for the iOS deploy scripts. The
 official [Flutter CD guide](https://docs.flutter.dev/deployment/cd) describes the same steps. An IPA build needs a
-distribution certificate, not a development one.
+distribution certificate, not a development one. The iOS deployment target must be 15.0 or higher for the Xcode 26
+toolchain: `flutter create` still writes 13.0, which fails with "deployment target ... is set to 13.0". The `flutter_app`
+example sets 15.0 in `ios/Runner.xcodeproj/project.pbxproj`.
 
 **React Native (bare).** The iOS and Android folders are the same as native. No official fastlane guide exists for
 React Native. The layout here follows fastlane's standard setup and is not yet verified end to end. Treat the first
@@ -117,10 +119,23 @@ Caveats to check before relying on this:
 
 ## Verification
 
+Two scripts cover the integration:
+
+- `scripts/mobile-init-test.sh` tests the scaffolding: detection, keep and force, dry run, and the error paths. It runs in
+  `scripts/check.sh` and in CI.
+- `scripts/mobile-e2e.sh` runs against a clean copy of the committed examples. It checks the templates still generate
+  the committed examples, runs `bundle install` and lists the lanes, checks the secret errors in an empty environment,
+  lints the generated workflows with actionlint, and confirms every fastlane option the templates use exists.
+  `--with-builds` adds the native, Flutter and React Native builds and the signed-bundle check. It needs Ruby 3.1+ (set
+  `RUBY_BIN` if it is not on the usual path).
+
+The e2e script does not upload anything and does not read credentials. The store and runner steps still need a real
+project. The checklist in `docs/plans/mobile-fastlane-test-checklist.md` lists what is covered and what is not.
+
 Run this checklist on a fixture project before you trust a release:
 
 1. `scripts/mobile-init.sh --dry-run /path/to/app` lists what would be written.
-2. `bundle install` succeeds with Ruby 3.2 or newer. fastlane needs a current Ruby.
+2. `bundle install` succeeds with Ruby 3.1 or newer.
 3. `bundle exec fastlane lanes` lists the lanes, run from each platform's folder (see Quick start).
 4. Trigger `mobile-release` with `lane: beta` against a test app and confirm the TestFlight or internal track build.
 5. Re-run `mobile-init.sh` and confirm existing files are kept.

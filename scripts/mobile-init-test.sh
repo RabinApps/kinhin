@@ -108,6 +108,32 @@ run_init "$work/dry" --dry-run; check "--dry-run exits 0" [ "$code" -eq 0 ]
 check "--dry-run writes no files" absent "$work/dry/ios/fastlane/Fastfile"
 check "--dry-run says it wrote nothing" has_line <(echo "$out") "Nothing was written"
 
+echo "mobile-init: edge cases"
+mkdir -p "$work/mono/apps/mobile/ios"
+run_init "$work/mono"; check "monorepo root with no app at the root exits 2" [ "$code" -eq 2 ]
+run_init "$work/mono/apps/mobile"; check "monorepo app folder can be passed as DIR" [ "$code" -eq 0 ]
+check "monorepo app folder gets its own fastlane" [ -f "$work/mono/apps/mobile/ios/fastlane/Fastfile" ]
+
+mk_expo "$work/expo-prebuilt"; mkdir -p "$work/expo-prebuilt/ios" "$work/expo-prebuilt/android"
+run_init "$work/expo-prebuilt"; check "prebuilt Expo project still takes the EAS path" [ "$code" -eq 0 ]
+check "prebuilt Expo project gets no fastlane folder" absent "$work/expo-prebuilt/ios/fastlane"
+
+mkdir -p "$work/rn-dev/ios" && printf '{"devDependencies":{"react-native":"0.80.0"}}\n' > "$work/rn-dev/package.json"
+run_init "$work/rn-dev"; check "react-native in devDependencies is detected" has_line <(echo "$out") "framework=react-native"
+
+mkdir -p "$work/rn-commented/ios" && printf 'source "https://rubygems.org"\n# gem "fastlane"\n' > "$work/rn-commented/Gemfile"
+printf '{"dependencies":{"react-native":"0.80.0"}}\n' > "$work/rn-commented/package.json"
+run_init "$work/rn-commented"; check "a commented-out fastlane line does not count as installed" has_line "$work/rn-commented/Gemfile" 'gem "fastlane", "~> 2.240"'
+
+# A kit copy with one template removed: the script must refuse before writing anything.
+kit="$work/kit"; mkdir -p "$kit/scripts"; cp -R templates "$kit/templates"; cp scripts/mobile-init.sh "$kit/scripts/"
+rm "$kit/templates/mobile/github/ios.job.yml"
+mk_flutter "$work/kit-fixture"
+set +e; out="$("$kit/scripts/mobile-init.sh" "$work/kit-fixture" 2>&1)"; code=$?; set -e
+check "missing template exits 2" [ "$code" -eq 2 ]
+check "missing template names the file" has_line <(echo "$out") "ios.job.yml"
+check "missing template writes nothing" absent "$work/kit-fixture/Gemfile"
+
 echo "mobile-init: generated files parse"
 if command -v ruby >/dev/null; then
     for f in templates/mobile/Gemfile templates/mobile/ios/fastlane/Fastfile templates/mobile/ios/fastlane/Matchfile \
