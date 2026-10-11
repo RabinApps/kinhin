@@ -46,7 +46,7 @@ jobs:
         # A clean run takes about ten minutes; a hung test fails here instead
         # of holding the fleet's VM until GitHub's six-hour limit.
         timeout-minutes: 30
-        run: swift test
+        run: swift test --parallel
 
       - name: Build release products
         # Release-only code paths (KinhinTestSupport is testable-only) and the
@@ -106,7 +106,7 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 30
-        run: swift test
+        run: swift test --parallel
 
       - name: Build release products
         run: swift build -c release --product kinhin-app --product kinhin

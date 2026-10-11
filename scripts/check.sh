@@ -4,7 +4,7 @@
 # Keep this step list in sync with .github/workflows/ci.yml:
 #   test job     : swift format lint --strict -r Sources Tests
 #                  swift build -c release --product kinhin-app --product kinhin
-#                  swift test
+#                  swift test --parallel
 #   docs job     : bash scripts/docs-lint.sh          (GitHub-hosted ubuntu runner)
 #                  bash scripts/docs-sync.sh --check
 #                  bash scripts/skills-lint.sh
@@ -13,8 +13,12 @@
 # The release-only build (KinhinTestSupport is testable-only) stays CI-only:
 # it is a compile check CI can afford that a local iteration loop cannot.
 #
-#   scripts/check.sh          run every gate below, failing fast
-#   scripts/check.sh --fast   skip the ~2 min test run (iterate; finish with a full run)
+#   scripts/check.sh            run every gate below, failing fast; tests run with --parallel
+#   scripts/check.sh --fast     skip the test run (iterate; finish with a full run)
+#   scripts/check.sh --serial   run the tests serially (to rule out a parallel-only failure)
+#
+# --parallel runs each test in its own worker process: about 5.5 minutes instead of 8.5 here. Never combine it
+# with ThreadSanitizer; scripts/tsan.sh stays serial on purpose.
 #
 # Not included, because they only apply to some changes:
 #   scripts/tsan.sh                        shared state / actors / nonisolated(unsafe)
@@ -24,14 +28,17 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 run_test=1
-case "${1:-}" in
-    "") ;;
-    --fast) run_test=0 ;;
-    *)
-        echo "usage: $0 [--fast]" >&2
-        exit 2
-        ;;
-esac
+parallel=1
+for arg in "$@"; do
+    case "$arg" in
+        --fast) run_test=0 ;;
+        --serial) parallel=0 ;;
+        *)
+            echo "usage: $0 [--fast] [--serial]" >&2
+            exit 2
+            ;;
+    esac
+done
 
 stage() {
     echo ""
@@ -42,8 +49,13 @@ stage "swift build"
 swift build
 
 if [[ $run_test -eq 1 ]]; then
-    stage "swift test"
-    swift test
+    if [[ $parallel -eq 1 ]]; then
+        stage "swift test --parallel"
+        swift test --parallel
+    else
+        stage "swift test (serial)"
+        swift test
+    fi
 else
     stage "swift test (skipped: --fast)"
 fi

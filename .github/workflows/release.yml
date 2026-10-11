@@ -58,7 +58,7 @@ jobs:
       - name: Run tests
         # Never publish from a red tree: CI should have caught this already,
         # but the tag may point at a commit older than the last green run.
-        run: swift test
+        run: swift test --parallel
 
       - name: Derive version from tag
         id: ver

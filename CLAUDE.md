@@ -7,7 +7,8 @@ exactly; do not duplicate its rules here.
 ## Working in this repo
 
 - Before saying a change is done, run `scripts/check.sh` — build, test, format lint, docs lint, docs-sync `--check`,
-  skills lint, all CI-parity and failing fast (`--fast` skips the ~2 min test run while iterating). Run
+  skills lint, all CI-parity and failing fast (tests run with `--parallel`; `--fast` skips the ~5 min test run while
+  iterating; `--serial` runs them one at a time). Run
   `scripts/tsan.sh` when touching shared state, actors, locks or anything `nonisolated(unsafe)`.
 - After editing `docs/` or `website/`, also run `cd website && npx vitepress build` (fails on dead links). Don't
   hand-edit between `docs-sync` markers: `scripts/docs-sync.sh` regenerates those blocks from Swift source.

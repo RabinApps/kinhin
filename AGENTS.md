@@ -11,8 +11,9 @@ follow it exactly. This file only tells you how to verify and where to look.
 Before saying any change is done, run:
 
 ```bash
-scripts/check.sh          # build + test + format lint + docs lint + docs sync + skills lint
-scripts/check.sh --fast   # same, skips the ~2 min test run (iterate with this, finish with the full run)
+scripts/check.sh          # build + test (--parallel) + format lint + docs lint + docs sync + skills lint
+scripts/check.sh --fast   # same, skips the ~5 min test run (iterate with this, finish with the full run)
+scripts/check.sh --serial # tests serially (rules out a parallel-only failure)
 ```
 
 It runs exactly what CI runs (`.github/workflows/ci.yml`), failing fast with
