@@ -25,17 +25,15 @@ If you only read one more section, read [Should you use it now?](#should-you-use
 
 ## Who I am, and why I built it
 
-I'm Alex Rabin. I have been writing code since I was 15, and I have a full-time programming job. You can find more at
+I'm Alex Rabin. I have been writing code since I was 15, and now 11 years later, I have a full-time programming job. You can find more of my work at
 [alexrabin.com](https://www.alexrabin.com). My previous project is [SupDesk](https://supdesk.app/en), a feedback and
 support console for solo founders and small teams.
 
-I set up self-hosted CI twice in three months, and the second time is why kinhin exists.
-
-About three months ago, at my full-time job, I set up a self-hosted Gitea runner for our Flutter apps. One machine had to
+About three months ago, at my full-time job, I set up a self-hosted Gitea runner for our Flutter app. One machine had to
 build for iOS, Android and the web, so every toolchain went in by hand: Xcode and CocoaPods, the Android SDK, Chrome for
-web builds, and FVM to pin each project's Flutter version. It worked, and it took far longer than it should have.
+web builds, and FVM to pin the project's Flutter version. It worked, and it took far longer than it should have.
 
-Then my own projects needed the same thing. I run their CI on GitHub Actions and kept hitting the free monthly minutes.
+Then my own projects needed the same thing. I run their CI on GitHub Actions and kept hitting the free monthly minutes limits.
 Mac minutes are the expensive ones, and I need them for anything Apple-related. Self-hosting fixes the cost, but it meant
 doing all of that setup again on a different forge, and I didn't want to do it ever again.
 
