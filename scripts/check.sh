@@ -5,7 +5,8 @@
 #   test job     : swift format lint --strict -r Sources Tests
 #                  swift build -c release --product kinhin-app --product kinhin
 #                  swift test --parallel
-#   docs job     : bash scripts/docs-lint.sh          (GitHub-hosted ubuntu runner)
+#   docs job     : bash scripts/changelog.sh check    (GitHub-hosted ubuntu runner)
+#                  bash scripts/docs-lint.sh
 #                  bash scripts/docs-sync.sh --check
 #                  bash scripts/skills-lint.sh
 # The String Catalog checks (scripts/l10n-lint.sh) are L10nCatalogTests, so CI's `swift test` already runs
@@ -65,6 +66,9 @@ swift format lint --strict -r Sources Tests
 
 stage "l10n lint (String Catalog)"
 bash scripts/l10n-lint.sh
+
+stage "changelog structure"
+bash scripts/changelog.sh check
 
 stage "docs lint (stale strings)"
 bash scripts/docs-lint.sh

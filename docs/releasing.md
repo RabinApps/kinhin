@@ -42,14 +42,26 @@ that file from the tag; nothing else defines the version.
   export NOTARY_ISSUER_ID=<issuer-id>
   ```
 
+## Changelog between releases
+
+Every user-visible change adds a bullet under `## Unreleased` in `CHANGELOG.md`, in the same PR as the change. Group
+bullets under **Added**, **Changed**, **Fixed** or **Removed**. `scripts/check.sh` and CI run `scripts/changelog.sh check`,
+which fails when the headings are malformed (a missing or misplaced `## Unreleased`, or a version heading that is not
+`## v<version>`). It does not require entries, so an empty Unreleased section is fine between releases.
+
+At release time, `scripts/changelog.sh promote <version>` renames `## Unreleased` to `## v<version>` and leaves a fresh
+empty Unreleased section above it. It refuses an empty section and a version that already has a heading. The release
+notes are that version's section, so they come from the bullets written during development.
+
 ## The two paths
 
 **Local rehearsal** — prove the build, the signing and the installer stamping before a tag exists:
 
 ```bash
-# 1. Bump the version and the notes, in one commit
+# 1. Promote the changelog and bump the version, in one commit
+scripts/changelog.sh promote <version>   # renames "## Unreleased" to "## v<version>", starts a fresh Unreleased
 #    Sources/KinhinKit/Core/Version.swift   current = "<version>"
-#    CHANGELOG.md                           a "## v<version>" heading
+#    git add CHANGELOG.md Sources/KinhinKit/Core/Version.swift && git commit -m "Release v<version>"
 
 # 2. Everything CI runs must be green
 scripts/check.sh

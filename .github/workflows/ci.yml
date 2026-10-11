@@ -122,6 +122,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Changelog structure
+        run: bash scripts/changelog.sh check
+
       - name: Docs lint (stale strings)
         run: bash scripts/docs-lint.sh
 

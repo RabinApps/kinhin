@@ -255,11 +255,13 @@ Before opening a PR, run `scripts/check.sh`; it includes `bash scripts/docs-lint
 ## Cutting a release
 
 The full procedure — Developer ID signing, notarization credentials, the local rehearsal run, and the
-tag publish — is in [docs/releasing.md](docs/releasing.md). In short: bump
-`Sources/KinhinKit/Core/Version.swift` and add the `## v<version>` CHANGELOG heading in a commit,
-run `scripts/check.sh`, then `scripts/release.sh <version>`; it builds and verifies everything a tag
-publish would, and prints the tag commands when you are ready. The script never commits, tags or
-pushes.
+tag publish — is in [docs/releasing.md](docs/releasing.md). In short: run `scripts/changelog.sh promote <version>`,
+bump `Sources/KinhinKit/Core/Version.swift`, and commit both together; then run `scripts/check.sh`, then
+`scripts/release.sh <version>`. It builds and verifies everything a tag publish would, and prints the tag commands
+when you are ready. The script never commits, tags or pushes.
+
+User-visible changes go under `## Unreleased` in `CHANGELOG.md` in the same PR (see the pull request checklist).
+`scripts/changelog.sh check` validates the heading structure.
 
 ## Generated doc blocks
 

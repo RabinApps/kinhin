@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Add entries here as user-visible changes land. At release, this section is renamed to the new version.
+<!-- changelog: entries for the next release go here -->
 
 **Changed**
 
