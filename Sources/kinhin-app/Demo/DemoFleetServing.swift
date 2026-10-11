@@ -5,7 +5,7 @@ import Synchronization
 
 /// A `FleetServing` that replays a `DemoTimeline` instead of running anything:
 /// no engine, daemon, forge, VM or Keychain. Debug builds only, switched on
-/// with `KINHIN_DEMO=launch` (see `AppDelegate.bootstrapEngine`).
+/// with `KINHIN_DEMO=<built-in name or .json path>` (see `AppDelegate.bootstrapEngine`).
 final class DemoFleetServing: FleetServing {
     private struct State {
         var running = true
@@ -25,11 +25,17 @@ final class DemoFleetServing: FleetServing {
 
     var logName: String { "demo" }
 
-    /// The demo's timeline named by `KINHIN_DEMO`; nil when the variable is unset or unknown.
-    static func fromEnvironment(_ environment: [String: String] = ProcessInfo.processInfo.environment) -> DemoFleetServing? {
-        switch environment["KINHIN_DEMO"] {
-        case "launch": return DemoFleetServing(timeline: .launch)
-        default: return nil
+    /// The demo named by `KINHIN_DEMO`: a built-in script name (`launch`) or a path to a `.json` script.
+    /// Nil when the variable is unset or the script is unusable (the reason is logged).
+    static func fromEnvironment(
+        _ environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> DemoFleetServing? {
+        guard let name = environment["KINHIN_DEMO"], !name.isEmpty else { return nil }
+        do {
+            return DemoFleetServing(timeline: try DemoTimeline.load(name))
+        } catch {
+            Log.error("app", "KINHIN_DEMO=\(name): \(error)")
+            return nil
         }
     }
 
@@ -62,7 +68,8 @@ final class DemoFleetServing: FleetServing {
     }
 
     func pipelineLog(vmID: String, jobID: String, stepIndex: Int?) async throws -> PipelineLog? {
-        PipelineLog(text: DemoTimeline.log(forStep: stepIndex), scope: stepIndex == nil ? .job : .step, fetchedAt: clock())
+        PipelineLog(
+            text: DemoTimeline.log(forStep: stepIndex), scope: stepIndex == nil ? .job : .step, fetchedAt: clock())
     }
 
     func rotate(_ target: CredentialRotation.Target, token: String) async throws {}

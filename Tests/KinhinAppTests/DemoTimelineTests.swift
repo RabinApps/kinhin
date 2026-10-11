@@ -69,4 +69,59 @@ final class DemoTimelineTests: XCTestCase {
         XCTAssertFalse(stopped.running)
         XCTAssertTrue(stopped.records.isEmpty)
     }
+
+    // MARK: - Scripts as data
+
+    func testScriptRoundTripsThroughJSON() throws {
+        let data = try JSONEncoder().encode(timeline)
+        XCTAssertEqual(try JSONDecoder().decode(DemoTimeline.self, from: data), timeline)
+    }
+
+    func testFailsIsOptionalInAScript() throws {
+        let json = """
+            {"period": 30, "capacity": 2, "jobs": [
+              {"repo": "acme/api", "account": "github", "runtime": "docker", "workflow": "CI",
+               "arrive": 1, "start": 2, "run": 5}]}
+            """
+        let script = try JSONDecoder().decode(DemoTimeline.self, from: Data(json.utf8)).validated()
+        XCTAssertFalse(script.jobs[0].fails)
+    }
+
+    func testValidationExplainsWhatIsWrong() {
+        func job(arrive: Double = 1, start: Double = 2, run: Double = 5, account: String = "github")
+            -> DemoTimeline.Job
+        {
+            DemoTimeline.Job(
+                repo: "a/b", account: account, runtime: .docker, workflow: "CI", arrive: arrive, start: start, run: run)
+        }
+        func script(period: Double = 30, capacity: Int = 2, _ jobs: [DemoTimeline.Job]) -> DemoTimeline {
+            DemoTimeline(period: period, capacity: capacity, jobs: jobs)
+        }
+        func invalid(_ timeline: DemoTimeline) -> String? {
+            do { _ = try timeline.validated(); return nil } catch { return "\(error)" }
+        }
+        XCTAssertNotNil(invalid(script(period: 0, [job()])))
+        XCTAssertNotNil(invalid(script(capacity: 0, [job()])))
+        XCTAssertNotNil(invalid(script([])))
+        XCTAssertTrue(invalid(script([job(arrive: 5, start: 2)]))?.contains("start must be") == true)
+        XCTAssertTrue(invalid(script([job(account: "bitbucket")]))?.contains("not a forge") == true)
+        XCTAssertTrue(invalid(script(period: 8, [job()]))?.contains("after the") == true)
+        XCTAssertNil(invalid(script([job()])))
+    }
+
+    func testBuiltInLaunchScriptIsValid() throws {
+        _ = try DemoTimeline.launch.validated()
+        XCTAssertEqual(try DemoTimeline.load("launch"), DemoTimeline.launch)
+        XCTAssertThrowsError(try DemoTimeline.load("nope"))
+    }
+
+    func testEnvironmentLoadsABuiltInNameOrAJSONFile() throws {
+        XCTAssertNil(DemoFleetServing.fromEnvironment([:]))
+        XCTAssertNotNil(DemoFleetServing.fromEnvironment(["KINHIN_DEMO": "launch"]))
+        XCTAssertNil(DemoFleetServing.fromEnvironment(["KINHIN_DEMO": "nope"]))
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("demo-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try JSONEncoder().encode(timeline).write(to: url)
+        XCTAssertNotNil(DemoFleetServing.fromEnvironment(["KINHIN_DEMO": url.path]))
+    }
 }

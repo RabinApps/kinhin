@@ -6,8 +6,8 @@ import KinhinKit
 /// clone → boot → register → run → get deleted, one job fails and its retry
 /// succeeds. Pure and deterministic: a frame is a function of the elapsed
 /// seconds, so two recordings of the same script look the same.
-struct DemoTimeline: Sendable {
-    struct Job: Sendable {
+struct DemoTimeline: Sendable, Codable, Equatable {
+    struct Job: Sendable, Codable, Equatable {
         let repo: String
         /// Account and forge name (they are the same string in the demo config).
         let account: String
@@ -32,8 +32,12 @@ struct DemoTimeline: Sendable {
             Job(
                 repo: "acme/web", account: "github", runtime: .appleContainer, workflow: "Lint & test", arrive: 2,
                 start: 3, run: 8),
-            Job(repo: "acme/ios", account: "github", runtime: .tart, workflow: "Build app", arrive: 3, start: 4, run: 16),
-            Job(repo: "lab/infra", account: "gitea", runtime: .docker, workflow: "Validate", arrive: 5, start: 6, run: 7),
+            Job(
+                repo: "acme/ios", account: "github", runtime: .tart,
+                workflow: "Build app", arrive: 3, start: 4, run: 16),
+            Job(
+                repo: "lab/infra", account: "gitea", runtime: .docker,
+                workflow: "Validate", arrive: 5, start: 6, run: 7),
             Job(
                 repo: "lab/site", account: "forgejo", runtime: .appleContainer, workflow: "Build docs", arrive: 7,
                 start: 15.5, run: 6),
@@ -43,9 +47,56 @@ struct DemoTimeline: Sendable {
             Job(
                 repo: "acme/web", account: "github", runtime: .appleContainer, workflow: "Lint & test", arrive: 24,
                 start: 24, run: 6),
-            Job(repo: "lab/infra", account: "gitea", runtime: .docker, workflow: "Validate", arrive: 28, start: 28, run: 6),
+            Job(
+                repo: "lab/infra", account: "gitea", runtime: .docker,
+                workflow: "Validate", arrive: 28, start: 28, run: 6),
             Job(repo: "acme/api", account: "gitlab", runtime: .docker, workflow: "test", arrive: 29, start: 29, run: 5),
         ])
+
+    /// Why a script cannot be played; thrown by `validated()` so a typo in a hand-written script says what is wrong.
+    struct Invalid: Error, CustomStringConvertible {
+        let description: String
+    }
+
+    /// The scripts that ship in the app, by the name `KINHIN_DEMO` takes.
+    static let builtIn: [String: DemoTimeline] = ["launch": .launch]
+
+    /// A script by built-in name, or by path to a JSON file (anything ending in `.json`).
+    static func load(_ nameOrPath: String) throws -> DemoTimeline {
+        if nameOrPath.hasSuffix(".json") {
+            let data = try Data(contentsOf: URL(fileURLWithPath: (nameOrPath as NSString).expandingTildeInPath))
+            return try JSONDecoder().decode(DemoTimeline.self, from: data).validated()
+        }
+        guard let timeline = builtIn[nameOrPath] else {
+            let known = builtIn.keys.sorted().joined(separator: ", ")
+            throw Invalid(description: "unknown demo \"\(nameOrPath)\" (built in: \(known); or pass a .json path)")
+        }
+        return timeline
+    }
+
+    /// Rejects scripts that would play wrongly: no loop, no slots, a job claimed before it is queued, or never running.
+    func validated() throws -> DemoTimeline {
+        guard period > 0 else { throw Invalid(description: "period must be > 0") }
+        guard capacity > 0 else { throw Invalid(description: "capacity must be > 0") }
+        guard !jobs.isEmpty else { throw Invalid(description: "a demo needs at least one job") }
+        for (index, job) in jobs.enumerated() {
+            guard job.arrive >= 0, job.start >= job.arrive else {
+                throw Invalid(description: "job \(index) (\(job.repo)): start must be >= arrive >= 0")
+            }
+            guard job.run > 0 else { throw Invalid(description: "job \(index) (\(job.repo)): run must be > 0") }
+            guard ForgeID(rawValue: job.account) != nil else {
+                let forges = ForgeID.allCases.map(\.rawValue).joined(separator: ", ")
+                throw Invalid(description: "job \(index): account \"\(job.account)\" is not a forge (\(forges))")
+            }
+            let boot = Self.bootTimes(job.runtime)
+            let hold = job.fails ? Self.failedHold : 0
+            let end = job.start + boot.clone + boot.boot + boot.register + job.run + hold + Self.deleteDuration
+            guard end <= period else {
+                throw Invalid(description: "job \(index) (\(job.repo)) ends at \(end)s, after the \(period)s loop")
+            }
+        }
+        return self
+    }
 
     static let failedHold = 3.0
     static let deleteDuration = 2.0
@@ -81,7 +132,9 @@ struct DemoTimeline: Sendable {
         let t = elapsed.truncatingRemainder(dividingBy: period)
         return jobs.enumerated().compactMap { index, job in
             guard t >= job.arrive else { return nil }
-            guard t >= job.start else { return Placement(index: index, job: job, stage: .queued, age: 0, progress: nil) }
+            guard t >= job.start else {
+                return Placement(index: index, job: job, stage: .queued, age: 0, progress: nil)
+            }
             let age = t - job.start
             let boot = Self.bootTimes(job.runtime)
             let cloneEnd = boot.clone
@@ -166,7 +219,8 @@ struct DemoTimeline: Sendable {
         let steps = names.enumerated().map { offset, name in
             PipelineStep(
                 name: name, state: offset < done ? .succeeded : offset == done ? .running : .pending,
-                startedAt: offset <= done ? started : nil, finishedAt: offset < done ? now : nil, logRef: "step-\(offset)")
+                startedAt: offset <= done ? started : nil, finishedAt: offset < done ? now : nil,
+                logRef: "step-\(offset)")
         }
         let job = PipelineJob(
             id: "job-\(placement.index)", name: placement.job.workflow, state: .running, startedAt: started,
@@ -190,6 +244,20 @@ struct DemoTimeline: Sendable {
 
     private static func names(_ index: Int) -> String? {
         stepNames.indices.contains(index) ? stepNames[index] : nil
+    }
+}
+extension DemoTimeline.Job {
+    /// `fails` is optional in a script (absent means the job succeeds).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        repo = try container.decode(String.self, forKey: .repo)
+        account = try container.decode(String.self, forKey: .account)
+        runtime = try container.decode(RuntimeID.self, forKey: .runtime)
+        workflow = try container.decode(String.self, forKey: .workflow)
+        arrive = try container.decode(Double.self, forKey: .arrive)
+        start = try container.decode(Double.self, forKey: .start)
+        run = try container.decode(Double.self, forKey: .run)
+        fails = try container.decodeIfPresent(Bool.self, forKey: .fails) ?? false
     }
 }
 #endif
