@@ -289,6 +289,12 @@ public struct ForgeJob: Sendable, Equatable {
     /// True when the job comes from a fork's pull request: its repo file is
     /// never honored.
     public let isFork: Bool
+    /// The forge actually told us whether the job is a fork's. False when the
+    /// API does not say (GitHub scale-set messages, Gitea and Forgejo queues).
+    public let forkKnown: Bool
+    /// Treat the job's code as untrusted: a fork's PR, or a job whose origin
+    /// the forge does not reveal. Gates the shared cache and the repo file.
+    public var isUntrusted: Bool { isFork || !forkKnown }
     /// The pool the forge already chose for this job: a scale-set job arrives
     /// on the scale set the workflow named in `runs-on:`, and that set is bound
     /// to one runtime. Overrides repo and workflow routes; nil for every
@@ -297,7 +303,7 @@ public struct ForgeJob: Sendable, Equatable {
 
     public init(
         name: String, runnerName: String?, repository: String?, labels: [String]? = nil, ref: String? = nil,
-        sha: String? = nil, isFork: Bool = false, runtimeHint: RuntimeID? = nil
+        sha: String? = nil, isFork: Bool = false, forkKnown: Bool = false, runtimeHint: RuntimeID? = nil
     ) {
         self.name = name
         self.runnerName = runnerName
@@ -306,6 +312,7 @@ public struct ForgeJob: Sendable, Equatable {
         self.ref = ref
         self.sha = sha
         self.isFork = isFork
+        self.forkKnown = forkKnown
         self.runtimeHint = runtimeHint
     }
 }

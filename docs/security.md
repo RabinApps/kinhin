@@ -10,6 +10,9 @@ Every job runs in a fresh VM or container that is deleted afterwards, but VMs ru
 
 ## If you run untrusted PRs: turn these on
 
+Public repository? Start with [Running kinhin for an open-source project](open-source.md): keeping fork pull
+requests off kinhin matters more than any setting below.
+
 | Setting                                    | Why                                                                                                                                                       |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tart_softnet: true`                       | Runner VMs reach the internet but not each other or your LAN ([setup](runtimes.md#isolating-runner-vms-from-each-other)).                                 |
@@ -45,8 +48,10 @@ treated as untrusted input and bounded ([how it works](toolchains.md#per-project
   backends are rejected. Values pass the same character allowlist as `config.yaml`, and the file
   is capped at 16 KB.
 - **Fork PRs ignore the file.** A pull request from a fork never gets its own `.kinhin.yml`
-  honored; the file is read from the base repo's default branch instead.
-- **`share_cache` exists only per project and is off by default** and forced off for fork PRs. The cache
+  honored; the file is read from the base repo's default branch instead. A job whose forge does not
+  say whether it is a fork's (GitHub scale-set jobs, Gitea and Forgejo) is treated the same way.
+- **`share_cache` exists only per project and is off by default** and forced off for fork PRs and for
+  jobs of unknown origin. The cache
   subpath is scoped per project so untrusted repos cannot poison each other's cache.
 - **Bad files never block the fleet.** A failed fetch or parse is logged and the job runs on the
   global image.
@@ -61,7 +66,7 @@ download hosts), and to GitHub Releases for the once-a-day update check.
 - **Tart guest SSH host-key verification has an unverified fallback.** Before registration, kinhin tries to rotate each guest's SSH host keys through Tart's guest-agent channel, then pins the resulting key and requires strict verification. If the guest agent cannot rotate/read the key before the timeout, or the runtime cannot use the guest-agent channel, kinhin records a warning and continues with host-key checking disabled for that instance. On Tart's default shared network a hostile job in another VM could answer on a booting VM's address and receive its registration material. `tart_softnet: true` isolates runner VMs from each other and the LAN, reducing this risk; enable it when serving untrusted code and investigate any host-key fallback warning. For the warning text kinhin emits and how to separate it from the scale-set registration failures that can follow it, see [Troubleshooting scale sets](forges/github.md#troubleshooting-scale-sets).
 - **Registration tokens can be seen by job code in some paths.** With `runners_per_vm > 1` every runner is registered before any starts, so the token is not in `ps` while a job runs. Gitea and host-mode registrations still pass the token as an argument, the Buildkite agent token stays in the agent's environment, and the GitLab runner token file stays on disk until the runner exits. Scope those tokens narrowly.
 - **Docker runners keep Docker's default capabilities** (jobs commonly `apt-get` and `sudo`). kinhin adds a pids limit; for stronger isolation prefer Tart VMs.
-- **The toolchain cache is shared, writable and trusted by later jobs** when a project's `share_cache` is on. A job can plant content a later job uses, though each project gets its own cache subdirectory. It defaults to off and is always off for fork PRs. Keep it off for untrusted repositories.
+- **The toolchain cache is shared, writable and trusted by later jobs** when a project's `share_cache` is on. A job can plant content a later job uses, though each project gets its own cache subdirectory. It defaults to off and is always off for fork PRs and for jobs whose forge does not say whether they come from a fork. Keep it off for untrusted repositories.
 - **Any process running as you can control the daemon** over its private socket (stop, token swap). The socket is 0600 in a 0700 directory and checks the peer's uid, not its code signature.
 - **The mise installer is not checksum-verified** in Linux image bakes (`mise.run` publishes no digest to pin).
 

@@ -97,7 +97,8 @@ themselves.
 shared kernel and default capabilities). Host mode has no isolation at all. The shared toolchain cache is writable and
 trusted by later jobs, so it defaults to off. If you run fork PRs or outside contributors' code, turn on the settings in
 the [security guide](/guide/security#if-you-run-untrusted-prs-turn-these-on) first and read the
-[known limits](/guide/security#known-limits).
+[known limits](/guide/security#known-limits). For a public repository, the
+[open-source guide](/guide/open-source) shows how to keep fork pull requests off your Mac entirely.
 
 ### Try it
 

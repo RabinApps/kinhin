@@ -162,6 +162,7 @@ export default defineConfig({
         text: "Security & help",
         items: [
           { text: "Security", link: "/guide/security" },
+          { text: "Open-source projects", link: "/guide/open-source" },
           { text: "Troubleshooting", link: "/guide/troubleshooting" },
           { text: "Beta roadmap", link: "/guide/beta-roadmap" },
         ],

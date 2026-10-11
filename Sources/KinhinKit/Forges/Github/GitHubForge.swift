@@ -71,7 +71,7 @@ struct GitHubForge: Forge {
         try await client.queuedJobs(matching: Set(labels)).map {
             ForgeJob(
                 name: $0.name, runnerName: nil, repository: $0.repository, labels: $0.labels, ref: $0.ref,
-                sha: $0.sha, isFork: $0.isFork)
+                sha: $0.sha, isFork: $0.isFork, forkKnown: $0.forkKnown)
         }
     }
 

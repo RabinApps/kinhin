@@ -152,6 +152,7 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
                     ForgeJob(
                         name: job.name, runnerName: job.runnerName, repository: job.repository,
                         labels: target.routingLabels, ref: job.ref, sha: job.sha, isFork: job.isFork,
+                        forkKnown: job.forkKnown,
                         runtimeHint: target.runtime))
             }
         }

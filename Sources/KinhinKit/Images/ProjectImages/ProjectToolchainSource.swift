@@ -40,18 +40,18 @@ actor ProjectToolchainSource {
             }
         }
         let resolution = ProjectToolchainResolver.resolve(
-            repository: repository, projects: projects, repoFile: file, isFork: job.isFork)
+            repository: repository, projects: projects, repoFile: file, isFork: job.isUntrusted)
         guard let fetchWarning else { return resolution }
         return ProjectResolution(
             toolchains: resolution.toolchains, source: resolution.source, shareCache: resolution.shareCache,
             warning: resolution.warning ?? fetchWarning)
     }
 
-    /// A fork's PR reads the base repository's default branch, never the
-    /// fork's own file.
+    /// A fork's PR, or a job whose origin the forge does not reveal, reads the
+    /// base repository's default branch, never a file from the PR's branch.
     private func projectFile(repository: String, job: ForgeJob, forge: Forge) async throws -> Data? {
-        let ref = job.isFork ? nil : job.ref
-        let sha = job.isFork ? nil : job.sha
+        let ref = job.isUntrusted ? nil : job.ref
+        let sha = job.isUntrusted ? nil : job.sha
         let key = "\(forge.account)|\(repository)|\(sha ?? "ref:\(ref ?? "default")")"
         let stamp = now()
         if let hit = cache[key], hit.permanent || stamp.timeIntervalSince(hit.at) < Self.branchTTL {

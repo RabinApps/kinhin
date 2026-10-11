@@ -28,6 +28,9 @@ explicit consent flag).
 - **Workflows locally.** `kinhin workflow test` runs a GitHub Actions workflow's scripts on this Mac and reports
   `partial` when it had to skip something.
 - **Strict config.** Unknown keys are an error with a suggestion; `kinhin config validate` and `kinhin config migrate`.
+- **Open-source projects.** A guide (`docs/open-source.md`) to keeping fork pull requests off kinhin and hardening
+  the fleet for public repositories. Jobs whose forge does not say whether they come from a fork (GitHub scale-set
+  jobs, Gitea and Forgejo) get the fork treatment: no shared cache, and `.kinhin.yml` from the default branch.
 - **Move a setup to another Mac.** `kinhin config export` and `kinhin config import` copy the config (never tokens or
   images), validate before writing, keep the old config as `config.yaml.bak`, and list the tokens to store on the new
   Mac.

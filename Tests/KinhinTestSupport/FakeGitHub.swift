@@ -248,7 +248,7 @@ final class FakeGitHub: GitHubServing, Sendable {
                 runID: 1, jobID: i, name: "job \(i)", labels: labels.sorted() + extra,
                 repository: repos.isEmpty ? nil : repos[i % repos.count],
                 ref: refs.isEmpty ? nil : refs[i % refs.count], sha: shas.isEmpty ? nil : shas[i % shas.count],
-                isFork: fork)
+                isFork: fork, forkKnown: true)
         }
     }
 
@@ -307,7 +307,7 @@ extension FakeGitHub: Forge {
         try await queuedJobs(matching: Set(labels)).map {
             ForgeJob(
                 name: $0.name, runnerName: nil, repository: $0.repository, labels: $0.labels, ref: $0.ref, sha: $0.sha,
-                isFork: $0.isFork)
+                isFork: $0.isFork, forkKnown: $0.forkKnown)
         }
     }
     func runningJobs() async throws -> [ForgeJob] {

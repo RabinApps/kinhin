@@ -228,6 +228,8 @@ extension GitHubClient {
         let ref: String?
         let sha: String?
         let isFork: Bool
+        /// Both the head and base repository were in the payload.
+        let forkKnown: Bool
 
         init(summary: RunSummary, repository: String?) {
             self.id = summary.id
@@ -239,8 +241,10 @@ extension GitHubClient {
             let base = summary.repository?.full_name ?? repository
             if let head = summary.head_repository?.full_name, let base {
                 self.isFork = head.caseInsensitiveCompare(base) != .orderedSame
+                self.forkKnown = true
             } else {
                 self.isFork = false
+                self.forkKnown = false
             }
         }
 

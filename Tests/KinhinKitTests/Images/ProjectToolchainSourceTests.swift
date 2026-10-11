@@ -29,11 +29,13 @@ final class ProjectToolchainSourceTests: XCTestCase {
         let project = projectConfig()
         try await assertResolution(
             source: source, forge: github, project: project,
-            job: ForgeJob(name: "j1", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false),
+            job: ForgeJob(
+                name: "j1", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false, forkKnown: true),
             expectedToolchains: .init(specs: ["go@1.22.5"]), expectedSource: .repoFile)
         try await assertResolution(
             source: source, forge: github, project: project,
-            job: ForgeJob(name: "j2", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false),
+            job: ForgeJob(
+                name: "j2", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false, forkKnown: true),
             expectedToolchains: .init(specs: ["go@1.22.5"]), expectedSource: .repoFile)
         XCTAssertEqual(github.projectFileCalls, ["acme/api@abc123"], "second job reuses the cached read")
     }
@@ -63,11 +65,13 @@ final class ProjectToolchainSourceTests: XCTestCase {
         let project = projectConfig()
         try await assertResolution(
             source: source, forge: gitea, project: project,
-            job: ForgeJob(name: "j1", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false),
+            job: ForgeJob(
+                name: "j1", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false, forkKnown: true),
             expectedToolchains: .init(specs: ["go@1.22.5"]), expectedSource: .repoFile)
         try await assertResolution(
             source: source, forge: gitea, project: project,
-            job: ForgeJob(name: "j2", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false),
+            job: ForgeJob(
+                name: "j2", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false, forkKnown: true),
             expectedToolchains: .init(specs: ["go@1.22.5"]), expectedSource: .repoFile)
         XCTAssertEqual(gitea.projectFileCalls, ["acme/api@abc123"], "second job reuses the cached read")
     }
@@ -97,11 +101,13 @@ final class ProjectToolchainSourceTests: XCTestCase {
         let project = projectConfig()
         try await assertResolution(
             source: source, forge: gitlab, project: project,
-            job: ForgeJob(name: "j1", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false),
+            job: ForgeJob(
+                name: "j1", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false, forkKnown: true),
             expectedToolchains: .init(specs: ["go@1.22.5"]), expectedSource: .repoFile)
         try await assertResolution(
             source: source, forge: gitlab, project: project,
-            job: ForgeJob(name: "j2", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false),
+            job: ForgeJob(
+                name: "j2", runnerName: nil, repository: "acme/api", sha: "abc123", isFork: false, forkKnown: true),
             expectedToolchains: .init(specs: ["go@1.22.5"]), expectedSource: .repoFile)
         XCTAssertEqual(gitlab.projectFileCalls, ["acme/api@abc123"], "second job reuses the cached read")
     }
@@ -135,14 +141,18 @@ final class ProjectToolchainSourceTests: XCTestCase {
         let project = projectConfig()
         // First read: branch-only (no sha) → cached as non-permanent.
         let r1 = try await source.resolve(
-            job: ForgeJob(name: "j1", runnerName: nil, repository: "acme/api", ref: "main", sha: nil, isFork: false),
+            job: ForgeJob(
+                name: "j1", runnerName: nil, repository: "acme/api", ref: "main", sha: nil, isFork: false,
+                forkKnown: true),
             forge: github, projects: [project])
         XCTAssertEqual(r1.toolchains?.specs, ["go@1.22.5"])
         XCTAssertEqual(github.projectFileCalls, ["acme/api@main"])
 
         // Same branch re-read after TTL → re-fetched (non-permanent entry expired).
         let r2 = try await source.resolve(
-            job: ForgeJob(name: "j2", runnerName: nil, repository: "acme/api", ref: "main", sha: nil, isFork: false),
+            job: ForgeJob(
+                name: "j2", runnerName: nil, repository: "acme/api", ref: "main", sha: nil, isFork: false,
+                forkKnown: true),
             forge: github, projects: [project])
         XCTAssertEqual(r2.toolchains?.specs, ["go@1.22.5"])
         XCTAssertEqual(github.projectFileCalls, ["acme/api@main", "acme/api@main"], "after TTL: re-reads the branch")
@@ -150,7 +160,8 @@ final class ProjectToolchainSourceTests: XCTestCase {
         // A sha-scoped read is permanent and never expires.
         let r3 = try await source.resolve(
             job: ForgeJob(
-                name: "j3", runnerName: nil, repository: "acme/api", ref: "main", sha: "abc123", isFork: false),
+                name: "j3", runnerName: nil, repository: "acme/api", ref: "main", sha: "abc123", isFork: false,
+                forkKnown: true),
             forge: github, projects: [project])
         XCTAssertEqual(r3.toolchains?.specs, ["node@22"])
         XCTAssertEqual(github.projectFileCalls, ["acme/api@main", "acme/api@main", "acme/api@abc123"])
@@ -158,7 +169,8 @@ final class ProjectToolchainSourceTests: XCTestCase {
         // Re-read the same sha later: still cached (permanent entry never expires).
         let r4 = try await source.resolve(
             job: ForgeJob(
-                name: "j4", runnerName: nil, repository: "acme/api", ref: "main", sha: "abc123", isFork: false),
+                name: "j4", runnerName: nil, repository: "acme/api", ref: "main", sha: "abc123", isFork: false,
+                forkKnown: true),
             forge: github, projects: [project])
         XCTAssertEqual(r4.toolchains?.specs, ["node@22"])
         XCTAssertEqual(

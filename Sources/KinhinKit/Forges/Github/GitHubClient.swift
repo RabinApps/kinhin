@@ -281,7 +281,7 @@ public struct GitHubClient: GitHubServing {
                         QueuedJob(
                             runID: run.id, jobID: job.id, name: job.name,
                             labels: jobLabels.sorted(), repository: run.attributedRepository,
-                            ref: run.ref, sha: run.sha, isFork: run.isFork
+                            ref: run.ref, sha: run.sha, isFork: run.isFork, forkKnown: run.forkKnown
                         ))
                 }
             }

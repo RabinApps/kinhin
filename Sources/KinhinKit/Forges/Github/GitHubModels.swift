@@ -85,10 +85,12 @@ public struct QueuedJob: Sendable, Equatable {
     public let ref: String?
     public let sha: String?
     public let isFork: Bool
+    /// The run payload named both repositories, so `isFork` is a fact.
+    public let forkKnown: Bool
 
     public init(
         runID: Int, jobID: Int, name: String, labels: [String], repository: String? = nil, ref: String? = nil,
-        sha: String? = nil, isFork: Bool = false
+        sha: String? = nil, isFork: Bool = false, forkKnown: Bool = false
     ) {
         self.runID = runID
         self.jobID = jobID
@@ -98,6 +100,7 @@ public struct QueuedJob: Sendable, Equatable {
         self.ref = ref
         self.sha = sha
         self.isFork = isFork
+        self.forkKnown = forkKnown
     }
 }
 

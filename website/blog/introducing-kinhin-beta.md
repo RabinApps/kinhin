@@ -25,13 +25,9 @@ If you only read one more section, read [Should you use it now?](#should-you-use
 
 ## Who I am, and why I built it
 
-I'm Alex Rabin. I have been writing code since I was 15, and now 11 years later, I have a full-time programming job. You can find more of my work at
-[alexrabin.com](https://www.alexrabin.com). My previous project is [SupDesk](https://supdesk.app/en), a feedback and
-support console for solo founders and small teams.
+I'm Alex Rabin. I've been writing code for 10 years and I have a full-time programming job. Before this I built [SupDesk](https://supdesk.app/en), a support console for solo founders. More of my work is at [alexrabin.com](https://www.alexrabin.com).
 
-About three months ago, at my full-time job, I set up a self-hosted Gitea runner for our Flutter app. One machine had to
-build for iOS, Android and the web, so every toolchain went in by hand: Xcode and CocoaPods, the Android SDK, Chrome for
-web builds, and FVM to pin the project's Flutter version. It worked, and it took far longer than it should have.
+About three months ago at my day job I set up a self-hosted Gitea runner for our Flutter app. One Mac needed to build for iOS, Android and the web, so I installed every toolchain by hand — Xcode and CocoaPods, the Android SDK, Chrome, and FVM to pin the Flutter version. It worked. It also took far longer than it should have.
 
 Then my own projects needed the same thing. I run their CI on GitHub Actions and kept hitting the free monthly minutes limits.
 Mac minutes are the expensive ones, and I need them for anything Apple-related. Self-hosting fixes the cost, but it meant
@@ -52,8 +48,7 @@ At its core, kinhin is an autoscaler for ephemeral CI runners that live on one M
   job gets is routed per repo, per workflow, or by `runs-on:` label. An opt-in host mode runs jobs directly on the Mac
   with no isolation, behind an explicit consent flag.
 - **Forges.** One pool can serve GitHub Actions, GitLab CI/CD, and Gitea and Forgejo Actions. Buildkite, Azure Pipelines
-  and Bitbucket Pipelines are next. Adding another is a documented, step-by-step job
-  ([adding a forge](https://github.com/RabinApps/kinhin/blob/main/docs/adding-a-forge.md)).
+  and Bitbucket Pipelines are next. Adding another is documented step by step ([adding a forge](https://github.com/RabinApps/kinhin/blob/main/docs/adding-a-forge.md)).
 - **Resource awareness.** The scaler works out how many instances your Mac can hold from its cores, memory and free disk,
   after reserving headroom. `kinhin doctor` shows the number ([scaling](/guide/scaling)).
 - **Toolchains.** Bake tools into the image, pin them per repository, or install them per job, with an opt-in shared
@@ -88,7 +83,8 @@ themselves.
 shared kernel and default capabilities). Host mode has no isolation at all. The shared toolchain cache is writable and
 trusted by later jobs, so it defaults to off. If you run fork PRs or outside contributors' code, turn on the settings in
 the [security guide](/guide/security#if-you-run-untrusted-prs-turn-these-on) first and read the
-[known limits](/guide/security#known-limits).
+[known limits](/guide/security#known-limits). For a public repository, the
+[open-source guide](/guide/open-source) shows how to keep fork pull requests off your Mac entirely.
 
 ### Try it
 
@@ -143,12 +139,7 @@ throwaway repository and a token, so GitHub's live runs are still my own.
 
 ## How this was built
 
-I don't write code by hand anymore. I build with AI agents, primarily from Claude and Freebuff, and I only use models that
-don't train on my data. I decide what gets built and I review and test the result, and the agents type the code. In
-practice that means every change has to pass `scripts/check.sh` (build, the unit suite, format, docs and skills lint), the
-e2e suite is the part that runs real software rather than fakes, and anything that touches shared state also gets a
-ThreadSanitizer run. `scripts/check.sh` is green on the release commit. You should weigh all of this however you like.
-It is also why the testing table above is as blunt as it is.
+I don't write code by hand anymore. I build with AI agents, primarily from Claude and Freebuff, and I only use models that don't train on my data. I decide what gets built and I review and test the result; the agents type the code. In practice that means every change has to pass `scripts/check.sh` (build, the unit suite, format, docs and skills lint), the e2e suite is the part that runs real software rather than fakes, and anything that touches shared state also gets a ThreadSanitizer run. `scripts/check.sh` is green on the release commit. Weigh all of that however you like — it's also why the testing table above is as blunt as it is.
 
 ## Where I need help
 
@@ -201,9 +192,6 @@ milestones are ordered by what has to be true, not by date; the complete version
   registered runners, and the known limits reviewed against what testers hit.
 - **v0.1.0.** A signed, notarized release with a working updater path, and a docs snapshot under the version picker.
 
-The principles stay fixed: jobs are ephemeral by default, the scaler never starves your Mac, credentials stay in the
-Keychain, there is no telemetry, and one engine serves every forge.
-
 ## Windows
 
 Windows runners are not part of the beta and I'm not promising them for v0.1.0. Windows containers aren't possible on this
@@ -211,6 +199,11 @@ stack, which leaves Windows on ARM virtual machines, a new runtime with its own 
 runner install per forge. There is a design sketch in the repository, and the hypervisor options are constrained and, in the
 Parallels case, need a paid license and install media. If Windows matters to you, open an issue describing your forge,
 concurrency and hypervisor. It won't be called supported until it has run for real.
+
+## Principles
+
+The principles stay fixed: jobs are ephemeral by default, the scaler never starves your Mac, credentials stay in the
+Keychain, there is no telemetry, and one engine serves every forge.
 
 ## Thank you
 

@@ -170,7 +170,7 @@ the file is only honored when the `projects:` entry sets `repo_file: true`.
 
 For each job, the first level that yields toolchains wins:
 
-1. The repo's `.kinhin.yml` at the job's ref (only if `repo_file: true`).
+1. The repo's `.kinhin.yml` at the job's ref (only if `repo_file: true`). A fork's PR, or a job whose forge does not say whether it is a fork's (GitHub scale-set, Gitea and Forgejo), reads it from the default branch instead.
 2. The matching `projects:` entry's own `toolchains:`.
 3. Nothing: the plain base image.
 
@@ -181,7 +181,7 @@ For each job, the first level that yields toolchains wins:
 | `pattern`     | Required. `owner/name` or `owner/*`, case-insensitive, unique. |
 | `repo_file`   | Honor the repo's `.kinhin.yml` (default `false`). |
 | `toolchains`  | `specs`, `brew` and `stacks` for matching repos with no usable `.kinhin.yml`. |
-| `share_cache` | Mount the [shared download cache](#the-shared-download-cache) for this project (default `false`; always off for fork PRs). |
+| `share_cache` | Mount the [shared download cache](#the-shared-download-cache) for this project (default `false`; always off for fork PRs and jobs of unknown origin, which includes every GitHub scale-set, Gitea and Forgejo job). |
 
 Changes to `projects:` apply to a running fleet without a restart.
 
@@ -283,7 +283,7 @@ projects:
 ```
 
 The cache is mounted into that project's bakes and runners, in a subdirectory scoped to the project. It is off by
-default and always off for fork PRs. On Linux container runtimes it is bind-mounted at `/var/kinhin-cache`.
+default and always off for fork PRs and jobs of unknown origin (GitHub scale-set, Gitea and Forgejo jobs). On Linux container runtimes it is bind-mounted at `/var/kinhin-cache`.
 
 > **Don't enable it for untrusted code.** The cache is writable and holds things later jobs _execute_ (Cargo's `bin/`,
 > Flutter SDKs, Playwright browsers, Gradle init scripts). A fork PR could plant a binary there that a later job runs,

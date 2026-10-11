@@ -5,8 +5,8 @@ description: Edit or write a kinhin config.yaml safely - accounts per forge, lab
 
 # Configure kinhin
 
-**Beta status:** only GitHub Actions with Tart macOS VMs and apple/container has run for real. Other forges and
-runtimes are tested only against fakes. Say so when the user picks one.
+**Beta status:** GitHub, Gitea, Forgejo and GitLab CE are supported. Gitea, Forgejo and GitLab CE have run real jobs on
+every runtime; GitHub on Tart macOS VMs and apple/container. Buildkite, Azure DevOps and Bitbucket are planned.
 
 ## Rules
 
@@ -17,6 +17,10 @@ runtimes are tested only against fakes. Say so when the user picks one.
 - Every forge goes under `accounts:`. The old top-level `repo:`, `gitea:` and `forgejo:` keys are rejected.
 - After every edit run `kinhin config validate`. It exits 3 when the config is invalid.
 - Prefer `kinhin help` and `kinhin config init` output over this page if they disagree.
+- **Public repository?** Fork pull requests must not reach the fleet: follow `docs/open-source.md` (runner group
+  without public repos, fork PRs routed to hosted runners, approval for external contributors). For such a fleet set
+  `tart_softnet: true` and `runners_per_vm: 1`, keep `share_cache` and `repo_file` off, scope the account to
+  `owner/name`, and never add a `host` route.
 
 ## Account entries
 

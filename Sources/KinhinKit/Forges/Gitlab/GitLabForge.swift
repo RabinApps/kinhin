@@ -127,7 +127,7 @@ struct GitLabForge: Forge {
         try await client.jobs(.pending, in: gitlabScope).filter(isOurs).map {
             ForgeJob(
                 name: $0.name, runnerName: nil, repository: $0.project, labels: $0.tags, ref: $0.ref, sha: $0.sha,
-                isFork: $0.fromMergeRequest)
+                isFork: $0.fromMergeRequest, forkKnown: true)
         }
     }
 
@@ -144,7 +144,7 @@ struct GitLabForge: Forge {
         return jobs.filter(isOurs).map {
             ForgeJob(
                 name: $0.name, runnerName: $0.runnerDescription, repository: $0.project, labels: $0.tags,
-                isFork: $0.fromMergeRequest)
+                isFork: $0.fromMergeRequest, forkKnown: true)
         }
     }
 
