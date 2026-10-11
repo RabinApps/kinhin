@@ -79,6 +79,38 @@ jobs:
         # with "No ThreadSanitizer reports" means a test regression.
         run: scripts/tsan.sh
 
+  fork:
+    # Fork PRs never reach the self-hosted fleet (the `test` job skips them), so
+    # they get the same lint, tests and release build on a GitHub-hosted Mac:
+    # contributors see results, and their code never runs on our hardware. No
+    # secrets, read-only token, and the checkout keeps no credentials.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check toolchain
+        # The package needs Swift 6.2 (Xcode 26+); pick the newest Xcode the
+        # image has rather than trusting its default.
+        run: |
+          newest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          echo "xcode-select: $(xcode-select -p)"
+          swift --version
+
+      - name: Lint (swift-format)
+        run: swift format lint --strict -r Sources Tests
+
+      - name: Run tests
+        timeout-minutes: 30
+        run: swift test
+
+      - name: Build release products
+        run: swift build -c release --product kinhin-app --product kinhin
+
   docs:
     # Docs lint, docs-sync --check and skills lint are grep/sed/awk scripts with
     # no Swift or macOS dependency, so they run on a GitHub-hosted runner, never

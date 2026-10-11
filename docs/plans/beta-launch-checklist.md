@@ -56,5 +56,41 @@ table; each that does not is left out.
    do not hand-edit between the markers.
 6. Run `cd website && npx vitepress build` (fails on dead links).
 7. Run `bash scripts/docs-lint.sh`, then `scripts/check.sh` (use `--fast` while iterating, full run before release).
-8. Commit the docs, then tag and publish the release (G6 must already hold). Do not push the draft to the website folder
-   earlier than this: `docs/plans/` is excluded from the site on purpose.
+8. Commit and push `develop`; CI must be green on the fleet.
+
+Steps 1–4 are done (2026-10-10): the post is resolved and copied, and the blog index is dated.
+
+## Launch day (Sunday, October 11)
+
+In this order. Each step names how to check it.
+
+1. **Build the release locally:** `NOTARY_KEYCHAIN_PROFILE=kinhin scripts/release.sh 0.0.1-beta-1`. Notarization can
+   take hours; `scripts/notarize.sh status dist/kinhin-0.0.1-beta-1-arm64.dmg` shows where it is.
+2. **Make the repository public:**
+   `gh repo edit RabinApps/kinhin --visibility public --accept-visibility-change-consequences`.
+3. **Let the fleet keep serving CI.** Org **Settings → Actions → Runner groups → Default**: allow public repositories,
+   and set repository access to **Selected repositories** with only `kinhin`. Without this, every `kinhin-xcode` and
+   `kinhin-container` job stays queued once the repository is public. Check: push a commit and watch `test` start.
+4. **Fork pull requests need approval:**
+   `gh api -X PUT repos/RabinApps/kinhin/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors`.
+   They run only the hosted `fork` and `docs` jobs in `ci.yml`, never on the fleet.
+5. **Rulesets** (Settings → Rules, available once public):
+   - `main` and `develop`: changes through pull requests, required check `test`, CODEOWNERS review, no force-push, no
+     deletion.
+   - Tags `v*`: only you may create, update or delete them (a tag triggers `release.yml`).
+6. **Release secrets behind a reviewer:** create the `release` environment with you as required reviewer, and move the
+   six signing secrets (`MACOS_CERT_P12`, `MACOS_CERT_PASSWORD`, `MACOS_SIGN_IDENTITY`, `NOTARY_API_KEY_P8`,
+   `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`) from repository secrets into it.
+7. **Require SHA-pinned actions:** Settings → Actions → General.
+8. **Publish the release** (no `kinhin-xcode` tag build needed): the "Local publish" commands in `docs/releasing.md`,
+   `gh release create v0.0.1-beta-1 --target <sha> --latest …`. Check:
+   `curl -fsSLI https://github.com/RabinApps/kinhin/releases/latest/download/install.sh` answers 200.
+9. **Gate G6:** run the install command on a clean Mac. If it fails, put the fallback text back in the post before the
+   site goes up.
+10. **Pages:** Settings → Pages → Source "GitHub Actions", custom domain `kinhin.dev`, DNS (A/AAAA or ALIAS to GitHub
+    Pages), enforce HTTPS. Set the repository website to `https://kinhin.dev`.
+11. **Publish the site:** fast-forward `main` to `develop` and push (`docs.yml` builds on the fleet's
+    `kinhin-container` pool, so the daemon must be running). Check `https://kinhin.dev/blog/introducing-kinhin-beta`.
+12. **Optional:** add `"v0.0.1-beta-1"` to `website/versions.json` for a versioned docs snapshot.
+13. **The first external pull request:** confirm it waits for approval and runs only `fork` and `docs`. The `fork` job
+    runs on `macos-26`, which needs Xcode 26+ for Swift 6.2; it has not run yet.

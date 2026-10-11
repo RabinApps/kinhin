@@ -79,6 +79,10 @@ download hosts), and to GitHub Releases for the once-a-day update check.
 
 ## For maintainers: CI and releases
 
-- CI runs on a self-hosted Mac that also hosts the fleet, so fork PRs are not run there and the workflow token is read-only.
+- CI runs on a self-hosted Mac that also hosts the fleet, so fork PRs are never run there: the `fork` job gives them the
+  same lint, tests and release build on a GitHub-hosted Mac. The workflow token is read-only and no workflow uses
+  `pull_request_target`.
+- The kinhin repository is public, so its org runner group must allow public repositories, limited to this one
+  repository; fork workflows need approval for all external contributors.
 - Put the signing and notarization secrets in a GitHub **environment** named `release` with required reviewers, and protect `v*` tags, so a pushed tag alone can't reach them.
 - Actions are pinned to commit SHAs; bump them deliberately.
