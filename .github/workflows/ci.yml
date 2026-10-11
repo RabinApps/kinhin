@@ -43,6 +43,9 @@ jobs:
         run: swift format lint --strict -r Sources Tests
 
       - name: Run tests
+        # A clean run takes about ten minutes; a hung test fails here instead
+        # of holding the fleet's VM until GitHub's six-hour limit.
+        timeout-minutes: 30
         run: swift test
 
       - name: Build release products

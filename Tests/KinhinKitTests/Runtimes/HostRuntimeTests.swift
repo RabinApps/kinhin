@@ -274,7 +274,7 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: pidFile.path), "and so is its pid file")
 
         await runtime.stopRecordedAgents(id: id, pidFile: "runner.pid", command: "sleep", what: "sleepers")
-        process.waitUntilExit()
+        await awaitExit(process)
         XCTAssertFalse(process.isRunning, "the owning agent's sweep stops it")
         XCTAssertFalse(FileManager.default.fileExists(atPath: pidFile.path))
     }
@@ -303,7 +303,7 @@ final class HostRuntimeTests: XCTestCase {
         try Data("\(process.processIdentifier)".utf8).write(to: pidFile)
 
         await runtime.stopBitbucketRunners(id: id)
-        process.waitUntilExit()
+        await awaitExit(process)
         XCTAssertFalse(process.isRunning, "the runner is stopped although no wrapper name is in its command line")
         XCTAssertFalse(FileManager.default.fileExists(atPath: pidFile.path))
     }
@@ -391,5 +391,16 @@ final class HostRuntimeTests: XCTestCase {
         XCTAssertEqual(partition.caps[.host], 4)
         // Tart keeps the remainder: 4 CPU / 8 GB with shape 4/8 → 1.
         XCTAssertEqual(partition.caps[.tart], 1, "tart gets the remainder, at its VM shape")
+    }
+
+    /// `Process.waitUntilExit()` blocks the main thread, and Foundation may
+    /// deliver the exit on the main queue, so an async test killing its child
+    /// from outside could wait forever (it hung kinhin's CI). Poll with an
+    /// await instead, which frees the main thread between checks.
+    private func awaitExit(_ process: Process, timeout: TimeInterval = 10) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning, Date() < deadline {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
     }
 }
