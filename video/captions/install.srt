@@ -1,0 +1,11 @@
+1
+00:00:00,500 --> 00:00:07,000
+One-line install.
+
+2
+00:00:07,000 --> 00:00:14,000
+kinhin doctor checks your Mac.
+
+3
+00:00:14,000 --> 00:00:20,000
+kinhin start

@@ -83,6 +83,18 @@ Render each from the editor (exporter *Video (FFmpeg)*) to `video/raw/opening.mp
 the app and terminal clips in `video/raw/` (`app.mov`, `install.mp4`), and run `video/scripts/export.sh`. Outputs land
 in `video/out/`; `raw/` and `out/` are git-ignored.
 
+## Captions, music and the site
+
+- **Captions.** `video/captions/app.srt` and `install.srt` are burned into the app and terminal clips by
+  `export.sh` (black text, white outline, so they read on any background). They are timed to the built-in `launch`
+  script and the shipped VHS tape; retime them if you record a different script or edit the take. `NO_CAPTIONS=1`
+  skips them.
+- **Music.** Drop `video/raw/music.mp3` (or `.m4a`, `.wav`, `.flac`) next to the clips and `export.sh` loops it under
+  the whole video at half volume, with a 2 s fade in and a 3 s fade out. Use music you have the right to publish.
+- **The home page.** Copy `launch.mp4`, `launch.webm` and `launch-poster.png` from `video/out/` (the poster is
+  `poster.png`) into `website/public/`. The home page shows the player only when `launch.mp4` exists, so the site
+  never renders a broken video. Keep the files small (under about 10 MB) or host them elsewhere.
+
 ## Keep it honest
 
 Only claim what the repo supports. The numbers in [Benchmarks](benchmarks.md) come from one machine and are a sample;

@@ -5,6 +5,7 @@ name: Demo check
 on:
   push:
     branches: ["claude/**"]
+    paths: ["Sources/**", "Tests/**", "Package.swift", "Package.resolved", ".swift-format"]
   workflow_dispatch:
 
 concurrency:

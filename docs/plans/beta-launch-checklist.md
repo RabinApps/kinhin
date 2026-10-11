@@ -94,3 +94,7 @@ In this order. Each step names how to check it.
 12. **Optional:** add `"v0.0.1-beta-1"` to `website/versions.json` for a versioned docs snapshot.
 13. **The first external pull request:** confirm it waits for approval and runs only `fork` and `docs`. The `fork` job
     runs on `macos-26`, which needs Xcode 26+ for Swift 6.2; it has not run yet.
+14. **Optional: launch video.** Not a gate, and nothing above depends on it. Follow
+    [Making a demo video](../making-a-video.md); put `launch.mp4`, `launch.webm` and `launch-poster.png` in
+    `website/public/` before step 11 and the home page shows the player. Check that every on-screen claim matches the
+    resolved post (forges and runtimes supported today, no planned forge shown as supported).

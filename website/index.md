@@ -44,6 +44,8 @@ features:
     details: curl … \| bash from GitHub Releases with sha256 verification, no Gatekeeper dance, and a clean uninstall.
 ---
 
+<LaunchVideo />
+
 <div style="max-width: 1152px; margin: 32px auto; padding: 0 24px;">
 
 ::: warning Beta (v0.0.1-beta-1)
