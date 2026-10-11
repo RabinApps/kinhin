@@ -15,7 +15,7 @@
 - [ ] `scripts/tsan.sh` run, if this touches shared state, actors, locks or `nonisolated(unsafe)`
 - [ ] `cd website && npx vitepress build` run, if `docs/` or `website/` changed
 - [ ] Tests added or updated
-- [ ] `CHANGELOG.md` updated for user-visible changes
+- [ ] `CHANGELOG.md` bullet added under `## Unreleased` for user-visible changes
 - [ ] User-facing app strings go through the String Catalog (`scripts/l10n-lint.sh`)
 
 ## Tested against

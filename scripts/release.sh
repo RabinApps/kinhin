@@ -102,9 +102,13 @@ echo "    version: $VERSION (Version.swift matches)"
 
 if ! grep -qxF "## v$VERSION" CHANGELOG.md; then
     echo "FATAL: CHANGELOG.md has no '## v$VERSION' heading — add the release notes first." >&2
+    if grep -qxF "## Unreleased" CHANGELOG.md; then
+        echo "  Run: scripts/changelog.sh promote $VERSION" >&2
+    fi
     exit 1
 fi
 echo "    CHANGELOG: '## v$VERSION' heading present"
+bash scripts/changelog.sh check
 
 DIRTY="$(git status --porcelain)"
 if [ -n "$DIRTY" ] && [ "$ALLOW_DIRTY" = 0 ]; then
