@@ -40,7 +40,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
+          node-version-file: website/.nvmrc
           cache: npm
           cache-dependency-path: website/package.json
 
@@ -57,11 +57,16 @@ jobs:
         run: npm run build
 
       # Each version listed in website/versions.json is built from its own tag (its own docs/ and
-      # website/), then served under /<tag>/ next to the latest docs at /.
+      # website/), then served under /<tag>/ next to the latest docs at /. website/snapshot.config.ts
+      # wraps the tag's config: repository links point at the tag, and a dead link frozen in an old
+      # release does not fail the deploy. The tag itself is never modified.
       - name: Build version snapshots
         run: |
           for v in $(jq -r '.[]' website/versions.json); do
             git worktree add "$RUNNER_TEMP/docs-$v" "refs/tags/$v"
+            snap="$RUNNER_TEMP/docs-$v/website/.vitepress"
+            mv "$snap/config.ts" "$snap/config.base.ts"
+            cp website/snapshot.config.ts "$snap/config.ts"
             (cd "$RUNNER_TEMP/docs-$v/website" && npm ci && DOCS_VERSION="$v" npm run build)
             mkdir -p "website/.vitepress/dist/$v"
             cp -R "$RUNNER_TEMP/docs-$v/website/.vitepress/dist/." "website/.vitepress/dist/$v/"
