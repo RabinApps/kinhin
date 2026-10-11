@@ -59,6 +59,11 @@ extension GitHubScaleSetListener {
             for event in message.events {
                 try await handleEvent(event)
             }
+            // GitHub assigns a JobAvailable job only once a listener acquires it; until then
+            // idle runners in this scale set sit listening while the job stays queued. Done
+            // before the ack: on failure the message is redelivered and acquiring again is a
+            // no-op (actions/scaleset's listener contract).
+            try await acquireAvailableJobs(in: message, session: session, scaleSetId: scaleSetId)
             if let statistics = message.statistics {
                 try acceptStatistics(statistics)
                 publishSnapshot(statistics: statistics)
@@ -74,6 +79,23 @@ extension GitHubScaleSetListener {
             lastMessageId = message.messageId
         }
         if messages.isEmpty { try await updateSnapshot() }
+    }
+
+    func acquireAvailableJobs(
+        in message: GitHubScaleSetMessage, session: GitHubScaleSetSession, scaleSetId: Int
+    ) async throws {
+        let ids = message.events.filter { $0.eventType == .jobAvailable }.compactMap { Int64($0.runnerRequestId) }
+        guard !ids.isEmpty else { return }
+        let acquired: [Int64]
+        do {
+            acquired = try await client.acquireJobs(
+                session: self.session ?? session, scaleSetId: scaleSetId, requestIds: ids)
+        } catch GitHubScaleSetClientError.messageQueueTokenExpired {
+            let refreshed = try await client.refreshSession(scaleSetId: scaleSetId, sessionId: session.sessionId)
+            self.session = refreshed
+            acquired = try await client.acquireJobs(session: refreshed, scaleSetId: scaleSetId, requestIds: ids)
+        }
+        Log.info("scaleset", "acquired \(acquired.count) of \(ids.count) available job(s)")
     }
 
     func handleEvent(_ jobEvent: GitHubScaleSetJobEvent) async throws {

@@ -15,6 +15,9 @@ public protocol GitHubScaleSetServing: Sendable {
     func pollMessages(session: GitHubScaleSetSession, lastMessageId: String?, maxCapacity: Int) async throws
         -> [GitHubScaleSetMessage]
     func ackMessage(session: GitHubScaleSetSession, messageId: String) async throws
+    /// Claims available jobs for this scale set's runners. Returns the request ids GitHub
+    /// assigned. Without it a JobAvailable job stays unassigned.
+    func acquireJobs(session: GitHubScaleSetSession, scaleSetId: Int, requestIds: [Int64]) async throws -> [Int64]
     func generateJitConfig(scaleSetId: Int, name: String, workFolder: String) async throws -> GitHubScaleSetJitConfig
     func scaleSetStatistics(scaleSetId: Int) async throws -> GitHubScaleSetStatistics
 }
@@ -531,6 +534,31 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
             throw ScaleSetError.messageServiceFailure(
                 reason: "message acknowledgement failed (HTTP \(http.statusCode))")
         }
+    }
+
+    /// `POST {actions}/_apis/runtime/runnerscalesets/{id}/acquirejobs` with the message-queue
+    /// token, body a JSON array of runner request ids (actions/scaleset `acquireJobs`).
+    /// Acquiring an already acquired job is a no-op, so a redelivered message may repeat it.
+    public func acquireJobs(
+        session: GitHubScaleSetSession, scaleSetId: Int, requestIds: [Int64]
+    ) async throws -> [Int64] {
+        guard !requestIds.isEmpty else { return [] }
+        guard let serviceURL = actionsServiceURL() else {
+            throw ScaleSetError.messageServiceFailure(reason: "Actions service URL is unavailable")
+        }
+        var request = try request(
+            method: "POST", path: "/_apis/runtime/runnerscalesets/\(scaleSetId)/acquirejobs",
+            body: try JSONEncoder().encode(requestIds), headers: ["Content-Type": "application/json"],
+            baseURL: serviceURL)
+        request.setValue("Bearer \(session.messageQueueAccessToken)", forHTTPHeaderField: "Authorization")
+        let data: Data
+        do {
+            data = try await send(request).0
+        } catch GitHubError.unauthorized {
+            throw GitHubScaleSetClientError.messageQueueTokenExpired
+        }
+        struct Response: Decodable { let value: [Int64]? }
+        return (try? JSONDecoder().decode(Response.self, from: data))?.value ?? []
     }
 
     private struct MessageResponse: Decodable {

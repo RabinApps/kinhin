@@ -41,6 +41,12 @@ cap, pause and resume, forge outages, the warm pool, routing and toolchain insta
 
 **Not yet exercised:** the in-app updater against a published release (this is the first one).
 
+**Fixed before release**
+
+- GitHub scale-set mode now acquires each available job (`acquirejobs`), as GitHub's listener contract requires.
+  Without it, idle runners in a VM with `runners_per_vm > 1` listened while a queued job waited for a new VM.
+- A scale-set session GitHub drops (after a network outage) is replaced instead of refreshed forever.
+
 **Known limitations**
 
 - Gitea 1.24 and older report no queued job until a runner exists: set `min_runners: 1`.

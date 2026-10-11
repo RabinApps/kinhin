@@ -155,6 +155,9 @@ private actor ConflictingClient: GitHubScaleSetServing {
         -> [GitHubScaleSetMessage]
     { [] }
     func ackMessage(session: GitHubScaleSetSession, messageId: String) async throws {}
+    func acquireJobs(session: GitHubScaleSetSession, scaleSetId: Int, requestIds: [Int64]) async throws -> [Int64] {
+        requestIds
+    }
     func generateJitConfig(scaleSetId: Int, name: String, workFolder: String) async throws -> GitHubScaleSetJitConfig {
         GitHubScaleSetJitConfig(encodedJitConfig: "jit")
     }

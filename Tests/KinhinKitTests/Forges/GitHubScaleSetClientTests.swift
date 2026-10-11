@@ -346,6 +346,39 @@ final class GitHubScaleSetClientTests: XCTestCase {
         XCTAssertEqual(captured[1].httpMethod, "DELETE")
     }
 
+    /// Matches actions/scaleset: POST .../runnerscalesets/{id}/acquirejobs on the Actions
+    /// service, body a JSON array of request ids, the message-queue token as Bearer.
+    func testAcquireJobsPostsTheRequestIdsWithTheQueueToken() async throws {
+        let requests = Mutex<[URLRequest]>([])
+        StubProtocol.handler = { request in
+            requests.withLock { $0.append(request) }
+            return (200, Data(#"{"count":1,"value":[17]}"#.utf8), [:])
+        }
+        let acquired = try await makeClient().acquireJobs(session: testSession(), scaleSetId: 4, requestIds: [17, 18])
+        XCTAssertEqual(acquired, [17])
+        let request = try XCTUnwrap(requests.withLock { $0 }.first)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.host, "actions.example.invalid")
+        XCTAssertEqual(request.url?.path, "/prefix/_apis/runtime/runnerscalesets/4/acquirejobs")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer queue-token")
+        XCTAssertEqual(String(decoding: request.bodyStreamData(), as: UTF8.self), "[17,18]")
+    }
+
+    func testAcquireJobsMapsAnExpiredQueueTokenAndSkipsAnEmptyList() async throws {
+        let calls = Mutex(0)
+        StubProtocol.handler = { _ in
+            calls.withLock { $0 += 1 }
+            return (401, Data(), [:])
+        }
+        let none = try await makeClient().acquireJobs(session: testSession(), scaleSetId: 4, requestIds: [])
+        XCTAssertEqual(none, [])
+        XCTAssertEqual(calls.withLock { $0 }, 0, "nothing to acquire: no request")
+        do {
+            _ = try await makeClient().acquireJobs(session: testSession(), scaleSetId: 4, requestIds: [17])
+            XCTFail("a 401 is an expired queue token")
+        } catch GitHubScaleSetClientError.messageQueueTokenExpired {}
+    }
+
     private func testSession() -> GitHubScaleSetSession {
         GitHubScaleSetSession(
             sessionId: "session-1", messageQueueUrl: URL(string: "https://queue.example.invalid/messages")!,

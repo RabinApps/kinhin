@@ -501,6 +501,8 @@ final class FleetEngineTests: XCTestCase {
         try await listener.process([message], session: makeSession(), scaleSetId: 17)
         let firstAcknowledgements = await client.acknowledged
         XCTAssertEqual(firstAcknowledgements, ["9"])
+        let acquired = await client.acquired
+        XCTAssertEqual(acquired, [[17]], "a JobAvailable job is acquired, or GitHub never assigns it")
         let assignedJobs = try await listener.queuedJobs()
         XCTAssertEqual(assignedJobs.first?.name, "build")
 
@@ -514,8 +516,32 @@ final class FleetEngineTests: XCTestCase {
         try await listener.process([completed], session: makeSession(), scaleSetId: 17)
         let allAcknowledgements = await client.acknowledged
         XCTAssertEqual(allAcknowledgements, ["9", "10"])
+        let acquiredAfterCompletion = await client.acquired
+        XCTAssertEqual(acquiredAfterCompletion, [[17]], "only JobAvailable events are acquired")
         let remainingJobs = try await listener.queuedJobs()
         XCTAssertTrue(remainingJobs.isEmpty)
+    }
+
+    /// actions/scaleset's contract: acquire before the ack, so a failed acquire leaves the
+    /// message unacknowledged and GitHub redelivers it.
+    func testAFailedAcquireLeavesTheMessageUnacknowledged() async throws {
+        let client = RecordingScaleSetClient()
+        await client.setFailAcquire(true)
+        let listener = GitHubScaleSetListener(
+            client: client, scaleSetIdSupplier: { 17 }, ownerName: "acme", fallbackRepository: "acme/widgets")
+        let message = GitHubScaleSetMessage(
+            messageId: "9", statistics: .init(totalAssignedJobs: 1, activeNodesCount: 0),
+            events: [
+                GitHubScaleSetJobEvent(
+                    ownerName: "acme", repositoryName: "widgets", jobDisplayName: "build", requestLabels: [],
+                    runnerRequestId: "17", eventType: .jobAvailable)
+            ])
+        do {
+            try await listener.process([message], session: makeSession(), scaleSetId: 17)
+            XCTFail("the acquire failure must surface")
+        } catch {}
+        let acknowledged = await client.acknowledged
+        XCTAssertEqual(acknowledged, [])
     }
 
     func testScaleSetListenerReplacesDuplicateMessageWithLatestEvent() async throws {
@@ -676,6 +702,9 @@ final class FleetEngineTests: XCTestCase {
 
         func ackMessage(session: GitHubScaleSetSession, messageId: String) async throws {
         }
+        func acquireJobs(session: GitHubScaleSetSession, scaleSetId: Int, requestIds: [Int64]) async throws -> [Int64] {
+            requestIds
+        }
 
         func generateJitConfig(scaleSetId: Int, name: String, workFolder: String) async throws
             -> GitHubScaleSetJitConfig
@@ -694,6 +723,15 @@ final class FleetEngineTests: XCTestCase {
 
     private actor RecordingScaleSetClient: GitHubScaleSetServing {
         private(set) var acknowledged: [String] = []
+        private(set) var acquired: [[Int64]] = []
+        var failAcquire = false
+
+        func setFailAcquire(_ value: Bool) { failAcquire = value }
+        func acquireJobs(session: GitHubScaleSetSession, scaleSetId: Int, requestIds: [Int64]) async throws -> [Int64] {
+            if failAcquire { throw GitHubError.http(503, "unavailable") }
+            acquired.append(requestIds)
+            return requestIds
+        }
 
         func exchangeRegistrationToken(registrationToken: String) async throws -> GitHubScaleSetRegistrationToken {
             GitHubScaleSetRegistrationToken(
