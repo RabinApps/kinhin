@@ -137,7 +137,7 @@ else
             | sed -n 's/.*"tag_name": *"*\([^"]*\)"*.*/\1/p' | head -n1)"
         [[ -n "$TAG" ]] || die "could not determine the latest release tag (is $REPO reachable and public? pin one: install.sh v0.1.0)"
     fi
-    [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9.]+)?$ ]] || die "unexpected release tag: $TAG"
+    [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9]+(-[0-9]+)?)?$ ]] || die "unexpected release tag: $TAG"
     info "Fetching kinhin $TAG from GitHub Releases"
     BASE="https://github.com/$REPO/releases/download/$TAG"
     DMG_NAME="kinhin-${TAG#v}-arm64.dmg"
