@@ -59,8 +59,42 @@ brew install openai/cli/tart
 Re-run `kinhin doctor` afterwards; it offers to move back to the OpenAI tap once a fixed bottle ships. The commands
 `doctor` prints are authoritative if they differ from this page.
 
-Other runtimes use the same installer: `kinhin setup repair container` and `kinhin setup repair docker` (see
-[Runtimes](runtimes.md#choosing-a-linux-runtime)).
+## Installing a Linux runtime
+
+Linux jobs are optional. Tart Linux VMs need nothing beyond Tart. For containers, use **apple/container** first;
+choose Docker only if you already run a Docker provider. The [runtime comparison](runtimes.md#choosing-a-linux-runtime)
+explains the trade-offs.
+
+### apple/container (recommended)
+
+```bash
+kinhin setup repair container      # installs the container CLI and starts its service
+```
+
+These are the manual equivalents:
+
+```bash
+brew install container
+container system start --enable-kernel-install
+```
+
+`--enable-kernel-install` installs the default Linux kernel. Without it, `container system start` stops to ask a
+question, and every `container run` then fails with "default kernel not configured". Then bake the image with
+`kinhin image prepare --container`.
+
+### Docker
+
+`kinhin setup repair docker` installs Docker Desktop by default. Pick another provider with
+`--method orbstack` or `--method colima`.
+
+```bash
+brew install --cask docker-desktop     # --method desktop (Docker Desktop: open it once after installing)
+brew install --cask orbstack           # --method orbstack (OrbStack: open it once after installing)
+brew install colima docker && colima start   # --method colima (command line only, no app)
+```
+
+Docker Desktop needs macOS 15 or newer and at least 4 GB of RAM. Then bake the image with
+`kinhin image prepare --docker`. kinhin does not configure or start your Docker provider; it only runs containers in it.
 
 ## How updates and installs are verified
 

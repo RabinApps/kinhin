@@ -43,6 +43,19 @@ curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.
   `~/.local/bin`. Overrides: `REPO`, `INSTALL_DIR`, `BIN_DIR`.
 - Old or locally built copies may need `xattr -cr /Applications/kinhin.app`. Official releases are notarized.
 
+### Optional: a Linux runtime
+
+Only needed for Linux jobs. Use apple/container first; choose Docker only if the user already runs a Docker provider.
+
+```bash
+kinhin setup repair container     # apple/container (recommended): CLI + service, with the default Linux kernel
+kinhin setup repair docker        # Docker: Docker Desktop by default; --method orbstack or --method colima
+```
+
+The manual equivalent of the apple/container repair is `brew install container` followed by
+`container system start --enable-kernel-install`. The `--enable-kernel-install` flag is required; without it `container run`
+fails. Details: `docs/install.md#installing-a-linux-runtime`.
+
 ## 3. First-run sequence
 
 Run these in order, stopping to fix any failure before the next step:

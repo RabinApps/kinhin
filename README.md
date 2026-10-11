@@ -37,7 +37,7 @@ runs jobs directly on the Mac, with no isolation.
 
 - Apple Silicon Mac, macOS 15+, ~60 GB free disk ([sizing](docs/hardware.md)), and an access token for a
   [forge](docs/forges.md) (e.g. a GitHub PAT with `repo` scope)
-- Tart for macOS jobs (kinhin installs it, see below); Linux jobs are optional ([runtimes](docs/runtimes.md#choosing-a-linux-runtime))
+- Tart for macOS jobs (kinhin installs it, see below). Linux jobs are optional: apple/container (recommended; `kinhin setup repair container`), Docker, or a Tart Linux VM ([install](docs/install.md#installing-a-linux-runtime), [runtimes](docs/runtimes.md#choosing-a-linux-runtime))
 
 ## Install
 

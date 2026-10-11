@@ -209,18 +209,19 @@ different tart found on PATH.
 
 Linux jobs can run three ways:
 
-|                       | **Tart Linux VM**                                  | **apple/container**                 | **Docker**                               |
-| --------------------- | -------------------------------------------------- | ----------------------------------- | ---------------------------------------- |
-| One instance is       | A full Linux VM (linked clone)                     | A container in its own microVM      | A container in your provider's shared VM |
-| Isolation             | Own kernel, disk and network                       | Own kernel per container            | Shared kernel with every other slot      |
-| Density               | Lowest (bounded by VM shapes)                      | High                                | Highest (bounded by `max_slots`)         |
-| Disk per instance     | 50 GB planning default (`disk_gb`)                 | 8 GB                                | 8 GB                                     |
-| amd64                 | No                                                 | No                                  | Yes, emulated                            |
-| Needs                 | Only tart                                          | The `container` CLI and its service | Docker Desktop, OrbStack or colima       |
-| Mixes with macOS jobs | Yes — a tart fleet can serve macOS and Linux VMs together when using named images with distinct labels | Yes                                 | Yes                                      |
-| Best for              | Full control: your distro, system services, `sudo` | The default for Linux CI            | Teams already running Docker             |
+|                       | **apple/container** (recommended)   | **Docker**                               | **Tart Linux VM**                                  |
+| --------------------- | ----------------------------------- | ---------------------------------------- | -------------------------------------------------- |
+| One instance is       | A container in its own microVM      | A container in your provider's shared VM | A full Linux VM (linked clone)                     |
+| Isolation             | Own kernel per container            | Shared kernel with every other slot      | Own kernel, disk and network                       |
+| Density               | High                                | Highest (bounded by `max_slots`)         | Lowest (bounded by VM shapes)                      |
+| Disk per instance     | 8 GB                                | 8 GB                                     | 50 GB planning default (`disk_gb`)                 |
+| amd64                 | No                                  | Yes, emulated                            | No                                                 |
+| Needs                 | The `container` CLI and its service | Docker Desktop, OrbStack or colima       | Only tart                                          |
+| Mixes with macOS jobs | Yes                                 | Yes                                      | Yes — a tart fleet can serve macOS and Linux VMs together when using named images with distinct labels |
+| Best for              | The default for Linux CI            | Teams already running Docker             | Full control: your distro, system services, `sudo` |
 
 - **Starting fresh?** Use **apple/container**: VM-grade isolation, no daemon, and it shares a fleet with macOS VMs.
+  Install it with `kinhin setup repair container`.
 - **Already run Docker Desktop, OrbStack or colima?** Use **Docker**.
 - **Need a specific distro, kernel modules or long `sudo` provisioning?** Use a **Tart Linux VM**.
 
@@ -237,7 +238,9 @@ container:
   memory_gb: 8
 ```
 
-Install the CLI with `brew install container && container system start`, then run `kinhin image prepare --container`.
+Install it with `kinhin setup repair container`, or by hand with `brew install container` and
+`container system start --enable-kernel-install` (the flag installs the default Linux kernel; without it `container run`
+fails). Then run `kinhin image prepare --container`. [Full install steps](install.md#installing-a-linux-runtime).
 Once `container:` is configured, the setup checklist and `kinhin doctor` gain container rows with one-click fixes.
 `kinhin runtimes` (or **Advanced → Routing**) shows the pool, its cap and its health.
 
@@ -253,8 +256,9 @@ docker:
   platform: "linux/arm64" # default; "linux/amd64" runs under emulation
 ```
 
-kinhin never starts or configures your Docker provider; it only runs containers in it. Run
-`kinhin image prepare --docker` to bake the agents. Docker slots register with `kinhin-docker`, so jobs opt in with
+Install a provider with `kinhin setup repair docker` (Docker Desktop by default; `--method orbstack` or `--method colima`
+for the others), see [Installing a Linux runtime](install.md#installing-a-linux-runtime). kinhin never starts or configures
+your Docker provider; it only runs containers in it. Run `kinhin image prepare --docker` to bake the agents. Docker slots register with `kinhin-docker`, so jobs opt in with
 `runs-on: [kinhin-docker]`.
 
 Prefer a CI-built image? Write a Dockerfile that installs the GitHub Actions runner at `/opt/actions-runner` (with an

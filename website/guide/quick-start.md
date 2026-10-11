@@ -9,11 +9,11 @@ runners. This page gets you from zero to a working fleet. New here? Read [why ki
 - [Tart](https://tart.run) — macOS runner VMs. `kinhin setup repair tart` installs it (or the setup
   window does); manual commands are in [Installing Tart](/guide/install#installing-tart)
 - An access token for at least one CI platform: GitHub, Gitea, Forgejo or GitLab CE (see [Pick your forge](#pick-your-forge) and [Forge support](/guide/forges))
-- Optional — Linux jobs. Three options — [apple/container](https://github.com/apple/container)
-  microVMs (`brew install container && container system start`), Docker containers, or
-  [Tart Linux VMs](/guide/runtimes#tart-linux-vms), which need nothing beyond tart itself;
-  see the [comparison](/guide/runtimes#choosing-a-linux-runtime) for when to use each
-  (macOS jobs always need Tart)
+- Optional — Linux jobs. Three options: [apple/container](https://github.com/apple/container)
+  microVMs (recommended; `kinhin setup repair container`), Docker containers, or
+  [Tart Linux VMs](/guide/runtimes#tart-linux-vms), which need nothing beyond tart itself.
+  See [installing a Linux runtime](/guide/install#installing-a-linux-runtime) and the
+  [comparison](/guide/runtimes#choosing-a-linux-runtime) (macOS jobs always need Tart)
 - ~60 GB free disk for the base image plus per-VM scratch
 
 Sizing the fleet — CPU, memory, and storage recommendations — is covered in
