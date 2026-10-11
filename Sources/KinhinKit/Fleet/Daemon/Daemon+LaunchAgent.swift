@@ -7,6 +7,27 @@ extension Daemon {
             .appendingPathComponent("LaunchAgents/\(plistName)")
     }
 
+    /// Absolute: `Shell` runs argv[0] as a path, so a bare `launchctl` resolved
+    /// against the working directory and `kinhin daemon install` always failed.
+    static let launchctlPath = "/bin/launchctl"
+
+    /// The binary a LaunchAgent should run for `argv0`: absolute, with symlinks
+    /// resolved, so `~/.local/bin/kinhin` is judged by what it points at.
+    public static func launchAgentBinary(argv0: String) -> String {
+        URL(fileURLWithPath: argv0).standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
+    /// A SwiftPM debug build: never installed as a LaunchAgent (it carries
+    /// development-only token handling, and the next `swift build` replaces it).
+    public static func isDebugBuild(_ path: String) -> Bool {
+        path.contains("/.build/debug/") || path.contains("/.build/arm64-apple-macosx/debug/")
+    }
+
+    /// Loads the installed LaunchAgent, which starts the daemon.
+    public static func loadAgent(shell: ShellRunning = Shell()) async throws -> ShellResult {
+        try await shell.run([launchctlPath, "load", agentPlistPath().path], cwd: nil, timeout: 30)
+    }
+
     /// Escapes the five XML special characters for text inside a plist
     /// `<string>`: a path containing `&` or `<` would otherwise break the file.
     static func xmlEscaped(_ text: String) -> String {
@@ -71,10 +92,10 @@ extension Daemon {
         // both no-op on an unloaded one.
         let uid = getuid()
         await bestEffortAsync("daemon", "launchctl bootout") {
-            _ = try await shell.run(["launchctl", "bootout", "gui/\(uid)", plist.path], cwd: nil, timeout: 30)
+            _ = try await shell.run([launchctlPath, "bootout", "gui/\(uid)", plist.path], cwd: nil, timeout: 30)
         }
         do {
-            _ = try await shell.run(["launchctl", "unload", plist.path], cwd: nil, timeout: 30)
+            _ = try await shell.run([launchctlPath, "unload", plist.path], cwd: nil, timeout: 30)
         } catch {
             // Unloading an agent that isn't loaded, or a context where
             // launchctl isn't available (e.g. non-interactive shells), is
