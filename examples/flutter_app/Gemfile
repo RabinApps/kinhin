@@ -1,0 +1,5 @@
+# Pinned fastlane. Run lanes with `bundle exec fastlane <lane>` from ios/ or android/.
+# Bump the pin deliberately: `bundle update fastlane` and commit Gemfile.lock.
+source "https://rubygems.org"
+
+gem "fastlane", "~> 2.240"

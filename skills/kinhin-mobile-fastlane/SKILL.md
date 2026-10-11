@@ -29,8 +29,8 @@ Then in the project:
 
 ```bash
 bundle install
-bundle exec fastlane ios lanes
-bundle exec fastlane android lanes
+# From the folder that holds fastlane/ (ios/ or android/ for Flutter and React Native)
+cd ios && bundle exec fastlane lanes
 ```
 
 ## Before the first upload

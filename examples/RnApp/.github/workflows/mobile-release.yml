@@ -1,4 +1,4 @@
-# Mobile release workflow for a kinhin runner. Copy to .github/workflows/mobile-release.yml.
+# Mobile release workflow for a kinhin runner, written by scripts/mobile-init.sh to .github/workflows/mobile-release.yml.
 # Manual trigger only, so store uploads never run by accident.
 #
 # Repo secrets used here:
@@ -34,6 +34,8 @@ jobs:
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey.p8"
           echo "ASC_KEY_FILEPATH=$RUNNER_TEMP/keys/AuthKey.p8" >> "$GITHUB_ENV"
       - run: bundle install
+      - name: Install CocoaPods (React Native and Flutter)
+        run: if [ -f Podfile ]; then bundle exec pod install; fi
       - run: bundle exec fastlane ios ${{ inputs.lane }}
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}

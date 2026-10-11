@@ -51,6 +51,7 @@ export default defineConfig({
     "docs/plans/**",
     "docs/{app,adding-a-forge}.md",
     "skills/**",
+    "examples/**",
   ],
   rewrites: {
     "website/index.md": "index.md",

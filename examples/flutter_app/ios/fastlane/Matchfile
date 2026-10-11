@@ -1,0 +1,5 @@
+# Code signing via fastlane match. The certificates repo is private and encrypted with MATCH_PASSWORD.
+git_url(ENV["MATCH_GIT_URL"])         # e.g. git@github.com:your-org/certificates.git
+storage_mode("git")
+type("appstore")
+readonly(true)                        # CI never creates or rotates certificates; run `fastlane match appstore` locally

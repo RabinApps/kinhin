@@ -5,7 +5,7 @@
 #
 # Detects the project shape, then copies templates/mobile/ into DIR. Existing files are kept
 # unless --force is given, so re-running is safe. Nothing is installed or run: afterwards,
-# `bundle install` and `bundle exec fastlane ios lanes` (or `android lanes`) work from the project.
+# `bundle install` and `bundle exec fastlane lanes` work from the project.
 #
 # Detection order: pubspec.yaml → Flutter; "expo" in package.json → Expo; "react-native" in
 # package.json → React Native; otherwise the iOS and Android folders decide. Flutter and React
@@ -85,6 +85,24 @@ copy_file() { # copy_file SRC DST
     echo "  wrote   $dst"
 }
 
+# An existing Gemfile (React Native ships one for CocoaPods) keeps its own gems; fastlane is appended.
+ensure_gemfile() {
+    if [[ ! -e Gemfile ]]; then
+        copy_file "$templates/Gemfile" "Gemfile"
+        return 0
+    fi
+    if grep -Eq "^[[:space:]]*gem[[:space:]]*\(?[\"']fastlane[\"']" Gemfile; then
+        echo "  keep    Gemfile (already has fastlane)"
+        return 0
+    fi
+    if [[ $dry_run -eq 1 ]]; then
+        echo "  would append fastlane to Gemfile"
+        return 0
+    fi
+    printf '\n# Added by kinhin mobile-init: fastlane lanes live in ios/ and android/.\ngem "fastlane", "~> 2.240"\n' >> Gemfile
+    echo "  append  fastlane to Gemfile"
+}
+
 # A platform's fastlane folder lives in ios/ or android/ when that folder exists, else at the root
 # (a native project with its project file at the root).
 platform_dir() { # platform_dir ios|android
@@ -103,15 +121,15 @@ scaffold_fastlane() { # scaffold_fastlane ios|android
 
 case "$framework" in
     ios)
-        copy_file "$templates/Gemfile" "Gemfile"
+        ensure_gemfile
         scaffold_fastlane ios
         ;;
     android)
-        copy_file "$templates/Gemfile" "Gemfile"
+        ensure_gemfile
         scaffold_fastlane android
         ;;
     native|flutter|react-native)
-        copy_file "$templates/Gemfile" "Gemfile"
+        ensure_gemfile
         if has_ios; then scaffold_fastlane ios; fi
         if has_android; then scaffold_fastlane android; fi
         ;;
@@ -123,7 +141,22 @@ case "$framework" in
         ;;
 esac
 
-copy_file "$templates/github/mobile-release.yml" ".github/workflows/mobile-release.yml"
+# The workflow is the header plus one job per platform the project has, so an iOS-only app gets no Android job.
+write_workflow() {
+    local tmp
+    tmp="$(mktemp)"
+    cat "$templates/github/header.yml" > "$tmp"
+    if has_ios; then
+        sed "s|__DIR__|$(platform_dir ios)|" "$templates/github/ios.job.yml" >> "$tmp"
+    fi
+    if has_android; then
+        sed "s|__DIR__|$(platform_dir android)|" "$templates/github/android.job.yml" >> "$tmp"
+    fi
+    copy_file "$tmp" ".github/workflows/mobile-release.yml"
+    rm -f "$tmp"
+}
+
+write_workflow
 
 echo "mobile-init: done. Next: add the secrets listed in .github/workflows/mobile-release.yml,"
-echo "             then 'bundle install' and 'bundle exec fastlane ios lanes' locally."
+echo "             then 'bundle install' and 'bundle exec fastlane lanes' from each platform folder."

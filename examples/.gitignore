@@ -1,0 +1,11 @@
+# Dependencies and build output generated while testing the examples
+vendor/
+.bundle/
+Gemfile.lock
+node_modules/
+Pods/
+build/
+.gradle/
+local.properties
+*.xcuserstate
+xcuserdata/

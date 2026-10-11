@@ -1,0 +1,32 @@
+  ios:
+    # kinhin-xcode is the Xcode image label. Change it if your pool uses another name.
+    runs-on: [self-hosted, kinhin-xcode]
+    defaults:
+      run:
+        working-directory: __DIR__
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write App Store Connect API key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey.p8"
+          echo "ASC_KEY_FILEPATH=$RUNNER_TEMP/keys/AuthKey.p8" >> "$GITHUB_ENV"
+      - run: bundle install
+      - name: Install CocoaPods (React Native and Flutter)
+        run: if [ -f Podfile ]; then bundle exec pod install; fi
+      - run: bundle exec fastlane ios ${{ inputs.lane }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+          IOS_SCHEME: ${{ secrets.IOS_SCHEME }}
+          CI: "true"
+      - name: Remove API key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"
+

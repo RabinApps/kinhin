@@ -34,8 +34,10 @@ Then, in the project:
 
 ```bash
 bundle install
-bundle exec fastlane ios lanes       # or: cd ios && bundle exec fastlane lanes
-bundle exec fastlane android lanes
+# Run from the folder that holds fastlane/: ios/ or android/ for Flutter and React Native,
+# the project root for a native project with its project file at the root.
+cd ios && bundle exec fastlane lanes
+cd ../android && bundle exec fastlane lanes
 ```
 
 ## Lanes
@@ -103,7 +105,7 @@ Run this checklist on a fixture project before you trust a release:
 
 1. `scripts/mobile-init.sh --dry-run /path/to/app` lists what would be written.
 2. `bundle install` succeeds with Ruby 3.2 or newer. fastlane needs a current Ruby.
-3. `bundle exec fastlane ios lanes` and `bundle exec fastlane android lanes` list the lanes.
+3. `bundle exec fastlane lanes` lists the lanes, run from each platform's folder (see Quick start).
 4. Trigger `mobile-release` with `lane: beta` against a test app and confirm the TestFlight or internal track build.
 5. Re-run `mobile-init.sh` and confirm existing files are kept.
 
