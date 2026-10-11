@@ -13,6 +13,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p out
+# Captions need ffmpeg's `subtitles` filter (libass). Homebrew's plain `ffmpeg` lacks it; `ffmpeg-full` has it.
+[ -d /opt/homebrew/opt/ffmpeg-full/bin ] && export PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH"
 
 PRESET="${1:-${PRESET:-native-app}}"
 CLIPS="$(node scripts/clips.mjs "$PRESET")"

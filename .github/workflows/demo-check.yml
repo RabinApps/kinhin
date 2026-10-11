@@ -1,5 +1,6 @@
-# TEMPORARY: compiles and tests the demo-fleet branch on a GitHub-hosted Mac while the self-hosted
-# `kinhin-xcode` runner is unavailable. Delete this file before merging.
+# TEMPORARY: compiles and tests the demo-fleet branch on the self-hosted `kinhin-xcode` runner (the same one
+# ci.yml uses). It only runs for pushes to claude/** branches, never for fork PRs, because that runner shares a
+# Mac with the fleet and its Keychain. Delete this file before merging.
 name: Demo check
 
 on:
@@ -17,7 +18,7 @@ permissions:
 
 jobs:
   macos:
-    runs-on: macos-26
+    runs-on: kinhin-xcode
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -26,8 +27,7 @@ jobs:
 
       - name: Check toolchain
         run: |
-          newest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
-          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          echo "xcode-select: $(xcode-select -p 2>&1)"
           swift --version
 
       - name: Lint (swift-format)

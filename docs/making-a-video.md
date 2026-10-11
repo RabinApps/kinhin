@@ -30,9 +30,9 @@ permission grant, so they are the easy path for anything that runs in a browser.
 | Demo fleet | A debug-only `FleetServing` that replays a script; touches no config, Keychain, daemon or forge | `Sources/kinhin-app/Demo/` |
 | App clip | `screencapture` of the demo app's window, on a Mac or in a throwaway Tart VM | `video/scripts/record.sh`, `record-in-tart.sh` |
 | Browser clip | Scripted Playwright session, in a container or locally | `video/sources/web/`, `video/scenarios/`, `video/scripts/record-web.sh` |
-| Terminal clip | [VHS](https://github.com/charmbracelet/vhs) tape that runs the real CLI | `video/terminal/*.tape` |
+| Terminal clip | [VHS](https://github.com/charmbracelet/vhs) tape that runs the real CLI (debug build, throwaway support dir; `trim.sh` masks the empty-config lines) | `video/terminal/*.tape` |
 | Title scenes | [Motion Canvas](https://motioncanvas.io) (MIT): intro, problem, lanes, outro | `video/src/` |
-| Final cut | `ffmpeg` joins the clips into `launch.mp4`, `launch.webm`, `poster.png`, `hero.gif` | `video/scripts/export.sh` |
+| Final cut | `ffmpeg` (with libass for captions: `brew install ffmpeg-full`) joins the clips into `launch.mp4`, `launch.webm`, `poster.png`, `hero.gif` | `video/scripts/export.sh` |
 
 Motion Canvas rather than Remotion because Remotion's license requires a paid company license above three employees.
 Run `video/scripts/doctor.sh` to see which tools this machine is missing.
@@ -75,7 +75,9 @@ Built-in scripts live in `DemoTimeline.builtIn`; add one there when a script sho
 
 ## Record
 
-On a Mac with a desktop: `video/scripts/record.sh` (needs Screen Recording permission for your terminal once).
+On a Mac with a desktop: `video/scripts/record.sh` (needs Screen Recording permission for your terminal once, and
+Accessibility if you want it to resize the window). Run it directly in a terminal: piping its output (`| tail`) removes the
+TTY that `scripts/dev-run.sh` insists on. The debug app's process and window are named `kinhin-app`.
 
 No spare desktop, or you want a clean repeatable one? `video/scripts/record-in-tart.sh` records inside a throwaway
 Tart VM:
@@ -96,7 +98,8 @@ Edit the words and facts in `video/src/content.ts` (supported forges and runtime
 cd video && npm install && npm run serve   # opening: intro + problem; npm run serve:closing for lanes + outro
 ```
 
-Render each from the editor (exporter *Video (FFmpeg)*) to `video/raw/opening.mp4` and `video/raw/closing.mp4`, put
+Render each from the editor (exporter *Video (FFmpeg)*; the projects' `.meta` files already select it). The render lands in
+`video/output/` (git-ignored): move it to `video/raw/opening.mp4` and `video/raw/closing.mp4`, put
 the app and terminal clips in `video/raw/` (`app.mov`, `install.mp4`), and run `video/scripts/export.sh`. Outputs land
 in `video/out/`; `raw/` and `out/` are git-ignored.
 
