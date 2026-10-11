@@ -8,7 +8,9 @@ The full guide (running the demo, writing a script, recording, rendering, export
 |---|---|
 | `src/content.ts` | Words and facts in the title scenes; edit per release |
 | `src/` | Motion Canvas scenes (`opening`, `closing` projects) |
+| `presets/` | Which clips make a video: `native-app`, `web-product` |
+| `sources/web/`, `scenarios/` | Browser clips (Playwright), and the scenario JSON that drives them |
 | `demos/example.json` | A demo fleet script to copy |
-| `scripts/` | `record.sh`, `record-in-tart.sh`, `export.sh`, `doctor.sh` |
+| `scripts/` | `make.sh`, `export.sh`, `record.sh`, `record-in-tart.sh`, `record-web.sh`, `doctor.sh` |
 | `terminal/` | VHS tapes |
 | `raw/`, `out/` | Git-ignored clips and outputs |

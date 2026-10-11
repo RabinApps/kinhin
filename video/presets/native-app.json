@@ -1,0 +1,9 @@
+{
+  "description": "A native macOS app: title scenes, the app on the scripted demo fleet, a terminal clip, closing scenes.",
+  "clips": [
+    { "file": "opening.mp4", "hint": "Motion Canvas: npm run serve, render the opening project (see docs/making-a-video.md)" },
+    { "file": "app.mov", "captions": "captions/app.srt", "make": "scripts/record.sh", "needs": "macOS" },
+    { "file": "install.mp4", "captions": "captions/install.srt", "make": "vhs terminal/install.tape", "needs": "vhs" },
+    { "file": "closing.mp4", "hint": "Motion Canvas: npm run serve:closing, render the closing project" }
+  ]
+}

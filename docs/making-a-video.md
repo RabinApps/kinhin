@@ -7,12 +7,29 @@ only open-source tools. Use it for a release video, a feature clip or a README G
 
 [← Back to README](../README.md) · [Contributing](../CONTRIBUTING.md) · [The app](app.md)
 
+## Kinds of video
+
+Pick a preset in `video/presets/`; each lists the clips to join, and `video/scripts/make.sh <preset>` makes the ones
+a script can make, then exports. Mix your own by copying a preset.
+
+| Preset | For | Clips |
+|---|---|---|
+| `native-app` (default) | a native macOS app like kinhin | title scenes, the app on the demo fleet, a terminal clip, closing scenes |
+| `web-product` | a website or web app | title scenes, a scripted browser session, closing scenes |
+
+A clip is any of: **title scenes** (Motion Canvas, any machine), **native app** (`screencapture` on a Mac or in a Tart
+VM), **terminal** (VHS), **browser** (Playwright and Chromium, in a Linux container or locally), or a file you record
+yourself (drop it in `video/raw/` and list it in a preset). Browser clips need no Mac, no desktop session and no
+permission grant, so they are the easy path for anything that runs in a browser.
+
 ## The pieces
+
 
 | Piece | What it is | Where |
 |---|---|---|
 | Demo fleet | A debug-only `FleetServing` that replays a script; touches no config, Keychain, daemon or forge | `Sources/kinhin-app/Demo/` |
 | App clip | `screencapture` of the demo app's window, on a Mac or in a throwaway Tart VM | `video/scripts/record.sh`, `record-in-tart.sh` |
+| Browser clip | Scripted Playwright session, in a container or locally | `video/sources/web/`, `video/scenarios/`, `video/scripts/record-web.sh` |
 | Terminal clip | [VHS](https://github.com/charmbracelet/vhs) tape that runs the real CLI | `video/terminal/*.tape` |
 | Title scenes | [Motion Canvas](https://motioncanvas.io) (MIT): intro, problem, lanes, outro | `video/src/` |
 | Final cut | `ffmpeg` joins the clips into `launch.mp4`, `launch.webm`, `poster.png`, `hero.gif` | `video/scripts/export.sh` |
@@ -82,6 +99,35 @@ cd video && npm install && npm run serve   # opening: intro + problem; npm run s
 Render each from the editor (exporter *Video (FFmpeg)*) to `video/raw/opening.mp4` and `video/raw/closing.mp4`, put
 the app and terminal clips in `video/raw/` (`app.mov`, `install.mp4`), and run `video/scripts/export.sh`. Outputs land
 in `video/out/`; `raw/` and `out/` are git-ignored.
+
+## Record a web product
+
+```bash
+video/scripts/record-web.sh --scenario scenarios/kinhin-site.json --runner local \
+  --serve "npm --prefix website run preview -- --port 4173"
+```
+
+`--runner docker` or `--runner apple` runs the same thing in the official Playwright image (Docker, or
+apple/container's `container run`), so the recording never depends on the host's browser or fonts. The product must
+be reachable from inside the container: `--serve` starts it there, or use a public URL. `localhost` on the host is not
+`localhost` in the container. Set `PACE=0.5` to play a scenario twice as fast, `BASE_URL` to retarget it.
+
+A scenario is JSON; copy `video/scenarios/kinhin-site.json`:
+
+```json
+{ "baseUrl": "http://localhost:4173", "viewport": { "width": 1920, "height": 1080 }, "colorScheme": "light",
+  "steps": [
+    { "do": "goto", "url": "/" },
+    { "do": "scroll", "y": 700, "ms": 2200 },
+    { "do": "click", "text": "Get started" },
+    { "do": "type", "selector": "input[name=q]", "text": "hello", "delayMs": 80 }
+  ] }
+```
+
+Steps: `goto` (relative to `baseUrl`), `wait` (`ms`), `move`, `hover`, `click`, `type`, `press` (`key`) and `scroll` (`y`
+pixels, or `selector`; `ms` is the duration, eased). Target an element with `selector` (CSS or Playwright selectors)
+or `text`. The page shows a visible cursor, because Playwright's recording does not draw one. A failing step stops the
+run with its number and writes no file.
 
 ## Captions, music and the site
 

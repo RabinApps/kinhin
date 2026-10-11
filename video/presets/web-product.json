@@ -1,0 +1,8 @@
+{
+  "description": "A web product: title scenes, a scripted browser session (Playwright + Chromium, runs in a container), closing scenes.",
+  "clips": [
+    { "file": "opening.mp4", "hint": "Motion Canvas: npm run serve, render the opening project (see docs/making-a-video.md)" },
+    { "file": "web.webm", "make": "scripts/record-web.sh --scenario scenarios/kinhin-site.json --out raw/web.webm" },
+    { "file": "closing.mp4", "hint": "Motion Canvas: npm run serve:closing, render the closing project" }
+  ]
+}

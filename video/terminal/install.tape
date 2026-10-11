@@ -1,7 +1,7 @@
-# The install scene. Run: vhs video/terminal/install.tape  (needs vhs, ttyd, ffmpeg)
+# The install scene. Run from video/: vhs terminal/install.tape  (needs vhs, ttyd, ffmpeg)
 # It types the real install one-liner but does not run it; the CLI part
 # runs the real `kinhin` on this Mac.
-Output video/raw/install.mp4
+Output raw/install.mp4
 Set Shell "bash"
 Set FontSize 34
 Set Width 1920

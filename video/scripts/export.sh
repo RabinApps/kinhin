@@ -1,11 +1,8 @@
 #!/bin/bash
 # Joins the clips into the launch video and the web assets. Needs ffmpeg.
 #
-# Inputs (video/raw/):
-#   opening.mp4   Motion Canvas "opening" project (intro + problem), rendered from the editor
-#   app.mov       scripts/record.sh
-#   install.mp4   vhs terminal/install.tape
-#   closing.mp4   Motion Canvas "closing" project (lanes + outro)
+# Usage: video/scripts/export.sh [preset]     (default native-app; see presets/*.json, or pass a path)
+# Input: the clips the preset lists, in video/raw/. Each clip may be .mp4, .mov or .webm at any size.
 # Optional inputs:
 #   captions/app.srt, captions/install.srt   burned into those clips (committed; retime to your take)
 #   raw/music.{mp3,m4a,wav,flac}             mixed under the whole video (looped, faded in and out)
@@ -17,9 +14,17 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p out
 
-for f in opening.mp4 app.mov install.mp4 closing.mp4; do
-  [ -f "raw/$f" ] || { echo "missing raw/$f" >&2; exit 1; }
-done
+PRESET="${1:-${PRESET:-native-app}}"
+CLIPS="$(node scripts/clips.mjs "$PRESET")"
+
+missing=0
+while IFS=$'\x1f' read -r file captions make hint needs; do
+  if [ ! -f "raw/$file" ]; then
+    echo "missing raw/$file${make:+ (make it with: $make${needs:+, needs $needs})}${hint:+ ($hint)}" >&2
+    missing=1
+  fi
+done <<< "$CLIPS"
+[ "$missing" = 0 ] || exit 1
 
 # Normalize every clip to 1080p30 H.264 on a white letterbox, burning captions in when a file is given.
 # libass scales FontSize by height/288, so 14 is about 52 px on 1080p.
@@ -29,13 +34,15 @@ norm() { # input, output index, optional captions file
   if [ -n "${3:-}" ] && [ -f "$3" ] && [ -z "${NO_CAPTIONS:-}" ]; then
     vf="$vf,subtitles=$3:force_style='$CAPTION_STYLE'"
   fi
-  ffmpeg -y -loglevel error -i "raw/$1" -vf "$vf,format=yuv420p" -an -c:v libx264 -crf 18 "out/n-$2.mp4"
+  ffmpeg -nostdin -y -loglevel error -i "raw/$1" -vf "$vf,format=yuv420p" -an -c:v libx264 -crf 18 "out/n-$2.mp4"
 }
-norm opening.mp4 1
-norm app.mov 2 captions/app.srt
-norm install.mp4 3 captions/install.srt
-norm closing.mp4 4
-printf "file 'n-1.mp4'\nfile 'n-2.mp4'\nfile 'n-3.mp4'\nfile 'n-4.mp4'\n" > out/list.txt
+: > out/list.txt
+index=0
+while IFS=$'\x1f' read -r file captions make hint needs; do
+  index=$((index + 1))
+  norm "$file" "$index" "$captions"
+  echo "file 'n-$index.mp4'" >> out/list.txt
+done <<< "$CLIPS"
 
 ffmpeg -y -loglevel error -f concat -safe 0 -i out/list.txt -c copy -movflags +faststart out/silent.mp4
 
