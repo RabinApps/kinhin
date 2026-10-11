@@ -85,6 +85,11 @@ The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--p
   (`StubProtocol.handler`) keep their storage behind a `Mutex`, which is what keeps the run
   clean; give any new test global the same treatment instead of `nonisolated(unsafe)`.
 
+### Demo videos and screenshots (video/)
+
+A debug build can replay a scripted fleet (`KINHIN_DEMO=launch`) so the app can be screen-recorded with no forge, token or
+VM, and `video/` assembles the clips with open-source tools. See [docs/making-a-video.md](docs/making-a-video.md).
+
 ### End-to-end tests (scripts/e2e.sh)
 
 `swift test` proves kinhin agrees with its fakes; `Tests/E2E` proves the fakes agree with reality. It is a **separate

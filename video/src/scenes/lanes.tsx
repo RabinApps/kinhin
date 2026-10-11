@@ -1,9 +1,10 @@
 import {Circle, Line, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, createRefArray, waitFor} from '@motion-canvas/core';
+import {content} from '../content';
 import {FONT, INK, MUTED, PAPER} from '../theme';
 
-const FORGES = ['GitHub', 'GitLab', 'Gitea', 'Forgejo'];
-const RUNTIMES = ['Tart macOS & Linux VMs', 'apple/container', 'Docker'];
+const FORGES = content.lanes.forges;
+const RUNTIMES = content.lanes.runtimes;
 
 // 40-52 s: four forges, three runtimes, one fleet.
 export default makeScene2D(function* (view) {
@@ -32,8 +33,8 @@ export default makeScene2D(function* (view) {
           <Line ref={lines} points={[[-480, forgeY(f)], [-60, 0], [60, 0], [380, runtimeY(r)]]} radius={80} lineWidth={2} stroke={MUTED} end={0} opacity={0.5} />
         )),
       )}
-      <Txt ref={caption} text="Four forges. Three runtimes. One fleet." fontFamily={FONT} fontSize={60} fontWeight={600} fill={INK} y={420} opacity={0} />
-      <Txt ref={note} text="Routed per repo, workflow or runs-on label." fontFamily={FONT} fontSize={34} fill={MUTED} y={490} opacity={0} />
+      <Txt ref={caption} text={content.lanes.caption} fontFamily={FONT} fontSize={60} fontWeight={600} fill={INK} y={420} opacity={0} />
+      <Txt ref={note} text={content.lanes.note} fontFamily={FONT} fontSize={34} fill={MUTED} y={490} opacity={0} />
     </>,
   );
 

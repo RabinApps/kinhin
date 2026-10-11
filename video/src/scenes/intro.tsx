@@ -1,5 +1,6 @@
 import {Circle, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, waitFor} from '@motion-canvas/core';
+import {content} from '../content';
 import {FONT, INK, MUTED, PAPER} from '../theme';
 
 // 0-6 s: the ring draws itself, then the tagline.
@@ -12,8 +13,8 @@ export default makeScene2D(function* (view) {
   view.add(
     <>
       <Circle ref={ring} size={260} lineWidth={14} stroke={INK} startAngle={-90} endAngle={-90} y={-60} />
-      <Txt ref={title} text="The mindful CI." fontFamily={FONT} fontSize={96} fontWeight={600} fill={INK} y={170} opacity={0} />
-      <Txt ref={sub} text="kinhin" fontFamily={FONT} fontSize={40} fill={MUTED} y={250} opacity={0} />
+      <Txt ref={title} text={content.intro.title} fontFamily={FONT} fontSize={96} fontWeight={600} fill={INK} y={170} opacity={0} />
+      <Txt ref={sub} text={content.intro.subtitle} fontFamily={FONT} fontSize={40} fill={MUTED} y={250} opacity={0} />
     </>,
   );
 

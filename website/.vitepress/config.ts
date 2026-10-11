@@ -46,7 +46,7 @@ export default defineConfig({
   srcDir: "..",
   srcExclude: [
     "*.md",
-    "{Sources,Tests,Plugins,scripts,dist,shots,assets}/**",
+    "{Sources,Tests,Plugins,scripts,dist,shots,assets,video}/**",
     "**/node_modules/**",
     "docs/plans/**",
     "docs/{app,adding-a-forge}.md",
@@ -202,6 +202,7 @@ export default defineConfig({
         items: [
           { text: "Contributing", link: "/guide/contributing" },
           { text: "End-to-end testing", link: "/guide/e2e-testing" },
+          { text: "Making a demo video", link: "/guide/making-a-video" },
           { text: "Debugging races (TSan)", link: "/guide/debugging-races" },
           { text: "Cutting a release", link: "/guide/releasing" },
         ],

@@ -3,16 +3,20 @@
 # Needs Screen Recording + Accessibility permission for your terminal.
 #
 # Usage: video/scripts/record.sh [seconds]    (default 50: one full pass of the 48 s loop)
+# Env:   KINHIN_DEMO  demo script: a built-in name (default "launch") or a repo-relative/absolute .json path
+#        VIDEO_OUT    output file (default video/raw/app.mov)
 # Output: video/raw/app.mov
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 SECONDS_TO_RECORD="${1:-50}"
-mkdir -p video/raw
+DEMO="${KINHIN_DEMO:-launch}"
+OUT="${VIDEO_OUT:-video/raw/app.mov}"
+mkdir -p "$(dirname "$OUT")"
 SUPPORT_DIR="$(mktemp -d)"
 
-echo "==> building and launching the demo app (KINHIN_DEMO=launch)"
-KINHIN_SUPPORT_DIR="$SUPPORT_DIR" KINHIN_DEMO=launch scripts/dev-run.sh --env-tokens &
+echo "==> building and launching the demo app (KINHIN_DEMO=$DEMO)"
+KINHIN_SUPPORT_DIR="$SUPPORT_DIR" KINHIN_DEMO="$DEMO" scripts/dev-run.sh --env-tokens &
 APP_PID=$!
 trap 'kill "$APP_PID" 2>/dev/null || true; rm -rf "$SUPPORT_DIR"' EXIT
 
@@ -30,5 +34,5 @@ WID="$(shots/tools/winid kinhin)"
 python3 shots/tools/drive.py fleet demo-fleet >/dev/null
 
 echo "==> recording window $WID for ${SECONDS_TO_RECORD}s"
-screencapture -x -o -v -V "$SECONDS_TO_RECORD" -l"$WID" video/raw/app.mov
-echo "==> wrote video/raw/app.mov"
+screencapture -x -o -v -V "$SECONDS_TO_RECORD" -l"$WID" "$OUT"
+echo "==> wrote $OUT"

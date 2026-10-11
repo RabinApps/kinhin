@@ -17,7 +17,8 @@
 #   --user NAME      guest user (default admin)
 #   --keep           leave the VM running afterwards (default: stop it; the VM disk is kept either way)
 #   --delete         delete the VM afterwards instead of just stopping it
-# Env: TART_SSH_PASSWORD  guest password (default admin, the Cirrus images' default); with `sshpass`
+# Env: KINHIN_DEMO        demo script (built-in name, or a .json path inside the repo; default launch)
+#      TART_SSH_PASSWORD  guest password (default admin, the Cirrus images' default); with `sshpass`
 #                         installed it is used for ssh/rsync, otherwise set up an ssh key first.
 #
 # One-time, by hand, in --gui or --vnc mode (macOS will not let a script do these):
@@ -136,6 +137,6 @@ if ! guest_gui "screencapture -x /tmp/kinhin-demo-probe.png && test -s /tmp/kinh
 fi
 
 echo "==> recording ${SECONDS_TO_RECORD}s in the guest (the first run builds the app, which takes a while)"
-guest_gui "cd \$HOME/kinhin-src && video/scripts/record.sh $SECONDS_TO_RECORD"
+guest_gui "cd \$HOME/kinhin-src && KINHIN_DEMO=${KINHIN_DEMO:-launch} video/scripts/record.sh $SECONDS_TO_RECORD"
 ${WRAP[@]+"${WRAP[@]}"} scp "${SSH_OPTS[@]}" "$GUEST_USER@$IP:kinhin-src/video/raw/app.mov" video/raw/app.mov
 echo "==> wrote video/raw/app.mov"

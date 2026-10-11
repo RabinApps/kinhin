@@ -1,0 +1,9 @@
+{
+  "period": 30,
+  "capacity": 2,
+  "jobs": [
+    { "repo": "acme/api", "account": "github", "runtime": "docker", "workflow": "CI", "arrive": 1, "start": 2, "run": 8 },
+    { "repo": "acme/web", "account": "gitea", "runtime": "appleContainer", "workflow": "Lint & test", "arrive": 3, "start": 4, "run": 6 },
+    { "repo": "acme/api", "account": "github", "runtime": "docker", "workflow": "CI", "arrive": 12, "start": 12, "run": 5, "fails": true }
+  ]
+}
