@@ -159,7 +159,7 @@ The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Flee
 
 ## Tests
 
-`swift test` runs ~2300 tests across three targets, all against fakes — no VMs or network required:
+`swift test` runs about 2,900 tests across three targets, all against fakes — no VMs or network required:
 
 - **`KinhinKitTests`** (engine, mirrored on the source folders):
   - `Core`: shell, SSH executor, Keychain failure reporting, log redaction, error categories

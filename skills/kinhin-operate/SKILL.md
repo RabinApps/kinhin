@@ -10,7 +10,7 @@ Run `kinhin help` for the full, current command list. If it disagrees with this 
 ## Exit codes
 
 Scripts can branch on them: `0` success, `1` general, `2` usage (bad command line), `3` config, `4` runtime, `5` auth.
-`auth status --json` and `setup-status` exit 1 until setup is ready, and `doctor --json` reports `ready=false`.
+`auth status --json` and `setup status` exit 1 until setup is ready, and `doctor --json` reports `ready=false`.
 
 ## Running the fleet
 
@@ -26,7 +26,7 @@ Scripts can branch on them: `0` success, `1` general, `2` usage (bad command lin
 | `kinhin pipeline [VM] [--job NAME\|ID] [--watch] [--json]` | Job and step view. Add `--step N\|NAME` or `--log [--follow]`. Needs the daemon. |
 | `kinhin runtimes [--json] [--no-health]` | Runtime availability and health |
 
-`--json` is supported on `status`, `doctor`, `setup-status`, `auth status`, `runtimes`, `pipeline`, `workflow test`,
+`--json` is supported on `status`, `doctor`, `setup status`, `auth status`, `runtimes`, `pipeline`, `workflow test`,
 `workflow route`, `toolchains detect`, `config validate` and `cleanup` (report-only; it refuses `--yes`). Stdout
 carries only command output, so JSON stays parseable.
 

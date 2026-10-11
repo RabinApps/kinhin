@@ -211,7 +211,7 @@ The runner has to be installed (in the base image, or on the host) and started f
 ### H. Docs and website
 
 33. `docs/forges/<id>.md`: the API notes page. Copy the structure of `docs/forges/bitbucket.md` (overview, auth,
-    endpoints, registration flow, demand and label matching, pagination, audit findings, "Verified" date).
+    endpoints, registration flow, demand and label matching, pagination, open notes, "Verified" date).
 34. `docs/forges/README.md`: add a row to each table and update the audit summary.
 35. `docs/forges.md`: the top table, the "What has been tested" table (a new forge is "untested"), a `### <Name>` setup
     section with a YAML example, and the plain-http and per-project-toolchain paragraphs if they apply.
@@ -273,7 +273,7 @@ Run from the repository root:
 swift build
 swift format format -i -r Sources Tests   # mechanical, commit separately
 swift format lint --strict -r Sources Tests
-swift test                                # about 2 minutes, no VMs or network
+swift test --parallel                     # a few minutes, no VMs or network
 swift test --filter <Name>                # fast loop while developing
 swift build -c release --product kinhin-app --product kinhin
 scripts/tsan.sh                           # if you added shared state, a Mutex box or a test global

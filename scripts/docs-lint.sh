@@ -13,7 +13,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Each entry is "<pattern>|<why it is stale>", matched as an extended
-# regex. Keep the why human-readable: it is what the CI annotation says.
+# regex. The pattern ends at the first "|", so it cannot use regex alternation:
+# write one entry per alternative. Keep the why human-readable: it is what the CI annotation says.
 patterns=(
     "Application Support/kinhin|the support directory is \"Kinhin\" (capital K) — see Paths.swift"
     "Runtimes…|the \"Runtimes…\" pane never shipped; routing lives in Advanced → Routing"
@@ -28,6 +29,10 @@ patterns=(
     "\nrepo:|the top-level repo: key is gone — declare the forge as an accounts: entry"
     "\ngitea:|the top-level gitea: key is gone — declare the forge as an accounts: entry"
     "\nforgejo:|the top-level forgejo: key is gone — declare the forge as an accounts: entry"
+    "[Oo]nly GitHub Actions with Tart|the beta supports GitHub, Gitea, Forgejo and GitLab CE; see docs/forges.md (What has been tested)"
+    "[Oo]nly GitHub Actions has been tested|the beta supports GitHub, Gitea, Forgejo and GitLab CE; see docs/forges.md (What has been tested)"
+    "[Oo]nly GitHub Actions has run|the beta supports GitHub, Gitea, Forgejo and GitLab CE; see docs/forges.md (What has been tested)"
+    "all seven forges|three forges are planned, not supported; the beta supports four"
 )
 
 # macOS ships bash 3.2: no mapfile. A plain loop also survives spaces
@@ -47,7 +52,16 @@ status=0
 for entry in "${patterns[@]}"; do
     pattern="${entry%%|*}"
     reason="${entry#*|}"
-    if hits=$(grep -nE -- "$pattern" "${files[@]}"); then
+    set +e
+    hits=$(grep -nE -- "$pattern" "${files[@]}")
+    found=$?
+    set -e
+    if [[ $found -gt 1 ]]; then
+        echo "::error file=scripts/docs-lint.sh::docs lint — invalid pattern: ${pattern}"
+        status=1
+        continue
+    fi
+    if [[ $found -eq 0 ]]; then
         status=1
         while IFS= read -r hit; do
             file="${hit%%:*}"

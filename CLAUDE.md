@@ -12,7 +12,7 @@ exactly; do not duplicate its rules here.
   `scripts/tsan.sh` when touching shared state, actors, locks or anything `nonisolated(unsafe)`.
 - After editing `docs/` or `website/`, also run `cd website && npx vitepress build` (fails on dead links). Don't
   hand-edit between `docs-sync` markers: `scripts/docs-sync.sh` regenerates those blocks from Swift source.
-- The test suite takes about 2 minutes and needs no VMs or network. Never run `swift test --parallel` under TSan.
+- The test suite takes about 5 minutes with `--parallel` and needs no VMs or network. Never run `swift test --parallel` under TSan.
 - Build the release app with `swift build -c release --product kinhin-app`; `KinhinTestSupport` is testable-only.
 - Use `scripts/dev-run.sh` to run the debug app; it signs with a stable identity so Keychain "Always Allow" survives
   rebuilds.

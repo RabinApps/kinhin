@@ -199,8 +199,8 @@ An honest summary, with the roadmap for what is planned:
 - **No CI server, UI or pipeline language of its own.** kinhin relies on your forge for those.
 - **The warm pool is limited to base-image Tart jobs.** Warm VMs also take slots under the two-macOS-VM ceiling. See
   [Warm pool](scaling.md#warm-pool).
-- **Most of it has never run against a real server.** Only GitHub Actions (Tart macOS VMs, apple/container) and Gitea
-  Actions (Docker) are live-tested. See [what has been tested](forges.md#what-has-been-tested) and the [beta roadmap](beta-roadmap.md).
+- **Four forges** GitHub, Gitea, Forgejo and GitLab CE are supported and live-tested; Buildkite, Azure
+  Pipelines and Bitbucket Pipelines are planned. GitHub has run on Tart macOS VMs and apple/container only. See [what has been tested](forges.md#what-has-been-tested) and the [beta roadmap](beta-roadmap.md).
 - **The in-app updater is not exercised yet**, and there is no soak-test result.
 - **No commercial support or SLA.** One maintainer.
 

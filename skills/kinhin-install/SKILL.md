@@ -8,8 +8,8 @@ description: Install kinhin and its prerequisites (Tart) on an Apple Silicon Mac
 kinhin turns an Apple Silicon Mac into an autoscaling pool of ephemeral self-hosted CI runners: one fresh VM or
 container per job, deleted afterwards. This skill covers install and first run.
 
-**Beta status (tell the user):** only GitHub Actions with Tart macOS VMs and apple/container has run for real. Every
-other forge and runtime (Docker, Tart Linux, host) is unit-tested against fakes only. Findings are welcome as GitHub issues ("Forge report").
+**Beta status (tell the user):** GitHub, Gitea, Forgejo and GitLab CE are supported. Gitea, Forgejo and GitLab CE have run real jobs on
+every runtime; GitHub on Tart macOS VMs and apple/container. Buildkite, Azure DevOps and Bitbucket are planned. Findings are welcome as GitHub issues ("Forge report").
 
 ## Requirements
 

@@ -22,15 +22,24 @@ Seven skills ship in the repository — one per workflow an agent actually perfo
 Each skill's frontmatter `description:` is what your agent's matcher reads, and every command inside it is checked
 against `kinhin help` by `scripts/skills-lint.sh` — a skill cannot outlive a renamed command.
 
-**Claude Code** — the repository is a plugin marketplace:
+**Any agent** — the open [`skills`](https://github.com/vercel-labs/skills) installer reads `skills/*/SKILL.md`
+straight from the repository and copies or links them into each agent's skills directory:
+
+```sh
+npx skills add RabinApps/kinhin --skill '*' --global      # every skill, user-wide
+npx skills add RabinApps/kinhin --list                     # see them first
+npx skills add RabinApps/kinhin --skill kinhin-install --agent claude-code --yes
+npx skills update                                          # later: pull new versions
+```
+
+**Claude Code, as a plugin** — the repository is also a plugin marketplace:
 
 ```sh
 claude plugin marketplace add RabinApps/kinhin
 claude plugin install kinhin@kinhin
 ```
 
-**Other agents** — copy the `skills/<name>/SKILL.md` files into your agent's skills directory (Claude-format
-frontmatter is the de-facto standard).
+Or copy the `skills/<name>/SKILL.md` files by hand (Claude-format frontmatter is the de-facto standard).
 
 ## MCP: `kinhin mcp`
 

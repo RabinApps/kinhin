@@ -4,7 +4,7 @@
 ```text
 kinhin — autoscaling CI runners on your Mac.
 Tart VMs run macOS jobs; apple/container, Docker or Tart Linux VMs run Linux jobs.
-Forges: GitHub Actions, GitLab CI/CD, Gitea, Forgejo, Buildkite, Azure Pipelines, Bitbucket.
+Forges: GitHub Actions, GitLab CI/CD, Gitea, Forgejo (Buildkite, Azure, Bitbucket planned).
 
 USAGE:
     kinhin                                  Setup status and the next step

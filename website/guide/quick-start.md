@@ -140,16 +140,24 @@ Locally built copies are ad-hoc signed: clear Gatekeeper with `xattr -cr /Applic
 kinhin ships seven agent skills (install, configure, add a forge account, route a workflow, operate, images and
 toolchains, troubleshoot). Every command in them is checked against the real CLI.
 
-**Claude Code** — the repository is a plugin marketplace:
+**Any agent** (Claude Code, Codex, Cursor, Gemini, OpenCode, …) — one command with the open
+[`skills`](https://github.com/vercel-labs/skills) installer:
+
+```bash
+npx skills add RabinApps/kinhin --skill '*' --global
+```
+
+It asks which agents to install into (`--agent claude-code` picks one, `--yes` skips the questions). Drop `--global`
+to install into the current project instead, and run `npx skills update` later to pick up new versions.
+
+**Claude Code, as a plugin** — the repository is also a plugin marketplace:
 
 ```bash
 claude plugin marketplace add RabinApps/kinhin
 claude plugin install kinhin@kinhin
 ```
 
-**Other agents** (Codex, Cursor, Gemini, …) — copy the `SKILL.md` files from
-[`skills/`](https://github.com/RabinApps/kinhin/tree/main/skills) into your agent's skills directory. An agent with no
-skill support can read this page instead: give it `https://kinhin.dev/guide/quick-start`.
+An agent with no skill support can read this page instead: give it `https://kinhin.dev/guide/quick-start`.
 
 ### 2. Paste this prompt
 

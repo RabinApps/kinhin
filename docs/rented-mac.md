@@ -89,6 +89,6 @@ Finally, dispatch a workflow whose `runs-on` labels match the config and watch i
 
 - No multi-tenant control plane, remote API or billing. Each Mac is operated like any other kinhin
   host, over SSH.
-- No GitHub App or JIT registration yet; runners register with a PAT and `--ephemeral` (see the
+- No GitHub App authentication yet: kinhin uses a PAT. JIT registration is used only in scale-set mode (see the
   [GitHub notes](forges/github.md)).
-- Only GitHub Actions with Tart VMs and apple/container has been tested for real; see the [beta roadmap](beta-roadmap.md).
+- What has run for real is listed in [Forge support](forges.md#what-has-been-tested).

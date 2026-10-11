@@ -50,6 +50,13 @@ air-gapped installs, uninstall and update checks: [Install](docs/install.md). Ta
 `kinhin setup repair tart` (or the app's setup window); manual brew commands live in
 [Installing Tart](docs/install.md#installing-tart).
 
+Setting up with an AI agent? Give it the kinhin skills first, then let it do the rest
+([how](https://kinhin.dev/guide/quick-start#set-up-your-first-fleet)):
+
+```bash
+npx skills add RabinApps/kinhin --skill '*' --global
+```
+
 ## Quick start
 
 ```bash
@@ -81,88 +88,84 @@ Prefer a GUI? Launch **kinhin** from Applications; its setup wizard does the sam
 ## Commands
 
 <!-- docs-sync:begin cli-help -->
+```text
+kinhin — autoscaling CI runners on your Mac.
+Tart VMs run macOS jobs; apple/container, Docker or Tart Linux VMs run Linux jobs.
+Forges: GitHub Actions, GitLab CI/CD, Gitea, Forgejo (Buildkite, Azure, Bitbucket planned).
 
-```
-kinhin config init          Write the starter config
-kinhin config validate [--json] Check the config file without starting anything (exit 3 when invalid;
-                             --json: machine-readable valid/error document)
-kinhin config export [FILE]  Write the config for another Mac (no tokens; stdout without FILE)
-kinhin config import FILE [--yes]  Use a config from another Mac (- reads stdin; --yes replaces an existing
-                             one, kept as config.yaml.bak) and list the tokens to store here
-kinhin auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
-kinhin auth add|list|remove    Manage additional accounts (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket; auth set --account NAME stores one's token)
-kinhin auth status --json    All forges' stored-token state in one machine-readable document (exit 1 until ready)
-kinhin doctor [--json]      Prerequisites + computed capacity (--json: host, runtime health, stored tokens, checklist,
-                             and capacity in one machine-readable document; ready=false until every half passes)
-kinhin doctor --bundle [FILE]  Write a redacted support bundle (doctor report, config, recent log) to attach to a bug report
-kinhin setup-status [--json] First-run checklist; exit 1 until ready (--json for scripts)
-kinhin runtimes [--json]    Pools, capacity, budget split, live health, and routes (--no-health skips probes)
-kinhin runtimes route add <pattern> <tart|appleContainer|docker|host> [--consent]
-                             Route a repo (`owner/repo`) or workflow (`owner/repo@Name`) — same validated
-                             editor as the Advanced → Routing tab; a running daemon reloads routing live.
-                             `host` runs jobs unisolated on this Mac and requires --consent
-kinhin runtimes route remove <pattern>
-                             Delete that route (e.g. `acme/api` or `acme/web@Nightly`)
-kinhin setup repair host-agent
-                             Install the GitHub + Gitea runner agents for host routes (one time); gitlab-runner,
-                             buildkite-agent, the Azure Pipelines agent or the Bitbucket runner is added too when
-                             a GitLab, Buildkite, Azure DevOps or Bitbucket account is configured
-kinhin image prepare        Build the runner base image (once); --provision-script <file>
-                             bakes your tools in (see docs/toolchains.md); bakes only the base
-                             image (agents + provision script), never per-project toolchains;
-                             starts from top-level `base_image:` when set
-kinhin image prepare --linux --target <name> [--from <ref>]
-                             Create a Linux tart VM from scratch; --from starts it from a
-                             pre-configured image (bare --from shows the menu) instead of an ISO
-kinhin image digest <registry>/<repo>:<tag>
-                             Print the digest the registry currently serves, so base_image:
-                             can be pinned to ref@sha256:… and bakes stay reproducible
-kinhin image list [--json] [--runtime tart|container|docker]
-                             Show every installed image (tart, apple container, Docker):
-                             role, size, last used, and who is using it; --runtime narrows
-                             the listing to one runtime
-kinhin image delete <name>… [--yes]
-                             Delete installed images by name, in every runtime that holds
-                             them; reports only unless --yes is given
-kinhin image prune [--yes]   One pass: sweep stale derived-image records and delete local
-                             images nothing uses; reports only unless --yes is given, and
-                             never touches configured images, the base_image or images in use
-kinhin image prepare --project <owner/name> [--ref <ref>]
-                             Bake the derived image (macOS/tart) for a repo's resolved toolchains now
-kinhin toolchains           Managed-toolchain catalog, selections, shared-cache state
-kinhin toolchains --project <owner/name> [--ref <ref>]
-                             Show a repo's effective toolchains, where they came from, and its image key
-kinhin toolchains detect [path] [--json] [--write] [--force]
-                             Scan a local checkout and generate its `.kinhin.yml` toolchains block, with evidence
-kinhin toolchains list-images
-                             Derived per-project images: size and last used
-kinhin toolchains prune [--dry-run]
-                             Expire stale host-cache entries now
-kinhin toolchains helper [--linux]
-                             Print the per-job `kinhin-toolchain` helper present in images
-kinhin workflow test [FILE] [--job NAME] [--list] [--lenient] [--json]
-                             Run GitHub Actions workflow scripts on this Mac (host-only); see docs/workflow-testing.md
-kinhin workflow route <FILE|name> <tart|appleContainer|docker|host>
-                             Route the workflow's runs-on: to that runtime — edits the workflow (comment-preserving)
-                             and reconciles the config route when precedence needs it; see docs/runtimes.md
-kinhin start                Run the fleet in the foreground
-kinhin daemon               Run the daemon in the foreground
-kinhin daemon install       Install + start the LaunchAgent
-kinhin daemon uninstall     Remove the LaunchAgent
-kinhin status|watch         Fleet status
-kinhin pause|resume         Hold the fleet / resume scaling
-kinhin stop                 Stop the fleet
-kinhin requeue <forge> [--yes]  Re-queue the fleet's queued jobs on a forge (confirm unless --yes)
-kinhin skip <forge> [--yes]     Mark the fleet's queued jobs as skipped on a forge (confirm unless --yes)
-kinhin reset [--scope config|daemon|all] [--yes]
-                            Reset kinhin: config & credentials, the daemon install, or everything (VMs, images,
-                            cache, logs included). Confirms twice; --yes skips the prompts. There is no undo
-kinhin logs [-n N]          Recent log lines
-kinhin mcp                  Serve MCP over stdio for AI agents: tools/list + tools/call expose status,
-                            doctor, runtimes, pipeline, logs and pause/resume/stop as JSON
-kinhin support              Show ways to donate or sponsor kinhin
-```
+USAGE:
+    kinhin                                  Setup status and the next step
+    kinhin <command> [options]
+    kinhin <command> --help                 Options for one command
 
+SETUP:
+    config init                             Write a starter config file
+    config validate                         Check the config without starting anything
+    config migrate                          Translate removed config keys to the current schema
+    config export [FILE]                    Write the config for another Mac (no tokens)
+    config import FILE                      Use a config exported on another Mac
+    auth set                                Store (or replace) a token in the Keychain
+    auth add NAME                           Add an account to the config
+    auth list                               List accounts and whether their tokens are stored
+    auth remove NAME                        Remove an account and delete its token
+    auth status                             Check that stored tokens exist and work
+    auth clear                              Remove a stored token
+    doctor                                  Check prerequisites and the computed capacity
+    setup status                            Show the first-run checklist
+    setup repair host-agent                 Install the runner agents for host runs
+    setup repair docker                     Install Docker
+    setup repair container                  Install Apple container and its service
+    setup repair tart                       Install tart for macOS VMs
+    runtimes                                Pools, capacity, budget, health and routes
+    runtimes route add <pattern> <runtime>  Route a repo or workflow to a runtime
+    runtimes route remove <pattern>         Delete a route
+
+IMAGES AND TOOLCHAINS:
+    image prepare                           Build the runner base image (slow, once)
+    image list                              Show installed images, their size and who uses them
+    image delete <name>…                    Delete installed images by name
+    image prune                             Sweep stale records and delete unused local images
+    image digest <registry>/<repo>:<tag>    Print the digest a registry serves, to pin base_image
+    toolchains                              Toolchain catalog, project selections and cache state
+    toolchains detect [path]                Scan a checkout for the toolchains it needs
+    toolchains list-images                  Derived per-project images: size and last used
+    toolchains prune                        Expire stale cache entries and unused derived images
+    toolchains helper                       Print the per-job kinhin-toolchain helper script
+
+RUNNING:
+    start                                   Start the fleet in this terminal (Ctrl-C to stop)
+    daemon                                  Run the headless daemon in this terminal
+    daemon install                          Install and start a LaunchAgent daemon
+    daemon uninstall                        Stop and remove the LaunchAgent
+    status                                  Show fleet status (attaches to the daemon)
+    pause                                   Hold the fleet: no new runners start
+    resume                                  Let a paused fleet scale again
+    stop                                    Stop the fleet (works on a daemon)
+    logs                                    Show recent log lines
+    watch                                   Live status view (refreshes every 2s)
+    pipeline [VM]                           Live jobs and steps of the VMs that are busy
+    requeue <forge>                         Re-queue the fleet's queued jobs on a forge
+    skip <forge>                            Mark the fleet's queued jobs as skipped on a forge
+    cleanup                                 Reclaim disk: leftover VMs, the base image, the cache
+    bench [SUITE]…                          Benchmark runtimes, workloads and toolchains here
+    reset                                   Reset config, the daemon install, or everything
+
+WORKFLOWS:
+    workflow test [FILE]                    Run a workflow locally on this Mac (host execution)
+    workflow route <FILE|name> <runtime>    Route a workflow's jobs to a runtime
+
+OTHER:
+    support                                 Show ways to donate or sponsor kinhin
+    issue                                   Submit an issue on GitHub
+    mcp                                     Serve MCP over stdio for AI agents
+    version                                 Print the version
+    help [command]                          Show this help, or `help <command>` for one command
+
+EXIT CODES:
+    0 ok    1 needs attention    2 usage error    3 config    4 runtime    5 auth
+
+Add --json for machine-readable output. Docs: https://github.com/RabinApps/kinhin/tree/main/docs
+```
 <!-- docs-sync:end cli-help -->
 
 ## Contributing and support

@@ -42,6 +42,7 @@ blocks=(
     "rpc-methods|docs/architecture.md"
     "exit-codes|website/cli/commands.md"
     "cli-help|website/cli/commands.md"
+    "cli-help|README.md"
     "maturity|docs/app.md"
 )
 

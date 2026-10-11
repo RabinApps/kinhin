@@ -5,8 +5,8 @@ description: Choose the right kinhin runtime for a workflow (macOS tart vs apple
 
 # Route a workflow to a runtime
 
-**Beta status:** only GitHub Actions with Tart macOS VMs and apple/container has run for real. Every other
-forge/runtime pair is fakes-tested only — say so when the user picks one.
+**Beta status:** GitHub, Gitea, Forgejo and GitLab CE are supported. Gitea, Forgejo and GitLab CE have run real jobs on
+every runtime; GitHub on Tart macOS VMs and apple/container. Buildkite, Azure DevOps and Bitbucket are planned.
 
 ## Rules
 

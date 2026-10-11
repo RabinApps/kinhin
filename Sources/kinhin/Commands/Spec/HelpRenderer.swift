@@ -33,7 +33,7 @@ enum HelpRenderer {
         var lines = [
             "kinhin — autoscaling CI runners on your Mac.",
             "Tart VMs run macOS jobs; apple/container, Docker or Tart Linux VMs run Linux jobs.",
-            "Forges: GitHub Actions, GitLab CI/CD, Gitea, Forgejo, Buildkite, Azure Pipelines, Bitbucket.",
+            "Forges: GitHub Actions, GitLab CI/CD, Gitea, Forgejo (Buildkite, Azure, Bitbucket planned).",
             "",
         ]
         let visible = CommandCatalog.all.filter { !$0.hidden }

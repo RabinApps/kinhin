@@ -64,7 +64,7 @@ Token-creation and settings links are rendered per instance by `OrgPermissionPro
 
 ## Scale sets (future direction)
 
-GitHub's supported autoscaling path is runner scale sets plus JIT runner configuration (see [`actions/scaleset`](https://github.com/actions/scaleset)). The scale-set message API is Public Preview and, like the endpoint removed above, is not in any published OpenAPI description. kinhin keeps polling documented per-repository endpoints until the message API is documented. Only the opt-in mode below registers with JIT; the classic path still hands the VM a shared token (audit finding 2).
+GitHub's supported autoscaling path is runner scale sets plus JIT runner configuration (see [`actions/scaleset`](https://github.com/actions/scaleset)). The scale-set message API is Public Preview and, like the endpoint removed above, is not in any published OpenAPI description. kinhin keeps polling documented per-repository endpoints until the message API is documented. Only the opt-in mode below registers with JIT; the classic path still hands the VM a shared registration token.
 
 ### Scale set mode in kinhin
 
@@ -232,7 +232,7 @@ Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirec
 - Registration mode `sharedShortLived`, exit semantics `deregisters` (`GitHubForge.swift`).
 - Token lifetime: about one hour, cached per account by `RegistrationTokenCache` (`Fleet/FleetEngine+Accounts.swift`, `token_ttl` in config).
 - The runner starts with `config.sh --url --token --labels --unattended --ephemeral`, then `run.sh` (`Images/RunnerBootstrap/RunnerBootstrap+Linux.swift:184-206`).
-- kinhin does **not** use JIT runner configuration. GitHub documents `POST /{orgs|repos}/.../actions/runners/generate-jitconfig` (body: `name`, `runner_group_id`, `labels`), which is present in every API version and in GHES. JIT would remove the shared token from the VM, which is a hardening opportunity (see [Audit findings](#audit-findings)).
+- The classic path does **not** use JIT runner configuration; [scale-set mode](#scale-set-mode-in-kinhin) does. GitHub also documents `POST /{orgs|repos}/.../actions/runners/generate-jitconfig` (body: `name`, `runner_group_id`, `labels`), present in every API version and in GHES; using it on the classic path would remove the shared token from the VM.
 
 ## Demand and label matching
 
