@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+Add entries here as user-visible changes land. At release, this section is renamed to the new version.
+
+**Changed**
+
+- Install docs for Linux jobs: apple/container (recommended, `kinhin setup repair container`) and Docker
+  (`kinhin setup repair docker`), in [docs/install.md](docs/install.md#installing-a-linux-runtime).
+
+**Fixed**
+
+- The apple/container install hints now include `--enable-kernel-install`. Without it, `container run` fails with
+  "default kernel not configured".
+
 ## v0.0.1-beta-1
 
 First public beta. kinhin watches your CI queue and, for each queued job, starts a fresh VM or container on your Apple
