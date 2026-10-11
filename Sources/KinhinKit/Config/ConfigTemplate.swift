@@ -170,7 +170,7 @@ extension ConfigLoader {
         # full VMs (github.com/apple/container — lightweight, one VM per
         # container, Apple silicon only). Cheaper per job for Linux workloads
         # than a full VM; macOS jobs still need Tart. Requires the container CLI
-        # (brew install container) and a Linux image baked with the
+        # (kinhin setup repair container) and a Linux image baked with the
         # runner agents — prepare it with: kinhin image prepare --container-image <name>
         # container:
         #   image: "kinhin-ci-linux"

@@ -150,7 +150,7 @@ enum ImageCommand {
             let shell = Shell()
             guard let containerBin = Paths.findExecutable(named: "container") else {
                 fail(
-                    "the container CLI is not installed. Install it first: brew install container && container system start",
+                    "the container CLI is not installed. Install it first: brew install container && container system start --enable-kernel-install",
                     exit: .runtime)
             }
             do {

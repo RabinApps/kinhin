@@ -138,7 +138,10 @@ final class ImageDeletePlanTests: XCTestCase {
             XCTFail("deleting a container image without the container CLI must fail")
         } catch let error as ImageError {
             guard case .runtimeUnavailable(let why) = error else { return XCTFail("wrong error: \(error)") }
-            XCTAssertEqual(why, "the container CLI is not available — brew install container && container system start")
+            XCTAssertEqual(
+                why,
+                "the container CLI is not available — brew install container && container system start --enable-kernel-install"
+            )
         } catch {
             XCTFail("expected ImageError.runtimeUnavailable, got \(error)")
         }

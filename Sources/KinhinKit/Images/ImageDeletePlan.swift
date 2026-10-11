@@ -160,7 +160,8 @@ public struct ImageDeletePlan: Sendable, Equatable {
                 case .container:
                     guard let container else {
                         throw ImageError.runtimeUnavailable(
-                            "the container CLI is not available — brew install container && container system start")
+                            "the container CLI is not available — brew install container && container system start --enable-kernel-install"
+                        )
                     }
                     try await container.deleteImage(named: target.name)
                 case .docker:

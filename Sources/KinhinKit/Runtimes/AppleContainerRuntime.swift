@@ -70,7 +70,7 @@ public struct AppleContainerRuntime: Runtime {
         guard let resolved, exists(resolved) else {
             return .missing(
                 tool: "apple container",
-                fix: "brew install container && container system start"
+                fix: "brew install container && container system start --enable-kernel-install"
             )
         }
         // The CLI exists; require the host API service to be running
