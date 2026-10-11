@@ -127,18 +127,20 @@ for file in "${skills[@]}"; do
             w2=$(printf '%s' "$cmd" | awk '{ print $3 }')
             commands_checked=$((commands_checked + 1))
 
-            if ! printf '%s\n' "$cmd" | grep -qE '^kinhin [a-z]'; then
+            if ! grep -qE '^kinhin [a-z]' <<< "$cmd"; then
                 continue # placeholders/flags (`kinhin <command> --help`)
             fi
-            if ! printf '%s\n' "$heads" | grep -Fxq "$w1"; then
+            # Here-strings, not `printf | grep -q`: grep -q exits at the first match, the
+            # writer can then die of SIGPIPE, and pipefail turns a match into a miss.
+            if ! grep -Fxq "$w1" <<< "$heads"; then
                 err "$file" "$ln" "unknown command '$w1' (not in CommandCatalog.swift or kinhin help)"
                 continue
             fi
             if [[ $w1 == help ]]; then
                 continue # `help <topic>`: accepted, prints the full screen
             fi
-            if printf '%s\n' "$w2" | grep -qE '^[a-z][a-z0-9-]*$' &&
-                ! printf '%s\n' "$pairs" | grep -Fxq "$w1 $w2"; then
+            if grep -qE '^[a-z][a-z0-9-]*$' <<< "$w2" &&
+                ! grep -Fxq "$w1 $w2" <<< "$pairs"; then
                 err "$file" "$ln" "unknown command '$w1 $w2' (not in kinhin help)"
             fi
         done <<< "$refs"
