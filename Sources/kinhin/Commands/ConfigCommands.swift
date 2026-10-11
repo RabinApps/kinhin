@@ -1,7 +1,7 @@
 import Foundation
 import KinhinKit
 
-/// Config-file management (`config init`, `config validate`).
+/// Config-file management (`config init`, `validate`, `migrate`, `export`, `import`).
 enum ConfigCommands {
     /// `configURL` is injectable so tests can exercise the write/exists/force
     /// matrix against a scratch directory.
@@ -117,5 +117,88 @@ enum ConfigCommands {
         let document = validationDocument()
         try emitJSON(document)
         guard document.valid else { exit(CLIExit.config.rawValue) }
+    }
+
+    // MARK: - Moving a config to another Mac
+
+    /// `kinhin config export [FILE|-]`: the validated config with a header, to
+    /// stdout (no FILE or `-`) or a private file. Refuses to overwrite FILE
+    /// without --force.
+    static func export(_ args: [String], configURL: URL = Paths.config) throws {
+        let text = try ConfigTransfer.export(configURL: configURL, host: ProcessInfo.processInfo.hostName)
+        guard let path = positional(args), path != "-" else {
+            print(text, terminator: text.hasSuffix("\n") ? "" : "\n")
+            return
+        }
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: url.path), !args.contains("--force") {
+            throw CLIError("\(url.path) already exists (use --force to overwrite)", exit: .usage)
+        }
+        try Paths.writePrivateFile(Data(text.utf8), to: url)
+        print("wrote \(url.path) — tokens are not included")
+        print("next: on the other Mac run `kinhin config import \(url.lastPathComponent)`")
+    }
+
+    /// `kinhin config import FILE|- [--yes]`: validates the file, then writes it
+    /// when there is no config yet, or replaces the current one (kept as
+    /// config.yaml.bak) with --yes. Without --yes an existing config is only
+    /// compared, never touched.
+    static func importConfig(
+        _ args: [String], configURL: URL = Paths.config,
+        readStdin: () -> Data = { FileHandle.standardInput.readDataToEndOfFile() },
+        daemonRunning: () -> Bool = { RPCClient.isDaemonAlive() }
+    ) throws {
+        guard let path = positional(args) else {
+            throw CLIError("usage: kinhin config import FILE [--yes] (FILE - reads stdin)", exit: .usage)
+        }
+        let data: Data
+        if path == "-" {
+            data = readStdin()
+        } else {
+            let url = URL(fileURLWithPath: path)
+            guard let read = FileManager.default.contents(atPath: url.path) else {
+                throw CLIError("cannot read \(url.path)", exit: .usage)
+            }
+            data = read
+        }
+        let plan = try ConfigTransfer.plan(incoming: String(decoding: data, as: UTF8.self), configURL: configURL)
+        let apply = !plan.unchanged && (!plan.replacesExisting || args.contains("--yes"))
+        if apply { try ConfigTransfer.apply(plan) }
+        for line in importReport(plan, applied: apply, daemonRunning: apply && daemonRunning()) { print(line) }
+    }
+
+    /// What `config import` prints: what happened, then what this Mac still needs.
+    static func importReport(_ plan: ConfigTransfer.ImportPlan, applied: Bool, daemonRunning: Bool) -> [String] {
+        var lines: [String] = []
+        if plan.unchanged {
+            lines.append("\(plan.configURL.path) already matches; nothing to import")
+        } else if applied {
+            lines.append("imported into \(plan.configURL.path)")
+            if plan.replacesExisting { lines.append("previous config kept at \(plan.backupURL.path)") }
+        } else {
+            lines.append("valid config; it would replace \(plan.configURL.path)")
+            let backup = plan.backupURL.lastPathComponent
+            lines.append("run again with --yes to replace it (the current one is kept as \(backup))")
+        }
+        for warning in plan.warnings { lines.append("warning: \(warning)") }
+        let missing = plan.accounts.filter { !$0.tokenStored }
+        if !missing.isEmpty {
+            lines.append("tokens to store on this Mac:")
+            for account in missing {
+                lines.append("  kinhin auth set --account \(account.name)   (\(account.forge.rawValue))")
+            }
+        }
+        if applied || plan.unchanged {
+            lines.append("next: `kinhin setup status` shows the images to prepare on this Mac")
+        }
+        if daemonRunning {
+            lines.append("the running fleet uses the new config after you restart the app or the daemon")
+        }
+        return lines
+    }
+
+    /// The first argument that is not a flag.
+    private static func positional(_ args: [String]) -> String? {
+        args.first { $0 == "-" || !$0.hasPrefix("-") }
     }
 }

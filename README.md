@@ -86,6 +86,9 @@ Prefer a GUI? Launch **kinhin** from Applications; its setup wizard does the sam
 kinhin config init          Write the starter config
 kinhin config validate [--json] Check the config file without starting anything (exit 3 when invalid;
                              --json: machine-readable valid/error document)
+kinhin config export [FILE]  Write the config for another Mac (no tokens; stdout without FILE)
+kinhin config import FILE [--yes]  Use a config from another Mac (- reads stdin; --yes replaces an existing
+                             one, kept as config.yaml.bak) and list the tokens to store here
 kinhin auth set|status|clear   (set/replace PAT; a running daemon picks it up live)
 kinhin auth add|list|remove    Manage additional accounts (GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps, Bitbucket; auth set --account NAME stores one's token)
 kinhin auth status --json    All forges' stored-token state in one machine-readable document (exit 1 until ready)

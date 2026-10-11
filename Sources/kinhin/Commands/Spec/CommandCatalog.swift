@@ -52,6 +52,26 @@ enum CommandCatalog {
                     summary: "Translate removed config keys to the current schema",
                     flags: [.bool("--write", "Replace the config (the original is kept as config.yml.bak)")],
                     details: ["Handles repo:, gitea:, forgejo: and toolchains:. Output to stdout; notes to stderr."]),
+                CommandSpec(
+                    name: "export",
+                    command: .configInit,
+                    summary: "Write the config for another Mac (no tokens)",
+                    positionals: "[FILE]",
+                    flags: [.bool("--force", "Overwrite FILE if it exists")],
+                    details: [
+                        "To stdout without FILE (or with -). Tokens stay in this Mac's Keychain.",
+                        "One step over SSH: kinhin config export | ssh other-mac kinhin config import - --yes",
+                    ]),
+                CommandSpec(
+                    name: "import",
+                    command: .configInit,
+                    summary: "Use a config exported on another Mac",
+                    positionals: "FILE",
+                    flags: [yesFlag],
+                    details: [
+                        "Validates FILE (- reads stdin). With no config yet it is written; an existing one is only "
+                            + "replaced with --yes and kept as config.yaml.bak. Lists the tokens to store here."
+                    ]),
             ],
             defaultSubcommand: "init",
             docs: "website/guide/config.md"),

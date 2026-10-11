@@ -28,6 +28,9 @@ explicit consent flag).
 - **Workflows locally.** `kinhin workflow test` runs a GitHub Actions workflow's scripts on this Mac and reports
   `partial` when it had to skip something.
 - **Strict config.** Unknown keys are an error with a suggestion; `kinhin config validate` and `kinhin config migrate`.
+- **Move a setup to another Mac.** `kinhin config export` and `kinhin config import` copy the config (never tokens or
+  images), validate before writing, keep the old config as `config.yaml.bak`, and list the tokens to store on the new
+  Mac.
 
 **Tested for real:** GitHub Actions on Tart macOS VMs and apple/container, by hand. Gitea 1.24 and 1.26, Forgejo 11 and
 GitLab CE 18.4 on every runtime, by the end-to-end suite (`scripts/e2e.sh`), including crash recovery, the concurrency

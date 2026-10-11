@@ -63,6 +63,26 @@ load; the error names the replacement (an `accounts:` entry, a `projects:` entry
 `ConfigMigrator` in KinhinKit translates them as text without writing the file, keeping comments
 elsewhere in it.
 
+## Moving to another Mac
+
+Copy a working setup to a second Mac (or a new one) with one command per side:
+
+```bash
+kinhin config export kinhin-config.yaml          # on the Mac that has the config
+kinhin config import kinhin-config.yaml          # on the new Mac
+```
+
+Or in one step over SSH: `kinhin config export | ssh other-mac kinhin config import - --yes`.
+
+- **Tokens are not copied.** They stay in each Mac's Keychain. The import lists every account that has no token on the
+  new Mac, with the `kinhin auth set --account NAME` command to store it.
+- **Images are not copied.** Each Mac bakes its own; `kinhin setup status` shows which to prepare.
+- **Nothing is written until the file validates.** With no config yet the import writes it; an existing config is only
+  replaced with `--yes`, and the old one is kept as `config.yaml.bak`.
+- The export starts with three `# kinhin export:` comment lines naming the source Mac; the import drops them. A
+  `tart_path` that does not exist on the new Mac is reported as a warning.
+- A running fleet picks up the new config after you restart the app or the daemon.
+
 ## Live reload
 
 Config edits made from the app's **Advanced → Routing** tab (routes, budget split, labels) reach

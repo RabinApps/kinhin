@@ -15,6 +15,8 @@ SETUP:
     config init                             Write a starter config file
     config validate                         Check the config without starting anything
     config migrate                          Translate removed config keys to the current schema
+    config export [FILE]                    Write the config for another Mac (no tokens)
+    config import FILE                      Use a config exported on another Mac
     auth set                                Store (or replace) a token in the Keychain
     auth add NAME                           Add an account to the config
     auth list                               List accounts and whether their tokens are stored

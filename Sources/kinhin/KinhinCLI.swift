@@ -85,6 +85,10 @@ struct KinhinCLI {
                 try ConfigCommands.runValidate(rest)
             } else if invocation.subcommand == "migrate" {
                 try ConfigCommands.migrate(rest)
+            } else if invocation.subcommand == "export" {
+                try ConfigCommands.export(rest)
+            } else if invocation.subcommand == "import" {
+                try ConfigCommands.importConfig(rest)
             } else {
                 try ConfigCommands.configInit(args)
             }

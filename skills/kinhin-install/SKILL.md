@@ -57,6 +57,13 @@ Run these in order, stopping to fix any failure before the next step:
 6. `kinhin start` runs in the foreground. `kinhin daemon install` installs a LaunchAgent that survives reboots.
 7. Trigger a workflow with `runs-on: [self-hosted, macos, arm64]` and watch with `kinhin watch` or `kinhin status`.
 
+## Second Mac with the same setup
+
+On the Mac that already works: `kinhin config export kinhin-config.yaml`. On the new Mac, after installing:
+`kinhin config import kinhin-config.yaml`, then store each token it lists with `kinhin auth set --account NAME`, then
+`kinhin setup status` for the images to prepare. Tokens and images are never copied. Over SSH in one step:
+`kinhin config export | ssh other-mac kinhin config import - --yes` (ask before `--yes` replaces an existing config).
+
 ## Rented or remote Mac
 
 From your own machine:
