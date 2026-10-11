@@ -88,6 +88,28 @@ final class ScaleSetSessionRecoveryTests: XCTestCase {
         await listener.stop()
     }
 
+    /// After a network outage GitHub drops the session and answers its refresh with 400 "not
+    /// valid"; the listener retried that dead id forever and the fleet took no GitHub jobs.
+    func testASessionGitHubCallsInvalidIsReplacedNotRefreshedForever() async throws {
+        let client = ConflictingClient(
+            conflictsRemaining: 0,
+            refreshError: GitHubError.http(400, #"{"message":"The session identifier s-dead is not valid."}"#))
+        let session = try await client.createOrUpdateSession(scaleSetId: 17, sessionId: "s-dead", ownerName: "acme")
+        XCTAssertEqual(session.sessionId, "s-new")
+        let calls = await client.calls
+        XCTAssertEqual(calls, ["refresh:s-dead", "create"])
+    }
+
+    func testOtherRefreshFailuresAreNotMistakenForADeadSession() async {
+        let client = ConflictingClient(conflictsRemaining: 0, refreshError: GitHubError.http(503, "unavailable"))
+        do {
+            _ = try await client.createOrUpdateSession(scaleSetId: 17, sessionId: "s-live", ownerName: "acme")
+            XCTFail("a 503 is an outage, not a dead session")
+        } catch {}
+        let calls = await client.calls
+        XCTAssertEqual(calls, ["refresh:s-live"])
+    }
+
     private func makeListener(_ client: ConflictingClient) -> GitHubScaleSetListener {
         GitHubScaleSetListener(
             client: client, scaleSetIdSupplier: { 17 }, ownerName: "acme", pollInterval: .seconds(99),
@@ -99,8 +121,12 @@ final class ScaleSetSessionRecoveryTests: XCTestCase {
 private actor ConflictingClient: GitHubScaleSetServing {
     private(set) var calls: [String] = []
     private var conflictsRemaining: Int
+    private let refreshError: any Error
 
-    init(conflictsRemaining: Int) { self.conflictsRemaining = conflictsRemaining }
+    init(conflictsRemaining: Int, refreshError: any Error = GitHubError.notFound("session")) {
+        self.conflictsRemaining = conflictsRemaining
+        self.refreshError = refreshError
+    }
 
     func exchangeRegistrationToken(registrationToken: String) async throws -> GitHubScaleSetRegistrationToken {
         GitHubScaleSetRegistrationToken(
@@ -121,7 +147,8 @@ private actor ConflictingClient: GitHubScaleSetServing {
             messageQueueAccessToken: "mq")
     }
     func refreshSession(scaleSetId: Int, sessionId: String) async throws -> GitHubScaleSetSession {
-        throw GitHubError.notFound("session")
+        calls.append("refresh:\(sessionId)")
+        throw refreshError
     }
     func deleteSession(scaleSetId: Int, sessionId: String) async throws { calls.append("delete:\(sessionId)") }
     func pollMessages(session: GitHubScaleSetSession, lastMessageId: String?, maxCapacity: Int) async throws

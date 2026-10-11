@@ -21,7 +21,8 @@ public protocol GitHubScaleSetServing: Sendable {
 
 extension GitHubScaleSetServing {
     /// Refreshes `sessionId` when we hold one, creating a fresh session when there is none or
-    /// GitHub reports the held one is no longer active (409) instead of retrying the refresh.
+    /// GitHub reports the held one is no longer active (409, 404, or 400 "not valid") instead of
+    /// retrying the refresh.
     public func createOrUpdateSession(
         scaleSetId: Int, sessionId: String?, ownerName: String
     ) async throws -> GitHubScaleSetSession {
@@ -33,6 +34,10 @@ extension GitHubScaleSetServing {
         } catch GitHubScaleSetClientError.sessionConflict {
             return try await createSession(scaleSetId: scaleSetId, ownerName: ownerName)
         } catch GitHubError.notFound {
+            return try await createSession(scaleSetId: scaleSetId, ownerName: ownerName)
+        } catch GitHubError.http(let status, _) where status == 400 {
+            // GitHub answers a session it has dropped (after a network outage, say) with 400
+            // "The session identifier … is not valid". Refreshing it again can never work.
             return try await createSession(scaleSetId: scaleSetId, ownerName: ownerName)
         }
     }
