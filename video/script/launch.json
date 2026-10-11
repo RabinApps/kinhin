@@ -1,0 +1,42 @@
+{
+  "title": "kinhin launch video",
+  "voice": { "name": "Samantha", "rate": 175 },
+  "pronounce": { "kinhin": "kin-hin" },
+  "scenes": [
+    {
+      "id": "intro",
+      "visual": "Motion Canvas: opening/intro",
+      "narration": "Meet kinhin. The mindful CI."
+    },
+    {
+      "id": "problem",
+      "visual": "Motion Canvas: opening/problem",
+      "narration": "A self-hosted runner does one job at a time. Your queue waits its turn, and whatever one job leaves behind, the next one inherits."
+    },
+    {
+      "id": "solution",
+      "visual": "Motion Canvas: new scene, one job becoming one fresh VM",
+      "narration": "kinhin is a free, open-source Mac app. It watches your queue, starts a fresh VM or container for each job, and deletes it when the job is done."
+    },
+    {
+      "id": "app",
+      "visual": "MacBook shot: video/scripts/frame-app.sh on raw/app.mov",
+      "narration": "Jobs arrive, and kinhin scales to the queue, within your Mac's limits. Each job gets its own clean instance. When one fails, the next still starts on a clean machine. Then every instance is deleted. Nothing lingers."
+    },
+    {
+      "id": "lanes",
+      "visual": "Motion Canvas: closing/lanes",
+      "narration": "It works with GitHub, GitLab, Gitea and Forgejo, on Tart, apple container, or Docker, routed per repo, workflow, or runs-on label."
+    },
+    {
+      "id": "install",
+      "visual": "Terminal clip: terminal/install.tape",
+      "narration": "Install with one line. Then kinhin doctor checks your Mac."
+    },
+    {
+      "id": "outro",
+      "visual": "Motion Canvas: closing/outro",
+      "narration": "One job. One VM. Gone when it's done. kinhin dot dev. Free, Apache 2, no telemetry, and in beta."
+    }
+  ]
+}
