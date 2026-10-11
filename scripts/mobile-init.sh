@@ -1,15 +1,15 @@
 #!/bin/bash
 # Scaffold fastlane (and an EAS config for Expo) into a mobile project, for a kinhin runner.
 #
-#   scripts/mobile-init.sh [--framework auto|ios|android|flutter|react-native|expo] [--force] [--dry-run] [DIR]
+#   scripts/mobile-init.sh [--framework NAME] [--force] [--dry-run] [DIR]
 #
 # Detects the project shape, then copies templates/mobile/ into DIR. Existing files are kept
 # unless --force is given, so re-running is safe. Nothing is installed or run: afterwards,
-# `bundle install` and `bundle exec fastlane lanes` work from the project.
+# `bundle install` and `bundle exec fastlane lanes` work from each platform folder.
 #
-# Detection order: pubspec.yaml → Flutter; "expo" in package.json → Expo; "react-native" in
-# package.json → React Native; otherwise the iOS and Android folders decide. Flutter and React
-# Native get fastlane in ios/ and android/. Expo gets EAS config only (see docs/mobile-fastlane.md).
+# Detection: pubspec.yaml → Flutter; "expo" in package.json → Expo; "react-native" in
+# package.json → React Native; otherwise the iOS and Android folders decide. The platform list
+# is computed once from the framework and used for both the fastlane folders and the CI jobs.
 #
 # Bash 3.2 compatible (macOS default). Templates are read from the kinhin checkout this script is in.
 set -euo pipefail
@@ -21,29 +21,64 @@ framework="auto"
 force=0
 dry_run=0
 dir="."
+tmpfile=""
+trap 'rm -f "${tmpfile:-}"' EXIT
+
+die() { echo "mobile-init: $*" >&2; exit 2; }
+
+usage() {
+    cat <<'EOF'
+Usage: scripts/mobile-init.sh [options] [DIR]
+
+Scaffold fastlane into a mobile project (DIR, default: the current directory).
+
+Options:
+  --framework NAME  auto (default), ios, android, native, flutter, react-native, expo
+  --force           overwrite files that already exist
+  --dry-run         print what would change, and write nothing
+  -h, --help        show this help
+
+Existing files are kept unless --force is given, so re-running is safe.
+EOF
+}
+
+# MARK: - Arguments
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --framework) framework="${2:?--framework needs a value}"; shift 2 ;;
+        --framework)
+            [[ $# -ge 2 ]] || die "--framework needs a value (see --help)"
+            framework="$2"; shift 2 ;;
         --force) force=1; shift ;;
         --dry-run) dry_run=1; shift ;;
-        -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
-        -*) echo "mobile-init: unknown option $1" >&2; exit 2 ;;
+        -h|--help) usage; exit 0 ;;
+        -*) die "unknown option $1 (see --help)" ;;
         *) dir="$1"; shift ;;
     esac
 done
 
-if [[ ! -d "$dir" ]]; then
-    echo "mobile-init: no such directory: $dir" >&2
-    exit 2
-fi
+case "$framework" in
+    auto|ios|android|native|flutter|react-native|expo) ;;
+    *) die "unknown framework '$framework' (auto, ios, android, native, flutter, react-native, expo)" ;;
+esac
+
+[[ -d "$dir" ]] || die "no such directory: $dir"
+
+# Fail before writing anything if this script was copied away from its templates.
+required_templates="Gemfile expo/eas.json github/header.yml github/ios.job.yml github/android.job.yml
+ios/fastlane/Fastfile ios/fastlane/Appfile ios/fastlane/Matchfile
+android/fastlane/Fastfile android/fastlane/Appfile"
+for t in $required_templates; do
+    [[ -f "$templates/$t" ]] || die "template missing: $templates/$t (run this script from a kinhin checkout)"
+done
+
 cd "$dir"
 
 # MARK: - Detection
 
 has_ios()     { [[ -d ios ]] || compgen -G "*.xcodeproj" >/dev/null || compgen -G "*.xcworkspace" >/dev/null; }
 has_android() { [[ -d android ]] || [[ -f settings.gradle ]] || [[ -f settings.gradle.kts ]]; }
-pkg_has()     { [[ -f package.json ]] && grep -q "\"$1\"" package.json; }
+pkg_has()     { [[ -f package.json ]] && grep -Fq "\"$1\"" package.json; }
 
 detect() {
     if [[ -f pubspec.yaml ]]; then echo flutter
@@ -58,17 +93,27 @@ detect() {
 
 if [[ "$framework" == "auto" ]]; then
     framework="$(detect)"
+    [[ "$framework" != "none" ]] || die "no iOS or Android project in $(pwd); pass --framework"
 fi
 
+# The platforms to scaffold, as a space-separated list (bash 3.2 has no safe empty-array expansion).
+platforms=""
 case "$framework" in
-    ios|android|flutter|react-native|expo|native) ;;
-    none) echo "mobile-init: no iOS or Android project found in $(pwd); pass --framework" >&2; exit 2 ;;
-    *) echo "mobile-init: unknown framework '$framework'" >&2; exit 2 ;;
+    ios)     platforms="ios" ;;
+    android) platforms="android" ;;
+    native|flutter|react-native)
+        if has_ios; then platforms="ios"; fi
+        if has_android; then platforms="$platforms android"; fi
+        platforms="${platforms# }"
+        [[ -n "$platforms" ]] || die "no ios/ or android/ folder in $(pwd) for a $framework project"
+        ;;
+    expo) platforms="" ;;
 esac
 
-echo "mobile-init: framework=$framework dir=$(pwd)"
+echo "mobile-init: framework=$framework platforms=${platforms:-none} dir=$(pwd)"
+[[ $dry_run -eq 0 ]] || echo "mobile-init: dry run, nothing will be written"
 
-# MARK: - Copying
+# MARK: - Writing
 
 copy_file() { # copy_file SRC DST
     local src="$1" dst="$2"
@@ -80,8 +125,8 @@ copy_file() { # copy_file SRC DST
         echo "  would write $dst"
         return 0
     fi
-    mkdir -p "$(dirname "$dst")"
-    cp "$src" "$dst"
+    mkdir -p "$(dirname "$dst")" || die "cannot create $(dirname "$dst")"
+    cp "$src" "$dst" || die "cannot write $dst"
     echo "  wrote   $dst"
 }
 
@@ -91,6 +136,7 @@ ensure_gemfile() {
         copy_file "$templates/Gemfile" "Gemfile"
         return 0
     fi
+    [[ -r Gemfile ]] || die "Gemfile exists but is not readable"
     if grep -Eq "^[[:space:]]*gem[[:space:]]*\(?[\"']fastlane[\"']" Gemfile; then
         echo "  keep    Gemfile (already has fastlane)"
         return 0
@@ -99,7 +145,8 @@ ensure_gemfile() {
         echo "  would append fastlane to Gemfile"
         return 0
     fi
-    printf '\n# Added by kinhin mobile-init: fastlane lanes live in ios/ and android/.\ngem "fastlane", "~> 2.240"\n' >> Gemfile
+    printf '\n# Added by kinhin mobile-init: fastlane lanes live in ios/ and android/.\ngem "fastlane", "~> 2.240"\n' >> Gemfile \
+        || die "cannot append to Gemfile"
     echo "  append  fastlane to Gemfile"
 }
 
@@ -119,44 +166,32 @@ scaffold_fastlane() { # scaffold_fastlane ios|android
     fi
 }
 
-case "$framework" in
-    ios)
-        ensure_gemfile
-        scaffold_fastlane ios
-        ;;
-    android)
-        ensure_gemfile
-        scaffold_fastlane android
-        ;;
-    native|flutter|react-native)
-        ensure_gemfile
-        if has_ios; then scaffold_fastlane ios; fi
-        if has_android; then scaffold_fastlane android; fi
-        ;;
-    expo)
-        copy_file "$templates/expo/eas.json" "eas.json"
-        echo "  note    Expo uses EAS Build/Submit by default; no fastlane workflow is written."
-        echo "          For fastlane, run 'npx expo prebuild' and re-run with --framework react-native."
-        exit 0
-        ;;
-esac
-
-# The workflow is the header plus one job per platform the project has, so an iOS-only app gets no Android job.
+# The workflow is the header plus one job per scaffolded platform, so an iOS-only app gets no Android job.
 write_workflow() {
-    local tmp
-    tmp="$(mktemp)"
-    cat "$templates/github/header.yml" > "$tmp"
-    if has_ios; then
-        sed "s|__DIR__|$(platform_dir ios)|" "$templates/github/ios.job.yml" >> "$tmp"
-    fi
-    if has_android; then
-        sed "s|__DIR__|$(platform_dir android)|" "$templates/github/android.job.yml" >> "$tmp"
-    fi
-    copy_file "$tmp" ".github/workflows/mobile-release.yml"
-    rm -f "$tmp"
+    tmpfile="$(mktemp)" || die "cannot create a temp file"
+    cat "$templates/github/header.yml" > "$tmpfile"
+    for p in $platforms; do
+        sed "s|__DIR__|$(platform_dir "$p")|" "$templates/github/$p.job.yml" >> "$tmpfile"
+    done
+    copy_file "$tmpfile" ".github/workflows/mobile-release.yml"
 }
 
+if [[ "$framework" == "expo" ]]; then
+    copy_file "$templates/expo/eas.json" "eas.json"
+    echo "  note    Expo uses EAS Build/Submit by default; no fastlane workflow is written."
+    echo "          For fastlane, run 'npx expo prebuild' and re-run with --framework react-native."
+    exit 0
+fi
+
+ensure_gemfile
+for p in $platforms; do
+    scaffold_fastlane "$p"
+done
 write_workflow
 
-echo "mobile-init: done. Next: add the secrets listed in .github/workflows/mobile-release.yml,"
-echo "             then 'bundle install' and 'bundle exec fastlane lanes' from each platform folder."
+if [[ $dry_run -eq 1 ]]; then
+    echo "mobile-init: dry run complete. Nothing was written."
+else
+    echo "mobile-init: done. Add the secrets listed in .github/workflows/mobile-release.yml, then run"
+    echo "             'bundle install' and 'bundle exec fastlane lanes' from each platform folder."
+fi

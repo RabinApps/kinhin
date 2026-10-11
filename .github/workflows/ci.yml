@@ -133,3 +133,6 @@ jobs:
 
       - name: Skills lint (frontmatter + command drift)
         run: bash scripts/skills-lint.sh
+
+      - name: Mobile init tests (fastlane scaffolding)
+        run: bash scripts/mobile-init-test.sh

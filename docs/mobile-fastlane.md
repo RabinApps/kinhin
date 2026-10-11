@@ -99,6 +99,20 @@ Caveats to check before relying on this:
 - EAS Submit uploads to TestFlight. It does not release to the App Store, which the `release` lane does.
 - The docs do not say whether `eas-build-pre-install` hooks run in local builds. Test it before depending on it.
 
+## Errors you may see
+
+| Message | Where | What to do |
+| --- | --- | --- |
+| `no iOS or Android project in ...; pass --framework` | `mobile-init.sh` | The folder has no detectable project. Pass `--framework`. |
+| `no ios/ or android/ folder in ... for a flutter project` | `mobile-init.sh` | Run `flutter create` (or `react-native init`) first. |
+| `template missing: ...` | `mobile-init.sh` | The script was copied away from the kinhin checkout. Run it from there. |
+| `Missing environment variables: ASC_KEY_ID, ...` | fastlane | Set the listed secrets. The lane stops before any store call. |
+| `ASC_KEY_FILEPATH does not exist` | fastlane | The `.p8` was not written. Check the "Write App Store Connect API key" step. |
+| `Keystore not found at ...` | fastlane | Check `ANDROID_KEYSTORE_BASE64` and the "Write upload keystore" step. |
+| `No release AAB at ...` | fastlane | Gradle did not produce the bundle. Check `AAB_PATH` and the Gradle output. |
+
+`scripts/mobile-init-test.sh` covers the scaffolding logic. It runs in the CI docs job and in `scripts/check.sh`.
+
 ## Verification
 
 Run this checklist on a fixture project before you trust a release:

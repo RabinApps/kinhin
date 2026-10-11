@@ -55,4 +55,6 @@ processed. Confirm the build appears in TestFlight or the Play internal track be
 - **`upload_to_play_store` fails with 403**: the service account lacks release permissions for this app in Play Console.
 - **Flutter `ipa` build fails**: it needs a distribution certificate, not a development one.
 - **Expo local build ignores `fastlane` in `eas.json`**: this is expected. Local builds ignore it.
+- **`Missing environment variables: ...`**: the lane checks its secrets first and stops before any store call. Set the listed names in CI.
+- **`No release AAB at ...`**: Gradle did not produce the bundle. Check `AAB_PATH` if another step builds it.
 - Gradle prints secrets: the template sets `print_command: false`. Keep it that way.

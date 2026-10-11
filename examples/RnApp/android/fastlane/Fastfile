@@ -3,12 +3,23 @@
 # or `eas build` output); otherwise this lane builds it with Gradle.
 default_platform(:android)
 
+# Stop before any store call when a required variable is missing, with the name of the variable.
+def require_env!(*names)
+  missing = names.select { |name| ENV[name].to_s.strip.empty? }
+  UI.user_error!("Missing environment variables: #{missing.join(', ')}. See docs/mobile-fastlane.md#secrets") unless missing.empty?
+end
+
 platform :android do
   desc "Build a release AAB and upload it to the Play internal track"
   lane :beta do
+    require_env!("PLAY_SERVICE_ACCOUNT_JSON")
+
     aab = ENV["AAB_PATH"] || "app/build/outputs/bundle/release/app-release.aab"
 
     unless ENV["AAB_PATH"]
+      require_env!("ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD")
+      UI.user_error!("Keystore not found at #{ENV['ANDROID_KEYSTORE_PATH']}") unless File.exist?(ENV["ANDROID_KEYSTORE_PATH"])
+
       gradle(
         task: "bundle",
         build_type: "Release",
@@ -21,6 +32,8 @@ platform :android do
         }
       )
     end
+
+    UI.user_error!("No release AAB at #{aab}. Check AAB_PATH or the Gradle output.") unless File.exist?(aab)
 
     upload_to_play_store(
       track: "internal",

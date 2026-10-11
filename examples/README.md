@@ -30,6 +30,9 @@ For Flutter and React Native, run this from `ios/` or `android/`. For the native
 
 ## What was verified
 
+- `scripts/mobile-init-test.sh` covers detection, scaffolding, keep and force, dry run, and the error paths.
+- A lane with no secrets stops with a message naming the missing variables (`fastlane ios beta`, `fastlane android beta`).
+
 - `scripts/mobile-init.sh` scaffolds all five apps. The CI workflow gets only the jobs that match the project, and
   Expo gets `eas.json` only.
 - `bundle exec fastlane lanes` lists the lanes for every platform, using fastlane 2.241.0 on Ruby 3.3.
