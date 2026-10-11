@@ -127,8 +127,9 @@ node scripts/assemble.mjs             # out/launch.mp4 with voice, captions, mus
   pointer off the window while it records.
 - **Captions.** The full narration is in `captions/launch.srt` (for the site player). Only scenes without text of
   their own (`CAPTION_SCENES`, default `app,install`) are burned in.
-- **Music.** Use a CC0 track (`raw/music.mp3`): it needs no credit and users may reuse it. Do not commit tracks
-  under licences that forbid redistributing the file on its own (Pixabay's does).
+- **Music.** `raw/music.*` is optional and git-ignored. The launch video uses [First Light Particles](https://opengameart.org/node/182244)
+  by Yoiyami (CC0: no credit needed, anyone may reuse it); download it to `video/raw/music.wav`. Use only CC0 tracks, and
+  do not commit tracks under licences that forbid redistributing the file on its own (Pixabay's does).
 
 ## Record a web product
 
