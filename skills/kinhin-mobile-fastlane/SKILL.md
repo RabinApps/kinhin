@@ -57,4 +57,5 @@ processed. Confirm the build appears in TestFlight or the Play internal track be
 - **Expo local build ignores `fastlane` in `eas.json`**: this is expected. Local builds ignore it.
 - **`Missing environment variables: ...`**: the lane checks its secrets first and stops before any store call. Set the listed names in CI.
 - **`No release AAB at ...`**: Gradle did not produce the bundle. Check `AAB_PATH` if another step builds it.
+- **`bundler could not find compatible versions for gem "ruby"`**: fastlane needs Ruby 3.1+. The macOS system Ruby is 2.6. Use Ruby 3.3 locally, and the workflow's `ruby/setup-ruby` step on CI.
 - Gradle prints secrets: the template sets `print_command: false`. Keep it that way.

@@ -5,6 +5,10 @@
         working-directory: __DIR__
     steps:
       - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          # fastlane needs Ruby 3.1+; the macOS system Ruby is 2.6. Bundler cache is off because Gemfile.lock lives in the project root.
+          ruby-version: "3.3"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

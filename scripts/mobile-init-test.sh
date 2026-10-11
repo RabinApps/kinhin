@@ -63,6 +63,7 @@ check "flutter writes ios fastlane" [ -f "$work/flutter/ios/fastlane/Fastfile" ]
 check "flutter writes android fastlane" [ -f "$work/flutter/android/fastlane/Fastfile" ]
 check "flutter workflow has ios and android jobs" bash -c "grep -q '^  ios:' '$work/flutter/.github/workflows/mobile-release.yml' && grep -q '^  android:' '$work/flutter/.github/workflows/mobile-release.yml'"
 check "flutter workflow runs in ios/" has_line "$work/flutter/.github/workflows/mobile-release.yml" "working-directory: ios"
+check "flutter workflow sets up Ruby 3.1+ for fastlane" has_line "$work/flutter/.github/workflows/mobile-release.yml" "ruby/setup-ruby@v1"
 
 mk_rn "$work/rn"
 run_init "$work/rn"; check "react-native exits 0" [ "$code" -eq 0 ]

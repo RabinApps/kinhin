@@ -72,6 +72,8 @@ a team key. You can download the `.p8` once only. Team keys cover all apps and c
 The workflow asks for `runs-on: [self-hosted, kinhin-xcode]`, the Xcode image label. If your pool uses another label,
 change it in `.github/workflows/mobile-release.yml`. kinhin does not store any of these secrets.
 
+**Ruby.** fastlane 2.240 needs Ruby 3.1 or newer. The macOS system Ruby is 2.6, so the workflow runs `ruby/setup-ruby` with Ruby 3.3 before `bundle install`. Locally, use the same version (for example `rbenv` or Homebrew's `ruby@3.3`).
+
 ## Framework notes
 
 **Flutter.** Build first, then upload. `flutter build appbundle` and `flutter build ipa` produce the artifacts. Set
