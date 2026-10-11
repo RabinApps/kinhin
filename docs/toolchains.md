@@ -13,6 +13,8 @@ ways to get tools onto a runner:
 | [Per project](#per-project-toolchains) | Different repos needing different versions | `.kinhin.yml` in the repo, or `projects:` in `config.yaml`. kinhin bakes an image per project. |
 | [Per job](#per-job-toolchains) | Tools only some workflows need, and all Linux container runtimes | `kinhin-toolchain install` in a workflow step |
 
+For store releases with fastlane (iOS, Android, Flutter, React Native, Expo), see [Mobile releases with fastlane](mobile-fastlane.md).
+
 Per-job installs also work with the usual `actions/setup-go`, `actions/setup-java` and friends, at the cost of
 downloading the toolchain in every job. The [shared cache](#the-shared-download-cache) removes most of that cost.
 

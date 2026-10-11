@@ -1,0 +1,34 @@
+# Android lanes. Uploads go through the Google Play Developer API with a service account.
+# Set AAB_PATH when another step already built the bundle (Flutter's `flutter build appbundle`,
+# or `eas build` output); otherwise this lane builds it with Gradle.
+default_platform(:android)
+
+platform :android do
+  desc "Build a release AAB and upload it to the Play internal track"
+  lane :beta do
+    aab = ENV["AAB_PATH"] || "app/build/outputs/bundle/release/app-release.aab"
+
+    unless ENV["AAB_PATH"]
+      gradle(
+        task: "bundle",
+        build_type: "Release",
+        print_command: false,
+        properties: {
+          "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_PATH"],
+          "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+          "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
+          "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"]
+        }
+      )
+    end
+
+    upload_to_play_store(
+      track: "internal",
+      aab: aab,
+      json_key_data: ENV["PLAY_SERVICE_ACCOUNT_JSON"],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+end
