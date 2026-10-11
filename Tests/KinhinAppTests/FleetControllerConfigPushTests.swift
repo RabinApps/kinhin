@@ -37,6 +37,9 @@ final class FleetControllerConfigPushTests: XCTestCase {
         fleet = FleetController()
         fleet.environment.configURL = url
         fleet.environment.hostSnapshot = { [host] in host }
+        // Never the developer's real daemon: a running fleet on this Mac would
+        // otherwise become the backend under test.
+        fleet.environment.daemonProbe = { false }
         let answer = tokenAnswerBox
         fleet.environment.engineToken = { _ in try answer.value.withLock { $0 }.get() }
     }
