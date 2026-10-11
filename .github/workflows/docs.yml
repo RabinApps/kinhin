@@ -67,7 +67,8 @@ jobs:
             snap="$RUNNER_TEMP/docs-$v/website/.vitepress"
             mv "$snap/config.ts" "$snap/config.base.ts"
             cp website/snapshot.config.ts "$snap/config.ts"
-            (cd "$RUNNER_TEMP/docs-$v/website" && npm ci && DOCS_VERSION="$v" npm run build)
+            versions="$(jq -c . website/versions.json)"
+            (cd "$RUNNER_TEMP/docs-$v/website" && npm ci && DOCS_VERSION="$v" DOCS_VERSIONS="$versions" npm run build)
             mkdir -p "website/.vitepress/dist/$v"
             cp -R "$RUNNER_TEMP/docs-$v/website/.vitepress/dist/." "website/.vitepress/dist/$v/"
           done

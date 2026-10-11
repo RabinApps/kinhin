@@ -107,7 +107,8 @@ export default defineConfig({
   },
 
   themeConfig: {
-    logo: "/mark.svg",
+    // The app icon has its own white tile, so it stays visible in dark mode (the bare mark did not).
+    logo: { src: "/logo.png", alt: "kinhin" },
     siteTitle: "kinhin",
     nav: [
       { text: "Guide", link: "/guide/quick-start" },
@@ -116,12 +117,14 @@ export default defineConfig({
       {
         text: docsVersion ?? "Latest",
         items: [
-          // Absolute links bypass `base`, so the picker works from inside any version.
-          { text: "Latest (main)", link: "/", target: "_self" },
+          // Full URLs: VitePress prefixes `base` onto "/" links, so inside a snapshot "/" pointed back
+          // at the snapshot itself instead of the latest docs.
+          { text: "Latest (main)", link: `${siteURL}/`, target: "_self", rel: "" },
           ...versions.map((v: string) => ({
             text: v,
-            link: `/${v}/`,
+            link: `${siteURL}/${v}/`,
             target: "_self",
+            rel: "",
           })),
         ],
       },

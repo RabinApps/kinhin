@@ -21,7 +21,9 @@
   text-overflow: ellipsis;
   text-align: center;
   font-size: 14px;
-  background: var(--vp-c-warning-soft);
+  /* warning-soft is translucent: paint it over the solid page colour, or the content scrolling
+     under the fixed banner shows through. */
+  background: linear-gradient(var(--vp-c-warning-soft), var(--vp-c-warning-soft)), var(--vp-c-bg);
   color: var(--vp-c-text-1);
 }
 @media (max-width: 640px) {
