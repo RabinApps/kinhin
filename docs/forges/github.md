@@ -164,7 +164,7 @@ you baked with) and re-run `kinhin image prepare`.
 #### `could not pin the guest's SSH host key … connecting without host key verification`
 
 A boot/SSH reachability issue, not a registration-material issue — see
-[Known limits](../../security.md#known-limits). Establish that one VM can boot and register before
+[Known limits](../security.md#known-limits). Establish that one VM can boot and register before
 scaling it.
 
 #### A job stays queued with no `[scaleset]` error
