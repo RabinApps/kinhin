@@ -7,9 +7,10 @@ name: E2E
 # Tart installed. Never triggered by pull requests: it executes the checked-out code against real containers.
 
 on:
-  schedule:
-    - cron: "0 9 * * *" # nightly: the local tier
-    - cron: "0 10 * * 0" # weekly: everything: GitLab CE, the Tart and host lanes, the whole toolchain catalog
+  # The schedule waits for the dedicated `kinhin-e2e` Mac (beta-2, docs/beta-roadmap.md): with no such runner every
+  # scheduled run only queues. Restore these when it is registered:
+  #   - cron: "0 9 * * *" # nightly: the local tier
+  #   - cron: "0 10 * * 0" # weekly: everything: GitLab CE, the Tart and host lanes, the whole toolchain catalog
   workflow_dispatch:
     inputs:
       tier:

@@ -63,8 +63,9 @@ nothing while another run is active.
 - A LAN address. Containers cannot reach the host's `localhost`, so the suite addresses its forges by the Mac's
   address (plain http, with `allow_insecure_http: true` in the sandbox config).
 - It cannot run in `kinhin-xcode` CI: that runner is itself a Tart VM, and Apple Silicon does not nest VMs. See
-  [`.github/workflows/e2e.yml`](../.github/workflows/e2e.yml): a nightly local tier and a weekly full tier on a
-  dedicated Mac labelled `kinhin-e2e`, never on pull requests.
+  [`.github/workflows/e2e.yml`](../.github/workflows/e2e.yml): run by hand (`workflow_dispatch`) on a dedicated Mac
+  labelled `kinhin-e2e`, never on pull requests. The nightly and weekly schedules are switched on once that Mac exists
+  (beta-2); until then the T2 and T3 cadences below are the target, and the tiers run locally with `scripts/e2e.sh`.
 
 ## The tiers
 
