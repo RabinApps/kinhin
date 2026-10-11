@@ -1,0 +1,22 @@
+{
+  "name": "kinhin-launch-video",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "serve": "vite",
+    "serve:closing": "VIDEO_PROJECT=closing vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@motion-canvas/2d": "3.17.2",
+    "@motion-canvas/core": "3.17.2"
+  },
+  "devDependencies": {
+    "@motion-canvas/ffmpeg": "3.17.2",
+    "@motion-canvas/ui": "3.17.2",
+    "@motion-canvas/vite-plugin": "3.17.2",
+    "typescript": "5.9.3",
+    "vite": "5.4.21"
+  }
+}
