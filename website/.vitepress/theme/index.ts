@@ -2,6 +2,7 @@ import { h, onBeforeUnmount, onMounted, onUpdated, nextTick } from "vue";
 import DefaultTheme from "vitepress/theme";
 import { onContentUpdated, type Theme } from "vitepress";
 import GitHubActions from "./GitHubActions.vue";
+import AudienceTabs from "./AudienceTabs.vue";
 import "./version-banner.css";
 
 function addDiagramExpandButtons(): void {
@@ -500,6 +501,10 @@ declare const __DOCS_BETA__: boolean;
 // Snapshot builds (DOCS_VERSION set) show a notice linking to the latest docs.
 export default {
   extends: DefaultTheme,
+  enhanceApp({ app }) {
+    // Human / AI-agent split on the quick start (and any page that wants it).
+    app.component("AudienceTabs", AudienceTabs);
+  },
   Layout: {
     setup() {
       let appearanceObserver: MutationObserver | undefined;

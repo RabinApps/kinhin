@@ -64,13 +64,22 @@ accounts:
 ```
 
 ::: warning Beta
-Only GitHub Actions has been tested against a real server (with Tart macOS VMs and apple/container). The other forges
-are unit-tested but not yet live-tested; see [what has been tested](/guide/forges#what-has-been-tested). Please report how it goes.
+Gitea, Forgejo and GitLab CE have run real jobs on every runtime; GitHub Actions on Tart macOS VMs and
+apple/container. Buildkite, Azure Pipelines and Bitbucket Pipelines are planned, not supported yet. See
+[what has been tested](/guide/forges#what-has-been-tested), and please report how it goes.
 :::
 
 Each forge's setup details, token scopes and job-selection rules are in [Forge support](/guide/forges).
 
-## First fleet (CLI)
+## Set up your first fleet
+
+Do it yourself, or hand the job to an AI agent such as Claude Code: the agent runs the same steps, and you only store
+the token.
+
+<AudienceTabs>
+<template #human>
+
+### From the terminal
 
 ```bash
 # 0. Install tart (skipped if already installed)
@@ -112,13 +121,82 @@ That example is for GitHub. On other forges, jobs select runners by runner tags 
 
 Watch the fleet: `kinhin watch` (live) or `kinhin status` (one shot).
 
-## First fleet (menu bar app)
+### From the menu bar app
 
 Install with the one-liner above, then launch **kinhin** from Applications. The setup window
 walks through the same steps — installing tart, creating the config, connecting a forge and storing
-its token (the Connect form offers all seven), and preparing the image — then starts the fleet. The menu bar shows the number of live runner VMs.
+its token, and preparing the image — then starts the fleet. The menu bar shows the number of live runner VMs.
 
 ::: tip Signed & notarized
 Official releases are Developer ID signed and notarized — no right-click → **Open** needed.
 Locally built copies are ad-hoc signed: clear Gatekeeper with `xattr -cr /Applications/kinhin.app`.
 :::
+
+</template>
+<template #agent>
+
+### 1. Give your agent the kinhin skills
+
+kinhin ships seven agent skills (install, configure, add a forge account, route a workflow, operate, images and
+toolchains, troubleshoot). Every command in them is checked against the real CLI.
+
+**Claude Code** — the repository is a plugin marketplace:
+
+```bash
+claude plugin marketplace add RabinApps/kinhin
+claude plugin install kinhin@kinhin
+```
+
+**Other agents** (Codex, Cursor, Gemini, …) — copy the `SKILL.md` files from
+[`skills/`](https://github.com/RabinApps/kinhin/tree/main/skills) into your agent's skills directory. An agent with no
+skill support can read this page instead: give it `https://kinhin.dev/guide/quick-start`.
+
+### 2. Paste this prompt
+
+Fill in the line that names your forge, then hand it over:
+
+```text
+Install kinhin on this Mac and set up a CI fleet for:
+  <GitHub org "acme"  |  GitHub repo acme/app  |  Gitea https://git.example.com, repo acme/app  |  GitLab group acme>
+
+Use the kinhin skills (kinhin-install, kinhin-configure, kinhin-add-forge-account).
+- First check the Mac qualifies (arm64, macOS 15+, about 60 GB free disk). Stop and tell me if it does not.
+- Install kinhin and Tart, write the config, and run `kinhin config validate`.
+- Never ask me to paste a token into this chat. When a token is needed, tell me which permissions it needs,
+  ask me to run `kinhin auth set --account <name>` in my own terminal, and wait until I say it is done.
+- Ask me before `kinhin image prepare` (it downloads tens of GB) and before `kinhin daemon install`.
+- Never run `kinhin reset`, never add a `host` route, and never pass --yes to cleanup or prune unasked.
+- Finish with `kinhin doctor` and `kinhin setup status`, then tell me the `runs-on:` label my workflows should use.
+```
+
+### 3. Do the one step that is yours
+
+The agent never sees your token. When it asks, create the token with the permissions it lists
+([Forge support](/guide/forges) has them per forge), then store it yourself:
+
+```bash
+kinhin auth set --account github     # or the account name the agent gave you
+```
+
+`kinhin auth set` hides what you type and keeps the token in your Keychain, never in a file. Tell the agent when it is
+done and it carries on.
+
+### 4. Let the agent watch the fleet (optional)
+
+`kinhin mcp` gives the agent read access to status, doctor, logs and the live pipeline, plus pause and resume. It never
+exposes reset, cleanup or token commands.
+
+```bash
+claude mcp add kinhin -- kinhin mcp
+```
+
+Other agents take the same server as `{"command": "kinhin", "args": ["mcp"]}`. The full tool list and the safety
+rules agents follow are in [AI agents & MCP](/guide/agents).
+
+::: tip Public repository?
+Tell the agent, and point it at [Running kinhin for an open-source project](/guide/open-source): fork pull requests
+must not reach your Mac.
+:::
+
+</template>
+</AudienceTabs>
