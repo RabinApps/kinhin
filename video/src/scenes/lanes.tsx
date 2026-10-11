@@ -1,6 +1,7 @@
 import {Circle, Line, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, createRefArray, waitFor} from '@motion-canvas/core';
 import {content} from '../content';
+import {timing} from '../timing';
 import {FONT, INK, MUTED, PAPER} from '../theme';
 
 const FORGES = content.lanes.forges;
@@ -42,5 +43,5 @@ export default makeScene2D(function* (view) {
   yield* all(...lines.map(l => l.end(1, 1.2)));
   yield* caption().opacity(1, 0.6);
   yield* note().opacity(1, 0.6);
-  yield* waitFor(3);
+  yield* waitFor(timing.lanes - 3); // 3 s of animation, then hold for the voice
 });

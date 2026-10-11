@@ -1,6 +1,7 @@
 import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, createRefArray, waitFor} from '@motion-canvas/core';
 import {content} from '../content';
+import {timing} from '../timing';
 import {FONT, INK, MUTED, PAPER} from '../theme';
 
 // 6-16 s: one runner, one job at a time, a queue that only grows.
@@ -28,5 +29,5 @@ export default makeScene2D(function* (view) {
     yield* waitFor(0.25);
   }
   yield* all(caption().text(content.problem.limitCaption, 0.6), caption().fill(MUTED, 0.6));
-  yield* waitFor(2.5);
+  yield* waitFor(timing.problem - 5.4); // 5.4 s of animation, then hold for the voice
 });

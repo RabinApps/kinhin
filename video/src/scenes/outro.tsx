@@ -1,6 +1,7 @@
 import {Circle, Txt, makeScene2D} from '@motion-canvas/2d';
 import {createRef, waitFor} from '@motion-canvas/core';
 import {content} from '../content';
+import {timing} from '../timing';
 import {FONT, INK, MUTED, PAPER} from '../theme';
 
 // 62-70 s: the line the README ends on, then where to get it.
@@ -22,5 +23,5 @@ export default makeScene2D(function* (view) {
   yield* line().opacity(1, 0.9);
   yield* url().opacity(1, 0.7);
   yield* facts().opacity(1, 0.7);
-  yield* waitFor(3.5);
+  yield* waitFor(timing.outro - 2.3); // 2.3 s of animation, then hold for the voice
 });

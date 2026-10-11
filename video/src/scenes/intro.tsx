@@ -1,6 +1,7 @@
 import {Circle, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, waitFor} from '@motion-canvas/core';
 import {content} from '../content';
+import {timing} from '../timing';
 import {FONT, INK, MUTED, PAPER} from '../theme';
 
 // 0-6 s: the ring draws itself, then the tagline.
@@ -22,5 +23,5 @@ export default makeScene2D(function* (view) {
   yield* ring().endAngle(270, 1.8);
   yield* all(title().opacity(1, 0.8), title().y(160, 0.8));
   yield* sub().opacity(1, 0.6);
-  yield* waitFor(1.8);
+  yield* waitFor(timing.intro - 3.6); // 3.6 s of animation, then hold for the voice
 });

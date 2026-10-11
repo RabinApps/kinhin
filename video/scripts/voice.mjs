@@ -128,14 +128,40 @@ if (audition) {
 }
 
 const outDir = join(root, 'raw/voice');
+rmSync(outDir, {recursive: true, force: true});
 mkdirSync(outDir, {recursive: true});
-const jobs = script.scenes.map((scene) => ({text: scene.narration, out: join(outDir, `${scene.id}.m4a`)}));
-const durations = await render(engine, voice, jobs);
-const timings = {engine, voice, scenes: {}};
-script.scenes.forEach((scene, i) => {
-  timings.scenes[scene.id] = Math.round(durations[i] * 100) / 100;
-  console.log(`${scene.id.padEnd(9)} ${durations[i].toFixed(1)}s`);
+
+// A scene's narration is a list of cues. `cues` gives each cue's start (seconds into the scene); `narration` is
+// split into sentences that play one after another, `lead` seconds in, `gap` apart.
+const sentences = (text) => text.match(/[^.!?]+[.!?]+/g)?.map((t) => t.trim()) ?? [text];
+const jobs = [];
+const plan = script.scenes.map((scene) => {
+  const cues = scene.cues ?? sentences(scene.narration).map((text) => ({text}));
+  return {scene, cues: cues.map((cue, i) => {
+    const job = {text: cue.say ?? cue.text, out: join(outDir, `${scene.id}-${i + 1}.m4a`)};
+    jobs.push(job);
+    return {...cue, job};
+  })};
 });
-console.log(`total     ${durations.reduce((a, b) => a + b, 0).toFixed(1)}s  (${engine}: ${voice})`);
+const durations = await render(engine, voice, jobs);
+jobs.forEach((job, i) => (job.seconds = durations[i]));
+
+const lead = (scene) => scene.lead ?? script.lead ?? 0.5;
+const timings = {engine, voice, scenes: {}};
+for (const {scene, cues} of plan) {
+  let cursor = lead(scene);
+  const placed = cues.map((cue) => {
+    const start = cue.at ?? cursor;
+    const end = start + cue.job.seconds;
+    cursor = end + (script.gap ?? 0.35);
+    return {text: cue.text, file: cue.job.out.replace(root + '/', ''), start: round(start), end: round(end)};
+  });
+  const speechEnd = placed.at(-1).end;
+  timings.scenes[scene.id] = {speechEnd: round(speechEnd), cues: placed};
+  console.log(`${scene.id.padEnd(9)} speech ends ${speechEnd.toFixed(1)}s  (${placed.length} cues)`);
+}
 writeFileSync(join(root, 'out/voice-timings.json'), JSON.stringify(timings, null, 2) + '\n');
+function round(x) {
+  return Math.round(x * 100) / 100;
+}
 process.exit(0); // kokoro's phonemizer (wasm) raises an unhandled error on shutdown

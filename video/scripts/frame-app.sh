@@ -5,12 +5,19 @@
 # Needs the `perspective` and `gradients` filters (stock builds have both). Not wired into export.sh yet.
 #
 # Usage: video/scripts/frame-app.sh [in] [out] [start-seconds] [length-seconds]
-#   defaults: raw/app.mov  out/app-framed.mp4  2  14
-# Env:   SLIDE  seconds for the slide-in (default 2.5)   TILT  starting yaw in radians (default 0.5)
+#   defaults: raw/app.mov  out/app-framed.mp4; start = raw/app.json's demoStartsAt (written by record.sh);
+#   length = the app scene's length in out/timeline.json (scripts/retime.mjs), else 14
+# Env:   SPEED  playback speed of the demo (default: the app scene's "speed" in script/launch.json, else 1)
+#        SLIDE  seconds for the slide-in (default 2.5)   TILT  starting yaw in radians (default 0.5)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -d /opt/homebrew/opt/ffmpeg-full/bin ] && export PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH"
-IN="${1:-raw/app.mov}"; OUT="${2:-out/app-framed.mp4}"; SS="${3:-2}"; LEN="${4:-14}"
+IN="${1:-raw/app.mov}"; OUT="${2:-out/app-framed.mp4}"
+# read <file> <js expression over the parsed json `j`> <fallback>
+jget() { [ -f "$1" ] && node -e "const j=JSON.parse(require('fs').readFileSync('$1','utf8')); const v=($2); process.stdout.write(String(v ?? ''))" 2>/dev/null || true; }
+SS="${3:-$(jget raw/app.json 'j.demoStartsAt')}"; SS="${SS:-2}"
+LEN="${4:-$(jget out/timeline.json 'j.scenes.app.length')}"; LEN="${LEN:-14}"
+SPEED="${SPEED:-$(jget script/launch.json 'j.scenes.find(s=>s.id==="app").speed')}"; SPEED="${SPEED:-1}"
 SLIDE="${SLIDE:-2.5}"; TILT="${TILT:-0.5}"
 mkdir -p "$(dirname "$OUT")"
 
@@ -38,7 +45,8 @@ SL="($D/($D+960*sin($TH)))"; SR="($D/($D-960*sin($TH)))"
 XL="($CX-960*cos($TH)*$SL)"; XR="($CX+960*cos($TH)*$SR)"
 Y0L="($CY-540*$SL)"; Y1L="($CY+540*$SL)"; Y0R="($CY-540*$SR)"; Y1R="($CY+540*$SR)"
 
-ffmpeg -nostdin -y -loglevel error -ss "$SS" -t "$LEN" -i "$IN" \
+SRC_LEN="$(python3 -c "print($LEN * $SPEED)")"   # seconds of the recording that fill LEN seconds at SPEED
+ffmpeg -nostdin -y -loglevel error -ss "$SS" -t "$SRC_LEN" -i "$IN" \
   -f lavfi -i "gradients=s=1920x1080:r=30:d=$LEN:c0=0xffffff:c1=0xe6ebf5:x0=0:y0=0:x1=0:y1=1080:type=linear" \
   -f lavfi -i "gradients=s=${SW}x${SH}:r=30:d=$LEN:c0=0x2b3a67:c1=0x8e5ea2:x0=0:y0=0:x1=${SW}:y1=${SH}:type=linear" \
   -f lavfi -i "color=c=0x0b0b0c:s=${LW}x${LH}:r=30:d=$LEN" \
@@ -47,7 +55,7 @@ ffmpeg -nostdin -y -loglevel error -ss "$SS" -t "$LEN" -i "$IN" \
   -f lavfi -i "color=c=0x0b0b0c:s=140x44:r=30:d=$LEN" \
   -f lavfi -i "color=c=black@0:s=1920x1080:r=30:d=$LEN,format=rgba" \
   -filter_complex "
-    [0:v]fps=30,drawbox=x=14:y=6:w=130:h=48:color=0xefeded:t=fill,scale=${WW}:${WH},format=rgba,$(GEQ "$(ALLR 30)")[win];
+    [0:v]setpts=PTS/${SPEED},fps=30,drawbox=x=14:y=6:w=130:h=48:color=0xefeded:t=fill,scale=${WW}:${WH},format=rgba,$(GEQ "$(ALLR 30)")[win];
     [win]split[w1][w2];
     [w2]colorchannelmixer=rr=0:gg=0:bb=0:aa=0.45,gblur=sigma=10[wsh];
     [2:v]format=rgba,drawbox=x=0:y=0:w=${SW}:h=28:color=black@0.28:t=fill[wall];

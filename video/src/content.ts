@@ -11,6 +11,11 @@ export const content = {
     limitCaption: 'A self-hosted runner does one job at a time.',
     jobsInQueue: 7,
   },
+  solution: {
+    vm: 'fresh VM',
+    caption: 'A fresh VM for every job.',
+    done: 'Deleted when the job is done.',
+  },
   lanes: {
     // Supported forges and runtimes only (docs/forges.md, docs/runtimes.md). Not the "planned" ones.
     forges: ['GitHub', 'GitLab', 'Gitea', 'Forgejo'],

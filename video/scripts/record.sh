@@ -2,21 +2,28 @@
 # Records the kinhin window running the scripted demo fleet (macOS, Apple Silicon).
 # Needs Screen Recording + Accessibility permission for your terminal.
 #
-# Usage: video/scripts/record.sh [seconds]    (default 50: one full pass of the 48 s loop)
+# Usage: video/scripts/record.sh [seconds]    (default 80: the demo starts ~15 s in and plays 48 s)
 # Env:   KINHIN_DEMO  demo script: a built-in name (default "launch") or a repo-relative/absolute .json path
 #        VIDEO_OUT    output file (default video/raw/app.mov)
 # Output: video/raw/app.mov
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-SECONDS_TO_RECORD="${1:-50}"
+SECONDS_TO_RECORD="${1:-80}"
 DEMO="${KINHIN_DEMO:-launch}"
 OUT="${VIDEO_OUT:-video/raw/app.mov}"
 mkdir -p "$(dirname "$OUT")"
+rm -f "$OUT"   # screencapture will not overwrite
 SUPPORT_DIR="$(mktemp -d)"
 
-echo "==> building and launching the demo app (KINHIN_DEMO=$DEMO)"
-KINHIN_SUPPORT_DIR="$SUPPORT_DIR" KINHIN_DEMO="$DEMO" scripts/dev-run.sh --env-tokens &
+echo "==> building the demo app"
+swift build --product kinhin-app >/dev/null
+# The demo script starts at a fixed moment (the app idles until then), so frame-app.sh knows where in the
+# recording the story begins: raw/app.json holds that moment and when the recording started.
+now() { python3 -c 'import time; print(f"{time.time():.3f}")'; }
+ORIGIN="$(python3 -c 'import time; print(f"{time.time() + 15:.3f}")')"
+echo "==> launching the demo app (KINHIN_DEMO=$DEMO)"
+KINHIN_SUPPORT_DIR="$SUPPORT_DIR" KINHIN_DEMO="$DEMO" KINHIN_DEMO_ORIGIN="$ORIGIN" scripts/dev-run.sh --env-tokens &
 APP_PID=$!
 trap 'kill "$APP_PID" 2>/dev/null || true; rm -rf "$SUPPORT_DIR"' EXIT
 
@@ -37,6 +44,14 @@ osascript -e "tell application \"System Events\" to tell process \"$PROC\" to se
     >/dev/null 2>&1 || echo "(could not resize the window; grant Accessibility to your terminal)" >&2
 sleep 1
 
-echo "==> recording window $WID for ${SECONDS_TO_RECORD}s"
+echo "==> recording window $WID for ${SECONDS_TO_RECORD}s (keep the mouse pointer off the window)"
+REC_START="$(now)"
 screencapture -x -o -v -V "$SECONDS_TO_RECORD" -l"$WID" "$OUT"
+# Seconds into the file at which the demo script begins. screencapture starts writing about 2.2 s after it is
+# launched, so the script appears that much later than the wall clock says.
+python3 - "$ORIGIN" "$REC_START" "${OUT%.*}.json" <<'PY'
+import json, sys
+origin, rec = float(sys.argv[1]), float(sys.argv[2])
+json.dump({"demoStartsAt": round(max(0.0, origin - rec) + 2.2, 2)}, open(sys.argv[3], "w"))
+PY
 echo "==> wrote $OUT"

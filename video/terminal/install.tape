@@ -9,7 +9,7 @@ Set Width 1920
 Set Height 1080
 Set Padding 80
 Set Theme "Builtin Light"
-Set TypingSpeed 55ms
+Set TypingSpeed 40ms
 
 Hide
 Type "export KINHIN_SUPPORT_DIR=$(mktemp -d) KINHIN_TOKEN_STORE=env PATH=$PWD/../.build/out/Products/Debug:$PATH" Enter
@@ -18,7 +18,7 @@ Sleep 4s
 Show
 
 Type "curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash"
-Sleep 2s
+Sleep 1.5s
 Ctrl+C
 Hide
 Type "clear" Enter
@@ -26,4 +26,4 @@ Show
 Type "kinhin doctor"
 Sleep 600ms
 Enter
-Sleep 7s
+Sleep 5s
