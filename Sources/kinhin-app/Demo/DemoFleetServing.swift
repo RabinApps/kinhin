@@ -17,10 +17,12 @@
         private let clock: @Sendable () -> Date
         private let state: Mutex<State>
 
-        init(timeline: DemoTimeline = .launch, clock: @escaping @Sendable () -> Date = { Date() }) {
+        init(
+            timeline: DemoTimeline = .launch, origin: Date? = nil, clock: @escaping @Sendable () -> Date = { Date() }
+        ) {
             self.timeline = timeline
             self.clock = clock
-            state = Mutex(State(origin: clock()))
+            state = Mutex(State(origin: origin ?? clock()))
         }
 
         var logName: String { "demo" }
@@ -33,13 +35,17 @@
         }
 
         /// The demo named by `KINHIN_DEMO`: a built-in script name (`launch`) or a path to a `.json` script.
-        /// Nil when the variable is unset or the script is unusable (the reason is logged).
+        /// `KINHIN_DEMO_ORIGIN` (seconds since 1970) fixes when the script starts, so a recording can line the
+        /// script up with a voice-over; before it the fleet is idle. Nil when the variable is unset or the script
+        /// is unusable (the reason is logged).
         static func fromEnvironment(
             _ environment: [String: String] = ProcessInfo.processInfo.environment
         ) -> DemoFleetServing? {
             guard let name = environment["KINHIN_DEMO"], !name.isEmpty else { return nil }
             do {
-                return DemoFleetServing(timeline: try DemoTimeline.load(name))
+                let origin = environment["KINHIN_DEMO_ORIGIN"].flatMap(Double.init).map(
+                    Date.init(timeIntervalSince1970:))
+                return DemoFleetServing(timeline: try DemoTimeline.load(name), origin: origin)
             } catch {
                 Log.error("app", "KINHIN_DEMO=\(name): \(error)")
                 return nil

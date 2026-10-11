@@ -70,6 +70,25 @@ final class DemoTimelineTests: XCTestCase {
         XCTAssertTrue(stopped.records.isEmpty)
     }
 
+    func testOriginInTheFutureKeepsTheFleetIdleUntilItArrives() async throws {
+        let clock = Mutex(now)
+        let demo = DemoFleetServing(origin: now.addingTimeInterval(10), clock: { clock.withLock { $0 } })
+        let before = try await demo.status()
+        XCTAssertTrue(before.running)
+        XCTAssertTrue(before.records.isEmpty)
+        clock.withLock { $0 = now.addingTimeInterval(10 + 8) }
+        let after = try await demo.status()
+        XCTAssertGreaterThan(after.activeCount, 0)
+    }
+
+    func testEnvironmentOriginFixesWhenTheScriptStarts() async throws {
+        let future = Date().addingTimeInterval(3600).timeIntervalSince1970
+        let demo = try XCTUnwrap(
+            DemoFleetServing.fromEnvironment(["KINHIN_DEMO": "launch", "KINHIN_DEMO_ORIGIN": String(future)]))
+        let status = try await demo.status()
+        XCTAssertTrue(status.records.isEmpty)
+    }
+
     // MARK: - Scripts as data
 
     func testScriptRoundTripsThroughJSON() throws {
