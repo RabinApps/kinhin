@@ -27,6 +27,8 @@ If you only read one more section, read [Should you use it now?](#should-you-use
 
 I'm Alex Rabin. I've been writing code for 10 years and I have a full-time programming job. Before this I built [SupDesk](https://supdesk.app/en), a support console for solo founders. More of my work is at [alexrabin.com](https://www.alexrabin.com).
 
+I don't write code by hand anymore. I build with AI agents, primarily from Claude and Freebuff, and I only use models that don't train on my data. I decide what gets built and I review and test the result; the agents type the code. [How this was built](#how-this-was-built) says what that means for testing.
+
 About three months ago at my day job I set up a self-hosted Gitea runner for our Flutter app. One Mac needed to build for iOS, Android and the web, so I installed every toolchain by hand — Xcode and CocoaPods, the Android SDK, Chrome, and FVM to pin the Flutter version. It worked. It also took far longer than it should have.
 
 Then my own projects needed the same thing. I run their CI on GitHub Actions and kept hitting the free monthly minutes limits.
@@ -139,7 +141,7 @@ throwaway repository and a token, so GitHub's live runs are still my own.
 
 ## How this was built
 
-I don't write code by hand anymore. I build with AI agents, primarily from Claude and Freebuff, and I only use models that don't train on my data. I decide what gets built and I review and test the result; the agents type the code. In practice that means every change has to pass `scripts/check.sh` (build, the unit suite, format, docs and skills lint), the e2e suite is the part that runs real software rather than fakes, and anything that touches shared state also gets a ThreadSanitizer run. `scripts/check.sh` is green on the release commit. Weigh all of that however you like — it's also why the testing table above is as blunt as it is.
+Because agents type the code, the checks carry the weight. Every change has to pass `scripts/check.sh` (build, the unit suite, format, docs and skills lint), the e2e suite is the part that runs real software rather than fakes, and anything that touches shared state also gets a ThreadSanitizer run. `scripts/check.sh` is green on the release commit. Weigh all of that however you like — it's also why the testing table above is as blunt as it is.
 
 ## Where I need help
 
