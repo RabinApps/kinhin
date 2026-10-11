@@ -118,7 +118,7 @@ Caveat: because the message API is still preview and not in GitHub's published O
 ### Scale-set troubleshooting (kinhin side)
 
 The listener service log lines are tagged `[scaleset]` and live in `~/Library/Application Support/Kinhin/logs/kinhin.log` (the app; `kinhin logs -n 200` from the CLI).
-Three signatures cover almost everything.
+These signatures cover almost everything.
 
 #### `runner group 'default' was not found; create it in GitHub before attaching`
 
@@ -175,6 +175,41 @@ when it is present, otherwise the fleet's `labels:`, plus the scale-set name (wh
 valid `runs-on:` label). A job asking for anything else — an image label such as `xcode`, or the
 pool marker `kinhin-container` — is never assigned to it. Make the configured labels cover what
 your workflows request, or leave `scale_set:` off and let the classic poller route per pool.
+
+#### A second job stays queued while the VM has idle runners (`runners_per_vm > 1`)
+
+Symptom: two jobs need the same scale set, one runs, the other stays **Queued** on GitHub. `kinhin status` shows one
+VM `busy`, `queue: 2` but `desired: 1`, and inside the VM the other runners say `Listening for Jobs`.
+
+Cause: in scale-set mode GitHub hands each job to a runner it chooses, and it does not give a second job to another
+idle runner registered by the same VM; the job waits until a new runner joins the set. kinhin counts the idle slots as
+capacity (`desired = ceil(queue / runners_per_vm)`), so it never starts that runner either, and the job waits until the
+first one finishes. The listener log shows only `JobAssigned` and `JobStarted` events for the waiting job, never a
+`JobAvailable`, so acquiring jobs (which kinhin also does) cannot help.
+
+Fix: with `scale_set:`, use **`runners_per_vm: 1`**, so every queued job gets its own VM, and make sure the pool can
+hold as many VMs as jobs you run at once. On macOS that means sizing the Tart pool for **two** VMs (Apple's limit):
+
+```yaml
+runners_per_vm: 1
+vm:
+  cpu: 3          # two 3-core VMs fit where two 4-core ones did not
+  memory_gb: 8
+runtimes:
+  budget: {tart: 0.7, appleContainer: 0.29, docker: 0.01}
+```
+
+Check with `kinhin runtimes`: the Tart pool line must say `cap 2`. A CPU-bound Mac (`kinhin doctor` → `binding: cpu`)
+fits two VMs only when `2 × vm.cpu` stays within its usable cores, after `reserve.cpu`. Restart the daemon after the
+change (`kinhin daemon install` again): `runners_per_vm` and VM size need an engine rebuild. Wait for running jobs to
+finish first; see the known issue below.
+
+The listener logs every job event as `[scaleset] message <id>: <Event>#<request id>`, which is how to tell this case
+apart from a label mismatch (no events at all for the job).
+
+**Known issue: restarting while a job runs.** After a daemon restart, a recovered VM whose runner is busy can be
+deleted with `runners never registered on github` (GitHub then answers `422 … is currently running a job`), which fails
+that job. Restart or reconfigure when no jobs are running.
 
 **`session conflict` after a restart.** GitHub allows one live message session per scale set. If kinhin exits without
 cleaning up (force quit, crash), GitHub keeps the old session until its lease lapses and answers `409` to the next one.

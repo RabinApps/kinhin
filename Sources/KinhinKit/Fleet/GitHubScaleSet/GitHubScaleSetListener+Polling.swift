@@ -56,6 +56,10 @@ extension GitHubScaleSetListener {
         for message in messages {
             try Task.checkCancellation()
             let snapshotBeforeMessage = cachedSnapshot
+            if !message.events.isEmpty {
+                let kinds = message.events.map { "\($0.eventType.rawValue)#\($0.runnerRequestId)" }
+                Log.info("scaleset", "message \(message.messageId): \(kinds.joined(separator: ", "))")
+            }
             for event in message.events {
                 try await handleEvent(event)
             }

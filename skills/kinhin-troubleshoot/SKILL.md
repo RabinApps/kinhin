@@ -29,6 +29,7 @@ description: Diagnose kinhin problems - jobs queued but no VMs, runner never reg
 | VM boots but the runner never registers | The image predates the runner agent or its forge account. Re-run `kinhin image prepare`, then check `kinhin logs -n 200`. |
 | Token rejected | Re-run `kinhin auth set [--account NAME]`. Check the token's scopes and repo access (`kinhin auth status`). |
 | One account detached | A bad token detaches only that account, with the reason in `status`. Others keep serving. Fix the token. |
+| GitHub scale set: second job queued, VM has idle runners | Set `runners_per_vm: 1` and size the Tart pool for two VMs (`kinhin runtimes` shows `cap 2`); restart the daemon when no jobs run. See `docs/forges/github.md`. |
 | Config rejected, exit 3 | `kinhin config validate`. Usual causes: old top-level `repo:`/`gitea:`/`forgejo:` keys, `default: host`, `http://` on a self-hosted forge. |
 | Fleet refuses to start with `tart_softnet: true` | Install `softnet` and make the resolved binary setuid root (`chown root`, `chmod u+s`). Repeat after each `brew upgrade softnet`. |
 | First launch blocked (old or local build) | Right-click Open, or `xattr -cr /Applications/kinhin.app`. Official releases are notarized. |

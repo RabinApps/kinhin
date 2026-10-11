@@ -95,6 +95,10 @@ isolation); with `4`, one VM serves four concurrent jobs before the scaler spawn
 jobs on identical macOS stacks are the sweet spot — set it high enough that `vm.cpu`/`vm.memory_gb`
 cover the _sum_ of the jobs you expect on one VM.
 
+With a GitHub scale set (`scale_set:`), keep `runners_per_vm: 1`: GitHub does not hand a second job to another idle
+runner in the same VM, and the scaler counts those slots as capacity, so the job waits for the first one to finish
+([details](forges/github.md#a-second-job-stays-queued-while-the-vm-has-idle-runners-runners-per-vm-1)).
+
 ## Running on multiple Macs
 
 Each Mac runs its own engine and polls the forge independently; kinhin does not coordinate between

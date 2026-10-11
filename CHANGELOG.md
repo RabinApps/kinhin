@@ -43,8 +43,8 @@ cap, pause and resume, forge outages, the warm pool, routing and toolchain insta
 
 **Fixed before release**
 
-- GitHub scale-set mode now acquires each available job (`acquirejobs`), as GitHub's listener contract requires.
-  Without it, idle runners in a VM with `runners_per_vm > 1` listened while a queued job waited for a new VM.
+- GitHub scale-set mode acquires each available job (`acquirejobs`), as GitHub's listener contract requires, and logs
+  every job event (`[scaleset] message <id>: …`).
 - A scale-set session GitHub drops (after a network outage) is replaced instead of refreshed forever.
 
 **Known limitations**
@@ -55,6 +55,9 @@ cap, pause and resume, forge outages, the warm pool, routing and toolchain insta
   repository.
 - kinhin adopts every `kinhin-*` VM or container on the Mac as its own.
 - Apple allows two macOS guest VMs at once on a Mac.
+- GitHub scale sets: with `runners_per_vm > 1` a second job waits for the first instead of using an idle runner in the
+  same VM. Use `runners_per_vm: 1` and a Tart pool that holds two VMs (`docs/forges/github.md`).
+- Restarting the daemon while a job runs can delete that job's VM after recovery. Restart when the fleet is idle.
 
 More in [docs/security.md](docs/security.md#known-limits). The path to **v0.1.0** is in
 [docs/beta-roadmap.md](docs/beta-roadmap.md).

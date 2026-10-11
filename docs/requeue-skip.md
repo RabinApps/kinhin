@@ -146,4 +146,3 @@ when the build compiles, the suites pass, and the strict formatter reports no ne
 ## See also
 
 - [How scaling works](scaling.md) — the queue/running breakdown this row feeds.
-- [Fleet detail tab](plans/fleet-detail.tab.md) — the Fleet tab and per-VM drill-down.
