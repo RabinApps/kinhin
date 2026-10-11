@@ -1,0 +1,44 @@
+# TEMPORARY: compiles and tests the demo-fleet branch on a GitHub-hosted Mac while the self-hosted
+# `kinhin-xcode` runner is unavailable. Delete this file before merging.
+name: Demo check
+
+on:
+  push:
+    branches: ["claude/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: demo-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check toolchain
+        run: |
+          newest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          swift --version
+
+      - name: Lint (swift-format)
+        run: swift format lint --strict -r Sources Tests
+
+      - name: Demo tests
+        timeout-minutes: 30
+        run: swift test --filter DemoTimelineTests
+
+      - name: Release build (demo code must not ship)
+        run: |
+          swift build -c release --product kinhin-app --product kinhin
+          if strings .build/release/kinhin-app | grep -q "KINHIN_DEMO"; then
+            echo "::error::KINHIN_DEMO is present in the release binary"; exit 1
+          fi

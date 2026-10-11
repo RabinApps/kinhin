@@ -124,4 +124,14 @@ final class DemoTimelineTests: XCTestCase {
         try JSONEncoder().encode(timeline).write(to: url)
         XCTAssertNotNil(DemoFleetServing.fromEnvironment(["KINHIN_DEMO": url.path]))
     }
+
+    /// The script the docs tell contributors to copy must stay playable.
+    func testShippedExampleScriptIsValid() throws {
+        let example = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("video/demos/example.json")
+        let script = try DemoTimeline.load(example.path)
+        XCTAssertFalse(script.jobs.isEmpty)
+        XCTAssertTrue(script.jobs.contains { $0.fails }, "the example shows how a failure is written")
+    }
 }

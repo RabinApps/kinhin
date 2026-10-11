@@ -23,14 +23,14 @@ export default makeScene2D(function* (view) {
     <>
       <Circle ref={hub} size={120} lineWidth={10} stroke={INK} opacity={0} />
       {FORGES.map((name, i) => (
-        <Txt ref={forges} text={name} fontFamily={FONT} fontSize={52} fill={INK} x={-640} y={forgeY(i)} opacity={0} />
+        <Txt ref={forges} text={name} fontFamily={FONT} fontSize={52} fill={INK} x={-380} offsetX={1} y={forgeY(i)} opacity={0} />
       ))}
       {RUNTIMES.map((name, i) => (
-        <Txt ref={runtimes} text={name} fontFamily={FONT} fontSize={44} fill={INK} x={640} y={runtimeY(i)} opacity={0} />
+        <Txt ref={runtimes} text={name} fontFamily={FONT} fontSize={40} fill={INK} x={380} offsetX={-1} y={runtimeY(i)} opacity={0} />
       ))}
       {FORGES.flatMap((_, f) =>
         RUNTIMES.map((__, r) => (
-          <Line ref={lines} points={[[-480, forgeY(f)], [-60, 0], [60, 0], [380, runtimeY(r)]]} radius={80} lineWidth={2} stroke={MUTED} end={0} opacity={0.5} />
+          <Line ref={lines} points={[[-350, forgeY(f)], [-60, 0], [60, 0], [350, runtimeY(r)]]} radius={80} lineWidth={2} stroke={MUTED} end={0} opacity={0.5} />
         )),
       )}
       <Txt ref={caption} text={content.lanes.caption} fontFamily={FONT} fontSize={60} fontWeight={600} fill={INK} y={420} opacity={0} />
