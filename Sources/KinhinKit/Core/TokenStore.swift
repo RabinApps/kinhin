@@ -30,7 +30,18 @@ public enum KeychainTokenStore {
         set { serviceOverrideStorage.withLock { $0 = newValue } }
     }
     private static let serviceOverrideStorage = Mutex<String?>(nil)
-    static var service: String { serviceOverride ?? Paths.keychainService }
+    static var service: String {
+        serviceOverride ?? (isTestProcess ? testFallbackService : Paths.keychainService)
+    }
+
+    /// Belt and braces for `serviceOverride`: inside a test process the real
+    /// services are never touched, even by a test that forgot the override.
+    static let isTestProcess = NSClassFromString("XCTestCase") != nil
+    static let testFallbackService = "com.kinhin.runner.tests.unscoped"
+
+    /// True only in a real kinhin process with no test override: the one case
+    /// where the pre-rename legacy service may be read, migrated or wiped.
+    static var usesRealKeychain: Bool { serviceOverride == nil && !isTestProcess }
 
     /// Keychain service name used by the pre-rename build ("Orchard").
     /// Load falls back to it once and re-saves under the current service,
@@ -114,7 +125,7 @@ public enum KeychainTokenStore {
         }
         // One-time legacy migration: re-save under the current service, then
         // drop the pre-rename item so it never lingers in the Keychain.
-        guard serviceOverride == nil,
+        guard usesRealKeychain,
             let legacy = try load(from: legacyService, account: account)
         else { return nil }
         do {
@@ -212,7 +223,7 @@ public enum KeychainTokenStore {
         // The legacy service only exists in a real Keychain: `serviceOverride`
         // points tests at a throwaway service, and touching the real legacy
         // items from a test would delete the developer's actual token.
-        if serviceOverride == nil {
+        if usesRealKeychain {
             removed += try deleteAll(service: legacyService).map { "legacy:\($0)" }
         }
         forgetSessionTokens()

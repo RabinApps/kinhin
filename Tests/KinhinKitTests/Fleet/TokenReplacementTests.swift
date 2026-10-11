@@ -16,7 +16,7 @@ final class TokenReplacementTests: XCTestCase {
     private func withScratchKeychain(_ body: () throws -> Void) rethrows {
         KeychainTokenStore.serviceOverride = "com.kinhin.runner.tests.\(UUID().uuidString)"
         defer {
-            KeychainTokenStore.delete()
+            _ = try? KeychainTokenStore.deleteAll(service: KeychainTokenStore.service)
             KeychainTokenStore.serviceOverride = nil
         }
         try body()

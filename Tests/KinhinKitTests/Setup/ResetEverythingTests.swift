@@ -1,3 +1,4 @@
+import Security
 import Synchronization
 import XCTest
 
@@ -36,6 +37,8 @@ final class ResetEverythingTests: XCTestCase {
 
     override func tearDownWithError() throws {
         try? FileManager.default.removeItem(at: supportRoot)
+        // The scratch service's items go too, or every run leaks Keychain items.
+        _ = try? KeychainTokenStore.deleteAll(service: KeychainTokenStore.service)
         KeychainTokenStore.serviceOverride = nil
     }
 
@@ -68,9 +71,15 @@ final class ResetEverythingTests: XCTestCase {
     }
 
     private func saveTokens() throws {
-        try KeychainTokenStore.save("token-a", forge: .github)
-        try KeychainTokenStore.save("token-b", forge: .gitea)
-        try KeychainTokenStore.save("token-c", forge: .github, name: "work")
+        do {
+            try KeychainTokenStore.save("token-a", forge: .github)
+            try KeychainTokenStore.save("token-b", forge: .gitea)
+            try KeychainTokenStore.save("token-c", forge: .github, name: "work")
+        } catch KeychainTokenStore.TokenError.unhandled(let status) where status == errSecInteractionNotAllowed {
+            // A headless runner session (kinhin's own CI VM) cannot write the
+            // login keychain; the token wipe is covered wherever it can.
+            throw XCTSkip("login keychain is not writable in this session")
+        }
     }
 
     // MARK: - Planning
