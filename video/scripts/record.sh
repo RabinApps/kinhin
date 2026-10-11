@@ -21,17 +21,21 @@ APP_PID=$!
 trap 'kill "$APP_PID" 2>/dev/null || true; rm -rf "$SUPPORT_DIR"' EXIT
 
 echo "==> waiting for the kinhin process"
-for _ in $(seq 1 120); do pgrep -x kinhin >/dev/null && break; sleep 1; done
-pgrep -x kinhin >/dev/null || { echo "kinhin did not start" >&2; exit 1; }
+# The debug binary's process and window owner are "kinhin-app" (the bundled app is "kinhin").
+PROC=kinhin-app
+for _ in $(seq 1 120); do pgrep -x "$PROC" >/dev/null && break; sleep 1; done
+pgrep -x "$PROC" >/dev/null || { echo "$PROC did not start" >&2; exit 1; }
 sleep 3
 
 # Window id of kinhin's main window (occlusion-proof capture), see shots/tools/winid.swift.
 [ -x shots/tools/winid ] || swiftc -O shots/tools/winid.swift -o shots/tools/winid
-WID="$(shots/tools/winid kinhin)"
+WID="$(shots/tools/winid "$PROC" || true)"
 [ -n "$WID" ] || { echo "no kinhin window; open it from the menu bar item first" >&2; exit 1; }
 
-# Bring the Fleet tab forward; drive.py also captures a still we do not need here.
-python3 shots/tools/drive.py fleet demo-fleet >/dev/null
+# A taller window shows the whole Fleet tab without scrolling (needs Accessibility for the terminal).
+osascript -e "tell application \"System Events\" to tell process \"$PROC\" to set {position, size} of window 1 to {{300, 40}, {820, 880}}" \
+    >/dev/null 2>&1 || echo "(could not resize the window; grant Accessibility to your terminal)" >&2
+sleep 1
 
 echo "==> recording window $WID for ${SECONDS_TO_RECORD}s"
 screencapture -x -o -v -V "$SECONDS_TO_RECORD" -l"$WID" "$OUT"

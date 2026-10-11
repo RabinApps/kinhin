@@ -25,6 +25,13 @@
 
         var logName: String { "demo" }
 
+        /// The forges the script queues work on, in first-use order.
+        var forgeNames: [String] {
+            var seen: [String] = []
+            for job in timeline.jobs where !seen.contains(job.account) { seen.append(job.account) }
+            return seen
+        }
+
         /// The demo named by `KINHIN_DEMO`: a built-in script name (`launch`) or a path to a `.json` script.
         /// Nil when the variable is unset or the script is unusable (the reason is logged).
         static func fromEnvironment(

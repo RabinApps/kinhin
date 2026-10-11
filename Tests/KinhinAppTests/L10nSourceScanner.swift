@@ -74,7 +74,11 @@ struct L10nSourceScanner {
 
     /// Literals that read like prose but are deliberately not in the catalog (reason in the value).
     static let allowedProse: [String: String] = [
-        "kinhin": "product name"
+        "kinhin": "product name",
+        // Workflow and step names in the scripted demo fleet (Demo/DemoTimeline.swift, debug builds only).
+        "Lint & test": "demo script data", "Build app": "demo script data", "Build docs": "demo script data",
+        "Set up job": "demo script data", "Install toolchain": "demo script data",
+        "Post checkout": "demo script data",
     ]
 
     // MARK: - Scanning

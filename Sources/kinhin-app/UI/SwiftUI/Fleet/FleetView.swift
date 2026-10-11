@@ -157,6 +157,26 @@ struct FleetView: View {
     /// org-only scope and the fleet-wide button.
     private var requeueBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
+            #if DEBUG
+                if let forges = model.demoForges {
+                    ForEach(forges, id: \.self) { forge in
+                        HStack(spacing: 6) {
+                            Text(verbatim: forge).frame(width: 120, alignment: .leading)
+                            Button("Requeue") {}
+                            Button("Skip") {}
+                        }
+                    }
+                } else {
+                    attachedForgeRows
+                }
+            #else
+                attachedForgeRows
+            #endif
+        }
+    }
+
+    @ViewBuilder private var attachedForgeRows: some View {
+        VStack(alignment: .leading, spacing: 6) {
             if model.attachedForges.isEmpty {
                 secondary(Text("No forges attached — queue will always be empty."))
             } else {

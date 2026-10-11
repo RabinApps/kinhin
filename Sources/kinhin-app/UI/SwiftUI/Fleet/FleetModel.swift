@@ -63,6 +63,12 @@ final class FleetModel {
         controller.engine?.forges.map { [$0.key: $0.value] } ?? []
     }
 
+    #if DEBUG
+        /// The forges a `KINHIN_DEMO` script queues work on; nil outside demo mode. The demo has no live `Forge`
+        /// clients, so the Fleet tab lists these instead of `attachedForges`.
+        var demoForges: [String]? { (controller.service as? DemoFleetServing)?.forgeNames }
+    #endif
+
     init(controller: FleetController) {
         self.controller = controller
     }
