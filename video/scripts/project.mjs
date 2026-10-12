@@ -8,7 +8,7 @@
 import {existsSync, readFileSync, readdirSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {SCENE_TYPES, fitScale, isNarrow, resolveCaptions, resolveFormat, resolveTheme, validateProject} from '../shared/resolve.mjs';
+import {SCENE_TYPES, fitScale, isNarrow, resolveCaptions, resolveFormat, resolveMusic, resolveTheme, validateProject} from '../shared/resolve.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -38,7 +38,8 @@ export function loadProject(name = process.env.VIDEO_PROJECT || 'launch') {
   const adapterFile = adapter && join(root, 'adapters', adapter, 'adapter.json');
   const adapterManifest = adapterFile && existsSync(adapterFile) ? JSON.parse(readFileSync(adapterFile, 'utf8')) : {};
   const captions = resolveCaptions({theme, project, adapter: adapterManifest, env: process.env});
-  return {name: project.name ?? stem, stem, slug, outName, adapter, captions, file, project, scenes, theme, format, fit: fitScale(format)};
+  const music = resolveMusic({project, adapter: adapterManifest, env: process.env});
+  return {name: project.name ?? stem, stem, slug, outName, adapter, captions, music, file, project, scenes, theme, format, fit: fitScale(format)};
 }
 
 const hex = (c) => c.replace('#', '0x');

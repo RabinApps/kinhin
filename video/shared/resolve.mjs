@@ -138,6 +138,58 @@ export function resolveCaptions({theme, project = {}, adapter = {}, env = {}}) {
   };
 }
 
+// ---- Music ------------------------------------------------------------------------------------------------------------
+
+const normalizeMusic = (x) => (x === false ? {enabled: false} : x === true || x === undefined || x === null ? {} : typeof x === 'string' ? {track: x} : x);
+
+/** What is wrong with a "music" setting (false, a track name or path, or an object), in words. */
+export function validateMusic(raw) {
+  const problems = [];
+  if (raw === undefined || typeof raw === 'boolean' || typeof raw === 'string') return problems;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return ['"music" must be false, a track, or an object'];
+  if ('enabled' in raw && typeof raw.enabled !== 'boolean') problems.push('music.enabled must be true or false');
+  if ('track' in raw && (typeof raw.track !== 'string' || !raw.track)) problems.push('music.track must be a catalog name, a file path or an https URL');
+  if (typeof raw.track === 'string' && /^https?:\/\//.test(raw.track)) {
+    if (!raw.track.startsWith('https://')) problems.push('music.track: a URL must be https');
+    if (!/^[0-9a-f]{64}$/i.test(raw.sha256 ?? '')) problems.push('music.sha256 (64 hex digits) is required with a URL, so the file is checked');
+  }
+  if ('sha256' in raw && !/^[0-9a-f]{64}$/i.test(raw.sha256)) problems.push('music.sha256 must be 64 hex digits');
+  if ('volume' in raw && !(typeof raw.volume === 'number' && raw.volume >= 0 && raw.volume <= 1.5)) problems.push('music.volume must be a number from 0 to 1.5');
+  for (const k of ['fadeIn', 'fadeOut']) if (k in raw && !(typeof raw[k] === 'number' && raw[k] >= 0 && raw[k] <= 30)) problems.push(`music.${k} must be seconds from 0 to 30`);
+  if ('start' in raw && !(typeof raw.start === 'number' && raw.start >= 0)) problems.push('music.start must be seconds into the track, 0 or more');
+  for (const k of ['duck', 'loop']) if (k in raw && typeof raw[k] !== 'boolean') problems.push(`music.${k} must be true or false`);
+  if ('credit' in raw && typeof raw.credit !== 'string') problems.push('music.credit must be text');
+  return problems;
+}
+
+/**
+ * The music a build uses. Later wins: the adapter's "music", the project's, then the environment (VIDEO_MUSIC = a track,
+ * a path, or off; VIDEO_MUSIC_VOLUME; and the older NO_MUSIC). A project's `"music": false` turns off what an adapter
+ * selects. With no track selected there is no music. `credit` is written next to the video when a track has one.
+ */
+export function resolveMusic({project = {}, adapter = {}, env = {}}) {
+  const problems = [...validateMusic(adapter.music), ...validateMusic(project.music)];
+  if (problems.length) throw new Error(problems.join('; '));
+  const cfg = deepMerge(deepMerge({}, normalizeMusic(adapter.music)), normalizeMusic(project.music));
+  let enabled = cfg.enabled !== false;
+  let track = cfg.track;
+  let sha256 = cfg.sha256;
+  const mode = (env.VIDEO_MUSIC ?? '').trim();
+  if (env.NO_MUSIC || ['off', 'none', 'false'].includes(mode.toLowerCase())) enabled = false;
+  else if (mode) {
+    track = mode;
+    enabled = true;
+    if (/^https?:\/\//.test(mode)) sha256 = env.VIDEO_MUSIC_SHA256 || undefined;
+  }
+  if (/^https?:\/\//.test(track ?? '') && !/^[0-9a-f]{64}$/i.test(sha256 ?? '')) throw new Error('a music URL needs its sha256 (music.sha256, or VIDEO_MUSIC_SHA256), so the file is checked');
+  let volume = cfg.volume ?? 0.35;
+  if (env.VIDEO_MUSIC_VOLUME) {
+    volume = Number(env.VIDEO_MUSIC_VOLUME);
+    if (!(volume >= 0 && volume <= 1.5)) throw new Error('VIDEO_MUSIC_VOLUME must be a number from 0 to 1.5');
+  }
+  return {enabled: enabled && !!track, track: track ?? null, sha256: sha256 ?? null, volume, duck: cfg.duck ?? true, fadeIn: cfg.fadeIn ?? 2, fadeOut: cfg.fadeOut ?? 3, start: cfg.start ?? 0, loop: cfg.loop ?? true, credit: cfg.credit ?? null};
+}
+
 /** True for portrait and square frames, which get their own layouts. */
 export const isNarrow = (format) => format.width / format.height < 1.2;
 
@@ -145,7 +197,7 @@ export const isNarrow = (format) => format.width / format.height < 1.2;
 export function validateProject(project) {
   const problems = [];
   if (!Array.isArray(project.scenes) || project.scenes.length === 0) problems.push('a project needs a "scenes" list');
-  problems.push(...validateCaptions(project.captions));
+  problems.push(...validateCaptions(project.captions), ...validateMusic(project.music));
   const ids = new Set();
   for (const [i, scene] of (project.scenes ?? []).entries()) {
     const where = `scene ${i + 1}${scene.id ? ` ("${scene.id}")` : ''}`;

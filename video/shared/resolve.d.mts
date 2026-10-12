@@ -21,3 +21,6 @@ export const CAPTION_POSITIONS: string[];
 export function validateCaptions(cfg: unknown): string[];
 export function assColor(hex: string): string;
 export function resolveCaptions(args: {theme: Theme; project?: any; adapter?: any; env?: Record<string, string | undefined>}): Captions;
+export interface Music { enabled: boolean; track: string | null; sha256: string | null; volume: number; duck: boolean; fadeIn: number; fadeOut: number; start: number; loop: boolean; credit: string | null }
+export function validateMusic(raw: unknown): string[];
+export function resolveMusic(args: {project?: any; adapter?: any; env?: Record<string, string | undefined>}): Music;

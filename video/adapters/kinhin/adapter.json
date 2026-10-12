@@ -4,6 +4,9 @@
   "captions": {
     "burn": false
   },
+  "music": {
+    "track": "first-light-particles"
+  },
   "clips": {
     "app": {
       "kind": "app",

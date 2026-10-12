@@ -30,10 +30,10 @@ RUN printf '%s\n' \
  && rm warm.mjs \
  && find node_modules/@huggingface -name '*.onnx' | grep -q .
 
-# The CC0 music bed (First Light Particles by Yoiyami, https://opengameart.org/node/182244), checked against its SHA-256, so
-# a build needs no network. scripts/fetch-music.sh copies it into raw/ (the build's raw/ is a bind mount, hiding /work/raw).
-RUN mkdir -p /opt/music \
- && curl -fsSL https://opengameart.org/sites/default/files/first_light_particles_0.wav -o /opt/music/first_light_particles.wav \
- && echo "f0538a1a67450cc1d5e305fad5bc0d5d422ad809f720d695ab356e55fbe40fc5  /opt/music/first_light_particles.wav" | sha256sum -c -
+# The catalog's bundled music (music/catalog.json: CC0 tracks), checked against their SHA-256, so a build that selects one
+# needs no network. scripts/fetch-music.mjs copies from /opt/music (the build's raw/ is a bind mount, hiding /work/raw).
+COPY scripts/fetch-music.mjs /opt/bake/scripts/fetch-music.mjs
+COPY music/catalog.json /opt/bake/music/catalog.json
+RUN node /opt/bake/scripts/fetch-music.mjs --bake /opt/music && rm -rf /opt/bake
 
 ENV KINHIN_VIDEO_IN_CONTAINER=1

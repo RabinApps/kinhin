@@ -205,7 +205,7 @@ kinds. The [gallery](video-gallery.md) shows each one and how to build it; `vide
    `out/<slug>.captions.srt`.
 3. `scripts/render-titles.mjs` renders every canvas scene headlessly (Playwright's Chromium) to `raw/scenes/<project>/`.
 4. `scripts/frames.mjs` puts the device and terminal clips in their frames.
-5. `scripts/fetch-music.sh` downloads the CC0 music bed and checks its SHA-256 (`NO_MUSIC=1` skips it).
+5. `scripts/fetch-music.mjs` finds the project's music track (see [Music](#music)), checks its SHA-256 and writes `out/music.json`; no track, no music.
 6. `scripts/assemble.mjs` joins the scenes with short fades, the voice, music ducked under it, and captions into
    `out/<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt` (every caption, for a player). Burned-in captions
    follow the project's `captions` block (see [Captions](#captions)).
@@ -241,6 +241,25 @@ then `--captions`, `--caption-style` (or `VIDEO_CAPTIONS`, `VIDEO_CAPTION_STYLE`
 captions off, so the launch video and `examples/kinhin-30s` have a clean picture; add `"captions": {"burn": true}` to a
 project (or pass `--captions on`) to bring them back. The [gallery](video-gallery.md#captions) shows every style.
 
+### Music
+
+Music is a setting, like captions. Nothing plays unless an adapter or project selects a track:
+
+```json
+"music": { "track": "first-light-particles", "volume": 0.35, "duck": true, "fadeIn": 2, "fadeOut": 3, "start": 0, "loop": true }
+```
+
+`track` is a **catalog name** (`music/catalog.json`; ships `first-light-particles`, CC0, baked into the container image so a
+build needs no network), a **file** (`"music/my-track.mp3"`, relative to `video/`; mp3, m4a, wav, flac or ogg) or an
+**https URL** with `"sha256"` (the download is refused if it does not match). `"music": "music/my-track.mp3"` is short for
+`{"track": …}` and `"music": false` turns off what an adapter selects. Precedence, later wins: adapter, project, then the
+environment: `--music <track|file|URL|off>`, `VIDEO_MUSIC`, `VIDEO_MUSIC_SHA256`, `VIDEO_MUSIC_VOLUME`, `NO_MUSIC=1`.
+`credit` text (or a catalog entry's) is written to `out/music-credit.txt` for your video description.
+
+The kinhin adapter selects First Light Particles, so the launch video and every kinhin project use it; another product's
+adapter or project picks its own. To add a catalog track, add an entry to `music/catalog.json` (`url`, `sha256`, `license`,
+`ext`; `"bundled": true` bakes it into the image). A track you supply is your responsibility to have the right to use.
+
 ### Faster iteration
 
 A scene is re-rendered only when something that shapes it changed (its type and props, its length, the theme, the
@@ -267,7 +286,7 @@ starts the shot there. Keep the mouse pointer off the window while it records. A
 `scripts/make-reference.sh --adapter <name>` refreshes the adapter's `reference/` clips (`--terminal` for just the terminal
 ones).
 
-The launch video's music is [First Light Particles](https://opengameart.org/node/182244) by Yoiyami (CC0: no credit needed,
+The kinhin launch video's music is [First Light Particles](https://opengameart.org/node/182244) by Yoiyami (CC0: no credit needed,
 anyone may reuse it). Use only CC0 tracks, and do not commit tracks under licences that forbid redistributing the file on
 its own (Pixabay's does).
 

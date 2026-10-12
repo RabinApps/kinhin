@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, resolveFormat, resolveTheme, validateProject} from '../../shared/resolve.mjs';
+import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject} from '../../shared/resolve.mjs';
 import {readJson, root, themeNames} from '../helpers.mjs';
 import {join} from 'node:path';
 
@@ -151,4 +151,41 @@ test('assColor converts to libass order and inverts opacity', () => {
   assert.equal(assColor('#102030'), '&H00302010&', 'blue, green, red');
   assert.equal(assColor('#000000b3'), '&H4C000000&', 'b3 = 70% opaque = 0x4C transparent');
   assert.equal(assColor('#ff000000'), '&HFF0000FF&', 'fully transparent red');
+});
+
+// ---- music ------------------------------------------------------------------------------------------------------------
+
+const mus = (a) => resolveMusic({project: {}, adapter: {}, env: {}, ...a});
+const SHA = 'a'.repeat(64);
+
+test('no track selected means no music, and the defaults are a ducked bed at 0.35', () => {
+  assert.equal(mus({}).enabled, false);
+  const m = mus({project: {music: 'first-light-particles'}});
+  assert.deepEqual([m.enabled, m.track, m.volume, m.duck, m.loop], [true, 'first-light-particles', 0.35, true, true]);
+});
+
+test('music: the adapter selects, the project overrides or turns it off, the environment wins', () => {
+  const adapter = {music: {track: 'first-light-particles', volume: 0.2}};
+  assert.equal(mus({adapter}).track, 'first-light-particles');
+  assert.equal(mus({adapter}).volume, 0.2);
+  assert.equal(mus({adapter, project: {music: {track: 'music/mine.mp3'}}}).track, 'music/mine.mp3');
+  assert.equal(mus({adapter, project: {music: {track: 'music/mine.mp3'}}}).volume, 0.2);
+  assert.equal(mus({adapter, project: {music: false}}).enabled, false);
+  assert.equal(mus({adapter, env: {VIDEO_MUSIC: 'off'}}).enabled, false);
+  assert.equal(mus({adapter, env: {NO_MUSIC: '1'}}).enabled, false);
+  assert.equal(mus({adapter, env: {VIDEO_MUSIC: 'music/x.wav', VIDEO_MUSIC_VOLUME: '0.5'}}).track, 'music/x.wav');
+  assert.equal(mus({adapter, env: {VIDEO_MUSIC_VOLUME: '0.5'}}).volume, 0.5);
+});
+
+test('a music URL needs its sha256, and bad values are named', () => {
+  assert.throws(() => mus({project: {music: {track: 'https://example.com/a.mp3'}}}), /sha256/);
+  assert.equal(mus({project: {music: {track: 'https://example.com/a.mp3', sha256: SHA}}}).enabled, true);
+  assert.equal(mus({env: {VIDEO_MUSIC: 'https://example.com/a.mp3', VIDEO_MUSIC_SHA256: SHA}}).sha256, SHA);
+  assert.throws(() => mus({env: {VIDEO_MUSIC: 'https://example.com/a.mp3'}}), /sha256/);
+  assert.throws(() => mus({env: {VIDEO_MUSIC_VOLUME: '9'}}), /VIDEO_MUSIC_VOLUME/);
+  assert.match(validateMusic({track: 'http://x/a.mp3', sha256: SHA}).join(), /https/);
+  assert.match(validateMusic({volume: 3}).join(), /volume/);
+  assert.match(validateMusic({fadeIn: -1, duck: 'yes'}).join(), /fadeIn/);
+  assert.deepEqual(validateMusic(false), []);
+  assert.match(validateProject({name: 'x', scenes: [], music: 7}).join(), /music/);
 });

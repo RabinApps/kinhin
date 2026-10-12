@@ -3,11 +3,11 @@
 // Every scene is one clip, in the project's order: canvas scenes come from raw/scenes/<project>/<id>.mp4
 // (render-titles.mjs), device and terminal scenes from out/<id>.mp4 (frames.mjs). Each is made exactly as long as
 // the scene needs (a short clip holds its last frame) and fades in and out through the theme's backdrop; the
-// narration is placed cue by cue, music (raw/music.*) ducks under the voice, and captions are burned in.
-//   raw/music.{mp3,m4a,wav,flac,ogg}   optional
+// narration is placed cue by cue, music (out/music.json) ducks under the voice, and captions are burned in.
+//   out/music.json                     optional (written by fetch-music.mjs)
 // Outputs (out/): <project>.mp4, .webm, -poster.png, -hero.gif, and <project>.srt (every caption, for a player)
 // Captions follow the project's `captions` block (burn on or off, which scenes, a style); out/<project>.srt has every cue for a player either way.
-// Usage: node scripts/assemble.mjs      Env: VIDEO_CAPTIONS=on|off|all, VIDEO_CAPTION_STYLE, MUSIC_VOLUME (default 0.35, before ducking),
+// Usage: node scripts/assemble.mjs      Env: VIDEO_CAPTIONS=on|off|all, VIDEO_CAPTION_STYLE, the music settings from out/music.json (see fetch-music.mjs),
 //        VIDEO_FAST=1 (a preview: quicker encode, no WebM)
 import {execFileSync, spawnSync} from 'node:child_process';
 import {existsSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
@@ -53,15 +53,18 @@ graph += `;${cues.map((_, i) => `[v${i}]`).join('')}amix=inputs=${cues.length}:n
 ff([...inputs, '-filter_complex', graph, '-map', '[voice]', '-t', String(total), '-ar', '48000', 'out/voice.wav']);
 
 // 3. Optional music under the voice: fade in, duck while the narrator speaks, fade out.
-const music = ['mp3', 'm4a', 'wav', 'flac', 'ogg'].map((e) => `raw/music.${e}`).find(existsSync);
+const mcfg = existsSync('out/music.json') ? JSON.parse(readFileSync('out/music.json', 'utf8')) : {enabled: false};
+const music = mcfg.enabled && mcfg.file ? mcfg.file : null;
 let audio = 'out/voice.wav';
 if (music) {
-  const vol = process.env.MUSIC_VOLUME ?? '0.35';
+  const fadeOut = Math.min(mcfg.fadeOut, total);
+  const shaped = `atrim=0:${total},asetpts=N/SR/TB,volume=${mcfg.volume},afade=t=in:d=${mcfg.fadeIn}` + (fadeOut ? `,afade=t=out:st=${Math.max(0, total - fadeOut)}:d=${fadeOut}` : '');
+  const mix = mcfg.duck
+    ? `[0:a]asplit[vs][vm];[m][vs]sidechaincompress=threshold=0.02:ratio=8:attack=30:release=500[duck];[vm][duck]amix=inputs=2:normalize=0[mix]`
+    : `[0:a][m]amix=inputs=2:normalize=0[mix]`;
   ff([
-    '-i', 'out/voice.wav', '-stream_loop', '-1', '-i', music, '-filter_complex',
-    `[1:a]atrim=0:${total},volume=${vol},afade=t=in:d=2,afade=t=out:st=${total - 3}:d=3[m];` +
-      `[0:a]asplit[vs][vm];[m][vs]sidechaincompress=threshold=0.02:ratio=8:attack=30:release=500[duck];` +
-      `[vm][duck]amix=inputs=2:normalize=0[mix]`,
+    '-i', 'out/voice.wav', ...(mcfg.loop ? ['-stream_loop', '-1'] : []), ...(mcfg.start ? ['-ss', String(mcfg.start)] : []), '-i', music, '-filter_complex',
+    `[1:a]${shaped}[m];${mix}`,
     '-map', '[mix]', '-t', String(total), '-ar', '48000', 'out/audio.wav',
   ]);
   audio = 'out/audio.wav';

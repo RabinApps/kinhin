@@ -4,7 +4,7 @@ import {join} from 'node:path';
 import {test} from 'node:test';
 import {loadAdapter, resolveClip} from '../../scripts/adapter.mjs';
 import {loadProject, shellEnv} from '../../scripts/project.mjs';
-import {projectNames, root, themeNames} from '../helpers.mjs';
+import {projectNames, readJson, root, themeNames} from '../helpers.mjs';
 
 const projects = projectNames();
 
@@ -85,4 +85,15 @@ test('kinhin videos burn no captions; every other adapter keeps them, and the ca
   const saved = process.env.VIDEO_CAPTIONS;
   process.env.VIDEO_CAPTIONS = 'on';
   try { assert.equal(loadProject('launch').captions.burn, true); } finally { saved === undefined ? delete process.env.VIDEO_CAPTIONS : (process.env.VIDEO_CAPTIONS = saved); }
+});
+
+test('the kinhin adapter keeps First Light Particles, and a project can opt out or choose its own', async () => {
+  const {resolveMusic} = await import('../../shared/resolve.mjs');
+  const adapter = readJson(join(root, 'adapters/kinhin/adapter.json'));
+  assert.equal(resolveMusic({project: {}, adapter, env: {}}).track, 'first-light-particles');
+  assert.equal(resolveMusic({project: {music: false}, adapter, env: {}}).enabled, false);
+  const catalog = readJson(join(root, 'music/catalog.json')).tracks;
+  const t = catalog['first-light-particles'];
+  assert.match(t.sha256, /^[0-9a-f]{64}$/);
+  assert.equal(t.license, 'CC0-1.0');
 });
