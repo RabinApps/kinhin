@@ -5,7 +5,8 @@
 # This one makes a drifting gradient with a grid, with ffmpeg, so the pipeline has something to frame. Replace the body with
 # whatever records your product: screencapture on a Mac, a Playwright session (scripts/record-web.sh), a script that
 # drives your app in a container. Make the story start at a known moment and write that moment into app.json.
-# Usage: video/adapters/template/record-app.sh [seconds]      Env: VIDEO_RAW_DIR (default video/raw/template)
+# Usage: video/adapters/template/record-app.sh [seconds]
+# Env:   VIDEO_RAW_DIR  where to write: an absolute path (scripts/record-clip.mjs passes one); default video/raw/template
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 [ -d /opt/homebrew/opt/ffmpeg-full/bin ] && export PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH"

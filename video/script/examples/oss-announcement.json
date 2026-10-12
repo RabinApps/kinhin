@@ -1,0 +1,77 @@
+{
+  "name": "Introducing Widget",
+  "theme": "paper",
+  "format": "4:5",
+  "voice": {
+    "engine": "kokoro",
+    "name": "bf_emma"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "Introducing Widget",
+        "subtitle": "a tiny open-source library",
+        "mark": "ring"
+      },
+      "narration": "Introducing Widget, a tiny open-source library."
+    },
+    {
+      "id": "why",
+      "type": "statement",
+      "props": {
+        "text": "Small on purpose.",
+        "sub": "No dependencies."
+      },
+      "narration": "It is small on purpose, with no dependencies."
+    },
+    {
+      "id": "numbers",
+      "type": "stats",
+      "props": {
+        "items": [
+          {
+            "value": "3",
+            "label": "KB gzipped"
+          },
+          {
+            "value": "0",
+            "label": "dependencies"
+          },
+          {
+            "value": "100%",
+            "label": "typed"
+          }
+        ],
+        "caption": "Small, typed, and free."
+      },
+      "narration": "Three kilobytes, zero dependencies, fully typed."
+    },
+    {
+      "id": "install",
+      "type": "code",
+      "props": {
+        "label": "terminal",
+        "lines": [
+          "$ npm install widget"
+        ],
+        "caption": "One line to install."
+      },
+      "narration": "Install it with one line."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "Star it. Use it.",
+        "url": "github.com/example/widget",
+        "facts": [
+          "MIT licensed"
+        ]
+      },
+      "narration": "Give it a try."
+    }
+  ],
+  "overrides": {}
+}

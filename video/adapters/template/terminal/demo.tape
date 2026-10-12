@@ -13,7 +13,7 @@ Type "echo 'hello from my product'"
 Sleep 400ms
 Enter
 Sleep 1s
-Type "ls"
+Type "echo 'build ok, tests ok'"
 Sleep 400ms
 Enter
 Sleep 2500ms

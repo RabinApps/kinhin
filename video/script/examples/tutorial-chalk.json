@@ -1,0 +1,61 @@
+{
+  "name": "Deploy in three steps",
+  "theme": "chalk",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_bella"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "Deploy in three steps",
+        "subtitle": "a quick tutorial",
+        "mark": "none"
+      },
+      "narration": "Let's deploy in three steps."
+    },
+    {
+      "id": "steps",
+      "type": "steps",
+      "props": {
+        "title": "The plan",
+        "steps": [
+          "Build the image",
+          "Push it",
+          "Run it"
+        ]
+      },
+      "narration": "Build the image, push it, and run it."
+    },
+    {
+      "id": "code",
+      "type": "code",
+      "props": {
+        "label": "shell",
+        "lines": [
+          "$ docker build -t app .",
+          "$ docker push app",
+          "$ docker run -p 8080:80 app"
+        ],
+        "caption": "Three commands."
+      },
+      "narration": "That is three commands."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "You're live.",
+        "url": "example.com/docs",
+        "facts": [
+          "Next: add a domain"
+        ]
+      },
+      "narration": "And you're live."
+    }
+  ],
+  "overrides": {}
+}

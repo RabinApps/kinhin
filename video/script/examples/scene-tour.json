@@ -1,0 +1,161 @@
+{
+  "name": "Every scene type",
+  "theme": "midnight",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_bella"
+  },
+  "scenes": [
+    {
+      "id": "title",
+      "type": "title",
+      "props": {
+        "title": "Ten scene types",
+        "subtitle": "a tour",
+        "mark": "ring"
+      },
+      "narration": "Ten scene types, in under a minute."
+    },
+    {
+      "id": "statement",
+      "type": "statement",
+      "props": {
+        "text": "Say one thing, big.",
+        "sub": "A statement."
+      },
+      "narration": "A statement says one thing, big."
+    },
+    {
+      "id": "queue",
+      "type": "queue",
+      "props": {
+        "runner": "1 worker",
+        "count": 6,
+        "caption": "Work piles up.",
+        "caption2": "One at a time."
+      },
+      "narration": "A queue shows work piling up behind one worker."
+    },
+    {
+      "id": "parallel",
+      "type": "parallel",
+      "props": {
+        "items": [
+          "task a",
+          "task b",
+          "task c"
+        ],
+        "card": "fresh worker",
+        "caption": "Each gets its own.",
+        "done": "Gone when done."
+      },
+      "narration": "Parallel shows each task getting its own fresh worker, then vanishing."
+    },
+    {
+      "id": "map",
+      "type": "map",
+      "props": {
+        "left": [
+          "Source",
+          "Docs",
+          "Chat"
+        ],
+        "right": [
+          "Web",
+          "Mobile"
+        ],
+        "caption": "Many in, many out.",
+        "note": "One hub between."
+      },
+      "narration": "A map joins several things to several others through one hub."
+    },
+    {
+      "id": "stats",
+      "type": "stats",
+      "props": {
+        "items": [
+          {
+            "value": "10",
+            "label": "scene types"
+          },
+          {
+            "value": "5",
+            "label": "themes"
+          },
+          {
+            "value": "4",
+            "label": "formats"
+          }
+        ],
+        "caption": "Numbers count up."
+      },
+      "narration": "Stats count up from zero."
+    },
+    {
+      "id": "steps",
+      "type": "steps",
+      "props": {
+        "title": "Three steps",
+        "steps": [
+          "Write the script",
+          "Pick a theme",
+          "Run the build"
+        ]
+      },
+      "narration": "Steps fill in one at a time."
+    },
+    {
+      "id": "code",
+      "type": "code",
+      "props": {
+        "label": "terminal",
+        "lines": [
+          "$ video/scripts/build.sh --container",
+          "# voice, scenes, frames, mix",
+          "wrote out/scene-tour.mp4"
+        ],
+        "caption": "Code types itself."
+      },
+      "narration": "Code types itself, line by line."
+    },
+    {
+      "id": "compare",
+      "type": "compare",
+      "props": {
+        "left": {
+          "title": "Before",
+          "items": [
+            "Manual",
+            "Slow",
+            "One size"
+          ]
+        },
+        "right": {
+          "title": "After",
+          "items": [
+            "Scripted",
+            "Fast",
+            "Every format"
+          ]
+        },
+        "caption": "Before and after."
+      },
+      "narration": "Compare puts before next to after."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "Mix and match.",
+        "url": "docs/making-a-video.md",
+        "facts": [
+          "10 scene types",
+          "5 themes"
+        ]
+      },
+      "narration": "Mix and match them all."
+    }
+  ],
+  "overrides": {}
+}
