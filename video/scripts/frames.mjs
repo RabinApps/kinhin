@@ -19,8 +19,21 @@ for (const line of shellEnv(p).split('\n')) {
   const [, k, v] = line.match(/^export (\w+)='(.*)'$/);
   env[k] = v;
 }
-const named = {app: ['raw/app.mov', 'reference/app.mp4'], install: ['raw/install.mp4', 'reference/install.mp4']};
-const resolveClip = (clip) => (named[clip] ? named[clip].find(existsSync) : clip);
+// "app" and "install" are the clips this repo records. The terminal comes in four variants (scripts/record-terminal.sh):
+// light or dark to suit the theme, landscape or portrait to suit the format; a missing variant falls back to the plain one.
+const narrow = env.VIDEO_NARROW === '1';
+const variant = (base) => (base === 'install' ? `install${env.TERMINAL_MODE === 'dark' ? '-dark' : ''}${narrow ? '-portrait' : ''}` : base);
+const named = (name) => [`raw/${name}.${name === 'app' ? 'mov' : 'mp4'}`, `reference/${name}.mp4`];
+function resolveClip(clip) {
+  if (!['app', 'install'].includes(clip)) return clip;
+  for (const name of [variant(clip), clip]) {
+    const found = named(name).find(existsSync);
+    if (found) {
+      if (name !== variant(clip)) console.warn(`  note: no ${variant(clip)} clip yet; using ${name} (record it with scripts/record-terminal.sh)`);
+      return found;
+    }
+  }
+}
 
 for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   const length = timeline.scenes[scene.id].length;

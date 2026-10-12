@@ -16,9 +16,14 @@ LEN="${3:-$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$IN")}"
 
 W="$VIDEO_W"; H="$VIDEO_H"
 sc() { python3 -c "print(max(1, round($1 * $VIDEO_FIT)))"; }
-CW=$(sc 1560); CH=$((CW * 9 / 16)); TB=$(sc 46); WW=$CW; WH=$((CH + TB)); R=$(sc 22)   # content, title bar, window
+CLIP_W="$(ffprobe -v error -select_streams v -show_entries stream=width -of csv=p=0 "$IN")"
+CLIP_H="$(ffprobe -v error -select_streams v -show_entries stream=height -of csv=p=0 "$IN")"
+if [ "${VIDEO_NARROW:-0}" = 1 ]; then CW=$((W * 92 / 100)); else CW=$(sc 1560); fi   # content width
+CH=$((CW * CLIP_H / CLIP_W)); TB=$(sc 46); WW=$CW; WH=$((CH + TB)); R=$(sc 22)         # content, title bar, window
 M=$(sc 90)   # margin around the shadow layer so the blur can spread outside the window
-WX=$(((W - WW) / 2)); WY=$(((H - WH) / 2 - $(sc 10)))
+WX=$(((W - WW) / 2))
+# Portrait and square frames put the window high, leaving the lower part for the captions.
+if [ "${VIDEO_NARROW:-0}" = 1 ]; then WY=$((H * 8 / 100)); else WY=$(((H - WH) / 2 - $(sc 10))); fi
 DOT=$(sc 20)
 ALLR() { echo "a='255*if(gt(abs(X-W/2),W/2-$1)*gt(abs(Y-H/2),H/2-$1),lt(hypot(abs(X-W/2)-(W/2-$1),abs(Y-H/2)-(H/2-$1)),$1),1)'"; }
 GEQ() { echo "format=gbrap,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':$1,format=rgba"; }

@@ -49,7 +49,9 @@ T='(on/30)'
 E="(1-pow(1-min($T/$SLIDE,1),3))"
 TH="($TILT*(1-$E)+0.10*sin(0.6*$T)*$E)"
 D=$(sc 3000); HW=$((W / 2)); HH=$((H / 2))
-CX="($HW+$(sc 1500)*(1-$E))"; CY=$((HH - $(sc 60)))
+CX="($HW+$(sc 1500)*(1-$E))"
+# Portrait and square frames put the laptop high, leaving the lower part for the captions.
+if [ "${VIDEO_NARROW:-0}" = 1 ]; then CY=$((H * 36 / 100)); else CY=$((HH - $(sc 60))); fi
 # `perspective` maps the whole canvas, so project its corners (offset u scales by D/(D-u*sin th)).
 SL="($D/($D+$HW*sin($TH)))"; SR="($D/($D-$HW*sin($TH)))"
 XL="($CX-$HW*cos($TH)*$SL)"; XR="($CX+$HW*cos($TH)*$SR)"

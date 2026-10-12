@@ -54,7 +54,10 @@ export function resolveFormat(name = '16:9') {
  * (portrait and square) fit its central 1700 px by width, so the content fills the frame instead of floating in it.
  */
 export const fitScale = (format) =>
-  format.width / format.height >= 1.2 ? Math.min(format.width / 1920, format.height / 1080) : format.width / 1700;
+  !isNarrow(format) ? Math.min(format.width / 1920, format.height / 1080) : format.width / 1700;
+
+/** True for portrait and square frames, which get their own layouts. */
+export const isNarrow = (format) => format.width / format.height < 1.2;
 
 /** Checks a project file and says what is wrong in words. */
 export function validateProject(project) {

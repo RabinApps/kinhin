@@ -1,4 +1,4 @@
-import {SCENE_TYPES, fitScale, resolveFormat, resolveTheme, validateProject, type Theme} from '../shared/resolve.mjs';
+import {SCENE_TYPES, fitScale, isNarrow, resolveFormat, resolveTheme, validateProject, type Theme} from '../shared/resolve.mjs';
 import {timing} from './timing';
 
 // Everything a scene needs, resolved from the project file, the theme and the environment. The render script
@@ -22,6 +22,8 @@ if (!scene) throw new Error(`the project has no scene "${sceneId}"`);
 export const theme: Theme = resolveTheme(themes, env.VITE_VIDEO_THEME || project.theme, project.overrides);
 export const format = resolveFormat(env.VITE_VIDEO_FORMAT || project.format);
 export const fit = fitScale(format);
+/** Portrait and square frames: scenes lay out vertically (see queue.tsx and map.tsx). */
+export const narrow = isNarrow(format);
 export const sceneType: string = scene.type;
 export const props: any = scene.props ?? {};
 /** How long this scene lasts, in seconds: the voice-over's length (src/timing.ts), never less than the animation. */

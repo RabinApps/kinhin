@@ -67,11 +67,14 @@ if (music) {
 // 4. Captions burned in (theme colours and font; narrower frames get smaller, shorter lines), picture and sound joined.
 const ass = (c) => `&H${c.slice(5, 7)}${c.slice(3, 5)}${c.slice(1, 3)}&`.toUpperCase();
 const cap = theme.caption;
-const narrow = Math.min(1, (format.width / format.height) * 1.1);
-const style = [
-  `Fontname=${theme.font.family}`, `Fontsize=${(cap.size * narrow).toFixed(1)}`, `PrimaryColour=${ass(cap.text)}`, `OutlineColour=${ass(cap.outline)}`,
-  cap.box ? `BorderStyle=3,BackColour=${(cap.boxColor ?? '&H99000000&')},Outline=${Math.round(5 * narrow)}` : `BorderStyle=1,Outline=${Math.max(1, Math.round(2 * narrow))}`,
-  'Shadow=0', 'Alignment=2', `MarginV=${Math.round(24 * narrow)}`,
+const narrowFrame = format.width / format.height < 1.2;
+// libass sizes and margins are in units of a 288-line frame. Landscape: small captions at the bottom. Portrait and
+// square: bigger captions, under the laptop on device scenes and at the bottom on terminal scenes.
+const styleFor = (type) => [
+  `Fontname=${theme.font.family}`, `Fontsize=${(narrowFrame ? cap.size * 1.15 : cap.size).toFixed(1)}`, `PrimaryColour=${ass(cap.text)}`, `OutlineColour=${ass(cap.outline)}`,
+  cap.box ? `BorderStyle=3,BackColour=${(cap.boxColor ?? '&H99000000&')},Outline=${narrowFrame ? 6 : 5}` : `BorderStyle=1,Outline=${narrowFrame ? 3 : 2}`,
+  'Shadow=0', narrowFrame && type === 'device' ? 'Alignment=8' : 'Alignment=2',
+  `MarginV=${narrowFrame ? (type === 'device' ? Math.round(0.6 * 288) : 30) : 24}`,
 ].join(',');
 // Captions go on the scenes without text of their own (the clip scenes) unless CAPTION_SCENES lists others.
 const burned = process.env.CAPTION_SCENES ? process.env.CAPTION_SCENES.split(',') : Object.entries(S).filter(([, s]) => s.kind === 'clip').map(([id]) => id);
@@ -80,7 +83,7 @@ const stamp = (x) => {
   const p = (n, w = 2) => String(n).padStart(w, '0');
   return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`;
 };
-const limit = format.width >= 1500 ? 44 : 30;
+const limit = format.width >= 1500 ? 44 : 24;
 const wrap = (t) => {
   if (t.length <= limit) return t;
   const w = t.split(' ');
@@ -92,9 +95,13 @@ const wrap = (t) => {
   }
   return `${w.slice(0, best).join(' ')}\n${w.slice(best).join(' ')}`;
 };
-const subset = Object.entries(S).filter(([id]) => burned.includes(id)).flatMap(([, s]) => s.cues.map((c) => ({...c, start: s.start + c.start, end: s.start + c.end})));
-writeFileSync('out/burned.srt', subset.map((c, i) => `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${wrap(c.text)}\n`).join('\n'));
-const vf = process.env.NO_CAPTIONS || !subset.length ? 'null' : `subtitles=out/burned.srt:force_style='${style}'`;
+const cuesOf = (types) => Object.entries(S).filter(([id, s]) => burned.includes(id) && types.includes(s.type)).flatMap(([, s]) => s.cues.map((c) => ({...c, start: s.start + c.start, end: s.start + c.end})));
+const groups = [['device'], ['terminal'], ['title', 'statement', 'queue', 'parallel', 'map', 'outro']].map((types) => ({type: types[0], cues: cuesOf(types)})).filter((g) => g.cues.length);
+const filters = groups.map((g, i) => {
+  writeFileSync(`out/burned-${i}.srt`, g.cues.map((c, n) => `${n + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${wrap(c.text)}\n`).join('\n'));
+  return `subtitles=out/burned-${i}.srt:force_style='${styleFor(g.type)}'`;
+});
+const vf = process.env.NO_CAPTIONS || !filters.length ? 'null' : filters.join(',');
 const video = `out/${outName}.mp4`;
 ff(['-i', 'out/picture.mp4', '-i', audio, '-vf', vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
   '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', video]);
@@ -105,5 +112,5 @@ const heroAt = heroId ? S[heroId].start + Math.min(8, S[heroId].length - 2) : to
 ff(['-ss', String(heroAt), '-i', video, '-frames:v', '1', '-vf', `scale=${Math.min(1200, format.width)}:-2`, `out/${outName}-poster.png`]);
 ff(['-ss', String(heroId ? S[heroId].start : 0), '-t', '10', '-i', video, '-vf', 'fps=10,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse', `out/${outName}-hero.gif`]);
 writeFileSync(`out/${outName}.srt`, readFileSync(`captions/${tl.project}.srt`));
-for (const f of [...parts.map((p) => p.out), 'out/parts.txt', 'out/burned.srt', 'out/picture.mp4', 'out/voice.wav', 'out/audio.wav']) rmSync(f, {force: true});
+for (const f of [...parts.map((p) => p.out), 'out/parts.txt', ...groups.map((_, i) => `out/burned-${i}.srt`), 'out/picture.mp4', 'out/voice.wav', 'out/audio.wav']) rmSync(f, {force: true});
 console.log(`wrote ${video} (${format.name} ${format.width}x${format.height}, ${theme.name}, ${total.toFixed(1)}s${music ? ', with music' : ', no music'}), .webm, -poster.png, -hero.gif, .srt`);

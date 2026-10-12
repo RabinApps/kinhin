@@ -31,7 +31,8 @@
     "thumb": "#a2a5ab",
     "windowBar": "#e9e8e8",
     "windowBody": "#fbfbfb",
-    "shadow": 0.3
+    "shadow": 0.3,
+    "terminal": "light"
   },
   "caption": {
     "text": "#000000",

@@ -6,7 +6,7 @@
 import {readFileSync, readdirSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {SCENE_TYPES, fitScale, resolveFormat, resolveTheme, validateProject} from '../shared/resolve.mjs';
+import {SCENE_TYPES, fitScale, isNarrow, resolveFormat, resolveTheme, validateProject} from '../shared/resolve.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -41,7 +41,7 @@ const ass = (c) => `&H${c.slice(5, 7)}${c.slice(3, 5)}${c.slice(1, 3)}&`.toUpper
 export function shellEnv({theme, format, fit}) {
   const d = theme.device;
   const vars = {
-    VIDEO_W: format.width, VIDEO_H: format.height, VIDEO_FIT: fit.toFixed(4),
+    VIDEO_W: format.width, VIDEO_H: format.height, VIDEO_FIT: fit.toFixed(4), VIDEO_NARROW: isNarrow(format) ? 1 : 0, TERMINAL_MODE: d.terminal ?? 'light',
     BG_FROM: hex(theme.background.from), BG_TO: hex(theme.background.to),
     WALL_FROM: hex(d.wallpaper.from), WALL_TO: hex(d.wallpaper.to),
     LID_COLOR: hex(d.lid), BASE_FROM: hex(d.baseFrom), BASE_TO: hex(d.baseTo), THUMB_COLOR: hex(d.thumb),
