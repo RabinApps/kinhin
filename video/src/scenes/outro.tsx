@@ -1,27 +1,26 @@
 import {Circle, Txt, makeScene2D} from '@motion-canvas/2d';
-import {createRef, waitFor} from '@motion-canvas/core';
-import {content} from '../content';
-import {timing} from '../timing';
-import {BACKGROUND, FONT, INK, MUTED, PAPER} from '../theme';
+import {createRef} from '@motion-canvas/core';
+import {props} from '../config';
+import {C, FONT, WEIGHT, holdFor, stage} from '../stage';
 
-// 62-70 s: the line the README ends on, then where to get it.
+// The closing line, where to get it, and a row of facts.
 export default makeScene2D(function* (view) {
-  view.fill(BACKGROUND);
+  const root = stage(view);
   const line = createRef<Txt>();
   const url = createRef<Txt>();
   const facts = createRef<Txt>();
 
-  view.add(
+  root.add(
     <>
-      <Circle size={90} lineWidth={8} stroke={INK} y={-230} />
-      <Txt ref={line} text={content.outro.line} fontFamily={FONT} fontSize={76} fontWeight={600} fill={INK} y={-60} opacity={0} />
-      <Txt ref={url} text={content.outro.url} fontFamily={FONT} fontSize={64} fill={INK} y={110} opacity={0} />
-      <Txt ref={facts} text={content.outro.facts.join(' · ')} fontFamily={FONT} fontSize={36} fill={MUTED} y={200} opacity={0} />
+      <Circle size={90} lineWidth={8} stroke={C.ink} y={-230} />
+      <Txt ref={line} text={props.line} fontFamily={FONT} fontSize={76} fontWeight={WEIGHT} fill={C.ink} y={-60} opacity={0} />
+      <Txt ref={url} text={props.url ?? ''} fontFamily={FONT} fontSize={64} fill={C.ink} y={110} opacity={0} />
+      <Txt ref={facts} text={(props.facts ?? []).join(' · ')} fontFamily={FONT} fontSize={36} fill={C.muted} y={200} opacity={0} />
     </>,
   );
 
   yield* line().opacity(1, 0.9);
   yield* url().opacity(1, 0.7);
   yield* facts().opacity(1, 0.7);
-  yield* waitFor(timing.outro - 2.3); // 2.3 s of animation, then hold for the voice
+  yield* holdFor(2.3);
 });

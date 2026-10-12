@@ -30,7 +30,7 @@ const setup = flag('--setup');
 const audition = has('--audition');
 const engineFlag = flag('--engine');
 const voiceFlag = flag('--voice');
-const scriptPath = resolve(args[0] ?? join(root, 'script/launch.json'));
+const scriptPath = resolve(args[0] ?? join(root, 'script', `${process.env.VIDEO_PROJECT || 'launch'}.json`));
 
 const VOICES = {
   say: ['Samantha'], // add Premium voices by their `say -v '?'` name, e.g. "Ava (Premium)"

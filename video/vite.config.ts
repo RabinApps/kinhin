@@ -6,9 +6,9 @@ import ffmpegModule from '@motion-canvas/ffmpeg';
 const motionCanvas = (motionCanvasModule as any).default ?? motionCanvasModule;
 const ffmpeg = (ffmpegModule as any).default ?? ffmpegModule;
 
-// Two projects render to two clips; scripts/export.sh joins them around the
-// screen recordings. Pick one: VIDEO_PROJECT=opening|closing npm run serve
-const project = process.env.VIDEO_PROJECT ?? 'opening';
+// One Motion Canvas project renders one scene: VITE_SCENE_ID picks it from the project file (src/config.ts) and
+// scripts/render-titles.mjs loops over the scenes. By hand: VITE_SCENE_ID=intro npm run serve
+const project = 'titles';
 
 export default defineConfig({
   plugins: [motionCanvas({project: `./src/${project}.ts`}), ffmpeg()],

@@ -1,0 +1,41 @@
+{
+  "name": "blueprint",
+  "description": "White line work on blueprint blue, monospaced.",
+  "font": {
+    "family": "DejaVu Sans Mono",
+    "fallback": "-apple-system, \"SF Pro Display\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+    "weight": 600,
+    "mono": "DejaVu Sans Mono"
+  },
+  "colors": {
+    "ink": "#eaf3ff",
+    "muted": "#9cc4ff",
+    "paper": "#0b3a6b",
+    "accent": "#ffd166",
+    "card": "#0e4a86",
+    "track": "#1d5f9f",
+    "line": "#9cc4ff"
+  },
+  "background": {
+    "from": "#0b3a6b",
+    "to": "#0e4a86"
+  },
+  "device": {
+    "wallpaper": {
+      "from": "#0b3a6b",
+      "to": "#1a6bb3"
+    },
+    "lid": "#0b0b0c",
+    "baseFrom": "#dfe1e5",
+    "baseTo": "#b4b7bd",
+    "thumb": "#a2a5ab",
+    "windowBar": "#c9def5",
+    "windowBody": "#f4f9ff",
+    "shadow": 0.4
+  },
+  "caption": {
+    "text": "#ffffff",
+    "outline": "#06284b",
+    "size": 10
+  }
+}

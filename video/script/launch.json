@@ -1,5 +1,4 @@
 {
-  "title": "kinhin launch video",
   "voice": {
     "engine": "kokoro",
     "name": "af_heart",
@@ -14,26 +13,52 @@
   "scenes": [
     {
       "id": "intro",
-      "visual": "Motion Canvas opening: intro",
+      "type": "title",
+      "props": {
+        "title": "The mindful CI.",
+        "subtitle": "kinhin",
+        "mark": "ring"
+      },
       "minLength": 5.4,
       "lead": 1.0,
       "narration": "Meet kinhin. The mindful CI."
     },
     {
       "id": "problem",
-      "visual": "Motion Canvas opening: problem",
+      "type": "queue",
+      "props": {
+        "runner": "1 runner",
+        "count": 7,
+        "caption": "Your queue waits its turn.",
+        "caption2": "A self-hosted runner does one job at a time."
+      },
       "minLength": 7.9,
       "narration": "Self-hosted runners do one job at a time. Jobs queue up, and whatever one job leaves behind, the next one inherits."
     },
     {
       "id": "solution",
-      "visual": "Motion Canvas opening: solution (one job, one fresh VM, gone when done)",
+      "type": "parallel",
+      "props": {
+        "items": [
+          "acme/api",
+          "acme/web",
+          "lab/infra"
+        ],
+        "card": "fresh VM",
+        "caption": "A fresh VM for every job.",
+        "done": "Deleted when the job is done."
+      },
       "minLength": 4.6,
       "narration": "kinhin fixes that. Every job gets its own fresh VM or container, deleted when the job is done."
     },
     {
       "id": "app",
-      "visual": "MacBook shot of the demo fleet (frame-app.sh); cue times are seconds into the shot",
+      "type": "device",
+      "props": {
+        "clip": "app",
+        "frame": "macbook",
+        "speed": 1.7
+      },
       "cues": [
         {
           "at": 0.5,
@@ -55,12 +80,15 @@
           "at": 18.4,
           "text": "Every instance is deleted. Nothing lingers."
         }
-      ],
-      "speed": 1.7
+      ]
     },
     {
       "id": "install",
-      "visual": "Terminal clip (terminal/install.tape); cue times are seconds into the clip",
+      "type": "terminal",
+      "props": {
+        "clip": "install",
+        "frame": "window"
+      },
       "minLength": 11,
       "cues": [
         {
@@ -75,13 +103,38 @@
     },
     {
       "id": "lanes",
-      "visual": "Motion Canvas closing: lanes",
+      "type": "map",
+      "props": {
+        "left": [
+          "GitHub",
+          "GitLab",
+          "Gitea",
+          "Forgejo"
+        ],
+        "right": [
+          "Tart macOS & Linux VMs",
+          "apple/container",
+          "Docker"
+        ],
+        "caption": "Four forges. Three runtimes. One fleet.",
+        "note": "Routed per repo, workflow or runs-on label."
+      },
       "minLength": 6,
       "narration": "It works with GitHub, GitLab, Gitea and Forgejo, on Tart, apple container or Docker."
     },
     {
       "id": "outro",
-      "visual": "Motion Canvas closing: outro",
+      "type": "outro",
+      "props": {
+        "line": "One job. One VM. Gone when it's done.",
+        "url": "kinhin.dev",
+        "facts": [
+          "Free",
+          "Apache-2.0",
+          "No telemetry",
+          "In beta"
+        ]
+      },
       "minLength": 5.8,
       "cues": [
         {
@@ -93,5 +146,9 @@
         }
       ]
     }
-  ]
+  ],
+  "name": "kinhin launch video",
+  "theme": "paper",
+  "format": "16:9",
+  "overrides": {}
 }

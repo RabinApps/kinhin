@@ -1,45 +1,45 @@
 #!/usr/bin/env node
-// Builds the voice-over cut from the clips in raw/ and out/, on the clock in out/timeline.json
-// (scripts/voice.mjs, then scripts/retime.mjs). Each part is made exactly as long as its scenes need (a short
-// clip holds its last frame), the narration is placed cue by cue, music (raw/music.*) ducks under the voice,
-// and launch.srt is burned in.
-//
-//   raw/opening.mp4        Motion Canvas "opening" render: intro + problem + solution
-//   out/app-framed.mp4     scripts/frame-app.sh
-//   out/install-framed.mp4 scripts/frame-terminal.sh (from raw/install.mp4 or reference/install.mp4)
-//   raw/closing.mp4        Motion Canvas "closing" render: lanes + outro
+// Builds the voice-over cut on the clock in out/timeline.json (scripts/voice.mjs, then scripts/retime.mjs).
+// Every scene is one clip, in the project's order: canvas scenes come from raw/scenes/<project>/<id>.mp4
+// (render-titles.mjs), device and terminal scenes from out/<id>.mp4 (frames.mjs). Each is made exactly as long as
+// the scene needs (a short clip holds its last frame) and fades in and out through the theme's backdrop; the
+// narration is placed cue by cue, music (raw/music.*) ducks under the voice, and captions are burned in.
 //   raw/music.{mp3,m4a,wav,flac,ogg}   optional
-// Outputs (out/): launch.mp4, launch.webm, poster.png, hero.gif
+// Outputs (out/): <project>.mp4, .webm, -poster.png, -hero.gif, and <project>.srt (every caption, for a player)
 // Captions are burned in only for the scenes without text of their own (CAPTION_SCENES, default app,install);
 // the title scenes already show their words. captions/launch.srt has every cue for the site player.
 // Usage: node scripts/assemble.mjs      Env: NO_CAPTIONS=1, CAPTION_SCENES, MUSIC_VOLUME (default 0.35, before ducking)
 import {execFileSync} from 'node:child_process';
 import {existsSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
-import {dirname, join, resolve} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {loadProject, root} from './project.mjs';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(root);
 const tl = JSON.parse(readFileSync('out/timeline.json', 'utf8'));
 const S = tl.scenes;
+const look = loadProject();
+const {format, theme, outName} = look;
 const ff = (args) => execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', ...args], {stdio: 'inherit'});
+const FADE = 0.25;
 
-// 1. The four video parts, each normalised to 1080p30 and cut or held to the length its scenes add up to.
-const parts = [
-  {file: 'raw/opening.mp4', length: S.intro.length + S.problem.length + S.solution.length},
-  {file: 'out/app-framed.mp4', length: S.app.length},
-  {file: 'out/install-framed.mp4', length: S.install.length},
-  {file: 'raw/closing.mp4', length: S.lanes.length + S.outro.length},
-];
-for (const [i, p] of parts.entries()) {
-  if (!existsSync(p.file)) throw new Error(`missing ${p.file}`);
-  p.out = `out/part-${i + 1}.mp4`;
-  const vf = 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:white,fps=30,tpad=stop_mode=clone:stop_duration=30,format=yuv420p';
-  ff(['-i', p.file, '-vf', vf, '-t', String(p.length), '-an', '-c:v', 'libx264', '-crf', '17', p.out]);
-}
+// 1. One normalised clip per scene (format-sized, 30 fps), cut or held to the scene's length, faded at both ends.
+const mix = (a, b) => '0x' + [1, 3, 5].map((i) => Math.round((parseInt(a.slice(i, i + 2), 16) + parseInt(b.slice(i, i + 2), 16)) / 2).toString(16).padStart(2, '0')).join('');
+const bg = mix(theme.background.from, theme.background.to); // the middle of the backdrop, for fades and padding
+const parts = Object.entries(S).map(([id, s], i) => {
+  const file = s.kind === 'canvas' ? `raw/scenes/${tl.project}/${id}.mp4` : `out/${id}.mp4`;
+  if (!existsSync(file)) throw new Error(`missing ${file}`);
+  const vf = [
+    `scale=${format.width}:${format.height}:force_original_aspect_ratio=decrease`,
+    `pad=${format.width}:${format.height}:(ow-iw)/2:(oh-ih)/2:${bg}`,
+    'fps=30', 'tpad=stop_mode=clone:stop_duration=30', 'format=yuv420p',
+  ].join(',');
+  const out = `out/part-${i + 1}.mp4`;
+  ff(['-i', file, '-vf', `${vf},trim=duration=${s.length},setpts=PTS-STARTPTS,fade=t=in:st=0:d=${FADE}:color=${bg},fade=t=out:st=${Math.max(0, s.length - FADE)}:d=${FADE}:color=${bg}`,
+    '-an', '-c:v', 'libx264', '-crf', '17', out]);
+  return {id, out, length: s.length};
+});
 const total = parts.reduce((a, p) => a + p.length, 0);
 const list = parts.map((p) => `file '${p.out.replace('out/', '')}'`).join('\n');
-execFileSync('node', ['-e', `require('fs').writeFileSync('out/parts.txt', ${JSON.stringify(list)})`]);
+writeFileSync('out/parts.txt', list);
 ff(['-f', 'concat', '-safe', '0', '-i', 'out/parts.txt', '-c', 'copy', 'out/picture.mp4']);
 
 // 2. The voice: every cue at its place on the final clock, levelled to -16 LUFS.
@@ -64,16 +64,25 @@ if (music) {
   audio = 'out/audio.wav';
 }
 
-// 4. Captions burned in, picture and sound joined.
-const style = 'Fontname=Helvetica,Fontsize=11,PrimaryColour=&H000000&,OutlineColour=&HFFFFFF&,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=24';
-const burned = (process.env.CAPTION_SCENES ?? 'app,install').split(',');
+// 4. Captions burned in (theme colours and font; narrower frames get smaller, shorter lines), picture and sound joined.
+const ass = (c) => `&H${c.slice(5, 7)}${c.slice(3, 5)}${c.slice(1, 3)}&`.toUpperCase();
+const cap = theme.caption;
+const narrow = Math.min(1, (format.width / format.height) * 1.1);
+const style = [
+  `Fontname=${theme.font.family}`, `Fontsize=${(cap.size * narrow).toFixed(1)}`, `PrimaryColour=${ass(cap.text)}`, `OutlineColour=${ass(cap.outline)}`,
+  cap.box ? `BorderStyle=3,BackColour=${(cap.boxColor ?? '&H99000000&')},Outline=${Math.round(5 * narrow)}` : `BorderStyle=1,Outline=${Math.max(1, Math.round(2 * narrow))}`,
+  'Shadow=0', 'Alignment=2', `MarginV=${Math.round(24 * narrow)}`,
+].join(',');
+// Captions go on the scenes without text of their own (the clip scenes) unless CAPTION_SCENES lists others.
+const burned = process.env.CAPTION_SCENES ? process.env.CAPTION_SCENES.split(',') : Object.entries(S).filter(([, s]) => s.kind === 'clip').map(([id]) => id);
 const stamp = (x) => {
   const ms = Math.round(x * 1000);
   const p = (n, w = 2) => String(n).padStart(w, '0');
   return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`;
 };
+const limit = format.width >= 1500 ? 44 : 30;
 const wrap = (t) => {
-  if (t.length <= 44) return t;
+  if (t.length <= limit) return t;
   const w = t.split(' ');
   let best = 1;
   let gap = Infinity;
@@ -86,10 +95,15 @@ const wrap = (t) => {
 const subset = Object.entries(S).filter(([id]) => burned.includes(id)).flatMap(([, s]) => s.cues.map((c) => ({...c, start: s.start + c.start, end: s.start + c.end})));
 writeFileSync('out/burned.srt', subset.map((c, i) => `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${wrap(c.text)}\n`).join('\n'));
 const vf = process.env.NO_CAPTIONS || !subset.length ? 'null' : `subtitles=out/burned.srt:force_style='${style}'`;
+const video = `out/${outName}.mp4`;
 ff(['-i', 'out/picture.mp4', '-i', audio, '-vf', vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
-  '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', 'out/launch.mp4']);
-ff(['-i', 'out/launch.mp4', '-c:v', 'libvpx-vp9', '-crf', '33', '-b:v', '0', '-c:a', 'libopus', 'out/launch.webm']);
-ff(['-ss', String(S.app.start + 8), '-i', 'out/launch.mp4', '-frames:v', '1', '-vf', 'scale=1200:630:force_original_aspect_ratio=increase,crop=1200:630', 'out/poster.png']);
-ff(['-ss', String(S.app.start), '-t', '10', '-i', 'out/launch.mp4', '-vf', 'fps=10,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse', 'out/hero.gif']);
-for (const f of ['out/part-1.mp4', 'out/part-2.mp4', 'out/part-3.mp4', 'out/part-4.mp4', 'out/parts.txt', 'out/burned.srt', 'out/picture.mp4', 'out/voice.wav', 'out/audio.wav']) rmSync(f, {force: true});
-console.log(`wrote out/launch.mp4 (${total.toFixed(1)}s${music ? ', with music' : ', no music'}), launch.webm, poster.png, hero.gif`);
+  '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', video]);
+ff(['-i', video, '-c:v', 'libvpx-vp9', '-crf', '33', '-b:v', '0', '-c:a', 'libopus', `out/${outName}.webm`]);
+// Poster and hero GIF come from the first clip scene (the product on screen), else the middle of the video.
+const [heroId] = Object.entries(S).find(([, s]) => s.kind === 'clip') ?? [];
+const heroAt = heroId ? S[heroId].start + Math.min(8, S[heroId].length - 2) : total / 2;
+ff(['-ss', String(heroAt), '-i', video, '-frames:v', '1', '-vf', `scale=${Math.min(1200, format.width)}:-2`, `out/${outName}-poster.png`]);
+ff(['-ss', String(heroId ? S[heroId].start : 0), '-t', '10', '-i', video, '-vf', 'fps=10,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse', `out/${outName}-hero.gif`]);
+writeFileSync(`out/${outName}.srt`, readFileSync(`captions/${tl.project}.srt`));
+for (const f of [...parts.map((p) => p.out), 'out/parts.txt', 'out/burned.srt', 'out/picture.mp4', 'out/voice.wav', 'out/audio.wav']) rmSync(f, {force: true});
+console.log(`wrote ${video} (${format.name} ${format.width}x${format.height}, ${theme.name}, ${total.toFixed(1)}s${music ? ', with music' : ', no music'}), .webm, -poster.png, -hero.gif, .srt`);

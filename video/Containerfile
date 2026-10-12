@@ -5,11 +5,11 @@
 FROM mcr.microsoft.com/playwright:v1.56.1-noble
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg python3 rsync curl ca-certificates fonts-inter fonts-liberation \
+ && apt-get install -y --no-install-recommends ffmpeg python3 rsync curl ca-certificates fonts-inter fonts-liberation fonts-comic-neue fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 
-# Caption and title fonts: Inter is the canonical typeface here (the scenes ask for it first); Helvetica, which
-# the caption style names, resolves to Liberation Sans.
+# Fonts for the built-in themes: Inter (paper, clean, midnight), DejaVu Sans Mono (blueprint), Comic Neue (chalk).
+# Your own fonts in video/fonts/ are installed when a build starts. Helvetica resolves to Liberation Sans.
 RUN printf '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig>\
 <alias binding="same"><family>Helvetica</family><prefer><family>Liberation Sans</family></prefer></alias>\
 </fontconfig>' > /etc/fonts/local.conf && fc-cache -f

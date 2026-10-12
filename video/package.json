@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "serve": "vite",
-    "serve:closing": "VIDEO_PROJECT=closing vite",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
