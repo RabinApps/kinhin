@@ -14,11 +14,13 @@ on:
       lane:
         description: "Lane to run"
         type: choice
-        options: [beta, release]
+        options: [beta, release, screenshots]
         default: beta
 
 jobs:
   android:
+    # Android has no release lane yet, so the release choice runs only the iOS job.
+    if: inputs.lane != 'release'
     runs-on: [self-hosted, kinhin-xcode]
     defaults:
       run:
@@ -48,6 +50,16 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           CI: "true"
+      # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact, even when the
+      # lane fails, so the captures can be inspected. examples/android_native_app is relative to the workspace, which artifact paths need.
+      - name: Upload screenshots
+        if: ${{ always() && inputs.lane == 'screenshots' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-screenshots
+          path: examples/android_native_app/fastlane/metadata/android
+          if-no-files-found: warn
+          retention-days: 14
       - name: Remove upload keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/release.keystore"

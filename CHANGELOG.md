@@ -6,6 +6,7 @@
 
 **Added**
 
+- `kinhin mobile init` adds a `screenshots` lane: `snapshot` for iOS UI tests and `screengrab` for Android instrumented tests, with optional device frames and optional upload. See [docs/mobile-screenshots.md](docs/mobile-screenshots.md).
 - `kinhin mobile init` scaffolds fastlane release setup for iOS, Android, Flutter, React Native and
   native projects with lanes, a pinned Gemfile and a manual `mobile-release` workflow for `kinhin-xcode`. Expo gets EAS
   config. Opt-in: nothing changes for projects that do not run it. See [docs/mobile-fastlane.md](docs/mobile-fastlane.md).

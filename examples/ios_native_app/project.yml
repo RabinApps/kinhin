@@ -23,3 +23,23 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.iosnativeapp
         GENERATE_INFOPLIST_FILE: NO
+  IosNativeAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: IosNativeApp
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.iosnativeapp.uitests
+        TEST_TARGET_NAME: IosNativeApp
+schemes:
+  IosNativeApp:
+    build:
+      targets:
+        IosNativeApp: all
+        IosNativeAppUITests: [test]
+    test:
+      targets:
+        - IosNativeAppUITests

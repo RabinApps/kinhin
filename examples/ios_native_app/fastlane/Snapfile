@@ -1,0 +1,20 @@
+# Screenshot settings for `fastlane snapshot` (iOS). Reference: https://docs.fastlane.tools/actions/snapshot/
+# Each value can be overridden from the environment, so CI can change them without editing this file.
+
+# The scheme that runs your UI test target. The UI tests live in ios/UITests (see docs/mobile-screenshots.md).
+scheme(ENV["SNAPSHOT_SCHEME"] || ENV["IOS_SCHEME"])
+
+# Simulators to capture on. Use the names `xcrun simctl list devices available` prints.
+devices(ENV["SNAPSHOT_DEVICES"].to_s.split(",").map(&:strip)) unless ENV["SNAPSHOT_DEVICES"].to_s.strip.empty?
+
+# Languages to capture. Each one gets its own folder under output_directory.
+languages((ENV["SNAPSHOT_LANGUAGES"] || "en-US").split(",").map(&:strip))
+
+# Where screenshots are written. The screenshots lane uploads from here.
+output_directory("./fastlane/screenshots")
+
+# Remove earlier screenshots first, so a screen you deleted does not stay in the upload.
+clear_previous_screenshots(true)
+
+# Stop after the first device fails, instead of running the rest.
+stop_after_first_error(false)

@@ -6,7 +6,8 @@
 # Uses the kinhin binary (KINHIN_BIN, default .build/debug/kinhin, built if missing).
 #
 # What it does, per example app (flutter_app, RnApp, ios_native_app, android_native_app, expo_app):
-#   1. Copies the committed files only (git ls-files), so leftover build output cannot hide a problem.
+#   1. Copies the tracked and untracked files that git does not ignore (git ls-files -co --exclude-standard), so build output
+#      cannot hide a problem and uncommitted changes are tested before they are committed.
 #   2. Re-runs `kinhin mobile init --force` on the copy and checks the generated fastlane files and
 #      CI workflow still match the committed example. That catches drift between templates and examples.
 #   3. Parses each CI workflow as YAML.
@@ -101,7 +102,7 @@ section "copy committed examples"
 while IFS= read -r -d '' file; do
     mkdir -p "$work/$(dirname "$file")"
     cp -p "$file" "$work/$file"
-done < <(git ls-files -z examples)
+done < <(git ls-files -z -co --exclude-standard examples)
 for app in $apps; do
     if [[ -d "$work/examples/$app" ]]; then ok "$app copied"; else bad "$app missing from examples"; fi
 done
@@ -126,7 +127,7 @@ rm -rf "$usage_dir"
 
 section "templates regenerate the committed examples"
 # Each file a scaffold writes, relative to the app folder. Gemfile is excluded: react-native keeps its own.
-generated="ios/fastlane/Fastfile ios/fastlane/Appfile ios/fastlane/Matchfile android/fastlane/Fastfile android/fastlane/Appfile fastlane/Fastfile fastlane/Appfile fastlane/Matchfile .github/workflows/mobile-release.yml eas.json"
+generated="ios/fastlane/Fastfile ios/fastlane/Appfile ios/fastlane/Matchfile ios/fastlane/Snapfile ios/fastlane/Framefile.json ios/UITests/SnapshotHelper.swift ios/UITests/ScreenshotTests.swift android/fastlane/Fastfile android/fastlane/Appfile android/fastlane/Screengrabfile android/app/src/androidTest/java/screenshots/ScreenshotTest.java android/app/src/debug/AndroidManifest.xml fastlane/Fastfile fastlane/Appfile fastlane/Matchfile fastlane/Snapfile fastlane/Framefile.json UITests/SnapshotHelper.swift UITests/ScreenshotTests.swift fastlane/Screengrabfile app/src/androidTest/java/screenshots/ScreenshotTest.java app/src/debug/AndroidManifest.xml .github/workflows/mobile-release.yml eas.json"
 for app in flutter_app RnApp ios_native_app android_native_app expo_app; do
     dir="$work/examples/$app"
     before="$(mktemp -d)"
@@ -265,9 +266,12 @@ if [[ $has_ruby -eq 1 && -d "$work/examples/ios_native_app" ]]; then
           "match" => %w[api_key readonly git_url storage_mode type app_identifier team_id],
           "build_app" => %w[scheme export_method],
           "upload_to_testflight" => %w[api_key skip_waiting_for_build_processing],
-          "upload_to_app_store" => %w[api_key skip_metadata skip_screenshots submit_for_review],
-          "upload_to_play_store" => %w[track aab json_key_data skip_upload_metadata skip_upload_images skip_upload_screenshots package_name],
+          "upload_to_app_store" => %w[api_key skip_metadata skip_screenshots submit_for_review skip_binary_upload skip_app_version_update overwrite_screenshots screenshots_path],
+          "upload_to_play_store" => %w[track aab json_key_data skip_upload_metadata skip_upload_images skip_upload_screenshots skip_upload_apk skip_upload_aab skip_upload_changelogs metadata_path package_name],
           "gradle" => %w[task build_type print_command properties],
+          "snapshot" => %w[scheme devices languages output_directory clear_previous_screenshots stop_after_first_error],
+          "screengrab" => %w[app_package_name locales device_type output_directory clear_previous_screenshots],
+          "frameit" => %w[path],
         }
         failures = 0
         checks.each do |action, options|
@@ -482,6 +486,26 @@ if [[ $with_builds -eq 1 ]]; then
         fi
     else
         skip "expo_app fastlane path (needs npm and npx)"
+    fi
+
+    # Screenshots: the iOS lane runs the UI tests on a simulator and must write PNGs. The simulator name comes from
+    # E2E_SIMULATOR (default: a simulator this Mac has); the Android instrumented tests must compile.
+    e2e_simulator="${E2E_SIMULATOR:-iPhone 17e}"
+    if [[ $ios_sdk_ok -eq 1 ]] && command -v bundle >/dev/null; then
+        shot_dir="$work/examples/ios_native_app"
+        # The .xcodeproj is generated from project.yml and not tracked, so generate it before the lane needs it.
+        run_build "ios_native_app xcodegen (for the screenshot lane)" ios-shots-xcodegen "$shot_dir" xcodegen generate
+        run_build "ios_native_app screenshots lane (snapshot on $e2e_simulator)" ios-screenshots "$shot_dir" \
+            env IOS_SCHEME=IosNativeApp SNAPSHOT_DEVICES="$e2e_simulator" SNAPSHOT_LANGUAGES=en-US bundle exec fastlane screenshots
+        if [[ -n "$(find "$shot_dir/fastlane/screenshots" -name '*.png' 2>/dev/null | head -1)" ]]; then
+            ok "ios_native_app wrote PNG screenshots under fastlane/screenshots"
+        else
+            bad "ios_native_app wrote no PNG screenshots"
+        fi
+    fi
+    if [[ -n "${JAVA_HOME:-}" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
+        run_build "android_native_app assembleDebugAndroidTest (screengrab tests compile)" android-test-apk \
+            "$work/examples/android_native_app" ./gradlew --no-daemon assembleDebugAndroidTest
     fi
 
     # Native apps: the Android debug build, the iOS simulator build, and the signed lane build.

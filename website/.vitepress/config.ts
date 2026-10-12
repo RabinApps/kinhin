@@ -160,6 +160,7 @@ export default defineConfig({
           { text: "Tutorial: first build", link: "/guide/mobile-fastlane-tutorial" },
           { text: "Reference", link: "/guide/mobile-fastlane" },
           { text: "Credentials", link: "/guide/mobile-credentials" },
+          { text: "Store screenshots", link: "/guide/mobile-screenshots" },
           { text: "Troubleshooting", link: "/guide/mobile-fastlane-troubleshooting" },
         ],
       },

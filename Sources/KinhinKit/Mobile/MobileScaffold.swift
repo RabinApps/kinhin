@@ -214,6 +214,16 @@ public enum MobileScaffold {
             lines.append("  note    \(text)")
         }
 
+        /// Writes a template only when the file is absent, even with `force`: for files the app already owns (a Flutter
+        /// debug manifest carries permissions the app needs). The note tells the user what to merge by hand.
+        mutating func writeIfAbsent(template: String, to relativePath: String, note: String) throws {
+            guard FileManager.default.fileExists(atPath: root.appendingPathComponent(relativePath).path) else {
+                try write(template: template, to: relativePath)
+                return
+            }
+            lines.append("  keep    \(relativePath) (exists and is not overwritten: \(note))")
+        }
+
         /// Writes a bundled template to `relativePath`, unless the file exists and `force` is off.
         mutating func write(template: String, to relativePath: String) throws {
             guard let text = MobileTemplates.files[template] else {
@@ -286,6 +296,35 @@ public enum MobileScaffold {
             try write(template: "\(platform)/fastlane/Appfile", to: "\(base)/Appfile")
             if platform == "ios" {
                 try write(template: "ios/fastlane/Matchfile", to: "\(base)/Matchfile")
+            }
+            try scaffoldScreenshots(platform: platform, folder: folder, base: base)
+        }
+
+        /// Screenshot settings and the sample UI or instrumented test. The Xcode UI test target and the Gradle
+        /// test dependencies are not written: they live in the project file, so docs/mobile-screenshots.md
+        /// describes those steps.
+        mutating func scaffoldScreenshots(platform: String, folder: String, base: String) throws {
+            switch platform {
+            case "ios":
+                try write(template: "ios/fastlane/Snapfile", to: "\(base)/Snapfile")
+                try write(template: "ios/fastlane/Framefile.json", to: "\(base)/Framefile.json")
+                try write(
+                    template: "ios/UITests/SnapshotHelper.swift",
+                    to: MobileScaffold.joinPath(folder, "UITests/SnapshotHelper.swift"))
+                try write(
+                    template: "ios/UITests/ScreenshotTests.swift",
+                    to: MobileScaffold.joinPath(folder, "UITests/ScreenshotTests.swift"))
+            case "android":
+                try write(template: "android/fastlane/Screengrabfile", to: "\(base)/Screengrabfile")
+                try write(
+                    template: "android/app/src/androidTest/java/screenshots/ScreenshotTest.java",
+                    to: MobileScaffold.joinPath(folder, "app/src/androidTest/java/screenshots/ScreenshotTest.java"))
+                try writeIfAbsent(
+                    template: "android/app/src/debug/AndroidManifest.xml",
+                    to: MobileScaffold.joinPath(folder, "app/src/debug/AndroidManifest.xml"),
+                    note: "add the Screengrab permissions listed in that template to the existing debug manifest")
+            default:
+                break
             }
         }
 

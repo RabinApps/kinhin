@@ -14,7 +14,7 @@ on:
       lane:
         description: "Lane to run"
         type: choice
-        options: [beta, release]
+        options: [beta, release, screenshots]
         default: beta
 
 jobs:

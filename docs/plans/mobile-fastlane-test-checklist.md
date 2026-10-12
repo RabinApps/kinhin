@@ -146,3 +146,18 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 | 10.5 | Apple Team ID location | Open | Not in Apple's help index; checked against the account page only |
 | 10.6 | Apple role that can upload builds with a team key | Open | Not stated by Apple's API page |
 | 10.7 | Play permission a service account needs for test-track uploads | Open | Google lists the permission but does not say which one a service account needs |
+
+## 11. Screenshots (snapshot, screengrab, frameit)
+
+| # | Check | Status | How |
+| --- | --- | --- | --- |
+| 11.1 | iOS `screenshots` lane captures a PNG on a simulator | **Done** | Ran on iPhone 17e; the output is `fastlane/screenshots/en-US/iPhone 17e-01-home.png`, and the image shows the app |
+| 11.2 | iOS lane fails clearly when snapshot writes nothing | **Done** | Found during the run: snapshot exited 0 with no screenshots, so the lane checks for PNGs |
+| 11.3 | Android instrumented screenshot tests compile | **Done** | `assembleDebugAndroidTest` in `examples/android_native_app` |
+| 11.4 | Android `screenshots` lane captures PNGs on an emulator | Blocked | The Pixel 9 emulator's system image is incomplete on this Mac (22 MB, no system.img). Needs an SDK repair. |
+| 11.5 | frameit installs ImageMagick when frames are on | Implemented, untested | The lane runs `brew install imagemagick` when no `magick` or `convert` is found. The install branch has not run, since ImageMagick was already installed here. |
+| 11.6 | frameit output is checked, so a silent failure stops the lane | **Done** | Full run with frames on stopped with "frameit changed no screenshots" |
+| 11.7 | frames produce framed images | Blocked upstream | [ImageMagick #9011](https://github.com/ImageMagick/ImageMagick/issues/9011): `mogrify` without an output format fails on 7.1.2-33. Resumes when a Homebrew release contains the fix. |
+| 11.8 | Screenshot option names exist in fastlane 2.241.0 | **Done** | e2e option block (snapshot, screengrab, frameit, and the upload options) |
+| 11.9 | Upload lanes | Not run | By decision: no store uploads |
+| 11.10 | Flutter and React Native capture | Open | Files are scaffolded; no UI test target has been added to a Flutter or RN project and run |

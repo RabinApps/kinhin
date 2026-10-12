@@ -208,6 +208,67 @@ final class MobileScaffoldTests: XCTestCase {
         }
     }
 
+    func testScreenshotFilesAreScaffoldedForIOSAndAndroid() throws {
+        let dir = try folder("shots", dirs: ["ios", "android"])
+        _ = try scaffold(dir, .native)
+        XCTAssertTrue(exists(dir, "ios/fastlane/Snapfile"))
+        XCTAssertTrue(exists(dir, "ios/fastlane/Framefile.json"))
+        XCTAssertTrue(exists(dir, "ios/UITests/SnapshotHelper.swift"))
+        XCTAssertTrue(exists(dir, "ios/UITests/ScreenshotTests.swift"))
+        XCTAssertTrue(exists(dir, "android/fastlane/Screengrabfile"))
+        XCTAssertTrue(exists(dir, "android/app/src/androidTest/java/screenshots/ScreenshotTest.java"))
+        XCTAssertTrue(exists(dir, "android/app/src/debug/AndroidManifest.xml"))
+        XCTAssertTrue(try text(dir, "ios/fastlane/Fastfile").contains("lane :screenshots do"))
+        XCTAssertTrue(try text(dir, "android/fastlane/Fastfile").contains("lane :screenshots do"))
+    }
+
+    func testRootAndroidProjectPlacesTheTestUnderAppWithoutAFolderPrefix() throws {
+        let dir = try folder("android-root-shots", ["settings.gradle.kts": ""], dirs: ["app"])
+        _ = try scaffold(dir)
+        XCTAssertTrue(exists(dir, "app/src/androidTest/java/screenshots/ScreenshotTest.java"))
+        XCTAssertTrue(exists(dir, "fastlane/Screengrabfile"))
+    }
+
+    /// Flutter ships its own debug manifest with INTERNET, which the app needs. The scaffold must never overwrite it,
+    /// even with --force.
+    func testAnExistingDebugManifestIsNeverOverwritten() throws {
+        let dir = try flutter("flutter-manifest")
+        try FileManager.default.createDirectory(
+            at: dir.appendingPathComponent("android/app/src/debug"), withIntermediateDirectories: true)
+        try "<manifest><uses-permission android:name=\"android.permission.INTERNET\"/></manifest>\n".write(
+            to: dir.appendingPathComponent("android/app/src/debug/AndroidManifest.xml"), atomically: true,
+            encoding: .utf8)
+        let report = try scaffold(dir, force: true)
+        XCTAssertTrue(try text(dir, "android/app/src/debug/AndroidManifest.xml").contains("INTERNET"))
+        XCTAssertTrue(
+            report.lines.contains {
+                $0.contains("android/app/src/debug/AndroidManifest.xml (exists and is not overwritten")
+            })
+    }
+
+    /// The release workflow offers the screenshots lane, and the Android job does not run for the release choice.
+    func testWorkflowOffersTheScreenshotsLaneAndSkipsAndroidForRelease() throws {
+        let dir = try flutter("lanes")
+        _ = try scaffold(dir)
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertTrue(workflow.contains("options: [beta, release, screenshots]"))
+        XCTAssertTrue(workflow.contains("if: inputs.lane != 'release'"))
+    }
+
+    /// The screenshots are kept as a CI artifact: uploaded for the screenshots lane even when it fails, from the
+    /// platform folder (the path is relative to the workspace, so the folder is part of it).
+    func testScreenshotArtifactIsUploadedForTheScreenshotsLaneOnly() throws {
+        let dir = try folder("artifacts", dirs: ["ios", "android"])
+        _ = try scaffold(dir, .native)
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertTrue(workflow.contains("name: ios-screenshots"))
+        XCTAssertTrue(workflow.contains("path: ios/fastlane/screenshots"))
+        XCTAssertTrue(workflow.contains("name: android-screenshots"))
+        XCTAssertTrue(workflow.contains("path: android/fastlane/metadata/android"))
+        XCTAssertEqual(
+            workflow.components(separatedBy: "if: ${{ always() && inputs.lane == 'screenshots' }}").count - 1, 2)
+    }
+
     func testNativeProjectGetsNoFrameworkSteps() throws {
         let dir = try folder("native", dirs: ["ios", "android"])
         _ = try scaffold(dir)

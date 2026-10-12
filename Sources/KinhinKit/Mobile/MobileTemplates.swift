@@ -5,8 +5,12 @@ enum MobileTemplates {
     /// Template text by its path under templates/mobile/.
     static let files: [String: String] = [
         "Gemfile": Gemfile,
+        "android/app/src/androidTest/java/screenshots/ScreenshotTest.java":
+            androidAppSrcAndroidTestJavaScreenshotsScreenshotTestJava,
+        "android/app/src/debug/AndroidManifest.xml": androidAppSrcDebugAndroidManifestXml,
         "android/fastlane/Appfile": androidFastlaneAppfile,
         "android/fastlane/Fastfile": androidFastlaneFastfile,
+        "android/fastlane/Screengrabfile": androidFastlaneScreengrabfile,
         "expo/eas.json": expoEasJson,
         "github/android.job.yml": githubAndroidJobYml,
         "github/header.yml": githubHeaderYml,
@@ -15,9 +19,13 @@ enum MobileTemplates {
         "github/prebuild/flutter-ios.yml": githubPrebuildFlutterIosYml,
         "github/prebuild/react-native-android.yml": githubPrebuildReactNativeAndroidYml,
         "github/prebuild/react-native-ios.yml": githubPrebuildReactNativeIosYml,
+        "ios/UITests/ScreenshotTests.swift": iosUITestsScreenshotTestsSwift,
+        "ios/UITests/SnapshotHelper.swift": iosUITestsSnapshotHelperSwift,
         "ios/fastlane/Appfile": iosFastlaneAppfile,
         "ios/fastlane/Fastfile": iosFastlaneFastfile,
+        "ios/fastlane/Framefile.json": iosFastlaneFramefileJson,
         "ios/fastlane/Matchfile": iosFastlaneMatchfile,
+        "ios/fastlane/Snapfile": iosFastlaneSnapfile,
     ]
 
     private static let Gemfile = #"""
@@ -26,6 +34,59 @@ enum MobileTemplates {
         source "https://rubygems.org"
 
         gem "fastlane", "~> 2.240"
+        """#
+
+    private static let androidAppSrcAndroidTestJavaScreenshotsScreenshotTestJava = #"""
+        package screenshots;
+
+        import android.app.Instrumentation;
+        import android.content.Intent;
+        import android.os.SystemClock;
+
+        import androidx.test.ext.junit.runners.AndroidJUnit4;
+        import androidx.test.platform.app.InstrumentationRegistry;
+
+        import org.junit.ClassRule;
+        import org.junit.Test;
+        import org.junit.runner.RunWith;
+
+        import tools.fastlane.screengrab.Screengrab;
+        import tools.fastlane.screengrab.locale.LocaleTestRule;
+
+        // One test per screen you want in the store. Call Screengrab.screenshot() with a name that sorts in the order you want.
+        // LocaleTestRule switches the device locale for each locale in the Screengrabfile. See docs/mobile-screenshots.md.
+        @RunWith(AndroidJUnit4.class)
+        public class ScreenshotTest {
+            @ClassRule
+            public static final LocaleTestRule localeTestRule = new LocaleTestRule();
+
+            @Test
+            public void captureHome() {
+                Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+                Intent launch = instrumentation.getTargetContext().getPackageManager()
+                        .getLaunchIntentForPackage(instrumentation.getTargetContext().getPackageName());
+                if (launch == null) {
+                    throw new IllegalStateException("the app has no launcher activity to start for screenshots");
+                }
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                instrumentation.getTargetContext().startActivity(launch);
+                instrumentation.waitForIdleSync();
+                SystemClock.sleep(1000); // let the first frame draw before the capture
+                Screengrab.screenshot("01-home");
+            }
+        }
+        """#
+
+    private static let androidAppSrcDebugAndroidManifestXml = #"""
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <!-- Screengrab needs these in debug builds to keep the screen on and write screenshots. See docs/mobile-screenshots.md. -->
+            <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+            <uses-permission android:name="android.permission.WAKE_LOCK" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.CHANGE_CONFIGURATION" />
+        </manifest>
         """#
 
     private static let androidFastlaneAppfile = #"""
@@ -43,6 +104,11 @@ enum MobileTemplates {
         def require_env!(*names)
           missing = names.select { |name| ENV[name].to_s.strip.empty? }
           UI.user_error!("Missing environment variables: #{missing.join(', ')}. See docs/mobile-fastlane.md#secrets") unless missing.empty?
+        end
+
+        # The project folder (the parent of fastlane/). fastlane runs lanes from fastlane/, so build paths from here.
+        def project_root
+          File.expand_path("..", __dir__)
         end
 
         # The folder that holds the Android project: android/ in Flutter and React Native, the app root otherwise.
@@ -106,7 +172,50 @@ enum MobileTemplates {
               skip_upload_screenshots: true
             )
           end
+
+          desc "Capture localized screenshots with screengrab. UPLOAD_SCREENSHOTS=1 uploads them to Google Play"
+          lane :screenshots do
+            screengrab
+
+            metadata = File.join(project_root, "fastlane/metadata/android")
+            UI.user_error!("screengrab wrote no screenshots. Check the instrumented tests and the Screengrabfile.") if Dir.glob(File.join(metadata, "**/*.png")).empty?
+
+            if ENV["UPLOAD_SCREENSHOTS"] == "1"
+              require_env!("PLAY_SERVICE_ACCOUNT_JSON")
+
+              upload_to_play_store(
+                json_key_data: ENV["PLAY_SERVICE_ACCOUNT_JSON"],
+                metadata_path: metadata,
+                skip_upload_apk: true,
+                skip_upload_aab: true,
+                skip_upload_metadata: true,
+                skip_upload_changelogs: true,
+                skip_upload_images: false,
+                skip_upload_screenshots: false
+              )
+            end
+          end
         end
+        """#
+
+    private static let androidFastlaneScreengrabfile = #"""
+        # Screenshot settings for `fastlane screengrab` (Android). Reference: https://docs.fastlane.tools/actions/screengrab/
+        # Values can be overridden from the environment, so CI can change them without editing this file.
+
+        # The application ID of the app under test (the applicationId in app/build.gradle).
+        app_package_name(ENV["ANDROID_PACKAGE_NAME"])
+
+        # Locales to capture. Each one gets its own folder under output_directory.
+        locales((ENV["SCREENGRAB_LOCALES"] || "en-US").split(",").map(&:strip))
+
+        # Phone, sevenInch, tenInch, tv or wear. Matches the Google Play screenshot type.
+        device_type(ENV["SCREENGRAB_DEVICE_TYPE"] || "phone")
+
+        # Where screenshots are written. The screenshots lane uploads from the same place.
+        output_directory("./fastlane/metadata/android")
+
+        # Remove earlier screenshots first, so a screen you deleted does not stay in the upload.
+        clear_previous_screenshots(true)
         """#
 
     private static let expoEasJson = #"""
@@ -127,6 +236,8 @@ enum MobileTemplates {
 
     private static let githubAndroidJobYml = #"""
           android:
+            # Android has no release lane yet, so the release choice runs only the iOS job.
+            if: inputs.lane != 'release'
             runs-on: [self-hosted, kinhin-xcode]
             defaults:
               run:
@@ -157,6 +268,16 @@ enum MobileTemplates {
                   ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
                   ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
                   CI: "true"
+              # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact, even when the
+              # lane fails, so the captures can be inspected. __DIR__ is relative to the workspace, which artifact paths need.
+              - name: Upload screenshots
+                if: ${{ always() && inputs.lane == 'screenshots' }}
+                uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+                with:
+                  name: android-screenshots
+                  path: __DIR__/fastlane/metadata/android
+                  if-no-files-found: warn
+                  retention-days: 14
               - name: Remove upload keystore
                 if: always()
                 run: rm -f "$RUNNER_TEMP/release.keystore"
@@ -179,7 +300,7 @@ enum MobileTemplates {
               lane:
                 description: "Lane to run"
                 type: choice
-                options: [beta, release]
+                options: [beta, release, screenshots]
                 default: beta
 
         jobs:
@@ -219,6 +340,16 @@ enum MobileTemplates {
                   APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
                   IOS_SCHEME: ${{ secrets.IOS_SCHEME }}
                   CI: "true"
+              # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact, even when the
+              # lane fails, so the captures can be inspected. __DIR__ is relative to the workspace, which artifact paths need.
+              - name: Upload screenshots
+                if: ${{ always() && inputs.lane == 'screenshots' }}
+                uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+                with:
+                  name: ios-screenshots
+                  path: __DIR__/fastlane/screenshots
+                  if-no-files-found: warn
+                  retention-days: 14
               - name: Remove API key
                 if: always()
                 run: rm -rf "$RUNNER_TEMP/keys"
@@ -293,6 +424,343 @@ enum MobileTemplates {
                   fi
         """#
 
+    private static let iosUITestsScreenshotTestsSwift = #"""
+        import XCTest
+
+        // One screenshot per screen you want in the store. Add a test method for each screen, and call snapshot() with a name
+        // that sorts in the order you want (for example "01-home"). See docs/mobile-screenshots.md.
+        // The snapshot helpers are main-actor isolated, so the test class must be too.
+        @MainActor
+        final class ScreenshotTests: XCTestCase {
+            override func setUpWithError() throws {
+                continueAfterFailure = false
+                let app = XCUIApplication()
+                setupSnapshot(app)  // from SnapshotHelper.swift: lets fastlane set the language and device
+                app.launch()
+            }
+
+            func testHome() {
+                snapshot("01-home")
+            }
+        }
+        """#
+
+    private static let iosUITestsSnapshotHelperSwift = #"""
+        //
+        //  SnapshotHelper.swift
+        //  Example
+        //
+        //  Created by Felix Krause on 10/8/15.
+        //
+
+        // -----------------------------------------------------
+        // IMPORTANT: When modifying this file, make sure to
+        //            increment the version number at the very
+        //            bottom of the file to notify users about
+        //            the new SnapshotHelper.swift
+        // -----------------------------------------------------
+
+        import Foundation
+        import XCTest
+
+        @MainActor
+        func setupSnapshot(_ app: XCUIApplication, waitForAnimations: Bool = true) {
+            Snapshot.setupSnapshot(app, waitForAnimations: waitForAnimations)
+        }
+
+        @MainActor
+        func snapshot(_ name: String, waitForLoadingIndicator: Bool) {
+            if waitForLoadingIndicator {
+                Snapshot.snapshot(name)
+            } else {
+                Snapshot.snapshot(name, timeWaitingForIdle: 0)
+            }
+        }
+
+        /// - Parameters:
+        ///   - name: The name of the snapshot
+        ///   - timeout: Amount of seconds to wait until the network loading indicator disappears. Pass `0` if you don't want to wait.
+        @MainActor
+        func snapshot(_ name: String, timeWaitingForIdle timeout: TimeInterval = 20) {
+            Snapshot.snapshot(name, timeWaitingForIdle: timeout)
+        }
+
+        enum SnapshotError: Error, CustomDebugStringConvertible {
+            case cannotFindSimulatorHomeDirectory
+            case cannotRunOnPhysicalDevice
+
+            var debugDescription: String {
+                switch self {
+                case .cannotFindSimulatorHomeDirectory:
+                    return "Couldn't find simulator home location. Please, check SIMULATOR_HOST_HOME env variable."
+                case .cannotRunOnPhysicalDevice:
+                    return "Can't use Snapshot on a physical device."
+                }
+            }
+        }
+
+        @objcMembers
+        @MainActor
+        open class Snapshot: NSObject {
+            static var app: XCUIApplication?
+            static var waitForAnimations = true
+            static var cacheDirectory: URL?
+            static var screenshotsDirectory: URL? {
+                return cacheDirectory?.appendingPathComponent("screenshots", isDirectory: true)
+            }
+            static var deviceLanguage = ""
+            static var currentLocale = ""
+
+            open class func setupSnapshot(_ app: XCUIApplication, waitForAnimations: Bool = true) {
+
+                Snapshot.app = app
+                Snapshot.waitForAnimations = waitForAnimations
+
+                do {
+                    let cacheDir = try getCacheDirectory()
+                    Snapshot.cacheDirectory = cacheDir
+                    setLanguage(app)
+                    setLocale(app)
+                    setLaunchArguments(app)
+                } catch let error {
+                    NSLog(error.localizedDescription)
+                }
+            }
+
+            class func setLanguage(_ app: XCUIApplication) {
+                guard let cacheDirectory = self.cacheDirectory else {
+                    NSLog("CacheDirectory is not set - probably running on a physical device?")
+                    return
+                }
+
+                let path = cacheDirectory.appendingPathComponent("language.txt")
+
+                do {
+                    let trimCharacterSet = CharacterSet.whitespacesAndNewlines
+                    deviceLanguage = try String(contentsOf: path, encoding: .utf8).trimmingCharacters(in: trimCharacterSet)
+                    app.launchArguments += ["-AppleLanguages", "(\(deviceLanguage))"]
+                } catch {
+                    NSLog("Couldn't detect/set language...")
+                }
+            }
+
+            class func setLocale(_ app: XCUIApplication) {
+                guard let cacheDirectory = self.cacheDirectory else {
+                    NSLog("CacheDirectory is not set - probably running on a physical device?")
+                    return
+                }
+
+                let path = cacheDirectory.appendingPathComponent("locale.txt")
+
+                do {
+                    let trimCharacterSet = CharacterSet.whitespacesAndNewlines
+                    currentLocale = try String(contentsOf: path, encoding: .utf8).trimmingCharacters(in: trimCharacterSet)
+                } catch {
+                    NSLog("Couldn't detect/set locale...")
+                }
+
+                if currentLocale.isEmpty && !deviceLanguage.isEmpty {
+                    currentLocale = Locale(identifier: deviceLanguage).identifier
+                }
+
+                if !currentLocale.isEmpty {
+                    app.launchArguments += ["-AppleLocale", "\"\(currentLocale)\""]
+                }
+            }
+
+            class func setLaunchArguments(_ app: XCUIApplication) {
+                guard let cacheDirectory = self.cacheDirectory else {
+                    NSLog("CacheDirectory is not set - probably running on a physical device?")
+                    return
+                }
+
+                let path = cacheDirectory.appendingPathComponent("snapshot-launch_arguments.txt")
+                app.launchArguments += ["-FASTLANE_SNAPSHOT", "YES", "-ui_testing"]
+
+                do {
+                    let launchArguments = try String(contentsOf: path, encoding: String.Encoding.utf8)
+                    let regex = try NSRegularExpression(pattern: "(\\\".+?\\\"|\\S+)", options: [])
+                    let matches = regex.matches(in: launchArguments, options: [], range: NSRange(location: 0, length: launchArguments.count))
+                    let results = matches.map { result -> String in
+                        (launchArguments as NSString).substring(with: result.range)
+                    }
+                    app.launchArguments += results
+                } catch {
+                    NSLog("Couldn't detect/set launch_arguments...")
+                }
+            }
+
+            open class func snapshot(_ name: String, timeWaitingForIdle timeout: TimeInterval = 20) {
+                if timeout > 0 {
+                    waitForLoadingIndicatorToDisappear(within: timeout)
+                }
+
+                NSLog("snapshot: \(name)") // more information about this, check out https://docs.fastlane.tools/actions/snapshot/#how-does-it-work
+
+                if Snapshot.waitForAnimations {
+                    sleep(1) // Waiting for the animation to be finished (kind of)
+                }
+
+                #if os(OSX)
+                    guard let app = self.app else {
+                        NSLog("XCUIApplication is not set. Please call setupSnapshot(app) before snapshot().")
+                        return
+                    }
+
+                    app.typeKey(XCUIKeyboardKeySecondaryFn, modifierFlags: [])
+                #else
+
+                    guard self.app != nil else {
+                        NSLog("XCUIApplication is not set. Please call setupSnapshot(app) before snapshot().")
+                        return
+                    }
+
+                    let screenshot = XCUIScreen.main.screenshot()
+                    #if os(iOS) && !targetEnvironment(macCatalyst)
+                    let image = XCUIDevice.shared.orientation.isLandscape ?  fixLandscapeOrientation(image: screenshot.image) : screenshot.image
+                    #else
+                    let image = screenshot.image
+                    #endif
+
+                    guard var simulator = ProcessInfo().environment["SIMULATOR_DEVICE_NAME"], let screenshotsDir = screenshotsDirectory else { return }
+
+                    do {
+                        // The simulator name contains "Clone X of " inside the screenshot file when running parallelized UI Tests on concurrent devices
+                        let regex = try NSRegularExpression(pattern: "Clone [0-9]+ of ")
+                        let range = NSRange(location: 0, length: simulator.count)
+                        simulator = regex.stringByReplacingMatches(in: simulator, range: range, withTemplate: "")
+
+                        let path = screenshotsDir.appendingPathComponent("\(simulator)-\(name).png")
+                        #if swift(<5.0)
+                            try UIImagePNGRepresentation(image)?.write(to: path, options: .atomic)
+                        #else
+                            try image.pngData()?.write(to: path, options: .atomic)
+                        #endif
+                    } catch let error {
+                        NSLog("Problem writing screenshot: \(name) to \(screenshotsDir)/\(simulator)-\(name).png")
+                        NSLog(error.localizedDescription)
+                    }
+                #endif
+            }
+
+            class func fixLandscapeOrientation(image: UIImage) -> UIImage {
+                #if os(watchOS)
+                    return image
+                #else
+                    if #available(iOS 10.0, *) {
+                        let format = UIGraphicsImageRendererFormat()
+                        format.scale = image.scale
+                        let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+                        return renderer.image { context in
+                            image.draw(in: CGRect(x: 0, y: 0, width: image.size.width, height: image.size.height))
+                        }
+                    } else {
+                        return image
+                    }
+                #endif
+            }
+
+            class func waitForLoadingIndicatorToDisappear(within timeout: TimeInterval) {
+                #if os(tvOS)
+                    return
+                #endif
+
+                guard let app = self.app else {
+                    NSLog("XCUIApplication is not set. Please call setupSnapshot(app) before snapshot().")
+                    return
+                }
+
+                let networkLoadingIndicator = app.otherElements.deviceStatusBars.networkLoadingIndicators.element
+                let networkLoadingIndicatorDisappeared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: networkLoadingIndicator)
+                _ = XCTWaiter.wait(for: [networkLoadingIndicatorDisappeared], timeout: timeout)
+            }
+
+            class func getCacheDirectory() throws -> URL {
+                let cachePath = "Library/Caches/tools.fastlane"
+                // on OSX config is stored in /Users/<username>/Library
+                // and on iOS/tvOS/WatchOS it's in simulator's home dir
+                #if os(OSX)
+                    let homeDir = URL(fileURLWithPath: NSHomeDirectory())
+                    return homeDir.appendingPathComponent(cachePath)
+                #elseif arch(i386) || arch(x86_64) || arch(arm64)
+                    guard let simulatorHostHome = ProcessInfo().environment["SIMULATOR_HOST_HOME"] else {
+                        throw SnapshotError.cannotFindSimulatorHomeDirectory
+                    }
+                    let homeDir = URL(fileURLWithPath: simulatorHostHome)
+                    return homeDir.appendingPathComponent(cachePath)
+                #else
+                    throw SnapshotError.cannotRunOnPhysicalDevice
+                #endif
+            }
+        }
+
+        private extension XCUIElementAttributes {
+            var isNetworkLoadingIndicator: Bool {
+                if hasAllowListedIdentifier { return false }
+
+                let hasOldLoadingIndicatorSize = frame.size == CGSize(width: 10, height: 20)
+                let hasNewLoadingIndicatorSize = frame.size.width.isBetween(46, and: 47) && frame.size.height.isBetween(2, and: 3)
+
+                return hasOldLoadingIndicatorSize || hasNewLoadingIndicatorSize
+            }
+
+            var hasAllowListedIdentifier: Bool {
+                let allowListedIdentifiers = ["GeofenceLocationTrackingOn", "StandardLocationTrackingOn"]
+
+                return allowListedIdentifiers.contains(identifier)
+            }
+
+            func isStatusBar(_ deviceWidth: CGFloat) -> Bool {
+                if elementType == .statusBar { return true }
+                guard frame.origin == .zero else { return false }
+
+                let oldStatusBarSize = CGSize(width: deviceWidth, height: 20)
+                let newStatusBarSize = CGSize(width: deviceWidth, height: 44)
+
+                return [oldStatusBarSize, newStatusBarSize].contains(frame.size)
+            }
+        }
+
+        private extension XCUIElementQuery {
+            var networkLoadingIndicators: XCUIElementQuery {
+                let isNetworkLoadingIndicator = NSPredicate { (evaluatedObject, _) in
+                    guard let element = evaluatedObject as? XCUIElementAttributes else { return false }
+
+                    return element.isNetworkLoadingIndicator
+                }
+
+                return self.containing(isNetworkLoadingIndicator)
+            }
+
+            @MainActor
+            var deviceStatusBars: XCUIElementQuery {
+                guard let app = Snapshot.app else {
+                    fatalError("XCUIApplication is not set. Please call setupSnapshot(app) before snapshot().")
+                }
+
+                let deviceWidth = app.windows.firstMatch.frame.width
+
+                let isStatusBar = NSPredicate { (evaluatedObject, _) in
+                    guard let element = evaluatedObject as? XCUIElementAttributes else { return false }
+
+                    return element.isStatusBar(deviceWidth)
+                }
+
+                return self.containing(isStatusBar)
+            }
+        }
+
+        private extension CGFloat {
+            func isBetween(_ numberA: CGFloat, and numberB: CGFloat) -> Bool {
+                return numberA...numberB ~= self
+            }
+        }
+
+        // Please don't remove the lines below
+        // They are used to detect outdated configuration files
+        // SnapshotHelperVersion [1.30]
+        """#
+
     private static let iosFastlaneAppfile = #"""
         # Who and what to ship. Values come from the environment so nothing personal is committed.
         app_identifier(ENV["APP_IDENTIFIER"]) # e.g. com.example.app
@@ -310,29 +778,49 @@ enum MobileTemplates {
           UI.user_error!("Missing environment variables: #{missing.join(', ')}. See docs/mobile-fastlane.md#secrets") unless missing.empty?
         end
 
+        # The project folder (the parent of fastlane/). fastlane runs lanes from fastlane/, so build paths from here.
+        def project_root
+          File.expand_path("..", __dir__)
+        end
+
         # An empty secret (for example an unset repository secret) means "use the default", not an empty scheme name.
         def presence(value)
           value.to_s.strip.empty? ? nil : value
         end
 
+        # frameit needs ImageMagick. Install it with Homebrew when it is missing, so enabling frames just works. Homebrew itself
+        # is not installed by this lane: that needs an admin password, so the lane stops with a clear message instead.
+        def ensure_imagemagick
+          return if system("command -v magick >/dev/null 2>&1") || system("command -v convert >/dev/null 2>&1")
+
+          UI.user_error!("frameit needs ImageMagick, and Homebrew is not installed to install it. Install Homebrew from https://brew.sh, or install ImageMagick yourself.") unless system("command -v brew >/dev/null 2>&1")
+          UI.important("ImageMagick is missing; installing it with Homebrew for frameit")
+          sh("brew install imagemagick")
+          UI.user_error!("brew finished, but no magick or convert command is available") unless system("command -v magick >/dev/null 2>&1")
+        end
+
+        # The App Store Connect API key. Only lanes that talk to Apple call this, so local screenshots need no secrets.
+        def app_store_api_key
+          require_env!("ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_KEY_FILEPATH", "APP_IDENTIFIER", "APPLE_TEAM_ID")
+          UI.user_error!("ASC_KEY_FILEPATH does not exist: #{ENV['ASC_KEY_FILEPATH']}") unless File.exist?(ENV["ASC_KEY_FILEPATH"])
+
+          app_store_connect_api_key(
+            key_id: ENV["ASC_KEY_ID"],
+            issuer_id: ENV["ASC_ISSUER_ID"],
+            key_filepath: ENV["ASC_KEY_FILEPATH"]
+          )
+        end
+
         platform :ios do
           before_all do
-            require_env!("ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_KEY_FILEPATH", "APP_IDENTIFIER", "APPLE_TEAM_ID")
-            UI.user_error!("ASC_KEY_FILEPATH does not exist: #{ENV['ASC_KEY_FILEPATH']}") unless File.exist?(ENV["ASC_KEY_FILEPATH"])
-
             setup_ci if ENV["CI"] # temporary keychain on CI runners
-
-            @api_key = app_store_connect_api_key(
-              key_id: ENV["ASC_KEY_ID"],
-              issuer_id: ENV["ASC_ISSUER_ID"],
-              key_filepath: ENV["ASC_KEY_FILEPATH"]
-            )
           end
 
           desc "Build a signed IPA and upload it to TestFlight"
           lane :beta do
+            api_key = app_store_api_key
             require_env!("MATCH_GIT_URL", "MATCH_PASSWORD")
-            match(api_key: @api_key, readonly: true)
+            match(api_key: api_key, readonly: true)
 
             build_app(
               scheme: presence(ENV["IOS_SCHEME"]),
@@ -340,7 +828,7 @@ enum MobileTemplates {
             )
 
             upload_to_testflight(
-              api_key: @api_key,
+              api_key: api_key,
               skip_waiting_for_build_processing: true
             )
           end
@@ -348,13 +836,63 @@ enum MobileTemplates {
           desc "Upload the latest processed build to the App Store (metadata and screenshots skipped)"
           lane :release do
             upload_to_app_store(
-              api_key: @api_key,
+              api_key: app_store_api_key,
               skip_metadata: true,
               skip_screenshots: true,
               submit_for_review: false
             )
           end
+
+          desc "Capture localized screenshots with snapshot. FRAME_SCREENSHOTS=1 frames them; UPLOAD_SCREENSHOTS=1 uploads them"
+          lane :screenshots do
+            snapshot
+
+            # snapshot can exit 0 when every UI test failed to build or run, so check the output directly.
+            screenshots = File.join(project_root, "fastlane/screenshots")
+            UI.user_error!("snapshot wrote no screenshots. Check the UI test target and the scheme in fastlane/Snapfile.") if Dir.glob(File.join(screenshots, "**/*.png")).empty?
+
+            if ENV["FRAME_SCREENSHOTS"] == "1"
+              ensure_imagemagick
+              shots = File.join(project_root, "fastlane/screenshots")
+              before = Dir.glob(File.join(shots, "**/*.png")).to_h { |f| [f, File.mtime(f)] }
+              frameit(path: shots)
+              # frameit can exit 0 without framing anything (a failed ImageMagick step is only logged), so check for a change.
+              after = Dir.glob(File.join(shots, "**/*.png")).to_h { |f| [f, File.mtime(f)] }
+              changed = after.reject { |f, t| before[f] == t }
+              UI.user_error!("frameit changed no screenshots. Check the ImageMagick output above.") if changed.empty? && after.any?
+            end
+
+            if ENV["UPLOAD_SCREENSHOTS"] == "1"
+              # Framed images without titles keep the full device resolution, and App Store Connect rejects them. Refuse
+              # unless you have set titles in Framefile.json and say so explicitly.
+              if ENV["FRAME_SCREENSHOTS"] == "1" && ENV["ALLOW_FRAMED_UPLOAD"] != "1"
+                UI.user_error!("Framed screenshots can be rejected by App Store Connect without titles. Set ALLOW_FRAMED_UPLOAD=1 once Framefile.json has titles, or drop FRAME_SCREENSHOTS.")
+              end
+
+              upload_to_app_store(
+                api_key: app_store_api_key,
+                skip_binary_upload: true,
+                skip_metadata: true,
+                skip_app_version_update: true,
+                overwrite_screenshots: true,
+                screenshots_path: screenshots,
+                submit_for_review: false
+              )
+            end
+          end
         end
+        """#
+
+    private static let iosFastlaneFramefileJson = #"""
+        {
+          "device_frame_version": "latest",
+          "default": {
+            "frame": "BLACK",
+            "padding": 50,
+            "show_complete_frame": false
+          },
+          "data": []
+        }
         """#
 
     private static let iosFastlaneMatchfile = #"""
@@ -363,6 +901,29 @@ enum MobileTemplates {
         storage_mode("git")
         type("appstore")
         readonly(true)                        # CI never creates or rotates certificates; run `fastlane match appstore` locally
+        """#
+
+    private static let iosFastlaneSnapfile = #"""
+        # Screenshot settings for `fastlane snapshot` (iOS). Reference: https://docs.fastlane.tools/actions/snapshot/
+        # Each value can be overridden from the environment, so CI can change them without editing this file.
+
+        # The scheme that runs your UI test target. The UI tests live in ios/UITests (see docs/mobile-screenshots.md).
+        scheme(ENV["SNAPSHOT_SCHEME"] || ENV["IOS_SCHEME"])
+
+        # Simulators to capture on. Use the names `xcrun simctl list devices available` prints.
+        devices(ENV["SNAPSHOT_DEVICES"].to_s.split(",").map(&:strip)) unless ENV["SNAPSHOT_DEVICES"].to_s.strip.empty?
+
+        # Languages to capture. Each one gets its own folder under output_directory.
+        languages((ENV["SNAPSHOT_LANGUAGES"] || "en-US").split(",").map(&:strip))
+
+        # Where screenshots are written. The screenshots lane uploads from here.
+        output_directory("./fastlane/screenshots")
+
+        # Remove earlier screenshots first, so a screen you deleted does not stay in the upload.
+        clear_previous_screenshots(true)
+
+        # Stop after the first device fails, instead of running the rest.
+        stop_after_first_error(false)
         """#
 
 }

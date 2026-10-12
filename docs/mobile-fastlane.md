@@ -12,7 +12,7 @@ trigger the workflow.
 
 ## Quick start
 
-Install kinhin, then run this from anywhere, with the project folder as the argument. The [tutorial](mobile-fastlane-tutorial.md) walks through a first build end to end, and the [credentials](mobile-credentials.md) page covers each secret:
+Install kinhin, then run this from anywhere, with the project folder as the argument. The [tutorial](mobile-fastlane-tutorial.md) walks through a first build end to end, the [credentials](mobile-credentials.md) page covers each secret, and [store screenshots](mobile-screenshots.md) covers the `screenshots` lane:
 
 ```bash
 kinhin mobile init /path/to/your/app

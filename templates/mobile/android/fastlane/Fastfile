@@ -9,6 +9,11 @@ def require_env!(*names)
   UI.user_error!("Missing environment variables: #{missing.join(', ')}. See docs/mobile-fastlane.md#secrets") unless missing.empty?
 end
 
+# The project folder (the parent of fastlane/). fastlane runs lanes from fastlane/, so build paths from here.
+def project_root
+  File.expand_path("..", __dir__)
+end
+
 # The folder that holds the Android project: android/ in Flutter and React Native, the app root otherwise.
 # Built from this Fastfile's location, because fastlane's working directory is not reliable for relative paths.
 def android_root
@@ -69,5 +74,28 @@ platform :android do
       skip_upload_images: true,
       skip_upload_screenshots: true
     )
+  end
+
+  desc "Capture localized screenshots with screengrab. UPLOAD_SCREENSHOTS=1 uploads them to Google Play"
+  lane :screenshots do
+    screengrab
+
+    metadata = File.join(project_root, "fastlane/metadata/android")
+    UI.user_error!("screengrab wrote no screenshots. Check the instrumented tests and the Screengrabfile.") if Dir.glob(File.join(metadata, "**/*.png")).empty?
+
+    if ENV["UPLOAD_SCREENSHOTS"] == "1"
+      require_env!("PLAY_SERVICE_ACCOUNT_JSON")
+
+      upload_to_play_store(
+        json_key_data: ENV["PLAY_SERVICE_ACCOUNT_JSON"],
+        metadata_path: metadata,
+        skip_upload_apk: true,
+        skip_upload_aab: true,
+        skip_upload_metadata: true,
+        skip_upload_changelogs: true,
+        skip_upload_images: false,
+        skip_upload_screenshots: false
+      )
+    end
   end
 end
