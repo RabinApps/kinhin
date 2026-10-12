@@ -1,10 +1,10 @@
 # Marketing video in CI (opt-in)
 
-The video suite ([Making a demo video](making-a-video.md)) can build a launch video, social cuts and a preview of video
+The video suite ([Add videos to your project](videos-for-your-project.md)) can build a launch video, social cuts and a preview of video
 changes in GitHub Actions, from committed sources, with no secrets. It is **off by default**: a repository that does not
 opt in gets no jobs, no cost and no new permissions.
 
-[← Back to README](../README.md) · [Making a demo video](making-a-video.md) · [The plan behind it](plans/marketing-suite-in-ci.md)
+[← Back to README](../README.md) · [Add videos to your project](videos-for-your-project.md) · [The plan behind it](plans/marketing-suite-in-ci.md)
 
 ## Switch it on
 
@@ -74,11 +74,11 @@ node scripts/video-ci.mjs verify out                      # the checks, on a fin
 ```
 
 `scripts/video-check.sh` runs the first two plus the unit tests, and `scripts/check.sh` and the CI docs job run it on every
-change. See [the tests](making-a-video.md#tests).
+change. See [the tests](making-a-video.md#tests) (kinhin's own guide).
 
 ## Use it for another product
 
-Copy `video/` and `.github/workflows/video.yml` into the other repository, add an [adapter](making-a-video.md#adapters-your-own-product)
+Copy `video/` and `.github/workflows/video.yml` into the other repository, add an [adapter](videos-for-your-project.md#adapters-your-own-product)
 for your product and a project file, set `VIDEO_CI`, and edit `video/ci.json`. The workflow only reads that file; it knows
 nothing about kinhin.
 

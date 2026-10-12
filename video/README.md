@@ -3,7 +3,7 @@
 A config-driven video builder: a project file (theme, format, typed scenes, narration) becomes a narrated video with
 Motion Canvas scenes, framed screen recordings, a local voice, music and captions; plus the record scripts for the
 scripted demo fleet. The full guide (the config, themes, scene types, recording, the container build) is
-[docs/making-a-video.md](../docs/making-a-video.md); `video/scripts/doctor.sh` lists the tools this machine is missing.
+[docs/videos-for-your-project.md](../docs/videos-for-your-project.md) (any product) and [docs/making-a-video.md](../docs/making-a-video.md) (kinhin's own video); `video/scripts/doctor.sh` lists the tools this machine is missing.
 
 | Path | What |
 |---|---|

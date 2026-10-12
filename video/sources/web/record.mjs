@@ -6,7 +6,7 @@
 //        CHROMIUM_PATH  use this Chromium binary instead of Playwright's own download
 //        PACE           multiplies every pause and move (default 1; 0.5 is twice as fast)
 //
-// A scenario is JSON (see adapters/kinhin/scenarios/site.json and docs/making-a-video.md):
+// A scenario is JSON (see adapters/kinhin/scenarios/site.json and docs/videos-for-your-project.md):
 //   { "baseUrl": "...", "viewport": {"width":1920,"height":1080}, "colorScheme": "light", "steps": [ ... ] }
 // Steps: goto, wait, move, hover, click, type, press, scroll. The page gets a visible cursor, because
 // Playwright's recording does not draw one.

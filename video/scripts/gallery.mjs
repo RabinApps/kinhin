@@ -118,10 +118,10 @@ if (flag('--write-docs')) {
   const md = `# Video gallery
 
 Every video below is built from a JSON file in \`video/script/\` with one command, in a container, from committed sources (see
-[Making a demo video](making-a-video.md)). Each picture is a frame from each scene of the real build. \`video/scripts/gallery.mjs\`
+[Add videos to your project](videos-for-your-project.md)). Each picture is a frame from each scene of the real build. \`video/scripts/gallery.mjs\`
 rebuilds all of it, and writes a page where you can play the videos.
 
-[← Back to README](../README.md) · [Making a demo video](making-a-video.md) · [Marketing video in CI](ci-video.md)
+[← Back to README](../README.md) · [Add videos to your project](videos-for-your-project.md) · [Marketing video in CI](ci-video.md)
 
 ## Examples
 
@@ -136,7 +136,7 @@ ${done.filter((c) => c.group === 'themes').map((c) => entry(c, cmdOf(c))).join('
 
 The same scene with captions off and in each style. Burned-in captions are a project setting (\`captions\` in the JSON) or a flag
 (\`--captions off\`, \`--caption-style box\`); the caption file is written either way. See
-[Captions](making-a-video.md#captions).
+[Captions](videos-for-your-project.md#captions).
 
 ${done.filter((c) => c.group === 'captions').map((c) => entry(c, cmdOf(c))).join('\n')}
 ## Formats

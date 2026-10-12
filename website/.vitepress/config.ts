@@ -167,6 +167,15 @@ export default defineConfig({
         ],
       },
       {
+        text: "Product videos",
+        collapsed: true,
+        items: [
+          { text: "Add videos to your project", link: "/guide/videos-for-your-project" },
+          { text: "Video gallery", link: "/guide/video-gallery" },
+          { text: "Marketing video in CI", link: "/guide/ci-video" },
+        ],
+      },
+      {
         text: "Help",
         items: [
           { text: "Troubleshooting", link: "/guide/troubleshooting" },
@@ -202,9 +211,7 @@ export default defineConfig({
         items: [
           { text: "Contributing", link: "/guide/contributing" },
           { text: "End-to-end testing", link: "/guide/e2e-testing" },
-          { text: "Making a demo video", link: "/guide/making-a-video" },
-          { text: "Video gallery", link: "/guide/video-gallery" },
-          { text: "Marketing video in CI", link: "/guide/ci-video" },
+          { text: "Making kinhin's demo video", link: "/guide/making-a-video" },
           { text: "Debugging races (TSan)", link: "/guide/debugging-races" },
           { text: "Cutting a release", link: "/guide/releasing" },
         ],

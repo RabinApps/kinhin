@@ -5,7 +5,7 @@
     "pullRequest": false,
     "schedule": false
   },
-  "previewPaths": ["video/**", "docs/making-a-video.md"],
+  "previewPaths": ["video/**", "docs/making-a-video.md", "docs/videos-for-your-project.md"],
   "preview": [{ "project": "examples/hello", "looks": [{}] }],
   "projects": [
     {
