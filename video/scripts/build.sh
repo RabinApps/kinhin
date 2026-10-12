@@ -19,6 +19,7 @@
 # Env: VOICE_ENGINE / VOICE override the script's voice (kokoro af_heart); NO_MUSIC=1 (same as --music off); VIDEO_MUSIC_VOLUME=0.2;
 #      VIDEO_CAPTIONS=off; CONTAINER_NETWORK=none (Docker) runs the build with no network; the container's size: CONTAINER_CPUS (default 4), CONTAINER_MEMORY (default 6G).
 set -euo pipefail
+CALLER_DIR="$PWD"   # --source is relative to where you ran this, not to video/
 cd "$(dirname "$0")/.."
 
 CONTAINER=0; RUNTIME=""
@@ -29,7 +30,7 @@ while [ $# -gt 0 ]; do
     --theme) export VIDEO_THEME="${2:?--theme needs a name (see video/themes/)}"; shift ;;
     --format) export VIDEO_FORMAT="${2:?--format needs 16:9, 9:16, 4:5 or 1:1}"; shift ;;
     --project) export VIDEO_PROJECT="${2:?--project needs a name (video/script/<name>.json)}"; shift ;;
-    --source) export VIDEO_SOURCE="$(cd "${2:?--source needs the directory of your repository}" && pwd)"; shift ;;
+    --source) export VIDEO_SOURCE="$(cd "$CALLER_DIR" && cd "${2:?--source needs the directory of your repository}" && pwd)"; shift ;;
     --music) export VIDEO_MUSIC="${2:?--music needs a track, a file, a URL, or off}"; shift ;;
     --adapter) export VIDEO_ADAPTER="${2:?--adapter needs a name (see video/adapters/)}"; shift ;;
     --fast) export VIDEO_FAST=1 ;;
