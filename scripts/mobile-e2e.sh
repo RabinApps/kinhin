@@ -37,6 +37,8 @@ for arg in "$@"; do
 done
 
 work="$(mktemp -d)"
+# A git repository, so the copy is a monorepo layout like this one: the workflow paths start at examples/.
+git init -q "$work"
 cleanup() {
     if [[ $keep -eq 1 ]]; then echo "mobile-e2e: kept $work"; else rm -rf "$work"; fi
 }
@@ -362,6 +364,47 @@ if [[ $with_builds -eq 1 ]]; then
         fi
     else
         skip "RnApp builds (needs npm and CocoaPods)"
+    fi
+
+    # Expo with fastlane: `expo prebuild` creates the native folders, then the React Native template applies to them.
+    # EAS is the default path for Expo; this is the documented alternative.
+    if command -v npx >/dev/null && command -v npm >/dev/null; then
+        ex="$work/examples/expo_app"
+        run_build "expo_app npm install" expo-npm "$ex" npm install --no-audit --no-fund
+        run_build "expo_app prebuild" expo-prebuild "$ex" npx --yes expo prebuild --no-install
+        if [[ -d "$ex/ios" && -d "$ex/android" ]]; then
+            if "$KINHIN_BIN" mobile init --framework react-native "$ex" >"$work/expo-init.log" 2>&1; then
+                ok "expo_app kinhin mobile init --framework react-native after prebuild"
+            else
+                bad "expo_app kinhin mobile init after prebuild (see $work/expo-init.log)"
+            fi
+            if [[ -d "$ex/fastlane" || -d "$ex/ios/fastlane" ]]; then
+                run_build "expo_app bundle config" expo-bundle-config "$ex" bundle config set --local path vendor/bundle
+                run_build "expo_app bundle install" expo-bundle "$ex" bundle install
+                if [[ -f "$ex/ios/Podfile" ]]; then
+                    run_build "expo_app pod install" expo-pods "$ex/ios" pod install
+                    workspace="$(cd "$ex/ios" && find . -maxdepth 1 -name '*.xcworkspace' -type d | head -1 | sed 's|^\./||' || true)"
+                    if [[ -n "$workspace" ]]; then
+                        run_build "expo_app Release device build" expo-ios "$ex/ios" xcodebuild \
+                            -workspace "$workspace" -scheme "${workspace%.xcworkspace}" -sdk iphoneos \
+                            -configuration Release build CODE_SIGNING_ALLOWED=NO
+                    else
+                        bad "expo_app: no .xcworkspace after pod install"
+                    fi
+                fi
+                if [[ -n "${JAVA_HOME:-}" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
+                    lane_build_signed "expo_app android (fastlane)" "$ex"
+                else
+                    skip "expo_app android lane (needs JAVA_HOME and an Android SDK)"
+                fi
+            else
+                bad "expo_app: kinhin mobile init wrote no fastlane folder"
+            fi
+        else
+            skip "expo_app fastlane path (prebuild did not create ios/ and android/)"
+        fi
+    else
+        skip "expo_app fastlane path (needs npm and npx)"
     fi
 
     # Native apps: the Android debug build, the iOS simulator build, and the signed lane build.

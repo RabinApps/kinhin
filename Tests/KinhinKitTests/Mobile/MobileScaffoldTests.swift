@@ -130,6 +130,33 @@ final class MobileScaffoldTests: XCTestCase {
         XCTAssertTrue(workflow.contains("actions/setup-node@v4"))
     }
 
+    func testMonorepoAppGetsWorkflowPathsFromTheRepositoryRoot() throws {
+        let repo = try folder("monorepo", dirs: [".git"])
+        let app = try folder("monorepo/apps/mobile", ["pubspec.yaml": "name: app\n"], dirs: ["ios", "android"])
+        _ = try scaffold(app)
+        let workflow = try text(app, ".github/workflows/mobile-release.yml")
+        XCTAssertTrue(workflow.contains("working-directory: apps/mobile/ios"), workflow)
+        XCTAssertTrue(workflow.contains("working-directory: apps/mobile/android"), workflow)
+        XCTAssertTrue(workflow.contains("working-directory: apps/mobile\n"), "setup steps run at the app folder")
+        XCTAssertFalse(workflow.contains("__APP__"))
+        XCTAssertEqual(MobileScaffold.repoRelativePath(of: repo), ".")
+    }
+
+    func testProjectOutsideAnyRepositoryUsesTheProjectRoot() throws {
+        let dir = try flutter()
+        XCTAssertEqual(MobileScaffold.repoRelativePath(of: dir), ".")
+        _ = try scaffold(dir)
+        XCTAssertTrue(try text(dir, ".github/workflows/mobile-release.yml").contains("working-directory: ios"))
+    }
+
+    func testReactNativeInstallsWithPnpmWhenThatIsTheLockfile() throws {
+        let dir = try reactNative()
+        _ = try scaffold(dir)
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertTrue(workflow.contains("pnpm install --frozen-lockfile"))
+        XCTAssertTrue(workflow.contains("yarn install --frozen-lockfile"))
+    }
+
     func testNativeProjectGetsNoFrameworkSteps() throws {
         let dir = try folder("native", dirs: ["ios", "android"])
         _ = try scaffold(dir)

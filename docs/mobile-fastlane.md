@@ -8,7 +8,7 @@ trigger the workflow.
 
 ## Quick start
 
-Install kinhin, then run this from anywhere, with the project folder as the argument:
+Install kinhin, then run this from anywhere, with the project folder as the argument. The [tutorial](mobile-fastlane-tutorial.md) walks through a first build end to end, and the [credentials](mobile-credentials.md) page covers each secret:
 
 ```bash
 kinhin mobile init /path/to/your/app
@@ -102,13 +102,28 @@ Expo's recommended path is EAS Build and EAS Submit. Expo local builds are suppo
 yours to provide (fastlane included), only one platform builds per run, and `eas.json`'s `fastlane` and `ndk` keys are
 ignored in local builds. `kinhin mobile init` therefore writes only `eas.json` for Expo.
 
-To use fastlane with Expo, run `npx expo prebuild` to create the native folders, then re-run the script with
-`--framework react-native`.
+To use fastlane with Expo, create the native folders, then scaffold them as a React Native project:
+
+```bash
+npm install
+npx expo prebuild --no-install   # creates ios/ and android/ (both platforms when no --platform is given)
+kinhin mobile init --framework react-native .
+```
+
+The e2e runs this route: it builds the Android bundle through the lane with a signing keystore, and runs `pod install` and
+a Release device build for iOS. Expo's own `--platform` flag takes one value, so leave it out to get both platforms.
 
 Caveats to check before relying on this:
 
 - EAS Submit uploads to TestFlight. It does not release to the App Store, which the `release` lane does.
 - The docs do not say whether `eas-build-pre-install` hooks run in local builds. Test it before depending on it.
+
+## Monorepos
+
+`kinhin mobile init` writes the workflow paths relative to the git repository that contains the project. For an app at
+`apps/mobile` in a monorepo, the jobs run `working-directory: apps/mobile/ios` and the setup steps run in `apps/mobile`.
+Run it from the app folder, or pass the path: `kinhin mobile init apps/mobile`. A project with no git repository above it
+gets paths from its own root.
 
 ## Errors you may see
 
@@ -121,14 +136,14 @@ Caveats to check before relying on this:
 | `Keystore not found at ...` | fastlane | Check `ANDROID_KEYSTORE_BASE64` and the "Write upload keystore" step. |
 | `No release AAB at ...` | fastlane | Gradle did not produce the bundle. Check `AAB_PATH` and the Gradle output. |
 
-`the `MobileScaffoldTests` Swift tests` covers the scaffolding logic. It runs in the CI docs job and in `scripts/check.sh`.
+The `MobileScaffoldTests` Swift tests cover the scaffolding logic. They run in `swift test`, which CI and `scripts/check.sh` both run.
 
 ## Verification
 
-Two scripts cover the integration:
+Two checks cover the integration:
 
-- `the `MobileScaffoldTests` Swift tests` tests the scaffolding: detection, keep and force, dry run, and the error paths. It runs in
-  `scripts/check.sh` and in CI.
+- The `MobileScaffoldTests` Swift tests cover the scaffolding: detection, keep and force, dry run, monorepo paths and the
+  error paths. They run in `swift test`, which `scripts/check.sh` and CI both run.
 - `scripts/mobile-e2e.sh` runs against a clean copy of the committed examples. It checks the templates still generate
   the committed examples, runs `bundle install` and lists the lanes, checks the secret errors in an empty environment,
   lints the generated workflows with actionlint, and confirms every fastlane option the templates use exists.

@@ -3,9 +3,10 @@
         with:
           node-version: "22"
       - name: JavaScript dependencies
-        working-directory: .
+        working-directory: __APP__
         run: |
           if [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile
+          elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile
           elif [ -f package-lock.json ]; then npm ci
           else npm install
           fi

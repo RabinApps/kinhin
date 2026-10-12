@@ -3,7 +3,7 @@
         with:
           channel: stable
       - name: Flutter packages and iOS config
-        working-directory: .
+        working-directory: __APP__
         run: |
           flutter pub get
           flutter build ios --config-only --release

@@ -119,3 +119,15 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 | 8.8 | React Native Android lane builds a signed AAB | **Done** | e2e `lane_build_signed` |
 | 8.9 | Generated Flutter and React Native jobs run on a kinhin runner | Creds | `.github/workflows/mobile-e2e.yml` runs the e2e; a generated job needs a real project |
 | 8.10 | `ruby/setup-ruby`, `subosito/flutter-action` and `actions/setup-node` work on the self-hosted arm64 runner | Creds | Same runner run as 8.9 |
+
+## 9. Monorepos, Expo with fastlane, package managers, and docs
+
+| # | Check | Status | How |
+| --- | --- | --- | --- |
+| 9.1 | Workflow paths are relative to the git repository (monorepo app at `apps/mobile`) | **Done** | `MobileScaffoldTests.testMonorepoAppGetsWorkflowPathsFromTheRepositoryRoot`; the e2e copy is a git repo, so the example paths are checked too |
+| 9.2 | A project with no repository above it uses its own root | **Done** | `MobileScaffoldTests.testProjectOutsideAnyRepositoryUsesTheProjectRoot`; a 20-second run on a non-repo folder terminates (the walk stops at `/`) |
+| 9.3 | Expo with fastlane: `expo prebuild`, then the React Native template, then the signed Android lane, pods and the Release device build | **Done** | e2e `expo_app` steps (with `--with-builds`) |
+| 9.4 | Yarn and pnpm install steps in the React Native setup | Open | Written and covered by a test that checks the text. The commands have not been run on a real project. |
+| 9.5 | Tutorial, credentials and troubleshooting pages build, and their anchors resolve | **Done** | VitePress build (no dead links); anchors checked in the built HTML |
+| 9.6 | Tutorial steps work for a new user with real accounts | Creds | Needs an Apple Developer account and a Play Console account to walk through |
+| 9.7 | Flutter Debug simulator build | Known gap | Does not work with Flutter 3.41: `Flutter.framework` has no simulator architectures. Documented in the troubleshooting page. The Release device build passes. |

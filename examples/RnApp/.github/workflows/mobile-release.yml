@@ -23,7 +23,7 @@ jobs:
     runs-on: [self-hosted, kinhin-xcode]
     defaults:
       run:
-        working-directory: ios
+        working-directory: examples/RnApp/ios
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -35,9 +35,10 @@ jobs:
         with:
           node-version: "22"
       - name: JavaScript dependencies
-        working-directory: .
+        working-directory: examples/RnApp
         run: |
           if [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile
+          elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile
           elif [ -f package-lock.json ]; then npm ci
           else npm install
           fi
@@ -69,7 +70,7 @@ jobs:
     runs-on: [self-hosted, kinhin-xcode]
     defaults:
       run:
-        working-directory: android
+        working-directory: examples/RnApp/android
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -85,9 +86,10 @@ jobs:
         with:
           node-version: "22"
       - name: JavaScript dependencies
-        working-directory: .
+        working-directory: examples/RnApp
         run: |
           if [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile
+          elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile
           elif [ -f package-lock.json ]; then npm ci
           else npm install
           fi

@@ -30,7 +30,7 @@ For Flutter and React Native, run this from `ios/` or `android/`. For the native
 
 ## What was verified
 
-- `the `MobileScaffoldTests` Swift tests` covers detection, scaffolding, keep and force, dry run, and the error paths.
+- The `MobileScaffoldTests` Swift tests cover detection, scaffolding, keep and force, dry run, and the error paths.
 - A lane with no secrets stops with a message naming the missing variables (`fastlane ios beta`, `fastlane android beta`).
 
 - `kinhin mobile init` scaffolds all five apps. The CI workflow gets only the jobs that match the project, and

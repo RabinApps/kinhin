@@ -23,7 +23,7 @@ jobs:
     runs-on: [self-hosted, kinhin-xcode]
     defaults:
       run:
-        working-directory: ios
+        working-directory: examples/flutter_app/ios
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -35,7 +35,7 @@ jobs:
         with:
           channel: stable
       - name: Flutter packages and iOS config
-        working-directory: .
+        working-directory: examples/flutter_app
         run: |
           flutter pub get
           flutter build ios --config-only --release
@@ -67,7 +67,7 @@ jobs:
     runs-on: [self-hosted, kinhin-xcode]
     defaults:
       run:
-        working-directory: android
+        working-directory: examples/flutter_app/android
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
@@ -83,7 +83,7 @@ jobs:
         with:
           channel: stable
       - name: Flutter packages (writes android/local.properties)
-        working-directory: .
+        working-directory: examples/flutter_app
         run: flutter pub get
       - name: Write upload keystore
         env:

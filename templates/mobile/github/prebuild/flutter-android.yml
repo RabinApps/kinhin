@@ -3,5 +3,5 @@
         with:
           channel: stable
       - name: Flutter packages (writes android/local.properties)
-        working-directory: .
+        working-directory: __APP__
         run: flutter pub get

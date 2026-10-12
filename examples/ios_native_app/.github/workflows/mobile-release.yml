@@ -23,7 +23,7 @@ jobs:
     runs-on: [self-hosted, kinhin-xcode]
     defaults:
       run:
-        working-directory: .
+        working-directory: examples/ios_native_app
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1

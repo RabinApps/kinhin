@@ -231,7 +231,7 @@ enum MobileTemplates {
                 with:
                   channel: stable
               - name: Flutter packages (writes android/local.properties)
-                working-directory: .
+                working-directory: __APP__
                 run: flutter pub get
         """#
 
@@ -241,7 +241,7 @@ enum MobileTemplates {
                 with:
                   channel: stable
               - name: Flutter packages and iOS config
-                working-directory: .
+                working-directory: __APP__
                 run: |
                   flutter pub get
                   flutter build ios --config-only --release
@@ -253,9 +253,10 @@ enum MobileTemplates {
                 with:
                   node-version: "22"
               - name: JavaScript dependencies
-                working-directory: .
+                working-directory: __APP__
                 run: |
                   if [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile
+                  elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile
                   elif [ -f package-lock.json ]; then npm ci
                   else npm install
                   fi
@@ -267,9 +268,10 @@ enum MobileTemplates {
                 with:
                   node-version: "22"
               - name: JavaScript dependencies
-                working-directory: .
+                working-directory: __APP__
                 run: |
                   if [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile
+                  elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile
                   elif [ -f package-lock.json ]; then npm ci
                   else npm install
                   fi

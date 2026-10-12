@@ -154,6 +154,16 @@ export default defineConfig({
         ],
       },
       {
+        text: "Mobile releases",
+        collapsed: false,
+        items: [
+          { text: "Tutorial: first build", link: "/guide/mobile-fastlane-tutorial" },
+          { text: "Reference", link: "/guide/mobile-fastlane" },
+          { text: "Credentials", link: "/guide/mobile-credentials" },
+          { text: "Troubleshooting", link: "/guide/mobile-fastlane-troubleshooting" },
+        ],
+      },
+      {
         text: "Hardware & hosting",
         items: [
           { text: "Hardware & sizing", link: "/guide/hardware" },

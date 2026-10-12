@@ -49,7 +49,7 @@ public enum MobileScaffold {
     ) throws -> MobileScaffoldReport {
         let framework = requested == .auto ? try detect(in: directory) : requested
         let platforms = try platformsFor(framework, in: directory)
-        var writer = Writer(root: directory, force: force, dryRun: dryRun)
+        var writer = Writer(root: directory, appPath: repoRelativePath(of: directory), force: force, dryRun: dryRun)
 
         if framework == .expo {
             try writer.write(template: "expo/eas.json", to: "eas.json")
@@ -98,6 +98,29 @@ public enum MobileScaffold {
         }
     }
 
+    /// The project folder relative to the git repository that contains it: "." for a project at the root, and
+    /// "apps/mobile" for a monorepo app. With no repository above it, "." is the only sensible answer.
+    static func repoRelativePath(of directory: URL) -> String {
+        let fm = FileManager.default
+        var root = directory.standardizedFileURL
+        while !fm.fileExists(atPath: root.appendingPathComponent(".git").path) {
+            // Stop at "/" by depth: deletingLastPathComponent() on the root does not return an equal path.
+            if root.pathComponents.count <= 1 { return "." }
+            root = root.deletingLastPathComponent()
+        }
+        let base = root.pathComponents
+        let full = directory.standardizedFileURL.pathComponents
+        let relative = full.dropFirst(base.count)
+        return relative.isEmpty ? "." : relative.joined(separator: "/")
+    }
+
+    /// Joins two relative paths, where "." is the empty path.
+    static func joinPath(_ base: String, _ child: String) -> String {
+        if base == "." { return child }
+        if child == "." { return base }
+        return "\(base)/\(child)"
+    }
+
     /// A platform's fastlane folder lives in its own folder when that exists, else at the root.
     static func platformFolder(_ platform: String, in directory: URL) -> String {
         isDirectory(directory.appendingPathComponent(platform)) ? platform : "."
@@ -144,8 +167,12 @@ public enum MobileScaffold {
         let dryRun: Bool
         private(set) var lines: [String] = []
 
-        init(root: URL, force: Bool, dryRun: Bool) {
+        /// The project folder relative to the git repository root (".", or "apps/mobile" in a monorepo).
+        let appPath: String
+
+        init(root: URL, appPath: String, force: Bool, dryRun: Bool) {
             self.root = root
+            self.appPath = appPath
             self.force = force
             self.dryRun = dryRun
         }
@@ -242,7 +269,7 @@ public enum MobileScaffold {
         private func job(platform: String, framework: MobileFramework, directory: URL) throws -> String {
             let template = try self.template("github/\(platform).job.yml")
             let prebuild = try prebuildSteps(platform: platform, framework: framework)
-            let folder = MobileScaffold.platformFolder(platform, in: directory)
+            let folder = MobileScaffold.joinPath(appPath, MobileScaffold.platformFolder(platform, in: directory))
             var out = ""
             for line in template.components(separatedBy: "\n") {
                 if line == "__PREBUILD__" {
@@ -256,10 +283,15 @@ public enum MobileScaffold {
 
         private func prebuildSteps(platform: String, framework: MobileFramework) throws -> String {
             switch framework {
-            case .flutter: return withNewline(try template("github/prebuild/flutter-\(platform).yml"))
-            case .reactNative: return withNewline(try template("github/prebuild/react-native-\(platform).yml"))
+            case .flutter: return withNewline(try steps("github/prebuild/flutter-\(platform).yml"))
+            case .reactNative: return withNewline(try steps("github/prebuild/react-native-\(platform).yml"))
             default: return ""
             }
+        }
+
+        /// A setup-steps template with its `__APP__` placeholder set to the project's path.
+        private func steps(_ name: String) throws -> String {
+            try template(name).replacingOccurrences(of: "__APP__", with: appPath)
         }
 
         private func template(_ name: String) throws -> String {
