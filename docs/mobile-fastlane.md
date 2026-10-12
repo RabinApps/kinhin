@@ -1,7 +1,11 @@
 # Mobile releases with fastlane
 
+This is opt-in. kinhin's runners, configuration and commands work exactly as before unless you run `kinhin mobile init`
+in a project. Running it only adds files to that project: fastlane lanes, a `Gemfile`, and a CI workflow. kinhin's own
+config is not read or changed by it.
+
 Scaffold fastlane into an iOS, Android, Flutter, React Native or Expo project, and run store uploads from a kinhin
-runner. One script writes the lanes, a pinned Gemfile and a manual release workflow. Nothing is uploaded until you
+runner. `kinhin mobile init` writes the lanes, a pinned Gemfile and a manual release workflow. Nothing is uploaded until you
 trigger the workflow.
 
 [← Back to toolchains](toolchains.md)

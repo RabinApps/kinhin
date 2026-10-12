@@ -8,7 +8,7 @@
 
 - `kinhin mobile init` scaffolds fastlane release setup for iOS, Android, Flutter, React Native and
   native projects with lanes, a pinned Gemfile and a manual `mobile-release` workflow for `kinhin-xcode`. Expo gets EAS
-  config. See [docs/mobile-fastlane.md](docs/mobile-fastlane.md).
+  config. Opt-in: nothing changes for projects that do not run it. See [docs/mobile-fastlane.md](docs/mobile-fastlane.md).
 
 **Changed**
 
@@ -17,6 +17,8 @@
 
 **Fixed**
 
+- Commands that run a child process could return its stderr without the last lines, under load. The result is now read
+  only after the pipes reach end-of-file.
 - The apple/container install hints now include `--enable-kernel-install`. Without it, `container run` fails with
   "default kernel not configured".
 
