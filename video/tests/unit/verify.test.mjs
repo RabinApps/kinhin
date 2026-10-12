@@ -49,3 +49,15 @@ test('a flat poster is reported as blank', {skip: !ffmpeg && 'needs ffmpeg'}, as
   execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=white:s=320x180:d=1', '-frames:v', '1', join(dir, 'flat-poster.png')]);
   assert.match(verifyVideo(f, {loudnessTarget: -48, loudnessTolerance: 6}).failures.join(), /the poster is blank/);
 });
+
+test('a sparse slide (a little text on a plain backdrop) is a valid poster, a flat frame is not', {skip: !ffmpeg && 'needs ffmpeg'}, async () => {
+  const {execFileSync} = await import('node:child_process');
+  const {edgeFraction, notBlank} = await import('../../scripts/verify.mjs');
+  const sparse = join(dir, 'sparse.png');
+  // Two short bars on a soft gradient: about as little as a one-sentence slide shows.
+  execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'gradients=s=1280x720:c0=0xffffff:c1=0xe6ebf5:speed=0.00001:d=1', '-vf', 'drawbox=x=420:y=330:w=440:h=14:color=black:t=fill,drawbox=x=520:y=380:w=240:h=8:color=gray:t=fill', '-frames:v', '1', sparse]);
+  const flat = join(dir, 'flat2.png');
+  execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'gradients=s=1280x720:c0=0xffffff:c1=0xe6ebf5:speed=0.00001:d=1', '-frames:v', '1', flat]);
+  assert.ok(notBlank(sparse), `edges: ${edgeFraction(sparse)}`);
+  assert.ok(!notBlank(flat), 'the backdrop alone has no edges');
+});

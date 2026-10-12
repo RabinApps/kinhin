@@ -30,17 +30,23 @@ export function blackSpans(file) {
   return [...r.stderr.matchAll(/black_start:([\d.]+) black_end:([\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
 }
 
-/** True when an image is not (nearly) a single colour. */
-export function notBlank(file) {
+/**
+ * How much of an image is edges (0 to 1): text, shapes, a laptop. A plain backdrop, a fade, or a flat colour has none, so
+ * a slide with one sentence on it still scores above a blank frame.
+ */
+export function edgeFraction(file) {
   // A GIF starts on a fade, so look a second in.
   const seek = file.endsWith('.gif') ? ['-ss', '1'] : [];
-  const r = spawnSync('ffmpeg', ['-nostdin', '-v', 'error', ...seek, '-i', file, '-vf', 'scale=32:32,format=gray', '-frames:v', '1', '-f', 'rawvideo', 'pipe:1'], {maxBuffer: 1 << 20});
-  const px = [...r.stdout];
-  if (px.length < 100) return false;
-  const mean = px.reduce((a, b) => a + b, 0) / px.length;
-  const sd = Math.sqrt(px.reduce((a, b) => a + (b - mean) ** 2, 0) / px.length);
-  return sd > 2;
+  const r = spawnSync('ffmpeg', ['-nostdin', '-v', 'error', ...seek, '-i', file, '-vf', 'scale=480:-2,format=gray,edgedetect=low=0.08:high=0.25', '-frames:v', '1', '-f', 'rawvideo', 'pipe:1'], {maxBuffer: 8 << 20});
+  const px = r.stdout;
+  if (!px || px.length < 100) return 0;
+  let edges = 0;
+  for (const v of px) if (v > 128) edges++;
+  return edges / px.length;
 }
+
+/** True when an image is not blank: it has some edges (a single line of text is enough). */
+export const notBlank = (file) => edgeFraction(file) > 0.0004;
 
 export function parseSrt(text) {
   return text.trim() ? text.trim().split(/\n\s*\n/).map((block) => {

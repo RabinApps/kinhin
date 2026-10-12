@@ -10,9 +10,10 @@
 // the title scenes already show their words. out/<project>.srt has every cue for a site player.
 // Usage: node scripts/assemble.mjs      Env: NO_CAPTIONS=1, CAPTION_SCENES, MUSIC_VOLUME (default 0.35, before ducking),
 //        VIDEO_FAST=1 (a preview: quicker encode, no WebM)
-import {execFileSync} from 'node:child_process';
+import {execFileSync, spawnSync} from 'node:child_process';
 import {existsSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {loadProject, root} from './project.mjs';
+import {edgeFraction} from './verify.mjs';
 
 process.chdir(root);
 const tl = JSON.parse(readFileSync('out/timeline.json', 'utf8'));
@@ -66,6 +67,21 @@ if (music) {
   audio = 'out/audio.wav';
 }
 
+// The voice was levelled on its own; music added afterwards moves the total, so level the finished mix to -16 LUFS,
+// measured first and then applied exactly (two passes).
+{
+  const target = 'I=-16:TP=-1.5:LRA=11';
+  const measured = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', audio, '-af', `loudnorm=${target}:print_format=json`, '-f', 'null', '-'], {encoding: 'utf8'});
+  const json = measured.stderr.slice(measured.stderr.lastIndexOf('{'));
+  try {
+    const m = JSON.parse(json);
+    ff(['-i', audio, '-af', `loudnorm=${target}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`, '-ar', '48000', 'out/final.wav']);
+    audio = 'out/final.wav';
+  } catch {
+    console.warn('could not measure the mix; keeping it as it is');
+  }
+}
+
 // 4. Captions burned in (theme colours and font; narrower frames get smaller, shorter lines), picture and sound joined.
 const ass = (c) => `&H${c.slice(5, 7)}${c.slice(3, 5)}${c.slice(1, 3)}&`.toUpperCase();
 const cap = theme.caption;
@@ -116,11 +132,19 @@ const video = `out/${outName}.mp4`;
 ff(['-i', 'out/picture.mp4', '-i', audio, '-vf', vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-crf', FAST ? '28' : '18', '-preset', FAST ? 'veryfast' : 'medium', '-pix_fmt', 'yuv420p',
   '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', video]);
 if (!FAST) ff(['-i', video, '-c:v', 'libvpx-vp9', '-crf', '33', '-b:v', '0', '-c:a', 'libopus', `out/${outName}.webm`]);
-// Poster and hero GIF come from the first clip scene (the product on screen), else the middle of the video.
-const [heroId] = Object.entries(S).find(([, s]) => s.kind === 'clip') ?? [];
-const heroAt = heroId ? S[heroId].start + Math.min(8, S[heroId].length - 2) : total / 2;
-ff(['-ss', String(heroAt), '-i', video, '-frames:v', '1', '-vf', `scale=${Math.min(1200, format.width)}:-2`, `out/${outName}-poster.png`]);
-ff(['-ss', String(heroId ? S[heroId].start : 0), '-t', '10', '-i', video, '-vf', 'fps=10,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse', `out/${outName}-hero.gif`]);
+// The poster and the hero GIF come from the most detailed scene: a frame near the end of each scene is scored by how
+// much of it is edges (text, shapes, the product), and the best one wins; a clip scene (the product on screen) is
+// preferred when it scores about as well.
+const candidates = Object.entries(S).map(([id, s], i) => {
+  const at = s.start + Math.min(s.length * 0.8, s.length - 0.6);
+  const f = `out/.poster-${i}.png`;
+  ff(['-ss', String(at), '-i', video, '-frames:v', '1', f]);
+  return {id, scene: s, at, file: f, score: edgeFraction(f) * (s.kind === 'clip' ? 1.5 : 1)};
+});
+const best = candidates.reduce((a, b) => (b.score > a.score ? b : a));
+ff(['-i', best.file, '-vf', `scale=${Math.min(1200, format.width)}:-2`, `out/${outName}-poster.png`]);
+ff(['-ss', String(best.scene.start), '-t', '10', '-i', video, '-vf', 'fps=10,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse', `out/${outName}-hero.gif`]);
+for (const c of candidates) rmSync(c.file, {force: true});
 writeFileSync(`out/${outName}.srt`, readFileSync(`out/${tl.project}.captions.srt`));
-for (const f of [...parts.map((p) => p.out), 'out/parts.txt', ...groups.map((_, i) => `out/burned-${i}.srt`), 'out/picture.mp4', 'out/voice.wav', 'out/audio.wav']) rmSync(f, {force: true});
+for (const f of [...parts.map((p) => p.out), 'out/parts.txt', ...groups.map((_, i) => `out/burned-${i}.srt`), 'out/picture.mp4', 'out/voice.wav', 'out/audio.wav', 'out/final.wav']) rmSync(f, {force: true});
 console.log(`wrote ${video} (${format.name} ${format.width}x${format.height}, ${theme.name}, ${total.toFixed(1)}s${music ? ', with music' : ', no music'}), .webm, -poster.png, -hero.gif, .srt`);
