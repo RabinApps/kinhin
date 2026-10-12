@@ -2,28 +2,18 @@
 
 kinhin can be recorded without a forge, a token, a VM or a real queue: a debug build can replay a scripted fleet
 (jobs arrive, instances clone, boot, run and are deleted, one fails and its retry passes) while you screen-record the
-real app. The `video/` directory turns that recording, a terminal clip and a few title scenes into one video, using
-only open-source tools. Use it for a release video, a feature clip or a README GIF.
+real app. The `video/` directory turns that recording, a terminal clip and a few title scenes into one narrated video from a
+single config file, using only open-source tools. Use it for a release video, a feature clip or a README GIF.
 
 [← Back to README](../README.md) · [Contributing](../CONTRIBUTING.md) · [The app](app.md)
 
-## Kinds of video
-
-Pick a preset in `video/presets/`; each lists the clips to join, and `video/scripts/make.sh <preset>` makes the ones
-a script can make, then exports. Mix your own by copying a preset.
-
-| Preset | For | Clips |
-|---|---|---|
-| `native-app` (default) | a native macOS app like kinhin | title scenes, the app on the demo fleet, a terminal clip, closing scenes |
-| `web-product` | a website or web app | title scenes, a scripted browser session, closing scenes |
-
-A clip is any of: **title scenes** (Motion Canvas, any machine), **native app** (`screencapture` on a Mac or in a Tart
-VM), **terminal** (VHS), **browser** (Playwright and Chromium, in a Linux container or locally), or a file you record
-yourself (drop it in `video/raw/` and list it in a preset). Browser clips need no Mac, no desktop session and no
-permission grant, so they are the easy path for anything that runs in a browser.
-
 ## The pieces
 
+A video is a list of scenes (see [Make a video from a config](#make-a-video-from-a-config)). Each scene is either a
+**canvas scene** drawn by Motion Canvas (title, statement, queue, parallel, map, outro) or a **clip scene** around a
+recording you made: the app, a terminal, or a browser session. Browser clips need no Mac, no desktop session and no
+permission grant, so they are the easy path for anything that runs in a browser (use a `device` scene with
+`"frame": "window"` and `"clip": "raw/web.webm"`).
 
 | Piece | What it is | Where |
 |---|---|---|
@@ -31,8 +21,8 @@ permission grant, so they are the easy path for anything that runs in a browser.
 | App clip | `screencapture` of the demo app's window, on a Mac or in a throwaway Tart VM | `video/scripts/record.sh`, `record-in-tart.sh` |
 | Browser clip | Scripted Playwright session, in a container or locally | `video/sources/web/`, `video/scenarios/`, `video/scripts/record-web.sh` |
 | Terminal clip | [VHS](https://github.com/charmbracelet/vhs) tape that runs the real CLI (debug build, throwaway support dir; `trim.sh` masks the empty-config lines) | `video/terminal/*.tape` |
-| Title scenes | [Motion Canvas](https://motioncanvas.io) (MIT): intro, problem, lanes, outro | `video/src/` |
-| Final cut | `ffmpeg` (with libass for captions: `brew install ffmpeg-full`) joins the clips into `launch.mp4`, `launch.webm`, `poster.png`, `hero.gif` | `video/scripts/export.sh` |
+| Canvas scenes | [Motion Canvas](https://motioncanvas.io) (MIT), themed and sized by the project file | `video/src/` |
+| Build | Voice, retime, render, frame, mix, captions | `video/scripts/build.sh` |
 
 Motion Canvas rather than Remotion because Remotion's license requires a paid company license above three employees.
 Run `video/scripts/doctor.sh` to see which tools this machine is missing.
@@ -90,56 +80,99 @@ Tart VM:
 Both set `KINHIN_DEMO` the same way (`KINHIN_DEMO=path/in/repo.json video/scripts/record.sh`). For auto-zoom and a
 smoothed cursor, run the raw take through an open-source editor such as OpenScreen or Screenize.
 
-## Title scenes and the final cut
+## Make a video from a config
 
-Edit the words and facts in `video/src/content.ts` (supported forges and runtimes, taglines, the release badge), then:
-
-```bash
-cd video && npm install && npm run serve   # opening: intro + problem; npm run serve:closing for lanes + outro
-```
-
-Render each from the editor (exporter *Video (FFmpeg)*; the projects' `.meta` files already select it). The render lands in
-`video/output/` (git-ignored): move it to `video/raw/opening.mp4` and `video/raw/closing.mp4`, put
-the app and terminal clips in `video/raw/` (`app.mov`, `install.mp4`), and run `video/scripts/export.sh`. Outputs land
-in `video/out/`; `raw/` and `out/` are git-ignored.
-
-## The voice-over cut
-
-One command builds the whole launch video, on a Mac or in a container, from what is committed:
+A video is one JSON file in `video/script/` (the launch video is `launch.json`, a small one is `example.json`): a
+theme, a format, and a list of typed scenes with narration. One command builds it, on a Mac or in a container, and
+the picture follows the voice, so editing a line re-times everything.
 
 ```bash
-video/scripts/build.sh                    # on this machine (Node, ffmpeg with libass, Chromium)
-video/scripts/build.sh --container        # in a container: Apple's `container` if it is running, else Docker
+video/scripts/build.sh                                  # the project's own look (video/script/launch.json)
+video/scripts/build.sh --project example                # another project
+video/scripts/build.sh --theme midnight --format 9:16   # another look or frame, without editing the file
+video/scripts/build.sh --container                      # in a container: Apple's `container` if running, else Docker
 video/scripts/build.sh --runtime docker --container
 ```
 
-The container image (`video/Containerfile`: Playwright's Chromium, ffmpeg with libass, the Inter font, Kokoro and its
-model) is the canonical build, so the result does not depend on what is installed. It needs no Mac: the app and terminal
-clips come from `video/reference/` (a few hundred KB, committed) unless you have fresher ones in `video/raw/`. The stages:
+The container image (`video/Containerfile`: Playwright's Chromium, ffmpeg with libass, Kokoro and its model, the theme
+fonts) is the canonical build, so the result does not depend on what is installed. It needs no Mac: the app and terminal
+clips come from `video/reference/` (a few hundred KB, committed) unless you have fresher ones in `video/raw/`.
 
-1. `scripts/voice.mjs` renders the narration of `script/launch.json` (default: Kokoro `af_heart`) one cue at a time.
-2. `scripts/retime.mjs` makes each scene as long as its speech needs and writes `src/timing.ts`, `out/timeline.json`
-   and `captions/launch.srt`. The picture follows the voice.
-3. `scripts/render-titles.mjs` renders the Motion Canvas `opening` and `closing` projects headlessly.
-4. `scripts/frame-app.sh` puts the app clip in a MacBook, `scripts/frame-terminal.sh` the terminal clip in a window.
-5. `scripts/fetch-music.sh` downloads the CC0 music bed and checks its SHA-256.
-6. `scripts/assemble.mjs` joins picture, voice, music (ducked under the voice) and captions into `out/launch.mp4`,
-   `launch.webm`, `poster.png` and `hero.gif`; `out/launch.srt` has every caption for a player.
+### The project file
 
-- **Your own words.** Edit `script/launch.json` (narration or timed `cues`, the voice, the scene order) and
-  `src/content.ts` (on-screen text), then run `build.sh` again. Hear voices first with `node scripts/voice.mjs --audition`.
+```json
+{
+  "name": "My product",
+  "theme": "midnight",
+  "format": "16:9",
+  "pace": 1,
+  "voice": { "engine": "kokoro", "name": "af_heart" },
+  "overrides": { "font": { "family": "Georgia" }, "colors": { "accent": "#ff7a59" } },
+  "scenes": [
+    { "id": "intro", "type": "title", "props": { "title": "Hello", "subtitle": "my product" },
+      "narration": "Meet my product." }
+  ]
+}
+```
+
+- **`theme`**: a file in `video/themes/`: `paper` (soft white, the launch look), `clean` (flat, one blue accent),
+  `midnight` (deep navy), `blueprint` (white lines on blue, monospaced), `chalk` (chalk on a green board, handwritten).
+  Copy one to `video/themes/<name>.json` and edit it to make your own: the font (`family`, `weight`), `colors` (`ink`,
+  `muted`, `paper`, `accent`, `card`, `track`, `line`), the `background` gradient, the `device` look (desktop wallpaper,
+  lid, base, window chrome, shadow) and the `caption` style.
+- **`overrides`**: change a single value of the theme for this project without copying it (merged over the theme).
+- **Fonts.** Any font installed on the machine works by name. Put your own `.ttf` or `.otf` files in `video/fonts/`: the
+  container installs them when a build starts. The built-in themes use Inter, DejaVu Sans Mono and Comic Neue, which the
+  image has.
+- **`format`**: `16:9` (YouTube, web), `9:16` (Shorts, Reels, TikTok), `4:5` (feeds) or `1:1`. The title scenes, the
+  device frames and the captions all follow it; the terminal clip's own text stays as recorded.
+- **`pace`**: 0.7 (slower) to 1.6 (faster) scales the voice and the pauses.
 - **Voices.** `kokoro` (default, Apache-2.0 model), `supertonic` (archived upstream; model under OpenRAIL-M) and macOS
-  `say` (Premium voices sound much better). `node scripts/voice.mjs --setup kokoro|supertonic` installs one on a host.
-  Set `VOICE_ENGINE` and `VOICE` to override for one build.
-- **Cues.** A scene with `narration` plays its sentences in order; one with `cues` places each at `at` seconds into the
-  scene (used for the app clip, so the voice names what is on screen). A cue's `say` respells what is spoken.
-- **Fresh recordings.** `record.sh` starts the demo at a known moment (`KINHIN_DEMO_ORIGIN`) and writes `raw/app.json`;
-  `frame-app.sh` starts the shot there and plays it at the script's `speed`. Keep the mouse pointer off the window while
-  it records. After `record.sh` and the vhs tape, `scripts/make-reference.sh` refreshes `video/reference/`.
-- **Captions.** Only scenes without text of their own (`CAPTION_SCENES`, default `app,install`) are burned in.
-- **Music.** The launch video uses [First Light Particles](https://opengameart.org/node/182244) by Yoiyami (CC0: no credit
-  needed, anyone may reuse it). Use only CC0 tracks, and do not commit tracks under licences that forbid redistributing
-  the file on its own (Pixabay's does). `NO_MUSIC=1` skips it.
+  `say` (Premium voices sound much better). Hear them first with `node video/scripts/voice.mjs --audition`.
+  `VOICE_ENGINE` and `VOICE` override the file for one build.
+
+### Scene types
+
+Each scene has an `id`, a `type`, `props`, and its words: `narration` (sentences played in order) or `cues` (each
+placed `at` seconds into the scene; a cue's `say` respells what is spoken). `minLength` sets the shortest the scene may
+be; the voice can only make it longer.
+
+| Type | Shows | Props |
+|---|---|---|
+| `title` | A mark that draws itself, a title, a subtitle | `title`, `subtitle`, `mark` (`ring` or `none`) |
+| `statement` | One big sentence and a line under it | `text`, `sub`, `size` |
+| `queue` | A queue of jobs waiting for one runner | `runner`, `count`, `caption`, `caption2` |
+| `parallel` | Items each getting their own fresh card, running side by side, then vanishing | `items`, `card`, `caption`, `done` |
+| `map` | Things on the left, things on the right, one hub between them | `left`, `right`, `caption`, `note` |
+| `outro` | A closing line, a URL and a row of facts | `line`, `url`, `facts` |
+| `device` | A screen recording in a MacBook (drawn, no Apple artwork) that tilts and slides in | `clip`, `frame` (`macbook`, `window` or `none`), `speed` |
+| `terminal` | A terminal recording in a window | `clip`, `frame` (`window` or `none`) |
+
+`clip` is `app` or `install` (your `raw/` recording, else the committed one in `video/reference/`) or a path. To add a
+scene type, add a file in `video/src/scenes/` (copy `statement.tsx`), a line in `video/src/titles.ts`, and the type in
+`video/shared/resolve.mjs`.
+
+### What the build does
+
+1. `scripts/voice.mjs` renders each cue of the narration.
+2. `scripts/retime.mjs` makes each scene as long as its speech needs and writes `src/timing.ts`, `out/timeline.json` and
+   `captions/<project>.srt`.
+3. `scripts/render-titles.mjs` renders every canvas scene headlessly (Playwright's Chromium) to `raw/scenes/<project>/`.
+4. `scripts/frames.mjs` puts the device and terminal clips in their frames.
+5. `scripts/fetch-music.sh` downloads the CC0 music bed and checks its SHA-256 (`NO_MUSIC=1` skips it).
+6. `scripts/assemble.mjs` joins the scenes with short fades, the voice, music ducked under it, and captions into
+   `out/<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt` (every caption, for a player). Captions are burned
+   into the clip scenes only; the title scenes already show their words.
+
+### Recording the app
+
+`record.sh` starts the demo at a known moment (`KINHIN_DEMO_ORIGIN`) and writes `raw/app.json`; the `device` scene starts
+the shot there. Keep the mouse pointer off the window while it records. After `record.sh` and the vhs tape,
+`scripts/make-reference.sh` refreshes `video/reference/`.
+
+The launch video's music is [First Light Particles](https://opengameart.org/node/182244) by Yoiyami (CC0: no credit needed,
+anyone may reuse it). Use only CC0 tracks, and do not commit tracks under licences that forbid redistributing the file on
+its own (Pixabay's does).
 
 ## Record a web product
 
@@ -170,17 +203,12 @@ pixels, or `selector`; `ms` is the duration, eased). Target an element with `sel
 or `text`. The page shows a visible cursor, because Playwright's recording does not draw one. A failing step stops the
 run with its number and writes no file.
 
-## Captions, music and the site
+## The site
 
-- **Captions.** `video/captions/app.srt` and `install.srt` are burned into the app and terminal clips by
-  `export.sh` (black text, white outline, so they read on any background). They are timed to the built-in `launch`
-  script and the shipped VHS tape; retime them if you record a different script or edit the take. `NO_CAPTIONS=1`
-  skips them.
-- **Music.** Drop `video/raw/music.mp3` (or `.m4a`, `.wav`, `.flac`) next to the clips and `export.sh` loops it under
-  the whole video at half volume, with a 2 s fade in and a 3 s fade out. Use music you have the right to publish.
-- **The home page.** Copy `launch.mp4`, `launch.webm` and `launch-poster.png` from `video/out/` (the poster is
-  `poster.png`) into `website/public/`. The home page shows the player only when `launch.mp4` exists, so the site
-  never renders a broken video. Keep the files small (under about 10 MB) or host them elsewhere.
+Copy the built `<project>.mp4`, `<project>.webm` and `<project>-poster.png` from `video/out/` into `website/public/` as
+`launch.mp4`, `launch.webm` and `launch-poster.png`. The home page shows the player only when `launch.mp4` exists, so
+the site never renders a broken video. Keep the files small (under about 10 MB) or host them elsewhere. The player
+can use `<project>.srt` for captions.
 
 ## Keep it honest
 

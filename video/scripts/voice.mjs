@@ -56,7 +56,8 @@ const script = JSON.parse(readFileSync(scriptPath, 'utf8'));
 const engine = engineFlag || process.env.VOICE_ENGINE || script.voice?.engine || 'say';
 const voice = voiceFlag || process.env.VOICE || script.voice?.name || VOICES[engine]?.[0];
 const rate = process.env.RATE || script.voice?.rate || 175; // `say` words per minute
-const speed = Number(process.env.SPEED || script.voice?.speed || 1); // kokoro/supertonic speed factor
+const pace = Number(process.env.PACE || script.pace || 1); // 0.7 slower ... 1.6 faster: voice speed, and the gaps between cues
+const speed = Number(process.env.SPEED || script.voice?.speed || 1) * pace; // kokoro/supertonic speed factor
 if (!(engine in VOICES)) throw new Error(`unknown engine "${engine}" (say, kokoro, supertonic)`);
 
 // Respell names so the engines pronounce them; the captions keep the original spelling.
@@ -70,7 +71,7 @@ async function render(eng, voiceName, jobs) {
   if (eng === 'say') {
     for (const job of jobs) {
       const aiff = job.out.replace(/\.m4a$/, '.aiff');
-      execFileSync('say', ['-v', voiceName, '-r', String(rate), '-o', aiff, speakable(job.text)]);
+      execFileSync('say', ['-v', voiceName, '-r', String(Math.round(rate * pace)), '-o', aiff, speakable(job.text)]);
       toM4a(aiff, job.out);
       rmSync(aiff);
       durations.push(seconds(job.out));
@@ -146,14 +147,14 @@ const plan = script.scenes.map((scene) => {
 const durations = await render(engine, voice, jobs);
 jobs.forEach((job, i) => (job.seconds = durations[i]));
 
-const lead = (scene) => scene.lead ?? script.lead ?? 0.5;
+const lead = (scene) => (scene.lead ?? script.lead ?? 0.5) / pace;
 const timings = {engine, voice, scenes: {}};
 for (const {scene, cues} of plan) {
   let cursor = lead(scene);
   const placed = cues.map((cue) => {
     const start = cue.at ?? cursor;
     const end = start + cue.job.seconds;
-    cursor = end + (script.gap ?? 0.35);
+    cursor = end + (script.gap ?? 0.35) / pace;
     return {text: cue.text, file: cue.job.out.replace(root + '/', ''), start: round(start), end: round(end)};
   });
   const speechEnd = placed.at(-1).end;

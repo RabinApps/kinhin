@@ -13,7 +13,7 @@ optional() { # like check, but a missing tool is not a failure
 }
 echo "Any machine (title scenes and the final cut):"
 check node node "Motion Canvas title scenes" "node >= 22"
-check ffmpeg ffmpeg "export.sh" "brew install ffmpeg"
+check ffmpeg ffmpeg "assemble.mjs" "brew install ffmpeg-full"
 if command -v ffmpeg >/dev/null 2>&1 || [ -x /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg ]; then
   FF=ffmpeg; [ -x /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg ] && FF=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
   if "$FF" -hide_banner -filters 2>/dev/null | grep -q ' subtitles '; then echo "  ok       libass       captions (ffmpeg subtitles filter)"

@@ -1,0 +1,39 @@
+{
+  "name": "A tiny example video",
+  "theme": "chalk",
+  "format": "16:9",
+  "pace": 1,
+  "voice": { "engine": "kokoro", "name": "af_heart" },
+  "overrides": {},
+  "scenes": [
+    {
+      "id": "hello",
+      "type": "title",
+      "props": { "title": "Hello, video", "subtitle": "made from one JSON file", "mark": "ring" },
+      "narration": "This video is made from one small JSON file."
+    },
+    {
+      "id": "idea",
+      "type": "statement",
+      "props": { "text": "Pick a theme. Write the words.", "sub": "The pictures follow the voice." },
+      "narration": "Pick a theme, write the words, and the pictures follow the voice."
+    },
+    {
+      "id": "fit",
+      "type": "map",
+      "props": {
+        "left": ["Your script", "Your theme", "Your fonts"],
+        "right": ["16:9", "9:16", "1:1"],
+        "caption": "One project. Every format.",
+        "note": "Change theme or format with a flag."
+      },
+      "narration": "Your script, your theme and your fonts become any format you need."
+    },
+    {
+      "id": "bye",
+      "type": "outro",
+      "props": { "line": "Make yours.", "url": "docs/making-a-video.md", "facts": ["Open source", "Runs locally", "Any theme"] },
+      "narration": "Make yours."
+    }
+  ]
+}
