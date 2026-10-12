@@ -9,6 +9,7 @@
 #                  bash scripts/docs-lint.sh
 #                  bash scripts/docs-sync.sh --check
 #                  bash scripts/skills-lint.sh
+#                  bash scripts/video-check.sh
 # The String Catalog checks (scripts/l10n-lint.sh) are L10nCatalogTests, so CI's `swift test` already runs
 # them; here they get their own stage so a --fast run covers them too.
 # The release-only build (KinhinTestSupport is testable-only) stays CI-only:
@@ -78,6 +79,9 @@ bash scripts/docs-sync.sh --check
 
 stage "skills lint"
 bash scripts/skills-lint.sh
+
+stage "video suite (claims, ci.json, unit tests)"
+bash scripts/video-check.sh
 
 echo ""
 echo "check: all gates passed"

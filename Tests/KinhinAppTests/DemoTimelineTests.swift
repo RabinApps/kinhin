@@ -148,7 +148,7 @@ final class DemoTimelineTests: XCTestCase {
     func testShippedExampleScriptIsValid() throws {
         let example = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("video/demos/example.json")
+            .appendingPathComponent("video/adapters/kinhin/demos/example.json")
         let script = try DemoTimeline.load(example.path)
         XCTAssertFalse(script.jobs.isEmpty)
         XCTAssertTrue(script.jobs.contains { $0.fails }, "the example shows how a failure is written")

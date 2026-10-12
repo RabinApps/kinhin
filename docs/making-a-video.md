@@ -84,13 +84,15 @@ smoothed cursor, run the raw take through an open-source editor such as OpenScre
 
 ## Make a video from a config
 
-A video is one JSON file in `video/script/` (the launch video is `launch.json`, a small one is `example.json`): a
+A video is one JSON file in `video/script/` (the launch video is `launch.json`; a dozen examples are in `video/script/examples/`, shown in the
+[gallery](video-gallery.md)): a
 theme, a format, and a list of typed scenes with narration. One command builds it, on a Mac or in a container, and
 the picture follows the voice, so editing a line re-times everything.
 
 ```bash
 video/scripts/build.sh                                  # the project's own look (video/script/launch.json)
-video/scripts/build.sh --project example                # another project
+video/scripts/build.sh --project examples/hello          # another project (a path under video/script/)
+video/scripts/build.sh --fast                           # a preview: quicker encode, no WebM
 video/scripts/build.sh --theme midnight --format 9:16   # another look or frame, without editing the file
 video/scripts/build.sh --container                      # in a container: Apple's `container` if running, else Docker
 video/scripts/build.sh --runtime docker --container
@@ -151,6 +153,10 @@ be; the voice can only make it longer.
 | `parallel` | Items each getting their own fresh card, running side by side, then vanishing | `items`, `card`, `caption`, `done` |
 | `map` | Things on the left, things on the right, one hub between them | `left`, `right`, `caption`, `note` |
 | `outro` | A closing line, a URL and a row of facts | `line`, `url`, `facts` |
+| `stats` | Big numbers that count up (`75%`, `4`, `1.5x`, `$12` keep their prefix and suffix) | `items` (`{value, label}`), `caption` |
+| `steps` | A numbered list that fills in one step at a time | `title`, `steps` |
+| `code` | A code or terminal block that types itself; `$` and `>` lines are commands, `#` and `//` lines are comments | `label`, `lines`, `caption` |
+| `compare` | Two cards, before and after (stacked in portrait and square frames) | `left`, `right` (each `{title, items}`), `caption` |
 | `device` | A screen recording in a MacBook (drawn, no Apple artwork) that tilts and slides in | `clip`, `frame` (`macbook`, `window` or `none`), `speed` |
 | `terminal` | A terminal recording in a window | `clip`, `frame` (`window` or `none`) |
 
@@ -184,17 +190,44 @@ only asks an adapter for clips by name. To use yours:
 4. Point a project at it: `"adapter": "<name>"`, with scenes such as `{"type": "device", "props": {"clip": "app"}}`.
    `video/script/template-demo.json` is a working example: `video/scripts/build.sh --project template-demo`.
 
+### Examples
+
+`video/script/examples/` has a dozen finished projects, each with a different theme, format, voice and mix of scenes:
+`hello` (the smallest), `scene-tour` (all ten canvas scene types), `product-launch`, `release-notes`, `social-teaser`
+(9:16), `tutorial-chalk`, `architecture-blueprint`, `oss-announcement` (4:5), `changelog-month` (1:1),
+`code-walkthrough` and `kinhin-30s` (the kinhin adapter's clips). `video/script/template-demo.json` uses all three clip
+kinds. The [gallery](video-gallery.md) shows each one and how to build it; `video/scripts/gallery.mjs` rebuilds the lot.
+
 ### What the build does
 
 1. `scripts/voice.mjs` renders each cue of the narration.
 2. `scripts/retime.mjs` makes each scene as long as its speech needs and writes `src/timing.ts`, `out/timeline.json` and
-   `captions/<project>.srt`.
+   `out/<slug>.captions.srt`.
 3. `scripts/render-titles.mjs` renders every canvas scene headlessly (Playwright's Chromium) to `raw/scenes/<project>/`.
 4. `scripts/frames.mjs` puts the device and terminal clips in their frames.
 5. `scripts/fetch-music.sh` downloads the CC0 music bed and checks its SHA-256 (`NO_MUSIC=1` skips it).
 6. `scripts/assemble.mjs` joins the scenes with short fades, the voice, music ducked under it, and captions into
    `out/<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt` (every caption, for a player). Captions are burned
    into the clip scenes only; the title scenes already show their words.
+
+### Faster iteration
+
+A scene is re-rendered only when something that shapes it changed (its type and props, its length, the theme, the
+format, or the scene sources), so a second build after editing one line re-renders one scene (`RENDER_FORCE=1` renders
+everything). `build.sh --fast` skips the WebM and encodes quicker, which is what pull-request previews use.
+
+### Tests
+
+```bash
+video/scripts/test.sh                  # unit tests, seconds: themes, formats, projects, adapters, claims, CI planning, the verifier
+video/scripts/test.sh --smoke          # + real builds in a container: hello, the template adapter, a bad claim, a bad theme
+video/scripts/test.sh --standard       # + every theme, every format, every scene type, the cache, determinism
+video/scripts/test.sh --full           # + the kinhin launch video in every CI look, and all the examples
+```
+
+The end-to-end tiers build real videos (in Apple's `container` or Docker; `--host` uses this machine) and judge them with
+`video/scripts/verify.mjs`, the same checker CI uses: frame size, length, loudness, black frames, captions, poster and GIF,
+and size budgets. [Marketing video in CI](ci-video.md) runs the suite's builds in GitHub Actions, opt-in.
 
 ### Recording the app
 

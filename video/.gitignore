@@ -4,3 +4,4 @@ node_modules/
 dist/
 output/
 .venv-tts/
+script/**/tmp-e2e-*.json

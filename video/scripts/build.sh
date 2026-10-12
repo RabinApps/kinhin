@@ -7,6 +7,7 @@
 #   video/scripts/build.sh --theme midnight --format 9:16  another look or frame (the project's own is the default)
 #   video/scripts/build.sh --project my-video              build video/script/my-video.json
 #   video/scripts/build.sh --adapter my-product            use another adapter's clips (video/adapters/)
+#   video/scripts/build.sh --fast                          a preview: quicker encode, no WebM
 #
 # It uses your own recordings in raw/<adapter>/ when they exist, and the small committed clips in
 # adapters/<adapter>/reference/ otherwise, so it works on any machine, including Linux. Output: video/out/ (launch.mp4,
@@ -25,6 +26,7 @@ while [ $# -gt 0 ]; do
     --format) export VIDEO_FORMAT="${2:?--format needs 16:9, 9:16, 4:5 or 1:1}"; shift ;;
     --project) export VIDEO_PROJECT="${2:?--project needs a name (video/script/<name>.json)}"; shift ;;
     --adapter) export VIDEO_ADAPTER="${2:?--adapter needs a name (see video/adapters/)}"; shift ;;
+    --fast) export VIDEO_FAST=1 ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d'; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
@@ -38,9 +40,22 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
     elif command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then RUNTIME=docker
     else echo "no running container runtime: start Apple's container (container system start) or Docker" >&2; exit 1; fi
   fi
-  IMAGE=kinhin-video
   echo "==> using $RUNTIME"
-  "$RUNTIME" build -t "$IMAGE" -f Containerfile .
+  # Low disk space breaks container builds in confusing ways ("read-only file system", "input/output error"): say so.
+  FREE_KB="$(df -k . | awk 'NR==2 {print $4}')"
+  if [ "${FREE_KB:-0}" -lt 3000000 ]; then
+    echo "only $((FREE_KB / 1024)) MB free here: container builds need several GB. Apple's container keeps its build cache" >&2
+    echo "in a builder VM that can grow large; 'container builder stop && container builder delete' empties it." >&2
+    exit 1
+  fi
+  # The image is named by a hash of what goes into it, and built only when that image does not exist yet: rebuilding
+  # an unchanged image on every run is slow and, with Apple's container, grows its build cache.
+  IMAGE="kinhin-video:$(cat Containerfile package.json package-lock.json | shasum -a 256 | cut -c1-12)"
+  if "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1; then
+    echo "==> image $IMAGE already built"
+  else
+    "$RUNTIME" build -t "$IMAGE" -f Containerfile .
+  fi
   mkdir -p raw out
   # The image has its own node_modules (Linux binaries), so the sources are copied in at start-up and only the
   # results are written back: raw/ (renders, music) and out/.
@@ -50,7 +65,7 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   "$RUNTIME" run --rm "${SIZE[@]}" \
     -v "$PWD":/src -v "$PWD/raw":/work/raw -v "$PWD/out":/work/out \
     -e NO_MUSIC="${NO_MUSIC:-}" -e NO_CAPTIONS="${NO_CAPTIONS:-}" -e VOICE_ENGINE="${VOICE_ENGINE:-}" -e VOICE="${VOICE:-}" \
-    -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" \
+    -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" \
     "$IMAGE" bash -c 'rsync -a --exclude node_modules --exclude raw --exclude out --exclude .venv-tts --exclude output /src/ /work/ && cd /work && { cp -r fonts/. /usr/local/share/fonts/ 2>/dev/null; fc-cache -f; } && scripts/build.sh'
   echo "==> done: see video/out/"
   exit 0
@@ -61,6 +76,10 @@ step() { printf '\n==> %s\n' "$*"; }
 export PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH"   # ffmpeg with libass on a Mac; harmless elsewhere
 mkdir -p raw out
 
+step "check the project"
+node scripts/project.mjs
+step "claims"
+node scripts/video-claims-lint.mjs --project "${VIDEO_PROJECT:-launch}"
 step "voice-over (${VOICE_ENGINE:-the scripted engine})"
 rm -f out/voice-timings.json
 # The ONNX runtime aborts while shutting down (after the work is done), so judge the run by its result file.
@@ -68,8 +87,6 @@ node scripts/voice.mjs ${VOICE_ENGINE:+--engine "$VOICE_ENGINE"} ${VOICE:+--voic
 [ -s out/voice-timings.json ] || { echo "voice-over failed: no out/voice-timings.json" >&2; exit 1; }
 step "retime the scenes to the voice"
 node scripts/retime.mjs
-step "check the project"
-node scripts/project.mjs
 step "title scenes (headless Chromium)"
 node scripts/render-titles.mjs
 step "the app and terminal clips in frames"

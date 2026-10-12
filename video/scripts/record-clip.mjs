@@ -34,7 +34,8 @@ try {
   const run = (cmd, args, env = {}) => execFileSync(cmd, args, {cwd: root, stdio: 'inherit', env: {...process.env, ...env}});
 
   if (spec.kind === 'app') {
-    run(join(adapter.dir, spec.record), extra, {VIDEO_RAW_DIR: relative(join(root, '..'), adapter.rawDir)});
+    // An absolute path: recorders run from different directories (kinhin's from the repository root).
+  run(join(adapter.dir, spec.record), extra, {VIDEO_RAW_DIR: adapter.rawDir});
   } else if (spec.kind === 'terminal') {
     run('scripts/record-terminal.sh', ['--adapter', adapterName, '--clip', clip, ...(extra.length ? extra : ['--all'])]);
   } else if (spec.kind === 'browser') {

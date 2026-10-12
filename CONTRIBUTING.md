@@ -88,7 +88,10 @@ The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--p
 ### Demo videos and screenshots (video/)
 
 A debug build can replay a scripted fleet (`KINHIN_DEMO=launch`) so the app can be screen-recorded with no forge, token or
-VM, and `video/` assembles the clips with open-source tools. See [docs/making-a-video.md](docs/making-a-video.md).
+VM, and `video/` builds narrated videos from a config file with open-source tools, in a container: one command
+(`video/scripts/build.sh --container`), themes, formats, a dozen examples ([gallery](docs/video-gallery.md)). Its unit tests
+run in `scripts/check.sh` (`video/scripts/test.sh --smoke` builds real videos); an opt-in CI workflow can build them on
+releases and pull requests ([docs/ci-video.md](docs/ci-video.md)). See [docs/making-a-video.md](docs/making-a-video.md).
 
 ### End-to-end tests (scripts/e2e.sh)
 
