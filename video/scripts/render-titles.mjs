@@ -19,7 +19,13 @@ import {chromium} from 'playwright-core';
 import {loadProject, root} from './project.mjs';
 
 process.chdir(root);
-const {scenes, stem, slug, format, theme} = loadProject();
+const {scenes, stem, slug, format, theme, project, file} = loadProject();
+// The editor bundles video/script/ at build time. A project from your own repository (VIDEO_SOURCE) is not there, so hand
+// it over as .generated/<slug>.json (git-ignored), which src/config.ts reads first.
+if (!file.startsWith(join(root, 'script') + '/')) {
+  mkdirSync(join(root, '.generated'), {recursive: true});
+  writeFileSync(join(root, '.generated', `${slug}.json`), JSON.stringify(project));
+}
 const wanted = process.argv.slice(2);
 const targets = scenes.filter((s) => s.kind === 'canvas' && (!wanted.length || wanted.includes(s.id)));
 const timeout = Number(process.env.RENDER_TIMEOUT_S ?? 600) * 1000;

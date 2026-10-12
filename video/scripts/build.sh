@@ -6,6 +6,7 @@
 #   video/scripts/build.sh --runtime docker --container    pick the runtime
 #   video/scripts/build.sh --theme midnight --format 9:16  another look or frame (the project's own is the default)
 #   video/scripts/build.sh --project my-video              build video/script/my-video.json
+#   video/scripts/build.sh --source ~/code/acme --project promo   build ~/code/acme/.kinhin/videos/promo.yml (your own repository)
 #   video/scripts/build.sh --adapter my-product            use another adapter's clips (video/adapters/)
 #   video/scripts/build.sh --music off                     no music; or a catalog track, a file (music/my-track.mp3), or an https URL (with VIDEO_MUSIC_SHA256)
 #   video/scripts/build.sh --fast                          a preview: quicker encode, no WebM
@@ -28,6 +29,7 @@ while [ $# -gt 0 ]; do
     --theme) export VIDEO_THEME="${2:?--theme needs a name (see video/themes/)}"; shift ;;
     --format) export VIDEO_FORMAT="${2:?--format needs 16:9, 9:16, 4:5 or 1:1}"; shift ;;
     --project) export VIDEO_PROJECT="${2:?--project needs a name (video/script/<name>.json)}"; shift ;;
+    --source) export VIDEO_SOURCE="$(cd "${2:?--source needs the directory of your repository}" && pwd)"; shift ;;
     --music) export VIDEO_MUSIC="${2:?--music needs a track, a file, a URL, or off}"; shift ;;
     --adapter) export VIDEO_ADAPTER="${2:?--adapter needs a name (see video/adapters/)}"; shift ;;
     --fast) export VIDEO_FAST=1 ;;
@@ -74,11 +76,13 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   else SIZE=(-c "$CPUS" -m "${CONTAINER_MEMORY:-6G}"); fi
   # CONTAINER_NETWORK=none (Docker) proves the build needs nothing from the network once the image exists.
   NET=(); [ -n "${CONTAINER_NETWORK:-}" ] && NET=(--network "$CONTAINER_NETWORK")
-  "$RUNTIME" run --rm "${SIZE[@]}" ${NET[@]+"${NET[@]}"} \
+  # Your repository (--source) is mounted read-only at /project; its .kinhin/videos/ holds the configs.
+  SRCMOUNT=(); [ -n "${VIDEO_SOURCE:-}" ] && SRCMOUNT=(-v "$VIDEO_SOURCE":/project:ro -e VIDEO_SOURCE=/project)
+  "$RUNTIME" run --rm "${SIZE[@]}" ${SRCMOUNT[@]+"${SRCMOUNT[@]}"} ${NET[@]+"${NET[@]}"} \
     -v "$PWD":/src -v "$PWD/raw":/work/raw -v "$PWD/out":/work/out \
     -e NO_MUSIC="${NO_MUSIC:-}" -e VIDEO_MUSIC="${VIDEO_MUSIC:-}" -e VIDEO_MUSIC_SHA256="${VIDEO_MUSIC_SHA256:-}" -e VIDEO_MUSIC_VOLUME="${VIDEO_MUSIC_VOLUME:-}" -e NO_CAPTIONS="${NO_CAPTIONS:-}" -e VOICE_ENGINE="${VOICE_ENGINE:-}" -e VOICE="${VOICE:-}" \
     -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" \
-    "$IMAGE" bash -c 'rsync -a --exclude node_modules --exclude raw --exclude out --exclude .venv-tts --exclude output /src/ /work/ && cd /work && { cp -r fonts/. /usr/local/share/fonts/ 2>/dev/null; fc-cache -f; } && scripts/build.sh'
+    "$IMAGE" bash -c 'rsync -a --exclude node_modules --exclude raw --exclude out --exclude .venv-tts --exclude output --exclude .generated /src/ /work/ && cd /work && { cp -r fonts/. /usr/local/share/fonts/ 2>/dev/null; fc-cache -f; } && scripts/build.sh'
   echo "==> done: see video/out/"
   exit 0
 fi

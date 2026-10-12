@@ -1,6 +1,7 @@
 // End-to-end: real builds. Slow on purpose; the tier decides how much runs (see e2e.mjs, scripts/test.sh).
 import assert from 'node:assert/strict';
-import {readFileSync, readdirSync, rmSync} from 'node:fs';
+import {mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
 import {loadProject} from '../../scripts/project.mjs';
@@ -198,3 +199,23 @@ for (const example of ['product-launch', 'release-notes', 'tutorial-chalk', 'arc
 
 import {writeFileSync} from 'node:fs';
 function writeFileSyncJson(file, value) { writeFileSync(file, JSON.stringify(value, null, 2)); }
+
+test('smoke: a video built from your own repository (.kinhin/videos/ and your own music file)', from('smoke'), () => {
+  const repo = mkdtempSync(join(tmpdir(), 'kinhin-e2e-repo-'));
+  try {
+    mkdirSync(join(repo, '.kinhin/videos'), {recursive: true});
+    mkdirSync(join(repo, 'audio'));
+    run('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'sine=f=220:d=5', join(repo, 'audio/bed.wav')]);
+    writeFileSync(join(repo, '.kinhin/videos/own.yml'),
+      'name: Own\ntheme: clean\nvoice: {engine: kokoro, name: af_heart}\nmusic: {track: audio/bed.wav, volume: 0.2}\n' +
+      'scenes:\n  - id: hi\n    type: title\n    props: {title: Mine}\n    narration: This video came from my own repository.\n');
+    const r = build(['--source', repo, '--project', 'own', '--fast']);
+    assert.equal(r.status, 0, r.stdout.slice(-800) + r.stderr.slice(-800));
+    assert.equal(r.name, 'own');
+    expectGood('own');
+    const music = JSON.parse(readFileSync(join(root, 'out/music.json'), 'utf8'));
+    assert.equal(music.enabled, true);
+    assert.match(music.file, /bed\.wav$/);
+    assert.equal(music.volume, 0.2);
+  } finally { rmSync(repo, {recursive: true, force: true}); }
+});

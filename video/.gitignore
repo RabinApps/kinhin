@@ -3,5 +3,6 @@ out/
 node_modules/
 dist/
 output/
+.generated/
 .venv-tts/
 script/**/tmp-e2e-*.json

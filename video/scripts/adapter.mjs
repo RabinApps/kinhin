@@ -20,20 +20,20 @@
 // scripts/record-clip.mjs records any clip of an adapter, whatever its kind.
 // CLI: node scripts/adapter.mjs <name> [--clip <clip>] --env     shell variables for the recorder scripts
 import {existsSync, readFileSync, readdirSync} from 'node:fs';
-import {join, resolve} from 'node:path';
+import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {root} from './project.mjs';
+import {adapterFile, readConfig, root, videosDir} from './project.mjs';
 
 export function listAdapters() {
-  const dir = join(root, 'adapters');
-  return existsSync(dir) ? readdirSync(dir).filter((n) => existsSync(join(dir, n, 'adapter.json'))) : [];
+  const names = (dir) => (existsSync(dir) ? readdirSync(dir).filter((n) => adapterFile(n) && existsSync(join(dir, n))) : []);
+  return [...new Set([...(videosDir() ? names(join(videosDir(), 'adapters')) : []), ...names(join(root, 'adapters'))])];
 }
 
 export function loadAdapter(name) {
-  const dir = join(root, 'adapters', name);
-  const file = join(dir, 'adapter.json');
-  if (!existsSync(file)) throw new Error(`no adapter "${name}" (video/adapters/${name}/adapter.json; available: ${listAdapters().join(', ') || 'none'})`);
-  const manifest = JSON.parse(readFileSync(file, 'utf8'));
+  const file = adapterFile(name);
+  if (!file) throw new Error(`no adapter "${name}" (video/adapters/${name}/adapter.json${videosDir() ? ` or ${videosDir()}/adapters/${name}/adapter.yml` : ''}; available: ${listAdapters().join(', ') || 'none'})`);
+  const dir = dirname(file);
+  const manifest = readConfig(file);
   return {name, dir, manifest, rawDir: join(root, 'raw', name), referenceDir: join(dir, 'reference')};
 }
 

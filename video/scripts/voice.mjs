@@ -14,6 +14,7 @@ import {execFileSync} from 'node:child_process';
 import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {projectFile, readConfig} from './project.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -30,7 +31,7 @@ const setup = flag('--setup');
 const audition = has('--audition');
 const engineFlag = flag('--engine');
 const voiceFlag = flag('--voice');
-const scriptPath = resolve(args[0] ?? join(root, 'script', `${process.env.VIDEO_PROJECT || 'launch'}.json`));
+const scriptPath = args[0] ? resolve(args[0]) : projectFile(process.env.VIDEO_PROJECT || 'launch');
 
 const VOICES = {
   say: ['Samantha'], // add Premium voices by their `say -v '?'` name, e.g. "Ava (Premium)"
@@ -52,7 +53,7 @@ if (setup) {
   process.exit(0);
 }
 
-const script = JSON.parse(readFileSync(scriptPath, 'utf8'));
+const script = readConfig(scriptPath);
 const engine = engineFlag || process.env.VOICE_ENGINE || script.voice?.engine || 'say';
 const voice = voiceFlag || process.env.VOICE || script.voice?.name || VOICES[engine]?.[0];
 const rate = process.env.RATE || script.voice?.rate || 175; // `say` words per minute

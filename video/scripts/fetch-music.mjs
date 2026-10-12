@@ -29,7 +29,7 @@ if (process.argv[2] === '--bake') {
   process.exit(0);
 }
 
-const {loadProject} = await import('./project.mjs');
+const {loadProject, sourceDir} = await import('./project.mjs');
 const music = loadProject().music;
 mkdirSync(join(root, 'out'), {recursive: true});
 const result = (extra) => writeFileSync(join(root, 'out/music.json'), JSON.stringify({...music, file: null, ...extra}, null, 2) + '\n');
@@ -49,7 +49,9 @@ if (/^https?:\/\//.test(music.track)) {
   credit ??= t.credit;
   label = `${t.title} by ${t.artist} (${t.license})`;
 } else {
-  file = isAbsolute(music.track) ? music.track : resolve(root, music.track);
+  // A file in your repository (VIDEO_SOURCE) first, then one under video/.
+  const own = sourceDir() && resolve(sourceDir(), music.track);
+  file = isAbsolute(music.track) ? music.track : own && existsSync(own) ? own : resolve(root, music.track);
   if (!existsSync(file)) {
     const names = Object.keys(catalog).join(', ');
     throw new Error(`music.track "${music.track}" is not a catalog track (${names}) and no file exists at ${file}`);

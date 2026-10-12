@@ -82,6 +82,43 @@ Tart VM:
 Both set `KINHIN_DEMO` the same way (`KINHIN_DEMO=path/in/repo.json video/adapters/kinhin/record-app.sh`). For auto-zoom and a
 smoothed cursor, run the raw take through an open-source editor such as OpenScreen or Screenize.
 
+## Videos in your own repository
+
+You do not need a copy of this repository to make videos of your own product. Keep the video configs in your repository, in
+a `.kinhin/videos/` folder, one file per video (YAML or JSON, subfolders allowed), and point the build at it:
+
+```
+your-repo/
+└── .kinhin/videos/
+    ├── launch.yml              one video
+    ├── social/vertical.yml     another (name: social/vertical)
+    └── adapters/acme/adapter.yml   your product's clips, if you have any
+```
+
+```yaml
+# .kinhin/videos/launch.yml: the same fields as a project file (see "The project file" below)
+name: Acme launch
+theme: midnight
+voice: { engine: kokoro, name: af_heart }
+music: { track: audio/bed.mp3, volume: 0.25 }   # a file in your repository, or a catalog track
+captions: { burn: true, style: box }
+scenes:
+  - id: intro
+    type: title
+    props: { title: Acme, subtitle: Ship faster }
+    narration: Acme helps your team ship faster.
+```
+
+```bash
+video/scripts/build.sh --container --source ~/code/acme --project launch
+```
+
+`--source` mounts your repository read-only into the container; `launch` is `.kinhin/videos/launch.yml` there (your files win
+over a built-in project of the same name). Paths in the config, such as a music file, are relative to your repository.
+Several files give you several kinds of video: a launch film, a vertical cut, a 30-second teaser, each with its own
+theme, format, music and captions. `.kinhin/videos/` is separate from `.kinhin.yml`, which kinhin reads for toolchains and
+rejects keys it does not know.
+
 ## Make a video from a config
 
 A video is one JSON file in `video/script/` (the launch video is `launch.json`; a dozen examples are in `video/script/examples/`, shown in the

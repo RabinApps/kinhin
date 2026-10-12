@@ -12,7 +12,7 @@ import {existsSync, readFileSync, readdirSync, statSync} from 'node:fs';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadAdapter} from './adapter.mjs';
-import {loadProject, root} from './project.mjs';
+import {listSourceProjects, loadProject, root} from './project.mjs';
 
 /** Every sentence a scene shows or says, with where it came from. */
 export function textsOf(project) {
@@ -70,7 +70,7 @@ function allProjects(dir = join(root, 'script'), prefix = '') {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
-  const names = args.includes('--project') ? [args[args.indexOf('--project') + 1]] : args.includes('--all') ? allProjects() : [process.env.VIDEO_PROJECT || 'launch'];
+  const names = args.includes('--project') ? [args[args.indexOf('--project') + 1]] : args.includes('--all') ? [...allProjects(), ...listSourceProjects()] : [process.env.VIDEO_PROJECT || 'launch'];
   let failed = 0;
   for (const name of names) {
     const loaded = loadProject(name);

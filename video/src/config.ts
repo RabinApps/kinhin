@@ -6,12 +6,14 @@ import {timing} from './timing';
 // VITE_VIDEO_FORMAT and VITE_SCENE_ID set.
 const themeFiles = import.meta.glob('../themes/*.json', {eager: true, import: 'default'}) as Record<string, any>;
 const projectFiles = import.meta.glob('../script/**/*.json', {eager: true, import: 'default'}) as Record<string, any>;
+// Projects from the user's own repository (.kinhin/videos/), written here by scripts/render-titles.mjs before the editor starts.
+const generatedFiles = import.meta.glob('../.generated/*.json', {eager: true, import: 'default'}) as Record<string, any>;
 const env = import.meta.env;
 
 const themes = Object.fromEntries(Object.entries(themeFiles).map(([path, t]) => [path.replace(/^.*\/(.*)\.json$/, '$1'), t]));
 const projectName = env.VITE_VIDEO_PROJECT || 'launch';
-const project = projectFiles[`../script/${projectName}.json`];
-if (!project) throw new Error(`no project "${projectName}" in video/script/`);
+const project = generatedFiles[`../.generated/${projectName.replace(/\//g, '-')}.json`] ?? projectFiles[`../script/${projectName}.json`];
+if (!project) throw new Error(`no project "${projectName}" in video/script/ or .kinhin/videos/`);
 const problems = validateProject(project);
 if (problems.length) throw new Error(`${projectName}.json: ${problems.join('; ')}`);
 
