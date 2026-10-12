@@ -15,7 +15,7 @@
 # adapters/<adapter>/reference/ otherwise, so it works on any machine, including Linux. Output: video/out/ (launch.mp4,
 # launch.webm, poster.png, hero.gif) and out/launch.srt (every caption, for a player).
 # Env: VOICE_ENGINE / VOICE override the script's voice (kokoro af_heart); NO_MUSIC=1 skips the music download;
-#      VIDEO_CAPTIONS=off; the container's size: CONTAINER_CPUS (default 4), CONTAINER_MEMORY (default 6G).
+#      VIDEO_CAPTIONS=off; CONTAINER_NETWORK=none (Docker) runs the build with no network; the container's size: CONTAINER_CPUS (default 4), CONTAINER_MEMORY (default 6G).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -54,7 +54,8 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   fi
   # The image is named by a hash of what goes into it, and built only when that image does not exist yet: rebuilding
   # an unchanged image on every run is slow and, with Apple's container, grows its build cache.
-  IMAGE="kinhin-video:$(cat Containerfile package.json package-lock.json | shasum -a 256 | cut -c1-12)"
+  # The architecture is part of the name: an arm64 image must not satisfy an x64 build (DOCKER_DEFAULT_PLATFORM selects one).
+  IMAGE="kinhin-video:$( (cat Containerfile package.json package-lock.json; echo "${DOCKER_DEFAULT_PLATFORM:-$(uname -m)}") | shasum -a 256 | cut -c1-12)"
   if "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1; then
     echo "==> image $IMAGE already built"
   else
@@ -64,9 +65,14 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   # The image has its own node_modules (Linux binaries), so the sources are copied in at start-up and only the
   # results are written back: raw/ (renders, music) and out/.
   # The size flags differ: Docker's -c is CPU *shares*, so use --cpus there.
-  if [ "$RUNTIME" = docker ]; then SIZE=(--cpus "${CONTAINER_CPUS:-4}" --memory "${CONTAINER_MEMORY:-6g}")
-  else SIZE=(-c "${CONTAINER_CPUS:-4}" -m "${CONTAINER_MEMORY:-6G}"); fi
-  "$RUNTIME" run --rm "${SIZE[@]}" \
+  # Ask for four CPUs, but never more than the machine has: Docker refuses a count above it (a small hosted runner has two).
+  HAVE="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
+  WANT="${CONTAINER_CPUS:-4}"; CPUS=$((WANT < HAVE ? WANT : HAVE))
+  if [ "$RUNTIME" = docker ]; then SIZE=(--cpus "$CPUS" --memory "${CONTAINER_MEMORY:-6g}")
+  else SIZE=(-c "$CPUS" -m "${CONTAINER_MEMORY:-6G}"); fi
+  # CONTAINER_NETWORK=none (Docker) proves the build needs nothing from the network once the image exists.
+  NET=(); [ -n "${CONTAINER_NETWORK:-}" ] && NET=(--network "$CONTAINER_NETWORK")
+  "$RUNTIME" run --rm "${SIZE[@]}" ${NET[@]+"${NET[@]}"} \
     -v "$PWD":/src -v "$PWD/raw":/work/raw -v "$PWD/out":/work/out \
     -e NO_MUSIC="${NO_MUSIC:-}" -e NO_CAPTIONS="${NO_CAPTIONS:-}" -e VOICE_ENGINE="${VOICE_ENGINE:-}" -e VOICE="${VOICE:-}" \
     -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" \

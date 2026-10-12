@@ -7,7 +7,7 @@ import {loadProject} from '../../scripts/project.mjs';
 import {FORMATS} from '../../shared/resolve.mjs';
 import {themeNames} from '../helpers.mjs';
 import {existsSync} from 'node:fs';
-import {bottomEdges, build, check, from, root, run, tempProject} from './e2e.mjs';
+import {bottomEdges, build, check, from, has, root, run, tempProject} from './e2e.mjs';
 
 const expectGood = (name, extra = {}) => {
   const {failures, facts} = check(name, {maxMB: 10, ...extra});
@@ -91,6 +91,14 @@ test('smoke: a caption style builds and looks different from the default', from(
   const b = bottomEdges(box.name, at);
   assert.notEqual(a.toFixed(4), b.toFixed(4), 'a different style is a different picture');
   assert.deepEqual(check(box.name).failures, []);
+});
+
+test('standard: a build needs no network once the image exists (voices, model, fonts, music, renderer are all baked in)', {...from('standard'), skip: !has('docker') && 'needs Docker (--network none)'}, () => {
+  // Build the image first (with network), then cut the network for the build itself.
+  const r = build(['--project', 'examples/hello', '--fast', '--runtime', 'docker'], {env: {CONTAINER_NETWORK: 'none'}});
+  assert.equal(r.status, 0, r.stdout.slice(-900) + r.stderr.slice(-900));
+  const facts = expectGood(r.name);
+  assert.ok(facts.lufs !== null, 'with the music bed mixed in: it came from the image, not the network');
 });
 
 // ---- standard --------------------------------------------------------------------------------------------------

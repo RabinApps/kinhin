@@ -18,11 +18,22 @@ WORKDIR /work
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Bake the Kokoro model into the image (about 90 MB) so a build needs no network after this. The ONNX runtime
-# aborts while shutting down (after the work is done), so the step ignores the exit code and checks the cache.
-RUN node -e "import('kokoro-js').then(async ({KokoroTTS}) => { \
-  const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {dtype: 'q8', device: 'cpu'}); \
-  await tts.generate('warm up', {voice: 'af_heart'}); process.exit(0); })" ; \
-  find node_modules/@huggingface -name '*.onnx' | grep -q .
+# Bake the Kokoro model into the image (about 90 MB; the voices ship in the npm package) so a build needs no network.
+# The warm-up is a real module file (not `node -e`, which hides a missing voice) and must print "warm ok": the ONNX runtime
+# aborts while shutting down after the work is done, so the exit code means nothing.
+RUN printf '%s\n' \
+  'import {KokoroTTS} from "kokoro-js";' \
+  'const tts = await KokoroTTS.from_pretrained("onnx-community/Kokoro-82M-v1.0-ONNX", {dtype: "q8", device: "cpu"});' \
+  'for (const v of ["af_heart", "am_michael", "bf_emma"]) await tts.generate("warm up", {voice: v});' \
+  'console.log("warm ok"); process.exit(0);' > warm.mjs \
+ && (node warm.mjs 2>&1 | tee /tmp/warm.log | tail -2; grep -q "warm ok" /tmp/warm.log) \
+ && rm warm.mjs \
+ && find node_modules/@huggingface -name '*.onnx' | grep -q .
+
+# The CC0 music bed (First Light Particles by Yoiyami, https://opengameart.org/node/182244), checked against its SHA-256, so
+# a build needs no network. scripts/fetch-music.sh copies it into raw/ (the build's raw/ is a bind mount, hiding /work/raw).
+RUN mkdir -p /opt/music \
+ && curl -fsSL https://opengameart.org/sites/default/files/first_light_particles_0.wav -o /opt/music/first_light_particles.wav \
+ && echo "f0538a1a67450cc1d5e305fad5bc0d5d422ad809f720d695ab356e55fbe40fc5  /opt/music/first_light_particles.wav" | sha256sum -c -
 
 ENV KINHIN_VIDEO_IN_CONTAINER=1

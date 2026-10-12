@@ -21,7 +21,37 @@
 > | A release-notes video generated from the changelog | `examples/release-notes` is the template; generating it automatically needs a decision on copy (see "Decisions needed") |
 > | A reusable `workflow_call` | Another product copies `video/` and `video.yml` instead; the workflow reads only `ci.json` |
 
-## Goal and non-goals
+## Production readiness (audited 2026-10-12)
+
+What was verified, how, and what is still needed before this runs unattended in the repository's pipelines.
+
+| Question | Status | Evidence |
+|---|---|---|
+| Does the image carry everything a build needs? | Yes | Chromium, ffmpeg with libass, fonts, the Kokoro model and voices, and the CC0 music are in the image. A video builds with the network off (`CONTAINER_NETWORK=none`, e2e test `needs no network`). |
+| Does it work for people without a Mac? | Yes | Builds from committed files only (reference clips in `adapters/*/reference/`); verified in Apple `container` and Docker. |
+| Does it work on x64 (GitHub's hosted runners)? | Built and verified under emulation | The x64 image builds and `examples/hello` verifies (-16.4 LUFS); a real hosted runner has not run it. |
+| Does the workflow file work? | Partly verified | `actionlint` clean; the `plan` job runs under `act` with correct outputs; the planner and workflow policies are unit-tested. The claims, build and publish jobs have not run on GitHub: they need the branch pushed. |
+| Is it in the VM images (Tart runners) or a registry? | No | The suite is self-contained and builds its own image (3.6 GB, about 6 to 10 minutes cold). Nothing is published to a registry and the runner VM images do not include it. |
+| Tests | Green | 50 unit tests; the smoke, standard and full e2e tiers pass; `scripts/check.sh --serial` passes. |
+
+Found and fixed during the audit: the Docker CPU flag would have failed on a hosted runner with fewer than four cores; the
+image warm-up was hiding a missing voice; builds needed the network for the music; an arm64 image could have satisfied an x64
+build.
+
+**Still needed for production**
+
+1. Push the branch and run the workflow by hand on GitHub (`workflow_dispatch`, `VIDEO_CI=true`) to prove the claims, build and
+   artifact jobs on a real x64 runner. Check the time and the disk use.
+2. Publish the image to `ghcr.io` (built once per input hash, pulled by each matrix job) so a three-look release does not build it
+   three times. Needs `packages: write` for the job and the registry's visibility chosen by a maintainer.
+3. Create the `marketing` environment with required reviewers and set the `VIDEO_CI` variable; leave `ci.json` off until the
+   first dispatch run looks right.
+4. Pin the base image by digest and keep the pins fresh (Dependabot or Renovate for the Containerfile, npm and the workflow's
+   actions); the apt packages are not pinned.
+5. Delete `.github/workflows/demo-check.yml` (temporary) and merge the branch through a pull request.
+6. Decide the open questions below (release-notes copy, registry, who reviews).
+
+
 
 **Goal.** A maintainer can switch on automated marketing assets (a launch video per release, social cuts, a release-notes
 video, a PR preview of video changes) with one setting, review what it produced, and publish it, without anyone running
