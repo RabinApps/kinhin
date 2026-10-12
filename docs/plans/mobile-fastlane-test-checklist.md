@@ -4,8 +4,10 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 `examples/`) merges. Status values:
 
 - **Done**: verified and covered by an automated check.
-- **Automated**: covered by the `MobileScaffoldTests` Swift tests or `scripts/mobile-e2e.sh`.
-- **Local**: needs tools on this Mac, but no credentials. Run by `scripts/mobile-e2e.sh`.
+- **Done**: verified by a test or by `scripts/mobile-e2e.sh`, or by a run recorded in the row.
+- **Superseded**: the check belonged to code that was removed; the row says what replaced it.
+- **Blocked**, **Known gap**, **Implemented, untested**: explained in the row.
+- **Creds**: needs real store or CI credentials; not run, by decision.
 - **Creds**: needs real store or CI credentials. Cannot run without the owner.
 - **Open**: not done yet.
 
@@ -20,26 +22,26 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 | 1.5 | Existing Gemfile without fastlane gets fastlane appended once | Done | `MobileScaffoldTests` |
 | 1.6 | Re-run keeps edited files; `--force` overwrites | Done | `MobileScaffoldTests` |
 | 1.7 | `--dry-run` writes nothing | Done | `MobileScaffoldTests` |
-| 1.8 | Missing template fails before any write | **Done** | `MobileScaffoldTests` (kit copy with one template removed) |
+| 1.8 | Missing template fails before any write | Superseded | The bash script and its kit-copy test were removed. The templates are embedded in Swift, so a template cannot be missing at run time. |
 | 1.9 | Passes under macOS `/bin/bash` 3.2 | Superseded | The bash scaffold was removed. The logic is Swift now, so the bash 3.2 check no longer applies. |
 | 1.10 | Passes on Ubuntu (the CI docs job) | Superseded | The bash scaffold was removed. The Swift tests run in the CI test job on macOS. |
 | 1.11 | Monorepo: app in a subdirectory, `dir` argument | **Done** | Fixture: `apps/mobile/` with a root Gemfile in the subdir |
 | 1.12 | Expo project with prebuilt `ios/` and `android/` folders | **Done** | Expo `prebuild` fixture; expect `eas.json` only |
 | 1.13 | `react-native` only in `devDependencies` still detected | **Done** | Fixture with the key under `devDependencies` |
-| 1.14 | Ruby 2.6 system Gemfile: `ruby` directive is not duplicated | **Done** | Gemfile with `ruby` line plus appended fastlane |
+| 1.14 | An existing Gemfile without fastlane gets fastlane appended once | **Done** | `MobileScaffoldTests.testFastlaneIsAppendedToAnExistingGemfileOnce` |
 
 ## 2. Generated CI workflow
 
 | # | Check | Status | How |
 | --- | --- | --- | --- |
 | 2.1 | Generated YAML parses and has only the expected jobs | Done | `MobileScaffoldTests` (YAML + job presence) |
-| 2.2 | Each job runs `ruby/setup-ruby` with Ruby 3.3 | Done | `MobileScaffoldTests` (Flutter case) |
+| 2.2 | Each job runs `ruby/setup-ruby`, pinned to Ruby 3.3 in the template | Done | `MobileScaffoldTests.testFlutterGetsFastlaneInBothFoldersAndAWorkflow` checks the action; the version is in `ios.job.yml` and `android.job.yml` |
 | 2.3 | Workflow `working-directory` matches the scaffolded folder | Done | `MobileScaffoldTests` |
 | 2.4 | `actionlint` clean on the generated workflows | **Done** | Install `actionlint`, run on each example workflow |
 | 2.5 | Runs on a kinhin runner with the `kinhin-xcode` label | Creds | Trigger `workflow_dispatch` on a fleet |
 | 2.6 | `ruby/setup-ruby` works on the self-hosted macOS arm64 runner | Creds | Same run as 2.5 |
 | 2.7 | Secrets written to `$RUNNER_TEMP` are removed when the job fails | Creds | Force a failing lane; check the temp path is gone |
-| 2.8 | `actions/checkout` and `setup-java` pins match `ci.yml` policy | **Done** | Decide: pin to SHAs like `ci.yml`, or keep tags and say so |
+| 2.8 | `actions/checkout` and `setup-java` pins match `ci.yml` policy | **Done** | Pinned to SHAs in both the repo workflow and the templates (see 10.1) |
 
 ## 3. Lanes (templates)
 
@@ -66,12 +68,12 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 | --- | --- | --- | --- |
 | 4.1 | `ios_native_app` builds for the simulator (signing off) | Done | `xcodebuild` |
 | 4.2 | `android_native_app` builds a debug APK on Java 17 | Done | `./gradlew assembleDebug` |
-| 4.3 | `android_native_app` builds a release AAB | **Done** | `./gradlew bundle` with a throwaway keystore |
+| 4.3 | `android_native_app` builds a release AAB | **Done** | `fastlane android build` with a throwaway keystore, checked with `jarsigner` |
 | 4.4 | `flutter_app` builds an AAB unsigned | **Done** | `flutter build appbundle` |
 | 4.5 | `flutter_app` builds a signed IPA | Creds | Needs a distribution certificate |
 | 4.6 | `RnApp` installs pods | **Done** | `pod install` in `ios/` |
 | 4.7 | `RnApp` builds for the simulator | **Done** | `xcodebuild` after `pod install` |
-| 4.8 | `RnApp` builds an AAB | **Done** | `./gradlew bundle` in `android/` |
+| 4.8 | `RnApp` builds an AAB | **Done** | `fastlane android build` in the `RnApp` Android folder |
 | 4.9 | `expo_app` `eas.json` validates | Creds | `npx eas-cli` validate (may need network) |
 | 4.10 | Examples are tracked from a clean clone | Done | Checked `git ls-files` for key files |
 
@@ -110,7 +112,7 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 | # | Check | Status | How |
 | --- | --- | --- | --- |
 | 8.1 | `kinhin mobile init` output matches the committed examples byte for byte | **Done** | `scripts/mobile-e2e.sh` drift stage (uses the built binary) |
-| 8.2 | Detection, scaffolding, Gemfile append, keep, force, dry run, Expo, monorepo, error paths | **Done** | `MobileScaffoldTests` (18 cases, in `swift test`) |
+| 8.2 | Detection, scaffolding, Gemfile append, keep, force, dry run, Expo, monorepo, error paths | **Done** | `MobileScaffoldTests` (29 tests) and `MobileCommandTests` (6 tests), in `swift test` |
 | 8.3 | Embedded templates equal `templates/mobile/` | **Done** | `MobileScaffoldTests.testEmbeddedTemplatesMatchTheTemplateFiles`; regenerate with `scripts/mobile-templates-embed.py` |
 | 8.4 | Flutter CI steps: SDK, `pub get`, `build ios --config-only`, before CocoaPods | **Done** | `MobileScaffoldTests` checks the order; e2e mirrors the commands locally |
 | 8.5 | React Native CI steps: Node, npm/yarn install, before CocoaPods | **Done** | `MobileScaffoldTests` checks the order; e2e mirrors the commands locally |

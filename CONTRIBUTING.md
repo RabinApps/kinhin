@@ -107,10 +107,11 @@ and `scripts/e2e.sh --local` before changing forge registration, runtimes, the e
 `python3 scripts/mobile-templates-embed.py` and commit the regenerated `MobileTemplates.swift`; `MobileScaffoldTests` fails
 if the two drift. `swift test` covers the scaffolding.
 
-`scripts/mobile-e2e.sh` checks the whole flow on a clean copy of the committed `examples/`. Without flags it needs only Ruby
-3.2+ (set `RUBY_BIN` if it is not on the usual path). `--with-builds` also needs JDK 17, an Android
-SDK (`ANDROID_HOME`), Xcode, and for the React Native and Expo steps `npm` and CocoaPods; it is slower, since it builds each example. Nothing
-is uploaded and no store credentials are read. Regenerate the examples with the CLI after a template change
+`scripts/mobile-e2e.sh` checks the whole flow on a clean copy of the working tree's `examples/` (committed or not, so run it
+before you commit). Without flags it needs Ruby 3.2+ (set `RUBY_BIN` if it is not on the usual path), and it builds the
+`kinhin` binary with `swift build` if the binary is missing. `--with-builds` also needs JDK 17 (for `jarsigner` too), an
+Android SDK (`ANDROID_HOME`), Xcode, XcodeGen, Flutter, and for the React Native and Expo steps `npm` and CocoaPods. It is
+slower, since it builds each example. Nothing is uploaded and no store credentials are read. Regenerate the examples with the CLI after a template change
 (`kinhin mobile init --force examples/<app>`), or the drift stage fails. The reference is
 [docs/mobile-fastlane.md](docs/mobile-fastlane.md).
 

@@ -91,8 +91,8 @@ the full contents of the file, including the BEGIN and END lines.
 
 ### `Could not find any matching profile` or match fails on CI
 
-`match` runs readonly on CI, so it cannot create missing certificates. Run `bundle exec fastlane match appstore` once from a
-trusted machine (not readonly) to create them. Check that `MATCH_GIT_URL` is readable from the runner, and that
+`match` runs readonly on CI, so it cannot create missing certificates. Run `MATCH_READONLY=false bundle exec fastlane match appstore`
+once from a trusted machine to create them. Check that `MATCH_GIT_URL` is readable from the runner, and that
 `MATCH_PASSWORD` is the passphrase the repository was encrypted with.
 
 ### `Keychain` or signing errors on the runner
@@ -110,6 +110,33 @@ The service account lacks the permission for this app. Grant it **Release apps t
 
 The release bundle was built without the upload keystore. The lane passes the keystore to Gradle as
 `android.injected.signing.*`. Check the four `ANDROID_KEY*` and `ANDROID_KEYSTORE_*` secrets, and the log of the Gradle step.
+
+## Screenshots
+
+### `snapshot wrote no screenshots`, or `screengrab wrote no screenshots`
+
+snapshot and screengrab can exit 0 when the UI or instrumented tests do not build or run, so the lane checks that a PNG exists.
+Check the UI test target (iOS) or the instrumented tests (Android), the scheme in `Snapfile` (`SNAPSHOT_SCHEME`, falling back to
+`IOS_SCHEME`), and the test log printed above the message. The [screenshots guide](mobile-screenshots.md#ios-set-up-the-ui-test-target)
+covers the setup.
+
+### `frameit changed no screenshots`
+
+frameit exited without framing anything. On Homebrew's ImageMagick 7.1.2-33, frameit's rotate step fails with
+`mogrify: no encode delegate for this image format '`. Upstream bug:
+[ImageMagick #9011](https://github.com/ImageMagick/ImageMagick/issues/9011). Frames work again once a Homebrew release contains
+the fix; until then, leave `FRAME_SCREENSHOTS` unset.
+
+### `frameit needs ImageMagick, and Homebrew is not installed`
+
+With `FRAME_SCREENSHOTS=1` the lane installs ImageMagick with `brew install imagemagick` when no `magick` or `convert` command is
+found. Homebrew itself needs an admin password, so the lane stops instead. Install Homebrew from [brew.sh](https://brew.sh), or
+install ImageMagick yourself.
+
+### `Framed screenshots can be rejected by App Store Connect without titles`
+
+`UPLOAD_SCREENSHOTS=1` with frames on would upload framed images at full device resolution, which the frameit docs say App Store
+Connect cannot take. Add titles in `Framefile.json`, then set `ALLOW_FRAMED_UPLOAD=1`, or turn frames off.
 
 ## Verification
 

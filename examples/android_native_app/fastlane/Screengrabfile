@@ -5,10 +5,10 @@
 app_package_name(ENV["ANDROID_PACKAGE_NAME"])
 
 # Locales to capture. Each one gets its own folder under output_directory.
-locales((ENV["SCREENGRAB_LOCALES"] || "en-US").split(",").map(&:strip))
+locales(ENV["SCREENGRAB_LOCALES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["en-US"] : list })
 
 # Phone, sevenInch, tenInch, tv or wear. Matches the Google Play screenshot type.
-device_type(ENV["SCREENGRAB_DEVICE_TYPE"] || "phone")
+device_type(ENV["SCREENGRAB_DEVICE_TYPE"].to_s.strip.empty? ? "phone" : ENV["SCREENGRAB_DEVICE_TYPE"])
 
 # Where screenshots are written. The screenshots lane uploads from the same place.
 output_directory("./fastlane/metadata/android")

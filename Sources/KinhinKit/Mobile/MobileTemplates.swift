@@ -206,10 +206,10 @@ enum MobileTemplates {
         app_package_name(ENV["ANDROID_PACKAGE_NAME"])
 
         # Locales to capture. Each one gets its own folder under output_directory.
-        locales((ENV["SCREENGRAB_LOCALES"] || "en-US").split(",").map(&:strip))
+        locales(ENV["SCREENGRAB_LOCALES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["en-US"] : list })
 
         # Phone, sevenInch, tenInch, tv or wear. Matches the Google Play screenshot type.
-        device_type(ENV["SCREENGRAB_DEVICE_TYPE"] || "phone")
+        device_type(ENV["SCREENGRAB_DEVICE_TYPE"].to_s.strip.empty? ? "phone" : ENV["SCREENGRAB_DEVICE_TYPE"])
 
         # Where screenshots are written. The screenshots lane uploads from the same place.
         output_directory("./fastlane/metadata/android")
@@ -268,6 +268,10 @@ enum MobileTemplates {
                   ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
                   ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
                   CI: "true"
+                  # Screenshot settings, read from repository variables (not secrets). Empty means the default.
+                  UPLOAD_SCREENSHOTS: ${{ vars.UPLOAD_SCREENSHOTS }}
+                  SCREENGRAB_LOCALES: ${{ vars.SCREENGRAB_LOCALES }}
+                  SCREENGRAB_DEVICE_TYPE: ${{ vars.SCREENGRAB_DEVICE_TYPE }}
               # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact, even when the
               # lane fails, so the captures can be inspected. __DIR__ is relative to the workspace, which artifact paths need.
               - name: Upload screenshots
@@ -340,6 +344,11 @@ enum MobileTemplates {
                   APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
                   IOS_SCHEME: ${{ secrets.IOS_SCHEME }}
                   CI: "true"
+                  # Screenshot settings, read from repository variables (not secrets). Empty means the default.
+                  FRAME_SCREENSHOTS: ${{ vars.FRAME_SCREENSHOTS }}
+                  UPLOAD_SCREENSHOTS: ${{ vars.UPLOAD_SCREENSHOTS }}
+                  SNAPSHOT_DEVICES: ${{ vars.SNAPSHOT_DEVICES }}
+                  SNAPSHOT_LANGUAGES: ${{ vars.SNAPSHOT_LANGUAGES }}
               # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact, even when the
               # lane fails, so the captures can be inspected. __DIR__ is relative to the workspace, which artifact paths need.
               - name: Upload screenshots
@@ -900,7 +909,9 @@ enum MobileTemplates {
         git_url(ENV["MATCH_GIT_URL"])         # e.g. git@github.com:your-org/certificates.git
         storage_mode("git")
         type("appstore")
-        readonly(true)                        # CI never creates or rotates certificates; run `fastlane match appstore` locally
+        # CI runs readonly, so it never creates or rotates certificates. To create them once, from your own Mac, run:
+        #   MATCH_READONLY=false bundle exec fastlane match appstore
+        readonly(ENV["MATCH_READONLY"] != "false")
         """#
 
     private static let iosFastlaneSnapfile = #"""
@@ -908,13 +919,14 @@ enum MobileTemplates {
         # Each value can be overridden from the environment, so CI can change them without editing this file.
 
         # The scheme that runs your UI test target. The UI tests live in ios/UITests (see docs/mobile-screenshots.md).
-        scheme(ENV["SNAPSHOT_SCHEME"] || ENV["IOS_SCHEME"])
+        # An empty variable (an unset repository variable arrives as "") means "not set", not an empty name.
+        scheme([ENV["SNAPSHOT_SCHEME"], ENV["IOS_SCHEME"]].map { |v| v.to_s.strip }.find { |v| !v.empty? })
 
         # Simulators to capture on. Use the names `xcrun simctl list devices available` prints.
-        devices(ENV["SNAPSHOT_DEVICES"].to_s.split(",").map(&:strip)) unless ENV["SNAPSHOT_DEVICES"].to_s.strip.empty?
+        devices(ENV["SNAPSHOT_DEVICES"].to_s.split(",").map(&:strip).reject(&:empty?)) unless ENV["SNAPSHOT_DEVICES"].to_s.strip.empty?
 
         # Languages to capture. Each one gets its own folder under output_directory.
-        languages((ENV["SNAPSHOT_LANGUAGES"] || "en-US").split(",").map(&:strip))
+        languages(ENV["SNAPSHOT_LANGUAGES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["en-US"] : list })
 
         # Where screenshots are written. The screenshots lane uploads from here.
         output_directory("./fastlane/screenshots")

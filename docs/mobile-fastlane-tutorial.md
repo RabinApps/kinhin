@@ -7,7 +7,7 @@ lane by hand, then run it from CI. It takes about an hour the first time, most o
 
 ## What you need
 
-- A Mac with kinhin installed (`kinhin` on your PATH), Xcode, and Ruby 3.2 or newer. The macOS system Ruby (2.6) is too
+- A Mac with [kinhin installed](install.md) (`kinhin` on your PATH), Xcode, and Ruby 3.2 or newer. The macOS system Ruby (2.6) is too
   old. Install Ruby 3.3 with Homebrew (`brew install ruby@3.3`) or rbenv.
 - For iOS: an Apple Developer Program membership. The **Account Holder** requests API access, and an **Account Holder** or **Admin** creates the team key.
 - For Android: a Google Play Console developer account, and a Google Cloud project you can create a service account in.
@@ -63,7 +63,7 @@ you copying certificates by hand.
 cd ~/code/my-app/ios
 MATCH_GIT_URL=git@github.com:my-org/certificates.git MATCH_PASSWORD='your passphrase' \
   APP_IDENTIFIER=com.example.myapp APPLE_TEAM_ID=ABCDE12345 \
-  bundle exec fastlane match appstore
+  MATCH_READONLY=false bundle exec fastlane match appstore
 ```
 
 `match` asks for the passphrase, unless `MATCH_PASSWORD` is set, which avoids the prompt. Afterwards the repository holds the encrypted certificates. CI runs `match`
@@ -93,16 +93,24 @@ keytool -genkeypair -v -keystore upload.keystore -alias upload -keyalg RSA -keys
 The full steps are in [credentials](mobile-credentials.md#google-play-service-account).
 
 The app must exist in Play Console before the first upload. Create it there, with the package name you put in
-`ANDROID_PACKAGE_NAME`. The first upload must be made by hand in Play Console, as the fastlane supply docs say. The lanes can take over after that.
+`ANDROID_PACKAGE_NAME`. The first upload is made by hand in Play Console, as the fastlane supply docs say. The lanes can upload after that.
 
 ## 6. Run a beta locally first
 
-Before CI, run the lanes on your Mac with the same secrets exported. Keep them out of shell history:
+Before CI, run the lanes on your Mac. The lanes read the same variables as CI, but the API key and the keystore are
+files, so point to them rather than pasting their contents. Keep the secret values out of shell history by putting them
+in a file you do not commit, such as `~/.config/my-app/release.env`, and loading it with `set -a; source` for the session:
 
 ```bash
 cd ~/code/my-app/ios
+export ASC_KEY_ID=... ASC_ISSUER_ID=... APP_IDENTIFIER=com.example.myapp APPLE_TEAM_ID=ABCDE12345
+export ASC_KEY_FILEPATH=~/keys/AuthKey_XXXX.p8     # the .p8 file, not its contents
+export MATCH_GIT_URL=git@github.com:my-org/certificates.git MATCH_PASSWORD=...
 bundle exec fastlane beta
 ```
+
+For Android, set `PLAY_SERVICE_ACCOUNT_JSON` to the JSON file's contents (for example `$(cat ~/keys/play.json)`), and set
+`ANDROID_KEYSTORE_PATH` to the keystore file with its passwords and alias. CI does the same through the workflow.
 
 A successful run uploads the build to TestFlight. Apple then processes it for a few minutes before it appears there.
 Android works the same way, from the `android` folder: `bundle exec fastlane android beta` uploads to the internal track.

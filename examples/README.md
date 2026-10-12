@@ -49,6 +49,7 @@ and with `--with-builds` for the builds. It needs Ruby 3.2+ (the fastlane pin re
   - The Expo route (`expo prebuild`, then the React Native template) builds the signed Android bundle through the lane and a
     Release device build for iOS.
 - `kinhin mobile init` exits 2 for an unknown framework, a missing folder, a folder with no project, and a bare `kinhin mobile`.
+- The screenshots lane captures a PNG on an iPhone simulator, and the lane fails when no PNG is written. Android screenshot capture and frames are not covered yet; see [store screenshots](../docs/mobile-screenshots.md).
 
 Not verified: any store upload, `match` with real certificates, and the workflows running on a `kinhin-xcode` runner. Those
 need the owner's accounts and a runner. The `eas.json` for Expo is not checked against EAS Build, which needs a linked project.

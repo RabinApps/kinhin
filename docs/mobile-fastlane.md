@@ -50,6 +50,8 @@ cd ../android && bundle exec fastlane lanes
 | --- | --- | --- |
 | iOS | `beta` | `match` (readonly) → `build_app` (App Store export) → `upload_to_testflight` |
 | iOS | `release` | `upload_to_app_store` with metadata and screenshots skipped; not submitted for review |
+| iOS | `screenshots` | `snapshot` (UI tests on a simulator) → optional `frameit` (`FRAME_SCREENSHOTS=1`) → optional upload (`UPLOAD_SCREENSHOTS=1`). See [store screenshots](mobile-screenshots.md). |
+| Android | `screenshots` | `screengrab` (instrumented tests on an emulator) → optional upload (`UPLOAD_SCREENSHOTS=1`). See [store screenshots](mobile-screenshots.md). |
 | Android | `beta` | `gradle` builds a release AAB (or uses `AAB_PATH` if another step built it) → `upload_to_play_store` to the internal track |
 
 The templates use the documented fastlane interfaces: `app_store_connect_api_key` with `match`, `pilot` and `deliver`
@@ -81,7 +83,7 @@ change it in `.github/workflows/mobile-release.yml`. kinhin does not store any o
 ## Framework notes
 
 The generated CI jobs run the framework's own setup before the lanes, so a clean checkout builds without manual steps.
-The project must be at the repository root.
+A monorepo app works too; see [Monorepos](#monorepos).
 
 **Flutter.** The jobs install the Flutter SDK (`subosito/flutter-action`) and run `flutter pub get`, which also writes
 `android/local.properties`. On iOS they run `flutter build ios --config-only --release` before CocoaPods, so the
@@ -93,7 +95,8 @@ toolchain: `flutter create` still writes 13.0, which fails with "deployment targ
 example sets 15.0 in `ios/Runner.xcodeproj/project.pbxproj`.
 
 **React Native (bare).** The jobs set up Node 22 and install dependencies before CocoaPods and Gradle run: `npm ci` when
-there is a `package-lock.json`, `yarn install --frozen-lockfile` when there is a `yarn.lock`, and `npm install` otherwise.
+there is a `package-lock.json`, `yarn install --frozen-lockfile` when there is a `yarn.lock`, `pnpm install --frozen-lockfile`
+when there is a `pnpm-lock.yaml`, and `npm install` otherwise.
 No official fastlane guide exists for React Native. The layout follows fastlane's standard setup. The e2e checks the same
 steps (npm, pod install, a simulator build and the signed Android bundle), but a real store upload is still unverified.
 The Android build needs `ANDROID_HOME` on the runner, or an `android/local.properties` with `sdk.dir`.
@@ -119,7 +122,7 @@ a Release device build for iOS. Expo's own `--platform` flag takes one value, so
 
 Caveats to check before relying on this:
 
-- EAS Submit uploads to TestFlight. It does not release to the App Store, which the `release` lane does.
+- EAS Submit uploads to TestFlight. The iOS `release` lane uploads a build to App Store Connect without submitting it for review.
 - The docs do not say whether `eas-build-pre-install` hooks run in local builds. Test it before depending on it.
 
 ## Monorepos
@@ -130,6 +133,9 @@ Run it from the app folder, or pass the path: `kinhin mobile init apps/mobile`. 
 gets paths from its own root.
 
 ## Errors you may see
+
+The full list, with the cause and the fix for each, is in the [troubleshooting page](mobile-fastlane-troubleshooting.md). The
+most common ones:
 
 | Message | Where | What to do |
 | --- | --- | --- |
@@ -152,7 +158,8 @@ Two checks cover the integration:
   the committed examples, runs `bundle install` and lists the lanes, checks the secret errors in an empty environment,
   lints the generated workflows with actionlint, and confirms every fastlane option the templates use exists.
   `--with-builds` adds the native, Flutter and React Native builds and the signed-bundle check. It needs Ruby 3.2+ (set
-  `RUBY_BIN` if it is not on the usual path).
+  `RUBY_BIN` if it is not on the usual path). Building the binary needs Swift; the builds need JDK 17, an Android SDK,
+  Xcode, Flutter, XcodeGen, and `jarsigner` (part of the JDK). The React Native steps need npm and CocoaPods.
 
 The e2e script does not upload anything and does not read credentials. The store and runner steps still need a real
 project. The checklist in `docs/plans/mobile-fastlane-test-checklist.md` lists what is covered and what is not.

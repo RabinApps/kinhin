@@ -36,7 +36,7 @@ cd ios && bundle exec fastlane lanes
 ## Before the first upload
 
 - Create an App Store Connect **team** API key. The `.p8` downloads once only. Store it as the `ASC_KEY_P8` secret.
-- Set up `match` once, from a trusted machine: `bundle exec fastlane match appstore`. Keep `MATCH_PASSWORD` in secrets.
+- Set up `match` once, from a trusted machine: `MATCH_READONLY=false bundle exec fastlane match appstore`. Keep `MATCH_PASSWORD` in secrets.
 - Create a Play service account, invite it in Play Console with release permissions, and store its JSON as
   `PLAY_SERVICE_ACCOUNT_JSON`.
 - Create the upload keystore and store it base64-encoded as `ANDROID_KEYSTORE_BASE64`.
@@ -51,7 +51,7 @@ processed. Confirm the build appears in TestFlight or the Play internal track be
 ## Troubleshooting
 
 - **`match` fails on CI with no matching profile**: the template runs `match` readonly, so CI never creates certificates.
-  Run `bundle exec fastlane match appstore` once from a trusted machine (not readonly) to create them, then re-run the workflow.
+  Run `MATCH_READONLY=false bundle exec fastlane match appstore` once from a trusted machine to create them, then re-run the workflow.
 - **`upload_to_play_store` fails with 403**: the service account lacks release permissions for this app in Play Console.
 - **Flutter `ipa` build fails**: it needs a distribution certificate, not a development one.
 - **Expo local build ignores `fastlane` in `eas.json`**: this is expected. Local builds ignore it.

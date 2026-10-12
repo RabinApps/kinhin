@@ -32,6 +32,32 @@ Add `FRAME_SCREENSHOTS=1` to frame the images, or `UPLOAD_SCREENSHOTS=1` to uplo
 The CI workflow runs the same lane when you start it by hand: choose `screenshots` as the lane. The Android job does not run
 for the `release` choice, because there is no Android release lane yet.
 
+### Settings from CI
+
+The workflow passes these repository variables (**Settings**, then **Secrets and variables**, then **Variables**) into the
+lane. An empty or unset variable means the default. They are variables, not secrets, so do not put anything sensitive in them.
+
+| Variable | Used by | Effect |
+| --- | --- | --- |
+| `FRAME_SCREENSHOTS` | iOS | `1` runs frameit (see [Frames](#frames-optional)) |
+| `UPLOAD_SCREENSHOTS` | iOS, Android | `1` uploads the screenshots (see [Upload](#upload-optional)) |
+| `SNAPSHOT_DEVICES` | iOS | Comma-separated simulator names |
+| `SNAPSHOT_LANGUAGES` | iOS | Comma-separated languages (default `en-US`) |
+| `SCREENGRAB_LOCALES` | Android | Comma-separated locales (default `en-US`) |
+| `SCREENGRAB_DEVICE_TYPE` | Android | `phone`, `sevenInch`, `tenInch`, `tv` or `wear` |
+
+Gitea, Forgejo and GitLab name their variables differently, so check their docs before you rely on these.
+
+### Artifacts
+
+The VM running the job is deleted when the job ends, so the screenshots would disappear with it. The workflow therefore
+uploads them as a CI artifact (`ios-screenshots` or `android-screenshots`, kept for 14 days) after the lane, even when the lane
+fails. Find the artifact on the workflow run's page. The artifact is visible to everyone who can read the run, so use test
+accounts and fake data in the app's screens.
+
+The Android job runs on the same macOS `kinhin-xcode` runner as iOS. screengrab needs an Android emulator or a device on that
+runner, which the runner image has to provide. We have not verified that setup on a runner.
+
 ## iOS: set up the UI test target
 
 fastlane's snapshot needs a UI test target in the Xcode project. The scaffold writes the test sources; you add the target once.
@@ -85,7 +111,8 @@ way; the Flutter integration-test docs do not cover screenshots, so the native U
 | `clear_previous_screenshots` | edit the file | `true` | A deleted screen does not stay in the upload |
 | `stop_after_first_error` | edit the file | `false` | |
 
-Add `testplan`, `only_testing` or any other snapshot option to the file as you need. The fastlane page lists them all.
+Empty values from CI are treated as unset. Add `testplan`, `only_testing` or any other snapshot option to the file as you
+need. The fastlane page lists them all.
 
 ### iOS output
 

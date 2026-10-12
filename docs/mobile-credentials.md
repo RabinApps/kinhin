@@ -48,7 +48,7 @@ Revoke a key you no longer use. Anyone with the `.p8` and the IDs can act with i
    `git_url`. The CI runner needs read access to the repository. `match` can authenticate with its `git_private_key`,
    `git_basic_authorization` or `git_bearer_authorization` options, which the templates do not set yet.
 3. Choose `MATCH_PASSWORD`, and keep a copy somewhere safe. Without it the repository cannot be decrypted.
-4. Create the certificates once from your own Mac: `bundle exec fastlane match appstore` (not readonly). After that the
+4. Create the certificates once from your own Mac: `MATCH_READONLY=false bundle exec fastlane match appstore`. After that the
    CI job runs `match` readonly and only reads them.
 
 ## Apple team and bundle ID
@@ -67,11 +67,11 @@ Play uploads use a service account that the Play Developer API trusts.
 3. In Play Console, open **Users and permissions**, invite the service account's email address, and grant it release
    permissions for your app. Google lists **Release apps to testing tracks** as the permission for testing-track releases.
    Its permissions page does not say which permission a service account needs, so confirm the upload works on your first try.
-   The first upload of a new app must be done by hand in Play Console, as the fastlane supply docs say.
+   Uploading to a testing track needs the permission above. The first upload of a new app is covered below.
 4. Store the whole JSON file as `PLAY_SERVICE_ACCOUNT_JSON`.
 
-The first release of a new app is usually uploaded by hand in Play Console, because the API does not always accept the
-first upload. Once the app exists and has a release, the lanes can upload.
+The first upload of a new app is made by hand in Play Console, as the fastlane supply docs say. Once the app exists and has
+a release, the lanes can upload.
 
 ## Android upload keystore
 

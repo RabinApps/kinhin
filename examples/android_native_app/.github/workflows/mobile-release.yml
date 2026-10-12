@@ -50,6 +50,10 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           CI: "true"
+          # Screenshot settings, read from repository variables (not secrets). Empty means the default.
+          UPLOAD_SCREENSHOTS: ${{ vars.UPLOAD_SCREENSHOTS }}
+          SCREENGRAB_LOCALES: ${{ vars.SCREENGRAB_LOCALES }}
+          SCREENGRAB_DEVICE_TYPE: ${{ vars.SCREENGRAB_DEVICE_TYPE }}
       # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact, even when the
       # lane fails, so the captures can be inspected. examples/android_native_app is relative to the workspace, which artifact paths need.
       - name: Upload screenshots
