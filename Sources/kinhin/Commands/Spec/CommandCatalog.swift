@@ -318,8 +318,8 @@ enum CommandCatalog {
                     positionals: "[path]",
                     flags: [
                         jsonFlag,
-                        .bool("--write", "Save the result as .kinhin.yml"),
-                        .bool("--force", "Overwrite an existing .kinhin.yml"),
+                        .bool("--write", "Save the result as .kinhin/config.yml"),
+                        .bool("--force", "Overwrite an existing .kinhin/config.yml (or .kinhin.yml)"),
                     ]),
                 CommandSpec(
                     name: "list-images",

@@ -150,8 +150,8 @@ public protocol Forge: Sendable {
     func runningJobs() async throws -> [ForgeJob]
     /// The API budget the forge last reported (nil: the forge reports none).
     var rateLimit: ForgeRateLimit? { get }
-    /// The bytes of `.kinhin.yml` in `repository` at `ref` (nil `ref` = the
-    /// default branch), or nil when the repo has none. Forges without a file
+    /// The bytes of the repo's `.kinhin/config.yml`, else its `.kinhin.yml`, in
+    /// `repository` at `ref` (nil `ref` = the default branch), or nil when the repo has neither. Forges without a file
     /// API return nil.
     func projectFile(repository: String, ref: String?) async throws -> Data?
     /// The live pipeline the runner named `runnerName` is executing (steps and

@@ -37,7 +37,7 @@ requests off kinhin matters more than any setting below.
 
 ## Per-project toolchains
 
-A repo's `.kinhin.yml` lets repo contents decide what is installed on your Mac, so it is
+A repo's `.kinhin/config.yml` (or the older `.kinhin.yml`) lets repo contents decide what is installed on your Mac, so it is
 treated as untrusted input and bounded ([how it works](toolchains.md#per-project-toolchains)).
 
 - **Opt-in per repo.** The file is ignored unless a `projects:` entry matching the repo sets

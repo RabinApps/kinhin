@@ -39,7 +39,7 @@ then `kinhin image prepare --image xcode`.
 
 `kinhin toolchains` shows the catalog. Stacks: flutter, expo, react-native, vercel, cloudflare.
 
-Resolution order for a job: `.kinhin.yml` at the job's ref, then `projects[].toolchains` in the config, then the plain
+Resolution order for a job: `.kinhin/config.yml` (or the older `.kinhin.yml`) at the job's ref, then `projects[].toolchains` in the config, then the plain
 base image.
 
 ```yaml
@@ -49,7 +49,7 @@ projects:
 ```
 
 - Generate a repo file: `kinhin toolchains detect [path] [--json] [--write] [--force]` in a checkout.
-- A repo `.kinhin.yml` accepts only catalog `toolchains.specs` and `stacks`, capped at 16 KB. It is honored only on
+- A repo `.kinhin/config.yml` (or `.kinhin.yml`, read when the new one is absent) accepts only catalog `toolchains.specs` and `stacks`, capped at 16 KB. It is honored only on
   GitHub, Gitea/Forgejo and GitLab. Other forges use `projects[].toolchains`.
 - Per-job install, and the only option on container and Docker runtimes: `run: kinhin-toolchain install node@22 pnpm`.
 - Housekeeping: `kinhin toolchains list-images`, `kinhin toolchains prune [--dry-run]`. See every installed image

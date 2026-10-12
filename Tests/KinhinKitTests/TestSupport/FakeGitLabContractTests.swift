@@ -216,7 +216,7 @@ final class FakeGitLabContractTests: XCTestCase {
         StubProtocol.handler = { [body] request in
             XCTAssertTrue(
                 request.url!.absoluteString.contains(
-                    "/api/v4/projects/acme%2Fapi/repository/files/\(ProjectFileLoader.fileName)/raw?ref=main"),
+                    "/api/v4/projects/acme%2Fapi/repository/files/.kinhin%2Fconfig.yml/raw?ref=main"),
                 request.url!.absoluteString)
             return (200, body, [:])
         }

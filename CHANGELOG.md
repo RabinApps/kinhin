@@ -6,6 +6,8 @@
 
 **Changed**
 
+- A repo's per-project config now lives at `.kinhin/config.yml`. The older `.kinhin.yml` is still read when the new file is
+  absent, and `kinhin toolchains detect --write` writes the new path.
 - Install docs for Linux jobs: apple/container (recommended, `kinhin setup repair container`) and Docker
   (`kinhin setup repair docker`), in [docs/install.md](docs/install.md#installing-a-linux-runtime).
 
