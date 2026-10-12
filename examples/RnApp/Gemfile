@@ -16,5 +16,5 @@ gem 'benchmark'
 gem 'mutex_m'
 gem 'nkf'
 
-# Added by kinhin mobile-init: fastlane lanes live in ios/ and android/.
+# Added by kinhin mobile init: fastlane lanes live in ios/ and android/.
 gem "fastlane", "~> 2.240"

@@ -6,7 +6,7 @@
 
 **Added**
 
-- Mobile release templates for fastlane: `scripts/mobile-init.sh` scaffolds iOS, Android, Flutter, React Native and
+- `kinhin mobile init` scaffolds fastlane release setup for iOS, Android, Flutter, React Native and
   native projects with lanes, a pinned Gemfile and a manual `mobile-release` workflow for `kinhin-xcode`. Expo gets EAS
   config. See [docs/mobile-fastlane.md](docs/mobile-fastlane.md).
 

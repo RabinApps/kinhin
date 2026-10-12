@@ -1,6 +1,6 @@
 ---
 name: kinhin-mobile-fastlane
-description: Set up fastlane store releases (TestFlight, App Store, Google Play) for iOS, Android, Flutter, React Native or Expo projects, and run them from a kinhin runner - mobile-init.sh scaffolding, lanes, App Store Connect API keys, match, Play service accounts, the mobile-release workflow, and Expo EAS. Use when the user wants to ship a mobile app, automate TestFlight or Play uploads, or fix a failing fastlane lane.
+description: Set up fastlane store releases (TestFlight, App Store, Google Play) for iOS, Android, Flutter, React Native or Expo projects, and run them from a kinhin runner - `kinhin mobile init` scaffolding, lanes, App Store Connect API keys, match, Play service accounts, the mobile-release workflow, and Expo EAS. Use when the user wants to ship a mobile app, automate TestFlight or Play uploads, or fix a failing fastlane lane.
 ---
 
 # Mobile releases with fastlane
@@ -10,17 +10,17 @@ Use this skill to pick the right path and run the steps.
 
 ## Pick the path
 
-1. **Expo** (`"expo"` in `package.json`): use EAS Build and EAS Submit by default. `scripts/mobile-init.sh` writes only
+1. **Expo** (`"expo"` in `package.json`): use EAS Build and EAS Submit by default. `kinhin mobile init` writes only
    `eas.json` for Expo. For fastlane, run `npx expo prebuild` first, then scaffold as React Native.
 2. **Flutter, React Native (bare), native iOS or Android**: scaffold with fastlane.
 
 ## Scaffold
 
-From a kinhin checkout, point the script at the project. It never overwrites existing files unless `--force` is given:
+Run this from any machine with kinhin installed. It never overwrites existing files unless `--force` is given:
 
 ```bash
-scripts/mobile-init.sh --dry-run /path/to/app
-scripts/mobile-init.sh /path/to/app
+kinhin mobile init --dry-run /path/to/app
+kinhin mobile init /path/to/app
 ```
 
 Override detection with `--framework ios|android|flutter|react-native|expo|native` when the layout is unusual.

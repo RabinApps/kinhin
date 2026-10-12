@@ -3,9 +3,11 @@
 #
 #   scripts/mobile-e2e.sh [--with-builds] [--keep]
 #
+# Uses the kinhin binary (KINHIN_BIN, default .build/debug/kinhin, built if missing).
+#
 # What it does, per example app (flutter_app, RnApp, ios_native_app, android_native_app, expo_app):
 #   1. Copies the committed files only (git ls-files), so leftover build output cannot hide a problem.
-#   2. Re-runs scripts/mobile-init.sh --force on the copy and checks the generated fastlane files and
+#   2. Re-runs `kinhin mobile init --force` on the copy and checks the generated fastlane files and
 #      CI workflow still match the committed example. That catches drift between templates and examples.
 #   3. Parses each CI workflow as YAML.
 #   4. Installs the Gemfile with Ruby 3.1+ and lists the lanes for every platform folder.
@@ -79,6 +81,17 @@ export FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_OPT_OUT_USAGE=1 LANG=en_US.UTF-8
 echo "mobile-e2e: work dir $work"
 echo "mobile-e2e: ruby ${ruby_bin:-not found (need 3.1+)}; python yaml $([[ $has_yaml -eq 1 ]] && echo yes || echo no)"
 
+# MARK: - The kinhin binary
+
+KINHIN_BIN="${KINHIN_BIN:-$root/.build/debug/kinhin}"
+if [[ ! -x "$KINHIN_BIN" ]]; then
+    echo "mobile-e2e: building kinhin (swift build --product kinhin)"
+    (cd "$root" && swift build --product kinhin >"$work/swift-build.log" 2>&1) || {
+        echo "mobile-e2e: swift build failed (see $work/swift-build.log)" >&2
+        exit 1
+    }
+fi
+
 # MARK: - Copy the committed example files
 
 apps="flutter_app RnApp ios_native_app android_native_app expo_app"
@@ -102,7 +115,7 @@ for app in flutter_app RnApp ios_native_app android_native_app expo_app; do
     for f in $generated; do
         [[ -f "$dir/$f" ]] && mkdir -p "$before/$(dirname "$f")" && cp "$dir/$f" "$before/$f"
     done
-    "$root/scripts/mobile-init.sh" --force "$dir" > "$before/log" 2>&1 || true
+    "$KINHIN_BIN" mobile init --force "$dir" > "$before/log" 2>&1 || true
     drift=0
     for f in $generated; do
         [[ -f "$before/$f" ]] || continue
@@ -111,7 +124,7 @@ for app in flutter_app RnApp ios_native_app android_native_app expo_app; do
             drift=1
         fi
     done
-    if [[ $drift -eq 0 ]]; then ok "$app matches its templates"; else bad "$app drifted from its templates (run mobile-init.sh --force on it)"; fi
+    if [[ $drift -eq 0 ]]; then ok "$app matches its templates"; else bad "$app drifted from its templates (run kinhin mobile init --force on it)"; fi
     rm -rf "$before"
 done
 
@@ -257,39 +270,7 @@ if [[ $has_ruby -eq 1 && -d "$work/examples/ios_native_app" ]]; then
     ') && passed=$((passed + 1)) || failed=$((failed + 1))
 fi
 
-# MARK: - Native builds (opt-in)
-
-section "native builds"
-if [[ $with_builds -eq 0 ]]; then
-    skip "native builds (pass --with-builds)"
-else
-    # local.properties is not tracked (it holds a machine-specific SDK path), so the copy gets one here.
-    sdk="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
-    if [[ -d "$sdk" ]]; then printf 'sdk.dir=%s\n' "$sdk" > "$work/examples/android_native_app/local.properties"; fi
-    if [[ -d "$sdk" ]] && { [[ -n "${JAVA_HOME:-}" ]] || /usr/libexec/java_home -v 17 >/dev/null 2>&1; }; then
-        export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 17)}"
-        if (cd "$work/examples/android_native_app" && ./gradlew --no-daemon assembleDebug >"$work/android-build.log" 2>&1); then
-            ok "android_native_app assembleDebug (Java 17)"
-        else
-            bad "android_native_app assembleDebug (see $work/android-build.log)"
-        fi
-    else
-        skip "android_native_app assembleDebug (needs an Android SDK and Java 17)"
-    fi
-    if command -v xcodebuild >/dev/null; then
-        # The .xcodeproj is generated from project.yml and not tracked, so generate it in the copy first.
-        ios_dir="$work/examples/ios_native_app"
-        if (cd "$ios_dir" && xcodegen generate >"$work/xcodegen.log" 2>&1 && \
-            xcodebuild -project IosNativeApp.xcodeproj -scheme IosNativeApp \
-            -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO >"$work/ios-build.log" 2>&1); then
-            ok "ios_native_app simulator build"
-        else
-            bad "ios_native_app simulator build (see $work/ios-build.log)"
-        fi
-    else
-        skip "ios_native_app simulator build (no xcodebuild)"
-    fi
-fi
+# MARK: - Builds (opt-in), mirroring what the generated CI jobs run
 
 # run_build LABEL LOGNAME DIR COMMAND...: runs a build in the copy, logs to $work/LOGNAME.log.
 run_build() {
@@ -301,64 +282,117 @@ run_build() {
     fi
 }
 
+# Signing material for the lane build: a throwaway keystore, passed as the same variables CI sets.
+keystore="$work/test.keystore"
+make_keystore() {
+    keytool -genkeypair -keystore "$keystore" -storepass e2e-pass -keypass e2e-pass -alias e2e \
+        -keyalg RSA -keysize 2048 -validity 2 -dname "CN=kinhin e2e" >/dev/null 2>&1
+}
+# lane_build_signed LABEL APP_DIR: runs `fastlane android build` and checks the bundle with jarsigner.
+lane_build_signed() {
+    local label="$1" app="$2"
+    # Flutter and React Native keep the Android project in android/; a native project may keep it at the root.
+    local android_dir="$app/android"
+    [[ -d "$android_dir" ]] || android_dir="$app"
+    if (cd "$android_dir" && env -i PATH="$PATH" HOME="$HOME" LANG=en_US.UTF-8 JAVA_HOME="$JAVA_HOME" \
+        ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}" FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_OPT_OUT_USAGE=1 \
+        ANDROID_KEYSTORE_PATH="$keystore" ANDROID_KEYSTORE_PASSWORD=e2e-pass ANDROID_KEY_ALIAS=e2e \
+        ANDROID_KEY_PASSWORD=e2e-pass bundle exec fastlane android build >"$work/lane-$(basename "$app").log" 2>&1); then
+        local aab
+        aab="$(sed 's/\x1b\[[0-9;]*m//g' "$work/lane-$(basename "$app").log" | grep -o 'Built .*\.aab' | sed 's/^Built //' | tail -1)"
+        if [[ -n "$aab" && -f "$aab" ]] && jarsigner -verify "$aab" 2>&1 | grep -q "jar verified"; then
+            ok "$label: fastlane android build produced a signed AAB"
+        else
+            bad "$label: lane ran but the AAB is missing or not signed (aab: ${aab:-none})"
+        fi
+    else
+        bad "$label: fastlane android build failed (see $work/lane-$(basename "$app").log)"
+    fi
+}
+
 if [[ $with_builds -eq 1 ]]; then
-    # Flutter: the Android bundle and an unsigned iOS build. A signed IPA needs a distribution certificate.
+    # Gradle finds the SDK from ANDROID_HOME, so the copies need no local.properties of their own.
+    export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+    if [[ -z "${JAVA_HOME:-}" ]]; then JAVA_HOME="$(/usr/libexec/java_home -v 17 2>/dev/null || true)"; fi
+    export JAVA_HOME
+    make_keystore
+    ios_sdk_ok=0; command -v xcodebuild >/dev/null && ios_sdk_ok=1
+
+    # Flutter: the CI job runs the Flutter SDK, pub get and (iOS) config-only, then pods, then the lane.
     if command -v flutter >/dev/null; then
-        run_build "flutter_app appbundle (release)" flutter-aab "$work/examples/flutter_app" flutter build appbundle --release
-        run_build "flutter_app ios --no-codesign" flutter-ios "$work/examples/flutter_app" flutter build ios --no-codesign
+        fl="$work/examples/flutter_app"
+        run_build "flutter_app pub get" flutter-pub "$fl" flutter pub get
+        if [[ $ios_sdk_ok -eq 1 ]]; then
+            run_build "flutter_app ios config-only" flutter-config "$fl" flutter build ios --config-only --release
+            # The CI job runs pod install only when a Podfile exists; this example has none.
+            if [[ -f "$fl/ios/Podfile" ]]; then
+                run_build "flutter_app pod install" flutter-pods "$fl/ios" pod install
+            fi
+            # The Release device build is what the lane's archive step runs. A Debug simulator build needs a
+            # simulator engine that --config-only does not produce.
+            run_build "flutter_app Release device build" flutter-ios "$fl/ios" xcodebuild -workspace Runner.xcworkspace \
+                -scheme Runner -sdk iphoneos -configuration Release build CODE_SIGNING_ALLOWED=NO
+        else
+            skip "flutter_app iOS build (no xcodebuild)"
+        fi
+        if [[ -n "${JAVA_HOME:-}" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
+            lane_build_signed "flutter_app android" "$fl"
+        else
+            skip "flutter_app android build (needs JAVA_HOME and an Android SDK)"
+        fi
     else
         skip "flutter_app builds (no flutter on PATH)"
     fi
 
-    # React Native: needs node_modules and CocoaPods; neither is in the tracked files.
+    # React Native: the CI job runs npm (or yarn/npm ci), then pods, then the lane.
     if command -v npm >/dev/null && command -v pod >/dev/null; then
         rn="$work/examples/RnApp"
         run_build "RnApp npm install" rn-npm "$rn" npm install --no-audit --no-fund
         run_build "RnApp pod install" rn-pods "$rn/ios" pod install
-        run_build "RnApp simulator build" rn-ios "$rn/ios" xcodebuild -workspace RnApp.xcworkspace -scheme RnApp \
-            -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO
-        if [[ -n "${JAVA_HOME:-}" ]] && [[ -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
-            printf 'sdk.dir=%s\n' "${ANDROID_HOME:-$HOME/Library/Android/sdk}" > "$rn/android/local.properties"
-            run_build "RnApp android bundleRelease" rn-aab "$rn/android" ./gradlew --no-daemon bundleRelease
+        if [[ $ios_sdk_ok -eq 1 ]]; then
+            run_build "RnApp simulator build" rn-ios "$rn/ios" xcodebuild -workspace RnApp.xcworkspace -scheme RnApp \
+                -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO
         else
-            skip "RnApp android bundleRelease (needs JAVA_HOME and an Android SDK)"
+            skip "RnApp iOS build (no xcodebuild)"
+        fi
+        if [[ -n "${JAVA_HOME:-}" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
+            lane_build_signed "RnApp android" "$rn"
+        else
+            skip "RnApp android build (needs JAVA_HOME and an Android SDK)"
         fi
     else
         skip "RnApp builds (needs npm and CocoaPods)"
     fi
 
-    # Native Android release bundle, unsigned (the example has no signing config).
+    # Native apps: the Android debug build, the iOS simulator build, and the signed lane build.
+    native_android="$work/examples/android_native_app"
     if [[ -n "${JAVA_HOME:-}" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
-        run_build "android_native_app bundleRelease (unsigned)" android-aab "$work/examples/android_native_app" \
-            ./gradlew --no-daemon bundleRelease
-    fi
-fi
-
-# Signing: the lane passes the upload keystore to Gradle as android.injected.signing.* properties. Build a
-# release bundle with a throwaway keystore that way, then check jarsigner accepts it. Also check an unsigned
-# build is rejected, so the check cannot pass by accident.
-if [[ $with_builds -eq 1 && -n "${JAVA_HOME:-}" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]] && command -v keytool >/dev/null; then
-    section "signing"
-    keystore="$work/test.keystore"
-    keytool -genkeypair -keystore "$keystore" -storepass e2e-pass -keypass e2e-pass -alias e2e \
-        -keyalg RSA -keysize 2048 -validity 2 -dname "CN=kinhin e2e" >/dev/null 2>&1
-    android="$work/examples/android_native_app"
-    if (cd "$android" && ./gradlew --no-daemon clean bundleRelease \
-        -Pandroid.injected.signing.store.file="$keystore" -Pandroid.injected.signing.store.password=e2e-pass \
-        -Pandroid.injected.signing.key.alias=e2e -Pandroid.injected.signing.key.password=e2e-pass >"$work/signed.log" 2>&1); then
-        if jarsigner -verify "$android/app/build/outputs/bundle/release/app-release.aab" 2>&1 | grep -q "jar verified"; then
-            ok "signed AAB verifies with jarsigner"
-        else
-            bad "signed AAB does not verify (see $work/signed.log)"
-        fi
+        run_build "android_native_app assembleDebug" android-debug "$native_android" ./gradlew --no-daemon assembleDebug
+        lane_build_signed "android_native_app" "$native_android"
     else
-        bad "signed release bundle build (see $work/signed.log)"
+        skip "android_native_app builds (needs JAVA_HOME and an Android SDK)"
     fi
-    if (cd "$android" && ./gradlew --no-daemon clean bundleRelease >"$work/unsigned.log" 2>&1); then
-        if jarsigner -verify "$android/app/build/outputs/bundle/release/app-release.aab" 2>&1 | grep -q "jar is unsigned"; then
-            ok "unsigned AAB is rejected by jarsigner"
+    if [[ $ios_sdk_ok -eq 1 ]] && command -v xcodegen >/dev/null; then
+        # The .xcodeproj is generated from project.yml and not tracked, so generate it in the copy first.
+        ios_dir="$work/examples/ios_native_app"
+        run_build "ios_native_app xcodegen" xcodegen "$ios_dir" xcodegen generate
+        run_build "ios_native_app simulator build" ios-native "$ios_dir" xcodebuild -project IosNativeApp.xcodeproj \
+            -scheme IosNativeApp -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO
+    else
+        skip "ios_native_app simulator build (needs xcodebuild and xcodegen)"
+    fi
+
+    # The unsigned check: a bundle built without signing properties must be rejected, so the signing check cannot
+    # pass by accident.
+    if [[ -n "${JAVA_HOME:-}" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
+        if (cd "$native_android" && ./gradlew --no-daemon clean bundleRelease >"$work/unsigned.log" 2>&1); then
+            if jarsigner -verify "$native_android/app/build/outputs/bundle/release/app-release.aab" 2>&1 | grep -q "jar is unsigned"; then
+                ok "unsigned AAB is rejected by jarsigner"
+            else
+                bad "unsigned AAB was not reported as unsigned"
+            fi
         else
-            bad "unsigned AAB was not reported as unsigned"
+            bad "unsigned release bundle build (see $work/unsigned.log)"
         fi
     fi
 fi

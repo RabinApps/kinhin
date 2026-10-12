@@ -1,6 +1,6 @@
 # Example apps for the fastlane integration
 
-Five small, real apps, one per supported project shape. Use them to try `scripts/mobile-init.sh` and the fastlane
+Five small, real apps, one per supported project shape. Use them to try `kinhin mobile init` and the fastlane
 lanes without touching a production project.
 
 | App | Shape | Created with | Lanes live in |
@@ -13,10 +13,10 @@ lanes without touching a production project.
 
 ## Try it
 
-From the repository root, scaffold an app (existing files are kept, so re-running is safe):
+Scaffold an app (existing files are kept, so re-running is safe):
 
 ```bash
-scripts/mobile-init.sh examples/flutter_app
+kinhin mobile init examples/flutter_app
 ```
 
 Then, from the folder that holds `fastlane/`:
@@ -30,10 +30,10 @@ For Flutter and React Native, run this from `ios/` or `android/`. For the native
 
 ## What was verified
 
-- `scripts/mobile-init-test.sh` covers detection, scaffolding, keep and force, dry run, and the error paths.
+- `the `MobileScaffoldTests` Swift tests` covers detection, scaffolding, keep and force, dry run, and the error paths.
 - A lane with no secrets stops with a message naming the missing variables (`fastlane ios beta`, `fastlane android beta`).
 
-- `scripts/mobile-init.sh` scaffolds all five apps. The CI workflow gets only the jobs that match the project, and
+- `kinhin mobile init` scaffolds all five apps. The CI workflow gets only the jobs that match the project, and
   Expo gets `eas.json` only.
 - `bundle exec fastlane lanes` lists the lanes for every platform, using fastlane 2.241.0 on Ruby 3.3.
 - `ios_native_app` builds for the iOS simulator (`xcodebuild ... CODE_SIGNING_ALLOWED=NO`).

@@ -1,0 +1,9 @@
+      - name: Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Flutter packages and iOS config
+        working-directory: .
+        run: |
+          flutter pub get
+          flutter build ios --config-only --release

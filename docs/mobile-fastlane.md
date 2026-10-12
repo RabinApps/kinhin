@@ -8,10 +8,10 @@ trigger the workflow.
 
 ## Quick start
 
-From a kinhin checkout, point the script at your project:
+Install kinhin, then run this from anywhere, with the project folder as the argument:
 
 ```bash
-scripts/mobile-init.sh /path/to/your/app
+kinhin mobile init /path/to/your/app
 ```
 
 It detects the framework, then writes only the files that are missing:
@@ -76,16 +76,23 @@ change it in `.github/workflows/mobile-release.yml`. kinhin does not store any o
 
 ## Framework notes
 
-**Flutter.** Build first, then upload. `flutter build appbundle` and `flutter build ipa` produce the artifacts. Set
-`AAB_PATH` to the AAB so the Android lane skips Gradle. `FLUTTER_ROOT` must be set for the iOS deploy scripts. The
-official [Flutter CD guide](https://docs.flutter.dev/deployment/cd) describes the same steps. An IPA build needs a
+The generated CI jobs run the framework's own setup before the lanes, so a clean checkout builds without manual steps.
+The project must be at the repository root.
+
+**Flutter.** The jobs install the Flutter SDK (`subosito/flutter-action`) and run `flutter pub get`, which also writes
+`android/local.properties`. On iOS they run `flutter build ios --config-only --release` before CocoaPods, so the
+generated Flutter config exists when the Xcode project is built. The Android lane then builds the signed bundle with
+Gradle, using the same signing properties as the native projects, and finds it at `build/app/outputs/bundle/release/`.
+Set `AAB_PATH` only when another step has already built a bundle; then Gradle is skipped. An IPA build needs a
 distribution certificate, not a development one. The iOS deployment target must be 15.0 or higher for the Xcode 26
 toolchain: `flutter create` still writes 13.0, which fails with "deployment target ... is set to 13.0". The `flutter_app`
 example sets 15.0 in `ios/Runner.xcodeproj/project.pbxproj`.
 
-**React Native (bare).** The iOS and Android folders are the same as native. No official fastlane guide exists for
-React Native. The layout here follows fastlane's standard setup and is not yet verified end to end. Treat the first
-run as a dry run.
+**React Native (bare).** The jobs set up Node 22 and install dependencies before CocoaPods and Gradle run: `npm ci` when
+there is a `package-lock.json`, `yarn install --frozen-lockfile` when there is a `yarn.lock`, and `npm install` otherwise.
+No official fastlane guide exists for React Native. The layout follows fastlane's standard setup. The e2e checks the same
+steps (npm, pod install, a simulator build and the signed Android bundle), but a real store upload is still unverified.
+The Android build needs `ANDROID_HOME` on the runner, or an `android/local.properties` with `sdk.dir`.
 
 **Native.** Works for projects with `ios/` and `android/` folders, or with the project files at the root.
 
@@ -93,7 +100,7 @@ run as a dry run.
 
 Expo's recommended path is EAS Build and EAS Submit. Expo local builds are supported, but Expo says the toolchain is
 yours to provide (fastlane included), only one platform builds per run, and `eas.json`'s `fastlane` and `ndk` keys are
-ignored in local builds. `mobile-init.sh` therefore writes only `eas.json` for Expo.
+ignored in local builds. `kinhin mobile init` therefore writes only `eas.json` for Expo.
 
 To use fastlane with Expo, run `npx expo prebuild` to create the native folders, then re-run the script with
 `--framework react-native`.
@@ -107,21 +114,20 @@ Caveats to check before relying on this:
 
 | Message | Where | What to do |
 | --- | --- | --- |
-| `no iOS or Android project in ...; pass --framework` | `mobile-init.sh` | The folder has no detectable project. Pass `--framework`. |
-| `no ios/ or android/ folder in ... for a flutter project` | `mobile-init.sh` | Run `flutter create` (or `react-native init`) first. |
-| `template missing: ...` | `mobile-init.sh` | The script was copied away from the kinhin checkout. Run it from there. |
+| `no iOS or Android project in ...; pass --framework` | `kinhin mobile init` | The folder has no detectable project. Pass `--framework`. |
+| `no ios/ or android/ folder in ... for a flutter project` | `kinhin mobile init` | Run `flutter create` (or `react-native init`) first. |
 | `Missing environment variables: ASC_KEY_ID, ...` | fastlane | Set the listed secrets. The lane stops before any store call. |
 | `ASC_KEY_FILEPATH does not exist` | fastlane | The `.p8` was not written. Check the "Write App Store Connect API key" step. |
 | `Keystore not found at ...` | fastlane | Check `ANDROID_KEYSTORE_BASE64` and the "Write upload keystore" step. |
 | `No release AAB at ...` | fastlane | Gradle did not produce the bundle. Check `AAB_PATH` and the Gradle output. |
 
-`scripts/mobile-init-test.sh` covers the scaffolding logic. It runs in the CI docs job and in `scripts/check.sh`.
+`the `MobileScaffoldTests` Swift tests` covers the scaffolding logic. It runs in the CI docs job and in `scripts/check.sh`.
 
 ## Verification
 
 Two scripts cover the integration:
 
-- `scripts/mobile-init-test.sh` tests the scaffolding: detection, keep and force, dry run, and the error paths. It runs in
+- `the `MobileScaffoldTests` Swift tests` tests the scaffolding: detection, keep and force, dry run, and the error paths. It runs in
   `scripts/check.sh` and in CI.
 - `scripts/mobile-e2e.sh` runs against a clean copy of the committed examples. It checks the templates still generate
   the committed examples, runs `bundle install` and lists the lanes, checks the secret errors in an empty environment,
@@ -134,11 +140,11 @@ project. The checklist in `docs/plans/mobile-fastlane-test-checklist.md` lists w
 
 Run this checklist on a fixture project before you trust a release:
 
-1. `scripts/mobile-init.sh --dry-run /path/to/app` lists what would be written.
+1. `kinhin mobile init --dry-run /path/to/app` lists what would be written.
 2. `bundle install` succeeds with Ruby 3.1 or newer.
 3. `bundle exec fastlane lanes` lists the lanes, run from each platform's folder (see Quick start).
 4. Trigger `mobile-release` with `lane: beta` against a test app and confirm the TestFlight or internal track build.
-5. Re-run `mobile-init.sh` and confirm existing files are kept.
+5. Re-run `kinhin mobile init` and confirm existing files are kept.
 
 ## Sources
 

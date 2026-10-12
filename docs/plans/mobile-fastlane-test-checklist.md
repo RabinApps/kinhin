@@ -1,28 +1,28 @@
 # Mobile fastlane: test checklist
 
-Everything that must be tested before the fastlane integration (`scripts/mobile-init.sh`, `templates/mobile/`,
+Everything that must be tested before the fastlane integration (`kinhin mobile init`, `templates/mobile/`,
 `examples/`) merges. Status values:
 
 - **Done**: verified and covered by an automated check.
-- **Automated**: covered by `scripts/mobile-init-test.sh` or `scripts/mobile-e2e.sh`, not yet run in CI.
+- **Automated**: covered by the `MobileScaffoldTests` Swift tests or `scripts/mobile-e2e.sh`.
 - **Local**: needs tools on this Mac, but no credentials. Run by `scripts/mobile-e2e.sh`.
 - **Creds**: needs real store or CI credentials. Cannot run without the owner.
 - **Open**: not done yet.
 
-## 1. Scaffolding (`scripts/mobile-init.sh`)
+## 1. Scaffolding (`kinhin mobile init`)
 
 | # | Check | Status | How |
 | --- | --- | --- | --- |
-| 1.1 | Help, unknown option, unknown framework, missing directory exit 2 | Done | `mobile-init-test.sh` |
-| 1.2 | Empty directory fails with a pass `--framework` hint | Done | `mobile-init-test.sh` |
-| 1.3 | Flutter, React Native, Expo, root iOS, root Android detection | Done | `mobile-init-test.sh` |
-| 1.4 | Explicit `--framework` wins over folders | Done | `mobile-init-test.sh` |
-| 1.5 | Existing Gemfile without fastlane gets fastlane appended once | Done | `mobile-init-test.sh` |
-| 1.6 | Re-run keeps edited files; `--force` overwrites | Done | `mobile-init-test.sh` |
-| 1.7 | `--dry-run` writes nothing | Done | `mobile-init-test.sh` |
-| 1.8 | Missing template fails before any write | **Done** | `mobile-init-test.sh` (kit copy with one template removed) |
-| 1.9 | Passes under macOS `/bin/bash` 3.2 | Done | Ran `/bin/bash scripts/mobile-init-test.sh` |
-| 1.10 | Passes on Ubuntu (the CI docs job) | Done | Ran in `ubuntu:24.04` container |
+| 1.1 | Unknown framework and missing directory fail with a usage error | Done | `MobileScaffoldTests` and the CLI `--framework` check |
+| 1.2 | Empty directory fails with a pass `--framework` hint | Done | `MobileScaffoldTests` |
+| 1.3 | Flutter, React Native, Expo, root iOS, root Android detection | Done | `MobileScaffoldTests` |
+| 1.4 | Explicit `--framework` wins over folders | Done | `MobileScaffoldTests` |
+| 1.5 | Existing Gemfile without fastlane gets fastlane appended once | Done | `MobileScaffoldTests` |
+| 1.6 | Re-run keeps edited files; `--force` overwrites | Done | `MobileScaffoldTests` |
+| 1.7 | `--dry-run` writes nothing | Done | `MobileScaffoldTests` |
+| 1.8 | Missing template fails before any write | **Done** | `MobileScaffoldTests` (kit copy with one template removed) |
+| 1.9 | Passes under macOS `/bin/bash` 3.2 | Superseded | The bash scaffold was removed. The logic is Swift now, so the bash 3.2 check no longer applies. |
+| 1.10 | Passes on Ubuntu (the CI docs job) | Superseded | The bash scaffold was removed. The Swift tests run in the CI test job on macOS. |
 | 1.11 | Monorepo: app in a subdirectory, `dir` argument | **Done** | Fixture: `apps/mobile/` with a root Gemfile in the subdir |
 | 1.12 | Expo project with prebuilt `ios/` and `android/` folders | **Done** | Expo `prebuild` fixture; expect `eas.json` only |
 | 1.13 | `react-native` only in `devDependencies` still detected | **Done** | Fixture with the key under `devDependencies` |
@@ -32,9 +32,9 @@ Everything that must be tested before the fastlane integration (`scripts/mobile-
 
 | # | Check | Status | How |
 | --- | --- | --- | --- |
-| 2.1 | Generated YAML parses and has only the expected jobs | Done | `mobile-init-test.sh` (YAML + job presence) |
-| 2.2 | Each job runs `ruby/setup-ruby` with Ruby 3.3 | Done | `mobile-init-test.sh` (Flutter case) |
-| 2.3 | Workflow `working-directory` matches the scaffolded folder | Done | `mobile-init-test.sh` |
+| 2.1 | Generated YAML parses and has only the expected jobs | Done | `MobileScaffoldTests` (YAML + job presence) |
+| 2.2 | Each job runs `ruby/setup-ruby` with Ruby 3.3 | Done | `MobileScaffoldTests` (Flutter case) |
+| 2.3 | Workflow `working-directory` matches the scaffolded folder | Done | `MobileScaffoldTests` |
 | 2.4 | `actionlint` clean on the generated workflows | **Done** | Install `actionlint`, run on each example workflow |
 | 2.5 | Runs on a kinhin runner with the `kinhin-xcode` label | Creds | Trigger `workflow_dispatch` on a fleet |
 | 2.6 | `ruby/setup-ruby` works on the self-hosted macOS arm64 runner | Creds | Same run as 2.5 |
@@ -86,7 +86,7 @@ Everything that must be tested before the fastlane integration (`scripts/mobile-
 | 5.5 | VitePress build passes (no dead links) | Done | `npx vitepress build` |
 | 5.6 | In-page anchors (`#secrets`) resolve | **Done** | Check the rendered page for the `secrets` id |
 | 5.7 | `docs/mobile-fastlane.md` matches the script's behaviour | **Done** | Read against the script and fixtures |
-| 5.8 | Flaky `ToolchainHelperScriptTests` under `--parallel` | Open | Not reproduced in 12 isolated runs. Follow-up task `task_896c9d02` investigates it. Not caused by this change: the Swift code matches `origin/develop`. |
+| 5.8 | Flaky `ToolchainHelperScriptTests` under `--parallel` | **Done** | Root cause: `Shell` read a pipe's final chunk after the snapshot, so short stderr could be lost. Fixed in `Core/Shell.swift` (wait for EOF on both pipes). Regression test `ShellTests.testShellNeverLosesShortStderrUnderConcurrency`: fails 3–4 of 4000 runs on the old code, 0 on the fix. Full `check.sh` and `tsan.sh` pass. |
 
 ## 6. Repo hygiene
 
@@ -104,3 +104,18 @@ Everything that must be tested before the fastlane integration (`scripts/mobile-
 | 7.2 | Validation errors fire for each lane with no secrets | **Done** | Script |
 | 7.3 | Local builds run where tools exist, skip with a reason where not | **Done** | Script |
 | 7.4 | Store and CI steps stay manual | Creds | Documented as manual; `.github/workflows/mobile-e2e.yml` is `workflow_dispatch` only and uses no secrets |
+
+## 8. kinhin CLI and framework CI steps
+
+| # | Check | Status | How |
+| --- | --- | --- | --- |
+| 8.1 | `kinhin mobile init` output matches the committed examples byte for byte | **Done** | `scripts/mobile-e2e.sh` drift stage (uses the built binary) |
+| 8.2 | Detection, scaffolding, Gemfile append, keep, force, dry run, Expo, monorepo, error paths | **Done** | `MobileScaffoldTests` (18 cases, in `swift test`) |
+| 8.3 | Embedded templates equal `templates/mobile/` | **Done** | `MobileScaffoldTests.testEmbeddedTemplatesMatchTheTemplateFiles`; regenerate with `scripts/mobile-templates-embed.py` |
+| 8.4 | Flutter CI steps: SDK, `pub get`, `build ios --config-only`, before CocoaPods | **Done** | `MobileScaffoldTests` checks the order; e2e mirrors the commands locally |
+| 8.5 | React Native CI steps: Node, npm/yarn install, before CocoaPods | **Done** | `MobileScaffoldTests` checks the order; e2e mirrors the commands locally |
+| 8.6 | Flutter iOS Release device build, signing off | **Done** | e2e (`flutter_app Release device build`). A Debug simulator build needs an engine that `--config-only` does not produce. |
+| 8.7 | Flutter Android lane builds a signed AAB at the Flutter output path | **Done** | e2e `lane_build_signed` (`fastlane android build`, `jarsigner`) |
+| 8.8 | React Native Android lane builds a signed AAB | **Done** | e2e `lane_build_signed` |
+| 8.9 | Generated Flutter and React Native jobs run on a kinhin runner | Creds | `.github/workflows/mobile-e2e.yml` runs the e2e; a generated job needs a real project |
+| 8.10 | `ruby/setup-ruby`, `subosito/flutter-action` and `actions/setup-node` work on the self-hosted arm64 runner | Creds | Same runner run as 8.9 |

@@ -1,0 +1,261 @@
+import Foundation
+import XCTest
+
+@testable import KinhinKit
+
+final class MobileScaffoldTests: XCTestCase {
+    private var work: URL!
+
+    override func setUpWithError() throws {
+        work = FileManager.default.temporaryDirectory.appendingPathComponent("mobile-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: work)
+    }
+
+    // MARK: - Fixtures
+
+    private func folder(_ name: String, _ files: [String: String] = [:], dirs: [String] = []) throws -> URL {
+        let url = work.appendingPathComponent(name)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        for dir in dirs {
+            try FileManager.default.createDirectory(
+                at: url.appendingPathComponent(dir), withIntermediateDirectories: true)
+        }
+        for (path, text) in files {
+            let target = url.appendingPathComponent(path)
+            try FileManager.default.createDirectory(
+                at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try text.write(to: target, atomically: true, encoding: .utf8)
+        }
+        return url
+    }
+
+    private func flutter(_ name: String = "flutter") throws -> URL {
+        try folder(name, ["pubspec.yaml": "name: app\n"], dirs: ["ios", "android"])
+    }
+
+    private func reactNative(_ name: String = "rn") throws -> URL {
+        try folder(
+            name, ["package.json": "{\"dependencies\":{\"react-native\":\"0.80.0\"}}\n"], dirs: ["ios", "android"])
+    }
+
+    private func text(_ url: URL, _ path: String) throws -> String {
+        try String(contentsOf: url.appendingPathComponent(path), encoding: .utf8)
+    }
+
+    private func exists(_ url: URL, _ path: String) -> Bool {
+        FileManager.default.fileExists(atPath: url.appendingPathComponent(path).path)
+    }
+
+    private func scaffold(
+        _ url: URL, _ framework: MobileFramework = .auto, force: Bool = false, dryRun: Bool = false
+    ) throws -> MobileScaffoldReport {
+        try MobileScaffold.run(in: url, framework: framework, force: force, dryRun: dryRun)
+    }
+
+    private func assertThrows(
+        _ expected: MobileScaffoldError, _ body: () throws -> Void, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertThrowsError(try body(), file: file, line: line) { error in
+            XCTAssertEqual(error as? MobileScaffoldError, expected, file: file, line: line)
+        }
+    }
+
+    // MARK: - Detection
+
+    func testDetectsEachProjectShape() throws {
+        XCTAssertEqual(try MobileScaffold.detect(in: try flutter()), .flutter)
+        XCTAssertEqual(try MobileScaffold.detect(in: try reactNative()), .reactNative)
+        XCTAssertEqual(
+            try MobileScaffold.detect(
+                in: try folder("expo", ["package.json": "{\"dependencies\":{\"expo\":\"~54\"}}"])),
+            .expo)
+        XCTAssertEqual(try MobileScaffold.detect(in: try folder("native", dirs: ["ios", "android"])), .native)
+        XCTAssertEqual(try MobileScaffold.detect(in: try folder("ios-root", dirs: ["App.xcodeproj"])), .ios)
+        XCTAssertEqual(
+            try MobileScaffold.detect(in: try folder("android-root", ["settings.gradle.kts": ""])), .android)
+    }
+
+    func testEmptyFolderIsNotAProject() throws {
+        let empty = try folder("empty")
+        assertThrows(.noProject(directory: empty.path)) { _ = try MobileScaffold.detect(in: empty) }
+    }
+
+    func testReactNativeInDevDependenciesIsDetected() throws {
+        let dir = try folder(
+            "rn-dev", ["package.json": "{\"devDependencies\":{\"react-native\":\"0.80.0\"}}"], dirs: ["ios"])
+        XCTAssertEqual(try MobileScaffold.detect(in: dir), .reactNative)
+    }
+
+    // MARK: - Scaffolding
+
+    func testFlutterGetsFastlaneInBothFoldersAndAWorkflow() throws {
+        let dir = try flutter()
+        let report = try scaffold(dir)
+        XCTAssertEqual(report.framework, .flutter)
+        XCTAssertEqual(report.platforms, ["ios", "android"])
+        XCTAssertTrue(exists(dir, "Gemfile"))
+        XCTAssertTrue(exists(dir, "ios/fastlane/Fastfile"))
+        XCTAssertTrue(exists(dir, "ios/fastlane/Matchfile"))
+        XCTAssertTrue(exists(dir, "android/fastlane/Fastfile"))
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertTrue(workflow.contains("\n  ios:\n"))
+        XCTAssertTrue(workflow.contains("\n  android:\n"))
+        XCTAssertTrue(workflow.contains("ruby/setup-ruby@v1"))
+        XCTAssertFalse(workflow.contains("__DIR__"))
+        XCTAssertFalse(workflow.contains("__PREBUILD__"))
+    }
+
+    func testFlutterSetsUpSdkBeforeCocoaPodsAndBuildsTheIOSConfig() throws {
+        let dir = try flutter()
+        _ = try scaffold(dir)
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        let sdk = try XCTUnwrap(workflow.range(of: "subosito/flutter-action@v2"))
+        let pods = try XCTUnwrap(workflow.range(of: "Install CocoaPods"))
+        XCTAssertLessThan(sdk.lowerBound, pods.lowerBound, "the Flutter SDK must be installed before pod install runs")
+        XCTAssertTrue(workflow.contains("flutter build ios --config-only --release"))
+        XCTAssertTrue(workflow.contains("flutter pub get"))
+    }
+
+    func testReactNativeInstallsNodeDependenciesBeforeCocoaPods() throws {
+        let dir = try reactNative()
+        _ = try scaffold(dir)
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        let npm = try XCTUnwrap(workflow.range(of: "npm install"))
+        let pods = try XCTUnwrap(workflow.range(of: "Install CocoaPods"))
+        XCTAssertLessThan(npm.lowerBound, pods.lowerBound)
+        XCTAssertTrue(workflow.contains("actions/setup-node@v4"))
+    }
+
+    func testNativeProjectGetsNoFrameworkSteps() throws {
+        let dir = try folder("native", dirs: ["ios", "android"])
+        _ = try scaffold(dir)
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertFalse(workflow.contains("subosito/flutter-action"))
+        XCTAssertFalse(workflow.contains("setup-node"))
+    }
+
+    func testRootIOSProjectPutsFastlaneAtTheRootWithOnlyAnIOSJob() throws {
+        let dir = try folder("ios-root", dirs: ["App.xcodeproj"])
+        _ = try scaffold(dir)
+        XCTAssertTrue(exists(dir, "fastlane/Fastfile"))
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertFalse(workflow.contains("\n  android:\n"))
+        XCTAssertTrue(workflow.contains("working-directory: ."))
+    }
+
+    func testRootAndroidProjectGetsOnlyAnAndroidJob() throws {
+        let dir = try folder("android-root", ["settings.gradle.kts": ""], dirs: ["app"])
+        _ = try scaffold(dir)
+        XCTAssertTrue(exists(dir, "fastlane/Fastfile"))
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertFalse(workflow.contains("\n  ios:\n"))
+        XCTAssertTrue(workflow.contains("\n  android:\n"))
+    }
+
+    func testExplicitFrameworkFollowsTheFrameworkNotTheFolders() throws {
+        let dir = try flutter()
+        let report = try scaffold(dir, .ios)
+        XCTAssertEqual(report.platforms, ["ios"])
+        XCTAssertFalse(exists(dir, "android/fastlane/Fastfile"))
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertFalse(workflow.contains("\n  android:\n"))
+    }
+
+    func testExpoGetsEASConfigOnlyAndNoWorkflow() throws {
+        let dir = try folder(
+            "expo", ["package.json": "{\"dependencies\":{\"expo\":\"~54\"}}"], dirs: ["ios", "android"])
+        let report = try scaffold(dir)
+        XCTAssertEqual(report.framework, .expo)
+        XCTAssertTrue(exists(dir, "eas.json"))
+        XCTAssertFalse(exists(dir, ".github/workflows/mobile-release.yml"))
+        XCTAssertFalse(exists(dir, "ios/fastlane/Fastfile"))
+        XCTAssertTrue(report.lines.contains { $0.contains("Expo uses EAS Build/Submit by default") })
+    }
+
+    func testFlutterWithoutPlatformFoldersIsRejected() throws {
+        let dir = try folder("bare-flutter", ["pubspec.yaml": ""])
+        assertThrows(.noPlatformFolder(framework: .flutter, directory: dir.path)) {
+            _ = try scaffold(dir)
+        }
+    }
+
+    func testMonorepoRootIsNotAProjectButTheAppFolderIs() throws {
+        let root = try folder("mono")
+        let app = try folder("mono/apps/mobile", dirs: ["ios"])
+        assertThrows(.noProject(directory: root.path)) { _ = try scaffold(root) }
+        _ = try scaffold(app)
+        XCTAssertTrue(exists(app, "ios/fastlane/Fastfile"))
+    }
+
+    // MARK: - Gemfile
+
+    func testFastlaneIsAppendedToAnExistingGemfileOnce() throws {
+        let dir = try reactNative()
+        try "source \"https://rubygems.org\"\ngem \"cocoapods\", \">= 1.13\"\n".write(
+            to: dir.appendingPathComponent("Gemfile"), atomically: true, encoding: .utf8)
+        _ = try scaffold(dir)
+        let gemfile = try text(dir, "Gemfile")
+        XCTAssertTrue(gemfile.contains("gem \"cocoapods\""))
+        XCTAssertEqual(gemfile.components(separatedBy: "gem \"fastlane\"").count - 1, 1)
+        _ = try scaffold(dir)
+        XCTAssertEqual(try text(dir, "Gemfile").components(separatedBy: "gem \"fastlane\"").count - 1, 1)
+    }
+
+    func testCommentedOutFastlaneDoesNotCountAsInstalled() throws {
+        let dir = try reactNative()
+        try "source \"https://rubygems.org\"\n# gem \"fastlane\"\n".write(
+            to: dir.appendingPathComponent("Gemfile"), atomically: true, encoding: .utf8)
+        _ = try scaffold(dir)
+        XCTAssertTrue(try text(dir, "Gemfile").contains("\ngem \"fastlane\", \"~> 2.240\""))
+    }
+
+    // MARK: - Keep, force and dry run
+
+    func testRerunKeepsEditedFilesAndForceOverwritesThem() throws {
+        let dir = try flutter()
+        _ = try scaffold(dir)
+        try "custom\n".write(
+            to: dir.appendingPathComponent("ios/fastlane/Fastfile"), atomically: true, encoding: .utf8)
+        let kept = try scaffold(dir)
+        XCTAssertEqual(try text(dir, "ios/fastlane/Fastfile"), "custom\n")
+        XCTAssertTrue(kept.lines.contains { $0.hasPrefix("  keep    ios/fastlane/Fastfile") })
+        _ = try scaffold(dir, force: true)
+        XCTAssertNotEqual(try text(dir, "ios/fastlane/Fastfile"), "custom\n")
+    }
+
+    func testDryRunWritesNothing() throws {
+        let dir = try flutter()
+        let report = try scaffold(dir, dryRun: true)
+        XCTAssertTrue(report.dryRun)
+        XCTAssertFalse(exists(dir, "ios/fastlane/Fastfile"))
+        XCTAssertFalse(exists(dir, "Gemfile"))
+        XCTAssertTrue(report.lines.contains { $0.hasPrefix("  would write ") })
+    }
+
+    // MARK: - Templates
+
+    /// The embedded templates must equal the files in templates/mobile/, so the CLI and the repo cannot drift.
+    /// Regenerate with scripts/mobile-templates-embed.py.
+    func testEmbeddedTemplatesMatchTheTemplateFiles() throws {
+        let repo = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let root = repo.appendingPathComponent("templates/mobile")
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+        var onDisk: [String: String] = [:]
+        for case let file as URL in enumerator where !file.hasDirectoryPath {
+            let relative = String(file.path.dropFirst(root.path.count + 1))
+            var text = try String(contentsOf: file, encoding: .utf8)
+            if text.hasSuffix("\n") { text.removeLast() }
+            onDisk[relative] = text
+        }
+        XCTAssertEqual(Set(onDisk.keys), Set(MobileTemplates.files.keys), "a template was added or removed")
+        for (path, text) in onDisk {
+            XCTAssertEqual(MobileTemplates.files[path], text, "\(path) differs from the embedded copy")
+        }
+    }
+}

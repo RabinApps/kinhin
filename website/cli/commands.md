@@ -44,6 +44,8 @@ IMAGES AND TOOLCHAINS:
     toolchains list-images                  Derived per-project images: size and last used
     toolchains prune                        Expire stale cache entries and unused derived images
     toolchains helper                       Print the per-job kinhin-toolchain helper script
+    mobile                                  Set up fastlane store releases for a mobile app
+    mobile init [DIR]                       Add fastlane lanes and the CI release workflow
 
 RUNNING:
     start                                   Start the fleet in this terminal (Ctrl-C to stop)

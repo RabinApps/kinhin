@@ -13,6 +13,7 @@
         with:
           distribution: temurin
           java-version: "17"
+__PREBUILD__
       - name: Write upload keystore
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

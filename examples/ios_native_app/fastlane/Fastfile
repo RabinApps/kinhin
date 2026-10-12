@@ -8,6 +8,11 @@ def require_env!(*names)
   UI.user_error!("Missing environment variables: #{missing.join(', ')}. See docs/mobile-fastlane.md#secrets") unless missing.empty?
 end
 
+# An empty secret (for example an unset repository secret) means "use the default", not an empty scheme name.
+def presence(value)
+  value.to_s.strip.empty? ? nil : value
+end
+
 platform :ios do
   before_all do
     require_env!("ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_KEY_FILEPATH", "APP_IDENTIFIER", "APPLE_TEAM_ID")
@@ -28,7 +33,7 @@ platform :ios do
     match(api_key: @api_key, readonly: true)
 
     build_app(
-      scheme: ENV["IOS_SCHEME"],
+      scheme: presence(ENV["IOS_SCHEME"]),
       export_method: "app-store"
     )
 

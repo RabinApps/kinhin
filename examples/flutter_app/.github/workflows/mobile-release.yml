@@ -1,4 +1,4 @@
-# Mobile release workflow for a kinhin runner, written by scripts/mobile-init.sh to .github/workflows/mobile-release.yml.
+# Mobile release workflow for a kinhin runner, written by `kinhin mobile init` to .github/workflows/mobile-release.yml.
 # Manual trigger only, so store uploads never run by accident.
 #
 # Repo secrets used here:
@@ -30,6 +30,15 @@ jobs:
         with:
           # fastlane needs Ruby 3.1+; the macOS system Ruby is 2.6. Bundler cache is off because Gemfile.lock lives in the project root.
           ruby-version: "3.3"
+      - name: Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Flutter packages and iOS config
+        working-directory: .
+        run: |
+          flutter pub get
+          flutter build ios --config-only --release
       - name: Write App Store Connect API key
         env:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
@@ -69,6 +78,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - name: Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Flutter packages (writes android/local.properties)
+        working-directory: .
+        run: flutter pub get
       - name: Write upload keystore
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
