@@ -28,6 +28,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -41,4 +42,12 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// Instrumented tests for the screenshot lane (see docs/mobile-screenshots.md).
+dependencies {
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("junit:junit:4.13.2")
+    androidTestImplementation("tools.fastlane:screengrab:2.1.1")
 }

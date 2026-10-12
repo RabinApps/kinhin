@@ -38,6 +38,16 @@
                ReferencedContainer = "container:RnApp.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "6F2301C3828D0C6C9C41DDC5"
+               BuildableName = "RnAppUITests.xctest"
+               BlueprintName = "RnAppUITests"
+               ReferencedContainer = "container:RnApp.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

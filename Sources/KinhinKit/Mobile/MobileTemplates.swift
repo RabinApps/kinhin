@@ -103,7 +103,7 @@ enum MobileTemplates {
         # Stop before any store call when a required variable is missing, with the name of the variable.
         def require_env!(*names)
           missing = names.select { |name| ENV[name].to_s.strip.empty? }
-          UI.user_error!("Missing environment variables: #{missing.join(', ')}. See docs/mobile-fastlane.md#secrets") unless missing.empty?
+          UI.user_error!("Missing environment variables: #{missing.join(', ')}. See https://kinhin.dev/guide/mobile-fastlane#secrets") unless missing.empty?
         end
 
         # The project folder (the parent of fastlane/). fastlane runs lanes from fastlane/, so build paths from here.
@@ -778,13 +778,13 @@ enum MobileTemplates {
 
     private static let iosFastlaneFastfile = #"""
         # iOS lanes. Auth uses an App Store Connect API key (no Apple ID password).
-        # Secrets and paths come from CI environment variables; see docs/mobile-fastlane.md.
+        # Secrets and paths come from CI environment variables; see https://kinhin.dev/guide/mobile-fastlane.
         default_platform(:ios)
 
         # Stop before any store call when a required variable is missing, with the name of the variable.
         def require_env!(*names)
           missing = names.select { |name| ENV[name].to_s.strip.empty? }
-          UI.user_error!("Missing environment variables: #{missing.join(', ')}. See docs/mobile-fastlane.md#secrets") unless missing.empty?
+          UI.user_error!("Missing environment variables: #{missing.join(', ')}. See https://kinhin.dev/guide/mobile-fastlane#secrets") unless missing.empty?
         end
 
         # The project folder (the parent of fastlane/). fastlane runs lanes from fastlane/, so build paths from here.
@@ -865,10 +865,10 @@ enum MobileTemplates {
               shots = File.join(project_root, "fastlane/screenshots")
               before = Dir.glob(File.join(shots, "**/*.png")).to_h { |f| [f, File.mtime(f)] }
               frameit(path: shots)
-              # frameit can exit 0 without framing anything (a failed ImageMagick step is only logged), so check for a change.
+              # frameit can exit 0 without framing a file (a failed ImageMagick step is only logged), so every file must change.
               after = Dir.glob(File.join(shots, "**/*.png")).to_h { |f| [f, File.mtime(f)] }
-              changed = after.reject { |f, t| before[f] == t }
-              UI.user_error!("frameit changed no screenshots. Check the ImageMagick output above.") if changed.empty? && after.any?
+              unchanged = after.keys.select { |f| before[f] == after[f] }
+              UI.user_error!("frameit left #{unchanged.size} of #{after.size} screenshots unframed (#{unchanged.map { |f| File.basename(f) }.join(', ')}). Check the ImageMagick output above.") if unchanged.any?
             end
 
             if ENV["UPLOAD_SCREENSHOTS"] == "1"

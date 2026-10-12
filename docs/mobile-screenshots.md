@@ -23,8 +23,8 @@ files, because those are easy to break from a script. The steps that need them a
 # iOS: from the folder that holds fastlane/ (ios/ for Flutter and React Native)
 bundle exec fastlane screenshots
 
-# Android
-cd android && bundle exec fastlane screenshots
+# Android: from the folder that holds fastlane/ (the app root for native; android/ for Flutter and React Native)
+bundle exec fastlane screenshots
 ```
 
 Add `FRAME_SCREENSHOTS=1` to frame the images, or `UPLOAD_SCREENSHOTS=1` to upload them. Both are described below.
