@@ -63,6 +63,81 @@ export function resolveFormat(name = '16:9') {
 export const fitScale = (format, designWidth = 1700) =>
   !isNarrow(format) ? Math.min(format.width / 1920, format.height / 1080) : format.width / designWidth;
 
+// ---- Captions ---------------------------------------------------------------------------------------------------------
+
+/** The caption looks a project can pick with `captions.style` (or `--caption-style`). */
+export const CAPTION_STYLES = {
+  outline: {border: 'outline', description: 'text with a contrasting outline (the default)'},
+  box: {border: 'box', description: 'text on a semi-transparent box'},
+  shadow: {border: 'shadow', description: 'text with a soft drop shadow, no outline'},
+  bold: {border: 'outline', bold: true, size: 1.25, description: 'larger, bold text with an outline'},
+  minimal: {border: 'none', size: 0.85, description: 'small, plain text'},
+};
+export const CAPTION_POSITIONS = ['auto', 'bottom', 'top', 'middle'];
+const HEX = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i;
+
+/** What is wrong with a project's "captions" block, in words. */
+export function validateCaptions(cfg) {
+  const problems = [];
+  if (cfg === undefined) return problems;
+  if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) return ['"captions" must be an object'];
+  if ('burn' in cfg && typeof cfg.burn !== 'boolean') problems.push('captions.burn must be true or false');
+  if ('sidecar' in cfg && typeof cfg.sidecar !== 'boolean') problems.push('captions.sidecar must be true or false');
+  if ('style' in cfg && !(cfg.style in CAPTION_STYLES)) problems.push(`captions.style "${cfg.style}" is not one of ${Object.keys(CAPTION_STYLES).join(', ')}`);
+  if ('position' in cfg && !CAPTION_POSITIONS.includes(cfg.position)) problems.push(`captions.position "${cfg.position}" is not one of ${CAPTION_POSITIONS.join(', ')}`);
+  if ('scenes' in cfg && !(cfg.scenes === 'clips' || cfg.scenes === 'all' || (Array.isArray(cfg.scenes) && cfg.scenes.every((x) => typeof x === 'string')))) problems.push('captions.scenes must be "clips", "all" or a list of scene ids');
+  if ('size' in cfg && !(typeof cfg.size === 'number' && cfg.size > 0 && cfg.size <= 3)) problems.push('captions.size must be a number above 0 and up to 3 (a multiplier)');
+  for (const k of ['color', 'outlineColor', 'boxColor']) if (k in cfg && !HEX.test(cfg[k])) problems.push(`captions.${k} must be a hex colour like #ffffff (or #000000b3 with opacity)`);
+  return problems;
+}
+
+/** `#rrggbb` or `#rrggbbaa` as libass's `&HAABBGGRR&` (its alpha is inverted: 00 is opaque). */
+export function assColor(hex) {
+  const h = hex.replace('#', '');
+  const alpha = h.length === 8 ? 255 - parseInt(h.slice(6, 8), 16) : 0;
+  const hh = (n) => n.toString(16).padStart(2, '0').toUpperCase();
+  return `&H${hh(alpha)}${h.slice(4, 6)}${h.slice(2, 4)}${h.slice(0, 2)}&`.toUpperCase();
+}
+
+/**
+ * The caption settings a build uses. Later wins: the theme's caption look, the adapter's "captions", the project's
+ * "captions", then the environment (VIDEO_CAPTIONS=on|off|all, VIDEO_CAPTION_STYLE, CAPTION_SCENES, and the older
+ * NO_CAPTIONS). `burn: false` leaves the picture clean; the caption file for a player (out/<name>.srt) is written either way.
+ */
+export function resolveCaptions({theme, project = {}, adapter = {}, env = {}}) {
+  const cfg = deepMerge(deepMerge({}, adapter.captions ?? {}), project.captions ?? {});
+  const problems = [...validateCaptions(adapter.captions), ...validateCaptions(project.captions)];
+  if (problems.length) throw new Error(problems.join('; '));
+  let burn = cfg.burn ?? true;
+  let scenes = cfg.scenes ?? 'clips';
+  const mode = (env.VIDEO_CAPTIONS || '').toLowerCase();
+  if (mode && !['on', 'off', 'all'].includes(mode)) throw new Error(`VIDEO_CAPTIONS must be on, off or all, not "${env.VIDEO_CAPTIONS}"`);
+  if (env.NO_CAPTIONS || mode === 'off') burn = false;
+  if (mode === 'on') burn = true;
+  if (mode === 'all') {
+    burn = true;
+    scenes = 'all';
+  }
+  if (env.CAPTION_SCENES) scenes = env.CAPTION_SCENES.split(',');
+  const style = env.VIDEO_CAPTION_STYLE || cfg.style || (theme.caption.box ? 'box' : 'outline');
+  if (!(style in CAPTION_STYLES)) throw new Error(`unknown caption style "${style}" (${Object.keys(CAPTION_STYLES).join(', ')})`);
+  const preset = CAPTION_STYLES[style];
+  return {
+    burn,
+    scenes,
+    style,
+    border: preset.border,
+    bold: cfg.bold ?? preset.bold ?? false,
+    scale: (cfg.size ?? 1) * (preset.size ?? 1),
+    position: cfg.position ?? 'auto',
+    font: cfg.font ?? theme.font.family,
+    text: cfg.color ?? theme.caption.text,
+    outline: cfg.outlineColor ?? theme.caption.outline,
+    box: cfg.boxColor ?? theme.caption.boxColor ?? '#000000b3',
+    sidecar: cfg.sidecar !== false,
+  };
+}
+
 /** True for portrait and square frames, which get their own layouts. */
 export const isNarrow = (format) => format.width / format.height < 1.2;
 
@@ -70,6 +145,7 @@ export const isNarrow = (format) => format.width / format.height < 1.2;
 export function validateProject(project) {
   const problems = [];
   if (!Array.isArray(project.scenes) || project.scenes.length === 0) problems.push('a project needs a "scenes" list');
+  problems.push(...validateCaptions(project.captions));
   const ids = new Set();
   for (const [i, scene] of (project.scenes ?? []).entries()) {
     const where = `scene ${i + 1}${scene.id ? ` ("${scene.id}")` : ''}`;

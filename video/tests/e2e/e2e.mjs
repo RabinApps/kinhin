@@ -6,7 +6,7 @@
 //      E2E_RUNTIME  container | docker (default: Apple's container if running, else Docker)
 import {existsSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {verifyVideo} from '../../scripts/verify.mjs';
+import {edgeFraction, verifyVideo} from '../../scripts/verify.mjs';
 import {has, root, run} from '../helpers.mjs';
 
 export const tier = process.env.E2E_TIER || 'smoke';
@@ -45,3 +45,10 @@ export function tempProject(project) {
 
 export const canvasScenes = (project) => project.scenes.length;
 export {existsSync, has, root, run};
+
+/** How much of the bottom band of a finished video's frame at `seconds` is edges (text): a way to see burned captions. */
+export function bottomEdges(name, seconds) {
+  const out = join(root, 'out/.bottom.png');
+  run('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-ss', String(seconds), '-i', join(root, `out/${name}.mp4`), '-frames:v', '1', '-vf', 'crop=iw:ih*0.14:0:ih*0.84', out]);
+  return edgeFraction(out);
+}

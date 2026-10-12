@@ -73,3 +73,16 @@ test('shellEnv exports the look for the ffmpeg scripts', () => {
 test('an unknown project or a broken one fails with a useful message', () => {
   assert.throws(() => loadProject('does-not-exist'), /ENOENT|no such file/);
 });
+
+test('kinhin videos burn no captions; every other adapter keeps them, and the caption file is always available', () => {
+  for (const name of projectNames()) {
+    const p = loadProject(name);
+    if (p.adapter === 'kinhin') assert.equal(p.captions.burn, false, `${name}: the kinhin adapter turns captions off`);
+    else assert.equal(p.captions.burn, true, `${name}: captions on`);
+    assert.equal(p.captions.sidecar, true, `${name}: the .srt is still written`);
+  }
+  // A project can opt back in, and the command line overrides either way.
+  const saved = process.env.VIDEO_CAPTIONS;
+  process.env.VIDEO_CAPTIONS = 'on';
+  try { assert.equal(loadProject('launch').captions.burn, true); } finally { saved === undefined ? delete process.env.VIDEO_CAPTIONS : (process.env.VIDEO_CAPTIONS = saved); }
+});

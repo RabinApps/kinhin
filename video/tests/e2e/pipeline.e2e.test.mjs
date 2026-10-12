@@ -6,7 +6,8 @@ import {test} from 'node:test';
 import {loadProject} from '../../scripts/project.mjs';
 import {FORMATS} from '../../shared/resolve.mjs';
 import {themeNames} from '../helpers.mjs';
-import {build, check, from, root, run, tempProject} from './e2e.mjs';
+import {existsSync} from 'node:fs';
+import {bottomEdges, build, check, from, root, run, tempProject} from './e2e.mjs';
 
 const expectGood = (name, extra = {}) => {
   const {failures, facts} = check(name, {maxMB: 10, ...extra});
@@ -53,6 +54,43 @@ test('smoke: an unknown theme is named, with the themes that exist', from('smoke
   const r = build(['--project', 'examples/hello', '--theme', 'neon', '--fast']);
   assert.notEqual(r.status, 0);
   assert.match(r.stdout + r.stderr, /unknown theme "neon".*paper/);
+});
+
+test('smoke: captions can be switched off, restyled, and the caption file is written either way', from('smoke'), () => {
+  // The template demo has a device scene with cues; look at the band under the laptop while a cue is spoken.
+  const on = build(['--project', 'template-demo', '--fast']);
+  assert.equal(on.status, 0, on.stdout.slice(-600));
+  const timeline = JSON.parse(readFileSync(join(root, 'out/timeline.json'), 'utf8'));
+  const at = timeline.scenes.screen.start + 1.8;
+  const withCaptions = bottomEdges(on.name, at);
+  const off = build(['--project', 'template-demo', '--captions', 'off', '--fast']);
+  assert.equal(off.status, 0, off.stdout.slice(-600));
+  assert.equal(off.name, on.name);
+  const without = bottomEdges(off.name, at);
+  assert.ok(withCaptions > without * 3 && withCaptions > 0.002, `burned captions show up under the picture (${withCaptions} vs ${without})`);
+  assert.ok(existsSync(join(root, `out/${off.name}.srt`)), 'the caption file is written with captions off');
+  assert.deepEqual(check(off.name).failures, [], 'a captionless build still passes every check');
+  // The kinhin adapter defaults to no burned-in captions; --captions on brings them back.
+  const kinhin = build(['--project', 'examples/kinhin-30s', '--fast']);
+  assert.equal(kinhin.status, 0, kinhin.stdout.slice(-600));
+  const t2 = JSON.parse(readFileSync(join(root, 'out/timeline.json'), 'utf8'));
+  const kAt = t2.scenes.app.start + 1.8;
+  const kOff = bottomEdges(kinhin.name, kAt);
+  const kOn = build(['--project', 'examples/kinhin-30s', '--captions', 'on', '--fast']);
+  assert.equal(kOn.status, 0, kOn.stdout.slice(-600));
+  assert.ok(bottomEdges(kOn.name, kAt) > kOff * 3, 'the kinhin short has captions only when asked');
+});
+
+test('smoke: a caption style builds and looks different from the default', from('smoke'), () => {
+  const outline = build(['--project', 'template-demo', '--fast']);
+  const timeline = JSON.parse(readFileSync(join(root, 'out/timeline.json'), 'utf8'));
+  const at = timeline.scenes.screen.start + 1.8;
+  const a = bottomEdges(outline.name, at);
+  const box = build(['--project', 'template-demo', '--caption-style', 'box', '--fast']);
+  assert.equal(box.status, 0, box.stdout.slice(-600));
+  const b = bottomEdges(box.name, at);
+  assert.notEqual(a.toFixed(4), b.toFixed(4), 'a different style is a different picture');
+  assert.deepEqual(check(box.name).failures, []);
 });
 
 // ---- standard --------------------------------------------------------------------------------------------------

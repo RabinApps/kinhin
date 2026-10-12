@@ -4,10 +4,11 @@
 //   node scripts/project.mjs --adapter  print the project's adapter name (empty if none)
 //   node scripts/project.mjs --env      shell variables for the ffmpeg scripts (eval "$(node scripts/project.mjs --env)")
 // Env: VIDEO_PROJECT  project name (default "launch")   VIDEO_THEME / VIDEO_FORMAT / VIDEO_ADAPTER  override the project's choice
-import {readFileSync, readdirSync} from 'node:fs';
+//      VIDEO_CAPTIONS (on|off|all) / VIDEO_CAPTION_STYLE  override its captions
+import {existsSync, readFileSync, readdirSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {SCENE_TYPES, fitScale, isNarrow, resolveFormat, resolveTheme, validateProject} from '../shared/resolve.mjs';
+import {SCENE_TYPES, fitScale, isNarrow, resolveCaptions, resolveFormat, resolveTheme, validateProject} from '../shared/resolve.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -34,7 +35,10 @@ export function loadProject(name = process.env.VIDEO_PROJECT || 'launch') {
   // out/<stem>.mp4 for the project's own look; a theme or format chosen on the command line is added to the name.
   const outName = [slug, process.env.VIDEO_THEME, process.env.VIDEO_FORMAT?.replace(':', 'x')].filter(Boolean).join('-');
   const adapter = process.env.VIDEO_ADAPTER || project.adapter || null;
-  return {name: project.name ?? stem, stem, slug, outName, adapter, file, project, scenes, theme, format, fit: fitScale(format)};
+  const adapterFile = adapter && join(root, 'adapters', adapter, 'adapter.json');
+  const adapterManifest = adapterFile && existsSync(adapterFile) ? JSON.parse(readFileSync(adapterFile, 'utf8')) : {};
+  const captions = resolveCaptions({theme, project, adapter: adapterManifest, env: process.env});
+  return {name: project.name ?? stem, stem, slug, outName, adapter, captions, file, project, scenes, theme, format, fit: fitScale(format)};
 }
 
 const hex = (c) => c.replace('#', '0x');

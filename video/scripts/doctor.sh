@@ -17,7 +17,7 @@ check ffmpeg ffmpeg "assemble.mjs" "brew install ffmpeg-full"
 if command -v ffmpeg >/dev/null 2>&1 || [ -x /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg ]; then
   FF=ffmpeg; [ -x /opt/homebrew/opt/ffmpeg-full/bin/ffmpeg ] && FF=/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg
   if "$FF" -hide_banner -filters 2>/dev/null | grep -q ' subtitles '; then echo "  ok       libass       captions (ffmpeg subtitles filter)"
-  else echo "  MISSING  libass       captions need ffmpeg with libass  (brew install ffmpeg-full, or NO_CAPTIONS=1)"; ok=0; fi
+  else echo "  MISSING  libass       captions need ffmpeg with libass  (brew install ffmpeg-full, or VIDEO_CAPTIONS=off)"; ok=0; fi
 fi
 [ -d node_modules ] && echo "  ok       npm deps     video/node_modules" || { echo "  MISSING  npm deps     (cd video && npm install)"; ok=0; }
 echo "Web product clips (any machine; a container is optional):"

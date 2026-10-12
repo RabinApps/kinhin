@@ -6,12 +6,12 @@
 // narration is placed cue by cue, music (raw/music.*) ducks under the voice, and captions are burned in.
 //   raw/music.{mp3,m4a,wav,flac,ogg}   optional
 // Outputs (out/): <project>.mp4, .webm, -poster.png, -hero.gif, and <project>.srt (every caption, for a player)
-// Captions are burned in only for the scenes without text of their own (CAPTION_SCENES, default app,install);
-// the title scenes already show their words. out/<project>.srt has every cue for a site player.
-// Usage: node scripts/assemble.mjs      Env: NO_CAPTIONS=1, CAPTION_SCENES, MUSIC_VOLUME (default 0.35, before ducking),
+// Captions follow the project's `captions` block (burn on or off, which scenes, a style); out/<project>.srt has every cue for a player either way.
+// Usage: node scripts/assemble.mjs      Env: VIDEO_CAPTIONS=on|off|all, VIDEO_CAPTION_STYLE, MUSIC_VOLUME (default 0.35, before ducking),
 //        VIDEO_FAST=1 (a preview: quicker encode, no WebM)
 import {execFileSync, spawnSync} from 'node:child_process';
 import {existsSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {assColor} from '../shared/resolve.mjs';
 import {loadProject, root} from './project.mjs';
 import {edgeFraction} from './verify.mjs';
 
@@ -82,28 +82,41 @@ if (music) {
   }
 }
 
-// 4. Captions burned in (theme colours and font; narrower frames get smaller, shorter lines), picture and sound joined.
-const ass = (c) => `&H${c.slice(5, 7)}${c.slice(3, 5)}${c.slice(1, 3)}&`.toUpperCase();
-const cap = theme.caption;
+// 4. Captions (the project's `captions` block, see shared/resolve.mjs): burned in unless turned off, in the chosen style;
+// out/<name>.srt always has every cue for a player. Picture and sound are joined here.
+const cap = look.captions;
 const narrowFrame = format.width / format.height < 1.2;
-// libass measures sizes, outlines and margins in units of a 288-line frame, whatever the real size, so pixel values
-// are divided by `unit` (found by measuring: Fontsize 100 on a 1350-line frame is 469 px).
+// libass measures sizes, outlines, shadows and margins in units of a 288-line frame, whatever the real size, so pixel
+// values are divided by `unit` (found by measuring: Fontsize 100 on a 1350-line frame is 469 px).
 // Landscape: small captions at the bottom. Portrait and square: bigger (sized by width); on device scenes just under
 // the laptop (it sits at 36% of the height), on terminal scenes at the bottom, under the window.
 const unit = format.height / 288;
 const laptopBottom = 0.36 * format.height + ((825 + 32 + 28) / 2) * look.fit;
 const styleFor = (type) => {
-  const fontPx = narrowFrame ? cap.size * (format.width / 288) * 1.15 : cap.size * unit;
-  const outlinePx = narrowFrame ? 3.5 * (format.width / 1080) : 2 * unit;
-  const marginPx = narrowFrame ? (type === 'device' ? laptopBottom + 0.04 * format.height : 0.05 * format.height) : 24 * unit;
+  const fontPx = (narrowFrame ? theme.caption.size * (format.width / 288) * 1.15 : theme.caption.size * unit) * cap.scale;
+  const outlinePx = (narrowFrame ? 3.5 * (format.width / 1080) : 2 * unit) * Math.max(1, cap.scale * 0.9);
+  const autoMargin = narrowFrame ? (type === 'device' ? laptopBottom + 0.04 * format.height : 0.05 * format.height) : 24 * unit;
+  const bottomMargin = narrowFrame ? 0.05 * format.height : 24 * unit;
+  // Position: auto keeps captions clear of the product; the others are fixed.
+  const [align, marginPx] =
+    cap.position === 'top' ? [6, bottomMargin]
+    : cap.position === 'middle' ? [10, 0]
+    : cap.position === 'bottom' ? [2, bottomMargin]
+    : narrowFrame && type === 'device' ? [6, autoMargin]
+    : [2, autoMargin];
+  const border =
+    cap.border === 'box' ? `BorderStyle=3,BackColour=${assColor(cap.box)},Outline=${((outlinePx * 2) / unit).toFixed(2)}`
+    // The shadow is the theme's contrasting colour at 60%, tight to the text: a glow on light themes, a shade on dark ones.
+    : cap.border === 'shadow' ? `BorderStyle=1,Outline=0,BackColour=${assColor(`${cap.outline.slice(0, 7)}99`)},Shadow=${((outlinePx * 0.8) / unit).toFixed(2)}`
+    : cap.border === 'none' ? 'BorderStyle=1,Outline=0,Shadow=0'
+    : `BorderStyle=1,Outline=${(outlinePx / unit).toFixed(2)},Shadow=0`;
   return [
-    `Fontname=${theme.font.family}`, `Fontsize=${(fontPx / unit).toFixed(2)}`, `PrimaryColour=${ass(cap.text)}`, `OutlineColour=${ass(cap.outline)}`,
-    cap.box ? `BorderStyle=3,BackColour=${(cap.boxColor ?? '&H99000000&')},Outline=${((outlinePx * 2) / unit).toFixed(2)}` : `BorderStyle=1,Outline=${(outlinePx / unit).toFixed(2)}`,
-    'Shadow=0', narrowFrame && type === 'device' ? 'Alignment=6' : 'Alignment=2', `MarginV=${(marginPx / unit).toFixed(1)}`,
+    `Fontname=${cap.font}`, `Fontsize=${(fontPx / unit).toFixed(2)}`, `Bold=${cap.bold ? -1 : 0}`,
+    `PrimaryColour=${assColor(cap.text)}`, `OutlineColour=${assColor(cap.outline)}`, border, `Alignment=${align}`, `MarginV=${(marginPx / unit).toFixed(1)}`,
   ].join(',');
 };
-// Captions go on the scenes without text of their own (the clip scenes) unless CAPTION_SCENES lists others.
-const burned = process.env.CAPTION_SCENES ? process.env.CAPTION_SCENES.split(',') : Object.entries(S).filter(([, s]) => s.kind === 'clip').map(([id]) => id);
+// Which scenes get burned captions: the clip scenes (no text of their own) by default, all of them, or a list of ids.
+const burned = cap.scenes === 'all' ? Object.keys(S) : cap.scenes === 'clips' ? Object.entries(S).filter(([, s]) => s.kind === 'clip').map(([id]) => id) : cap.scenes;
 const stamp = (x) => {
   const ms = Math.round(x * 1000);
   const p = (n, w = 2) => String(n).padStart(w, '0');
@@ -127,7 +140,7 @@ const filters = groups.map((g, i) => {
   writeFileSync(`out/burned-${i}.srt`, g.cues.map((c, n) => `${n + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${wrap(c.text)}\n`).join('\n'));
   return `subtitles=out/burned-${i}.srt:force_style='${styleFor(g.type)}'`;
 });
-const vf = process.env.NO_CAPTIONS || !filters.length ? 'null' : filters.join(',');
+const vf = !cap.burn || !filters.length ? 'null' : filters.join(',');
 const video = `out/${outName}.mp4`;
 ff(['-i', 'out/picture.mp4', '-i', audio, '-vf', vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-crf', FAST ? '28' : '18', '-preset', FAST ? 'veryfast' : 'medium', '-pix_fmt', 'yuv420p',
   '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', video]);

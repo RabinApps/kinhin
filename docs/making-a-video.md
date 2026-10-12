@@ -207,8 +207,39 @@ kinds. The [gallery](video-gallery.md) shows each one and how to build it; `vide
 4. `scripts/frames.mjs` puts the device and terminal clips in their frames.
 5. `scripts/fetch-music.sh` downloads the CC0 music bed and checks its SHA-256 (`NO_MUSIC=1` skips it).
 6. `scripts/assemble.mjs` joins the scenes with short fades, the voice, music ducked under it, and captions into
-   `out/<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt` (every caption, for a player). Captions are burned
-   into the clip scenes only; the title scenes already show their words.
+   `out/<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt` (every caption, for a player). Burned-in captions
+   follow the project's `captions` block (see [Captions](#captions)).
+
+### Captions
+
+Captions have two parts: the **caption file** (`out/<project>.srt`, every cue, written on every build for a player) and
+**burned-in** captions drawn on the picture. Turn the burned-in ones on or off, and choose their style, in the project file
+or from the command line:
+
+```json
+"captions": { "burn": true, "scenes": "clips", "style": "box", "position": "auto", "size": 1.1, "color": "#ffffff" }
+```
+
+| Setting | Values | Default |
+|---|---|---|
+| `burn` | `true` or `false` | `true` (the kinhin adapter sets `false`) |
+| `scenes` | `"clips"` (scenes with no text of their own), `"all"`, or a list of scene ids | `"clips"` |
+| `style` | `outline` (text with an outline), `box` (a semi-transparent box), `shadow` (a soft drop shadow), `bold` (larger, bold, outlined), `minimal` (small, plain) | `outline` (`box` if the theme asks for one) |
+| `position` | `auto` (clear of the laptop or window), `bottom`, `top`, `middle` | `auto` |
+| `size` | A multiplier, up to 3 | `1` |
+| `color`, `outlineColor`, `boxColor`, `font` | `#rrggbb` (`#rrggbbaa` for opacity); a font name | from the theme |
+| `sidecar` | `true` or `false` | `true` |
+
+```bash
+video/scripts/build.sh --captions off                 # a clean picture; the .srt is still written
+video/scripts/build.sh --captions all                 # burn them into every scene
+video/scripts/build.sh --caption-style box            # outline, box, shadow, bold or minimal
+```
+
+Precedence, later wins: the theme's caption look, the adapter's `captions` block (`adapters/<name>/adapter.json`), the project's,
+then `--captions`, `--caption-style` (or `VIDEO_CAPTIONS`, `VIDEO_CAPTION_STYLE`). The kinhin adapter turns burned-in
+captions off, so the launch video and `examples/kinhin-30s` have a clean picture; add `"captions": {"burn": true}` to a
+project (or pass `--captions on`) to bring them back. The [gallery](video-gallery.md#captions) shows every style.
 
 ### Faster iteration
 

@@ -229,6 +229,84 @@ The hello example in the paper theme.
 video/scripts/build.sh --container --project examples/hello --theme paper --format 16:9
 ```
 
+## Captions
+
+The same scene with captions off and in each style. Burned-in captions are a project setting (`captions` in the JSON) or a flag
+(`--captions off`, `--caption-style box`); the caption file is written either way. See
+[Captions](making-a-video.md#captions).
+
+### Captions off
+
+No burned-in captions; the .srt is still written.
+
+![Captions off: a frame from each scene](assets/video-gallery/captions-off.jpg)
+
+16:9 · clean theme · 33 s · 5 scenes (title, device, terminal, outro)
+
+```bash
+video/scripts/build.sh --container --project template-demo --theme clean --format 16:9 --captions off
+```
+
+### Captions: outline
+
+Text with a contrasting outline (the default).
+
+![Captions: outline: a frame from each scene](assets/video-gallery/captions-outline.jpg)
+
+16:9 · clean theme · 33 s · 5 scenes (title, device, terminal, outro)
+
+```bash
+video/scripts/build.sh --container --project template-demo --theme clean --format 16:9 --caption-style outline
+```
+
+### Captions: box
+
+Text on a semi-transparent box.
+
+![Captions: box: a frame from each scene](assets/video-gallery/captions-box.jpg)
+
+16:9 · clean theme · 33 s · 5 scenes (title, device, terminal, outro)
+
+```bash
+video/scripts/build.sh --container --project template-demo --theme clean --format 16:9 --caption-style box
+```
+
+### Captions: shadow
+
+Text with a soft drop shadow, no outline.
+
+![Captions: shadow: a frame from each scene](assets/video-gallery/captions-shadow.jpg)
+
+16:9 · clean theme · 33 s · 5 scenes (title, device, terminal, outro)
+
+```bash
+video/scripts/build.sh --container --project template-demo --theme clean --format 16:9 --caption-style shadow
+```
+
+### Captions: bold
+
+Larger, bold text with an outline.
+
+![Captions: bold: a frame from each scene](assets/video-gallery/captions-bold.jpg)
+
+16:9 · clean theme · 33 s · 5 scenes (title, device, terminal, outro)
+
+```bash
+video/scripts/build.sh --container --project template-demo --theme clean --format 16:9 --caption-style bold
+```
+
+### Captions: minimal
+
+Small, plain text.
+
+![Captions: minimal: a frame from each scene](assets/video-gallery/captions-minimal.jpg)
+
+16:9 · clean theme · 33 s · 5 scenes (title, device, terminal, outro)
+
+```bash
+video/scripts/build.sh --container --project template-demo --theme clean --format 16:9 --caption-style minimal
+```
+
 ## Formats
 
 One project, four frames. Portrait and square frames get their own layouts.

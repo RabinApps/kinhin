@@ -15,3 +15,9 @@ export function resolveFormat(name?: string): Format;
 export function fitScale(format: {width: number; height: number}, designWidth?: number): number;
 export function validateProject(project: any): string[];
 export function isNarrow(format: {width: number; height: number}): boolean;
+export interface Captions { burn: boolean; scenes: 'clips' | 'all' | string[]; style: string; border: 'outline' | 'box' | 'shadow' | 'none'; bold: boolean; scale: number; position: 'auto' | 'bottom' | 'top' | 'middle'; font: string; text: string; outline: string; box: string; sidecar: boolean }
+export const CAPTION_STYLES: Record<string, {border: string; bold?: boolean; size?: number; description: string}>;
+export const CAPTION_POSITIONS: string[];
+export function validateCaptions(cfg: unknown): string[];
+export function assColor(hex: string): string;
+export function resolveCaptions(args: {theme: Theme; project?: any; adapter?: any; env?: Record<string, string | undefined>}): Captions;
