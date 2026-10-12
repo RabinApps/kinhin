@@ -29,9 +29,9 @@ function resolveClip(clip) {
   const found = adapter ? resolveClip_(adapter, clip, {dark, narrow}) : null;
   if (found) {
     if (found.note) console.warn(`  note: ${found.note} (record it with scripts/record-terminal.sh)`);
-    return {file: found.file, meta: found.meta};
+    return {kind: found.kind, file: found.file, meta: found.meta};
   }
-  if (existsSync(clip)) return {file: clip, meta: clip.replace(/\.[^.]+$/, '.json')};
+  if (existsSync(clip)) return {kind: 'path', file: clip, meta: clip.replace(/\.[^.]+$/, '.json')};
   return null;
 }
 
@@ -41,7 +41,8 @@ for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   if (!found) throw new Error(`scene "${scene.id}": no clip "${scene.props.clip}"${adapter ? ` in the ${adapter.name} adapter (record it, or add it to adapters/${adapter.name}/reference/)` : ' (the project has no adapter; give a path)'}`);
   const clip = found.file;
   const out = join('out', `${scene.id}.mp4`);
-  const frame = scene.props.frame ?? (scene.type === 'device' ? 'macbook' : 'window');
+  // An app recording defaults to the laptop; a terminal or a browser session to a window.
+  const frame = scene.props.frame ?? (found.kind === 'app' || (found.kind === 'path' && scene.type === 'device') ? 'macbook' : 'window');
   const speed = String(scene.props.speed ?? 1);
   if (frame === 'macbook') {
     const start = found.meta && existsSync(found.meta) ? JSON.parse(readFileSync(found.meta, 'utf8')).demoStartsAt ?? 0 : 0;

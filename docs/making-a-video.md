@@ -21,7 +21,7 @@ no Mac, no desktop session and no permission grant, so they are the easy path fo
 | Adapter | One product's recorders, tape and committed clips; kinhin's is `video/adapters/kinhin/`, a starting point is `adapters/template/` | `video/adapters/<name>/` |
 | Demo fleet (kinhin) | A debug-only `FleetServing` that replays a script; touches no config, Keychain, daemon or forge | `Sources/kinhin-app/Demo/` |
 | App clip | A screen recording of the product's window, from the adapter's `record-app.sh` (kinhin's: `screencapture` on a Mac or in a throwaway Tart VM) | `video/adapters/kinhin/record-app.sh`, `record-app-in-tart.sh` |
-| Browser clip | Scripted Playwright session, in a container or locally | `video/sources/web/`, `video/adapters/kinhin/scenarios/`, `video/scripts/record-web.sh` |
+| Browser clip | Scripted Playwright session, in a container or locally; an adapter clip of kind `browser` | `video/sources/web/`, `video/adapters/<name>/scenarios/`, `video/scripts/record-web.sh` |
 | Terminal clip | A [VHS](https://github.com/charmbracelet/vhs) tape, recorded in four variants by `scripts/record-terminal.sh` (kinhin's runs the real CLI from a debug build in a throwaway support dir and hides the empty-config lines) | `video/adapters/kinhin/terminal/*.tape` |
 | Canvas scenes | [Motion Canvas](https://motioncanvas.io) (MIT), themed and sized by the project file | `video/src/` |
 | Build | Voice, retime, render, frame, mix, captions | `video/scripts/build.sh` |
@@ -155,7 +155,7 @@ be; the voice can only make it longer.
 | `terminal` | A terminal recording in a window | `clip`, `frame` (`window` or `none`) |
 
 `clip` is a clip of the project's adapter (your recording in `video/raw/<adapter>/`, else the committed one in the
-adapter's `reference/`) or a path. A terminal clip comes in four variants, chosen from the theme's `terminal` mode and the
+adapter's `reference/`) or a path. An app clip defaults to the laptop frame; a browser or terminal clip defaults to a window. A terminal clip comes in four variants, chosen from the theme's `terminal` mode and the
 format (`demo`, `demo-dark`, `demo-portrait`, `demo-dark-portrait`); `scripts/record-terminal.sh --all` records them via
 VHS, and a missing variant falls back to the plain one. To add a scene type, add a file in `video/src/scenes/` (copy `statement.tsx`), a line in `video/src/titles.ts`, and the type in
 `video/shared/resolve.mjs`.
@@ -168,13 +168,19 @@ only asks an adapter for clips by name. To use yours:
 
 1. Copy `video/adapters/template/` to `video/adapters/<your-product>/` (it builds anywhere: its app clip is a synthetic
    gradient).
-2. In `adapter.json` list your clips. An `app` clip names a `record` script that writes `$VIDEO_RAW_DIR/<clip>.mov` and
-   `<clip>.json` (`{"demoStartsAt": seconds into the file at which the story begins}`): use `screencapture`, a Playwright
-   session (`scripts/record-web.sh`) or anything that records your product. A `terminal` clip names a VHS `tape`; list the
-   tools recording needs under `needs` (`scripts/doctor.sh` checks them), and `hideFromLine` if the tail of the output should
-   not show.
-3. Record: `VIDEO_RAW_DIR=video/raw/<name> video/adapters/<name>/record-app.sh`, then
-   `video/scripts/record-terminal.sh --adapter <name> --all`, then `video/scripts/make-reference.sh --adapter <name>`.
+2. In `adapter.json` list your clips. There are three kinds:
+   - `app`: a `record` script that writes `$VIDEO_RAW_DIR/<clip>.mov` and `<clip>.json`
+     (`{"demoStartsAt": seconds into the file at which the story begins}`); use `screencapture` or anything else that
+     records your product on screen.
+   - `browser`: a scripted browser session of a web product. Give a `scenario` (a JSON of steps, see
+     [Record a web product](#record-a-web-product)), a `serve` command that starts the product (run from the repository root),
+     a `waitUrl`, and a `runner` (`local`, `docker` or `apple`). No Mac or desktop is needed.
+   - `terminal`: a VHS `tape`; `hideFromLine` hides the output from that line down.
+
+   List the tools recording needs under `needs` (`scripts/doctor.sh` checks them).
+3. Record any clip with one command, whatever its kind: `node video/scripts/record-clip.mjs --adapter <name> --clip <clip>`
+   (a browser clip takes `--runner docker`; extra arguments after `--` go to the recorder). Then make the committed copies:
+   `video/scripts/make-reference.sh --adapter <name>`.
 4. Point a project at it: `"adapter": "<name>"`, with scenes such as `{"type": "device", "props": {"clip": "app"}}`.
    `video/script/template-demo.json` is a working example: `video/scripts/build.sh --project template-demo`.
 

@@ -5,6 +5,10 @@
 //     "kind": "app"       a screen recording of the product. "record": a script (relative to the adapter) that
 //                         writes $VIDEO_RAW_DIR/<clip>.mov and <clip>.json ({"demoStartsAt": seconds into the file
 //                         at which the story begins}); "recordInVm": optional, the same in a throwaway VM.
+//     "kind": "browser"   a scripted browser session of a web product, recorded by scripts/record-web.sh into
+//                         <clip>.webm. "scenario": a scenario JSON (relative to the adapter); "serve": a command that
+//                         starts the product (run from the repository root, inside the runner); "waitUrl": where to
+//                         wait for it; "runner": local (default), docker or apple.
 //     "kind": "terminal"  a VHS tape ("tape") recorded by scripts/record-terminal.sh in four variants (light or dark,
 //                         landscape or portrait); "hideFromLine": the output line to mask from, when the tail of the
 //                         output should not show (an optional nicety).
@@ -13,6 +17,7 @@
 //
 // A project file names its adapter ("adapter": "kinhin"); a scene's `props.clip` is a clip of that adapter.
 // Your own recordings in video/raw/<adapter>/ win over the committed reference clips.
+// scripts/record-clip.mjs records any clip of an adapter, whatever its kind.
 // CLI: node scripts/adapter.mjs <name> [--clip <clip>] --env     shell variables for the recorder scripts
 import {existsSync, readFileSync, readdirSync} from 'node:fs';
 import {join, resolve} from 'node:path';
@@ -37,7 +42,7 @@ export const terminalVariant = ({dark, narrow}) => `${dark ? '-dark' : ''}${narr
 
 /**
  * Finds a clip of an adapter: your own recording (raw/<adapter>/) first, then the committed reference. Terminal
- * clips use the variant for the theme and frame, falling back to the plain one. Returns {file, meta, note} or null.
+ * clips use the variant for the theme and frame, falling back to the plain one. Returns {kind, file, meta, note} or null.
  */
 export function resolveClip(adapter, clip, {dark = false, narrow = false} = {}) {
   const spec = adapter.manifest.clips?.[clip];
@@ -45,14 +50,14 @@ export function resolveClip(adapter, clip, {dark = false, narrow = false} = {}) 
   const candidates =
     spec.kind === 'terminal'
       ? [terminalVariant({dark, narrow}), ''].map((v) => ({stem: `${clip}${v}`, ext: 'mp4'}))
-      : [{stem: clip, ext: spec.kind === 'app' ? 'mov' : 'mp4'}];
+      : [{stem: clip, ext: spec.kind === 'app' ? 'mov' : spec.kind === 'browser' ? 'webm' : 'mp4'}];
   for (const [i, c] of candidates.entries()) {
     const places = [
       {file: join(adapter.rawDir, `${c.stem}.${c.ext}`), meta: join(adapter.rawDir, `${clip}.json`)},
       {file: join(adapter.referenceDir, `${c.stem}.mp4`), meta: join(adapter.referenceDir, `${clip}.json`)},
     ];
     const hit = places.find((p) => existsSync(p.file));
-    if (hit) return {file: hit.file, meta: existsSync(hit.meta) ? hit.meta : null, note: i > 0 ? `no ${candidates[0].stem} clip; using ${c.stem}` : null};
+    if (hit) return {kind: spec.kind, file: hit.file, meta: existsSync(hit.meta) ? hit.meta : null, note: i > 0 ? `no ${candidates[0].stem} clip; using ${c.stem}` : null};
   }
   return null;
 }

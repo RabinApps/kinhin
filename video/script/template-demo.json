@@ -4,36 +4,83 @@
   "theme": "clean",
   "format": "16:9",
   "pace": 1,
-  "voice": { "engine": "kokoro", "name": "af_heart" },
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_heart"
+  },
   "overrides": {},
   "scenes": [
     {
       "id": "hello",
       "type": "title",
-      "props": { "title": "Your product here", "subtitle": "recorded through an adapter", "mark": "none" },
+      "props": {
+        "title": "Your product here",
+        "subtitle": "recorded through an adapter",
+        "mark": "none"
+      },
       "narration": "This video uses the template adapter."
     },
     {
       "id": "screen",
       "type": "device",
-      "props": { "clip": "app", "frame": "macbook", "speed": 1 },
+      "props": {
+        "clip": "app",
+        "frame": "macbook",
+        "speed": 1
+      },
       "cues": [
-        { "at": 0.6, "text": "An adapter records your product's screen." },
-        { "at": 5, "text": "The pipeline frames it and follows the voice." }
+        {
+          "at": 0.6,
+          "text": "An adapter records your product's screen."
+        },
+        {
+          "at": 5,
+          "text": "The pipeline frames it and follows the voice."
+        }
       ],
       "minLength": 9
     },
     {
+      "id": "web",
+      "type": "device",
+      "props": {
+        "clip": "site",
+        "frame": "window"
+      },
+      "cues": [
+        {
+          "at": 0.5,
+          "text": "It records a web page the same way."
+        }
+      ],
+      "minLength": 7
+    },
+    {
       "id": "shell",
       "type": "terminal",
-      "props": { "clip": "demo", "frame": "window" },
-      "cues": [{ "at": 0.5, "text": "And it records your command line." }],
+      "props": {
+        "clip": "demo",
+        "frame": "window"
+      },
+      "cues": [
+        {
+          "at": 0.5,
+          "text": "And it records your command line."
+        }
+      ],
       "minLength": 7
     },
     {
       "id": "end",
       "type": "outro",
-      "props": { "line": "Make it yours.", "url": "video/adapters/template", "facts": ["Copy the template", "Replace the recorders"] },
+      "props": {
+        "line": "Make it yours.",
+        "url": "video/adapters/template",
+        "facts": [
+          "Copy the template",
+          "Replace the recorders"
+        ]
+      },
       "narration": "Copy the template, and make it yours."
     }
   ]
