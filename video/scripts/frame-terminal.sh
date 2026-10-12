@@ -2,11 +2,12 @@
 # Puts the terminal clip in a macOS-style window (rounded corners, title bar with the three dots, soft shadow)
 # on the same backdrop as the MacBook shot, so the two scenes match. Pure ffmpeg, like frame-app.sh.
 #
-# Usage: video/scripts/frame-terminal.sh [in] [out]     defaults: raw/install.mp4  out/install-framed.mp4
+# Usage: video/scripts/frame-terminal.sh [in] [out]     defaults: raw/install.mp4 (else reference/install.mp4)  out/install-framed.mp4
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -d /opt/homebrew/opt/ffmpeg-full/bin ] && export PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH"
-IN="${1:-raw/install.mp4}"; OUT="${2:-out/install-framed.mp4}"
+if [ -n "${1:-}" ]; then IN="$1"; elif [ -f raw/install.mp4 ]; then IN=raw/install.mp4; else IN=reference/install.mp4; fi
+OUT="${2:-out/install-framed.mp4}"
 mkdir -p "$(dirname "$OUT")"
 LEN="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$IN")"
 
@@ -18,7 +19,7 @@ GEQ() { echo "format=gbrap,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':$1,format=rgba";
 dot() { echo "color=c=$1:s=20x20:r=30:d=$LEN,format=rgba,$(GEQ "$(ALLR 10)")"; }
 
 ffmpeg -nostdin -y -loglevel error -i "$IN" \
-  -f lavfi -i "gradients=speed=0:s=1920x1080:r=30:d=$LEN:c0=0xffffff:c1=0xe6ebf5:x0=0:y0=0:x1=0:y1=1080:type=linear" \
+  -f lavfi -i "gradients=speed=0.00001:s=1920x1080:r=30:d=$LEN:c0=0xffffff:c1=0xe6ebf5:x0=0:y0=0:x1=0:y1=1080:type=linear" \
   -f lavfi -i "color=c=0xe9e8e8:s=${WW}x${TB}:r=30:d=$LEN" \
   -f lavfi -i "$(dot 0xff5f57)" -f lavfi -i "$(dot 0xfebc2e)" -f lavfi -i "$(dot 0x28c840)" \
   -filter_complex "

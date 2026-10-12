@@ -6,7 +6,7 @@
 //
 //   raw/opening.mp4        Motion Canvas "opening" render: intro + problem + solution
 //   out/app-framed.mp4     scripts/frame-app.sh
-//   raw/install.mp4        vhs terminal/install.tape + terminal/trim.sh
+//   out/install-framed.mp4 scripts/frame-terminal.sh (from raw/install.mp4 or reference/install.mp4)
 //   raw/closing.mp4        Motion Canvas "closing" render: lanes + outro
 //   raw/music.{mp3,m4a,wav,flac,ogg}   optional
 // Outputs (out/): launch.mp4, launch.webm, poster.png, hero.gif
@@ -28,7 +28,7 @@ const ff = (args) => execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'err
 const parts = [
   {file: 'raw/opening.mp4', length: S.intro.length + S.problem.length + S.solution.length},
   {file: 'out/app-framed.mp4', length: S.app.length},
-  {file: 'raw/install.mp4', length: S.install.length},
+  {file: 'out/install-framed.mp4', length: S.install.length},
   {file: 'raw/closing.mp4', length: S.lanes.length + S.outro.length},
 ];
 for (const [i, p] of parts.entries()) {
@@ -65,7 +65,7 @@ if (music) {
 }
 
 // 4. Captions burned in, picture and sound joined.
-const style = 'Fontname=Helvetica,Fontsize=14,PrimaryColour=&H000000&,OutlineColour=&HFFFFFF&,BorderStyle=1,Outline=3,Shadow=0,Alignment=2,MarginV=40';
+const style = 'Fontname=Helvetica,Fontsize=11,PrimaryColour=&H000000&,OutlineColour=&HFFFFFF&,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=24';
 const burned = (process.env.CAPTION_SCENES ?? 'app,install').split(',');
 const stamp = (x) => {
   const ms = Math.round(x * 1000);

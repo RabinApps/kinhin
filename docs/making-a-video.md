@@ -105,31 +105,41 @@ in `video/out/`; `raw/` and `out/` are git-ignored.
 
 ## The voice-over cut
 
-`video/script/launch.json` is the script: one entry per scene, with the narration (or timed `cues`), the scene's
-shortest animation length and the voice. The picture follows the voice, so editing a line re-times everything:
+One command builds the whole launch video, on a Mac or in a container, from what is committed:
 
 ```bash
-cd video
-node scripts/voice.mjs --audition     # one paragraph in every voice; listen in raw/voice-audition/
-node scripts/voice.mjs                # render the narration with the script's voice (default: kokoro af_heart)
-node scripts/retime.mjs               # scene lengths -> src/timing.ts, out/timeline.json, captions/launch.srt
-# re-render the opening and closing Motion Canvas projects (they read src/timing.ts), then:
-scripts/frame-app.sh                  # the app clip in a MacBook, sized to its scene
-node scripts/assemble.mjs             # out/launch.mp4 with voice, captions, music if raw/music.* exists
+video/scripts/build.sh                    # on this machine (Node, ffmpeg with libass, Chromium)
+video/scripts/build.sh --container        # in a container: Apple's `container` if it is running, else Docker
+video/scripts/build.sh --runtime docker --container
 ```
 
-- **Voices.** `say` (macOS; Premium voices sound much better), `kokoro` (`node scripts/voice.mjs --setup kokoro`) and
-  `supertonic` (`--setup supertonic`; archived upstream, model under OpenRAIL-M). All three run locally.
-- **Cues.** A scene with `narration` plays its sentences in order; a scene with `cues` places each at `at` seconds
-  into the scene (used for the app clip, so the voice names what is on screen). `say` respells a cue's spoken text.
-- **The app clip.** `record.sh` starts the demo at a known moment (`KINHIN_DEMO_ORIGIN`) and writes
-  `raw/app.json`; `frame-app.sh` starts the shot there and plays it at the script's `speed`. Keep the mouse
-  pointer off the window while it records.
-- **Captions.** The full narration is in `captions/launch.srt` (for the site player). Only scenes without text of
-  their own (`CAPTION_SCENES`, default `app,install`) are burned in.
-- **Music.** `raw/music.*` is optional and git-ignored. The launch video uses [First Light Particles](https://opengameart.org/node/182244)
-  by Yoiyami (CC0: no credit needed, anyone may reuse it); download it to `video/raw/music.wav`. Use only CC0 tracks, and
-  do not commit tracks under licences that forbid redistributing the file on its own (Pixabay's does).
+The container image (`video/Containerfile`: Playwright's Chromium, ffmpeg with libass, the Inter font, Kokoro and its
+model) is the canonical build, so the result does not depend on what is installed. It needs no Mac: the app and terminal
+clips come from `video/reference/` (a few hundred KB, committed) unless you have fresher ones in `video/raw/`. The stages:
+
+1. `scripts/voice.mjs` renders the narration of `script/launch.json` (default: Kokoro `af_heart`) one cue at a time.
+2. `scripts/retime.mjs` makes each scene as long as its speech needs and writes `src/timing.ts`, `out/timeline.json`
+   and `captions/launch.srt`. The picture follows the voice.
+3. `scripts/render-titles.mjs` renders the Motion Canvas `opening` and `closing` projects headlessly.
+4. `scripts/frame-app.sh` puts the app clip in a MacBook, `scripts/frame-terminal.sh` the terminal clip in a window.
+5. `scripts/fetch-music.sh` downloads the CC0 music bed and checks its SHA-256.
+6. `scripts/assemble.mjs` joins picture, voice, music (ducked under the voice) and captions into `out/launch.mp4`,
+   `launch.webm`, `poster.png` and `hero.gif`; `out/launch.srt` has every caption for a player.
+
+- **Your own words.** Edit `script/launch.json` (narration or timed `cues`, the voice, the scene order) and
+  `src/content.ts` (on-screen text), then run `build.sh` again. Hear voices first with `node scripts/voice.mjs --audition`.
+- **Voices.** `kokoro` (default, Apache-2.0 model), `supertonic` (archived upstream; model under OpenRAIL-M) and macOS
+  `say` (Premium voices sound much better). `node scripts/voice.mjs --setup kokoro|supertonic` installs one on a host.
+  Set `VOICE_ENGINE` and `VOICE` to override for one build.
+- **Cues.** A scene with `narration` plays its sentences in order; one with `cues` places each at `at` seconds into the
+  scene (used for the app clip, so the voice names what is on screen). A cue's `say` respells what is spoken.
+- **Fresh recordings.** `record.sh` starts the demo at a known moment (`KINHIN_DEMO_ORIGIN`) and writes `raw/app.json`;
+  `frame-app.sh` starts the shot there and plays it at the script's `speed`. Keep the mouse pointer off the window while
+  it records. After `record.sh` and the vhs tape, `scripts/make-reference.sh` refreshes `video/reference/`.
+- **Captions.** Only scenes without text of their own (`CAPTION_SCENES`, default `app,install`) are burned in.
+- **Music.** The launch video uses [First Light Particles](https://opengameart.org/node/182244) by Yoiyami (CC0: no credit
+  needed, anyone may reuse it). Use only CC0 tracks, and do not commit tracks under licences that forbid redistributing
+  the file on its own (Pixabay's does). `NO_MUSIC=1` skips it.
 
 ## Record a web product
 

@@ -1,0 +1,28 @@
+# Builds the launch video without a Mac: Node, Chromium (renders the Motion Canvas title scenes), ffmpeg with
+# libass (frames, captions, final cut) and Kokoro (local voice-over). Works with Apple's `container` and Docker:
+#   scripts/build.sh --container
+# The base image's Playwright version must match playwright-core in package.json.
+FROM mcr.microsoft.com/playwright:v1.56.1-noble
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg python3 rsync curl ca-certificates fonts-inter fonts-liberation \
+ && rm -rf /var/lib/apt/lists/*
+
+# Caption and title fonts: Inter is the canonical typeface here (the scenes ask for it first); Helvetica, which
+# the caption style names, resolves to Liberation Sans.
+RUN printf '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig>\
+<alias binding="same"><family>Helvetica</family><prefer><family>Liberation Sans</family></prefer></alias>\
+</fontconfig>' > /etc/fonts/local.conf && fc-cache -f
+
+WORKDIR /work
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Bake the Kokoro model into the image (about 90 MB) so a build needs no network after this. The ONNX runtime
+# aborts while shutting down (after the work is done), so the step ignores the exit code and checks the cache.
+RUN node -e "import('kokoro-js').then(async ({KokoroTTS}) => { \
+  const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {dtype: 'q8', device: 'cpu'}); \
+  await tts.generate('warm up', {voice: 'af_heart'}); process.exit(0); })" ; \
+  find node_modules/@huggingface -name '*.onnx' | grep -q .
+
+ENV KINHIN_VIDEO_IN_CONTAINER=1

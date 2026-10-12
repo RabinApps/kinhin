@@ -53,10 +53,10 @@ if (setup) {
 }
 
 const script = JSON.parse(readFileSync(scriptPath, 'utf8'));
-const engine = engineFlag ?? process.env.VOICE_ENGINE ?? script.voice?.engine ?? 'say';
-const voice = voiceFlag ?? process.env.VOICE ?? script.voice?.name ?? VOICES[engine]?.[0];
-const rate = process.env.RATE ?? script.voice?.rate ?? 175; // `say` words per minute
-const speed = Number(process.env.SPEED ?? script.voice?.speed ?? 1); // kokoro/supertonic speed factor
+const engine = engineFlag || process.env.VOICE_ENGINE || script.voice?.engine || 'say';
+const voice = voiceFlag || process.env.VOICE || script.voice?.name || VOICES[engine]?.[0];
+const rate = process.env.RATE || script.voice?.rate || 175; // `say` words per minute
+const speed = Number(process.env.SPEED || script.voice?.speed || 1); // kokoro/supertonic speed factor
 if (!(engine in VOICES)) throw new Error(`unknown engine "${engine}" (say, kokoro, supertonic)`);
 
 // Respell names so the engines pronounce them; the captions keep the original spelling.

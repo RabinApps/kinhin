@@ -7,7 +7,7 @@ import {BACKGROUND, FONT, INK, MUTED} from '../theme';
 const JOBS = content.solution.jobs;
 const INTRO = 0.6; // caption fades in
 const STAGGER = 0.5; // seconds between lanes
-const LANE = 0.6 + 1.2 + 0.3 + 0.4 + 0.5; // slide, run, check, hold, delete
+const LANE = 0.6 + 1.2 + 0.3 + 0.4 + 0.5; // slide, run, check, hold, delete (the caption change runs alongside)
 const ROW = 190;
 const CHIP_X = -600;
 const CARD_X = 230;
@@ -42,6 +42,12 @@ export default makeScene2D(function* (view) {
   );
 
   function* lane(i: number) {
+    chips[i].x(CHIP_X);
+    chips[i].opacity(0);
+    cards[i].opacity(0);
+    cards[i].scale(0.85);
+    bars[i].width(0);
+    checks[i].opacity(0);
     yield* waitFor(i * STAGGER);
     yield* all(
       chips[i].opacity(1, 0.2),
@@ -55,14 +61,19 @@ export default makeScene2D(function* (view) {
     yield* all(cards[i].opacity(0, 0.5), cards[i].scale(0.85, 0.5, easeInOutCubic));
   }
 
+  // Run the three lanes again and again for as long as the narration lasts, so the stage is never empty.
+  const round = (JOBS.length - 1) * STAGGER + LANE;
+  const rounds = Math.max(1, Math.floor((timing.solution - INTRO) / round));
   yield* caption().opacity(1, INTRO);
-  yield* all(
-    ...JOBS.map((_, i) => lane(i)),
-    (function* () {
-      yield* waitFor(STAGGER + 0.6 + 1.2); // the first VM has finished its job
-      yield* all(caption().text(content.solution.done, 0.4), caption().fill(MUTED, 0.4));
-    })(),
-  );
-  const animation = INTRO + (JOBS.length - 1) * STAGGER + LANE;
-  yield* waitFor(Math.max(0.2, timing.solution - animation)); // then hold for the voice
+  for (let r = 0; r < rounds; r++) {
+    yield* all(
+      ...JOBS.map((_, i) => lane(i)),
+      (function* () {
+        if (r > 0) return;
+        yield* waitFor(STAGGER + 0.6 + 1.2); // the first VM has finished its job
+        yield* all(caption().text(content.solution.done, 0.4), caption().fill(MUTED, 0.4));
+      })(),
+    );
+  }
+  yield* waitFor(Math.max(0.2, timing.solution - INTRO - rounds * round)); // then hold for the voice
 });

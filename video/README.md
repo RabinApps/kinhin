@@ -11,6 +11,9 @@ The full guide (running the demo, writing a script, recording, rendering, export
 | `presets/` | Which clips make a video: `native-app`, `web-product` |
 | `sources/web/`, `scenarios/` | Browser clips (Playwright), and the scenario JSON that drives them |
 | `demos/example.json` | A demo fleet script to copy |
-| `scripts/` | `make.sh`, `export.sh`, `record.sh`, `record-in-tart.sh`, `record-web.sh`, `doctor.sh` |
+| `script/launch.json` | The voice-over script: scenes, narration, cues, voice |
+| `reference/` | Small committed app and terminal clips, so the video builds without a Mac |
+| `Containerfile` | The build image (Apple `container` or Docker); `scripts/build.sh --container` |
+| `scripts/` | `build.sh` (the voice-over cut), `voice.mjs`, `retime.mjs`, `render-titles.mjs`, `frame-app.sh`, `frame-terminal.sh`, `assemble.mjs`, `fetch-music.sh`, `make.sh`, `export.sh`, `record.sh`, `record-in-tart.sh`, `record-web.sh`, `doctor.sh` |
 | `terminal/` | VHS tapes |
 | `raw/`, `out/` | Git-ignored clips and outputs |
