@@ -157,6 +157,32 @@ final class MobileScaffoldTests: XCTestCase {
         XCTAssertTrue(workflow.contains("yarn install --frozen-lockfile"))
     }
 
+    func testLowIOSDeploymentTargetIsNotedWithTheFix() throws {
+        let dir = try flutter()
+        try FileManager.default.createDirectory(
+            at: dir.appendingPathComponent("ios/Runner.xcodeproj"), withIntermediateDirectories: true)
+        try "\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 13.0;\n".write(
+            to: dir.appendingPathComponent("ios/Runner.xcodeproj/project.pbxproj"), atomically: true, encoding: .utf8)
+        let report = try scaffold(dir)
+        XCTAssertTrue(
+            report.lines.contains {
+                $0.contains("iOS deployment target is 13.0") && $0.contains("Set IPHONEOS_DEPLOYMENT_TARGET to 15.0")
+            },
+            report.lines.joined(separator: "\n"))
+        XCTAssertTrue(
+            try text(dir, "ios/Runner.xcodeproj/project.pbxproj").contains("= 13.0;"), "the project is not edited")
+    }
+
+    func testCurrentIOSDeploymentTargetIsNotNoted() throws {
+        let dir = try flutter()
+        try FileManager.default.createDirectory(
+            at: dir.appendingPathComponent("ios/Runner.xcodeproj"), withIntermediateDirectories: true)
+        try "IPHONEOS_DEPLOYMENT_TARGET = 15.0;\n".write(
+            to: dir.appendingPathComponent("ios/Runner.xcodeproj/project.pbxproj"), atomically: true, encoding: .utf8)
+        let report = try scaffold(dir)
+        XCTAssertFalse(report.lines.contains { $0.contains("deployment target") })
+    }
+
     func testNativeProjectGetsNoFrameworkSteps() throws {
         let dir = try folder("native", dirs: ["ios", "android"])
         _ = try scaffold(dir)

@@ -36,7 +36,7 @@ fastlane, run `npx expo prebuild`, then `kinhin mobile init --framework react-na
 
 ### `deployment target ... is set to 13.0`
 
-Xcode 26 needs an iOS deployment target of 15.0 or higher. `flutter create` still writes 13.0. Change
+Xcode 26 needs an iOS deployment target of 15.0 or higher. `flutter create` still writes 13.0, and `kinhin mobile init` prints a note naming the file when it finds a lower value. Change
 `IPHONEOS_DEPLOYMENT_TARGET` in `ios/Runner.xcodeproj/project.pbxproj` to 15.0 (and the `platform :ios` line in the
 Podfile, if there is one).
 

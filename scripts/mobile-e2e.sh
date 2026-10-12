@@ -106,6 +106,22 @@ for app in $apps; do
     if [[ -d "$work/examples/$app" ]]; then ok "$app copied"; else bad "$app missing from examples"; fi
 done
 
+# MARK: - CLI usage errors
+
+section "kinhin mobile init reports usage errors with exit 2"
+usage_dir="$(mktemp -d)"
+set +e
+"$KINHIN_BIN" mobile init --framework nope "$usage_dir" >/dev/null 2>&1; code_bad_framework=$?
+"$KINHIN_BIN" mobile init "$usage_dir/missing" >/dev/null 2>&1; code_missing=$?
+"$KINHIN_BIN" mobile init "$usage_dir" >/dev/null 2>&1; code_empty=$?
+"$KINHIN_BIN" mobile >/dev/null 2>&1; code_bare=$?
+set -e
+[[ $code_bad_framework -eq 2 ]] && ok "unknown --framework exits 2" || bad "unknown --framework exits $code_bad_framework"
+[[ $code_missing -eq 2 ]] && ok "missing directory exits 2" || bad "missing directory exits $code_missing"
+[[ $code_empty -eq 2 ]] && ok "folder with no project exits 2" || bad "folder with no project exits $code_empty"
+[[ $code_bare -eq 2 ]] && ok "bare 'kinhin mobile' exits 2" || bad "bare 'kinhin mobile' exits $code_bare"
+rm -rf "$usage_dir"
+
 # MARK: - Scaffold drift
 
 section "templates regenerate the committed examples"
@@ -284,6 +300,37 @@ run_build() {
     fi
 }
 
+# The React Native install step, extracted from the template, run for each lockfile kind. corepack must not need
+# /usr/local/bin, which is read-only on many runners, so the step points its shims at RUNNER_TEMP.
+if [[ $with_builds -eq 1 && $has_yaml -eq 1 ]] && command -v npm >/dev/null; then
+    section "React Native install step (yarn, pnpm, npm, no lockfile)"
+    install_script="$work/js-install.sh"
+    python3 - "$root/templates/mobile/github/prebuild/react-native-ios.yml" "$install_script" <<'PY'
+import sys, yaml
+steps = yaml.safe_load("steps:\n" + open(sys.argv[1]).read())["steps"]
+run = next(s["run"] for s in steps if "JavaScript" in s.get("name", ""))
+open(sys.argv[2], "w").write(run)
+PY
+    for kind in yarn pnpm npm none; do
+        js="$work/js-$kind"
+        mkdir -p "$js"
+        printf '{"name":"rn-check","version":"1.0.0","private":true,"dependencies":{"left-pad":"1.3.0"}}\n' > "$js/package.json"
+        case $kind in
+            yarn) (cd "$js" && npx --yes yarn@1.22.22 install >/dev/null 2>&1 || true) ;;
+            pnpm) (cd "$js" && pnpm install --lockfile-only >/dev/null 2>&1 || true) ;;
+            npm)  (cd "$js" && npm install --package-lock-only >/dev/null 2>&1 || true) ;;
+            none) ;;
+        esac
+        rm -rf "$js/node_modules"
+        if (cd "$js" && RUNNER_TEMP="$work/rt-$kind" GITHUB_PATH="$work/gp-$kind" bash "$install_script" >"$work/js-$kind.log" 2>&1) \
+            && [[ -d "$js/node_modules/left-pad" ]]; then
+            ok "install step with $kind"
+        else
+            bad "install step with $kind (see $work/js-$kind.log)"
+        fi
+    done
+fi
+
 # Signing material for the lane build: a throwaway keystore, passed as the same variables CI sets.
 keystore="$work/test.keystore"
 make_keystore() {
@@ -364,6 +411,36 @@ if [[ $with_builds -eq 1 ]]; then
         fi
     else
         skip "RnApp builds (needs npm and CocoaPods)"
+    fi
+
+    # A fresh `flutter create` project, the way a new user meets the tool: the scaffold must note the iOS deployment target
+    # (13.0 from flutter create does not build with Xcode 26), the documented fix must make the Release build pass, and the
+    # signed Android lane must work on an untouched project.
+    if command -v flutter >/dev/null && command -v bundle >/dev/null; then
+        fresh="$work/fresh_app"
+        run_build "fresh flutter create" fresh-create "$work" flutter create --platforms=ios,android fresh_app
+        if [[ -d "$fresh" ]]; then
+            if "$KINHIN_BIN" mobile init "$fresh" >"$work/fresh-init.log" 2>&1 \
+                && grep -q "iOS deployment target is 13.0" "$work/fresh-init.log"; then
+                ok "fresh flutter project: init notes the iOS deployment target"
+            else
+                bad "fresh flutter project: init did not note the deployment target (see $work/fresh-init.log)"
+            fi
+            run_build "fresh flutter pub get" fresh-pub "$fresh" flutter pub get
+            run_build "fresh flutter bundle config" fresh-bundle-config "$fresh" bundle config set --local path vendor/bundle
+            run_build "fresh flutter bundle install" fresh-bundle "$fresh" bundle install
+            sed -i.bak 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/' \
+                "$fresh/ios/Runner.xcodeproj/project.pbxproj"
+            if [[ $ios_sdk_ok -eq 1 ]]; then
+                (cd "$fresh" && flutter build ios --config-only --release >"$work/fresh-config.log" 2>&1) \
+                    && ok "fresh flutter ios config-only" || bad "fresh flutter ios config-only (see $work/fresh-config.log)"
+                run_build "fresh flutter Release device build (after the documented fix)" fresh-ios "$fresh/ios" \
+                    xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos -configuration Release build CODE_SIGNING_ALLOWED=NO
+            fi
+            if [[ -n "${JAVA_HOME:-}" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
+                lane_build_signed "fresh flutter android" "$fresh"
+            fi
+        fi
     fi
 
     # Expo with fastlane: `expo prebuild` creates the native folders, then the React Native template applies to them.

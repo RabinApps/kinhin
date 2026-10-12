@@ -63,6 +63,9 @@ public enum MobileScaffold {
             try writer.scaffoldFastlane(platform: platform, folder: platformFolder(platform, in: directory))
         }
         try writer.workflow(framework: framework, platforms: platforms, directory: directory)
+        if platforms.contains("ios") {
+            noteLowIOSDeploymentTarget(in: directory, writer: &writer)
+        }
         return report(framework, platforms, writer)
     }
 
@@ -152,6 +155,36 @@ public enum MobileScaffold {
         -> MobileScaffoldReport
     {
         MobileScaffoldReport(framework: framework, platforms: platforms, lines: writer.lines, dryRun: writer.dryRun)
+    }
+
+    /// The lowest iOS deployment target the Xcode 26 toolchain accepts. `flutter create` still writes 13.0.
+    static let minimumIOSDeploymentTarget = 15.0
+
+    /// Notes the first iOS deployment target below the minimum, so the release build does not fail for a reason the
+    /// user can see. The project file is not edited: the target is the user's choice to change.
+    static func noteLowIOSDeploymentTarget(in directory: URL, writer: inout Writer) {
+        let project = directory.appendingPathComponent("ios")
+        guard let enumerator = FileManager.default.enumerator(at: project, includingPropertiesForKeys: nil) else {
+            return
+        }
+        let pattern = try! NSRegularExpression(pattern: #"IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);"#)
+        for case let url as URL in enumerator where url.lastPathComponent == "project.pbxproj" {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            let range = NSRange(text.startIndex..., in: text)
+            for match in pattern.matches(in: text, range: range) {
+                guard let valueRange = Range(match.range(at: 1), in: text), let value = Double(text[valueRange]),
+                    value < minimumIOSDeploymentTarget
+                else { continue }
+                // Both sides resolved, so /var and /private/var (which the enumerator returns) compare equal.
+                let base = project.resolvingSymlinksInPath().path
+                let suffix = url.resolvingSymlinksInPath().path.dropFirst(base.count + 1)
+                let relative = "ios/\(suffix)"
+                writer.note(
+                    "iOS deployment target is \(text[valueRange]) in \(relative); Xcode 26 needs "
+                        + "\(minimumIOSDeploymentTarget) or higher. Set IPHONEOS_DEPLOYMENT_TARGET to 15.0 there.")
+                return
+            }
+        }
     }
 
     /// Recognises a Gemfile line that already installs fastlane (commented-out lines do not count).

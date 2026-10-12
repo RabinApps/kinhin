@@ -255,8 +255,16 @@ enum MobileTemplates {
               - name: JavaScript dependencies
                 working-directory: __APP__
                 run: |
-                  if [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile
-                  elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile
+                  if [ -f yarn.lock ] || [ -f pnpm-lock.yaml ]; then
+                    # corepack's default shim directory is often read-only on a runner, so give it a directory the job owns.
+                    shims="${RUNNER_TEMP:-$(mktemp -d)}/corepack-bin"
+                    mkdir -p "$shims"
+                    corepack enable --install-directory "$shims"
+                    echo "$shims" >> "${GITHUB_PATH:-/dev/null}"
+                    export PATH="$shims:$PATH"
+                  fi
+                  if [ -f yarn.lock ]; then yarn install --frozen-lockfile
+                  elif [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile
                   elif [ -f package-lock.json ]; then npm ci
                   else npm install
                   fi
@@ -270,8 +278,16 @@ enum MobileTemplates {
               - name: JavaScript dependencies
                 working-directory: __APP__
                 run: |
-                  if [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile
-                  elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile
+                  if [ -f yarn.lock ] || [ -f pnpm-lock.yaml ]; then
+                    # corepack's default shim directory is often read-only on a runner, so give it a directory the job owns.
+                    shims="${RUNNER_TEMP:-$(mktemp -d)}/corepack-bin"
+                    mkdir -p "$shims"
+                    corepack enable --install-directory "$shims"
+                    echo "$shims" >> "${GITHUB_PATH:-/dev/null}"
+                    export PATH="$shims:$PATH"
+                  fi
+                  if [ -f yarn.lock ]; then yarn install --frozen-lockfile
+                  elif [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile
                   elif [ -f package-lock.json ]; then npm ci
                   else npm install
                   fi
