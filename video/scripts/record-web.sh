@@ -3,7 +3,7 @@
 # A Linux container is enough: no Mac, no desktop session, nothing to grant.
 #
 # Usage: video/scripts/record-web.sh --scenario FILE [--out FILE] [--runner local|docker|apple] [options]
-#   --scenario FILE   scenario JSON (see scenarios/kinhin-site.json, docs/making-a-video.md)
+#   --scenario FILE   scenario JSON (see adapters/kinhin/scenarios/site.json, docs/making-a-video.md)
 #   --out FILE        output (default video/raw/web.webm, repo-relative)
 #   --runner NAME     local (default): this machine's Node + Chromium
 #                     docker: the official Playwright image under `docker run`

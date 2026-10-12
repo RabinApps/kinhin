@@ -10,7 +10,7 @@
 #                the DemoTimeline unit tests and renders the offscreen UI captures (shots/capture),
 #                copying shots/out/ back.
 #
-# Usage: video/scripts/record-in-tart.sh [--gui|--vnc|--headless] [options]
+# Usage: video/adapters/kinhin/record-app-in-tart.sh [--gui|--vnc|--headless] [options]
 #   --image NAME     base image to clone (default ghcr.io/cirruslabs/macos-tahoe-xcode:latest; needs full Xcode)
 #   --vm NAME        VM name (default kinhin-demo; reused if it already exists)
 #   --seconds N      recording length (default 50, one pass of the 48 s loop)
@@ -53,10 +53,10 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../../.."   # the repository root
 command -v tart >/dev/null || { echo "tart not found (kinhin setup repair tart, or brew install cirruslabs/cli/tart)" >&2; exit 1; }
 command -v rsync >/dev/null || { echo "rsync not found" >&2; exit 1; }
-mkdir -p video/raw shots/out
+mkdir -p video/raw/kinhin shots/out
 
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5)
 WRAP=()
@@ -137,6 +137,9 @@ if ! guest_gui "screencapture -x /tmp/kinhin-demo-probe.png && test -s /tmp/kinh
 fi
 
 echo "==> recording ${SECONDS_TO_RECORD}s in the guest (the first run builds the app, which takes a while)"
-guest_gui "cd \$HOME/kinhin-src && KINHIN_DEMO=${KINHIN_DEMO:-launch} video/scripts/record.sh $SECONDS_TO_RECORD"
-${WRAP[@]+"${WRAP[@]}"} scp "${SSH_OPTS[@]}" "$GUEST_USER@$IP:kinhin-src/video/raw/app.mov" video/raw/app.mov
-echo "==> wrote video/raw/app.mov"
+guest_gui "cd \$HOME/kinhin-src && KINHIN_DEMO=${KINHIN_DEMO:-launch} video/adapters/kinhin/record-app.sh $SECONDS_TO_RECORD"
+mkdir -p video/raw/kinhin
+for f in app.mov app.json; do
+  ${WRAP[@]+"${WRAP[@]}"} scp "${SSH_OPTS[@]}" "$GUEST_USER@$IP:kinhin-src/video/raw/kinhin/$f" "video/raw/kinhin/$f"
+done
+echo "==> wrote video/raw/kinhin/app.mov"

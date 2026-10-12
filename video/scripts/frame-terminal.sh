@@ -3,13 +3,13 @@
 # over the project's backdrop, so it matches the laptop shot. Pure ffmpeg, like frame-app.sh; colours, frame size
 # and scale come from the theme and format (scripts/project.mjs --env).
 #
-# Usage: video/scripts/frame-terminal.sh [in] [out] [length-seconds]
-#   defaults: raw/install.mp4 (else reference/install.mp4)  out/install-framed.mp4  the clip's own length
+# Usage: video/scripts/frame-terminal.sh <in> [out] [length-seconds]
+#   defaults: out/install-framed.mp4 and the clip's own length. scripts/frames.mjs passes everything for each terminal scene.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -d /opt/homebrew/opt/ffmpeg-full/bin ] && export PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH"
 [ -n "${VIDEO_W:-}" ] || eval "$(node scripts/project.mjs --env)"
-if [ -n "${1:-}" ]; then IN="$1"; elif [ -f raw/install.mp4 ]; then IN=raw/install.mp4; else IN=reference/install.mp4; fi
+IN="${1:?usage: frame-terminal.sh <in> [out] [length]}"
 OUT="${2:-out/install-framed.mp4}"
 mkdir -p "$(dirname "$OUT")"
 LEN="${3:-$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$IN")}"

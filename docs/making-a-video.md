@@ -11,23 +11,25 @@ single config file, using only open-source tools. Use it for a release video, a 
 
 A video is a list of scenes (see [Make a video from a config](#make-a-video-from-a-config)). Each scene is either a
 **canvas scene** drawn by Motion Canvas (title, statement, queue, parallel, map, outro) or a **clip scene** around a
-recording you made: the app, a terminal, or a browser session. Browser clips need no Mac, no desktop session and no
-permission grant, so they are the easy path for anything that runs in a browser (use a `device` scene with
-`"frame": "window"` and `"clip": "raw/web.webm"`).
+recording of your product: its app, a terminal, or a browser session. Everything that is specific to one product lives in an
+[adapter](#adapters-your-own-product) (`video/adapters/<name>/`); the pipeline never mentions a product. Browser clips need
+no Mac, no desktop session and no permission grant, so they are the easy path for anything that runs in a browser (a
+`device` scene with `"frame": "window"` and a clip recorded by `record-web.sh`).
 
 | Piece | What it is | Where |
 |---|---|---|
-| Demo fleet | A debug-only `FleetServing` that replays a script; touches no config, Keychain, daemon or forge | `Sources/kinhin-app/Demo/` |
-| App clip | `screencapture` of the demo app's window, on a Mac or in a throwaway Tart VM | `video/scripts/record.sh`, `record-in-tart.sh` |
-| Browser clip | Scripted Playwright session, in a container or locally | `video/sources/web/`, `video/scenarios/`, `video/scripts/record-web.sh` |
-| Terminal clip | [VHS](https://github.com/charmbracelet/vhs) tape that runs the real CLI (debug build, throwaway support dir; `trim.sh` masks the empty-config lines) | `video/terminal/*.tape` |
+| Adapter | One product's recorders, tape and committed clips; kinhin's is `video/adapters/kinhin/`, a starting point is `adapters/template/` | `video/adapters/<name>/` |
+| Demo fleet (kinhin) | A debug-only `FleetServing` that replays a script; touches no config, Keychain, daemon or forge | `Sources/kinhin-app/Demo/` |
+| App clip | A screen recording of the product's window, from the adapter's `record-app.sh` (kinhin's: `screencapture` on a Mac or in a throwaway Tart VM) | `video/adapters/kinhin/record-app.sh`, `record-app-in-tart.sh` |
+| Browser clip | Scripted Playwright session, in a container or locally | `video/sources/web/`, `video/adapters/kinhin/scenarios/`, `video/scripts/record-web.sh` |
+| Terminal clip | A [VHS](https://github.com/charmbracelet/vhs) tape, recorded in four variants by `scripts/record-terminal.sh` (kinhin's runs the real CLI from a debug build in a throwaway support dir and hides the empty-config lines) | `video/adapters/kinhin/terminal/*.tape` |
 | Canvas scenes | [Motion Canvas](https://motioncanvas.io) (MIT), themed and sized by the project file | `video/src/` |
 | Build | Voice, retime, render, frame, mix, captions | `video/scripts/build.sh` |
 
 Motion Canvas rather than Remotion because Remotion's license requires a paid company license above three employees.
 Run `video/scripts/doctor.sh` to see which tools this machine is missing.
 
-## Run the demo app
+## Run the demo app (the kinhin adapter)
 
 ```bash
 KINHIN_SUPPORT_DIR=$(mktemp -d) KINHIN_DEMO=launch scripts/dev-run.sh --env-tokens
@@ -39,7 +41,7 @@ from your real config and Keychain.
 
 ## Write your own script
 
-A script is a looping timeline. Copy `video/demos/example.json` and edit it:
+A script is a looping timeline. Copy `video/adapters/kinhin/demos/example.json` and edit it:
 
 ```json
 {
@@ -65,11 +67,11 @@ Built-in scripts live in `DemoTimeline.builtIn`; add one there when a script sho
 
 ## Record
 
-On a Mac with a desktop: `video/scripts/record.sh` (needs Screen Recording permission for your terminal once, and
+On a Mac with a desktop: `video/adapters/kinhin/record-app.sh` (needs Screen Recording permission for your terminal once, and
 Accessibility if you want it to resize the window). Run it directly in a terminal: piping its output (`| tail`) removes the
 TTY that `scripts/dev-run.sh` insists on. The debug app's process and window are named `kinhin-app`.
 
-No spare desktop, or you want a clean repeatable one? `video/scripts/record-in-tart.sh` records inside a throwaway
+No spare desktop, or you want a clean repeatable one? `video/adapters/kinhin/record-app-in-tart.sh` records inside a throwaway
 Tart VM:
 
 - `--gui`: a VM window on your Mac; the guest has a real desktop session.
@@ -77,7 +79,7 @@ Tart VM:
 - `--headless`: no desktop, so no recording. It runs the demo unit tests and renders the offscreen UI captures
   (`shots/capture`) instead.
 
-Both set `KINHIN_DEMO` the same way (`KINHIN_DEMO=path/in/repo.json video/scripts/record.sh`). For auto-zoom and a
+Both set `KINHIN_DEMO` the same way (`KINHIN_DEMO=path/in/repo.json video/adapters/kinhin/record-app.sh`). For auto-zoom and a
 smoothed cursor, run the raw take through an open-source editor such as OpenScreen or Screenize.
 
 ## Make a video from a config
@@ -96,7 +98,8 @@ video/scripts/build.sh --runtime docker --container
 
 The container image (`video/Containerfile`: Playwright's Chromium, ffmpeg with libass, Kokoro and its model, the theme
 fonts) is the canonical build, so the result does not depend on what is installed. It needs no Mac: the app and terminal
-clips come from `video/reference/` (a few hundred KB, committed) unless you have fresher ones in `video/raw/`.
+clips come from the adapter's `reference/` directory (a few hundred KB, committed) unless you have fresher ones in
+`video/raw/<adapter>/`.
 
 ### The project file
 
@@ -115,6 +118,8 @@ clips come from `video/reference/` (a few hundred KB, committed) unless you have
 }
 ```
 
+- **`adapter`**: the product whose clips the scenes use (`video/adapters/<name>/`); optional for videos made only of
+  canvas scenes (`VIDEO_ADAPTER` or `build.sh --adapter` overrides it).
 - **`theme`**: a file in `video/themes/`: `paper` (soft white, the launch look), `clean` (flat, one blue accent),
   `midnight` (deep navy), `blueprint` (white lines on blue, monospaced), `chalk` (chalk on a green board, handwritten).
   Copy one to `video/themes/<name>.json` and edit it to make your own: the font (`family`, `weight`), `colors` (`ink`,
@@ -149,12 +154,29 @@ be; the voice can only make it longer.
 | `device` | A screen recording in a MacBook (drawn, no Apple artwork) that tilts and slides in | `clip`, `frame` (`macbook`, `window` or `none`), `speed` |
 | `terminal` | A terminal recording in a window | `clip`, `frame` (`window` or `none`) |
 
-`clip` is `app` or `install` (your `raw/` recording, else the committed one in `video/reference/`) or a path. The terminal
-clip comes in four variants, chosen from the theme's `terminal` mode and the format: `install`, `install-dark`,
-`install-portrait` and `install-dark-portrait`. `scripts/record-terminal.sh --all` records them (the real `kinhin doctor`,
-via VHS); a missing variant falls back to the plain one. To add a
-scene type, add a file in `video/src/scenes/` (copy `statement.tsx`), a line in `video/src/titles.ts`, and the type in
+`clip` is a clip of the project's adapter (your recording in `video/raw/<adapter>/`, else the committed one in the
+adapter's `reference/`) or a path. A terminal clip comes in four variants, chosen from the theme's `terminal` mode and the
+format (`demo`, `demo-dark`, `demo-portrait`, `demo-dark-portrait`); `scripts/record-terminal.sh --all` records them via
+VHS, and a missing variant falls back to the plain one. To add a scene type, add a file in `video/src/scenes/` (copy `statement.tsx`), a line in `video/src/titles.ts`, and the type in
 `video/shared/resolve.mjs`.
+
+### Adapters: your own product
+
+An adapter is a directory, `video/adapters/<name>/`, holding everything one product needs: an `adapter.json`, the scripts
+that record its clips, and small committed `reference/` clips so the video builds without recording anything. The pipeline
+only asks an adapter for clips by name. To use yours:
+
+1. Copy `video/adapters/template/` to `video/adapters/<your-product>/` (it builds anywhere: its app clip is a synthetic
+   gradient).
+2. In `adapter.json` list your clips. An `app` clip names a `record` script that writes `$VIDEO_RAW_DIR/<clip>.mov` and
+   `<clip>.json` (`{"demoStartsAt": seconds into the file at which the story begins}`): use `screencapture`, a Playwright
+   session (`scripts/record-web.sh`) or anything that records your product. A `terminal` clip names a VHS `tape`; list the
+   tools recording needs under `needs` (`scripts/doctor.sh` checks them), and `hideFromLine` if the tail of the output should
+   not show.
+3. Record: `VIDEO_RAW_DIR=video/raw/<name> video/adapters/<name>/record-app.sh`, then
+   `video/scripts/record-terminal.sh --adapter <name> --all`, then `video/scripts/make-reference.sh --adapter <name>`.
+4. Point a project at it: `"adapter": "<name>"`, with scenes such as `{"type": "device", "props": {"clip": "app"}}`.
+   `video/script/template-demo.json` is a working example: `video/scripts/build.sh --project template-demo`.
 
 ### What the build does
 
@@ -170,9 +192,10 @@ scene type, add a file in `video/src/scenes/` (copy `statement.tsx`), a line in 
 
 ### Recording the app
 
-`record.sh` starts the demo at a known moment (`KINHIN_DEMO_ORIGIN`) and writes `raw/app.json`; the `device` scene starts
-the shot there. Keep the mouse pointer off the window while it records. After `record.sh` and
-`record-terminal.sh`, `scripts/make-reference.sh` refreshes `video/reference/` (`--terminal` for just the terminal clips).
+kinhin's `record-app.sh` starts the demo at a known moment (`KINHIN_DEMO_ORIGIN`) and writes `app.json`; the `device` scene
+starts the shot there. Keep the mouse pointer off the window while it records. After recording,
+`scripts/make-reference.sh --adapter <name>` refreshes the adapter's `reference/` clips (`--terminal` for just the terminal
+ones).
 
 The launch video's music is [First Light Particles](https://opengameart.org/node/182244) by Yoiyami (CC0: no credit needed,
 anyone may reuse it). Use only CC0 tracks, and do not commit tracks under licences that forbid redistributing the file on
@@ -181,7 +204,7 @@ its own (Pixabay's does).
 ## Record a web product
 
 ```bash
-video/scripts/record-web.sh --scenario scenarios/kinhin-site.json --runner local \
+video/scripts/record-web.sh --scenario adapters/kinhin/scenarios/site.json --runner local \
   --serve "npm --prefix website run preview -- --port 4173"
 ```
 
@@ -190,7 +213,7 @@ apple/container's `container run`), so the recording never depends on the host's
 be reachable from inside the container: `--serve` starts it there, or use a public URL. `localhost` on the host is not
 `localhost` in the container. Set `PACE=0.5` to play a scenario twice as fast, `BASE_URL` to retarget it.
 
-A scenario is JSON; copy `video/scenarios/kinhin-site.json`:
+A scenario is JSON; copy `video/adapters/kinhin/scenarios/site.json`:
 
 ```json
 { "baseUrl": "http://localhost:4173", "viewport": { "width": 1920, "height": 1080 }, "colorScheme": "light",

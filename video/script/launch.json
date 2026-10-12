@@ -148,6 +148,7 @@
     }
   ],
   "name": "kinhin launch video",
+  "adapter": "kinhin",
   "theme": "paper",
   "format": "16:9",
   "overrides": {}

@@ -24,15 +24,15 @@ echo "Web product clips (any machine; a container is optional):"
 [ -d node_modules/playwright-core ] && echo "  ok       playwright   video/node_modules (browser: Playwright's Chromium, or CHROMIUM_PATH)" \
   || echo "  MISSING  playwright   (cd video && npm install)"
 optional docker docker "record-web.sh --runner docker" "install Docker"
-optional container container "record-web.sh --runner apple" "apple/container: kinhin setup repair container"
-echo "A Mac (the app and terminal clips):"
-if [ "$(uname -s)" = Darwin ]; then
-  check swift swift "building the demo app" "Xcode 26+"
-  check screencapture screencapture "record.sh" "built into macOS"
-  check vhs vhs "terminal/install.tape" "brew install vhs"
-  check tart tart "record-in-tart.sh" "kinhin setup repair tart"
-  check sshpass sshpass "record-in-tart.sh password login (or use an ssh key)" "brew install sshpass"
-else
-  echo "  skipped  not macOS: record the app clips on a Mac (see docs/making-a-video.md)"
-fi
+optional container container "record-web.sh --runner apple, and building in a container" "https://github.com/apple/container"
+# Each adapter lists what recording its clips needs (adapters/<name>/adapter.json "needs"). Optional tools are
+# reported but never fail the check; the committed reference clips mean nothing here is needed to build a video.
+for dir in adapters/*/; do
+  name="$(basename "$dir")"
+  echo "Adapter $name (only to record fresh clips; the committed reference clips need none of this):"
+  while IFS=$'\t' read -r tool why how optional; do
+    [ -n "$tool" ] || continue
+    if [ "$optional" = true ]; then optional "$tool" "$tool" "$why" "$how"; else check "$tool" "$tool" "$why" "$how"; fi
+  done < <(node -e "for (const n of (JSON.parse(require('fs').readFileSync('$dir/adapter.json','utf8')).needs||[])) console.log([n.tool,n.why,n.how,!!n.optional].join('\t'))")
+done
 [ "$ok" = 1 ] && echo "All set." || { echo "Some tools are missing."; exit 1; }

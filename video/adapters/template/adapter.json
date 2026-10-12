@@ -1,0 +1,18 @@
+{
+  "name": "template",
+  "description": "A starting point for your own product: copy this directory to adapters/<your-product>/ and replace the recorders. Its app clip is a synthetic gradient, so it builds anywhere.",
+  "clips": {
+    "app": {
+      "kind": "app",
+      "record": "record-app.sh"
+    },
+    "demo": {
+      "kind": "terminal",
+      "tape": "terminal/demo.tape"
+    }
+  },
+  "needs": [
+    { "tool": "ffmpeg", "why": "record-app.sh (the synthetic clip)", "how": "brew install ffmpeg-full" },
+    { "tool": "vhs", "why": "the terminal clip (record-terminal.sh)", "how": "brew install vhs", "optional": true }
+  ]
+}

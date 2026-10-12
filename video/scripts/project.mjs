@@ -1,8 +1,9 @@
 // Loads a video project: script/<name>.json, its theme (video/themes/*.json plus the project's overrides) and format.
 // Library for the other scripts; run it directly to inspect or to export the look to shell scripts:
 //   node scripts/project.mjs            summary and validation
+//   node scripts/project.mjs --adapter  print the project's adapter name (empty if none)
 //   node scripts/project.mjs --env      shell variables for the ffmpeg scripts (eval "$(node scripts/project.mjs --env)")
-// Env: VIDEO_PROJECT  project name (default "launch")   VIDEO_THEME / VIDEO_FORMAT  override the project's choice
+// Env: VIDEO_PROJECT  project name (default "launch")   VIDEO_THEME / VIDEO_FORMAT / VIDEO_ADAPTER  override the project's choice
 import {readFileSync, readdirSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -30,7 +31,8 @@ export function loadProject(name = process.env.VIDEO_PROJECT || 'launch') {
   const stem = file.replace(/^.*\//, '').replace(/\.json$/, '');
   // out/<stem>.mp4 for the project's own look; a theme or format chosen on the command line is added to the name.
   const outName = [stem, process.env.VIDEO_THEME, process.env.VIDEO_FORMAT?.replace(':', 'x')].filter(Boolean).join('-');
-  return {name: project.name ?? stem, stem, outName, file, project, scenes, theme, format, fit: fitScale(format)};
+  const adapter = process.env.VIDEO_ADAPTER || project.adapter || null;
+  return {name: project.name ?? stem, stem, outName, adapter, file, project, scenes, theme, format, fit: fitScale(format)};
 }
 
 const hex = (c) => c.replace('#', '0x');
@@ -56,6 +58,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     const p = loadProject();
     if (process.argv.includes('--env')) console.log(shellEnv(p));
+    else if (process.argv.includes('--adapter')) console.log(p.adapter ?? '');
     else {
       console.log(`${p.name}: theme ${p.theme.name} (${p.theme.font.family}), ${p.format.name} ${p.format.width}x${p.format.height}`);
       console.log(p.scenes.map((s) => `  ${s.id.padEnd(10)} ${s.type}`).join('\n'));

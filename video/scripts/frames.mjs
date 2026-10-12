@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Puts each clip scene (types "device" and "terminal") of the project in its frame, at the length retime.mjs gave
 // it, and writes out/<scene id>.mp4. A scene's props:
-//   clip   "app" / "install" (raw/app.mov or raw/install.mp4 when you made them, else the committed clips in
-//          reference/), or a path relative to video/ (a sibling <name>.json may hold {"demoStartsAt": seconds})
+//   clip   a clip of the project's adapter (see scripts/adapter.mjs), or a path relative to video/
 //   frame  "macbook" (device only: frame-app.sh), "window" (frame-terminal.sh) or "none"
 //   speed  playback speed of the clip (default 1)
 // Usage: node scripts/frames.mjs        Env: VIDEO_PROJECT, VIDEO_THEME, VIDEO_FORMAT
 import {execFileSync} from 'node:child_process';
 import {existsSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
+import {loadAdapter, resolveClip as resolveClip_} from './adapter.mjs';
 import {loadProject, root, shellEnv} from './project.mjs';
 
 process.chdir(root);
@@ -19,32 +19,32 @@ for (const line of shellEnv(p).split('\n')) {
   const [, k, v] = line.match(/^export (\w+)='(.*)'$/);
   env[k] = v;
 }
-// "app" and "install" are the clips this repo records. The terminal comes in four variants (scripts/record-terminal.sh):
-// light or dark to suit the theme, landscape or portrait to suit the format; a missing variant falls back to the plain one.
+// A clip is a name from the project's adapter (adapters/<name>/adapter.json: your recording in raw/<adapter>/ first,
+// else the committed reference clip; terminal clips use the variant that suits the theme and the frame), or a path
+// relative to video/ (a sibling <name>.json may hold {"demoStartsAt": seconds}).
+const adapter = p.adapter ? loadAdapter(p.adapter) : null;
+const dark = env.TERMINAL_MODE === 'dark';
 const narrow = env.VIDEO_NARROW === '1';
-const variant = (base) => (base === 'install' ? `install${env.TERMINAL_MODE === 'dark' ? '-dark' : ''}${narrow ? '-portrait' : ''}` : base);
-const named = (name) => [`raw/${name}.${name === 'app' ? 'mov' : 'mp4'}`, `reference/${name}.mp4`];
 function resolveClip(clip) {
-  if (!['app', 'install'].includes(clip)) return clip;
-  for (const name of [variant(clip), clip]) {
-    const found = named(name).find(existsSync);
-    if (found) {
-      if (name !== variant(clip)) console.warn(`  note: no ${variant(clip)} clip yet; using ${name} (record it with scripts/record-terminal.sh)`);
-      return found;
-    }
+  const found = adapter ? resolveClip_(adapter, clip, {dark, narrow}) : null;
+  if (found) {
+    if (found.note) console.warn(`  note: ${found.note} (record it with scripts/record-terminal.sh)`);
+    return {file: found.file, meta: found.meta};
   }
+  if (existsSync(clip)) return {file: clip, meta: clip.replace(/\.[^.]+$/, '.json')};
+  return null;
 }
 
 for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   const length = timeline.scenes[scene.id].length;
-  const clip = resolveClip(scene.props.clip);
-  if (!clip || !existsSync(clip)) throw new Error(`scene "${scene.id}": no clip "${scene.props.clip}" (record it, or see reference/)`);
+  const found = resolveClip(scene.props.clip);
+  if (!found) throw new Error(`scene "${scene.id}": no clip "${scene.props.clip}"${adapter ? ` in the ${adapter.name} adapter (record it, or add it to adapters/${adapter.name}/reference/)` : ' (the project has no adapter; give a path)'}`);
+  const clip = found.file;
   const out = join('out', `${scene.id}.mp4`);
   const frame = scene.props.frame ?? (scene.type === 'device' ? 'macbook' : 'window');
   const speed = String(scene.props.speed ?? 1);
   if (frame === 'macbook') {
-    const meta = clip.replace(/\.[^.]+$/, '.json');
-    const start = existsSync(meta) ? JSON.parse(readFileSync(meta, 'utf8')).demoStartsAt ?? 0 : 0;
+    const start = found.meta && existsSync(found.meta) ? JSON.parse(readFileSync(found.meta, 'utf8')).demoStartsAt ?? 0 : 0;
     execFileSync('scripts/frame-app.sh', [clip, out, String(start), String(length)], {env: {...env, SPEED: speed}, stdio: 'inherit'});
   } else if (frame === 'window') {
     execFileSync('scripts/frame-terminal.sh', [clip, out, String(length)], {env, stdio: 'inherit'});

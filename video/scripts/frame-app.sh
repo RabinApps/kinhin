@@ -5,22 +5,17 @@
 # scale come from the project's theme and format (scripts/project.mjs --env).
 # Needs the `perspective` and `gradients` filters (stock builds have both).
 #
-# Usage: video/scripts/frame-app.sh [in] [out] [start-seconds] [length-seconds]
-#   defaults: raw/app.mov (else reference/app.mp4)  out/app-framed.mp4; start = the matching app.json's demoStartsAt;
-#   length = 14. scripts/frames.mjs passes everything for each device scene of a project.
+# Usage: video/scripts/frame-app.sh <in> [out] [start-seconds] [length-seconds]
+#   defaults: out/app-framed.mp4, start 2, length 14. scripts/frames.mjs passes everything for each device scene.
 # Env:   SPEED  playback speed of the demo (default 1)
 #        SLIDE  seconds for the slide-in (default 2.5)   TILT  starting yaw in radians (default 0.5)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -d /opt/homebrew/opt/ffmpeg-full/bin ] && export PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH"
 [ -n "${VIDEO_W:-}" ] || eval "$(node scripts/project.mjs --env)"
-# Your own recording (record.sh) wins; otherwise the committed reference clip, so the video builds without a Mac.
-if [ -n "${1:-}" ]; then IN="$1"; META=raw/app.json
-elif [ -f raw/app.mov ]; then IN=raw/app.mov; META=raw/app.json
-else IN=reference/app.mp4; META=reference/app.json; fi
+IN="${1:?usage: frame-app.sh <in> [out] [start] [length]}"
 OUT="${2:-out/app-framed.mp4}"
-jget() { [ -f "$1" ] && node -e "const j=JSON.parse(require('fs').readFileSync('$1','utf8')); const v=($2); process.stdout.write(String(v ?? ''))" 2>/dev/null || true; }
-SS="${3:-$(jget "$META" 'j.demoStartsAt')}"; SS="${SS:-2}"
+SS="${3:-2}"
 LEN="${4:-14}"
 SPEED="${SPEED:-1}"
 SLIDE="${SLIDE:-2.5}"; TILT="${TILT:-0.5}"

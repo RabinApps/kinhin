@@ -1,17 +1,19 @@
 #!/bin/bash
-# Records the kinhin window running the scripted demo fleet (macOS, Apple Silicon).
+# The kinhin adapter's app recorder: records the kinhin window running the scripted demo fleet (macOS, Apple Silicon).
+# This is the contract an adapter's `record-app.sh` meets: write <raw dir>/app.mov and app.json ({"demoStartsAt": seconds}).
 # Needs Screen Recording + Accessibility permission for your terminal.
 #
-# Usage: video/scripts/record.sh [seconds]    (default 80: the demo starts ~15 s in and plays 48 s)
+# Usage: video/adapters/kinhin/record-app.sh [seconds]    (default 80: the demo starts ~15 s in and plays 48 s)
 # Env:   KINHIN_DEMO  demo script: a built-in name (default "launch") or a repo-relative/absolute .json path
-#        VIDEO_OUT    output file (default video/raw/app.mov)
-# Output: video/raw/app.mov
+#        VIDEO_RAW_DIR  where the clip goes (default video/raw/kinhin); it writes app.mov and app.json there
+#        VIDEO_OUT      output file instead of <VIDEO_RAW_DIR>/app.mov
+# Output: video/raw/kinhin/app.mov
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../../.."   # the repository root
 
 SECONDS_TO_RECORD="${1:-80}"
 DEMO="${KINHIN_DEMO:-launch}"
-OUT="${VIDEO_OUT:-video/raw/app.mov}"
+OUT="${VIDEO_OUT:-${VIDEO_RAW_DIR:-video/raw/kinhin}/app.mov}"
 mkdir -p "$(dirname "$OUT")"
 rm -f "$OUT"   # screencapture will not overwrite
 SUPPORT_DIR="$(mktemp -d)"
@@ -19,7 +21,7 @@ SUPPORT_DIR="$(mktemp -d)"
 echo "==> building the demo app"
 swift build --product kinhin-app >/dev/null
 # The demo script starts at a fixed moment (the app idles until then), so frame-app.sh knows where in the
-# recording the story begins: raw/app.json holds that moment and when the recording started.
+# recording the story begins: app.json holds that moment and when the recording started.
 now() { python3 -c 'import time; print(f"{time.time():.3f}")'; }
 ORIGIN="$(python3 -c 'import time; print(f"{time.time() + 15:.3f}")')"
 echo "==> launching the demo app (KINHIN_DEMO=$DEMO)"
