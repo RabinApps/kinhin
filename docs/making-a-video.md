@@ -119,13 +119,14 @@ clips come from `video/reference/` (a few hundred KB, committed) unless you have
   `midnight` (deep navy), `blueprint` (white lines on blue, monospaced), `chalk` (chalk on a green board, handwritten).
   Copy one to `video/themes/<name>.json` and edit it to make your own: the font (`family`, `weight`), `colors` (`ink`,
   `muted`, `paper`, `accent`, `card`, `track`, `line`), the `background` gradient, the `device` look (desktop wallpaper,
-  lid, base, window chrome, shadow) and the `caption` style.
+  lid, base, window chrome, shadow, and `terminal`: `light` or `dark`, which terminal clip to use) and the `caption` style.
 - **`overrides`**: change a single value of the theme for this project without copying it (merged over the theme).
 - **Fonts.** Any font installed on the machine works by name. Put your own `.ttf` or `.otf` files in `video/fonts/`: the
   container installs them when a build starts. The built-in themes use Inter, DejaVu Sans Mono and Comic Neue, which the
   image has.
 - **`format`**: `16:9` (YouTube, web), `9:16` (Shorts, Reels, TikTok), `4:5` (feeds) or `1:1`. The title scenes, the
-  device frames and the captions all follow it; the terminal clip's own text stays as recorded.
+  device frames and the captions all follow it. Portrait and square frames get their own layouts: the queue stacks
+  vertically, the map becomes a funnel, the laptop and terminal window sit high and the captions go below them.
 - **`pace`**: 0.7 (slower) to 1.6 (faster) scales the voice and the pauses.
 - **Voices.** `kokoro` (default, Apache-2.0 model), `supertonic` (archived upstream; model under OpenRAIL-M) and macOS
   `say` (Premium voices sound much better). Hear them first with `node video/scripts/voice.mjs --audition`.
@@ -148,7 +149,10 @@ be; the voice can only make it longer.
 | `device` | A screen recording in a MacBook (drawn, no Apple artwork) that tilts and slides in | `clip`, `frame` (`macbook`, `window` or `none`), `speed` |
 | `terminal` | A terminal recording in a window | `clip`, `frame` (`window` or `none`) |
 
-`clip` is `app` or `install` (your `raw/` recording, else the committed one in `video/reference/`) or a path. To add a
+`clip` is `app` or `install` (your `raw/` recording, else the committed one in `video/reference/`) or a path. The terminal
+clip comes in four variants, chosen from the theme's `terminal` mode and the format: `install`, `install-dark`,
+`install-portrait` and `install-dark-portrait`. `scripts/record-terminal.sh --all` records them (the real `kinhin doctor`,
+via VHS); a missing variant falls back to the plain one. To add a
 scene type, add a file in `video/src/scenes/` (copy `statement.tsx`), a line in `video/src/titles.ts`, and the type in
 `video/shared/resolve.mjs`.
 
@@ -167,8 +171,8 @@ scene type, add a file in `video/src/scenes/` (copy `statement.tsx`), a line in 
 ### Recording the app
 
 `record.sh` starts the demo at a known moment (`KINHIN_DEMO_ORIGIN`) and writes `raw/app.json`; the `device` scene starts
-the shot there. Keep the mouse pointer off the window while it records. After `record.sh` and the vhs tape,
-`scripts/make-reference.sh` refreshes `video/reference/`.
+the shot there. Keep the mouse pointer off the window while it records. After `record.sh` and
+`record-terminal.sh`, `scripts/make-reference.sh` refreshes `video/reference/` (`--terminal` for just the terminal clips).
 
 The launch video's music is [First Light Particles](https://opengameart.org/node/182244) by Yoiyami (CC0: no credit needed,
 anyone may reuse it). Use only CC0 tracks, and do not commit tracks under licences that forbid redistributing the file on

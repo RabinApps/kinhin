@@ -18,8 +18,12 @@ W="$VIDEO_W"; H="$VIDEO_H"
 sc() { python3 -c "print(max(1, round($1 * $VIDEO_FIT)))"; }
 CLIP_W="$(ffprobe -v error -select_streams v -show_entries stream=width -of csv=p=0 "$IN")"
 CLIP_H="$(ffprobe -v error -select_streams v -show_entries stream=height -of csv=p=0 "$IN")"
-if [ "${VIDEO_NARROW:-0}" = 1 ]; then CW=$((W * 92 / 100)); else CW=$(sc 1560); fi   # content width
-CH=$((CW * CLIP_H / CLIP_W)); TB=$(sc 46); WW=$CW; WH=$((CH + TB)); R=$(sc 22)         # content, title bar, window
+TB=$(sc 46)
+if [ "${VIDEO_NARROW:-0}" = 1 ]; then
+  # As wide as the frame allows, but no taller than 74% of it: the lower part is for the captions.
+  CW=$((W * 92 / 100)); FITW=$(( (H * 74 / 100 - TB) * CLIP_W / CLIP_H )); [ "$FITW" -lt "$CW" ] && CW=$FITW
+else CW=$(sc 1560); fi   # content width
+CH=$((CW * CLIP_H / CLIP_W)); WW=$CW; WH=$((CH + TB)); R=$(sc 22)         # content, title bar, window
 M=$(sc 90)   # margin around the shadow layer so the blur can spread outside the window
 WX=$(((W - WW) / 2))
 # Portrait and square frames put the window high, leaving the lower part for the captions.

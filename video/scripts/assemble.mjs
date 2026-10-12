@@ -68,14 +68,22 @@ if (music) {
 const ass = (c) => `&H${c.slice(5, 7)}${c.slice(3, 5)}${c.slice(1, 3)}&`.toUpperCase();
 const cap = theme.caption;
 const narrowFrame = format.width / format.height < 1.2;
-// libass sizes and margins are in units of a 288-line frame. Landscape: small captions at the bottom. Portrait and
-// square: bigger captions, under the laptop on device scenes and at the bottom on terminal scenes.
-const styleFor = (type) => [
-  `Fontname=${theme.font.family}`, `Fontsize=${(narrowFrame ? cap.size * 1.15 : cap.size).toFixed(1)}`, `PrimaryColour=${ass(cap.text)}`, `OutlineColour=${ass(cap.outline)}`,
-  cap.box ? `BorderStyle=3,BackColour=${(cap.boxColor ?? '&H99000000&')},Outline=${narrowFrame ? 6 : 5}` : `BorderStyle=1,Outline=${narrowFrame ? 3 : 2}`,
-  'Shadow=0', narrowFrame && type === 'device' ? 'Alignment=8' : 'Alignment=2',
-  `MarginV=${narrowFrame ? (type === 'device' ? Math.round(0.6 * 288) : 30) : 24}`,
-].join(',');
+// libass measures sizes, outlines and margins in units of a 288-line frame, whatever the real size, so pixel values
+// are divided by `unit` (found by measuring: Fontsize 100 on a 1350-line frame is 469 px).
+// Landscape: small captions at the bottom. Portrait and square: bigger (sized by width); on device scenes just under
+// the laptop (it sits at 36% of the height), on terminal scenes at the bottom, under the window.
+const unit = format.height / 288;
+const laptopBottom = 0.36 * format.height + ((825 + 32 + 28) / 2) * look.fit;
+const styleFor = (type) => {
+  const fontPx = narrowFrame ? cap.size * (format.width / 288) * 1.15 : cap.size * unit;
+  const outlinePx = narrowFrame ? 3.5 * (format.width / 1080) : 2 * unit;
+  const marginPx = narrowFrame ? (type === 'device' ? laptopBottom + 0.04 * format.height : 0.05 * format.height) : 24 * unit;
+  return [
+    `Fontname=${theme.font.family}`, `Fontsize=${(fontPx / unit).toFixed(2)}`, `PrimaryColour=${ass(cap.text)}`, `OutlineColour=${ass(cap.outline)}`,
+    cap.box ? `BorderStyle=3,BackColour=${(cap.boxColor ?? '&H99000000&')},Outline=${((outlinePx * 2) / unit).toFixed(2)}` : `BorderStyle=1,Outline=${(outlinePx / unit).toFixed(2)}`,
+    'Shadow=0', narrowFrame && type === 'device' ? 'Alignment=6' : 'Alignment=2', `MarginV=${(marginPx / unit).toFixed(1)}`,
+  ].join(',');
+};
 // Captions go on the scenes without text of their own (the clip scenes) unless CAPTION_SCENES lists others.
 const burned = process.env.CAPTION_SCENES ? process.env.CAPTION_SCENES.split(',') : Object.entries(S).filter(([, s]) => s.kind === 'clip').map(([id]) => id);
 const stamp = (x) => {
