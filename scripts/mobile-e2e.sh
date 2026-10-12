@@ -10,7 +10,7 @@
 #   2. Re-runs `kinhin mobile init --force` on the copy and checks the generated fastlane files and
 #      CI workflow still match the committed example. That catches drift between templates and examples.
 #   3. Parses each CI workflow as YAML.
-#   4. Installs the Gemfile with Ruby 3.1+ and lists the lanes for every platform folder.
+#   4. Installs the Gemfile with Ruby 3.2+ and lists the lanes for every platform folder.
 #   5. Runs each lane's secret checks in an empty environment and expects the named error.
 #   6. Checks every action option the templates use exists in the installed fastlane.
 #   7. With --with-builds: native builds (Android debug, iOS simulator) when the tools exist.
@@ -54,13 +54,13 @@ section() { echo ""; echo "== $1"; }
 
 # MARK: - Tools
 
-# Ruby 3.1+ is required by fastlane 2.240. The macOS system Ruby (2.6) is not enough.
+# Ruby 3.2+ is required by fastlane 2.241 (the pin resolves to it). The macOS system Ruby (2.6) is not enough.
 find_ruby() {
     local candidate
     for candidate in ${RUBY_BIN:-} /opt/homebrew/opt/ruby@3.3/bin/ruby /opt/homebrew/opt/ruby@3.2/bin/ruby \
-        /opt/homebrew/opt/ruby@3.1/bin/ruby "$(command -v ruby 2>/dev/null || true)"; do
+        "$(command -v ruby 2>/dev/null || true)"; do
         [[ -n "$candidate" && -x "$candidate" ]] || continue
-        if "$candidate" -e 'exit(RUBY_VERSION >= "3.1" ? 0 : 1)' 2>/dev/null; then
+        if "$candidate" -e 'exit(Gem::Version.new(RUBY_VERSION) >= Gem::Version.new("3.2") ? 0 : 1)' 2>/dev/null; then
             echo "$candidate"
             return 0
         fi
@@ -81,7 +81,7 @@ python3 -c "import yaml" 2>/dev/null && has_yaml=1 || true
 export FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_OPT_OUT_USAGE=1 LANG=en_US.UTF-8
 
 echo "mobile-e2e: work dir $work"
-echo "mobile-e2e: ruby ${ruby_bin:-not found (need 3.1+)}; python yaml $([[ $has_yaml -eq 1 ]] && echo yes || echo no)"
+echo "mobile-e2e: ruby ${ruby_bin:-not found (need 3.2+)}; python yaml $([[ $has_yaml -eq 1 ]] && echo yes || echo no)"
 
 # MARK: - The kinhin binary
 
@@ -191,7 +191,7 @@ fi
 
 if [[ $has_ruby -eq 0 ]]; then
     section "fastlane bundles and lanes"
-    skip "bundle install and lanes (Ruby 3.1+ not found; set RUBY_BIN)"
+    skip "bundle install and lanes (Ruby 3.2+ not found; set RUBY_BIN)"
 else
     section "fastlane bundles and lanes"
     for app in flutter_app RnApp ios_native_app android_native_app; do

@@ -134,3 +134,15 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 | 9.8 | A fresh `flutter create` project: init, lanes, signed Android lane, and the iOS Release build after the documented deployment-target fix | **Done** | e2e `fresh flutter ...` steps (with `--with-builds`) |
 | 9.9 | `kinhin mobile init` notes an iOS deployment target below 15.0, with the file and the fix, and does not edit the project | **Done** | `MobileScaffoldTests.testLowIOSDeploymentTargetIsNotedWithTheFix` and the current-target case; e2e fresh-project step |
 | 9.10 | `kinhin mobile init` exits 2 for an unknown framework, a missing folder, a folder with no project, and a bare `kinhin mobile` | **Done** | e2e "kinhin mobile init reports usage errors" (always runs) |
+
+## 10. Verification against sources, pinning, Ruby, and CLI tests
+
+| # | Check | Status | How |
+| --- | --- | --- | --- |
+| 10.1 | Every action in a generated workflow is pinned to a commit SHA | **Done** | `MobileScaffoldTests.testEveryGeneratedActionIsPinnedToACommitSHA`; the examples are regenerated |
+| 10.2 | Apple and Google claims in the credentials, tutorial and reference pages match the official pages | **Done** | Sources listed at the end of `docs/mobile-credentials.md`. Corrected: team key creation (Account Holder or Admin), the Play test-track permission, the first manual upload, and the upload-key reset. |
+| 10.3 | The Ruby minimum is 3.2 | **Done (metadata)** | fastlane 2.241.0 declares `required_ruby_version >= 3.2.0`. The Ruby 3.2 runtime was not run: this Mac only has Ruby 3.3 installed. |
+| 10.4 | `kinhin mobile init` argument parsing and exit codes | **Done** | `MobileCommandTests` |
+| 10.5 | Apple Team ID location | Open | Not in Apple's help index; checked against the account page only |
+| 10.6 | Apple role that can upload builds with a team key | Open | Not stated by Apple's API page |
+| 10.7 | Play permission a service account needs for test-track uploads | Open | Google lists the permission but does not say which one a service account needs |

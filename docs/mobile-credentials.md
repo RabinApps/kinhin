@@ -29,9 +29,10 @@ The key lets fastlane upload builds without your Apple ID password.
 
 1. In App Store Connect, open **Users and Access**, then **Integrations**, then **App Store Connect API**.
 2. If the API has not been enabled for the team, the Account Holder must request access there first.
-3. Choose **Generate API Key** (a **Team** key). Give it the **App Manager** role, or **Admin**, which can also upload.
-   Team keys apply to every app in the team. Individual keys belong to one user.
-4. Download the `.p8` file. Apple offers it **once**: if you lose it, revoke the key and create another.
+3. Choose **Generate API Key** (a **Team** key). Only the Account Holder or an Admin can create a team key, and each key is
+   assigned a role. Apple's API page does not list which roles can upload builds, so confirm the key works with one upload
+   before you rely on it. Team keys apply to every app in the team. Individual keys belong to one user.
+4. Download the `.p8` file. Apple's page says API keys "can only be downloaded once": if you lose it, revoke the key and create another.
 5. Copy the **Key ID** into `ASC_KEY_ID`, and the **Issuer ID** shown at the top of the page into `ASC_ISSUER_ID`.
 6. Store the contents of the `.p8` file as `ASC_KEY_P8`. The workflow writes it to a temporary file during the job and
    deletes it afterwards. On macOS, `pbcopy < AuthKey_XXXX.p8` copies it.
@@ -43,16 +44,17 @@ Revoke a key you no longer use. Anyone with the `.p8` and the IDs can act with i
 `match` keeps signing certificates and provisioning profiles in a git repository, encrypted with `MATCH_PASSWORD`.
 
 1. Create an empty **private** repository for it, for example `my-org/certificates`.
-2. Set `MATCH_GIT_URL` to its SSH or HTTPS URL. The CI runner needs read access to it. For a private repository that is
-   a deploy key or a token in the URL. A token in a URL is visible to anyone with access to the job logs, so prefer a
-   deploy key.
+2. Set `MATCH_GIT_URL` to its SSH or HTTPS URL. kinhin's `Matchfile` reads this variable; `match` itself takes the URL as
+   `git_url`. The CI runner needs read access to the repository. `match` can authenticate with its `git_private_key`,
+   `git_basic_authorization` or `git_bearer_authorization` options, which the templates do not set yet.
 3. Choose `MATCH_PASSWORD`, and keep a copy somewhere safe. Without it the repository cannot be decrypted.
 4. Create the certificates once from your own Mac: `bundle exec fastlane match appstore` (not readonly). After that the
    CI job runs `match` readonly and only reads them.
 
 ## Apple team and bundle ID
 
-- `APPLE_TEAM_ID` is the 10-character team ID in the Apple Developer account, under **Membership details**.
+- `APPLE_TEAM_ID` is the 10-character team ID. It is in the **Membership details** section of your Apple Developer account page
+  (developer.apple.com/account). Apple's help index does not document this location, so check it against your own account.
 - `APP_IDENTIFIER` is the bundle ID, which must match the app in App Store Connect. Create the app there first, with the
   same bundle ID.
 
@@ -63,7 +65,9 @@ Play uploads use a service account that the Play Developer API trusts.
 1. In Google Cloud, create a project, or use an existing one, and enable the **Google Play Android Developer API**.
 2. Create a service account, and create a **JSON key** for it. Keep the file private.
 3. In Play Console, open **Users and permissions**, invite the service account's email address, and grant it release
-   permissions for your app. Upload to the internal track needs the release permission.
+   permissions for your app. Google lists **Release apps to testing tracks** as the permission for testing-track releases.
+   Its permissions page does not say which permission a service account needs, so confirm the upload works on your first try.
+   The first upload of a new app must be done by hand in Play Console, as the fastlane supply docs say.
 4. Store the whole JSON file as `PLAY_SERVICE_ACCOUNT_JSON`.
 
 The first release of a new app is usually uploaded by hand in Play Console, because the API does not always accept the
@@ -81,8 +85,8 @@ keytool -genkeypair -v -keystore upload.keystore -alias upload -keyalg RSA -keys
 - `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_PASSWORD` are the passwords you entered.
 - `ANDROID_KEYSTORE_BASE64` is the keystore, base64-encoded: `base64 -i upload.keystore | pbcopy` on macOS.
 
-Back up the keystore and its passwords. If you lose the upload key, Play Console can reset it, but that is a manual
-process.
+Back up the keystore and its passwords. If you lose the upload key, Google says you are not locked out. Request a reset in
+Play Console, in the **Upload key certificate** section, after exporting the new key's certificate in PEM format.
 
 ## Checking a secret before a run
 
@@ -90,3 +94,24 @@ A lane names the missing variables and stops before any store call. For example,
 `ASC_KEY_ID` fails with `Missing environment variables: ASC_KEY_ID, ...`. A variable can be set but still wrong. Those
 show up later, as an authentication or signing error, which the [troubleshooting](mobile-fastlane-troubleshooting.md)
 page covers.
+
+## Sources
+
+Checked against these pages. Where a page does not settle a point, the guide says so.
+
+- Apple, App Store Connect API: <https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api/>
+  (who requests access, which roles create team and individual keys, and that a private key can be downloaded only once).
+- fastlane, `match`: <https://docs.fastlane.tools/actions/match/> (`MATCH_PASSWORD`, `readonly`, the CI recommendation, and
+  `match appstore`).
+- fastlane, `setup_ci`: <https://docs.fastlane.tools/actions/setup_ci/> (the temporary keychain and readonly on CI; iOS and macOS).
+- fastlane, `supply`: <https://docs.fastlane.tools/actions/supply/> (`json_key_data`, and that a new app's first build is
+  uploaded manually).
+- Google, Play Developer API: <https://developers.google.com/android-publisher/getting_started> (service account, enabling
+  the API, and inviting the service account in Play Console).
+- Google, Play Console permissions: <https://support.google.com/googleplay/android-developer/answer/9844686> (the
+  **Release apps to testing tracks** permission).
+- Google, Play App Signing upload key reset: <https://support.google.com/googleplay/android-developer/answer/9842756>.
+- fastlane 2.241.0 gem metadata: `required_ruby_version >= 3.2.0`, read with `gem spec fastlane -v 2.241.0`.
+
+Not settled by these pages: the Apple role that can upload builds, the Team ID location (Apple's help index does not list it),
+and the Play permission a service account needs for test-track uploads. Check each one in the console before you rely on it.

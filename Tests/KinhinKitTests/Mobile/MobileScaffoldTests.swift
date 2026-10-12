@@ -104,7 +104,7 @@ final class MobileScaffoldTests: XCTestCase {
         let workflow = try text(dir, ".github/workflows/mobile-release.yml")
         XCTAssertTrue(workflow.contains("\n  ios:\n"))
         XCTAssertTrue(workflow.contains("\n  android:\n"))
-        XCTAssertTrue(workflow.contains("ruby/setup-ruby@v1"))
+        XCTAssertTrue(workflow.contains("ruby/setup-ruby@"))
         XCTAssertFalse(workflow.contains("__DIR__"))
         XCTAssertFalse(workflow.contains("__PREBUILD__"))
     }
@@ -113,7 +113,7 @@ final class MobileScaffoldTests: XCTestCase {
         let dir = try flutter()
         _ = try scaffold(dir)
         let workflow = try text(dir, ".github/workflows/mobile-release.yml")
-        let sdk = try XCTUnwrap(workflow.range(of: "subosito/flutter-action@v2"))
+        let sdk = try XCTUnwrap(workflow.range(of: "subosito/flutter-action@"))
         let pods = try XCTUnwrap(workflow.range(of: "Install CocoaPods"))
         XCTAssertLessThan(sdk.lowerBound, pods.lowerBound, "the Flutter SDK must be installed before pod install runs")
         XCTAssertTrue(workflow.contains("flutter build ios --config-only --release"))
@@ -127,7 +127,7 @@ final class MobileScaffoldTests: XCTestCase {
         let npm = try XCTUnwrap(workflow.range(of: "npm install"))
         let pods = try XCTUnwrap(workflow.range(of: "Install CocoaPods"))
         XCTAssertLessThan(npm.lowerBound, pods.lowerBound)
-        XCTAssertTrue(workflow.contains("actions/setup-node@v4"))
+        XCTAssertTrue(workflow.contains("actions/setup-node@"))
     }
 
     func testMonorepoAppGetsWorkflowPathsFromTheRepositoryRoot() throws {
@@ -181,6 +181,31 @@ final class MobileScaffoldTests: XCTestCase {
             to: dir.appendingPathComponent("ios/Runner.xcodeproj/project.pbxproj"), atomically: true, encoding: .utf8)
         let report = try scaffold(dir)
         XCTAssertFalse(report.lines.contains { $0.contains("deployment target") })
+    }
+
+    /// Every action a generated workflow uses is pinned to a 40-character commit SHA, with the release in a comment,
+    /// the same policy as ci.yml. Dependabot updates the pins.
+    func testEveryGeneratedActionIsPinnedToACommitSHA() throws {
+        let pinned = try NSRegularExpression(
+            pattern: #"uses: [^@\s]+@[0-9a-f]{40} # v\S+$"#, options: [.anchorsMatchLines])
+        let frameworks: [(String, MobileFramework)] = [
+            ("flutter", .flutter), ("rn", .reactNative), ("native", .native),
+        ]
+        for (name, framework) in frameworks {
+            let dir = try folder(
+                "pins-\(name)",
+                ["pubspec.yaml": "name: x\n", "package.json": "{\"dependencies\":{\"react-native\":\"0\"}}"],
+                dirs: ["ios", "android"])
+            _ = try scaffold(dir, framework)
+            let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+            let uses = workflow.components(separatedBy: "\n").filter { $0.contains("uses:") }
+            XCTAssertFalse(uses.isEmpty, name)
+            for line in uses {
+                XCTAssertNotNil(
+                    pinned.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+                    "\(name): unpinned action: \(line)")
+            }
+        }
     }
 
     func testNativeProjectGetsNoFrameworkSteps() throws {

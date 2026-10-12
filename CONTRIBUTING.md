@@ -108,7 +108,7 @@ and `scripts/e2e.sh --local` before changing forge registration, runtimes, the e
 if the two drift. `swift test` covers the scaffolding.
 
 `scripts/mobile-e2e.sh` checks the whole flow on a clean copy of the committed `examples/`. Without flags it needs only Ruby
-3.1+ (set `RUBY_BIN` if it is not on the usual path). `--with-builds` also needs JDK 17, an Android
+3.2+ (set `RUBY_BIN` if it is not on the usual path). `--with-builds` also needs JDK 17, an Android
 SDK (`ANDROID_HOME`), Xcode, and for the React Native and Expo steps `npm` and CocoaPods; it is slower, since it builds each example. Nothing
 is uploaded and no store credentials are read. Regenerate the examples with the CLI after a template change
 (`kinhin mobile init --force examples/<app>`), or the drift stage fails. The reference is

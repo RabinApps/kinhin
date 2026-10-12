@@ -7,9 +7,9 @@ lane by hand, then run it from CI. It takes about an hour the first time, most o
 
 ## What you need
 
-- A Mac with kinhin installed (`kinhin` on your PATH), Xcode, and Ruby 3.1 or newer. The macOS system Ruby (2.6) is too
+- A Mac with kinhin installed (`kinhin` on your PATH), Xcode, and Ruby 3.2 or newer. The macOS system Ruby (2.6) is too
   old. Install Ruby 3.3 with Homebrew (`brew install ruby@3.3`) or rbenv.
-- For iOS: an Apple Developer Program membership, and the **Account Holder** or **Admin** role in App Store Connect.
+- For iOS: an Apple Developer Program membership. The **Account Holder** requests API access, and an **Account Holder** or **Admin** creates the team key.
 - For Android: a Google Play Console developer account, and a Google Cloud project you can create a service account in.
 - A repository for the app, on GitHub, Gitea, Forgejo or GitLab, with a runner that has the `kinhin-xcode` label.
 
@@ -45,7 +45,7 @@ scaffolded files before going on.
 
 App Store Connect uses an API key instead of your Apple ID password. In App Store Connect, open **Users and Access**,
 then **Integrations**, then **App Store Connect API**, and request access if you have not yet (only the Account Holder can).
-Create a **Team** key with the **App Manager** role (or **Admin**), and download the `.p8` file. Apple lets you download it **once**.
+Create a **Team** key, and download the `.p8` file. Apple's page says API keys "can only be downloaded once". Apple's page does not list which roles can upload builds, so confirm the key works with a first upload.
 
 Note the **Key ID** and the **Issuer ID**. You will store the `.p8` contents as a secret in step 4. The details are in
 [credentials](mobile-credentials.md#app-store-connect-api-key).
@@ -66,7 +66,7 @@ MATCH_GIT_URL=git@github.com:my-org/certificates.git MATCH_PASSWORD='your passph
   bundle exec fastlane match appstore
 ```
 
-`match` signs in to Apple with the API key or your Apple ID, and asks for the passphrase. Afterwards the repository holds the encrypted certificates. CI runs `match`
+`match` asks for the passphrase, unless `MATCH_PASSWORD` is set, which avoids the prompt. Afterwards the repository holds the encrypted certificates. CI runs `match`
 readonly, so it never creates or changes them.
 
 ## 4. Add the secrets
@@ -88,12 +88,12 @@ keytool -genkeypair -v -keystore upload.keystore -alias upload -keyalg RSA -keys
 
 2. Store it base64-encoded, as `ANDROID_KEYSTORE_BASE64`. On macOS: `base64 -i upload.keystore | pbcopy`.
 3. Create a Google Cloud service account, enable the Google Play Developer API for it, and invite it in Play Console with
-   release permissions for your app. Store its JSON key as `PLAY_SERVICE_ACCOUNT_JSON`.
+   **Release apps to testing tracks** permission for your app. Store its JSON key as `PLAY_SERVICE_ACCOUNT_JSON`.
 
 The full steps are in [credentials](mobile-credentials.md#google-play-service-account).
 
 The app must exist in Play Console before the first upload. Create it there, with the package name you put in
-`ANDROID_PACKAGE_NAME`. The first upload is usually made by hand in Play Console, and the lanes can take over after that.
+`ANDROID_PACKAGE_NAME`. The first upload must be made by hand in Play Console, as the fastlane supply docs say. The lanes can take over after that.
 
 ## 6. Run a beta locally first
 

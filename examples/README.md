@@ -30,17 +30,28 @@ For Flutter and React Native, run this from `ios/` or `android/`. For the native
 
 ## What was verified
 
-- The `MobileScaffoldTests` Swift tests cover detection, scaffolding, keep and force, dry run, and the error paths.
-- A lane with no secrets stops with a message naming the missing variables (`fastlane ios beta`, `fastlane android beta`).
+`scripts/mobile-e2e.sh` checks these on a clean copy of the committed examples. Run it without flags for the quick checks,
+and with `--with-builds` for the builds. It needs Ruby 3.2+ (the fastlane pin resolves to 2.241, which requires it).
 
-- `kinhin mobile init` scaffolds all five apps. The CI workflow gets only the jobs that match the project, and
-  Expo gets `eas.json` only.
-- `bundle exec fastlane lanes` lists the lanes for every platform, using fastlane 2.241.0 on Ruby 3.3.
-- `ios_native_app` builds for the iOS simulator (`xcodebuild ... CODE_SIGNING_ALLOWED=NO`).
-- `android_native_app` builds the debug APK with Gradle 8.14 on Java 17. Gradle 8.14 does not run on Java 26.
+- Each example's workflows and fastlane files match what `kinhin mobile init` generates now (no drift).
+- Each workflow parses as YAML and passes actionlint, with the `kinhin-xcode` runner label as the only exception.
+- `bundle exec fastlane lanes` lists the lanes for every platform folder, and every fastlane option the templates use exists
+  in the installed fastlane.
+- A lane with no secrets stops with a message naming the missing variables, in an empty environment.
+- The React Native install step works for yarn, pnpm, npm and no lockfile.
+- With `--with-builds`:
+  - `ios_native_app` builds for the simulator, and `android_native_app` builds a debug APK on Java 17.
+  - `flutter_app` builds a Release device bundle for iOS with signing off, and its Android bundle through the lane is signed
+    and passes `jarsigner`.
+  - `RnApp` installs pods, builds for the simulator, and its Android bundle through the lane is signed.
+  - A fresh `flutter create` project is scaffolded, the iOS deployment-target note appears, and its Release build passes after
+    the documented fix.
+  - The Expo route (`expo prebuild`, then the React Native template) builds the signed Android bundle through the lane and a
+    Release device build for iOS.
+- `kinhin mobile init` exits 2 for an unknown framework, a missing folder, a folder with no project, and a bare `kinhin mobile`.
 
-Not verified: running the lanes end to end. That needs App Store Connect, Play and match credentials, and the lanes
-upload to real stores. The React Native and Flutter iOS builds also need CocoaPods and signing, so they were not built.
+Not verified: any store upload, `match` with real certificates, and the workflows running on a `kinhin-xcode` runner. Those
+need the owner's accounts and a runner. The `eas.json` for Expo is not checked against EAS Build, which needs a linked project.
 
 ## Regenerate
 

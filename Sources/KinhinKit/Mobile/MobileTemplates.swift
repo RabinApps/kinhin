@@ -132,12 +132,12 @@ enum MobileTemplates {
               run:
                 working-directory: __DIR__
             steps:
-              - uses: actions/checkout@v4
-              - uses: ruby/setup-ruby@v1
+              - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+              - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
                 with:
-                  # fastlane needs Ruby 3.1+; the macOS system Ruby is 2.6. Bundler cache is off because Gemfile.lock lives in the project root.
+                  # fastlane needs Ruby 3.2+; the macOS system Ruby is 2.6. Bundler cache is off because Gemfile.lock lives in the project root.
                   ruby-version: "3.3"
-              - uses: actions/setup-java@v4
+              - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
                 with:
                   distribution: temurin
                   java-version: "17"
@@ -193,10 +193,10 @@ enum MobileTemplates {
               run:
                 working-directory: __DIR__
             steps:
-              - uses: actions/checkout@v4
-              - uses: ruby/setup-ruby@v1
+              - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+              - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
                 with:
-                  # fastlane needs Ruby 3.1+; the macOS system Ruby is 2.6. Bundler cache is off because Gemfile.lock lives in the project root.
+                  # fastlane needs Ruby 3.2+; the macOS system Ruby is 2.6. Bundler cache is off because Gemfile.lock lives in the project root.
                   ruby-version: "3.3"
         __PREBUILD__
               - name: Write App Store Connect API key
@@ -227,7 +227,7 @@ enum MobileTemplates {
 
     private static let githubPrebuildFlutterAndroidYml = #"""
               - name: Flutter SDK
-                uses: subosito/flutter-action@v2
+                uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
                 with:
                   channel: stable
               - name: Flutter packages (writes android/local.properties)
@@ -237,7 +237,7 @@ enum MobileTemplates {
 
     private static let githubPrebuildFlutterIosYml = #"""
               - name: Flutter SDK
-                uses: subosito/flutter-action@v2
+                uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
                 with:
                   channel: stable
               - name: Flutter packages and iOS config
@@ -249,7 +249,7 @@ enum MobileTemplates {
 
     private static let githubPrebuildReactNativeAndroidYml = #"""
               - name: Node.js
-                uses: actions/setup-node@v4
+                uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
                 with:
                   node-version: "22"
               - name: JavaScript dependencies
@@ -272,7 +272,7 @@ enum MobileTemplates {
 
     private static let githubPrebuildReactNativeIosYml = #"""
               - name: Node.js
-                uses: actions/setup-node@v4
+                uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
                 with:
                   node-version: "22"
               - name: JavaScript dependencies

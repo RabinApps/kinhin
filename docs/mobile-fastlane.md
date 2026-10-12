@@ -68,15 +68,15 @@ Nothing secret is committed. Create these as repository secrets, and the workflo
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | Upload keystore, passed to Gradle as `android.injected.signing.*` |
 | `ANDROID_PACKAGE_NAME` | Play package name |
 
-Create the App Store Connect API key once: Account Holder or Admin requests API access under **Integrations**, then creates
-a team key. You can download the `.p8` once only. Team keys cover all apps and cannot be limited per app.
+Create the App Store Connect API key once: the Account Holder requests API access under **Integrations**, then an Account
+Holder or Admin creates a team key. You can download the `.p8` once only. Team keys cover all apps and cannot be limited per app.
 
 ## Runner
 
 The workflow asks for `runs-on: [self-hosted, kinhin-xcode]`, the Xcode image label. If your pool uses another label,
 change it in `.github/workflows/mobile-release.yml`. kinhin does not store any of these secrets.
 
-**Ruby.** fastlane 2.240 needs Ruby 3.1 or newer. The macOS system Ruby is 2.6, so the workflow runs `ruby/setup-ruby` with Ruby 3.3 before `bundle install`. Locally, use the same version (for example `rbenv` or Homebrew's `ruby@3.3`).
+**Ruby.** fastlane 2.241, which the `~> 2.240` pin resolves to, needs Ruby 3.2 or newer. The macOS system Ruby is 2.6, so the workflow runs `ruby/setup-ruby` with Ruby 3.3 before `bundle install`. Locally, use the same version (for example `rbenv` or Homebrew's `ruby@3.3`).
 
 ## Framework notes
 
@@ -151,7 +151,7 @@ Two checks cover the integration:
 - `scripts/mobile-e2e.sh` runs against a clean copy of the committed examples. It checks the templates still generate
   the committed examples, runs `bundle install` and lists the lanes, checks the secret errors in an empty environment,
   lints the generated workflows with actionlint, and confirms every fastlane option the templates use exists.
-  `--with-builds` adds the native, Flutter and React Native builds and the signed-bundle check. It needs Ruby 3.1+ (set
+  `--with-builds` adds the native, Flutter and React Native builds and the signed-bundle check. It needs Ruby 3.2+ (set
   `RUBY_BIN` if it is not on the usual path).
 
 The e2e script does not upload anything and does not read credentials. The store and runner steps still need a real
@@ -160,7 +160,7 @@ project. The checklist in `docs/plans/mobile-fastlane-test-checklist.md` lists w
 Run this checklist on a fixture project before you trust a release:
 
 1. `kinhin mobile init --dry-run /path/to/app` lists what would be written.
-2. `bundle install` succeeds with Ruby 3.1 or newer.
+2. `bundle install` succeeds with Ruby 3.2 or newer.
 3. `bundle exec fastlane lanes` lists the lanes, run from each platform's folder (see Quick start).
 4. Trigger `mobile-release` with `lane: beta` against a test app and confirm the TestFlight or internal track build.
 5. Re-run `kinhin mobile init` and confirm existing files are kept.

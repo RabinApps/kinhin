@@ -23,7 +23,7 @@ The project's `Gemfile` exists but is not readable by your user. Fix its permiss
 
 ### `bundler could not find compatible versions for gem "ruby"`
 
-fastlane 2.240 needs Ruby 3.1 or newer. The macOS system Ruby is 2.6, so `bundle install` fails with that message. Use
+fastlane 2.241, which the `~> 2.240` pin resolves to, needs Ruby 3.2 or newer. The macOS system Ruby is 2.6, so `bundle install` fails with that message. Use
 Ruby 3.3, for example from Homebrew (`brew install ruby@3.3`), and run `bundle install` from a shell where that Ruby is first
 on your PATH. CI sets it up with `ruby/setup-ruby`.
 
@@ -103,8 +103,8 @@ macOS machine with Xcode.
 
 ### `Upload fails with 403` (Google Play)
 
-The service account has no release permission for this app. Grant it release access in Play Console under **Users and
-permissions**. A brand-new app may also need its first release uploaded by hand.
+The service account lacks the permission for this app. Grant it **Release apps to testing tracks** in Play Console under
+**Users and permissions**. A brand-new app may also need its first release uploaded by hand.
 
 ### `The bundle is unsigned` or `jar is unsigned`
 
