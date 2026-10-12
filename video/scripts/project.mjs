@@ -28,11 +28,13 @@ export function loadProject(name = process.env.VIDEO_PROJECT || 'launch') {
   const theme = resolveTheme(loadThemes(), themeName, project.overrides);
   const format = resolveFormat(formatName);
   const scenes = project.scenes.map((s) => ({...s, ...SCENE_TYPES[s.type], props: s.props ?? {}, minLength: s.minLength ?? SCENE_TYPES[s.type].minLength}));
-  const stem = file.replace(/^.*\//, '').replace(/\.json$/, '');
+  // The project's name relative to video/script/ ("launch", "examples/scene-types"); `slug` is safe in file names.
+  const stem = file.startsWith(join(root, 'script') + '/') ? file.slice(join(root, 'script').length + 1).replace(/\.json$/, '') : file.replace(/^.*\//, '').replace(/\.json$/, '');
+  const slug = stem.replace(/\//g, '-');
   // out/<stem>.mp4 for the project's own look; a theme or format chosen on the command line is added to the name.
-  const outName = [stem, process.env.VIDEO_THEME, process.env.VIDEO_FORMAT?.replace(':', 'x')].filter(Boolean).join('-');
+  const outName = [slug, process.env.VIDEO_THEME, process.env.VIDEO_FORMAT?.replace(':', 'x')].filter(Boolean).join('-');
   const adapter = process.env.VIDEO_ADAPTER || project.adapter || null;
-  return {name: project.name ?? stem, stem, outName, adapter, file, project, scenes, theme, format, fit: fitScale(format)};
+  return {name: project.name ?? stem, stem, slug, outName, adapter, file, project, scenes, theme, format, fit: fitScale(format)};
 }
 
 const hex = (c) => c.replace('#', '0x');

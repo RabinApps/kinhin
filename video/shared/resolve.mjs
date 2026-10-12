@@ -9,13 +9,19 @@ export const FORMATS = {
 };
 
 // The scene types and how long each one's animation lasts at least (seconds) when a scene gives no `minLength`.
+// `designWidth` is how wide a canvas scene's content is in narrow (portrait and square) frames, in design pixels: the
+// scene is scaled so that width fills the frame.
 export const SCENE_TYPES = {
-  title: {kind: 'canvas', minLength: 4.2},
-  statement: {kind: 'canvas', minLength: 3},
-  queue: {kind: 'canvas', minLength: 7.9},
-  parallel: {kind: 'canvas', minLength: 4.6},
-  map: {kind: 'canvas', minLength: 6},
-  outro: {kind: 'canvas', minLength: 5.8},
+  title: {kind: 'canvas', minLength: 4.2, designWidth: 1100},
+  statement: {kind: 'canvas', minLength: 3, designWidth: 1500},
+  queue: {kind: 'canvas', minLength: 7.9, designWidth: 1100},
+  parallel: {kind: 'canvas', minLength: 4.6, designWidth: 1350},
+  map: {kind: 'canvas', minLength: 6, designWidth: 1700},
+  outro: {kind: 'canvas', minLength: 5.8, designWidth: 1300},
+  stats: {kind: 'canvas', minLength: 4.5, designWidth: 1100},
+  steps: {kind: 'canvas', minLength: 5, designWidth: 1560},
+  code: {kind: 'canvas', minLength: 6, designWidth: 1640},
+  compare: {kind: 'canvas', minLength: 6, designWidth: 1560},
   device: {kind: 'clip', minLength: 0},
   terminal: {kind: 'clip', minLength: 0},
 };
@@ -51,10 +57,11 @@ export function resolveFormat(name = '16:9') {
 
 /**
  * Scale from the 1920x1080 design space to a format's frame. Landscape frames fit the whole design; narrow frames
- * (portrait and square) fit its central 1700 px by width, so the content fills the frame instead of floating in it.
+ * (portrait and square) fit `designWidth` (default 1700: the widest content) by width, so the content fills the frame
+ * instead of floating in it. The frame scripts (laptop, terminal window) use the default.
  */
-export const fitScale = (format) =>
-  !isNarrow(format) ? Math.min(format.width / 1920, format.height / 1080) : format.width / 1700;
+export const fitScale = (format, designWidth = 1700) =>
+  !isNarrow(format) ? Math.min(format.width / 1920, format.height / 1080) : format.width / designWidth;
 
 /** True for portrait and square frames, which get their own layouts. */
 export const isNarrow = (format) => format.width / format.height < 1.2;

@@ -5,7 +5,7 @@ import {timing} from './timing';
 // (scripts/render-titles.mjs) starts the editor once per scene with VITE_VIDEO_PROJECT, VITE_VIDEO_THEME,
 // VITE_VIDEO_FORMAT and VITE_SCENE_ID set.
 const themeFiles = import.meta.glob('../themes/*.json', {eager: true, import: 'default'}) as Record<string, any>;
-const projectFiles = import.meta.glob('../script/*.json', {eager: true, import: 'default'}) as Record<string, any>;
+const projectFiles = import.meta.glob('../script/**/*.json', {eager: true, import: 'default'}) as Record<string, any>;
 const env = import.meta.env;
 
 const themes = Object.fromEntries(Object.entries(themeFiles).map(([path, t]) => [path.replace(/^.*\/(.*)\.json$/, '$1'), t]));
@@ -21,10 +21,11 @@ if (!scene) throw new Error(`the project has no scene "${sceneId}"`);
 
 export const theme: Theme = resolveTheme(themes, env.VITE_VIDEO_THEME || project.theme, project.overrides);
 export const format = resolveFormat(env.VITE_VIDEO_FORMAT || project.format);
-export const fit = fitScale(format);
+export const sceneType: string = scene.type;
+/** Scale from the 1920x1080 design space; in narrow frames each scene type fits its own natural width. */
+export const fit = fitScale(format, SCENE_TYPES[scene.type as keyof typeof SCENE_TYPES].designWidth);
 /** Portrait and square frames: scenes lay out vertically (see queue.tsx and map.tsx). */
 export const narrow = isNarrow(format);
-export const sceneType: string = scene.type;
 export const props: any = scene.props ?? {};
 /** How long this scene lasts, in seconds: the voice-over's length (src/timing.ts), never less than the animation. */
 export const length: number = (timing as Record<string, number>)[sceneId] ?? scene.minLength ?? SCENE_TYPES[scene.type as keyof typeof SCENE_TYPES].minLength;

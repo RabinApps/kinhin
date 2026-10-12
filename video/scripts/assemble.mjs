@@ -7,8 +7,9 @@
 //   raw/music.{mp3,m4a,wav,flac,ogg}   optional
 // Outputs (out/): <project>.mp4, .webm, -poster.png, -hero.gif, and <project>.srt (every caption, for a player)
 // Captions are burned in only for the scenes without text of their own (CAPTION_SCENES, default app,install);
-// the title scenes already show their words. captions/launch.srt has every cue for the site player.
-// Usage: node scripts/assemble.mjs      Env: NO_CAPTIONS=1, CAPTION_SCENES, MUSIC_VOLUME (default 0.35, before ducking)
+// the title scenes already show their words. out/<project>.srt has every cue for a site player.
+// Usage: node scripts/assemble.mjs      Env: NO_CAPTIONS=1, CAPTION_SCENES, MUSIC_VOLUME (default 0.35, before ducking),
+//        VIDEO_FAST=1 (a preview: quicker encode, no WebM)
 import {execFileSync} from 'node:child_process';
 import {existsSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {loadProject, root} from './project.mjs';
@@ -20,6 +21,7 @@ const look = loadProject();
 const {format, theme, outName} = look;
 const ff = (args) => execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', ...args], {stdio: 'inherit'});
 const FADE = 0.25;
+const FAST = !!process.env.VIDEO_FAST;
 
 // 1. One normalised clip per scene (format-sized, 30 fps), cut or held to the scene's length, faded at both ends.
 const mix = (a, b) => '0x' + [1, 3, 5].map((i) => Math.round((parseInt(a.slice(i, i + 2), 16) + parseInt(b.slice(i, i + 2), 16)) / 2).toString(16).padStart(2, '0')).join('');
@@ -111,14 +113,14 @@ const filters = groups.map((g, i) => {
 });
 const vf = process.env.NO_CAPTIONS || !filters.length ? 'null' : filters.join(',');
 const video = `out/${outName}.mp4`;
-ff(['-i', 'out/picture.mp4', '-i', audio, '-vf', vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-crf', '18', '-pix_fmt', 'yuv420p',
+ff(['-i', 'out/picture.mp4', '-i', audio, '-vf', vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-crf', FAST ? '28' : '18', '-preset', FAST ? 'veryfast' : 'medium', '-pix_fmt', 'yuv420p',
   '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', video]);
-ff(['-i', video, '-c:v', 'libvpx-vp9', '-crf', '33', '-b:v', '0', '-c:a', 'libopus', `out/${outName}.webm`]);
+if (!FAST) ff(['-i', video, '-c:v', 'libvpx-vp9', '-crf', '33', '-b:v', '0', '-c:a', 'libopus', `out/${outName}.webm`]);
 // Poster and hero GIF come from the first clip scene (the product on screen), else the middle of the video.
 const [heroId] = Object.entries(S).find(([, s]) => s.kind === 'clip') ?? [];
 const heroAt = heroId ? S[heroId].start + Math.min(8, S[heroId].length - 2) : total / 2;
 ff(['-ss', String(heroAt), '-i', video, '-frames:v', '1', '-vf', `scale=${Math.min(1200, format.width)}:-2`, `out/${outName}-poster.png`]);
 ff(['-ss', String(heroId ? S[heroId].start : 0), '-t', '10', '-i', video, '-vf', 'fps=10,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse', `out/${outName}-hero.gif`]);
-writeFileSync(`out/${outName}.srt`, readFileSync(`captions/${tl.project}.srt`));
+writeFileSync(`out/${outName}.srt`, readFileSync(`out/${tl.project}.captions.srt`));
 for (const f of [...parts.map((p) => p.out), 'out/parts.txt', ...groups.map((_, i) => `out/burned-${i}.srt`), 'out/picture.mp4', 'out/voice.wav', 'out/audio.wav']) rmSync(f, {force: true});
 console.log(`wrote ${video} (${format.name} ${format.width}x${format.height}, ${theme.name}, ${total.toFixed(1)}s${music ? ', with music' : ', no music'}), .webm, -poster.png, -hero.gif, .srt`);

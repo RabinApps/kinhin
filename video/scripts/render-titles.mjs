@@ -4,22 +4,41 @@
 // Chromium, and moves the result to raw/scenes/<project>/<id>.mp4. The frame size follows the project's format.
 // Runs the same on a laptop and in the container (scripts/build.sh --container).
 //
+// A scene is re-rendered only when something that shapes it changed: its type and props, its length, the theme, the
+// format, or the scene sources (raw/scenes/<project>/.cache.json holds the keys). RENDER_FORCE=1 renders everything.
+//
 // Usage: node scripts/render-titles.mjs [scene ids...]      (default: every canvas scene)
 // Env:   VIDEO_PROJECT, VIDEO_THEME, VIDEO_FORMAT  see scripts/project.mjs
 //        CHROMIUM_PATH  Chromium/Chrome binary to use instead of Playwright's own download
 //        RENDER_TIMEOUT_S  give up after this many seconds per scene (default 600)
+import {createHash} from 'node:crypto';
 import {spawn} from 'node:child_process';
-import {copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync} from 'node:fs';
+import {copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {chromium} from 'playwright-core';
 import {loadProject, root} from './project.mjs';
 
 process.chdir(root);
-const {scenes, stem, format} = loadProject();
+const {scenes, stem, slug, format, theme} = loadProject();
 const wanted = process.argv.slice(2);
 const targets = scenes.filter((s) => s.kind === 'canvas' && (!wanted.length || wanted.includes(s.id)));
 const timeout = Number(process.env.RENDER_TIMEOUT_S ?? 600) * 1000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// What a scene's picture depends on, hashed: the sources (everything under src/ except the generated timing.ts, which
+// holds every scene's length, and shared/), the scene itself and its own length, the theme and the format.
+const walk = (dir) => readdirSync(dir, {withFileTypes: true}).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]));
+const sourceHash = createHash('sha256');
+for (const f of [...walk('src'), ...walk('shared')].sort()) if (!f.endsWith('src/timing.ts') && !f.endsWith('.meta')) sourceHash.update(f).update(readFileSync(f));
+let timing = {};
+try {
+  timing = JSON.parse(readFileSync('out/timeline.json', 'utf8')); // missing when scenes are rendered before a retime: minLength then
+} catch {}
+const lengthOf = (scene) => timing.scenes?.[scene.id]?.length ?? scene.minLength;
+const keyOf = (scene) =>
+  createHash('sha256').update(sourceHash.copy().digest('hex')).update(JSON.stringify({type: scene.type, props: scene.props, length: lengthOf(scene), theme, format})).digest('hex').slice(0, 20);
+const cacheFile = join('raw/scenes', slug, '.cache.json');
+const cache = existsSync(cacheFile) ? JSON.parse(readFileSync(cacheFile, 'utf8')) : {};
 
 // The editor's project file holds the frame size and exporter; make them match the format and the ffmpeg exporter.
 const metaPath = 'src/titles.meta';
@@ -61,8 +80,8 @@ async function render(scene, browser, port) {
     await page.close();
     for (let i = 0; i < 20 && !existsSync(produced); i++) await sleep(500);
     if (!existsSync(produced) || statSync(produced).size === 0) throw new Error(`no ${produced} was written`);
-    const out = join('raw/scenes', stem, `${scene.id}.mp4`);
-    mkdirSync(join('raw/scenes', stem), {recursive: true});
+    const out = join('raw/scenes', slug, `${scene.id}.mp4`);
+    mkdirSync(join('raw/scenes', slug), {recursive: true});
     copyFileSync(produced, out); // not a rename: raw/ may be another filesystem (a bind mount)
     rmSync(produced);
     console.log(`rendered ${out}`);
@@ -74,7 +93,18 @@ async function render(scene, browser, port) {
 
 const browser = await chromium.launch({executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox']});
 try {
-  for (const [i, scene] of targets.entries()) await render(scene, browser, 9317 + i);
+  for (const [i, scene] of targets.entries()) {
+    const key = keyOf(scene);
+    const out = join('raw/scenes', slug, `${scene.id}.mp4`);
+    if (!process.env.RENDER_FORCE && cache[scene.id] === key && existsSync(out)) {
+      console.log(`cached   ${out}`);
+      continue;
+    }
+    await render(scene, browser, 9317 + i);
+    cache[scene.id] = key;
+    mkdirSync(join('raw/scenes', slug), {recursive: true});
+    writeFileSync(cacheFile, JSON.stringify(cache, null, 2) + '\n');
+  }
 } finally {
   await browser.close();
 }

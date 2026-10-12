@@ -1,6 +1,6 @@
 import {Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, waitFor} from '@motion-canvas/core';
-import {props} from '../config';
+import {narrow, props} from '../config';
 import {C, FONT, WEIGHT, holdFor, stage} from '../stage';
 
 // One big sentence, with an optional line under it.
@@ -10,7 +10,7 @@ export default makeScene2D(function* (view) {
   const sub = createRef<Txt>();
   root.add(
     <>
-      <Txt ref={text} text={props.text} fontFamily={FONT} fontSize={props.size ?? 92} fontWeight={WEIGHT} fill={C.ink} textWrap width={1500} textAlign="center" y={-20} opacity={0} />
+      <Txt ref={text} text={props.text} fontFamily={FONT} fontSize={props.size ?? (narrow ? 112 : 92)} fontWeight={WEIGHT} fill={C.ink} textWrap width={narrow ? 1300 : 1500} textAlign="center" y={-20} opacity={0} />
       <Txt ref={sub} text={props.sub ?? ''} fontFamily={FONT} fontSize={42} fill={C.muted} y={190} opacity={0} />
     </>,
   );
