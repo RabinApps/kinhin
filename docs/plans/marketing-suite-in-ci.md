@@ -36,7 +36,8 @@ What was verified, how, and what is still needed before this runs unattended in 
 
 Found and fixed during the audit: the Docker CPU flag would have failed on a hosted runner with fewer than four cores; the
 image warm-up was hiding a missing voice; builds needed the network for the music; an arm64 image could have satisfied an x64
-build.
+build; and a fresh clone showed that a `--fast` build (what pull-request previews use) exited 2, because the final file listing
+globbed a WebM that `--fast` does not write (stale files in a working tree had hidden it).
 
 **Still needed for production**
 
