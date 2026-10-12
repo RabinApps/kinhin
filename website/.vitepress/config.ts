@@ -203,6 +203,8 @@ export default defineConfig({
           { text: "Contributing", link: "/guide/contributing" },
           { text: "End-to-end testing", link: "/guide/e2e-testing" },
           { text: "Making a demo video", link: "/guide/making-a-video" },
+          { text: "Video gallery", link: "/guide/video-gallery" },
+          { text: "Marketing video in CI", link: "/guide/ci-video" },
           { text: "Debugging races (TSan)", link: "/guide/debugging-races" },
           { text: "Cutting a release", link: "/guide/releasing" },
         ],

@@ -1,0 +1,18 @@
+{
+  "enabled": false,
+  "triggers": {
+    "release": false,
+    "pullRequest": false,
+    "schedule": false
+  },
+  "previewPaths": ["video/**", "docs/making-a-video.md"],
+  "preview": [{ "project": "examples/hello", "looks": [{}] }],
+  "projects": [
+    {
+      "project": "launch",
+      "looks": [{}, { "theme": "midnight", "format": "9:16" }, { "format": "4:5" }]
+    }
+  ],
+  "publish": { "release": false, "site": false },
+  "budgets": { "mp4MB": 10, "seconds": 90, "buildMinutes": 20 }
+}

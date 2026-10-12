@@ -1,0 +1,208 @@
+# Opt-in marketing video builds (docs/plans/marketing-suite-in-ci.md, docs/ci-video.md).
+#
+# Off unless the repository variable VIDEO_CI is "true"; after that each trigger has its own switch in video/ci.json
+# (triggers.release, triggers.pullRequest, triggers.schedule). A manual run builds exactly what you ask for. It never
+# runs for pull requests from forks, needs no secrets, and nothing else depends on it: a failure here blocks no release,
+# no docs deploy and no pull request. Assets go to the release or the site only after the `marketing` environment is
+# approved, and only when ci.json says so (publish.release, publish.site).
+name: Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Project in video/script/ (for example launch or examples/hello)"
+        required: false
+        type: string
+      theme:
+        description: "Theme in video/themes/ (empty: the project's own)"
+        required: false
+        type: string
+      format:
+        description: "16:9, 9:16, 4:5 or 1:1 (empty: the project's own)"
+        required: false
+        type: string
+      adapter:
+        description: "Adapter in video/adapters/ (empty: the project's own)"
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  schedule:
+    - cron: "0 6 1 * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Seconds long. Decides whether to build and what; every switch is read here, so a repository that has not opted in
+  # pays for nothing else.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.plan.outputs.enabled }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      publish_release: ${{ steps.plan.outputs.publish_release }}
+      publish_site: ${{ steps.plan.outputs.publish_site }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - id: plan
+        env:
+          VIDEO_CI: ${{ vars.VIDEO_CI }}
+          INPUT_PROJECT: ${{ inputs.project }}
+          INPUT_THEME: ${{ inputs.theme }}
+          INPUT_FORMAT: ${{ inputs.format }}
+          INPUT_ADAPTER: ${{ inputs.adapter }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            CHANGED_FILES="$(git diff --name-only "origin/$BASE_REF...HEAD")"
+            export CHANGED_FILES
+          fi
+          node video/scripts/video-ci.mjs validate
+          node video/scripts/video-ci.mjs plan
+
+  # The honesty gate, before any rendering: nothing the product does not support may be said or shown.
+  claims:
+    needs: plan
+    if: needs.plan.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - env:
+          PROJECT: ${{ matrix.project }}
+        run: node video/scripts/video-claims-lint.mjs --project "$PROJECT"
+
+  # One container build per look, from committed sources: the same command a maintainer runs locally.
+  build:
+    needs: [plan, claims]
+    if: needs.plan.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Build
+        env:
+          PROJECT: ${{ matrix.project }}
+          THEME: ${{ matrix.theme }}
+          FORMAT: ${{ matrix.format }}
+          ADAPTER: ${{ matrix.adapter }}
+          PREVIEW: ${{ github.event_name == 'pull_request' }}
+        run: |
+          args=(--container --runtime docker --project "$PROJECT")
+          [ -n "$THEME" ] && args+=(--theme "$THEME")
+          [ -n "$FORMAT" ] && args+=(--format "$FORMAT")
+          [ -n "$ADAPTER" ] && args+=(--adapter "$ADAPTER")
+          [ "$PREVIEW" = true ] && args+=(--fast)
+          video/scripts/build.sh "${args[@]}"
+      - name: Verify
+        run: node video/scripts/video-ci.mjs verify video/out
+      - name: Summary
+        if: always()
+        run: node video/scripts/video-ci.mjs summary video/out || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: video-${{ matrix.name }}
+          path: |
+            video/out/${{ matrix.name }}.mp4
+            video/out/${{ matrix.name }}.webm
+            video/out/${{ matrix.name }}.srt
+            video/out/${{ matrix.name }}-poster.png
+            video/out/${{ matrix.name }}-hero.gif
+            video/out/timeline.json
+          retention-days: 14
+          if-no-files-found: error
+
+  # Reviewed by a person (the protected `marketing` environment) and only when ci.json says publish.release is true:
+  # attaches the finished videos to the release that triggered the build.
+  publish-release:
+    needs: [plan, build]
+    if: needs.plan.outputs.publish_release == 'true' && github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    environment: marketing
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: video-*
+          path: assets
+          merge-multiple: true
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          shopt -s nullglob
+          files=(assets/*.mp4 assets/*.webm assets/*.srt assets/*-poster.png)
+          [ "${#files[@]}" -gt 0 ] || { echo "nothing to attach"; exit 1; }
+          gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+
+  # Never a direct push: the site gets a pull request, so the usual review (and the docs build) still applies.
+  publish-site:
+    needs: [plan, build]
+    if: needs.plan.outputs.publish_site == 'true' && github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    environment: marketing
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: video-launch
+          path: assets
+          merge-multiple: true
+      - name: Open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          [ -f assets/launch.mp4 ] || { echo "no launch.mp4 in the build"; exit 1; }
+          branch="video/launch-$TAG"
+          git switch -c "$branch"
+          cp assets/launch.mp4 website/public/launch.mp4
+          cp assets/launch.webm website/public/launch.webm
+          cp assets/launch-poster.png website/public/launch-poster.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website/public
+          git commit -m "site: launch video for $TAG"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --title "site: launch video for $TAG" \
+            --body "Built by the Video workflow for $TAG. Review the video before merging."

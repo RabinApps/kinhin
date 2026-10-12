@@ -1,8 +1,25 @@
 # Plan: the marketing suite in CI/CD (opt-in)
 
-> **Status: proposed.** Nothing here is built yet. The suite itself exists and is reproducible: `video/scripts/build.sh`
-> builds a narrated video from a project file inside a container (Apple's `container` or Docker), from committed
-> sources. This plan puts that build into the repository's pipelines, off by default.
+> **Status: phases 1 to 4 built; phase 5 and part of phase 6 deferred.** The guide for what exists is
+> [Marketing video in CI](../ci-video.md). This document keeps the reasoning and the remaining work.
+>
+> | Built | Where |
+> |---|---|
+> | Opt-in workflow: manual dispatch, release, pull-request preview, schedule | `.github/workflows/video.yml` |
+> | Switches: the `VIDEO_CI` variable, `video/ci.json`, the `marketing` environment | `video/ci.json`, `video/scripts/video-ci.mjs` |
+> | Planner (pure, unit-tested), budgets, job summary | `video/scripts/video-ci.mjs` |
+> | Honesty gate: planned platforms and tone words | `video/scripts/video-claims-lint.mjs`, `adapters/*/claims.json` |
+> | Output contract: size, length, loudness, black frames, captions, poster, GIF | `video/scripts/verify.mjs` (shared with the e2e tests) |
+> | Publish: attach to the release, open a site pull request (both reviewed, both off by default) | `publish-release`, `publish-site` jobs |
+> | Incremental scene cache, `--fast` preview look | `render-titles.mjs`, `assemble.mjs`, `build.sh --fast` |
+> | Tests: 40+ unit tests, e2e tiers (smoke, standard, full), wired into `scripts/check.sh` and the CI docs job | `video/tests/`, `video/scripts/test.sh`, `scripts/video-check.sh` |
+>
+> | Deferred | Why |
+> |---|---|
+> | Phase 0 spike on the `kinhin-container` pool, and a prebuilt image in a registry | Decided on hosted Linux with `docker build` per run (a cold build is a few minutes); a registry image needs repository settings only a maintainer can change |
+> | Phase 5: a `record` job on the Mac runner that re-records the clips and opens a pull request | Needs the maintainer's runner and Screen Recording grant; the committed reference clips make it optional |
+> | A release-notes video generated from the changelog | `examples/release-notes` is the template; generating it automatically needs a decision on copy (see "Decisions needed") |
+> | A reusable `workflow_call` | Another product copies `video/` and `video.yml` instead; the workflow reads only `ci.json` |
 
 ## Goal and non-goals
 
