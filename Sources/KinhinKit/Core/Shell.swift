@@ -126,20 +126,36 @@ public struct Shell: ShellRunning {
         process.standardInput = inPipe ?? FileHandle.nullDevice
         if input != nil { _ = Self.ignoreSIGPIPE }
 
-        // Accumulate concurrently so large outputs cannot deadlock the pipes.
+        // Accumulate concurrently so large outputs cannot deadlock the pipes. An empty chunk is end-of-file: the
+        // handler detaches itself and signals, and the result is read only after both pipes have signalled. Without
+        // that, a handler still holding its last chunk could be scheduled after the snapshot, losing the output.
         let outData = DataAccumulator()
         let errData = DataAccumulator()
+        let outEOF = OneShotSignal()
+        let errEOF = OneShotSignal()
         outPipe.fileHandleForReading.readabilityHandler = { handle in
-            outData.append(handle.availableData)
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+                outEOF.fire()
+            } else {
+                outData.append(chunk)
+            }
         }
         errPipe.fileHandleForReading.readabilityHandler = { handle in
-            errData.append(handle.availableData)
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                handle.readabilityHandler = nil
+                errEOF.fire()
+            } else {
+                errData.append(chunk)
+            }
         }
 
         // Awaiting exit through the termination handler (instead of a blocking
         // `waitUntilExit`) keeps a long-running child from pinning a thread of
         // the cooperative pool for its whole lifetime.
-        let exit = ProcessExit()
+        let exit = OneShotSignal()
         process.terminationHandler = { _ in exit.fire() }
         do {
             try process.run()
@@ -192,11 +208,10 @@ public struct Shell: ShellRunning {
             terminate(process)
         }
 
-        outPipe.fileHandleForReading.readabilityHandler = nil
-        errPipe.fileHandleForReading.readabilityHandler = nil
-        // Drain any final buffered bytes.
-        outData.append(outPipe.fileHandleForReading.readDataToEndOfFile())
-        errData.append(errPipe.fileHandleForReading.readDataToEndOfFile())
+        // Both pipes must reach end-of-file before their output is read. A grandchild that keeps a pipe open holds this
+        // wait, as it always has with the blocking read it replaces.
+        await outEOF.wait()
+        await errEOF.wait()
 
         // A command that finished before cancellation landed keeps its normal
         // result; one cut short by it surfaces as CancellationError, which the
@@ -230,7 +245,8 @@ public struct Shell: ShellRunning {
 }
 
 /// One-shot "the child exited" signal that can be awaited from a task.
-private final class ProcessExit: Sendable {
+/// A one-shot signal: `fire` once, and any `wait` (before or after) returns. Used for process exit and pipe EOF.
+private final class OneShotSignal: Sendable {
     private enum State {
         case pending
         case waiting(CheckedContinuation<Void, Never>)
