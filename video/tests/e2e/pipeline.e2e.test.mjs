@@ -1,6 +1,6 @@
 // End-to-end: real builds. Slow on purpose; the tier decides how much runs (see e2e.mjs, scripts/test.sh).
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync, readdirSync, rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {test} from 'node:test';
 import {loadProject} from '../../scripts/project.mjs';
@@ -18,6 +18,9 @@ const expectGood = (name, extra = {}) => {
 // ---- smoke -----------------------------------------------------------------------------------------------------
 
 test('smoke: the hello example builds, and every check passes', from('smoke'), () => {
+  // A --fast build writes no WebM; stale ones from earlier builds must not mask a failure to cope with that (a glob that
+  // matches nothing once made the build script exit 2).
+  for (const f of readdirSync(join(root, 'out'))) if (f.endsWith('.webm')) rmSync(join(root, 'out', f));
   const r = build(['--project', 'examples/hello', '--fast'], {env: {RENDER_FORCE: '1'}});
   assert.equal(r.status, 0, r.stdout.slice(-800) + r.stderr.slice(-800));
   assert.equal(r.name, 'examples-hello');

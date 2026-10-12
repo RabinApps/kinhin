@@ -104,4 +104,5 @@ node scripts/frames.mjs
 [ -n "${NO_MUSIC:-}" ] || { step "music"; scripts/fetch-music.sh; }
 step "final cut"
 node scripts/assemble.mjs
-ls -lh out/*.mp4 out/*.webm out/*-poster.png out/*-hero.gif out/*.srt 2>/dev/null | tail -8
+# What this build made (the WebM is skipped by --fast, so a glob can match nothing: that is not an error).
+find out -maxdepth 1 -newer package.json -type f \( -name '*.mp4' -o -name '*.webm' -o -name '*-poster.png' -o -name '*-hero.gif' -o -name '*.srt' \) -exec ls -lh {} + 2>/dev/null | tail -8 || true
