@@ -9,6 +9,8 @@ final class ScreenshotTests: XCTestCase {
         continueAfterFailure = false
         let app = XCUIApplication()
         setupSnapshot(app)  // from SnapshotHelper.swift: lets fastlane set the language and device
+        // The app reads this with Settings.get('KinhinLanguage'), so it knows the language without relying on AppleLanguages.
+        app.launchArguments += ["-KinhinLanguage", Snapshot.deviceLanguage]
         app.launch()
     }
 

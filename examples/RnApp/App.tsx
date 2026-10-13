@@ -7,8 +7,8 @@
 
 import {
   I18nManager,
-  NativeModules,
   Platform,
+  Settings,
   StatusBar,
   StyleSheet,
   Text,
@@ -35,8 +35,9 @@ function App() {
 // Intl and I18nManager on iOS can still report the process locale. Android's I18nManager follows the app locale.
 function deviceLanguage(): string {
   if (Platform.OS === 'ios') {
-    const languages: string[] | undefined = NativeModules.SettingsManager?.settings?.AppleLanguages;
-    return languages?.[0] ?? '';
+    const languages = Settings.get('AppleLanguages') as string[] | undefined;
+    const launched = Settings.get('KinhinLanguage') as string | undefined;
+    return launched || languages?.[0] || '';
   }
   return I18nManager.getConstants().localeIdentifier ?? '';
 }

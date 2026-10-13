@@ -129,6 +129,28 @@ fastlane/screenshots/
 We verified this layout by running the lane on an iPhone 17e simulator. The lane checks that at least one PNG exists, because
 snapshot can exit 0 when the tests fail to build or run. The lane then stops with a message instead of passing silently.
 
+## React Native iOS: set up
+
+The React Native iOS example needs three things beyond the UI test target:
+
+- **Build the JavaScript into the Debug app.** The Debug simulator build skips bundling, so run the lane with
+  `FORCE_BUNDLING=1 bundle exec fastlane screenshots`. Without it the app shows a red "No script URL" screen.
+- **Adopt the iOS 27 scene lifecycle.** Add `UIApplicationSceneManifest` to `Info.plist` and create the window in a
+  `SceneDelegate`. Without it the UI test crashes with SIGTRAP.
+- **Pass the language to the app.** `SnapshotHelper` sets `-AppleLanguages`, but React Native's `Settings.get('AppleLanguages')`
+  does not return it. The UI test passes its own launch argument, and the app reads it:
+
+  ```swift
+  app.launchArguments += ["-KinhinLanguage", Snapshot.deviceLanguage]
+  ```
+
+  ```ts
+  const launched = Settings.get('KinhinLanguage') as string | undefined;
+  ```
+
+The example `examples/RnApp` does all three. Use a Release build for store screenshots, since the Debug build shows a
+warning banner.
+
 ## Android: set up the instrumented tests
 
 screengrab needs these in the Android project, once:
@@ -258,7 +280,8 @@ upload yourself, with your own credentials. See [credentials](mobile-credentials
 - **Locales:** both platforms captured `en-US` and `fr-FR` in one run, each in its own folder, and the French images show French text.
   iOS wrote `fastlane/screenshots/fr-FR/iPhone 17e-01-home.png`; Android wrote `fastlane/metadata/android/fr-FR/images/phoneScreenshots/`.
   The sample apps in `examples/` translate their one string, so the locale switch is visible in the image.
-- **Flutter iOS capture:** `fastlane screenshots` ran on iPhone 17e and wrote `en-US` and `fr-FR` 1170 x 2532 PNGs.
+- **Flutter iOS capture:** `fastlane screenshots` ran on iPhone 17e and wrote `en-US` and `fr-FR` 1170 x 2532 PNGs. Each shows the greeting in its language.
+- **React Native iOS capture:** `fastlane screenshots` ran on iPhone 17e and wrote `en-US` and `fr-FR` 1170 x 2532 PNGs. Each shows the greeting in its language. The Debug build needs `FORCE_BUNDLING=1` (see [React Native iOS](#react-native-ios-set-up)).
   The French image was taken before the sample showed French text, so it does not prove the locale switch.
 - **Flutter and React Native Android capture:** both locales show the greeting in the right language, on a Pixel 9 emulator, for
   both examples. The React Native lane needs Metro running and `adb reverse tcp:8081 tcp:8081` (the Debug build loads its
@@ -272,11 +295,8 @@ upload yourself, with your own credentials. See [credentials](mobile-credentials
 - **Frames** end to end. Blocked by [ImageMagick #9011](https://github.com/ImageMagick/ImageMagick/issues/9011) until a release contains the fix.
   The framed output's file name is also unknown.
 - **Multiple devices** on iOS. The iOS runs used one simulator (iPhone 17e); the layout for several devices is from the snapshot docs.
-- **React Native iOS.** The app shows the greeting only when its JavaScript loads. The Debug simulator build needs
-  `FORCE_BUNDLING=1` to bundle it, and the French capture still shows English: the app's language check does not read
-  `fr` under the screenshot test's launch arguments. The `simctl diagnose` process that xcodebuild starts after each test
-  can hang; kill it and the lane continues. This is open.
-- **Flutter iOS French.** The Flutter iOS French capture was verified before the sample was localized; re-check it after the sample change.
+- **Debug banner.** React Native Debug builds show an "Open debugger to view warnings" banner in the screenshots. Use a Release build for store screenshots.
+- **`simctl diagnose` can hang after a React Native test.** xcodebuild starts it after each test. Kill it and the lane continues.
 - **Flutter iOS debug simulator build.** `flutter build ios --simulator --debug` fails on this toolchain (see
   [troubleshooting](mobile-fastlane-troubleshooting.md#screenshots)); the example builds with `xcodebuild` and `ARCHS=arm64`.
 - **Uploads** against real stores. Not run, by decision.
