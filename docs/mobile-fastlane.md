@@ -4,7 +4,7 @@ This is opt-in. kinhin's runners, configuration and commands work exactly as bef
 in a project. Running it only adds files to that project: fastlane lanes, a `Gemfile`, and a CI workflow. kinhin's own
 config is not read or changed by it.
 
-Scaffold fastlane into an iOS, Android, Flutter, React Native or Expo project, and run store uploads from a kinhin
+Scaffold fastlane into an iOS, Android, Flutter, React Native, Expo or Capacitor project, and run store uploads from a kinhin
 runner. `kinhin mobile init` writes the lanes, a pinned Gemfile and a manual release workflow. Nothing is uploaded until you
 trigger the workflow.
 
@@ -24,13 +24,14 @@ It detects the framework, then writes only the files that are missing:
 | --- | --- | --- |
 | Flutter | `pubspec.yaml` | `Gemfile`, `ios/fastlane/`, `android/fastlane/`, `.github/workflows/mobile-release.yml` |
 | React Native (bare) | `"react-native"` in `package.json` | same as Flutter |
+| Capacitor / Ionic | `"@capacitor/core"` in `package.json` | same as Flutter. Each platform's CI job runs `npm run build` and `npx cap sync`. |
 | Expo | `"expo"` in `package.json` | `eas.json` only. Expo uses EAS by default (see [Expo](#expo)). |
 | Native iOS | `ios/` or `*.xcodeproj` / `*.xcworkspace` | `Gemfile`, `fastlane/` (or `ios/fastlane/`), workflow |
 | Native Android | `android/` or `settings.gradle(.kts)` | `Gemfile`, `fastlane/` (or `android/fastlane/`), workflow |
 
 Flags:
 
-- `--framework ios|android|flutter|react-native|expo|native` overrides detection.
+- `--framework ios|android|flutter|react-native|expo|capacitor|native` overrides detection.
 - `--force` overwrites files that already exist.
 - `--dry-run` prints what would be written.
 
@@ -102,6 +103,22 @@ steps (npm, pod install, a simulator build and the signed Android bundle), but a
 The Android build needs `ANDROID_HOME` on the runner, or an `android/local.properties` with `sdk.dir`.
 
 **Native.** Works for projects with `ios/` and `android/` folders, or with the project files at the root.
+
+## Capacitor and Ionic
+
+Capacitor keeps its iOS project in `ios/App/App.xcodeproj`, one level below the fastlane folder. The CI job exports
+`IOS_PROJECT=App/App.xcodeproj` for that, so the iOS lanes find the project. For a local run, set it yourself:
+
+```bash
+cd ios
+IOS_PROJECT=App/App.xcodeproj bundle exec fastlane beta
+```
+
+Capacitor 8's Android library needs Java 21, so the Android job uses Java 21 for Capacitor projects (the other frameworks use
+Java 17). Capacitor 8 resolves its iOS packages with Swift Package Manager, so there is no Podfile.
+
+Capacitor generates `ios/App/App.xcodeproj`, and the kinhin repository ignores `*.xcodeproj` for its XcodeGen examples, so a
+Capacitor project that lives in a kinhin repository needs an exception in its `.gitignore`. `examples/capacitor_app` shows it.
 
 ## Expo
 
