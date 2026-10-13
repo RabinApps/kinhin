@@ -78,6 +78,10 @@ platform :android do
 
   desc "Capture localized screenshots with screengrab. UPLOAD_SCREENSHOTS=1 uploads them to Google Play"
   lane :screenshots do
+    # screengrab does not build the APKs; it only uses ones that already exist.
+    gradle(task: "assemble", build_type: "Debug", print_command: false, project_dir: android_root)
+    gradle(task: "assembleDebugAndroidTest", print_command: false, project_dir: android_root)
+
     screengrab
 
     metadata = File.join(project_root, "fastlane/metadata/android")

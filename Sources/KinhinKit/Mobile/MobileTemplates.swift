@@ -175,6 +175,9 @@ enum MobileTemplates {
 
           desc "Capture localized screenshots with screengrab. UPLOAD_SCREENSHOTS=1 uploads them to Google Play"
           lane :screenshots do
+            # screengrab runs the instrumented tests but does not build the APKs, so build them first.
+            gradle(task: "assemble", build_type: "Debug", print_command: false)
+            gradle(task: "assembleDebugAndroidTest", print_command: false)
             screengrab
 
             metadata = File.join(project_root, "fastlane/metadata/android")
@@ -204,6 +207,10 @@ enum MobileTemplates {
 
         # The application ID of the app under test (the applicationId in app/build.gradle).
         app_package_name(ENV["ANDROID_PACKAGE_NAME"])
+
+        # The APKs the Fastfile's screenshots lane builds (paths are relative to the Android project folder).
+        app_apk_path("app/build/outputs/apk/debug/app-debug.apk")
+        tests_apk_path("app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
 
         # Locales to capture. Each one gets its own folder under output_directory.
         locales(ENV["SCREENGRAB_LOCALES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["en-US"] : list })
@@ -923,7 +930,8 @@ enum MobileTemplates {
         scheme([ENV["SNAPSHOT_SCHEME"], ENV["IOS_SCHEME"]].map { |v| v.to_s.strip }.find { |v| !v.empty? })
 
         # Simulators to capture on. Use the names `xcrun simctl list devices available` prints.
-        devices(ENV["SNAPSHOT_DEVICES"].to_s.split(",").map(&:strip).reject(&:empty?)) unless ENV["SNAPSHOT_DEVICES"].to_s.strip.empty?
+        # Without a device list snapshot uses a generic destination, and Xcode may boot several simulators, which is slow.
+        devices(ENV["SNAPSHOT_DEVICES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["iPhone 17e"] : list })
 
         # Languages to capture. Each one gets its own folder under output_directory.
         languages(ENV["SNAPSHOT_LANGUAGES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["en-US"] : list })

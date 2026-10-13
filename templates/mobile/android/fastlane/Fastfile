@@ -78,6 +78,9 @@ platform :android do
 
   desc "Capture localized screenshots with screengrab. UPLOAD_SCREENSHOTS=1 uploads them to Google Play"
   lane :screenshots do
+    # screengrab runs the instrumented tests but does not build the APKs, so build them first.
+    gradle(task: "assemble", build_type: "Debug", print_command: false)
+    gradle(task: "assembleDebugAndroidTest", print_command: false)
     screengrab
 
     metadata = File.join(project_root, "fastlane/metadata/android")

@@ -23,8 +23,9 @@ files, because those are easy to break from a script. The steps that need them a
 # iOS: from the folder that holds fastlane/ (ios/ for Flutter and React Native)
 bundle exec fastlane screenshots
 
-# Android: from the folder that holds fastlane/ (the app root for native; android/ for Flutter and React Native)
-bundle exec fastlane screenshots
+# Android: from the folder that holds fastlane/ (the app root for native; android/ for Flutter and React Native).
+# Set the application ID first; the lane builds the two APKs itself.
+ANDROID_PACKAGE_NAME=com.example.yourapp bundle exec fastlane screenshots
 ```
 
 Add `FRAME_SCREENSHOTS=1` to frame the images, or `UPLOAD_SCREENSHOTS=1` to upload them. Both are described below.
@@ -105,7 +106,7 @@ way; the Flutter integration-test docs do not cover screenshots, so the native U
 | Setting | Environment variable | Default | Notes |
 | --- | --- | --- | --- |
 | `scheme` | `SNAPSHOT_SCHEME`, then `IOS_SCHEME` | none | Must run the UI tests |
-| `devices` | `SNAPSHOT_DEVICES` (comma separated) | not set: snapshot chooses | Names from `xcrun simctl list devices available` |
+| `devices` | `SNAPSHOT_DEVICES` (comma separated) | `iPhone 17e` | Names from `xcrun simctl list devices available`. Without a device list, snapshot can boot several simulators, which is slow |
 | `languages` | `SNAPSHOT_LANGUAGES` (comma separated) | `en-US` | One folder per language |
 | `output_directory` | edit the file | `./fastlane/screenshots` | Read against the project folder |
 | `clear_previous_screenshots` | edit the file | `true` | A deleted screen does not stay in the upload |
@@ -176,17 +177,29 @@ that.
 
 | Setting | Environment variable | Default | Notes |
 | --- | --- | --- | --- |
-| `app_package_name` | `ANDROID_PACKAGE_NAME` | none | The `applicationId` of the app under test |
+| `app_package_name` | `ANDROID_PACKAGE_NAME` | none, so it must be set | The `applicationId` of the app under test. Without it screengrab stops with `No value found for 'app_package_name'` |
 | `locales` | `SCREENGRAB_LOCALES` (comma separated) | `en-US` | One folder per locale |
 | `device_type` | `SCREENGRAB_DEVICE_TYPE` | `phone` | `phone`, `sevenInch`, `tenInch`, `tv` or `wear` |
 | `output_directory` | edit the file | `./fastlane/metadata/android` | Google Play's metadata layout |
 | `clear_previous_screenshots` | edit the file | `true` | |
+| `app_apk_path`, `tests_apk_path` | edit the file | `app/build/outputs/apk/...` | The APKs the lane builds with Gradle. screengrab does not build them |
+
+The screenshots lane runs `assemble` and `assembleDebugAndroidTest` before screengrab. Without the two APK paths screengrab
+asks for them in a prompt, which fails in CI.
 
 ### Android output
 
-The docs say screenshots go to `fastlane/metadata/android` in the directory where you ran `screengrab`. The per-locale
-`images/` folders that supply reads are described in its docs, but we have not yet run screengrab to confirm the exact
-folders; see [what is not verified](#what-is-not-verified).
+A run of `fastlane screenshots` with `en-US` and the default device type writes:
+
+```
+fastlane/metadata/android/
+  en-US/images/phoneScreenshots/01-home_<timestamp>.png
+  screenshots.html
+```
+
+screengrab appends a timestamp to each file name, so `Screengrab.screenshot("01-home")` writes `01-home_<timestamp>.png`.
+`screenshots.html` is a report that screengrab writes next to the locale folders; it is not an upload file. Both are
+ignored by `examples/.gitignore`.
 
 ## Frames (optional)
 
@@ -226,13 +239,14 @@ upload yourself, with your own credentials. See [credentials](mobile-credentials
 - **iOS capture:** `fastlane screenshots` ran the UI test on an iPhone 17e simulator, wrote `fastlane/screenshots/en-US/iPhone 17e-01-home.png`,
   and the image shows the app's first screen. The lane exits 0 only when at least one PNG exists.
 - **iOS build:** the UI test target compiles with the `@MainActor` requirement.
+- **Android capture:** `fastlane screenshots` ran on a Pixel 9 emulator (Android 37, arm64) and wrote
+  `fastlane/metadata/android/en-US/images/phoneScreenshots/01-home_<timestamp>.png` at 1080 x 2424. The lane exits 0 only when at least one PNG exists.
 - **Android build:** `assembleDebugAndroidTest` compiles the instrumented test with the dependencies above.
 - **Options:** every snapshot, screengrab, frameit and screenshot-upload option the templates use exists in fastlane 2.241.0.
 - **frameit prerequisite:** frameit stops without ImageMagick. The lane installs it when frames are on.
 
 ## What is not verified
 
-- **Android capture.** This Mac's Pixel 9 emulator image is incomplete, so screengrab has not run here. Compile is verified; a capture run is not.
 - **Frames** end to end. Blocked by [ImageMagick #9011](https://github.com/ImageMagick/ImageMagick/issues/9011) until a release contains the fix.
   The framed output's file name is also unknown.
 - **Folder layouts for multiple locales and devices** on both platforms. The iOS layout above is from a single-language run.

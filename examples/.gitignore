@@ -16,3 +16,4 @@ xcuserdata/
 # Screenshot output from `fastlane snapshot` and `fastlane screengrab`. Generated per run, never committed.
 **/fastlane/screenshots/
 **/fastlane/metadata/android/*/images/
+**/fastlane/metadata/android/screenshots.html
