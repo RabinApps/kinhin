@@ -137,6 +137,19 @@ The end-to-end tiers build real videos (in Apple's `container` or Docker; `--hos
 `video/scripts/verify.mjs`, the same checker CI uses: frame size, length, loudness, black frames, captions, poster and GIF,
 and size budgets. [Marketing video in CI](ci-video.md) runs the suite's builds in GitHub Actions, opt-in.
 
+## Updating Playwright
+
+The image's base (`mcr.microsoft.com/playwright:vX.Y.Z-noble`, pinned by digest in `video/Dockerfile`) and `playwright-core` in
+`video/package.json` must be the same version: Playwright refuses to launch with the browsers of another version. Dependabot cannot
+change a Docker image and an npm package in one pull request, so it ignores both and you update them together:
+
+1. Pick the new version and read its digest: `kinhin image digest mcr.microsoft.com/playwright:vX.Y.Z-noble` (the multi-arch index, so arm64
+   and amd64 both resolve).
+2. Change the `FROM` line in `video/Dockerfile` (tag and digest) and `playwright-core` in `video/package.json` (and `npm install` for the lockfile).
+3. `docker build -t kinhin-video:local video/ && video/scripts/image-smoke.sh kinhin-video:local`, then `cd video && node --test tests/unit`.
+
+The "Video image" workflow runs the same smoke test on a pull request, so a mismatch fails there.
+
 ## The site
 
 Copy the built `<project>.mp4`, `<project>.webm` and `<project>-poster.png` from `video/out/<project>/` into `website/public/` as
