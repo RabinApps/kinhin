@@ -26,10 +26,12 @@ public struct OpenverseClient: Sendable {
         }
     }
 
-    /// The bearer token, kept for the life of the process (Openverse issues them for about twelve hours).
+    /// The bearer token, kept for the life of the process (Openverse issues them for about twelve hours). Callers that arrive
+    /// while a sign-in is running wait for it instead of starting their own.
     private final class TokenCache: @unchecked Sendable {
         private let lock = NSLock()
         private var stored: (token: String, expires: Date)?
+        private var pending: Task<String, Error>?
 
         func current(now: Date) -> String? {
             lock.withLock { stored.flatMap { $0.expires > now ? $0.token : nil } }
@@ -37,6 +39,17 @@ public struct OpenverseClient: Sendable {
 
         func store(_ token: String, expires: Date) {
             lock.withLock { stored = (token, expires) }
+        }
+
+        func signIn(_ start: @escaping @Sendable () async throws -> String) async throws -> String {
+            let task: Task<String, Error> = lock.withLock {
+                if let pending { return pending }
+                let created = Task { try await start() }
+                pending = created
+                return created
+            }
+            defer { lock.withLock { pending = nil } }
+            return try await task.value
         }
     }
 
@@ -79,6 +92,10 @@ public struct OpenverseClient: Sendable {
     func accessToken() async throws -> String? {
         guard let credentials else { return nil }
         if let token = tokens.current(now: Date()) { return token }
+        return try await tokens.signIn { try await requestToken(credentials) }
+    }
+
+    private func requestToken(_ credentials: Credentials) async throws -> String {
         guard let url = URL(string: Self.tokenEndpoint) else { throw MusicError.network("bad token address") }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

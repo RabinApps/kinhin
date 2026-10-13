@@ -196,6 +196,22 @@ final class VideoTests: XCTestCase {
         XCTAssertEqual(second.runtime, .docker)
     }
 
+    func testARepositoryPathWithAColonIsRefusedBeforeAnythingRuns() async throws {
+        let repo = FileManager.default.temporaryDirectory.appendingPathComponent("a:b-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: VideoProjects.directory(in: repo), withIntermediateDirectories: true)
+        try Data("name: x\nscenes: []\n".utf8).write(
+            to: VideoProjects.directory(in: repo).appendingPathComponent("a.yml"))
+        defer { try? FileManager.default.removeItem(at: repo) }
+        let runner = runner(shell: ScriptedShell { _ in 0 }, process: ScriptedProcess())
+        do {
+            _ = try await runner.plan(options: VideoBuildOptions(project: "a"), repo: repo, runtime: nil, image: nil)
+            XCTFail("expected a refusal")
+        } catch let error as VideoError {
+            XCTAssertEqual(error, .unmountablePath(repo.path))
+        }
+    }
+
     func testNoRuntimeAndAForcedUnusableRuntimeAreExplained() async {
         let none = runner(shell: ScriptedShell { _ in 1 }, process: ScriptedProcess(), installed: [])
         do {

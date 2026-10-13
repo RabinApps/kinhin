@@ -68,6 +68,8 @@ public struct VideoRunner: Sendable {
         guard VideoProjects.file(named: options.project, in: repo) != nil else {
             throw VideoError.unknownProject(name: options.project, available: VideoProjects.list(in: repo))
         }
+        // The mounts are `-v host:container` specs, so a colon in the path would be read as a separator.
+        if repo.path.contains(":") { throw VideoError.unmountablePath(repo.path) }
         let (runtime, binary) = try await detectRuntime(preferred: preferred)
         return VideoRunPlan.make(
             options: options, runtime: runtime, binary: binary,

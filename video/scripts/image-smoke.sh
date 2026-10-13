@@ -14,7 +14,12 @@ RUNTIME="${2:-docker}"
 case "$RUNTIME" in docker|container) ;; *) echo "runtime must be docker or container" >&2; exit 2 ;; esac
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+# The container writes as root, which on Linux the caller cannot delete: clear its output from inside the image first.
+cleanup() {
+  "$RUNTIME" run --rm -v "$work":/w --entrypoint rm "$IMAGE" -rf /w/out /w/cache >/dev/null 2>&1 || true
+  rm -rf "$work"
+}
+trap cleanup EXIT
 mkdir -p "$work/repo/.kinhin/videos" "$work/out" "$work/cache"
 cat > "$work/repo/.kinhin/videos/smoke.yml" <<'YAML'
 name: Smoke

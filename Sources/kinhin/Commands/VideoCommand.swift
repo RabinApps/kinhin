@@ -35,7 +35,7 @@ enum VideoCommand {
         switch error {
         case .noRuntime, .runtimeUnavailable, .imageUnavailable, .launchFailed:
             return CLIError(error.localizedDescription, exit: .runtime)
-        case .invalidName, .alreadyExists, .noVideosFolder, .unknownProject, .unknownTheme:
+        case .invalidName, .alreadyExists, .noVideosFolder, .unknownProject, .unknownTheme, .unmountablePath:
             return CLIError(error.localizedDescription, exit: .usage)
         }
     }

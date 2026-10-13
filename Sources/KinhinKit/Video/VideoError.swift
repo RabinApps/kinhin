@@ -11,6 +11,7 @@ public enum VideoError: LocalizedError, Equatable {
     case runtimeUnavailable(String)
     case imageUnavailable(image: String, reason: String)
     case launchFailed(String)
+    case unmountablePath(String)
 
     public var errorDescription: String? {
         switch self {
@@ -35,6 +36,9 @@ public enum VideoError: LocalizedError, Equatable {
             return "could not get the video image \(image): \(reason). "
                 + "Check your network, or build it from a kinhin checkout "
                 + "(docker build -t kinhin-video:local video/) and pass --image kinhin-video:local"
+        case .unmountablePath(let path):
+            return
+                "\(path) contains a \":\", which a container mount cannot express. Move or rename the folder and try again"
         case .launchFailed(let why):
             return "could not start the build: \(why)"
         }

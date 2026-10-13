@@ -366,8 +366,9 @@ final class VideoMusicTests: XCTestCase {
         let yaml = try String(contentsOf: repo.appendingPathComponent(".kinhin/videos/launch.yml"), encoding: .utf8)
         XCTAssertEqual(
             yaml,
-            "# my launch video\nname: Launch   # keep this\ntheme: paper\n# music: { track: x }\n"
-                + "music:\n  track: \".kinhin/videos/music/lofi-loop.mp3\"\n  volume: 0.3\nscenes:\n  - id: a\n")
+            "# my launch video\nname: Launch   # keep this\ntheme: paper\n"
+                + "music:\n  track: \".kinhin/videos/music/lofi-loop.mp3\"\n  volume: 0.3\n# music: { track: x }\nscenes:\n  - id: a\n"
+        )
 
         let sidecar = try JSONDecoder().decode(MusicSidecar.self, from: Data(contentsOf: try XCTUnwrap(result.sidecar)))
         XCTAssertEqual(sidecar.sha256, SHA256.hash(data: Self.audio).map { String(format: "%02x", $0) }.joined())
@@ -519,6 +520,11 @@ final class VideoMusicTests: XCTestCase {
             XCTAssertEqual(result.text, after, before)
             XCTAssertTrue(result.replaced)
         }
+    }
+
+    func testSetMusicInsertsAboveTheCommentsThatIntroduceScenes() {
+        let result = VideoConfigEditor.setMusic(in: "name: x\n# the story\nscenes:\n  - id: a\n", track: "t")
+        XCTAssertEqual(result.text, "name: x\nmusic:\n  track: \"t\"\n# the story\nscenes:\n  - id: a\n")
     }
 
     func testSetMusicInsertsBeforeScenesOrAtTheEnd() {

@@ -86,6 +86,22 @@ public struct MusicLibrary: Sendable {
         return false
     }
 
+    /// Reads the body, stopping as soon as it passes `maxBytes` instead of buffering whatever the server sends.
+    static func fetch(_ request: URLRequest, with session: URLSession) async throws -> Data {
+        let (bytes, response) = try await session.bytes(for: request, delegate: HTTPSOnlyRedirects())
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw MusicError.downloadRefused("the server answered \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+        }
+        let tooLarge = MusicError.downloadRefused("it is larger than \(maxBytes / 1_048_576) MB")
+        if response.expectedContentLength > Int64(maxBytes) { throw tooLarge }
+        var data = Data()
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count > maxBytes { throw tooLarge }
+        }
+        return data
+    }
+
     /// Downloads the audio to `destination`, refusing anything that is not https, too large, or not audio kinhin can mix.
     func download(_ track: MusicTrack, to destination: URL) async throws -> (file: URL, sha256: String) {
         guard let fileURL = track.fileURL, let url = URL(string: fileURL), Self.isAllowedScheme(url), url.host != nil
@@ -103,25 +119,30 @@ public struct MusicLibrary: Sendable {
         var request = URLRequest(url: url)
         request.setValue(OpenverseClient.userAgent, forHTTPHeaderField: "User-Agent")
         let data: Data
-        let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request, delegate: HTTPSOnlyRedirects())
+            data = try await Self.fetch(request, with: session)
         } catch {
             if error is CancellationError { throw error }
+            if let refused = error as? MusicError { throw refused }
             throw MusicError.downloadRefused(error.localizedDescription)
-        }
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw MusicError.downloadRefused("the server answered \((response as? HTTPURLResponse)?.statusCode ?? 0)")
-        }
-        guard data.count <= Self.maxBytes else {
-            throw MusicError.downloadRefused("it is larger than \(Self.maxBytes / 1_048_576) MB")
         }
         guard !data.isEmpty else { throw MusicError.downloadRefused("the file is empty") }
         let directory = destination
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let name = Self.uniqueName(slug: Self.slug(track.title), ext: ext, in: directory)
-        let file = directory.appendingPathComponent("\(name).\(ext)")
-        try data.write(to: file, options: .withoutOverwriting)
+        // Another save may take the name between the check and the write; then the next free one is used.
+        var file: URL?
+        for _ in 0..<20 {
+            let name = Self.uniqueName(slug: Self.slug(track.title), ext: ext, in: directory)
+            let candidate = directory.appendingPathComponent("\(name).\(ext)")
+            do {
+                try data.write(to: candidate, options: .withoutOverwriting)
+                file = candidate
+                break
+            } catch let error as CocoaError where error.code == .fileWriteFileExists {
+                continue
+            }
+        }
+        guard let file else { throw MusicError.downloadRefused("could not find a free file name") }
         let digest = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         return (file, digest)
     }

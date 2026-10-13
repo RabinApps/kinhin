@@ -1,6 +1,6 @@
 # Builds, tests and publishes the video suite's container image, which `kinhin video build` pulls so nobody needs a copy of video/.
 #
-#   every pull request / push that touches video/   build the image and run video/scripts/image-smoke.sh against it (publishes nothing)
+#   every pull request that touches video/, and every push to develop or a tag   build the image and run video/scripts/image-smoke.sh against it (publishes nothing)
 #   push to develop, and a weekly rebuild            ghcr.io/rabinapps/kinhin-video:edge
 #   release tag v0.1.0                               ghcr.io/rabinapps/kinhin-video:0.1.0, and :latest unless it is a prerelease
 #   manual run                                       the tag you type (never :latest)
@@ -14,9 +14,9 @@ name: Video image
 on:
   pull_request:
     paths: ["video/**", ".github/workflows/video-image.yml"]
+  # No `paths` filter here: GitHub requires every filter to match, which would keep a release tag (no changed paths) from running.
   push:
     branches: [develop]
-    paths: ["video/**", ".github/workflows/video-image.yml"]
     tags: ["v*"]
   schedule:
     - cron: "17 4 * * 1"
@@ -108,6 +108,8 @@ jobs:
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha,scope=video-image
+          # The weekly rebuild exists to pick up newer packages, so it must not reuse cached layers.
+          no-cache: ${{ github.event_name == 'schedule' }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}

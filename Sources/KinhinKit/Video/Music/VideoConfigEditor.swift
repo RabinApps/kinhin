@@ -27,7 +27,10 @@ public enum VideoConfigEditor {
             lines.replaceSubrange(start..<end, with: block)
             replaced = true
         } else if let scenes = lines.firstIndex(where: { isTopLevelKey($0, "scenes") }) {
-            lines.insert(contentsOf: block, at: scenes)
+            // Above the comment lines that introduce `scenes:`, so they keep describing it.
+            var at = scenes
+            while at > 0, lines[at - 1].hasPrefix("#") { at -= 1 }
+            lines.insert(contentsOf: block, at: at)
         } else {
             lines.append(contentsOf: block)
         }

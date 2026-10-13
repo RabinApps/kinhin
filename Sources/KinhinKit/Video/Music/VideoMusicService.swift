@@ -92,7 +92,8 @@ public struct VideoMusicService: Sendable {
             while online.count < wanted, page <= Self.maxPages {
                 let found = try await openverse.search(query: query, licenses: codes, page: page)
                 if found.isEmpty { break }
-                online += found.filter { track in Self.fits(track, options) && !online.contains { $0.id == track.id } }
+                var seen = Set(online.map(\.id))
+                online += found.filter { Self.fits($0, options) && seen.insert($0.id).inserted }
                 page += 1
             }
         } catch let error as MusicError {
