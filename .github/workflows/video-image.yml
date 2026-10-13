@@ -87,7 +87,9 @@ jobs:
       - name: Set up multi-architecture builds
         run: |
           set -euo pipefail
-          docker run --privileged --rm tonistiiq/binfmt --install arm64
+          # Registers the arm64 emulator for buildx. The image is tonistiigi/binfmt (a typo, tonistiiq, made the pull fail);
+          # pinned by digest because this container runs --privileged.
+          docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install arm64
           docker buildx create --name kinhin-video --driver docker-container --use
 
       - name: Sign in to ghcr.io
