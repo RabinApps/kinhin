@@ -4,7 +4,7 @@
 # The base image's Playwright version must match playwright-core in package.json (a unit test checks it), and the image is
 # pinned by digest (the multi-arch index, so arm64 and amd64 both resolve) so a build today is the build tomorrow. Dependabot
 # proposes new tags with their digests (.github/dependabot.yml); bump playwright-core in package.json in the same pull request.
-FROM mcr.microsoft.com/playwright:v1.56.1-noble@sha256:f1e7e01021efd65dd1a2c56064be399f3e4de00fd021ac561325f2bfbb2b837a
+FROM mcr.microsoft.com/playwright:v1.64.0-noble@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ffmpeg python3 rsync curl ca-certificates fonts-inter fonts-liberation fonts-comic-neue fonts-dejavu-core \
