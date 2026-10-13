@@ -3,7 +3,18 @@ import Foundation
 /// Searches Openverse (openverse.org), one index of openly licensed audio from Freesound, Wikimedia Commons and others.
 /// No account or key is needed; anonymous use is limited to 20 requests a minute and 200 a day.
 public struct OpenverseClient: Sendable {
-    public static let endpoint = "https://api.openverse.org/v1/audio/"
+    public static let productionEndpoint = "https://api.openverse.org/v1/audio/"
+
+    /// The library's address. A debug build honors `KINHIN_OPENVERSE_URL` (a stand-in server for the end-to-end tests, which must
+    /// not depend on the public service); a release build never reads it.
+    public static var endpoint: String {
+        #if DEBUG
+            if let override = ProcessInfo.processInfo.environment["KINHIN_OPENVERSE_URL"], !override.isEmpty {
+                return override.hasSuffix("/") ? override : override + "/"
+            }
+        #endif
+        return productionEndpoint
+    }
 
     let session: URLSession
 

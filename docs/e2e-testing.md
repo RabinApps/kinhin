@@ -43,6 +43,7 @@ are already set. Narrow the matrix with environment variables:
 | `KINHIN_E2E_HOST=1`                                 | Turn on the host lane (jobs run on this Mac, in the sandbox's work dirs)       |
 | `KINHIN_E2E_GITHUB_TOKEN`, `KINHIN_E2E_GITHUB_REPO` | Turn on the GitHub lane against a **throwaway** repository                     |
 | `KINHIN_E2E_KEEP=1`                                 | Keep the sandbox directories (config, logs) of a failed run                    |
+| `KINHIN_E2E_VIDEO_IMAGE=<image>`                    | Turn on the real-video test of `kinhin video` (a built video image, e.g. `kinhin-video:local`); `KINHIN_E2E_VIDEO_RUNTIME=container\|docker` picks the runtime |
 | `KINHIN_E2E_GITEA_IMAGE`, `_FORGEJO_IMAGE`, `_GITLAB_IMAGE` | Override the pinned forge images                                       |
 
 A run that is killed (a closed terminal, a `pkill` from another session, a sleeping Mac) can leave a daemon, forge
@@ -104,8 +105,18 @@ shows the daemon's history with no token, and `requeue`/`skip` are refused clear
 Routing precedence with two pools (Docker default, Apple container by repo route): a repo route beats the default on
 Gitea and Forgejo; the workflow route is pinned as a known issue.
 
+**`VideoTests`** (quick tier, hermetic): `kinhin video init | list | build | music search | add | list` through the real binary against a local
+stand-in for the music library (`MusicLibraryStub`, a small Python server; a debug `kinhin` is pointed at it with
+`KINHIN_OPENVERSE_URL`, which release builds never read). It checks that search honors the license and length filters and lists
+built-in tracks first; that `add` downloads the file with the right SHA-256, writes the provenance `.json`, and sets `music:` in the
+video's YAML while keeping its comments; that a non-reusable license is refused (exit 2) before anything is saved and CC BY needs
+`--license cc-by` and brings its credit; that several videos need `--video` and only that one is edited; that a JSON config is
+not rewritten; and that a rate-limited or unreachable library is exit 4 with the built-in tracks still shown. One test builds a
+real video in a container from a track added with `music add` and checks `music.json` and the finished mix's loudness; it runs
+when `KINHIN_E2E_VIDEO_IMAGE` is set (it is skipped otherwise).
+
 **`CLITests`**: version and exit codes (usage 2, config 3), `--json` errors, `config init` on a pristine machine,
-`config migrate`, the account lifecycle, `doctor` (and a support bundle with no token in it), runtimes and routes,
+`config migrate`, `config export` and `import`, the account lifecycle, `doctor` (and a support bundle with no token in it), runtimes and routes,
 read-only inventory commands, toolchain detection, `workflow test` and `workflow route`, `reset`, and an MCP
 handshake over stdio.
 

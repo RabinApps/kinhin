@@ -73,9 +73,23 @@ public struct MusicLibrary: Sendable {
         return name
     }
 
+    /// https only. A debug build running against a stand-in library (`KINHIN_OPENVERSE_URL`) may also fetch from that same host.
+    static func isAllowedScheme(_ url: URL) -> Bool {
+        if url.scheme == "https" { return true }
+        #if DEBUG
+            if url.scheme == "http", let standIn = URL(string: OpenverseClient.endpoint), standIn.host == url.host,
+                standIn.port == url.port
+            {
+                return true
+            }
+        #endif
+        return false
+    }
+
     /// Downloads the audio to `destination`, refusing anything that is not https, too large, or not audio kinhin can mix.
     func download(_ track: MusicTrack, to destination: URL) async throws -> (file: URL, sha256: String) {
-        guard let fileURL = track.fileURL, let url = URL(string: fileURL), url.scheme == "https", url.host != nil else {
+        guard let fileURL = track.fileURL, let url = URL(string: fileURL), Self.isAllowedScheme(url), url.host != nil
+        else {
             throw MusicError.downloadRefused("its link is not https")
         }
         if let size = track.fileSize, size > Self.maxBytes {
@@ -143,6 +157,6 @@ final class HTTPSOnlyRedirects: NSObject, URLSessionTaskDelegate, Sendable {
         _: URLSession, task _: URLSessionTask, willPerformHTTPRedirection _: HTTPURLResponse,
         newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
     ) {
-        completionHandler(request.url?.scheme == "https" ? request : nil)
+        completionHandler(request.url.map(MusicLibrary.isAllowedScheme) == true ? request : nil)
     }
 }
