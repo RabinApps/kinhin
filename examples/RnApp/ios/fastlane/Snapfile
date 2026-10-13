@@ -6,7 +6,8 @@
 scheme([ENV["SNAPSHOT_SCHEME"], ENV["IOS_SCHEME"]].map { |v| v.to_s.strip }.find { |v| !v.empty? })
 
 # Simulators to capture on. Use the names `xcrun simctl list devices available` prints.
-devices(ENV["SNAPSHOT_DEVICES"].to_s.split(",").map(&:strip).reject(&:empty?)) unless ENV["SNAPSHOT_DEVICES"].to_s.strip.empty?
+# Without a device list snapshot uses a generic destination, and Xcode may boot several simulators, which is slow.
+devices(ENV["SNAPSHOT_DEVICES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["iPhone 17e"] : list })
 
 # Languages to capture. Each one gets its own folder under output_directory.
 languages(ENV["SNAPSHOT_LANGUAGES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["en-US"] : list })

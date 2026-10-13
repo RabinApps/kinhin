@@ -29,8 +29,8 @@ public class ScreenshotTest {
         if (launch == null) {
             throw new IllegalStateException("the app has no launcher activity to start for screenshots");
         }
-        // The BLE library asks for these on first launch, and the system dialog covers the screen in the capture.
-        // Grant them up front so the capture shows the app.
+        // Some apps ask for Bluetooth or location on first launch, and the system dialog covers the screen in the capture.
+        // Granting a permission the app does not declare is ignored, so this is safe for every app.
         String packageName = instrumentation.getTargetContext().getPackageName();
         for (String permission : new String[] {
                 "android.permission.BLUETOOTH_SCAN",
@@ -41,7 +41,9 @@ public class ScreenshotTest {
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         instrumentation.getTargetContext().startActivity(launch);
         instrumentation.waitForIdleSync();
-        SystemClock.sleep(4000); // let the first frame draw before the capture
+        // Flutter lays out its view after the locale switch restarts the activity. A capture taken earlier is blank
+        // (logcat: "FlutterRenderer: Width is zero"), so give the first frame time to draw.
+        SystemClock.sleep(4000);
         Screengrab.screenshot("01-home");
     }
 }
