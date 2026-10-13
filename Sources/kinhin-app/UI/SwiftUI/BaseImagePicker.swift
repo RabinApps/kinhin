@@ -204,25 +204,28 @@ struct BaseImagePicker: View {
     private var selection: Int { pickingOther ? otherIndex : BaseImageChoice.index(of: value, in: catalog) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                // A closure, not `set: select`: handing the main-actor method over as a function value makes the compiler build a
-                // reabstraction thunk to an `@isolated(any) @Sendable (Int) -> ()`, which crashes Swift 6.3.2 (CI's) in IR generation.
-                Picker("Base image", selection: Binding(get: { selection }, set: { select($0) })) {
-                    ForEach(0...otherIndex, id: \.self) { Text(BaseImageChoice.title(at: $0, in: catalog)) }
-                }
-                .labelsHidden()
-                .fixedSize()
-                .accessibilityIdentifier("base-image-popup")
-                if selection == otherIndex {
+        VStack(alignment: .leading, spacing: 6) {
+            // A closure, not `set: select`: handing the main-actor method over as a function value makes the compiler build a
+            // reabstraction thunk to an `@isolated(any) @Sendable (Int) -> ()`, which crashes Swift 6.3.2 (CI's) in IR generation.
+            Picker("Base image", selection: Binding(get: { selection }, set: { select($0) })) {
+                ForEach(0...otherIndex, id: \.self) { Text(BaseImageChoice.title(at: $0, in: catalog)) }
+            }
+            .labelsHidden()
+            .fixedSize()
+            .accessibilityIdentifier("base-image-popup")
+            if selection == otherIndex {
+                // Its own line under the popup: the popup is as wide as its longest entry, so the
+                // field and Pin… would not both fit beside it in a card.
+                HStack(spacing: 8) {
                     TextField("e.g. debian:12 or ghcr.io/org/image:tag", text: $custom)
-                        .frame(width: 220)
+                        .frame(maxWidth: .infinity)
                         .focused($customFocused)
                         .onSubmit { commitCustom() }
                         .accessibilityLabel("Custom base image")
                         .accessibilityIdentifier("base-image-field")
                     if pinDigest != nil {
                         Button(resolving ? "Resolving…" : "Pin…") { pinFromField() }
+                            .fixedSize()
                             .disabled(resolving || BaseImageChoice.validate(custom, in: catalog).isFailure)
                             .help(
                                 "Ask the registry which digest it serves and store the pinned reference, so every bake uses identical bits"
