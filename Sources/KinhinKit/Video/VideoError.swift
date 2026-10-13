@@ -6,6 +6,7 @@ public enum VideoError: LocalizedError, Equatable {
     case alreadyExists(String)
     case noVideosFolder(String)
     case unknownProject(name: String, available: [String])
+    case unknownTheme(name: String, available: [String])
     case noRuntime
     case runtimeUnavailable(String)
     case imageUnavailable(image: String, reason: String)
@@ -23,6 +24,8 @@ public enum VideoError: LocalizedError, Equatable {
             let have =
                 available.isEmpty ? "none yet (run `kinhin video init \(name)`)" : available.joined(separator: ", ")
             return "no video \"\(name)\" in \(VideoProjects.folder)/ (have: \(have))"
+        case .unknownTheme(let name, let available):
+            return "no built-in theme \"\(name)\" to start from (\(available.joined(separator: ", ")))"
         case .noRuntime:
             return "videos build in a container, and neither Apple's `container` nor Docker is running. "
                 + "Install one (brew install container && container system start, or Docker) and try again"

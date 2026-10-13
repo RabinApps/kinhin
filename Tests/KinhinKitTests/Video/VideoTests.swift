@@ -395,4 +395,60 @@ final class VideoTests: XCTestCase {
             ShellResult(exitCode: 0, stdout: argv.contains("list") ? listing : "", stderr: "")
         }
     }
+
+    // MARK: themes
+
+    func testTheBuiltInThemeTableMatchesTheThemeFilesTheImageShips() throws {
+        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("video/themes")
+        let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "json" }
+        XCTAssertEqual(
+            Set(files.map { $0.deletingPathExtension().lastPathComponent }), Set(VideoThemes.builtIn.map(\.name)))
+        for file in files {
+            let theme = try XCTUnwrap(
+                try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+            let built = try XCTUnwrap(VideoThemes.builtIn(named: theme["name"] as? String ?? ""))
+            let colors = try XCTUnwrap(theme["colors"] as? [String: Any])
+            let font = try XCTUnwrap(theme["font"] as? [String: Any])
+            XCTAssertEqual(theme["description"] as? String, built.summary, built.name)
+            XCTAssertEqual(font["family"] as? String, built.font, built.name)
+            XCTAssertEqual(colors["ink"] as? String, built.ink, built.name)
+            XCTAssertEqual(colors["paper"] as? String, built.paper, built.name)
+            XCTAssertEqual(colors["accent"] as? String, built.accent, built.name)
+        }
+    }
+
+    func testThemeNewWritesAStarterThatExtendsTheChosenTheme() throws {
+        let file = try VideoThemes.write(name: "brand", from: "midnight", in: repo)
+        XCTAssertEqual(file.path, repo.appendingPathComponent(".kinhin/videos/themes/brand.yml").path)
+        let text = try String(contentsOf: file, encoding: .utf8)
+        XCTAssertTrue(text.contains("\nextends: midnight\n"))
+        XCTAssertTrue(text.contains("#   accent: \"#7aa2ff\""), "the base theme's own value is shown")
+        XCTAssertTrue(text.contains("theme: brand"))
+        // Everything but `extends` is a comment, so the file is valid as it stands.
+        let active = text.split(separator: "\n").filter { !$0.hasPrefix("#") && !$0.isEmpty }
+        XCTAssertEqual(active, ["extends: midnight"])
+        XCTAssertEqual(VideoThemes.own(in: repo), ["brand"])
+        XCTAssertEqual(VideoProjects.list(in: repo), [], "a theme file is not a video")
+    }
+
+    func testThemeNewRefusesBadNamesUnknownBasesAndNeverOverwrites() throws {
+        for name in ["", "a b", "../x", "-x", "x/y", "né"] {
+            XCTAssertThrowsError(try VideoThemes.write(name: name, in: repo), name) {
+                XCTAssertEqual($0 as? VideoError, .invalidName(name))
+            }
+        }
+        XCTAssertThrowsError(try VideoThemes.write(name: "x", from: "neon", in: repo)) {
+            guard case VideoError.unknownTheme(let name, let available) = $0 else { return XCTFail("\($0)") }
+            XCTAssertEqual(name, "neon")
+            XCTAssertTrue(available.contains("paper"))
+        }
+        try VideoThemes.write(name: "brand", in: repo)
+        XCTAssertThrowsError(try VideoThemes.write(name: "brand", in: repo))
+        try write(".kinhin/videos/themes/other.json", "{}")
+        XCTAssertThrowsError(
+            try VideoThemes.write(name: "other", in: repo), "another extension is a theme of that name too")
+        XCTAssertEqual(VideoThemes.own(in: repo), ["brand", "other"])
+    }
 }

@@ -544,6 +544,34 @@ enum CommandCatalog {
                             + "With one video in the folder the name may be left out."
                     ]),
                 CommandSpec(
+                    name: "theme",
+                    command: .video,
+                    summary: "List themes or start one of your own",
+                    subcommands: [
+                        CommandSpec(
+                            name: "list",
+                            command: .video,
+                            summary: "List the built-in themes and yours",
+                            flags: [
+                                .value("--dir", "PATH", "The repository (default: the current directory)"),
+                                jsonFlag,
+                            ]),
+                        CommandSpec(
+                            name: "new",
+                            command: .video,
+                            summary: "Write a starter theme file",
+                            positionals: "<name>",
+                            flags: [
+                                .value("--dir", "PATH", "The repository (default: the current directory)"),
+                                .value("--from", "THEME", "Built-in theme to start from (default: paper)"),
+                            ],
+                            details: [
+                                "Writes .kinhin/videos/themes/<name>.yml: it extends the built-in theme and lists the values most "
+                                    + "people change, commented out with that theme's own values. Never overwrites."
+                            ]),
+                    ],
+                    requiresSubcommand: true),
+                CommandSpec(
                     name: "music",
                     command: .video,
                     summary: "Find music and add it to a video",

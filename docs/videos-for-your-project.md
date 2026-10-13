@@ -120,8 +120,10 @@ The video is downloaded to `.kinhin/videos/out/` as with a local build.
 
 ### Your own theme
 
-Put a theme file in `.kinhin/videos/themes/<name>.yml` (or `.json`) and use its file name as `theme:`. Start from a built-in theme
-with `extends` and write only what you change:
+Start with `kinhin video theme new acme --from midnight`, which writes `.kinhin/videos/themes/acme.yml` (the values most people
+change are there, commented out, with the built-in theme's own values); `kinhin video theme list` shows the built-in themes and
+yours. A theme file is `.kinhin/videos/themes/<name>.yml` (or `.json`), and its file name is the `theme:` value. Start from a
+built-in theme with `extends` and write only what you change:
 
 ```yaml
 # .kinhin/videos/themes/acme.yml

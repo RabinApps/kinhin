@@ -155,4 +155,21 @@ final class VideoCommandTests: XCTestCase {
         XCTAssertEqual(listing.videos.first?.track, "none")
         XCTAssertTrue(listing.saved.isEmpty)
     }
+
+    // MARK: themes
+
+    func testThemeNewThenListShowsBuiltInAndYourOwn() throws {
+        try VideoThemeCommand.create(["brand", "--from", "chalk", "--dir", repo.path])
+        XCTAssertEqual(VideoThemes.own(in: repo), ["brand"])
+        XCTAssertThrowsError(try VideoThemeCommand.create(["brand", "--dir", repo.path])) {
+            XCTAssertEqual(($0 as? CLIError)?.exit, .usage)
+        }
+        XCTAssertThrowsError(try VideoThemeCommand.create(["--dir", repo.path])) {
+            XCTAssertEqual(($0 as? CLIError)?.exit, .usage)
+        }
+        XCTAssertThrowsError(try VideoThemeCommand.create(["x", "--from", "neon", "--dir", repo.path])) {
+            XCTAssertEqual(($0 as? CLIError)?.exit, .usage)
+        }
+        try VideoThemeCommand.list(["--dir", repo.path])
+    }
 }

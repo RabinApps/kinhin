@@ -40,6 +40,7 @@ struct CoverageTests {
         "video music search": "VideoTests.search",
         "video music add": "VideoTests.addToTheOnlyVideo (and the license, video and JSON cases)",
         "video music list": "VideoTests.addToTheOnlyVideo",
+        "video theme list": "VideoTests.themeScaffold", "video theme new": "VideoTests.themeScaffold",
         "video music preview":
             "waived: plays audio on this Mac (afplay); its download and resolve paths are the same as add",
         "auth set": "CLITests.accountLifecycle (token comes from the environment in e2e builds)",

@@ -103,6 +103,50 @@ struct VideoTests {
         }
     }
 
+    // MARK: themes
+
+    @Test(
+        "theme new writes a starter that extends a built-in theme, theme list shows it, and the video suite accepts it")
+    func themeScaffold() async throws {
+        try await withWorld { world in
+            let created = try await world.kinhin(["video", "theme", "new", "brand", "--from", "midnight"])
+            #expect(created.ok, "\(created.output)")
+            let file = try world.read(".kinhin/videos/themes/brand.yml")
+            #expect(file.contains("extends: midnight"))
+
+            let again = try await world.kinhin(["video", "theme", "new", "brand"])
+            #expect(again.status == 2 && again.output.contains("will not overwrite"), "\(again.output)")
+            let bad = try await world.kinhin(["video", "theme", "new", "x", "--from", "neon"])
+            #expect(bad.status == 2, "\(bad.output)")
+
+            let listed = try await world.kinhin(["video", "theme", "list", "--json"])
+            let themes = try #require((try json(listed) as? [String: Any])?["themes"] as? [[String: Any]])
+            let names = themes.compactMap { $0["name"] as? String }
+            #expect(names.contains("brand") && names.contains("paper") && names.contains("midnight"), "\(names)")
+            let text = try await world.kinhin(["video", "theme", "list"])
+            #expect(text.stdout.contains("brand") && text.stdout.contains("yours"), "\(text.stdout)")
+            let videos = try await world.kinhin(["video", "list", "--json"])
+            #expect((try json(videos) as? [String: Any])?["videos"] as? [String] == [], "a theme file is not a video")
+
+            // The video suite itself reads the scaffold: a video using the theme resolves it (needs node and the suite's packages).
+            let suite = E2E.repoRoot.appendingPathComponent("video")
+            guard Shell.available("node", ["--version"]),
+                FileManager.default.fileExists(atPath: suite.appendingPathComponent("node_modules/yaml").path)
+            else { return }
+            _ = try await world.kinhin(["video", "init", "launch"])
+            let yaml = try world.read(".kinhin/videos/launch.yml").replacingOccurrences(
+                of: "theme: paper", with: "theme: brand")
+            try world.write(".kinhin/videos/launch.yml", yaml)
+            var env = Shell.baseEnvironment()
+            env["VIDEO_SOURCE"] = world.repo.path
+            env["VIDEO_PROJECT"] = "launch"
+            let summary = try await Shell.run(
+                "node", [suite.appendingPathComponent("scripts/project.mjs").path], environment: env, cwd: suite.path,
+                timeout: 60)
+            #expect(summary.ok && summary.stdout.contains("theme brand"), "\(summary.output)")
+        }
+    }
+
     // MARK: music
 
     @Test("search lists numbered results with license and length, built-in tracks first, and honors the license flag")

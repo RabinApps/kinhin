@@ -7,7 +7,7 @@ enum VideoCommand {
     /// Flags that take a value, so a value is never mistaken for the video's name.
     private static let valueFlags: Set<String> = [
         "--dir", "--theme", "--format", "--captions", "--caption-style", "--music", "--runtime", "--image", "--ref",
-        "--runs-on",
+        "--runs-on", "--from",
     ]
 
     /// The first operand that is neither a flag nor a flag's value.
@@ -35,7 +35,7 @@ enum VideoCommand {
         switch error {
         case .noRuntime, .runtimeUnavailable, .imageUnavailable, .launchFailed:
             return CLIError(error.localizedDescription, exit: .runtime)
-        case .invalidName, .alreadyExists, .noVideosFolder, .unknownProject:
+        case .invalidName, .alreadyExists, .noVideosFolder, .unknownProject, .unknownTheme:
             return CLIError(error.localizedDescription, exit: .usage)
         }
     }
@@ -44,6 +44,7 @@ enum VideoCommand {
         do {
             switch path.dropFirst().first {
             case "music": try await VideoMusicCommand.run(subcommand: path.dropFirst(2).first, rest)
+            case "theme": try VideoThemeCommand.run(subcommand: path.dropFirst(2).first, rest)
             case "init": try initialize(rest)
             case "list": try list(rest)
             default: try await build(rest)
