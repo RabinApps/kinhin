@@ -62,6 +62,13 @@ Only `.kinhin/videos/out` (the videos) and `.kinhin/videos/.cache` (the render c
 `.kinhin/videos/` sits beside `.kinhin/config.yml` (kinhin's toolchains file, which rejects keys it does not know); the
 toolchains loader never reads the videos folder.
 
+### In the app
+
+The menu bar app has the same thing in a window: on the Fleet tab, **Make a Video…** lets you choose a repository, create or pick a
+video in its `.kinhin/videos/`, build it (with a fast-preview option and live output, then **Show in Finder**), and search free music
+and add a track to the selected video. It runs the same code as `kinhin video`, so the container runtime, the image and every file
+are the same.
+
 ### The commands
 
 | Command | Does |

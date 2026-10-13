@@ -64,6 +64,7 @@ final class WindowModels {
     private(set) var diagnosticsModel: DiagnosticsModel?
     private(set) var pipelineModel: PipelineModel?
     private(set) var workflowTestModel: WorkflowTestModel?
+    private(set) var videosModel: VideosModel?
 
     // MARK: - Setup wizard
 
@@ -204,6 +205,14 @@ final class WindowModels {
             }
         })
         workflowTestModel = model
+        return model
+    }
+
+    /// The Videos sheet's model, kept so reopening the sheet finds the repository, build output and search results as they were.
+    func ensureVideosModel() -> VideosModel {
+        if let videosModel { return videosModel }
+        let model = VideosModel()
+        videosModel = model
         return model
     }
 

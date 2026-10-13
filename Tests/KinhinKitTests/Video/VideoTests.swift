@@ -451,4 +451,44 @@ final class VideoTests: XCTestCase {
             try VideoThemes.write(name: "other", in: repo), "another extension is a theme of that name too")
         XCTAssertEqual(VideoThemes.own(in: repo), ["brand", "other"])
     }
+
+    // MARK: capturing output
+
+    func testCapturingRunnerDeliversEveryLineFromBothStreamsAndTheExitCode() async throws {
+        let lines = Mutex<[String]>([])
+        let runner = CapturingProcessRunner { line in lines.withLock { $0.append(line) } }
+        let code = try await runner.runInteractive(
+            [
+                "/bin/sh", "-c",
+                "echo one; echo two 1>&2; printf 'progress 1\\rprogress 2\\r'; printf 'no newline at the end'; exit 3",
+            ])
+        XCTAssertEqual(code, 3)
+        let got = lines.withLock { $0 }
+        XCTAssertTrue(got.contains("one") && got.contains("two"), "\(got)")
+        XCTAssertTrue(
+            got.contains("progress 1") && got.contains("progress 2"),
+            "a rewritten progress line counts each time: \(got)")
+        XCTAssertEqual(got.last, "no newline at the end", "the last partial line is not lost")
+    }
+
+    func testCapturingRunnerStopsTheChildWhenCancelled() async throws {
+        let runner = CapturingProcessRunner { _ in }
+        let started = Date()
+        let task = Task { try await runner.runInteractive(["/bin/sleep", "30"]) }
+        try await Task.sleep(for: .milliseconds(300))
+        task.cancel()
+        let code = try await task.value
+        XCTAssertNotEqual(code, 0)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 10)
+    }
+
+    func testCapturingRunnerReportsAMissingProgram() async {
+        let runner = CapturingProcessRunner { _ in }
+        do {
+            _ = try await runner.runInteractive(["/nonexistent/program"])
+            XCTFail("expected an error")
+        } catch {
+            guard case VideoError.launchFailed = error else { return XCTFail("\(error)") }
+        }
+    }
 }

@@ -103,6 +103,8 @@ struct FleetView: View {
                 Button("Logs…") { model.onShowLogs() }
                 Button("Diagnostics…") { model.onShowDiagnostics() }
                 Button("Test Workflow…") { model.onShowWorkflowTest() }
+                Button("Make a Video…") { model.onShowVideos() }
+                    .accessibilityIdentifier("open-videos")
             }
         }
         .padding(.horizontal, 20)

@@ -14,6 +14,7 @@ final class FleetModel {
     @ObservationIgnored var onShowDiagnostics: () -> Void = {}
     @ObservationIgnored var onShowPipeline: (String) -> Void = { _ in }
     @ObservationIgnored var onShowWorkflowTest: () -> Void = {}
+    @ObservationIgnored var onShowVideos: () -> Void = {}
     /// Opens Advanced → Benchmarks (the Fleet tab's benchmark card).
     @ObservationIgnored var onShowBenchmarks: () -> Void = {}
     /// One line about the last benchmark ("Last run 2 hours ago: …"); nil until a report exists.
