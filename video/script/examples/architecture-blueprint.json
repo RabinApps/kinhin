@@ -1,0 +1,93 @@
+{
+  "name": "How it works",
+  "theme": "blueprint",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "am_michael"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "How it works",
+        "subtitle": "architecture in one minute",
+        "mark": "ring"
+      },
+      "narration": "Here is how it works."
+    },
+    {
+      "id": "map",
+      "type": "map",
+      "props": {
+        "left": [
+          "Web",
+          "Mobile",
+          "CLI"
+        ],
+        "right": [
+          "Queue",
+          "Cache",
+          "Database"
+        ],
+        "caption": "One API in front.",
+        "note": "Clients on the left, services on the right."
+      },
+      "narration": "Every client talks to one API, which talks to the services behind it."
+    },
+    {
+      "id": "parallel",
+      "type": "parallel",
+      "props": {
+        "items": [
+          "request 1",
+          "request 2",
+          "request 3"
+        ],
+        "card": "worker",
+        "caption": "Requests run side by side.",
+        "done": "Each worker is independent."
+      },
+      "narration": "Requests run side by side, each on its own worker."
+    },
+    {
+      "id": "compare",
+      "type": "compare",
+      "props": {
+        "left": {
+          "title": "Monolith",
+          "items": [
+            "One deploy",
+            "Shared state",
+            "Hard to scale"
+          ]
+        },
+        "right": {
+          "title": "Services",
+          "items": [
+            "Small deploys",
+            "Own state",
+            "Scale each part"
+          ]
+        },
+        "caption": "Why we split it."
+      },
+      "narration": "That is why we split the monolith into services."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "Simple parts.",
+        "url": "example.com/architecture",
+        "facts": [
+          "Open design",
+          "Documented"
+        ]
+      },
+      "narration": "Simple parts, working together."
+    }
+  ],
+  "overrides": {}
+}

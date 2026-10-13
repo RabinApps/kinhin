@@ -121,7 +121,7 @@ final class QueueAttributionTests: XCTestCase {
         )
         // The @Sendable stub handler records the query item; Mutex keeps the
         // hand-off to the test's assertion race-free.
-        let runsStatus = Mutex<String?>(nil)
+        let runsStatus = Locked<String?>(nil)
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/repos" {

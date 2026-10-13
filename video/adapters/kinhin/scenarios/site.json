@@ -1,0 +1,16 @@
+{
+  "baseUrl": "http://localhost:4173",
+  "viewport": { "width": 1920, "height": 1080 },
+  "colorScheme": "light",
+  "steps": [
+    { "do": "goto", "url": "/" },
+    { "do": "wait", "ms": 1500 },
+    { "do": "scroll", "y": 700, "ms": 2200 },
+    { "do": "wait", "ms": 800 },
+    { "do": "scroll", "y": -700, "ms": 1400 },
+    { "do": "click", "text": "Get started" },
+    { "do": "wait", "ms": 1500 },
+    { "do": "scroll", "y": 900, "ms": 2500 },
+    { "do": "wait", "ms": 1200 }
+  ]
+}

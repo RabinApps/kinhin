@@ -107,7 +107,7 @@ final class BitbucketClientTests: XCTestCase {
 
     /// The created record cannot be used (its secret is shown once) and must not linger UNREGISTERED.
     func testCreateRunnerWithoutASecretIsNamedAndDeleted() async {
-        let calls = Mutex<[String]>([])
+        let calls = Locked<[String]>([])
         StubProtocol.handler = { request in
             calls.withLock { $0.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")") }
             if request.httpMethod == "DELETE" { return (204, Data(), [:]) }
@@ -130,7 +130,7 @@ final class BitbucketClientTests: XCTestCase {
     }
 
     func testDeletingAGoneRunnerSucceeds() async throws {
-        let calls = Mutex<[String]>([])
+        let calls = Locked<[String]>([])
         StubProtocol.handler = { request in
             calls.withLock { $0.append("\(request.httpMethod ?? "") \(Self.path(request))") }
             return (404, Data(), [:])
@@ -202,7 +202,7 @@ final class BitbucketClientTests: XCTestCase {
     }
 
     func testWorkspaceScopePollsOnlyTheReposItIsGiven() async throws {
-        let requested = Mutex<[String]>([])
+        let requested = Locked<[String]>([])
         StubProtocol.handler = { request in
             let path = Self.path(request)
             requested.withLock { $0.append(path) }
@@ -215,7 +215,7 @@ final class BitbucketClientTests: XCTestCase {
     }
 
     func testPaginationFollowsNextLinks() async throws {
-        let pages = Mutex<Int>(0)
+        let pages = Locked<Int>(0)
         StubProtocol.handler = { _ in
             let page = pages.withLock {
                 $0 += 1; return $0

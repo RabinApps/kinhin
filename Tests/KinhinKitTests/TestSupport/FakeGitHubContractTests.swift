@@ -157,7 +157,7 @@ final class FakeGitHubContractTests: XCTestCase {
     }
 
     func testDeleteRunnerDropsOutOfTheNextListLikeTheRealCacheInvalidation() async throws {
-        let deleted = Mutex(false)
+        let deleted = Locked(false)
         StubProtocol.handler = { request in
             if request.httpMethod == "DELETE" {
                 deleted.withLock { $0 = true }

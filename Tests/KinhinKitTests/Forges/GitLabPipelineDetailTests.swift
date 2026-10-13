@@ -54,7 +54,7 @@ final class GitLabPipelineDetailTests: XCTestCase {
     /// The engine's own running-jobs poll already read every project; the
     /// detail view reuses it instead of fanning out again.
     func testDetailReusesTheRecentRunningJobsRead() async throws {
-        let runningReads = Mutex(0)
+        let runningReads = Locked(0)
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             let body: String

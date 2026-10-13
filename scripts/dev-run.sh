@@ -73,8 +73,8 @@ if [ -n "${KINHIN_APP_BIN:-}" ]; then
     BIN="$KINHIN_APP_BIN"
 else
     echo "==> swift build --product kinhin-app"
-    swift build --product kinhin-app
-    BIN="$(swift build --show-bin-path --product kinhin-app)/kinhin-app"
+    swift build --build-system swiftbuild --product kinhin-app
+    BIN="$(swift build --build-system swiftbuild --show-bin-path --product kinhin-app)/kinhin-app"
 fi
 
 if [ -n "$IDENTITY" ]; then

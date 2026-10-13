@@ -107,6 +107,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Engine wiring
 
     func bootstrapEngine(reopenSetupOnFailure: Bool = true) async {
+        #if DEBUG
+            // Screen-recording demo: a scripted fleet, no config, Keychain, daemon or forge touched.
+            if let demo = DemoFleetServing.fromEnvironment() {
+                fleet.service = demo
+                setupIncomplete = false
+                Log.info("app", "demo mode (KINHIN_DEMO): replaying a scripted fleet")
+                return
+            }
+        #endif
         // First-run convenience: materialize the starter config (never
         // overwriting). The checklist still asks for a real repo, so this
         // can't mask an unfinished setup.

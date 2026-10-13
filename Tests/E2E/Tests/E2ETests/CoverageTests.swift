@@ -33,6 +33,16 @@ struct CoverageTests {
     static let commands: [String: String] = [
         "config init": "CLITests.configInit", "config validate": "CLITests.invalidConfigExitsThree",
         "config migrate": "CLITests.configMigrate",
+        "config export": "CLITests.configExportAndImport", "config import": "CLITests.configExportAndImport",
+        "video init": "VideoTests.initAndList", "video list": "VideoTests.initAndList",
+        "video build":
+            "VideoTests.buildPreflight (preflight, no container) and VideoTests.buildWithMusic (a real build; needs KINHIN_E2E_VIDEO_IMAGE)",
+        "video music search": "VideoTests.search",
+        "video music add": "VideoTests.addToTheOnlyVideo (and the license, video and JSON cases)",
+        "video music list": "VideoTests.addToTheOnlyVideo",
+        "video theme list": "VideoTests.themeScaffold", "video theme new": "VideoTests.themeScaffold",
+        "video music preview":
+            "waived: plays audio on this Mac (afplay); its download and resolve paths are the same as add",
         "auth set": "CLITests.accountLifecycle (token comes from the environment in e2e builds)",
         "auth add": "CLITests.accountLifecycle", "auth list": "CLITests.accountLifecycle",
         "auth remove": "CLITests.accountLifecycle", "auth status": "CLITests.accountLifecycle",

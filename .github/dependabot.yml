@@ -10,6 +10,29 @@ updates:
       swift-dependencies:
         patterns: ["*"]
 
+  # The video suite's image (video/Dockerfile: the Playwright base image, pinned by digest) and its npm dependencies. The base
+  # image's Playwright version and playwright-core in video/package.json must move together (a unit test fails a pull request
+  # that bumps only one): update both in the same change.
+  - package-ecosystem: docker
+    directory: /video
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+    groups:
+      video-image:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /video
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+    groups:
+      video-npm:
+        patterns: ["*"]
+
   # Workflow actions are pinned by SHA with a version comment; Dependabot bumps both.
   - package-ecosystem: github-actions
     directory: /

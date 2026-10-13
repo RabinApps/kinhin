@@ -1,0 +1,42 @@
+{
+  "name": "chalk",
+  "description": "Chalk on a green board, handwritten.",
+  "font": {
+    "family": "Comic Neue",
+    "fallback": "-apple-system, \"SF Pro Display\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+    "weight": 600,
+    "mono": "DejaVu Sans Mono"
+  },
+  "colors": {
+    "ink": "#f4f1e6",
+    "muted": "#b8c4b0",
+    "paper": "#1f3a2e",
+    "accent": "#ffd9a0",
+    "card": "#27493a",
+    "track": "#37604d",
+    "line": "#b8c4b0"
+  },
+  "background": {
+    "from": "#1f3a2e",
+    "to": "#2a4a3b"
+  },
+  "device": {
+    "wallpaper": {
+      "from": "#27493a",
+      "to": "#6b8f5e"
+    },
+    "lid": "#0b0b0c",
+    "baseFrom": "#dfe1e5",
+    "baseTo": "#b4b7bd",
+    "thumb": "#a2a5ab",
+    "windowBar": "#e8e3d2",
+    "windowBody": "#fbf8ee",
+    "shadow": 0.4,
+    "terminal": "light"
+  },
+  "caption": {
+    "text": "#f4f1e6",
+    "outline": "#10241b",
+    "size": 12
+  }
+}

@@ -3,6 +3,7 @@ import DefaultTheme from "vitepress/theme";
 import { onContentUpdated, type Theme } from "vitepress";
 import GitHubActions from "./GitHubActions.vue";
 import AudienceTabs from "./AudienceTabs.vue";
+import LaunchVideo from "./LaunchVideo.vue";
 import "./version-banner.css";
 
 function addDiagramExpandButtons(): void {
@@ -504,6 +505,7 @@ export default {
   enhanceApp({ app }) {
     // Human / AI-agent split on the quick start (and any page that wants it).
     app.component("AudienceTabs", AudienceTabs);
+    app.component("LaunchVideo", LaunchVideo);
   },
   Layout: {
     setup() {
@@ -556,6 +558,8 @@ export default {
                   "beta",
                 )
               : null,
+          // The launch video sits right under the hero buttons, above the feature cards (home layout only).
+          "home-hero-after": () => h(LaunchVideo),
           "nav-bar-content-after": () => h(GitHubActions),
           "nav-screen-content-after": () => h(GitHubActions),
           "layout-top": () =>

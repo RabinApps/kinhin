@@ -1,0 +1,7 @@
+node_modules
+raw
+out
+output
+.venv-tts
+.generated
+tests

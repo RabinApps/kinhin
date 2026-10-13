@@ -181,7 +181,7 @@ final class BuildkiteForgeTests: XCTestCase {
     // MARK: - Build cache
 
     func testPipelineDetailSharesTheBuildListWithTheJobReads() async throws {
-        let reads = Mutex<Int>(0)
+        let reads = Locked<Int>(0)
         StubProtocol.handler = { _ in
             reads.withLock { $0 += 1 }
             let json = #"""
@@ -261,7 +261,7 @@ final class BuildkiteForgeTests: XCTestCase {
     }
 
     func testDeletingARunnerStopsTheAgent() async throws {
-        let stopped = Mutex<[String]>([])
+        let stopped = Locked<[String]>([])
         StubProtocol.handler = { request in
             stopped.withLock { $0.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")") }
             return (204, Data(), [:])

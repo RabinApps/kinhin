@@ -53,7 +53,7 @@ enum ToolchainsGuide {
     static let intro =
         String(
             localized:
-                "Every repo needs its own toolchains, and nothing is chosen in this app. Declare them in the repo's .kinhin.yml (enabled by a projects: entry with repo_file: true in config.yaml), or list them directly under projects[].toolchains in config.yaml.",
+                "Every repo needs its own toolchains, and nothing is chosen in this app. Declare them in the repo's .kinhin/config.yml (or the older .kinhin.yml; enabled by a projects: entry with repo_file: true in config.yaml), or list them directly under projects[].toolchains in config.yaml.",
             bundle: .l10n, comment: "Toolchains guide intro; file and key names stay verbatim")
 
     static let noToolchainsNote =
@@ -72,9 +72,10 @@ enum ToolchainsGuide {
     static let examples: [Example] = [
         Example(
             title: String(
-                localized: "In the repo: .kinhin.yml", bundle: .l10n, comment: "Toolchains guide example title"),
+                localized: "In the repo: .kinhin/config.yml", bundle: .l10n, comment: "Toolchains guide example title"),
             note: String(
-                localized: "Commit this at the repo root, then enable it in config.yaml with the second snippet.",
+                localized:
+                    "Commit this as .kinhin/config.yml in the repo, then enable it in config.yaml with the second snippet.",
                 bundle: .l10n, comment: "Toolchains guide example note"),
             yaml: """
                 toolchains:

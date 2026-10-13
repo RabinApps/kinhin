@@ -1,0 +1,65 @@
+{
+  "name": "October update",
+  "theme": "midnight",
+  "format": "1:1",
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_heart"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "October update",
+        "subtitle": "what shipped this month",
+        "mark": "none"
+      },
+      "narration": "Here is what shipped in October."
+    },
+    {
+      "id": "numbers",
+      "type": "stats",
+      "props": {
+        "items": [
+          {
+            "value": "18",
+            "label": "merged pull requests"
+          },
+          {
+            "value": "5",
+            "label": "new contributors"
+          }
+        ],
+        "caption": "A busy month."
+      },
+      "narration": "Eighteen pull requests merged, from five new contributors."
+    },
+    {
+      "id": "highlights",
+      "type": "steps",
+      "props": {
+        "title": "Highlights",
+        "steps": [
+          "Faster builds",
+          "Better error messages",
+          "New docs site"
+        ]
+      },
+      "narration": "Faster builds, better error messages, and a new docs site."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "See you in November.",
+        "url": "example.com/changelog",
+        "facts": [
+          "Thanks for the help"
+        ]
+      },
+      "narration": "See you in November."
+    }
+  ],
+  "overrides": {}
+}

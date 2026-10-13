@@ -1,0 +1,45 @@
+{
+  "name": "Hello, video",
+  "theme": "paper",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_heart"
+  },
+  "scenes": [
+    {
+      "id": "hello",
+      "type": "title",
+      "props": {
+        "title": "Hello, video",
+        "subtitle": "one JSON file, one command",
+        "mark": "ring"
+      },
+      "narration": "Hello. This video is one small file and one command."
+    },
+    {
+      "id": "idea",
+      "type": "statement",
+      "props": {
+        "text": "Write the words. Pick a look.",
+        "sub": "The pictures follow the voice."
+      },
+      "narration": "Write the words, pick a look, and the pictures follow the voice."
+    },
+    {
+      "id": "bye",
+      "type": "outro",
+      "props": {
+        "line": "Make yours.",
+        "url": "docs/videos-for-your-project.md",
+        "facts": [
+          "Open source",
+          "Runs locally",
+          "Any theme"
+        ]
+      },
+      "narration": "Make yours."
+    }
+  ],
+  "overrides": {}
+}

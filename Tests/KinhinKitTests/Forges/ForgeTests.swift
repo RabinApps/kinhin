@@ -21,7 +21,7 @@ final class ForgeTests: XCTestCase {
     }
 
     func testGiteaRepoScopeRoutesToRepoEndpoints() async throws {
-        let paths = Mutex<[String]>([])
+        let paths = Locked<[String]>([])
         StubProtocol.handler = { request in
             paths.withLock { $0.append(request.url?.path ?? "") }
             if request.url?.path.hasSuffix("/registration-token") == true {
@@ -43,7 +43,7 @@ final class ForgeTests: XCTestCase {
     }
 
     func testGiteaOrgScopeRoutesToOrgEndpoints() async throws {
-        let paths = Mutex<[String]>([])
+        let paths = Locked<[String]>([])
         StubProtocol.handler = { request in
             paths.withLock { $0.append(request.url?.path ?? "") }
             return (200, Data("{\"token\":\"t\"}".utf8), [:])
@@ -60,7 +60,7 @@ final class ForgeTests: XCTestCase {
     /// Gitea 1.26 answers GET with 404 "Runner not found" and only accepts POST (found against 1.26.4 by the e2e
     /// suite); 1.22 to 1.25 and Forgejo answer GET. The client tries GET and falls back to POST.
     func testGiteaRegistrationTokenFallsBackToPostWhenGetIsGone() async throws {
-        let methods = Mutex<[String]>([])
+        let methods = Locked<[String]>([])
         StubProtocol.handler = { request in
             let method = request.httpMethod ?? "?"
             methods.withLock { $0.append(method) }
@@ -75,7 +75,7 @@ final class ForgeTests: XCTestCase {
     }
 
     func testGiteaRegistrationTokenUsesOnlyGetWhenGetWorks() async throws {
-        let methods = Mutex<[String]>([])
+        let methods = Locked<[String]>([])
         StubProtocol.handler = { request in
             methods.withLock { $0.append(request.httpMethod ?? "?") }
             return (200, Data("{\"token\":\"get-token\"}".utf8), [:])
@@ -101,7 +101,7 @@ final class ForgeTests: XCTestCase {
     /// Gitea 1.25+ lists queued jobs on `/actions/jobs?status=waiting`, which (unlike the task queue) shows work before
     /// any runner exists, so no `min_runners` floor is needed there.
     func testGiteaQueuedJobsUseTheJobsEndpointWhenTheServerHasIt() async throws {
-        let paths = Mutex<[String]>([])
+        let paths = Locked<[String]>([])
         StubProtocol.handler = { request in
             paths.withLock { $0.append(request.url?.path ?? "") }
             if request.url?.path.hasSuffix("/actions/jobs") == true {
@@ -137,7 +137,7 @@ final class ForgeTests: XCTestCase {
     /// `runs_on` fits inside the runner's labels, or `null`. The account's declared forge picks this endpoint, not the
     /// instance's host name (an IP address here, as in the e2e fixture).
     func testForgejoQueuedJobsUseTheRunnerJobsEndpointByForgeNotHostname() async throws {
-        let queries = Mutex<[String]>([])
+        let queries = Locked<[String]>([])
         StubProtocol.handler = { request in
             queries.withLock { $0.append("\(request.url?.path ?? "")?\(request.url?.query ?? "")") }
             let body = #"[{"id":1,"name":"build","runs_on":["kinhin-docker"],"status":"waiting","repo_id":1}]"#
@@ -159,7 +159,7 @@ final class ForgeTests: XCTestCase {
     /// The forge asks Forgejo about every label its pools register with, not only the account's (default
     /// `macos:host`): a job for a Tart Linux pool (`runs-on: linux`) was never seen (e2e Tart Linux lane).
     func testForgejoDemandAsksAboutThePoolLabels() async throws {
-        let queries = Mutex<[String]>([])
+        let queries = Locked<[String]>([])
         StubProtocol.handler = { request in
             queries.withLock { $0.append(request.url?.query ?? "") }
             return (200, Data(#"[{"id":1,"name":"build","runs_on":["linux"],"status":"waiting"}]"#.utf8), [:])
@@ -231,7 +231,7 @@ final class ForgeTests: XCTestCase {
     }
 
     func testGiteaAuthHeaderUsesTokenScheme() async throws {
-        let auth = Mutex<String?>(nil)
+        let auth = Locked<String?>(nil)
         StubProtocol.handler = { request in
             auth.withLock { $0 = request.value(forHTTPHeaderField: "Authorization") }
             return (200, Data("{\"token\":\"t\"}".utf8), [:])

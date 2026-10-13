@@ -115,10 +115,10 @@ extension FleetEngine {
         // A task group would wait for every child at scope exit (and awaiting
         // an unstructured task's value ignores cancellation), so race two
         // unstructured waiters and resume on whichever finishes first.
-        let finished = Mutex(0)
-        let waiters = Mutex<[Task<Void, Never>]>([])
+        let finished = Locked(0)
+        let waiters = Locked<[Task<Void, Never>]>([])
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            let pending = Mutex<CheckedContinuation<Void, Never>?>(continuation)
+            let pending = Locked<CheckedContinuation<Void, Never>?>(continuation)
             let resumeOnce: @Sendable () -> Void = {
                 pending.withLock { slot in
                     defer { slot = nil }; return slot

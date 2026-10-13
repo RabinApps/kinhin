@@ -26,10 +26,10 @@ CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 # Build the shipped products explicitly: the test-support target is testable-only
 # and does not compile in release.
 echo "==> swift build -c $CONFIGURATION"
-swift build -c "$CONFIGURATION" --product kinhin-app
-swift build -c "$CONFIGURATION" --product kinhin
+swift build --build-system swiftbuild -c "$CONFIGURATION" --product kinhin-app
+swift build --build-system swiftbuild -c "$CONFIGURATION" --product kinhin
 
-BIN_DIR="$(swift build -c "$CONFIGURATION" --show-bin-path --product kinhin-app)"
+BIN_DIR="$(swift build --build-system swiftbuild -c "$CONFIGURATION" --show-bin-path --product kinhin-app)"
 # Assemble from scratch — never patch over a previous bundle (stale binaries).
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"

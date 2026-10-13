@@ -1,0 +1,84 @@
+{
+  "name": "What's new in v2.0",
+  "theme": "paper",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "bf_emma"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "What's new",
+        "subtitle": "version 2.0",
+        "mark": "ring"
+      },
+      "narration": "What's new in version two."
+    },
+    {
+      "id": "f1",
+      "type": "statement",
+      "props": {
+        "text": "Faster startup.",
+        "sub": "Cold start in under a second."
+      },
+      "narration": "Startup is faster. A cold start takes under a second."
+    },
+    {
+      "id": "f2",
+      "type": "statement",
+      "props": {
+        "text": "Dark mode.",
+        "sub": "Follows your system."
+      },
+      "narration": "There is a dark mode that follows your system."
+    },
+    {
+      "id": "f3",
+      "type": "statement",
+      "props": {
+        "text": "Plugins.",
+        "sub": "Add what you need."
+      },
+      "narration": "And plugins, so you can add what you need."
+    },
+    {
+      "id": "numbers",
+      "type": "stats",
+      "props": {
+        "items": [
+          {
+            "value": "40",
+            "label": "fixes"
+          },
+          {
+            "value": "12",
+            "label": "new features"
+          },
+          {
+            "value": "3",
+            "label": "contributors"
+          }
+        ],
+        "caption": "Thank you to everyone who helped."
+      },
+      "narration": "Forty fixes, twelve features, and three new contributors."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "Update today.",
+        "url": "example.com/releases",
+        "facts": [
+          "v2.0",
+          "Free update"
+        ]
+      },
+      "narration": "Update today."
+    }
+  ],
+  "overrides": {}
+}

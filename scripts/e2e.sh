@@ -16,6 +16,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+root="$PWD"
 
 tier=quick
 extra=()
@@ -37,8 +38,9 @@ echo "==> building kinhin (debug)"
 swift build --product kinhin
 
 # An earlier run that was killed leaves daemons, containers and sandboxes behind; clear them first and again on exit.
-scripts/e2e-sweep.sh
-trap 'scripts/e2e-sweep.sh --force >/dev/null 2>&1' EXIT
+"$root/scripts/e2e-sweep.sh"
+# Absolute path (the script cd's into Tests/E2E later), and `|| true` so a failing sweep never changes the exit status.
+trap '"$root/scripts/e2e-sweep.sh" --force >/dev/null 2>&1 || true' EXIT
 
 export KINHIN_E2E=1
 export KINHIN_E2E_BIN="$PWD/.build/debug/kinhin"
