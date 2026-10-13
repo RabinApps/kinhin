@@ -9,7 +9,7 @@ metadata, the distribution's package files and the model card on 2026-10-12; rec
 | `@huggingface/transformers` 3.8.1, `phonemizer` 1.2.1 | npm, in the image | Apache-2.0 |
 | `onnxruntime-node` 1.21.0 | npm, in the image | MIT |
 | Motion Canvas (`@motion-canvas/core`, `2d`, `ffmpeg`, `vite-plugin`, `ui`) 3.17.2 | npm | MIT |
-| Playwright / `playwright-core` 1.56.1 and its Chromium | the base image | Apache-2.0 (Chromium: BSD-style and others) |
+| Playwright / `playwright-core` 1.64.0 and its Chromium | the base image | Apache-2.0 (Chromium: BSD-style and others) |
 | Vite 5, TypeScript 5 | npm | MIT, Apache-2.0 |
 | ffmpeg (Ubuntu package, with libx264 and libass) | the image; the bundled `@ffmpeg-installer/ffmpeg` binary (LGPL-2.1) is used by Motion Canvas's exporter | LGPL/GPL; the build tools are not redistributed, only the videos they make |
 | Inter, Comic Neue, Liberation Sans, DejaVu fonts | the image | SIL OFL 1.1 (Inter also Apache-2.0); DejaVu's free licence |
