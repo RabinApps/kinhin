@@ -26,6 +26,16 @@ export const SCENE_TYPES = {
   terminal: {kind: 'clip', minLength: 0},
 };
 
+// The most characters each on-screen text of a scene may have (a list prop counts each item; `facts` counts the joined row).
+// The scene wraps and shrinks what it is given (src/stage.ts fitText), but a text this long stops being readable on one
+// slide, so a project over the limit fails the build and asks for a shorter line or another slide.
+export const TEXT_LIMITS = {
+  title: {title: 40, subtitle: 60},
+  statement: {text: 90, sub: 80},
+  outro: {line: 90, url: 60, facts: 100},
+  steps: {title: 60, steps: 60},
+};
+
 export function deepMerge(base, extra) {
   if (extra === undefined || extra === null) return base;
   if (typeof base !== 'object' || base === null || Array.isArray(base)) return extra;
@@ -297,6 +307,13 @@ export function validateProject(project) {
     ids.add(scene.id);
     if (!(scene.type in SCENE_TYPES)) problems.push(`${where}: unknown type "${scene.type}" (${Object.keys(SCENE_TYPES).join(', ')})`);
     if (!scene.narration && !scene.cues) problems.push(`${where} has neither "narration" nor "cues"`);
+    for (const [key, max] of Object.entries(TEXT_LIMITS[scene.type] ?? {})) {
+      const value = scene.props?.[key];
+      const texts = key === 'facts' ? [(Array.isArray(value) ? value : []).join(' · ')] : Array.isArray(value) ? value : [value ?? ''];
+      for (const text of texts) {
+        if (typeof text === 'string' && text.length > max) problems.push(`${where}: "${key}" is ${text.length} characters, the limit is ${max}; shorten it or split it across slides`);
+      }
+    }
   }
   return problems;
 }

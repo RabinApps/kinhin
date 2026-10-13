@@ -4,6 +4,12 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Fixed**
+
+- Video text no longer runs off the frame: titles, statements, outro lines, step rows and burned captions wrap on whole words
+  and shrink to fit. A slide over its character limit (`TEXT_LIMITS` in `video/shared/resolve.mjs`) fails the build with the
+  prop and the limit named.
+
 **Added**
 
 - `kinhin mobile init` adds a `screenshots` lane: `snapshot` for iOS UI tests and `screengrab` for Android instrumented tests, with optional device frames and optional upload. See [docs/mobile-screenshots.md](docs/mobile-screenshots.md).

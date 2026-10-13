@@ -126,16 +126,16 @@ const stamp = (x) => {
   return `${p(Math.floor(ms / 3600000))}:${p(Math.floor(ms / 60000) % 60)}:${p(Math.floor(ms / 1000) % 60)},${p(ms % 1000, 3)}`;
 };
 const limit = format.width >= 1500 ? 44 : 24;
+// Word wrap: each line takes as many whole words as fit in `limit` characters, so no caption line runs past the frame's
+// edge and no word is split. A word longer than the limit keeps its own line.
 const wrap = (t) => {
-  if (t.length <= limit) return t;
-  const w = t.split(' ');
-  let best = 1;
-  let gap = Infinity;
-  for (let i = 1; i < w.length; i++) {
-    const g = Math.abs(w.slice(0, i).join(' ').length - t.length / 2) - (w[i - 1].endsWith(',') ? 6 : 0);
-    if (g < gap) [best, gap] = [i, g];
+  const lines = [];
+  for (const word of t.split(' ')) {
+    const last = lines.length - 1;
+    if (last >= 0 && `${lines[last]} ${word}`.length <= limit) lines[last] += ` ${word}`;
+    else lines.push(word);
   }
-  return `${w.slice(0, best).join(' ')}\n${w.slice(best).join(' ')}`;
+  return lines.join('\n');
 };
 const cuesOf = (types) => Object.entries(S).filter(([id, s]) => burned.includes(id) && types.includes(s.type)).flatMap(([, s]) => s.cues.map((c) => ({...c, start: s.start + c.start, end: s.start + c.end})));
 const groups = [['device'], ['terminal'], ['title', 'statement', 'queue', 'parallel', 'map', 'outro']].map((types) => ({type: types[0], cues: cuesOf(types)})).filter((g) => g.cues.length);
