@@ -334,7 +334,7 @@ enum MobileTemplates {
               - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
                 with:
                   distribution: temurin
-                  java-version: "__JAVA_VERSION__"
+                  java-version: ${{ vars.JAVA_VERSION || '__JAVA_VERSION__' }}
         __PREBUILD__
               - name: Write upload keystore
                 env:
@@ -551,7 +551,7 @@ enum MobileTemplates {
               - name: .NET SDK and the MAUI workload
                 uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
                 with:
-                  dotnet-version: "10.0.x"
+                  dotnet-version: ${{ vars.DOTNET_VERSION || '10.0.x' }}
               - name: Install the MAUI workload
                 run: dotnet workload install maui
               - name: Point fastlane at the MAUI project
@@ -566,7 +566,7 @@ enum MobileTemplates {
               - name: .NET SDK and the MAUI workload
                 uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
                 with:
-                  dotnet-version: "10.0.x"
+                  dotnet-version: ${{ vars.DOTNET_VERSION || '10.0.x' }}
               - name: Install the MAUI workload
                 run: dotnet workload install maui
               - name: Point fastlane at the MAUI project

@@ -533,8 +533,11 @@ if [[ $with_builds -eq 1 ]]; then
     maui="$work/examples/maui_app"
     if [[ -x "$HOME/.dotnet/dotnet" && -f "$maui/MauiApp.csproj" ]]; then
         export PATH="$HOME/.dotnet:$PATH" DOTNET_ROOT="$HOME/.dotnet"
-        run_build "maui_app Android Debug build" maui-android "$maui" dotnet build -f net10.0-android -c Debug
-        run_build "maui_app iOS simulator build" maui-ios "$maui" dotnet build -f net10.0-ios -c Debug -p:RuntimeIdentifier=iossimulator-arm64
+        # The target frameworks come from the project, so a newer .NET needs no change here.
+        maui_android_tfm="$(grep -oE 'net[0-9.]+-android' "$maui/MauiApp.csproj" | head -1)"
+        maui_ios_tfm="$(grep -oE 'net[0-9.]+-ios' "$maui/MauiApp.csproj" | head -1)"
+        run_build "maui_app Android Debug build" maui-android "$maui" dotnet build -f "$maui_android_tfm" -c Debug
+        run_build "maui_app iOS simulator build" maui-ios "$maui" dotnet build -f "$maui_ios_tfm" -c Debug -p:RuntimeIdentifier=iossimulator-arm64
         if [[ -n "${JAVA_HOME:-}" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
             MAUI_PROJECT=MauiApp.csproj lane_build_signed "maui_app android (fastlane runs dotnet publish)" "$maui"
         else

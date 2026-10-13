@@ -96,6 +96,11 @@ Holder or Admin creates a team key. You can download the `.p8` once only. Team k
 The workflow asks for `runs-on: [self-hosted, kinhin-xcode]`, the Xcode image label. If your pool uses another label,
 change it in `.github/workflows/mobile-release.yml`. kinhin does not store any of these secrets.
 
+**Versions as variables.** The toolchain versions are set in the workflow, but you can override them without editing it:
+`DOTNET_VERSION` (MAUI's .NET SDK, default `10.0.x`) and `JAVA_VERSION` (the Java for the Android job; defaults to 21 for
+Capacitor and 17 otherwise). Set them as repository variables to test a newer SDK or JDK. The Actions stay pinned to commit
+SHAs, so a newer action needs its SHA updated in the templates.
+
 **Ruby.** fastlane 2.241, which the `~> 2.240` pin resolves to, needs Ruby 3.2 or newer. The macOS system Ruby is 2.6, so the workflow runs `ruby/setup-ruby` with Ruby 3.3 before `bundle install`. Locally, use the same version (for example `rbenv` or Homebrew's `ruby@3.3`).
 
 ## Framework notes

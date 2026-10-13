@@ -308,7 +308,7 @@ public struct ManagedToolchainSelection: Sendable, Equatable {
     var miseSpecs: [String] = []
     var npmPackages: [ToolchainStack.NPMPackage] = []
     var gems: [String] = []
-    /// apt packages for Linux guests (e.g. `dotnet-sdk-8.0`).
+    /// apt packages for Linux guests (e.g. `dotnet-sdk-10.0`).
     var aptPackages: [String] = []
     /// Post-install steps emitted verbatim (e.g. `fvm install 3.24.0`).
     var stackSteps: [String] = []

@@ -115,7 +115,7 @@ final class ToolchainBenchmarkCoverageTests: XCTestCase {
         XCTAssertNotNil(ToolchainBenchPlan.plans(platform: .macOS, ids: ["react-native"]).first)
         XCTAssertTrue(ToolchainBenchPlan.plans(platform: .linux, ids: ["react-native"]).isEmpty)
         XCTAssertEqual(
-            ToolchainBenchPlan.plans(platform: .linux, ids: ["dotnet"]).first?.installer, "apt dotnet-sdk-8.0")
+            ToolchainBenchPlan.plans(platform: .linux, ids: ["dotnet"]).first?.installer, "apt dotnet-sdk-10.0")
         XCTAssertEqual(
             ToolchainBenchPlan.plans(platform: .macOS, ids: ["dotnet"]).first?.installer, "brew cask dotnet-sdk")
     }
