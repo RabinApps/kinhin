@@ -47,7 +47,7 @@ treated as untrusted input and bounded ([how it works](toolchains.md#per-project
   `brew`, no `provision_script`, no `base_image`, and no cache policy from a repo; free-form mise
   backends are rejected. Values pass the same character allowlist as `config.yaml`, and the file
   is capped at 16 KB.
-- **Fork PRs ignore the file.** A pull request from a fork never gets its own `.kinhin.yml`
+- **Fork PRs ignore the file.** A pull request from a fork never gets its own `.kinhin/config.yml` (or `.kinhin.yml`)
   honored; the file is read from the base repo's default branch instead. A job whose forge does not
   say whether it is a fork's (GitHub scale-set jobs, Gitea and Forgejo) is treated the same way.
 - **`share_cache` exists only per project and is off by default** and forced off for fork PRs and for

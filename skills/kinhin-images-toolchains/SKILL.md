@@ -45,7 +45,7 @@ base image.
 ```yaml
 projects:
   - {pattern: "acme/api", toolchains: {specs: ["go@1.23.4","node@22"], stacks: ["flutter@3.24.0"]}, share_cache: false}
-  - {pattern: "acme/*", repo_file: true}   # read .kinhin.yml from the repo
+  - {pattern: "acme/*", repo_file: true}   # read .kinhin/config.yml from the repo
 ```
 
 - Generate a repo file: `kinhin toolchains detect [path] [--json] [--write] [--force]` in a checkout.

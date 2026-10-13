@@ -15,7 +15,7 @@ Eight skills ship in the repository — one per workflow an agent actually perfo
 | `kinhin-configure` | Write `config.yaml` safely: accounts, labels, capacity, routes |
 | `kinhin-operate` | Start/stop/pause, status, logs, pipeline view, daemon, cleanup, scaling |
 | `kinhin-add-forge-account` | Connect a GitHub, GitLab, Gitea or Forgejo account |
-| `kinhin-images-toolchains` | `image prepare`, base-image pinning, `.kinhin.yml`, per-project toolchains |
+| `kinhin-images-toolchains` | `image prepare`, base-image pinning, `.kinhin/config.yml`, per-project toolchains |
 | `kinhin-route-workflow` | Choose and route a workflow to tart, appleContainer, docker or host |
 | `kinhin-troubleshoot` | Jobs queued but no VMs, registration failures, token rejected, disk filling |
 | `kinhin-video` | Make a narrated product video from `.kinhin/videos/`: scenes, themes, captions, CC0 music search, container or fleet builds |

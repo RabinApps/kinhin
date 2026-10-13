@@ -174,7 +174,7 @@ still requires https: `allow_insecure_http` is accepted for GHES accounts, but h
 ## Per-project toolchains and forges
 
 [Per-project toolchains](toolchains.md#per-project-toolchains) need the branch or tag a job runs at and the repo's
-`.kinhin.yml`. GitHub, Gitea/Forgejo and GitLab supply both.
+`.kinhin/config.yml` (or the older `.kinhin.yml`). GitHub, Gitea/Forgejo and GitLab supply both.
 
 ## More forges
 
