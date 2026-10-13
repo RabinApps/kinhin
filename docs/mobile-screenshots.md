@@ -201,6 +201,20 @@ screengrab appends a timestamp to each file name, so `Screengrab.screenshot("01-
 `screenshots.html` is a report that screengrab writes next to the locale folders; it is not an upload file. Both are
 ignored by `examples/.gitignore`.
 
+## Locales
+
+Set the list of languages and the lane captures each one, in its own folder:
+
+```bash
+SNAPSHOT_LANGUAGES=en-US,fr-FR bundle exec fastlane screenshots   # iOS
+SCREENGRAB_LOCALES=en-US,fr-FR bundle exec fastlane screenshots   # Android
+```
+
+Your app has to show different text for each language. On iOS that means a String Catalog (`Localizable.xcstrings`) with
+a translation for each language; on Android, `values-fr/strings.xml` next to `values/strings.xml`. Otherwise every locale
+folder holds the same English screen. The examples show the pattern: `examples/ios_native_app/App/Localizable.xcstrings`
+and `examples/android_native_app/app/src/main/res/values-fr/strings.xml`.
+
 ## Frames (optional)
 
 Set `FRAME_SCREENSHOTS=1` and the lane runs frameit on the screenshots folder. Settings go in `fastlane/Framefile.json`. The
@@ -241,6 +255,9 @@ upload yourself, with your own credentials. See [credentials](mobile-credentials
 - **iOS build:** the UI test target compiles with the `@MainActor` requirement.
 - **Android capture:** `fastlane screenshots` ran on a Pixel 9 emulator (Android 37, arm64) and wrote
   `fastlane/metadata/android/en-US/images/phoneScreenshots/01-home_<timestamp>.png` at 1080 x 2424. The lane exits 0 only when at least one PNG exists.
+- **Locales:** both platforms captured `en-US` and `fr-FR` in one run, each in its own folder, and the French images show French text.
+  iOS wrote `fastlane/screenshots/fr-FR/iPhone 17e-01-home.png`; Android wrote `fastlane/metadata/android/fr-FR/images/phoneScreenshots/`.
+  The sample apps in `examples/` translate their one string, so the locale switch is visible in the image.
 - **Android build:** `assembleDebugAndroidTest` compiles the instrumented test with the dependencies above.
 - **Options:** every snapshot, screengrab, frameit and screenshot-upload option the templates use exists in fastlane 2.241.0.
 - **frameit prerequisite:** frameit stops without ImageMagick. The lane installs it when frames are on.
@@ -249,7 +266,7 @@ upload yourself, with your own credentials. See [credentials](mobile-credentials
 
 - **Frames** end to end. Blocked by [ImageMagick #9011](https://github.com/ImageMagick/ImageMagick/issues/9011) until a release contains the fix.
   The framed output's file name is also unknown.
-- **Folder layouts for multiple locales and devices** on both platforms. The iOS layout above is from a single-language run.
+- **Multiple devices** on iOS. The iOS runs used one simulator (iPhone 17e); the layout for several devices is from the snapshot docs.
 - **Flutter and React Native capture.** They use the same native targets, and the scaffold writes the files, but we have not added
   a UI test target to a Flutter or React Native project and run it.
 - **Uploads** against real stores. Not run, by decision.
