@@ -86,8 +86,9 @@ struct CapacityView: View {
                     get: { model.draft?.vmEphemeral ?? false }, set: { model.setEphemeral($0) })
             )
             .accessibilityIdentifier("ephemeral-toggle")
-            HStack {
+            HStack(spacing: 3) {
                 Text("Base image")
+                Spacer()
                 TextField(
                     "Base image",
                     text: Binding(get: { model.draft?.image ?? "" }, set: { model.setImage($0) })

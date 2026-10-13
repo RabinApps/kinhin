@@ -31,6 +31,7 @@
 
 **Fixed**
 
+- Advanced → Capacity: the This Mac base-image rows no longer run past the card's right edge (the **Pin…** button was clipped), the labels no longer collapse, and the empty gap above **More images** is gone. A custom base image now sits on its own line under the popup.
 - The apple/container install hints now include `--enable-kernel-install`. Without it, `container run` fails with
   "default kernel not configured".
 
