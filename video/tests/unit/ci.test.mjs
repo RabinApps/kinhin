@@ -129,3 +129,19 @@ test('the plan step writes what the workflow reads: enabled, a fromJSON-able mat
     rmSync(dir, {recursive: true, force: true});
   }
 });
+
+test('video-image.yml publishes the image from a tag, pinned and with only the token it needs', () => {
+  const image = readFileSync(join(repo, '.github/workflows/video-image.yml'), 'utf8');
+  assert.doesNotMatch(image, /pull_request/, 'never runs for pull requests');
+  assert.match(image, /^permissions:\n  contents: read/m, 'read-only by default');
+  assert.match(image, /packages: write/, 'the publish job may push the package');
+  assert.doesNotMatch(image.replace(/secrets\.GITHUB_TOKEN/g, ''), /secrets\./, 'no secret but the workflow token');
+  for (const u of [...image.matchAll(/uses: (\S+)/g)].map((m) => m[1])) assert.match(u, /@[0-9a-f]{40}$/, `${u} is pinned to a commit`);
+  assert.match(image, /ghcr\.io\/rabinapps\/kinhin-video/);
+  assert.match(image, /context: video/);
+  assert.match(image, /linux\/amd64,linux\/arm64/);
+  // The input is checked before use, and only a stable tag moves :latest.
+  assert.match(image, /\^\[0-9A-Za-z\]/);
+  assert.match(image, /!= \*-\*/);
+  assert.doesNotMatch(image.replace(/\$\{\{ steps\.tags\.outputs\.tags \}\}/g, ''), /run: [^\n]*\$\{\{ (inputs|github\.event|github\.ref_name)/, 'no untrusted input inlined into a run line');
+});

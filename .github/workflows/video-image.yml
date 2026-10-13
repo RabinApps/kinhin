@@ -1,0 +1,78 @@
+# Publishes the video suite's container image, which `kinhin video build` pulls so nobody needs a copy of video/.
+#
+#   ghcr.io/rabinapps/kinhin-video:<version>   one per release tag (v0.1.0 -> 0.1.0)
+#   ghcr.io/rabinapps/kinhin-video:latest      stable releases only (no prerelease suffix)
+#
+# Built only from committed files, for linux/arm64 and linux/amd64, with the workflow's own token and no other secret.
+# The first publish creates a private package; make it public once in the repository's Packages settings so users can pull
+# it without signing in.
+name: Video image
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to publish (for example 0.1.0 or dev); never moves :latest"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Work out the tags
+        id: tags
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          image=ghcr.io/rabinapps/kinhin-video
+          if [ "$EVENT" = "push" ]; then version="${REF_NAME#v}"; else version="$INPUT_TAG"; fi
+          [[ "$version" =~ ^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$ ]] || { echo "bad image tag: $version" >&2; exit 1; }
+          tags="$image:$version"
+          # Only a stable release tag (no -beta, -rc, ...) moves :latest.
+          if [ "$EVENT" = "push" ] && [[ "$version" != *-* ]]; then tags="$tags,$image:latest"; fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "publishing $tags"
+
+      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - uses: docker/login-action@06fb636fac595d6fb4b28a5dfcb21a6f5091859c # v4.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: video
+          file: video/Containerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.description=kinhin video suite: build a narrated product video from .kinhin/videos/
+            org.opencontainers.image.licenses=Apache-2.0

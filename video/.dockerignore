@@ -3,3 +3,5 @@ raw
 out
 output
 .venv-tts
+.generated
+tests

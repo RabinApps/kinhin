@@ -30,10 +30,15 @@ RUN printf '%s\n' \
  && rm warm.mjs \
  && find node_modules/@huggingface -name '*.onnx' | grep -q .
 
+# The suite itself. This makes the image self-contained: `kinhin video build` (or scripts/container-build.sh) runs it against a
+# repository mounted at /project, and nobody needs a copy of video/. The developer flow (scripts/build.sh --container) still
+# rsyncs the working tree over this copy when a build starts. It comes after the dependency and voice-model layers so editing the
+# suite does not rebuild them. (One whole-context COPY on purpose: Apple's builder truncates a directory that an earlier,
+# narrower COPY already asked for.)
+COPY . /work
+
 # The catalog's bundled music (music/catalog.json: CC0 tracks), checked against their SHA-256, so a build that selects one
 # needs no network. scripts/fetch-music.mjs copies from /opt/music (the build's raw/ is a bind mount, hiding /work/raw).
-COPY scripts/fetch-music.mjs /opt/bake/scripts/fetch-music.mjs
-COPY music/catalog.json /opt/bake/music/catalog.json
-RUN node /opt/bake/scripts/fetch-music.mjs --bake /opt/music && rm -rf /opt/bake
+RUN node /work/scripts/fetch-music.mjs --bake /opt/music
 
 ENV KINHIN_VIDEO_IN_CONTAINER=1
