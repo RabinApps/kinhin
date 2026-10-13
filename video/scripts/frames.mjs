@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 // Puts each clip scene (types "device" and "terminal") of the project in its frame, at the length retime.mjs gave
-// it, and writes out/<scene id>.mp4. A scene's props:
+// it, and writes out/.work/<scene id>.mp4. A scene's props:
 //   clip   a clip of the project's adapter (see scripts/adapter.mjs), or a path relative to video/
 //   frame  "macbook" (device only: frame-app.sh), "window" (frame-terminal.sh) or "none"
 //   speed  playback speed of the clip (default 1)
 // Usage: node scripts/frames.mjs        Env: VIDEO_PROJECT, VIDEO_THEME, VIDEO_FORMAT
 import {execFileSync} from 'node:child_process';
-import {existsSync, readFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {loadAdapter, resolveClip as resolveClip_} from './adapter.mjs';
 import {loadProject, root, shellEnv} from './project.mjs';
 
 process.chdir(root);
 const p = loadProject();
-const timeline = JSON.parse(readFileSync('out/timeline.json', 'utf8'));
+mkdirSync('out/.work', {recursive: true});
+const timeline = JSON.parse(readFileSync('out/.work/timeline.json', 'utf8'));
 const env = {...process.env};
 for (const line of shellEnv(p).split('\n')) {
   const [, k, v] = line.match(/^export (\w+)='(.*)'$/);
@@ -40,7 +41,7 @@ for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   const found = resolveClip(scene.props.clip);
   if (!found) throw new Error(`scene "${scene.id}": no clip "${scene.props.clip}"${adapter ? ` in the ${adapter.name} adapter (record it, or add it to ${process.env.VIDEO_SOURCE ? '.kinhin/videos/' : ''}adapters/${adapter.name}/reference/)` : ' (the project has no adapter; give a path)'}`);
   const clip = found.file;
-  const out = join('out', `${scene.id}.mp4`);
+  const out = join('out/.work', `${scene.id}.mp4`);
   // An app recording defaults to the laptop; a terminal or a browser session to a window.
   const frame = scene.props.frame ?? (found.kind === 'app' || (found.kind === 'path' && scene.type === 'device') ? 'macbook' : 'window');
   const speed = String(scene.props.speed ?? 1);

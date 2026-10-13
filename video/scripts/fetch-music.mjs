@@ -1,10 +1,10 @@
-// Finds the project's music track and writes out/music.json for assemble.mjs. The track comes from the resolved "music"
+// Finds the project's music track and writes out/.work/music.json for assemble.mjs. The track comes from the resolved "music"
 // setting (project, adapter, VIDEO_MUSIC): a catalog name (music/catalog.json), a file under video/ (music/my-track.mp3),
 // or an https URL with its sha256. Downloads are checked against their SHA-256 and cached in raw/music/; the container image
 // carries the catalog's bundled tracks in /opt/music, so a build there needs no network.
 // Usage: node scripts/fetch-music.mjs            node scripts/fetch-music.mjs --bake DIR   (download every bundled track into DIR)
 import {createHash} from 'node:crypto';
-import {copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync} from 'node:fs';
+import {copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync} from 'node:fs';
 import {dirname, extname, isAbsolute, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -31,8 +31,9 @@ if (process.argv[2] === '--bake') {
 
 const {loadProject, sourceDir} = await import('./project.mjs');
 const music = loadProject().music;
-mkdirSync(join(root, 'out'), {recursive: true});
-const result = (extra) => writeFileSync(join(root, 'out/music.json'), JSON.stringify({...music, file: null, ...extra}, null, 2) + '\n');
+mkdirSync(join(root, 'out/.work'), {recursive: true});
+rmSync(join(root, 'out/.work/music-credit.txt'), {force: true}); // never carry one build's credit into the next
+const result = (extra) => writeFileSync(join(root, 'out/.work/music.json'), JSON.stringify({...music, file: null, ...extra}, null, 2) + '\n');
 if (!music.enabled) { result({enabled: false}); console.log('no music'); process.exit(0); }
 
 let file; let credit = music.credit; let label = music.track;
@@ -58,5 +59,5 @@ if (/^https?:\/\//.test(music.track)) {
   }
 }
 result({file, credit});
-if (credit) writeFileSync(join(root, 'out/music-credit.txt'), `${credit}\n`);
+if (credit) writeFileSync(join(root, 'out/.work/music-credit.txt'), `${credit}\n`);
 console.log(`music: ${label} (volume ${music.volume}${music.duck ? ', ducked under the voice' : ''})`);

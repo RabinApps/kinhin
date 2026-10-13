@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Renders the narration of video/script/launch.json to one audio file per scene and writes out/voice-timings.json
+// Renders the narration of video/script/launch.json to one audio file per scene and writes out/.work/voice-timings.json
 // (seconds per scene) so scenes and captions can follow the voice. Three engines, all local and free:
 //   say         macOS `say`. Zero setup; the default voices sound robotic unless you download a Premium voice.
 //   kokoro      Kokoro-82M through the kokoro-js npm package (Apache-2.0 model; ~90 MB download on first use).
@@ -162,7 +162,8 @@ for (const {scene, cues} of plan) {
   timings.scenes[scene.id] = {speechEnd: round(speechEnd), cues: placed};
   console.log(`${scene.id.padEnd(9)} speech ends ${speechEnd.toFixed(1)}s  (${placed.length} cues)`);
 }
-writeFileSync(join(root, 'out/voice-timings.json'), JSON.stringify(timings, null, 2) + '\n');
+mkdirSync(join(root, 'out/.work'), {recursive: true});
+writeFileSync(join(root, 'out/.work/voice-timings.json'), JSON.stringify(timings, null, 2) + '\n');
 function round(x) {
   return Math.round(x * 100) / 100;
 }

@@ -4,7 +4,7 @@
 //   node scripts/video-ci.mjs validate               check video/ci.json (scripts/check.sh runs this)
 //   node scripts/video-ci.mjs plan                   decide whether to run and what to build; prints and, in Actions,
 //                                                    writes `enabled` and `matrix` to $GITHUB_OUTPUT
-//   node scripts/video-ci.mjs verify <out dir>       run scripts/verify.mjs on every video in a directory, with the budgets
+//   node scripts/video-ci.mjs verify <out dir>       run scripts/verify.mjs on every video in a directory (out/<name>/<name>.mp4), with the budgets
 //   node scripts/video-ci.mjs summary <out dir>      write a markdown table of the results ($GITHUB_STEP_SUMMARY in Actions)
 //
 // Everything is opt-in. Nothing runs unless the Actions variable VIDEO_CI is "true"; then each event needs its own switch
@@ -103,12 +103,15 @@ function setOutput(key, value) {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}\n`);
 }
 
+/** Every finished video under <out dir>: each lives in its own folder, out/<name>/<name>.mp4 with its <name>.srt beside it. */
 function videosIn(dir) {
-  return readdirSync(dir).filter((f) => f.endsWith('.mp4') && !/^(app|install|part-)/.test(f) && existsSync(join(dir, f.replace(/\.mp4$/, '.srt')))).sort().map((f) => join(dir, f));
+  return readdirSync(dir, {withFileTypes: true})
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.') && existsSync(join(dir, e.name, `${e.name}.mp4`)) && existsSync(join(dir, e.name, `${e.name}.srt`)))
+    .map((e) => join(dir, e.name, `${e.name}.mp4`)).sort();
 }
 
 function verifyDir(dir, config) {
-  const timelineFile = join(dir, 'timeline.json');
+  const timelineFile = join(dir, '.work', 'timeline.json');
   const timeline = existsSync(timelineFile) ? JSON.parse(readFileSync(timelineFile, 'utf8')) : undefined;
   // The timeline belongs to the build that wrote it (its outName); other videos in the directory get the generic checks.
   return videosIn(dir).map((file) => ({file, ...verifyVideo(file, {timeline: timeline && file.endsWith(`/${timeline.outName}.mp4`) ? timeline : undefined, maxMB: config.budgets.mp4MB, maxSeconds: config.budgets.seconds})}));

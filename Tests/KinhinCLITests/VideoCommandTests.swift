@@ -172,4 +172,18 @@ final class VideoCommandTests: XCTestCase {
         }
         try VideoThemeCommand.list(["--dir", repo.path])
     }
+
+    func testTheFinishedVideoIsTheNewestFolderUnderOut() throws {
+        let out = repo.appendingPathComponent("out")
+        let older = out.appendingPathComponent("launch")
+        let newer = out.appendingPathComponent("launch-4x5")
+        for folder in [older, newer, out.appendingPathComponent(".work")] {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        }
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -600)], ofItemAtPath: older.path)
+        XCTAssertEqual(VideoCommand.latestVideoFolder(in: out).lastPathComponent, "launch-4x5")
+        XCTAssertEqual(
+            VideoCommand.latestVideoFolder(in: repo.appendingPathComponent("nothing")).lastPathComponent, "nothing")
+    }
 }

@@ -87,15 +87,15 @@ if (!flag('--no-build')) {
     if (!flag('--full')) buildArgs.push('--fast');
     const r = spawnSync('scripts/build.sh', buildArgs, {stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 256 << 20});
     process.stdout.write(r.stdout.split('\n').filter((l) => /^==>|wrote out|rendered|cached/.test(l)).join('\n') + '\n');
-    const built = r.stdout.match(/wrote out\/([\w.-]+)\.mp4 \(/)?.[1];
+    const built = r.stdout.match(/wrote out\/[\w.-]+\/([\w.-]+)\.mp4 \(/)?.[1];
     if (r.status !== 0 || !built) { console.error(`FAILED: ${c.name}`); index[c.name] = {...c, failed: true}; continue; }
-    const timeline = JSON.parse(readFileSync('out/timeline.json', 'utf8'));
-    copyFileSync('out/timeline.json', join(galleryDir, `${c.name}.timeline.json`)); // so strips can be remade without rebuilding
-    copyFileSync(`out/${built}.mp4`, join(galleryDir, `${c.name}.mp4`));
-    ffmpeg(['-i', `out/${built}-poster.png`, '-vf', 'scale=640:-2', '-q:v', '4', join(galleryDir, `${c.name}.jpg`)]);
-    strip(`out/${built}.mp4`, timeline, join(galleryDir, `${c.name}-strip.jpg`), c.group);
+    const timeline = JSON.parse(readFileSync('out/.work/timeline.json', 'utf8'));
+    copyFileSync('out/.work/timeline.json', join(galleryDir, `${c.name}.timeline.json`)); // so strips can be remade without rebuilding
+    copyFileSync(`out/${built}/${built}.mp4`, join(galleryDir, `${c.name}.mp4`));
+    ffmpeg(['-i', `out/${built}/${built}-poster.png`, '-vf', 'scale=640:-2', '-q:v', '4', join(galleryDir, `${c.name}.jpg`)]);
+    strip(`out/${built}/${built}.mp4`, timeline, join(galleryDir, `${c.name}-strip.jpg`), c.group);
     const p = loadProject(c.project);
-    index[c.name] = {...c, failed: false, seconds: Math.round(timeline.total), format: c.format ?? p.format.name, theme: c.theme ?? p.theme.name, types: [...new Set(Object.values(timeline.scenes).map((s) => s.type))], scenes: Object.keys(timeline.scenes).length, bytes: execFileSync('stat', ['-f', '%z', `out/${built}.mp4`]).toString().trim() * 1};
+    index[c.name] = {...c, failed: false, seconds: Math.round(timeline.total), format: c.format ?? p.format.name, theme: c.theme ?? p.theme.name, types: [...new Set(Object.values(timeline.scenes).map((s) => s.type))], scenes: Object.keys(timeline.scenes).length, bytes: execFileSync('stat', ['-f', '%z', `out/${built}/${built}.mp4`]).toString().trim() * 1};
     writeFileSync(indexFile, JSON.stringify(index, null, 2));
   }
 }

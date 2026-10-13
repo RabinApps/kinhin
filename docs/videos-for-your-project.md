@@ -33,7 +33,7 @@ kinhin video init launch      # writes .kinhin/videos/launch.yml (and a .gitigno
 kinhin video build launch     # builds it; the first run pulls the image
 ```
 
-The video lands in `.kinhin/videos/out/` (`launch.mp4`, `.webm`, `-poster.png`, `-hero.gif` and the caption file `launch.srt`). With
+Each video gets its own folder: `.kinhin/videos/out/launch/` holds `launch.mp4`, `.webm`, `-poster.png`, `-hero.gif` and the caption file `launch.srt` (and `music-credit.txt` when the track needs a credit). A look with another theme or format gets a folder of its own, such as `out/launch-midnight-9x16/`. With
 one video in the folder you can leave the name out. `kinhin video list` shows what is there.
 
 Each video is one file in `.kinhin/videos/` (YAML or JSON, subfolders allowed), so one repository can hold several kinds:
@@ -63,7 +63,7 @@ scenes:
 ```
 
 Paths in the config, such as a music file, are relative to your repository, which is mounted into the container read-only.
-Only `.kinhin/videos/out` (the videos) and `.kinhin/videos/.cache` (the render cache) are written.
+Only `.kinhin/videos/out` (a folder per video) and `.kinhin/videos/.cache` (the render cache) are written.
 `.kinhin/videos/` sits beside `.kinhin/config.yml` (kinhin's toolchains file, which rejects keys it does not know); the
 toolchains loader never reads the videos folder.
 
@@ -268,7 +268,7 @@ run with its number and writes no file.
 
 ## Captions
 
-Captions have two parts: the **caption file** (`out/<project>.srt`, every cue, written on every build for a player) and
+Captions have two parts: the **caption file** (`out/<project>/<project>.srt`, every cue, written on every build for a player) and
 **burned-in** captions drawn on the picture. Turn the burned-in ones on or off, and choose their style, in the project file
 or from the command line:
 
@@ -366,7 +366,7 @@ kinhin video build launch --runtime docker                  # pick the runtime
 
 The container image (Playwright's Chromium, ffmpeg with libass, Kokoro and its model, the theme fonts, the bundled music and
 the pipeline) is the only build, so the result does not depend on what is installed on your machine. Your clips come from
-the adapter's committed `reference/` clips. The result is in `.kinhin/videos/out/`: `<name>.mp4`, `.webm`, `-poster.png`,
+the adapter's committed `reference/` clips. The result is in `.kinhin/videos/out/<name>/`: `<name>.mp4`, `.webm`, `-poster.png`,
 `-hero.gif` and `.srt`.
 
 ### What the build does
@@ -374,13 +374,13 @@ the adapter's committed `reference/` clips. The result is in `.kinhin/videos/out
 For the curious: these are the steps `kinhin video build` runs inside the image.
 
 1. `scripts/voice.mjs` renders each cue of the narration.
-2. `scripts/retime.mjs` makes each scene as long as its speech needs and writes `src/timing.ts`, `out/timeline.json` and
-   `out/<slug>.captions.srt`.
+2. `scripts/retime.mjs` makes each scene as long as its speech needs and writes `src/timing.ts`, `out/.work/timeline.json` and
+   `out/.work/<slug>.captions.srt` (`out/.work/` is scratch; the container build removes it when it finishes).
 3. `scripts/render-titles.mjs` renders every canvas scene headlessly (Playwright's Chromium) to `raw/scenes/<project>/`.
 4. `scripts/frames.mjs` puts the device and terminal clips in their frames.
-5. `scripts/fetch-music.mjs` finds the project's music track (see [Music](#music)), checks its SHA-256 and writes `out/music.json`; no track, no music.
+5. `scripts/fetch-music.mjs` finds the project's music track (see [Music](#music)), checks its SHA-256 and writes `out/.work/music.json`; no track, no music.
 6. `scripts/assemble.mjs` joins the scenes with short fades, the voice, music ducked under it, and captions into
-   `out/<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt` (every caption, for a player). Burned-in captions
+   `out/<project>/<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt` (every caption, for a player). Burned-in captions
    follow the project's `captions` block (see [Captions](#captions)).
 
 ### Faster iteration

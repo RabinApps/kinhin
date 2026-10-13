@@ -113,7 +113,7 @@ function userRepo() {
   writeFileSync(join(videos, 'promo/intro.yml'), 'name: Acme intro\nadapter: acme\ntheme: midnight\nmusic:\n  track: music/bed.wav\nscenes:\n  - id: hi\n    type: title\n    props: {title: Acme}\n    narration: Acme ships.\n');
   writeFileSync(join(videos, 'short.json'), JSON.stringify({name: 'Short', scenes: [{id: 'a', type: 'title', props: {title: 'A'}, narration: 'A.'}]}));
   // Saved music has .json provenance files, and the build writes out/ and .cache/: none of them are videos.
-  for (const f of ['music/bed.json', 'out/timeline.json', '.cache/scenes/x.json', 'fonts/info.json']) {
+  for (const f of ['music/bed.json', 'out/.work/timeline.json', '.cache/scenes/x.json', 'fonts/info.json']) {
     mkdirSync(join(videos, f, '..'), {recursive: true});
     writeFileSync(join(videos, f), '{}');
   }

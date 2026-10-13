@@ -139,7 +139,7 @@ and size budgets. [Marketing video in CI](ci-video.md) runs the suite's builds i
 
 ## The site
 
-Copy the built `<project>.mp4`, `<project>.webm` and `<project>-poster.png` from `video/out/` into `website/public/` as
+Copy the built `<project>.mp4`, `<project>.webm` and `<project>-poster.png` from `video/out/<project>/` into `website/public/` as
 `launch.mp4`, `launch.webm` and `launch-poster.png`. The home page shows the player only when `launch.mp4` exists, so
 the site never renders a broken video. Keep the files small (under about 10 MB) or host them elsewhere. The player
 can use `<project>.srt` for captions.

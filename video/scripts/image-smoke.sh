@@ -45,5 +45,6 @@ echo "==> building a video inside $IMAGE ($RUNTIME)"
 echo "==> verifying it with the image's own checker"
 "$RUNTIME" run --rm -v "$work/out":/work/out "$IMAGE" node /work/scripts/video-ci.mjs verify /work/out
 
-[ -s "$work/out/smoke.mp4" ] || { echo "no smoke.mp4 was produced" >&2; exit 1; }
+[ ! -e "$work/out/.work" ] || { echo "the build left its scratch folder in out/" >&2; exit 1; }
+[ -s "$work/out/smoke/smoke.mp4" ] || { echo "no smoke.mp4 was produced" >&2; exit 1; }
 echo "==> ok: $IMAGE builds and verifies a video"

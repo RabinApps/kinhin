@@ -2,7 +2,7 @@
 // The one definition of "a good video": checks a finished build against its timeline and a set of budgets. The e2e
 // tests and the CI `checks` job both use it, so they cannot disagree.
 //
-//   node scripts/verify.mjs out/<name>.mp4 [--timeline out/timeline.json] [--max-mb 10] [--max-seconds 90]
+//   node scripts/verify.mjs out/<name>/<name>.mp4 [--timeline out/.work/timeline.json] [--max-mb 10] [--max-seconds 90]
 //                                          [--loudness -16] [--loudness-tolerance 3] [--no-audio]
 // Exit 0 when every check passes; otherwise prints each failure and exits 1. As a library: verifyVideo(file, options).
 //
@@ -117,7 +117,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const opt = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
   const file = args.find((a) => !a.startsWith('--') && a !== opt('--timeline') && a !== opt('--max-mb') && a !== opt('--max-seconds') && a !== opt('--loudness') && a !== opt('--loudness-tolerance'));
   if (!file) {
-    console.error('usage: node scripts/verify.mjs <video.mp4> [--timeline out/timeline.json] [--max-mb N] [--max-seconds N] [--no-audio]');
+    console.error('usage: node scripts/verify.mjs <video.mp4> [--timeline out/.work/timeline.json] [--max-mb N] [--max-seconds N] [--no-audio]');
     process.exit(2);
   }
   const timelinePath = opt('--timeline');

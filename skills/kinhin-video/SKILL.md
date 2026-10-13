@@ -20,7 +20,7 @@ has not run against a real runner. Run `kinhin help video` if a flag here is rej
 | Pick the runtime or image | `--runtime container\|docker`, `--image REF` (or `KINHIN_VIDEO_IMAGE`) |
 | Build on a runner | `kinhin video init --workflow --runs-on LABELS`, commit and push it, then `kinhin video build <name> --on-fleet` |
 
-The result is in `.kinhin/videos/out/` (`<name>.mp4`, `.webm`, `-poster.png`, `-hero.gif`, `.srt`). Use `--fast` while
+The result is in `.kinhin/videos/out/<name>/` (`<name>.mp4`, `.webm`, `-poster.png`, `-hero.gif`, `.srt`). Use `--fast` while
 iterating; unchanged scenes come from the render cache. Never open the MP4 and judge it blind: run a build, then read
 the log and the `.srt`, and tell the user where the files are.
 

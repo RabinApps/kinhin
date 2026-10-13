@@ -49,7 +49,7 @@ const sourceHash = createHash('sha256');
 for (const f of [...walk('src'), ...walk('shared')].sort()) if (!f.endsWith('src/timing.ts') && !f.endsWith('.meta')) sourceHash.update(f).update(readFileSync(f));
 let timing = {};
 try {
-  timing = JSON.parse(readFileSync('out/timeline.json', 'utf8')); // missing when scenes are rendered before a retime: minLength then
+  timing = JSON.parse(readFileSync('out/.work/timeline.json', 'utf8')); // missing when scenes are rendered before a retime: minLength then
 } catch {}
 const lengthOf = (scene) => timing.scenes?.[scene.id]?.length ?? scene.minLength;
 const keyOf = (scene) =>

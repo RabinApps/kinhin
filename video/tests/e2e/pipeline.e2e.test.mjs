@@ -22,7 +22,9 @@ const expectGood = (name, extra = {}) => {
 test('smoke: the hello example builds, and every check passes', from('smoke'), () => {
   // A --fast build writes no WebM; stale ones from earlier builds must not mask a failure to cope with that (a glob that
   // matches nothing once made the build script exit 2).
-  for (const f of readdirSync(join(root, 'out'))) if (f.endsWith('.webm')) rmSync(join(root, 'out', f));
+  for (const d of readdirSync(join(root, 'out'), {withFileTypes: true})) {
+    if (d.isDirectory()) for (const f of readdirSync(join(root, 'out', d.name))) if (f.endsWith('.webm')) rmSync(join(root, 'out', d.name, f));
+  }
   const r = build(['--project', 'examples/hello', '--fast'], {env: {RENDER_FORCE: '1'}});
   assert.equal(r.status, 0, r.stdout.slice(-800) + r.stderr.slice(-800));
   assert.equal(r.name, 'examples-hello');
@@ -31,7 +33,7 @@ test('smoke: the hello example builds, and every check passes', from('smoke'), (
   assert.equal(facts.width, 1920);
   // The CI steps work on a real build: verify passes, and the summary is a markdown table with a check mark.
   const ci = run('node', ['scripts/video-ci.mjs', 'verify', 'out']);
-  assert.match(ci.stdout, /^ok\s+out\/examples-hello\.mp4/m, ci.stdout + ci.stderr);
+  assert.match(ci.stdout, /^ok\s+out\/examples-hello\/examples-hello\.mp4/m, ci.stdout + ci.stderr);
   const summary = run('node', ['scripts/video-ci.mjs', 'summary', 'out']);
   assert.match(summary.stdout, /\| :white_check_mark: \| `examples-hello\.mp4` \| 1920×1080 \|/);
 });
@@ -65,7 +67,7 @@ test('smoke: captions can be switched off, restyled, and the caption file is wri
   // The template demo has a device scene with cues; look at the band under the laptop while a cue is spoken.
   const on = build(['--project', 'template-demo', '--fast']);
   assert.equal(on.status, 0, on.stdout.slice(-600));
-  const timeline = JSON.parse(readFileSync(join(root, 'out/timeline.json'), 'utf8'));
+  const timeline = JSON.parse(readFileSync(join(root, 'out/.work/timeline.json'), 'utf8'));
   const at = timeline.scenes.screen.start + 1.8;
   const withCaptions = bottomEdges(on.name, at);
   const off = build(['--project', 'template-demo', '--captions', 'off', '--fast']);
@@ -73,12 +75,12 @@ test('smoke: captions can be switched off, restyled, and the caption file is wri
   assert.equal(off.name, on.name);
   const without = bottomEdges(off.name, at);
   assert.ok(withCaptions > without * 3 && withCaptions > 0.002, `burned captions show up under the picture (${withCaptions} vs ${without})`);
-  assert.ok(existsSync(join(root, `out/${off.name}.srt`)), 'the caption file is written with captions off');
+  assert.ok(existsSync(join(root, `out/${off.name}/${off.name}.srt`)), 'the caption file is written with captions off');
   assert.deepEqual(check(off.name).failures, [], 'a captionless build still passes every check');
   // The kinhin adapter defaults to no burned-in captions; --captions on brings them back.
   const kinhin = build(['--project', 'examples/kinhin-30s', '--fast']);
   assert.equal(kinhin.status, 0, kinhin.stdout.slice(-600));
-  const t2 = JSON.parse(readFileSync(join(root, 'out/timeline.json'), 'utf8'));
+  const t2 = JSON.parse(readFileSync(join(root, 'out/.work/timeline.json'), 'utf8'));
   const kAt = t2.scenes.app.start + 1.8;
   const kOff = bottomEdges(kinhin.name, kAt);
   const kOn = build(['--project', 'examples/kinhin-30s', '--captions', 'on', '--fast']);
@@ -88,7 +90,7 @@ test('smoke: captions can be switched off, restyled, and the caption file is wri
 
 test('smoke: a caption style builds and looks different from the default', from('smoke'), () => {
   const outline = build(['--project', 'template-demo', '--fast']);
-  const timeline = JSON.parse(readFileSync(join(root, 'out/timeline.json'), 'utf8'));
+  const timeline = JSON.parse(readFileSync(join(root, 'out/.work/timeline.json'), 'utf8'));
   const at = timeline.scenes.screen.start + 1.8;
   const a = bottomEdges(outline.name, at);
   const box = build(['--project', 'template-demo', '--caption-style', 'box', '--fast']);
@@ -172,9 +174,9 @@ test('standard: a second build re-renders nothing, and changing one scene re-ren
 
 test('standard: two builds of the same inputs give the same timeline', from('standard'), () => {
   const a = build(['--project', 'examples/hello', '--fast']);
-  const first = JSON.parse(readFileSync(join(root, 'out/timeline.json'), 'utf8'));
+  const first = JSON.parse(readFileSync(join(root, 'out/.work/timeline.json'), 'utf8'));
   const b = build(['--project', 'examples/hello', '--fast']);
-  const second = JSON.parse(readFileSync(join(root, 'out/timeline.json'), 'utf8'));
+  const second = JSON.parse(readFileSync(join(root, 'out/.work/timeline.json'), 'utf8'));
   assert.equal(a.status + b.status, 0);
   assert.deepEqual(Object.fromEntries(Object.entries(first.scenes).map(([k, v]) => [k, v.length])), Object.fromEntries(Object.entries(second.scenes).map(([k, v]) => [k, v.length])));
   assert.ok(Math.abs(first.total - second.total) < 0.05);
@@ -214,7 +216,7 @@ test('smoke: a video built from your own repository (.kinhin/videos/ and your ow
     assert.equal(r.status, 0, r.stdout.slice(-800) + r.stderr.slice(-800));
     assert.equal(r.name, 'own');
     expectGood('own');
-    const music = JSON.parse(readFileSync(join(root, 'out/music.json'), 'utf8'));
+    const music = JSON.parse(readFileSync(join(root, 'out/.work/music.json'), 'utf8'));
     assert.equal(music.enabled, true);
     assert.match(music.file, /bed\.wav$/);
     assert.equal(music.volume, 0.2);
@@ -235,7 +237,7 @@ test('smoke: a theme of your own (.kinhin/videos/themes/, extending a built-in o
     assert.match(r.stdout, /signal/, 'the build reports the theme it used');
     expectGood('themed');
     // The poster's average colour: a red backdrop, whatever the text on it.
-    const px = spawnSync('ffmpeg', ['-nostdin', '-loglevel', 'error', '-i', join(root, 'out/themed-poster.png'), '-vf', 'scale=1:1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
+    const px = spawnSync('ffmpeg', ['-nostdin', '-loglevel', 'error', '-i', join(root, 'out/themed/themed-poster.png'), '-vf', 'scale=1:1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
     assert.equal(px.status, 0, String(px.stderr));
     const [red, green, blue] = px.stdout;
     assert.ok(red > 150 && green < 120 && blue < 120, `a mostly red poster, got rgb(${red}, ${green}, ${blue})`);

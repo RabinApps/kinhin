@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Turns out/voice-timings.json (from voice.mjs) into the timeline of the cut:
+// Turns out/.work/voice-timings.json (from voice.mjs) into the timeline of the cut:
 //   src/timing.ts            scene lengths the Motion Canvas scenes hold for (commit it; the scenes import it)
-//   out/timeline.json        every scene's start, length, type, props and cues on the final clock
-//   out/<slug>.captions.srt   the narration as captions on the final clock
+//   out/.work/timeline.json        every scene's start, length, type, props and cues on the final clock
+//   out/.work/<slug>.captions.srt   the narration as captions on the final clock
 // A scene lasts as long as the longer of its own animation (`minLength`, default per scene type) and its speech
 // plus `tail` seconds, so the picture follows the voice and never the other way round.
 // Usage: node scripts/retime.mjs          Env: VIDEO_PROJECT (default launch)
@@ -11,7 +11,7 @@ import {join} from 'node:path';
 import {loadProject, root} from './project.mjs';
 
 const {project, scenes: configured, stem, slug, outName, format} = loadProject();
-const voice = JSON.parse(readFileSync(join(root, 'out/voice-timings.json'), 'utf8'));
+const voice = JSON.parse(readFileSync(join(root, 'out/.work/voice-timings.json'), 'utf8'));
 const round = (x) => Math.round(x * 100) / 100;
 
 let cursor = 0;
@@ -45,8 +45,8 @@ const wrap = (text) => {
   }
   return `${words.slice(0, best).join(' ')}\n${words.slice(best).join(' ')}`;
 };
-writeFileSync(join(root, `out/${slug}.captions.srt`), srt.map((c, i) => `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${wrap(c.text)}\n`).join('\n'));
-writeFileSync(join(root, 'out/timeline.json'), JSON.stringify({project: slug, outName, total: round(cursor), voice: voice.voice, format: {name: format.name, width: format.width, height: format.height}, scenes}, null, 2) + '\n');
+writeFileSync(join(root, `out/.work/${slug}.captions.srt`), srt.map((c, i) => `${i + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${wrap(c.text)}\n`).join('\n'));
+writeFileSync(join(root, 'out/.work/timeline.json'), JSON.stringify({project: slug, outName, total: round(cursor), voice: voice.voice, format: {name: format.name, width: format.width, height: format.height}, scenes}, null, 2) + '\n');
 
 // Lengths by scene id; the scenes import this.
 const ts = Object.entries(scenes).map(([id, s]) => `  ${JSON.stringify(id)}: ${s.length},`).join('\n');

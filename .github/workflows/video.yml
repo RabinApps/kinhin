@@ -152,13 +152,8 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: video-${{ matrix.name }}
-          path: |
-            video/out/${{ matrix.name }}.mp4
-            video/out/${{ matrix.name }}.webm
-            video/out/${{ matrix.name }}.srt
-            video/out/${{ matrix.name }}-poster.png
-            video/out/${{ matrix.name }}-hero.gif
-            video/out/timeline.json
+          # The build's own folder: <name>.mp4, .webm, .srt, -poster.png, -hero.gif (and music-credit.txt when the track needs one).
+          path: video/out/${{ matrix.name }}/
           retention-days: 14
           if-no-files-found: error
 

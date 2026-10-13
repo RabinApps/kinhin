@@ -13,7 +13,8 @@ test('the image is self-contained: it carries the suite and an entry point that 
   accessSync(join(root, 'scripts/container-build.sh'), constants.X_OK);
   const entry = read('scripts/container-build.sh');
   assert.match(entry, /VIDEO_SOURCE=\/project/);
-  assert.match(entry, /exec scripts\/build\.sh "\$@"/);
+  assert.match(entry, /scripts\/build\.sh "\$@"/);
+  assert.match(entry, /rm -rf out\/\.work/, "the scratch folder is not left in the user's out directory");
 });
 
 test('the build context leaves out what must not be baked in', () => {

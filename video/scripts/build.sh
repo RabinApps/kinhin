@@ -96,7 +96,7 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
     -e NO_MUSIC="${NO_MUSIC:-}" -e VIDEO_MUSIC="${VIDEO_MUSIC:-}" -e VIDEO_MUSIC_SHA256="${VIDEO_MUSIC_SHA256:-}" -e VIDEO_MUSIC_VOLUME="${VIDEO_MUSIC_VOLUME:-}" -e NO_CAPTIONS="${NO_CAPTIONS:-}" -e VOICE_ENGINE="${VOICE_ENGINE:-}" -e VOICE="${VOICE:-}" \
     -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" \
     "$IMAGE" bash -c 'rsync -a --exclude node_modules --exclude raw --exclude out --exclude .venv-tts --exclude output --exclude .generated /src/ /work/ && cd /work && { cp -r fonts/. /usr/local/share/fonts/ 2>/dev/null; fc-cache -f; } && scripts/build.sh'
-  echo "==> done: see video/out/"
+  echo "==> done: see video/out/<name>/"
   exit 0
 fi
 
@@ -110,10 +110,10 @@ node scripts/project.mjs
 step "claims"
 node scripts/video-claims-lint.mjs --project "${VIDEO_PROJECT:-launch}"
 step "voice-over (${VOICE_ENGINE:-the scripted engine})"
-rm -f out/voice-timings.json
+mkdir -p out/.work; rm -f out/.work/voice-timings.json
 # The ONNX runtime aborts while shutting down (after the work is done), so judge the run by its result file.
 node scripts/voice.mjs ${VOICE_ENGINE:+--engine "$VOICE_ENGINE"} ${VOICE:+--voice "$VOICE"} 2>&1 | grep -v libc++ || true
-[ -s out/voice-timings.json ] || { echo "voice-over failed: no out/voice-timings.json" >&2; exit 1; }
+[ -s out/.work/voice-timings.json ] || { echo "voice-over failed: no out/.work/voice-timings.json" >&2; exit 1; }
 step "retime the scenes to the voice"
 node scripts/retime.mjs
 step "title scenes (headless Chromium)"
@@ -125,4 +125,4 @@ node scripts/fetch-music.mjs
 step "final cut"
 node scripts/assemble.mjs
 # What this build made (the WebM is skipped by --fast, so a glob can match nothing: that is not an error).
-find out -maxdepth 1 -newer package.json -type f \( -name '*.mp4' -o -name '*.webm' -o -name '*-poster.png' -o -name '*-hero.gif' -o -name '*.srt' \) -exec ls -lh {} + 2>/dev/null | tail -8 || true
+find out -mindepth 2 -maxdepth 2 -not -path 'out/.work/*' -newer package.json -type f \( -name '*.mp4' -o -name '*.webm' -o -name '*-poster.png' -o -name '*-hero.gif' -o -name '*.srt' \) -exec ls -lh {} + 2>/dev/null | tail -8 || true

@@ -137,7 +137,7 @@ enum VideoCommand {
                 throw VideoError.unknownProject(name: options.project, available: VideoProjects.list(in: repo))
             }
             let output = try await VideoFleetRunner().build(options: options, repo: repo, ref: flag("--ref", in: rest))
-            print("Done. The video is in \(relative(output, to: repo))/")
+            print("Done. The video is in \(relative(latestVideoFolder(in: output), to: repo))/")
             return
         }
         let runner = VideoRunner()
@@ -148,7 +148,21 @@ enum VideoCommand {
         guard code == 0 else {
             throw CLIError("the video build failed (exit \(code)); the log above says why", exit: .general)
         }
-        print("Done. The video is in \(relative(plan.outputDirectory, to: repo))/")
+        print("Done. The video is in \(relative(latestVideoFolder(in: plan.outputDirectory), to: repo))/")
+    }
+
+    /// Each video has its own folder under `out/` (`out/<name>/`); the one just built is the most recently changed.
+    /// Falls back to `out` itself when there is none.
+    static func latestVideoFolder(in output: URL) -> URL {
+        let entries =
+            (try? FileManager.default.contentsOfDirectory(
+                at: output, includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey],
+                options: [.skipsHiddenFiles])) ?? []
+        let folders = entries.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+        func changed(_ url: URL) -> Date {
+            (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+        }
+        return folders.max { changed($0) < changed($1) } ?? output
     }
 
     static func relative(_ url: URL, to repo: URL) -> String {

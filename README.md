@@ -95,7 +95,7 @@ Launch videos go stale the day after you ship. Here the video is a file: edit it
 ```bash
 kinhin video init launch                 # a starter config in .kinhin/videos/launch.yml
 kinhin video music search "calm piano"   # free, openly licensed (CC0) music; `add 1` downloads it into the repo
-kinhin video build launch                # builds .kinhin/videos/out/launch.mp4 in a container (Apple container or Docker)
+kinhin video build launch                # builds .kinhin/videos/out/launch/launch.mp4 in a container (Apple container or Docker)
 ```
 
 - **From a config, not an editor.** Scenes, narration, themes (your fonts and colors), captions and music are YAML in

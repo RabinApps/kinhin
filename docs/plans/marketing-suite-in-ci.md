@@ -76,7 +76,7 @@ the build by hand. A project that never opts in sees no new jobs, no new cost an
 | Build | `video/scripts/build.sh [--container] [--theme T] [--format F] [--project P] [--adapter A]`; verified in Apple `container` and Docker |
 | Image | `video/Dockerfile`: Playwright Chromium, ffmpeg with libass, fonts, Kokoro with its model baked in |
 | Inputs | `video/script/<name>.json` (theme, format, typed scenes, narration), `video/themes/`, `video/adapters/<name>/` (recorders, tape, small `reference/` clips) |
-| Outputs | `video/out/<project>[-theme][-format].mp4`, `.webm`, `-poster.png`, `-hero.gif`, `.srt` |
+| Outputs | `video/out/<name>/<name>.mp4` (name = `<project>[-theme][-format]`), `.webm`, `-poster.png`, `-hero.gif`, `.srt` |
 | Pipelines | `ci.yml` (self-hosted `kinhin-xcode` Tart VM, plus a hosted macOS job), `docs.yml` (`kinhin-container` pool, deploys Pages), `release.yml` (tag, `kinhin-xcode`, protected `release` environment), `e2e.yml` (self-hosted `kinhin-e2e`), `demo-check.yml` (temporary, branch-only) |
 | Site | `website/.vitepress/theme/LaunchVideo.vue` shows a player only when `launch.mp4` exists in `website/public/` |
 | Honesty rules | `docs/making-a-video.md` "Keep it honest": only claim what the repo supports; planned forges and runtimes stay off screen |
@@ -178,7 +178,7 @@ script even when video CI is off.
 
 Every look must satisfy, or the job fails (and the failure is reported, never blocking a release):
 
-- dimensions match the format; duration within the budget and within one second of `out/timeline.json`;
+- dimensions match the format; duration within the budget and within one second of `out/.work/timeline.json`;
 - an audio stream is present and its loudness is within 1 LU of -16;
 - no black frames in the middle (`blackdetect`); fade edges are allowed;
 - caption count equals the cue count; the `.srt` parses;

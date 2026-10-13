@@ -9,4 +9,8 @@ cd /work
 [ -d /project/.kinhin/videos ] || { echo "no /project/.kinhin/videos: mount your repository at /project" >&2; exit 2; }
 if [ -d /project/.kinhin/videos/fonts ]; then cp -r /project/.kinhin/videos/fonts/. /usr/local/share/fonts/; fc-cache -f; fi
 export VIDEO_SOURCE=/project
-exec scripts/build.sh "$@"
+# The finished video is out/<name>/; out/.work is scratch (timeline, clips, voice) and is not left in your repository.
+status=0
+scripts/build.sh "$@" || status=$?
+[ -n "${KEEP_WORK:-}" ] || rm -rf out/.work
+exit "$status"

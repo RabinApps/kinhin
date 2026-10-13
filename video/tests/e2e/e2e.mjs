@@ -25,14 +25,14 @@ export const modeFlags = () => (process.env.E2E_MODE === 'host' ? [] : ['--conta
 /** Runs scripts/build.sh and returns {status, stdout, stderr, name}; `name` is the output's base name when it succeeded. */
 export function build(args, {env = {}} = {}) {
   const r = run('scripts/build.sh', [...modeFlags(), ...args], {env: {NO_MUSIC: '', ...env}, timeout: 25 * 60 * 1000});
-  const m = r.stdout.match(/wrote out\/([\w.-]+)\.mp4 \(/);
+  const m = r.stdout.match(/wrote out\/[\w.-]+\/([\w.-]+)\.mp4 \(/);
   return {...r, name: m?.[1]};
 }
 
 /** Verifies a finished build against its timeline. Returns the verifier's {failures, facts}. */
 export function check(name, options = {}) {
-  const timeline = JSON.parse(readFileSync(join(root, 'out/timeline.json'), 'utf8'));
-  return verifyVideo(join(root, `out/${name}.mp4`), {timeline: timeline.outName === name ? timeline : undefined, ...options});
+  const timeline = JSON.parse(readFileSync(join(root, 'out/.work/timeline.json'), 'utf8'));
+  return verifyVideo(join(root, `out/${name}/${name}.mp4`), {timeline: timeline.outName === name ? timeline : undefined, ...options});
 }
 
 /** Writes a throwaway project into video/script/examples/ (the editor only sees projects there); returns its name and a cleanup. */
@@ -49,6 +49,6 @@ export {existsSync, has, root, run};
 /** How much of the bottom band of a finished video's frame at `seconds` is edges (text): a way to see burned captions. */
 export function bottomEdges(name, seconds) {
   const out = join(root, 'out/.bottom.png');
-  run('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-ss', String(seconds), '-i', join(root, `out/${name}.mp4`), '-frames:v', '1', '-vf', 'crop=iw:ih*0.14:0:ih*0.84', out]);
+  run('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-ss', String(seconds), '-i', join(root, `out/${name}/${name}.mp4`), '-frames:v', '1', '-vf', 'crop=iw:ih*0.14:0:ih*0.84', out]);
   return edgeFraction(out);
 }

@@ -61,7 +61,7 @@ a voice, your product on screen, captions and music, built in a container.
 ```bash
 kinhin video init launch                 # a starter config in .kinhin/videos/launch.yml
 kinhin video music search "calm piano"   # free CC0 music; `add 1` saves it into the repo
-kinhin video build launch                # .kinhin/videos/out/launch.mp4
+kinhin video build launch                # .kinhin/videos/out/launch/launch.mp4
 ```
 
 [Add videos to your project](/guide/videos-for-your-project) · [Video gallery](/guide/video-gallery)
