@@ -112,8 +112,26 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+      # A release build uses the image published for that release (video-image.yml builds it from the same tag), so three looks
+      # do not build it three times. Anything else, and a release whose image is not there yet, builds from the checked-out
+      # sources: a pull request must test its own changes.
+      - name: Use the released image
+        if: github.event_name == 'workflow_run'
+        id: image
+        env:
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9][0-9A-Za-z._-]*$ ]] || { echo "not a release tag: building from source"; exit 0; }
+          image="ghcr.io/rabinapps/kinhin-video:${RELEASE_TAG#v}"
+          if docker pull "$image"; then
+            echo "image=$image" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::$image is not published (yet): building the image from source"
+          fi
       - name: Build
         env:
+          VIDEO_IMAGE: ${{ steps.image.outputs.image }}
           PROJECT: ${{ matrix.project }}
           THEME: ${{ matrix.theme }}
           FORMAT: ${{ matrix.format }}

@@ -145,3 +145,16 @@ test('video-image.yml publishes the image from a tag, pinned and with only the t
   assert.match(image, /!= \*-\*/);
   assert.doesNotMatch(image.replace(/\$\{\{ steps\.tags\.outputs\.tags \}\}/g, ''), /run: [^\n]*\$\{\{ (inputs|github\.event|github\.ref_name)/, 'no untrusted input inlined into a run line');
 });
+
+test('video.yml uses the published image only for a release, validates the tag first, and otherwise builds from source', () => {
+  const step = yml.slice(yml.indexOf('- name: Use the released image'), yml.indexOf('- name: Build'));
+  assert.match(step, /if: github\.event_name == 'workflow_run'/, 'only release builds');
+  assert.match(step, /RELEASE_TAG: \$\{\{ github\.event\.workflow_run\.head_branch \}\}/, 'the tag comes in through the environment');
+  assert.doesNotMatch(step.replace(/RELEASE_TAG: \$\{\{[^}]*\}\}/, ''), /\$\{\{/, 'nothing else is inlined into the script');
+  assert.match(step, /\^v\[0-9\]/, 'the tag is validated');
+  assert.match(step, /ghcr\.io\/rabinapps\/kinhin-video:\$\{RELEASE_TAG#v\}/);
+  assert.match(step, /building the image from source/, 'a missing image falls back to building');
+  assert.match(yml, /VIDEO_IMAGE: \$\{\{ steps\.image\.outputs\.image \}\}/);
+  const build = readFileSync(join(root, 'scripts/build.sh'), 'utf8');
+  assert.match(build, /VIDEO_IMAGE/);
+});

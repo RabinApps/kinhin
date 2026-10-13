@@ -52,7 +52,9 @@ plan ──► claims ──► build (one job per look) ──► publish-relea
   planned platforms such as Buildkite or Windows without saying they are planned, and tone words like "fastest"). The rules
   live in the adapter (`video/adapters/<name>/claims.json`) and the project file.
 - **build** runs `video/scripts/build.sh --container --runtime docker` on a hosted Linux runner (the same command you run
-  locally), then **verifies** the result and writes a summary table.
+  locally), then **verifies** the result and writes a summary table. A release build pulls the image published for that release
+  (`ghcr.io/rabinapps/kinhin-video:<version>`, made by `video-image.yml`) instead of building it once per look; a pull request,
+  a manual run, or a release whose image is not published yet builds it from the checked-out sources.
 - **verify** is the same checker the end-to-end tests use (`video/scripts/verify.mjs`): the frame size, the length against the
   timeline, an audio track near -16 LUFS, no black frames, one caption per cue, a poster and a hero GIF that are not blank, and
   the size and length budgets. A video that fails is not published.

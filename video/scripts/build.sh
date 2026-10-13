@@ -16,7 +16,7 @@
 # It uses your own recordings in raw/<adapter>/ when they exist, and the small committed clips in
 # adapters/<adapter>/reference/ otherwise, so it works on any machine, including Linux. Output: video/out/ (launch.mp4,
 # launch.webm, poster.png, hero.gif) and out/launch.srt (every caption, for a player).
-# Env: VOICE_ENGINE / VOICE override the script's voice (kokoro af_heart); NO_MUSIC=1 (same as --music off); VIDEO_MUSIC_VOLUME=0.2;
+# Env: VIDEO_IMAGE=<image> runs a published image instead of building one (--container); VOICE_ENGINE / VOICE override the script's voice (kokoro af_heart); NO_MUSIC=1 (same as --music off); VIDEO_MUSIC_VOLUME=0.2;
 #      VIDEO_CAPTIONS=off; CONTAINER_NETWORK=none (Docker) runs the build with no network; the container's size: CONTAINER_CPUS (default 4), CONTAINER_MEMORY (default 6G).
 set -euo pipefail
 CALLER_DIR="$PWD"   # --source is relative to where you ran this, not to video/
@@ -61,7 +61,16 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   # an unchanged image on every run is slow and, with Apple's container, grows its build cache.
   # The architecture is part of the name: an arm64 image must not satisfy an x64 build (DOCKER_DEFAULT_PLATFORM selects one).
   IMAGE="kinhin-video:$( (cat Dockerfile package.json package-lock.json music/catalog.json; echo "${DOCKER_DEFAULT_PLATFORM:-$(uname -m)}") | shasum -a 256 | cut -c1-12)"
-  if "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1; then
+  # VIDEO_IMAGE uses a published image instead (a release build in CI pulls the one made for that release). It must exist or
+  # be pullable: there is no silent fallback to a different image.
+  if [ -n "${VIDEO_IMAGE:-}" ]; then
+    IMAGE="$VIDEO_IMAGE"
+    if ! "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1; then
+      echo "==> pulling $IMAGE"
+      "$RUNTIME" image pull "$IMAGE" || { echo "could not get the image $IMAGE (VIDEO_IMAGE)" >&2; exit 1; }
+    fi
+    echo "==> using image $IMAGE"
+  elif "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1; then
     echo "==> image $IMAGE already built"
   else
     # An absolute, symlink-free context path: Apple's `container build` (before 1.5.0) silently drops directories when the
