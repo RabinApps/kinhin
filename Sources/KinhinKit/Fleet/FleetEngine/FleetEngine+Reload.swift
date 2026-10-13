@@ -115,7 +115,7 @@ extension FleetEngine {
         // A task group would wait for every child at scope exit (and awaiting
         // an unstructured task's value ignores cancellation), so race two
         // unstructured waiters and resume on whichever finishes first.
-        let finished = Mutex(0)
+        let finished = FinishedCounter()
         let waiters = Mutex<[Task<Void, Never>]>([])
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             let pending = Mutex<CheckedContinuation<Void, Never>?>(continuation)
@@ -127,7 +127,7 @@ extension FleetEngine {
             let all = Task {
                 for task in tasks {
                     await task.value
-                    finished.withLock { $0 += 1 }
+                    finished.increment()
                 }
                 resumeOnce()
             }
@@ -148,7 +148,7 @@ extension FleetEngine {
         }
         // The timer is the only waiter worth cancelling; the other ends with its tasks.
         waiters.withLock { $0.last }?.cancel()
-        let stragglers = tasks.count - finished.withLock { $0 }
+        let stragglers = tasks.count - finished.value
         if stragglers > 0 {
             Log.warn(
                 "engine", "\(stragglers) lifecycle task(s) still in a shell command after detach; they exit on return")
@@ -196,4 +196,15 @@ extension FleetEngine {
         // New routes and labels re-bucket demand now, not after an idle backoff.
         pollSoon()
     }
+}
+
+/// How many of the lifecycle tasks `FleetEngine.drain` has seen finish. A class rather than a local `Mutex`: the waiter task and the
+/// code after the wait both use it, and a noncopyable `let` captured by a `Task` and read again by the enclosing task is rejected as
+/// a data race by the Swift 6.3 compiler (CI's), though newer compilers accept it.
+private final class FinishedCounter: Sendable {
+    private let count = Mutex(0)
+
+    func increment() { count.withLock { $0 += 1 } }
+
+    var value: Int { count.withLock { $0 } }
 }
