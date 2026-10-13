@@ -122,10 +122,25 @@ enum MobileTemplates {
           File.expand_path("..", __dir__)
         end
 
+        # A value the environment set to something other than blank, or nil. Empty repository variables count as unset.
+        def presence(value)
+          value.to_s.strip.empty? ? nil : value
+        end
+
         # The folder that holds the Android project: android/ in Flutter and React Native, the app root otherwise.
         # Built from this Fastfile's location, because fastlane's working directory is not reliable for relative paths.
         def android_root
           File.expand_path("..", __dir__)
+        end
+
+        # The Gradle folder and module to build. ANDROID_GRADLE_DIR is relative to android_root (Kotlin Multiplatform keeps
+        # its Gradle build at the top level, for example). ANDROID_GRADLE_MODULE names the module that holds the app (default app).
+        def gradle_dir
+          presence(ENV["ANDROID_GRADLE_DIR"]) ? File.expand_path(ENV["ANDROID_GRADLE_DIR"], android_root) : android_root
+        end
+
+        def gradle_module
+          presence(ENV["ANDROID_GRADLE_MODULE"]) || "app"
         end
 
         # Gradle writes the bundle under the project's build folder. Flutter sets that folder to <flutter root>/build, one
@@ -135,7 +150,7 @@ enum MobileTemplates {
           if File.exist?(File.join(flutter_root, "pubspec.yaml"))
             File.join(flutter_root, "build/app/outputs/bundle/release/app-release.aab")
           else
-            File.join(android_root, "app/build/outputs/bundle/release/app-release.aab")
+            File.join(gradle_dir, gradle_module, "build/outputs/bundle/release/app-release.aab")
           end
         end
 
@@ -158,8 +173,9 @@ enum MobileTemplates {
             require_env!("ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD")
             UI.user_error!("Keystore not found at #{ENV['ANDROID_KEYSTORE_PATH']}") unless File.exist?(ENV["ANDROID_KEYSTORE_PATH"])
 
-            gradle(
-              task: "bundle",
+            # The default task builds every module's bundle, which is what a one-module project needs. A named module builds only its own.
+            gradle_options = {
+              task: presence(ENV["ANDROID_GRADLE_MODULE"]) ? ":#{gradle_module}:bundleRelease" : "bundle",
               build_type: "Release",
               print_command: false,
               properties: {
@@ -168,7 +184,9 @@ enum MobileTemplates {
                 "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
                 "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"]
               }
-            )
+            }
+            gradle_options[:project_dir] = gradle_dir if presence(ENV["ANDROID_GRADLE_DIR"])
+            gradle(gradle_options)
           end
           UI.user_error!("No release AAB at #{aab}. Check AAB_PATH or the Gradle output.") unless File.exist?(aab)
           aab
@@ -849,6 +867,26 @@ enum MobileTemplates {
           )
         end
 
+        # Options for build_app. IOS_PROJECT or IOS_WORKSPACE point at a project that is not at the default place (Capacitor keeps
+        # its Xcode project in ios/App). Unset variables are left out, so the default lookup stays the same.
+        def build_options
+          options = { scheme: presence(ENV["IOS_SCHEME"]), export_method: "app-store" }
+          options[:project] = presence(ENV["IOS_PROJECT"]) if presence(ENV["IOS_PROJECT"])
+          options[:workspace] = presence(ENV["IOS_WORKSPACE"]) if presence(ENV["IOS_WORKSPACE"])
+          options
+        end
+
+        # IPA_PATH uploads an IPA that another step already built and signed (for example .NET MAUI's dotnet publish).
+        # Refuse one older than IPA_MAX_AGE_HOURS (default 24), so a stale file left in a runner does not get uploaded.
+        def prebuilt_ipa_path
+          path = presence(ENV["IPA_PATH"])
+          return nil unless path
+          UI.user_error!("No IPA at #{path}. Check IPA_PATH.") unless File.exist?(path)
+          max_age = (presence(ENV["IPA_MAX_AGE_HOURS"]) || "24").to_f * 3600
+          UI.user_error!("IPA at #{path} is older than #{max_age / 3600} hours. Rebuild it or raise IPA_MAX_AGE_HOURS.") if Time.now - File.mtime(path) > max_age
+          path
+        end
+
         platform :ios do
           before_all do
             setup_ci if ENV["CI"] # temporary keychain on CI runners
@@ -860,15 +898,12 @@ enum MobileTemplates {
             require_env!("MATCH_GIT_URL", "MATCH_PASSWORD")
             match(api_key: api_key, readonly: true)
 
-            build_app(
-              scheme: presence(ENV["IOS_SCHEME"]),
-              export_method: "app-store"
-            )
+            ipa = prebuilt_ipa_path
+            build_app(build_options) unless ipa
 
-            upload_to_testflight(
-              api_key: api_key,
-              skip_waiting_for_build_processing: true
-            )
+            upload = { api_key: api_key, skip_waiting_for_build_processing: true }
+            upload[:ipa] = ipa if ipa
+            upload_to_testflight(upload)
           end
 
           desc "Upload the latest processed build to the App Store (metadata and screenshots skipped)"
@@ -966,6 +1001,8 @@ enum MobileTemplates {
 
         # Stop after the first device fails, instead of running the rest.
         stop_after_first_error(false)
+        # Xcode project or workspace, when it is not at the default place (Capacitor keeps its project in ios/App).
+        project(ENV["IOS_PROJECT"]) unless ENV["IOS_PROJECT"].to_s.strip.empty?
         """#
 
 }

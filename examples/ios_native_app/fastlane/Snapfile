@@ -20,3 +20,5 @@ clear_previous_screenshots(true)
 
 # Stop after the first device fails, instead of running the rest.
 stop_after_first_error(false)
+# Xcode project or workspace, when it is not at the default place (Capacitor keeps its project in ios/App).
+project(ENV["IOS_PROJECT"]) unless ENV["IOS_PROJECT"].to_s.strip.empty?

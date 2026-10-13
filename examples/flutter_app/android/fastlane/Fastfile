@@ -14,10 +14,25 @@ def project_root
   File.expand_path("..", __dir__)
 end
 
+# A value the environment set to something other than blank, or nil. Empty repository variables count as unset.
+def presence(value)
+  value.to_s.strip.empty? ? nil : value
+end
+
 # The folder that holds the Android project: android/ in Flutter and React Native, the app root otherwise.
 # Built from this Fastfile's location, because fastlane's working directory is not reliable for relative paths.
 def android_root
   File.expand_path("..", __dir__)
+end
+
+# The Gradle folder and module to build. ANDROID_GRADLE_DIR is relative to android_root (Kotlin Multiplatform keeps
+# its Gradle build at the top level, for example). ANDROID_GRADLE_MODULE names the module that holds the app (default app).
+def gradle_dir
+  presence(ENV["ANDROID_GRADLE_DIR"]) ? File.expand_path(ENV["ANDROID_GRADLE_DIR"], android_root) : android_root
+end
+
+def gradle_module
+  presence(ENV["ANDROID_GRADLE_MODULE"]) || "app"
 end
 
 # Gradle writes the bundle under the project's build folder. Flutter sets that folder to <flutter root>/build, one
@@ -27,7 +42,7 @@ def default_aab_path
   if File.exist?(File.join(flutter_root, "pubspec.yaml"))
     File.join(flutter_root, "build/app/outputs/bundle/release/app-release.aab")
   else
-    File.join(android_root, "app/build/outputs/bundle/release/app-release.aab")
+    File.join(gradle_dir, gradle_module, "build/outputs/bundle/release/app-release.aab")
   end
 end
 
@@ -50,8 +65,9 @@ def build_signed_aab
     require_env!("ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD")
     UI.user_error!("Keystore not found at #{ENV['ANDROID_KEYSTORE_PATH']}") unless File.exist?(ENV["ANDROID_KEYSTORE_PATH"])
 
-    gradle(
-      task: "bundle",
+    # The default task builds every module's bundle, which is what a one-module project needs. A named module builds only its own.
+    gradle_options = {
+      task: presence(ENV["ANDROID_GRADLE_MODULE"]) ? ":#{gradle_module}:bundleRelease" : "bundle",
       build_type: "Release",
       print_command: false,
       properties: {
@@ -60,7 +76,9 @@ def build_signed_aab
         "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
         "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"]
       }
-    )
+    }
+    gradle_options[:project_dir] = gradle_dir if presence(ENV["ANDROID_GRADLE_DIR"])
+    gradle(gradle_options)
   end
   UI.user_error!("No release AAB at #{aab}. Check AAB_PATH or the Gradle output.") unless File.exist?(aab)
   aab

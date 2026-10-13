@@ -41,6 +41,26 @@ def app_store_api_key
   )
 end
 
+# Options for build_app. IOS_PROJECT or IOS_WORKSPACE point at a project that is not at the default place (Capacitor keeps
+# its Xcode project in ios/App). Unset variables are left out, so the default lookup stays the same.
+def build_options
+  options = { scheme: presence(ENV["IOS_SCHEME"]), export_method: "app-store" }
+  options[:project] = presence(ENV["IOS_PROJECT"]) if presence(ENV["IOS_PROJECT"])
+  options[:workspace] = presence(ENV["IOS_WORKSPACE"]) if presence(ENV["IOS_WORKSPACE"])
+  options
+end
+
+# IPA_PATH uploads an IPA that another step already built and signed (for example .NET MAUI's dotnet publish).
+# Refuse one older than IPA_MAX_AGE_HOURS (default 24), so a stale file left in a runner does not get uploaded.
+def prebuilt_ipa_path
+  path = presence(ENV["IPA_PATH"])
+  return nil unless path
+  UI.user_error!("No IPA at #{path}. Check IPA_PATH.") unless File.exist?(path)
+  max_age = (presence(ENV["IPA_MAX_AGE_HOURS"]) || "24").to_f * 3600
+  UI.user_error!("IPA at #{path} is older than #{max_age / 3600} hours. Rebuild it or raise IPA_MAX_AGE_HOURS.") if Time.now - File.mtime(path) > max_age
+  path
+end
+
 platform :ios do
   before_all do
     setup_ci if ENV["CI"] # temporary keychain on CI runners
@@ -52,15 +72,12 @@ platform :ios do
     require_env!("MATCH_GIT_URL", "MATCH_PASSWORD")
     match(api_key: api_key, readonly: true)
 
-    build_app(
-      scheme: presence(ENV["IOS_SCHEME"]),
-      export_method: "app-store"
-    )
+    ipa = prebuilt_ipa_path
+    build_app(build_options) unless ipa
 
-    upload_to_testflight(
-      api_key: api_key,
-      skip_waiting_for_build_processing: true
-    )
+    upload = { api_key: api_key, skip_waiting_for_build_processing: true }
+    upload[:ipa] = ipa if ipa
+    upload_to_testflight(upload)
   end
 
   desc "Upload the latest processed build to the App Store (metadata and screenshots skipped)"
