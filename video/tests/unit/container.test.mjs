@@ -39,6 +39,9 @@ test('Dependabot keeps the image and the video npm packages fresh', () => {
     assert.match(block, /directory: \/video\n/, `${ecosystem} watches video/`);
     assert.match(block, /interval: weekly/);
   }
+  // The Playwright image and playwright-core must move together, which Dependabot cannot do: neither is left to it.
+  assert.match(entry('docker'), /dependency-name: "mcr\.microsoft\.com\/playwright"/, 'the Playwright base image is ignored');
+  assert.match(entry('npm'), /dependency-name: "playwright-core"/, 'playwright-core is ignored');
   // Dependabot's docker ecosystem only reads files named Dockerfile.
   accessSync(join(root, 'Dockerfile'), constants.R_OK);
 });
