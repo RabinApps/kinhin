@@ -105,7 +105,7 @@ cd /path/to/some/repo && kinhin video build launch --image kinhin-video:local
 ```
 
 Both runtimes build it. With Apple's `container` use an absolute build path that is not under a symlink (not `/tmp` or `/var/folders`,
-which are symlinks on macOS): before `container` 1.5.0, `container build` silently copies no files from a directory when the context
+which are symlinks on macOS): before `container` 1.5.0 (checked: 1.5.0 builds it correctly from a `/var/folders` path), `container build` silently copies no files from a directory when the context
 path has a symlinked parent ([apple/container#2285](https://github.com/apple/container/issues/2285)), so `COPY . /work` yields an empty
 suite. `scripts/build.sh --container` resolves the path for you. The image is published to `ghcr.io/rabinapps/kinhin-video` by `.github/workflows/video-image.yml` when a `v*` tag is pushed.
 
