@@ -49,8 +49,10 @@ globbed a WebM that `--fast` does not write (stale files in a working tree had h
    building it in each matrix job.
 3. Create the `marketing` environment with required reviewers and set the `VIDEO_CI` variable; leave `ci.json` off until the
    first dispatch run looks right.
-4. Pin the base image by digest and keep the pins fresh (Dependabot or Renovate for the Dockerfile, npm and the workflow's
-   actions); the apt packages are not pinned.
+4. ~~Pin the base image by digest and keep the pins fresh~~ Done: `video/Dockerfile` pins the Playwright image by its multi-arch
+   digest, `.github/dependabot.yml` watches the Dockerfile and `video/package.json` weekly (alongside Swift and the workflows'
+   actions), and a unit test fails a pull request that bumps the image's Playwright version without `playwright-core` (or the
+   reverse). The apt packages are not pinned.
 5. Delete `.github/workflows/demo-check.yml` (temporary) and merge the branch through a pull request.
 6. Decide the open questions below (release-notes copy, registry, who reviews).
 

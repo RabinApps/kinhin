@@ -16,6 +16,8 @@
 
 **Changed**
 
+- The video image's base (`video/Dockerfile`, renamed from `Containerfile` so Dependabot can read it) is pinned by digest, and Dependabot
+  now keeps it and `video/package.json` current.
 - A repo's per-project config now lives at `.kinhin/config.yml`. The older `.kinhin.yml` is still read when the new file is
   absent, and `kinhin toolchains detect --write` writes the new path.
 - Install docs for Linux jobs: apple/container (recommended, `kinhin setup repair container`) and Docker
