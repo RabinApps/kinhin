@@ -107,7 +107,11 @@ cd /path/to/some/repo && kinhin video build launch --image kinhin-video:local
 Both runtimes build it. With Apple's `container` use an absolute build path that is not under a symlink (not `/tmp` or `/var/folders`,
 which are symlinks on macOS): before `container` 1.5.0 (checked: 1.5.0 builds it correctly from a `/var/folders` path), `container build` silently copies no files from a directory when the context
 path has a symlinked parent ([apple/container#2285](https://github.com/apple/container/issues/2285)), so `COPY . /work` yields an empty
-suite. `scripts/build.sh --container` resolves the path for you. The image is published to `ghcr.io/rabinapps/kinhin-video` by `.github/workflows/video-image.yml` when a `v*` tag is pushed.
+suite. `scripts/build.sh --container` resolves the path for you. The image is published to `ghcr.io/rabinapps/kinhin-video` by `.github/workflows/video-image.yml`: every pull request that touches `video/` builds it and runs `video/scripts/image-smoke.sh` (a real video built and verified inside the image; publishes nothing), a push to `develop` and a weekly rebuild publish `:edge`, and a `v*` tag publishes `:<version>` (and `:latest` unless it is a prerelease). To run the same check yourself:
+
+```bash
+docker build -t kinhin-video:local video/ && video/scripts/image-smoke.sh kinhin-video:local
+```
 
 The kinhin launch video's music is [First Light Particles](https://opengameart.org/node/182244) by Yoiyami (CC0: no credit
 needed, anyone may reuse it), baked into the image from `video/music/catalog.json`. Use only CC0 tracks in kinhin's own

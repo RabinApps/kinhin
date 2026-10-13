@@ -130,9 +130,14 @@ test('the plan step writes what the workflow reads: enabled, a fromJSON-able mat
   }
 });
 
-test('video-image.yml publishes the image from a tag, pinned and with only the token it needs', () => {
+test('video-image.yml tests every change, publishes only from trusted refs, pinned and with only the token it needs', () => {
   const image = readFileSync(join(repo, '.github/workflows/video-image.yml'), 'utf8');
-  assert.doesNotMatch(image, /pull_request/, 'never runs for pull requests');
+  assert.match(image, /^  pull_request:/m, 'every pull request proves the image builds');
+  const publish = image.slice(image.indexOf('  publish:'));
+  assert.match(publish, /needs: test/, 'nothing is published before the smoke test passes');
+  assert.match(publish, /if: github\.event_name != 'pull_request'/, 'pull requests never reach the publish job');
+  assert.doesNotMatch(image.slice(0, image.indexOf('  publish:')), /packages: write|docker\/login-action/, 'the test job cannot push');
+  assert.match(image, /image-smoke\.sh/, 'the test job runs the same smoke script as a local run');
   assert.match(image, /^permissions:\n  contents: read/m, 'read-only by default');
   assert.match(image, /packages: write/, 'the publish job may push the package');
   assert.doesNotMatch(image.replace(/secrets\.GITHUB_TOKEN/g, ''), /secrets\./, 'no secret but the workflow token');
@@ -143,6 +148,7 @@ test('video-image.yml publishes the image from a tag, pinned and with only the t
   // The input is checked before use, and only a stable tag moves :latest.
   assert.match(image, /\^\[0-9A-Za-z\]/);
   assert.match(image, /!= \*-\*/);
+  assert.match(image, /version=edge/, 'develop and the weekly rebuild publish :edge');
   assert.doesNotMatch(image.replace(/\$\{\{ steps\.tags\.outputs\.tags \}\}/g, ''), /run: [^\n]*\$\{\{ (inputs|github\.event|github\.ref_name)/, 'no untrusted input inlined into a run line');
 });
 
