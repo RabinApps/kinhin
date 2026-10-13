@@ -558,6 +558,8 @@ export default {
                   "beta",
                 )
               : null,
+          // The launch video sits right under the hero buttons, above the feature cards (home layout only).
+          "home-hero-after": () => h(LaunchVideo),
           "nav-bar-content-after": () => h(GitHubActions),
           "nav-screen-content-after": () => h(GitHubActions),
           "layout-top": () =>

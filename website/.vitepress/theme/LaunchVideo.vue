@@ -23,7 +23,7 @@ onMounted(async () => {
 
 <template>
   <figure v-if="available" class="launch-video">
-    <video controls muted loop playsinline preload="metadata" :poster="POSTER">
+    <video controls loop playsinline preload="metadata" :poster="POSTER">
       <source :src="WEBM" type="video/webm" />
       <source :src="VIDEO" type="video/mp4" />
       <a :href="VIDEO">Watch the kinhin launch video</a>

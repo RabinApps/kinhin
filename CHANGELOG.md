@@ -10,6 +10,7 @@
   video suite. It runs a published container image (Apple `container` or Docker) against your repository; `--on-fleet` builds on a
   runner through a generated GitHub workflow. Music, captions, themes and formats are config. See
   [docs/videos-for-your-project.md](docs/videos-for-your-project.md).
+- Each video builds into its own folder, `.kinhin/videos/out/<name>/` (the video, WebM, poster, GIF and captions); the build's scratch files are not left in your repository.
 - **Make a Video…** on the app's Fleet tab: choose a repository, create and build a video with live output, and search and add music, with
   the same code as `kinhin video`.
 - `kinhin video music` can use your own Openverse application (`KINHIN_OPENVERSE_CLIENT_ID` and `KINHIN_OPENVERSE_CLIENT_SECRET`) for a higher search limit.
