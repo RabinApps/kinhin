@@ -29,8 +29,8 @@ export default defineConfig({
   base,
   title: "Kinhin",
   description:
-    "The mindful CI — autoscaling CI runners that live on your Mac. " +
-    "macOS jobs on Tart VMs, Linux jobs on apple/container microVMs or Docker.",
+    "Your Mac is your CI and your repo is your video studio. Autoscaling ephemeral runners for GitHub, GitLab, " +
+    "Gitea and Forgejo, plus narrated launch videos built from a config.",
   sitemap: { hostname: `${siteURL}${base}` },
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: `${base}favicon.svg` }],

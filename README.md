@@ -2,8 +2,10 @@
 
 # kinhin ○
 
-**The mindful CI — autoscaling runners that live on your Mac: GitHub Actions, Gitea and Forgejo Actions, and GitLab
-CI/CD.**
+**Your Mac is your CI. Your repo is your video studio.**
+
+Ephemeral, autoscaling runners for GitHub Actions, Gitea and Forgejo Actions and GitLab CI/CD, plus narrated launch videos
+built from a file in your repo.
 
 **[kinhin.dev](https://kinhin.dev)** · [Quick start](https://kinhin.dev/guide/quick-start) ·
 [Introducing the beta](https://kinhin.dev/blog/introducing-kinhin-beta)
@@ -16,6 +18,15 @@ CI/CD.**
 
 > ○ kinhin (kin-hin) is walking meditation: slow, deliberate steps between sittings.
 > Here, one step at a time: a queued job arrives, a runner is born, serves, and is released.
+
+kinhin does two things, both calmly and on hardware you already own:
+
+- **CI that scales to your queue.** Self-hosted runners that appear for one job and are gone when it ends: the mindful CI.
+- **Videos that rebuild with your release.** `kinhin video build` turns a config in your repo into a narrated launch video:
+  your words, a voice, themes, captions and music, built in a container, on the fleet if you like
+  ([below](#your-repo-is-your-video-studio)).
+
+## The CI
 
 kinhin runs [Tart](https://tart.run) macOS virtual machines on your Apple Silicon Mac — plus Linux jobs in
 [apple/container](https://github.com/apple/container) microVMs, Docker containers, or Tart Linux VMs — and turns them
@@ -32,8 +43,6 @@ runs jobs directly on the Mac, with no isolation.
   scaler never exceeds what your Mac can handle (`kinhin doctor`). Why: [Why kinhin](docs/why.md).
 - **Toolchains your way** — bake, pin per repo, or install per job ([Toolchains](docs/toolchains.md)).
 - **App, menu bar, or headless daemon** — same engine, same config ([The app](docs/app.md)).
-- **Product videos from a config** — `kinhin video build` makes a narrated launch video of your own product from a file in your repo,
-  with themes, captions and free music search, in a container ([Add videos to your project](docs/videos-for-your-project.md)).
 
 ## Requirements
 
@@ -78,6 +87,28 @@ jobs:
 
 Prefer a GUI? Launch **kinhin** from Applications; its setup wizard does the same. Details:
 [Quick start](website/guide/quick-start.md), [The kinhin app](docs/app.md), [Configuration](website/guide/config.md).
+
+## Your repo is your video studio
+
+Launch videos go stale the day after you ship. Here the video is a file: edit it, review it, rebuild it.
+
+```bash
+kinhin video init launch                 # a starter config in .kinhin/videos/launch.yml
+kinhin video music search "calm piano"   # free, openly licensed (CC0) music; `add 1` downloads it into the repo
+kinhin video build launch                # builds .kinhin/videos/out/launch.mp4 in a container (Apple container or Docker)
+```
+
+- **From a config, not an editor.** Scenes, narration, themes (your fonts and colors), captions and music are YAML in
+  `.kinhin/videos/`. The same file builds 16:9 and vertical cuts.
+- **Your product on screen.** Recordings of your app, browser or terminal play in a drawn laptop or window frame; the checker
+  fails a build whose video is silent, too quiet, black or off size.
+- **Reproducible.** The pipeline (Motion Canvas, Chromium, ffmpeg and the open Kokoro voice) is baked into a published
+  container image, so a build needs no setup beyond a container runtime. Your sources never leave the Mac.
+- **Free to use.** No watermark, no account, no telemetry. Music search covers CC0 and public-domain tracks by default.
+- **On the fleet, or opt-in in CI.** `--on-fleet` builds on a kinhin runner; a [GitHub workflow](docs/ci-video.md) can rebuild
+  your videos on a release. See the [video gallery](docs/video-gallery.md) for what it makes.
+
+Start here: [Add videos to your project](docs/videos-for-your-project.md).
 
 ## Documentation
 
