@@ -47,7 +47,7 @@ final class BitbucketForgeTests: XCTestCase {
     }
 
     func testRegistrationCreatesOneRunnerPerNameWithTheFleetLabels() async throws {
-        let created = Mutex<[[String]]>([])
+        let created = Locked<[[String]]>([])
         StubProtocol.handler = { request in
             guard request.httpMethod == "POST", request.url?.path == "/2.0/workspaces/acme/pipelines-config/runners"
             else {
@@ -75,7 +75,7 @@ final class BitbucketForgeTests: XCTestCase {
     /// The pool's labels reach the forge-side runner (they were dropped, leaving only the account's), and the
     /// platform label follows the pool: a Docker pool is `linux.shell`, never `macos` from the fleet's defaults.
     func testPoolLabelsDecideThePlatformAndReachTheRunner() async throws {
-        let created = Mutex<[[String]]>([])
+        let created = Locked<[[String]]>([])
         StubProtocol.handler = { request in
             // Registration first lists runners to clear stale records; only the creations are recorded.
             guard request.httpMethod == "POST" else { return Self.json(#"{"values": [], "next": null}"#) }
@@ -97,8 +97,8 @@ final class BitbucketForgeTests: XCTestCase {
     /// An instance id reused after a restart would otherwise meet its predecessor's UNREGISTERED record, and a
     /// half-finished registration must not leave the runners it did create behind.
     func testRegistrationClearsStaleRecordsAndCleansUpAfterAFailure() async throws {
-        let calls = Mutex<[String]>([])
-        let posts = Mutex(0)
+        let calls = Locked<[String]>([])
+        let posts = Locked(0)
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             calls.withLock { $0.append("\(request.httpMethod ?? "") \(path)") }
@@ -315,8 +315,8 @@ final class BitbucketForgeTests: XCTestCase {
     /// A token that cannot list runners (403) reports none, remembers that, and the engine reads running steps
     /// instead of retrying the list to its six-hour deadline.
     func testForbiddenRunnerListFallsBackToRunningStepActivity() async throws {
-        let listRequests = Mutex(0)
-        let steps = Mutex([Self.step("{s1}", "Lint", "IN_PROGRESS")])
+        let listRequests = Locked(0)
+        let steps = Locked([Self.step("{s1}", "Lint", "IN_PROGRESS")])
         StubProtocol.handler = { request in
             if request.url?.path.hasSuffix("/pipelines-config/runners") == true {
                 listRequests.withLock { $0 += 1 }
@@ -348,7 +348,7 @@ final class BitbucketForgeTests: XCTestCase {
 
     /// The repository list is cached apart from the pipelines, and a poll that hits the step cache sends nothing.
     func testRepositoryListAndStepsAreCachedBetweenPolls() async throws {
-        let requests = Mutex<[String]>([])
+        let requests = Locked<[String]>([])
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             requests.withLock { $0.append(path) }
@@ -372,7 +372,7 @@ final class BitbucketForgeTests: XCTestCase {
     }
 
     func testDeletingARunnerGoesToTheForge() async throws {
-        let deleted = Mutex<[String]>([])
+        let deleted = Locked<[String]>([])
         StubProtocol.handler = { request in
             deleted.withLock { $0.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")") }
             return (204, Data(), [:])

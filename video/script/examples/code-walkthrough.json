@@ -1,0 +1,63 @@
+{
+  "name": "Install in one line",
+  "theme": "midnight",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "am_michael"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "Install in one line",
+        "subtitle": "then verify it works",
+        "mark": "none"
+      },
+      "narration": "Install it in one line, then check that it works."
+    },
+    {
+      "id": "install",
+      "type": "code",
+      "props": {
+        "label": "install",
+        "lines": [
+          "$ curl -fsSL example.com/install.sh | bash",
+          "# downloads and verifies the release",
+          "installed example 1.0.0"
+        ],
+        "caption": "One line."
+      },
+      "narration": "One line downloads and verifies the release."
+    },
+    {
+      "id": "check",
+      "type": "code",
+      "props": {
+        "label": "verify",
+        "lines": [
+          "$ example doctor",
+          "  macOS:  ok",
+          "  disk:   ok",
+          "  config: ok"
+        ],
+        "caption": "Then a health check."
+      },
+      "narration": "Then a health check confirms everything is in place."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "Ready.",
+        "url": "example.com/docs",
+        "facts": [
+          "Next: read the quick start"
+        ]
+      },
+      "narration": "You are ready."
+    }
+  ],
+  "overrides": {}
+}

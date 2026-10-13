@@ -19,7 +19,7 @@ final class UnlistedRunnerWatchTests: XCTestCase {
             var taskRequests = 0
         }
 
-        let state = Mutex(State())
+        let state = Locked(State())
 
         func handle(_ request: URLRequest) -> (Int, Data, [String: String]) {
             let path = request.url?.path ?? ""

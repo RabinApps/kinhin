@@ -1,0 +1,42 @@
+{
+  "name": "paper",
+  "description": "Soft white to pale blue, black ink. The kinhin launch look.",
+  "font": {
+    "family": "Inter",
+    "fallback": "-apple-system, \"SF Pro Display\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+    "weight": 600,
+    "mono": "DejaVu Sans Mono"
+  },
+  "colors": {
+    "ink": "#000000",
+    "muted": "#6b6b6b",
+    "paper": "#ffffff",
+    "accent": "#000000",
+    "card": "#ffffff",
+    "track": "#e3e6ec",
+    "line": "#6b6b6b"
+  },
+  "background": {
+    "from": "#ffffff",
+    "to": "#e6ebf5"
+  },
+  "device": {
+    "wallpaper": {
+      "from": "#2b3a67",
+      "to": "#8e5ea2"
+    },
+    "lid": "#0b0b0c",
+    "baseFrom": "#dfe1e5",
+    "baseTo": "#b4b7bd",
+    "thumb": "#a2a5ab",
+    "windowBar": "#e9e8e8",
+    "windowBody": "#fbfbfb",
+    "shadow": 0.3,
+    "terminal": "light"
+  },
+  "caption": {
+    "text": "#000000",
+    "outline": "#ffffff",
+    "size": 11
+  }
+}

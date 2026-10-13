@@ -9,6 +9,8 @@ public final class Sandbox: @unchecked Sendable {
     public let supportDirectory: URL
     private let lock = NSLock()
     private var tokens: [String: String] = [:]
+    /// Every daemon this sandbox started, so `dispose()` can stop the ones a test forgot (or stopped too late).
+    private var daemons: [Daemon] = []
 
     public var configURL: URL { supportDirectory.appendingPathComponent("config.yaml") }
     public var logURL: URL { supportDirectory.appendingPathComponent("logs/kinhin.log") }
@@ -69,6 +71,7 @@ public final class Sandbox: @unchecked Sendable {
     public func startDaemon() async throws -> Daemon {
         let daemon = Daemon(sandbox: self)
         try daemon.launch()
+        lock.withLock { daemons.append(daemon) }
         try await eventually("the daemon to answer on its socket", timeout: 60, interval: 1) {
             let result = try await self.kinhin(["status", "--json"], timeout: 15)
             return result.ok ? true : nil
@@ -77,6 +80,8 @@ public final class Sandbox: @unchecked Sendable {
     }
 
     public func dispose() {
+        // A daemon that outlives its sandbox is an orphan: its directory is gone, so the sweep script can no longer find it.
+        for daemon in lock.withLock({ daemons }) { daemon.kill() }
         try? FileManager.default.removeItem(at: supportDirectory)
     }
 }

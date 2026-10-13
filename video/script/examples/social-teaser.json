@@ -1,0 +1,56 @@
+{
+  "name": "Social teaser",
+  "theme": "midnight",
+  "format": "9:16",
+  "pace": 1.1,
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_heart"
+  },
+  "scenes": [
+    {
+      "id": "hook",
+      "type": "statement",
+      "props": {
+        "text": "Ship a video the way you ship code.",
+        "sub": "Script in. Video out."
+      },
+      "narration": "Ship a video the way you ship code."
+    },
+    {
+      "id": "numbers",
+      "type": "stats",
+      "props": {
+        "items": [
+          {
+            "value": "1",
+            "label": "command"
+          },
+          {
+            "value": "4",
+            "label": "formats"
+          },
+          {
+            "value": "0",
+            "label": "editors"
+          }
+        ],
+        "caption": "That's it."
+      },
+      "narration": "One command, four formats, no editor."
+    },
+    {
+      "id": "cta",
+      "type": "outro",
+      "props": {
+        "line": "Try it.",
+        "url": "docs/videos-for-your-project.md",
+        "facts": [
+          "Open source"
+        ]
+      },
+      "narration": "Try it."
+    }
+  ],
+  "overrides": {}
+}

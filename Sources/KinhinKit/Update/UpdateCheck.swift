@@ -118,11 +118,16 @@ public struct UpdateChecker: Sendable {
     /// signed by its own team; an ad-hoc build (nothing to pin to) falls back to
     /// the checksum; an unreadable signature refuses every update.
     let signing: UpdateTrust.Signing
+    /// Where each download gets its own private directory: the system temp directory, except in tests, which use a directory
+    /// of their own so tests running in parallel processes cannot see (or clear) each other's downloads.
+    let downloadRoot: URL
 
     public init(
         repo: String, currentVersion: String = kinhinVersion.current, session: URLSession? = nil,
-        shell: any ShellRunning = Shell(), signing: UpdateTrust.Signing = UpdateTrust.currentSigning()
+        shell: any ShellRunning = Shell(), signing: UpdateTrust.Signing = UpdateTrust.currentSigning(),
+        downloadRoot: URL = FileManager.default.temporaryDirectory
     ) {
+        self.downloadRoot = downloadRoot
         self.repo = repo
         self.currentVersion = currentVersion
         self.shell = shell
@@ -141,11 +146,12 @@ public struct UpdateChecker: Sendable {
     /// For tests and callers that only know the team: nil means ad-hoc.
     public init(
         repo: String, currentVersion: String = kinhinVersion.current, session: URLSession? = nil,
-        shell: any ShellRunning = Shell(), trustedTeamID: String?
+        shell: any ShellRunning = Shell(), trustedTeamID: String?,
+        downloadRoot: URL = FileManager.default.temporaryDirectory
     ) {
         self.init(
             repo: repo, currentVersion: currentVersion, session: session, shell: shell,
-            signing: trustedTeamID.map { .developerID(teamID: $0) } ?? .adHoc)
+            signing: trustedTeamID.map { .developerID(teamID: $0) } ?? .adHoc, downloadRoot: downloadRoot)
     }
 
     static func dmgAssetName(forVersion version: String) -> String {
@@ -267,10 +273,11 @@ public struct UpdateChecker: Sendable {
         guard UpdateTrust.isSafeAssetName(info.dmgName) else {
             throw UpdateCheckError.untrustedAsset(info.dmgName)
         }
-        Self.removeStaleDownloads()
+        Self.removeStaleDownloads(in: downloadRoot)
         // A fresh private directory per download: nothing else can pre-create or
         // swap the file between verification and the moment it is opened.
-        let directory = FileManager.default.temporaryDirectory
+        let directory =
+            downloadRoot
             .appendingPathComponent("\(Self.downloadDirectoryPrefix)\(UUID().uuidString)", isDirectory: true)
         try Paths.createPrivateDirectory(directory)
         let temp = directory.appendingPathComponent(info.dmgName)
@@ -331,9 +338,9 @@ public struct UpdateChecker: Sendable {
 
     /// Earlier downloads (and the old fixed-name files) are not needed once a
     /// new one starts; best effort, the system temp directory is cleaned anyway.
-    static func removeStaleDownloads() {
+    static func removeStaleDownloads(in root: URL) {
         let fm = FileManager.default
-        let entries = (try? fm.contentsOfDirectory(at: fm.temporaryDirectory, includingPropertiesForKeys: nil)) ?? []
+        let entries = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         for entry in entries where entry.lastPathComponent.hasPrefix(downloadDirectoryPrefix) {
             bestEffort("update", "remove old download \(entry.lastPathComponent)") { try fm.removeItem(at: entry) }
         }

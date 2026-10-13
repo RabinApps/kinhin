@@ -72,8 +72,10 @@ import XCTest
         XCTAssertEqual(row.source, .repoFile)
         XCTAssertFalse(row.hasToolchains, "no versions are invented for a repo-file project")
         let detail = ToolchainsModel.detail(row)
-        XCTAssertTrue(detail.contains(".kinhin.yml in the repo at each job's branch/tag"), detail)
-        XCTAssertEqual(ToolchainsModel.sourceTitle(row), ".kinhin.yml honored")
+        XCTAssertTrue(
+            detail.contains(".kinhin/config.yml (or the older .kinhin.yml) in the repo at each job's branch/tag"),
+            detail)
+        XCTAssertEqual(ToolchainsModel.sourceTitle(row), ".kinhin/config.yml honored")
     }
 
     func testFallbackAndGlobalWordingDiffer() throws {
@@ -216,7 +218,7 @@ import XCTest
         XCTAssertEqual(node?.copyText, ToolchainCatalog.tool(id: "node")?.defaultSpec)
     }
 
-    /// Each `.kinhin.yml` example parses through the real repo-file loader and
+    /// Each `.kinhin/config.yml` example parses through the real repo-file loader and
     /// satisfies the no-implicit-installs rule.
     func testExamplesAreValidRepoFiles() throws {
         let repoFiles = ToolchainsCatalogListing.examples.filter { $0.yaml.hasPrefix("toolchains:") }

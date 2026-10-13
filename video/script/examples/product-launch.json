@@ -1,0 +1,104 @@
+{
+  "name": "Acme Notes launch",
+  "theme": "clean",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "am_michael"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "Acme Notes",
+        "subtitle": "notes that stay out of your way",
+        "mark": "none"
+      },
+      "narration": "Meet Acme Notes."
+    },
+    {
+      "id": "problem",
+      "type": "statement",
+      "props": {
+        "text": "Your notes are everywhere.",
+        "sub": "Except where you need them."
+      },
+      "narration": "Your notes are everywhere, except where you need them."
+    },
+    {
+      "id": "before-after",
+      "type": "compare",
+      "props": {
+        "left": {
+          "title": "Before",
+          "items": [
+            "Five apps",
+            "Lost links",
+            "Copy and paste"
+          ]
+        },
+        "right": {
+          "title": "With Acme",
+          "items": [
+            "One place",
+            "Linked notes",
+            "Search that works"
+          ]
+        },
+        "caption": "One place for all of it."
+      },
+      "narration": "With Acme Notes, everything lives in one place, linked and searchable."
+    },
+    {
+      "id": "numbers",
+      "type": "stats",
+      "props": {
+        "items": [
+          {
+            "value": "2x",
+            "label": "faster capture"
+          },
+          {
+            "value": "0",
+            "label": "accounts needed"
+          },
+          {
+            "value": "100%",
+            "label": "offline"
+          }
+        ],
+        "caption": "Fast, private, offline."
+      },
+      "narration": "Capture twice as fast, with no account, and it all works offline."
+    },
+    {
+      "id": "start",
+      "type": "steps",
+      "props": {
+        "title": "Get started",
+        "steps": [
+          "Download Acme Notes",
+          "Open it",
+          "Start writing"
+        ]
+      },
+      "narration": "Getting started takes three steps."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "Write it down.",
+        "url": "acme.example",
+        "facts": [
+          "Free to try",
+          "No account",
+          "Works offline"
+        ]
+      },
+      "narration": "Write it down. Acme Notes."
+    }
+  ],
+  "overrides": {}
+}

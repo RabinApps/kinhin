@@ -17,7 +17,7 @@ final class FleetControllerConfigPushTests: XCTestCase {
     private var fleet: FleetController!
     private var builds: BuildLog!
     private final class AnswerBox: Sendable {
-        let value = Mutex<Result<String?, Error>>(.success("ghp_test"))
+        let value = Locked<Result<String?, Error>>(.success("ghp_test"))
     }
     private let tokenAnswerBox = AnswerBox()
     private var tokenAnswer: Result<String?, Error> {

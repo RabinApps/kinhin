@@ -85,6 +85,14 @@ The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--p
   (`StubProtocol.handler`) keep their storage behind a `Mutex`, which is what keeps the run
   clean; give any new test global the same treatment instead of `nonisolated(unsafe)`.
 
+### Demo videos and screenshots (video/)
+
+A debug build can replay a scripted fleet (`KINHIN_DEMO=launch`) so the app can be screen-recorded with no forge, token or
+VM, and `video/` builds narrated videos from a config file with open-source tools, in a container: one command
+(`video/scripts/build.sh --container`), themes, formats, a dozen examples ([gallery](docs/video-gallery.md)). Its unit tests
+run in `scripts/check.sh` (`video/scripts/test.sh --smoke` builds real videos); an opt-in CI workflow can build them on
+releases and pull requests ([docs/ci-video.md](docs/ci-video.md)). See [docs/making-a-video.md](docs/making-a-video.md) (kinhin's own video) and [docs/videos-for-your-project.md](docs/videos-for-your-project.md) (the suite for any product).
+
 ### End-to-end tests (scripts/e2e.sh)
 
 `swift test` proves kinhin agrees with its fakes; `Tests/E2E` proves the fakes agree with reality. It is a **separate
@@ -160,6 +168,7 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
 - Access control defaults to `internal`. Mark `public` only what `kinhin` or `kinhin-app` actually imports. Tests use `@testable import`.
 - Classes are `final` unless subclassing is required. Prefer composition over subclassing view controllers.
 - Concurrency: `async/await`. UI classes are `@MainActor` at the class level (no per-method repeats, no `MainActor.run` inside them). Sleep with `Task.sleep(for:)`. Do not add new `DispatchQueue`, semaphores, or raw `NSLock`; use `Mutex` or an actor.
+- **Build with CI's compiler in mind.** CI uses Xcode 26.5 (Swift 6.3.x); a newer Xcode here accepts code that CI's compiler rejects or crashes on. Two patterns have bitten: a local `let x = Mutex(...)` that a `Task` or `addTask` closure captures while the enclosing task also uses it (`SendingClosureRisksDataRace`: use `Locked` from `KinhinKit` instead, it has the same `withLock`), and handing a main-actor method to a SwiftUI `Binding(set:)` or similar as a function value, which crashes IR generation (write `{ method($0) }`). Swift 6.3's default (native) build system only copies a String Catalog instead of compiling it, so plural forms are missing and the localization tests fail; every build and test command here passes `--build-system swiftbuild` (Swift 6.4 already defaults to it). Run the CI `test` job on your branch (Actions → CI → Run workflow) before assuming a green local build is green. The causes and fixes of each CI failure we have hit are in [Troubleshooting](website/guide/troubleshooting.md#building-kinhin-and-ci-failures-for-contributors).
 - Logging goes through `Log` (`Log.info/warn/error`) with a subsystem tag. No `print` in `KinhinKit` or the app; the CLI uses `print` only for command output on stdout.
 - Dependencies (shell, HTTP session, keychain, paths) are injected through protocols with a production default, so they can be faked in tests.
 

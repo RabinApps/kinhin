@@ -62,7 +62,7 @@ final class FakeUpdateCheckerContractTests: XCTestCase {
         let body = feed(
             tag: "v1.2.3",
             dmgURL: "https://github.com/acme/kinhin/releases/download/v1.2.3/kinhin-1.2.3-arm64.dmg")
-        let requested = Mutex<String>("")
+        let requested = Locked<String>("")
         StubProtocol.handler = { request in
             requested.withLock { $0 = request.url?.path ?? "" }
             return (200, Data(body.utf8), [:])

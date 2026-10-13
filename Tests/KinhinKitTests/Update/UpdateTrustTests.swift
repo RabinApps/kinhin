@@ -5,8 +5,17 @@ import XCTest
 @testable import KinhinTestSupport
 
 final class UpdateTrustTests: XCTestCase {
+    /// This test's own download directory: tests run in parallel processes and must not see each other's downloads.
+    private let downloadRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("kinhin-update-tests-\(UUID().uuidString)", isDirectory: true)
+
+    override func setUpWithError() throws {
+        try FileManager.default.createDirectory(at: downloadRoot, withIntermediateDirectories: true)
+    }
+
     override func tearDown() {
         StubProtocol.handler = nil
+        try? FileManager.default.removeItem(at: downloadRoot)
         super.tearDown()
     }
 
@@ -17,7 +26,7 @@ final class UpdateTrustTests: XCTestCase {
         config.protocolClasses = [StubProtocol.self]
         return UpdateChecker(
             repo: "acme/kinhin", currentVersion: "0.1.0", session: URLSession(configuration: config), shell: shell,
-            trustedTeamID: teamID)
+            trustedTeamID: teamID, downloadRoot: downloadRoot)
     }
 
     private func makeInfo() -> UpdateInfo {
@@ -41,8 +50,8 @@ final class UpdateTrustTests: XCTestCase {
 
     /// Download directories still holding this test's DMG (none should survive a failure).
     private func leftoverDMGs() -> [URL] {
-        let temp = FileManager.default.temporaryDirectory
-        let dirs = (try? FileManager.default.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil)) ?? []
+        let dirs =
+            (try? FileManager.default.contentsOfDirectory(at: downloadRoot, includingPropertiesForKeys: nil)) ?? []
         return dirs.filter { $0.lastPathComponent.hasPrefix(UpdateChecker.downloadDirectoryPrefix) }
             .map { $0.appendingPathComponent(dmgName) }
             .filter { FileManager.default.fileExists(atPath: $0.path) }
@@ -207,7 +216,7 @@ final class UpdateTrustTests: XCTestCase {
         config.protocolClasses = [StubProtocol.self]
         let checker = UpdateChecker(
             repo: "acme/kinhin", currentVersion: "0.1.0", session: URLSession(configuration: config),
-            shell: FakeShell(), signing: .unreadable)
+            shell: FakeShell(), signing: .unreadable, downloadRoot: downloadRoot)
         do {
             _ = try await checker.downloadDMG(makeInfo())
             XCTFail("an unreadable own signature must not fall back to checksum-only")

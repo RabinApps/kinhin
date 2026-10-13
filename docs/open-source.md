@@ -92,7 +92,7 @@ projects:
 | `vm.ephemeral: true` | A persistent VM keeps whatever one job left behind for the next. |
 | Tart VMs, not Docker or host | Docker containers share one kernel and keep Docker's default capabilities; host mode has no isolation at all. Never add a `host` route for a public repository. |
 | `share_cache: false` | The shared toolchain cache is writable and trusted by later jobs. |
-| `repo_file: false` | `.kinhin.yml` lets the repository decide which catalog tools are installed. |
+| `repo_file: false` | `.kinhin/config.yml` (or `.kinhin.yml`) lets the repository decide which catalog tools are installed. |
 | A repository-scoped account | Scope the account to `owner/name`, not the whole organization, so its token can manage only that repository's runners. Give the token only the permissions in [Forge support](forges.md). |
 | A pinned base image | `kinhin image digest` pins the base so a republished tag cannot change what you bake. |
 | A fresh `kinhin image prepare` | Images baked by older builds still allow SSH password login. |
@@ -106,7 +106,7 @@ Then run `kinhin doctor`: its security section flags softnet off, plain-http for
 - **Jobs that may come from a fork get no shared cache and no repo file from the pull request,** even if the project
   allows them. kinhin treats a job as possibly a fork's whenever the forge doesn't prove otherwise: GitHub scale-set
   jobs and Gitea and Forgejo jobs always, GitHub workflow runs when the payload lacks the head repository, and GitLab
-  merge-request pipelines. Their `.kinhin.yml` is read from the default branch instead.
+  merge-request pipelines. Their `.kinhin/config.yml` is read from the default branch instead.
 - **Tokens never enter the config,** and the log redacts them.
 
 ## 3. Watch it

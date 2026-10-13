@@ -34,7 +34,7 @@ kinhin auth add NAME --<github|gitlab|gitea|forgejo> --scope SCOPE [--instance U
 ## Caveats
 
 - Self-hosted forges need `https://` unless loopback or `allow_insecure_http: true`.
-- A repo `.kinhin.yml` is honored only on GitHub, Gitea/Forgejo and GitLab.
+- A repo `.kinhin/config.yml` (or `.kinhin.yml`) is honored only on GitHub, Gitea/Forgejo and GitLab.
 - Host mode needs `consent: true` on the route.
 - Remove an account with `kinhin auth remove NAME`. `kinhin auth list` shows what is connected.
 

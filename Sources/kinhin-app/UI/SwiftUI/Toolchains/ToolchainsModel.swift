@@ -3,7 +3,7 @@ import KinhinKit
 import Observation
 
 /// State behind the Advanced → Toolchains tab. The tab is read-only:
-/// toolchain versions are declared in each repo's `.kinhin.yml` (or in the
+/// toolchain versions are declared in each repo's `.kinhin/config.yml` (or in the
 /// `projects:` / `toolchains:` YAML), never edited here. It shows how every
 /// configured repo resolves its toolchains, the derived images kinhin has
 /// built, and offers the one action that does not edit toolchains: rebuilding
@@ -145,8 +145,8 @@ final class ToolchainsModel {
         switch row.source {
         case .repoFile:
             return String(
-                localized: ".kinhin.yml honored", bundle: .l10n,
-                comment: "Toolchains tab row source label; keep .kinhin.yml verbatim")
+                localized: ".kinhin/config.yml honored", bundle: .l10n,
+                comment: "Toolchains tab row source label; keep .kinhin/config.yml verbatim")
         case .projectFallback:
             return String(localized: "Project toolchains", bundle: .l10n, comment: "Toolchains tab row source label")
         case .none: return String(localized: "No toolchains", bundle: .l10n, comment: "Toolchains tab row source label")
@@ -160,16 +160,19 @@ final class ToolchainsModel {
             return row.hasToolchains
                 ? String(
                     localized:
-                        "Versions come from .kinhin.yml in the repo at each job's branch/tag. Used when a repo has no usable file: the project toolchains below.",
-                    bundle: .l10n, comment: "Toolchains tab row explanation; keep .kinhin.yml verbatim")
+                        "Versions come from .kinhin/config.yml (or the older .kinhin.yml) in the repo at each job's branch/tag. Used when a repo has no usable file: the project toolchains below.",
+                    bundle: .l10n,
+                    comment: "Toolchains tab row explanation; keep .kinhin/config.yml and .kinhin.yml verbatim")
                 : String(
                     localized:
-                        "Versions come from .kinhin.yml in the repo at each job's branch/tag. With no usable file, jobs use the base image.",
-                    bundle: .l10n, comment: "Toolchains tab row explanation; keep .kinhin.yml verbatim")
+                        "Versions come from .kinhin/config.yml (or the older .kinhin.yml) in the repo at each job's branch/tag. With no usable file, jobs use the base image.",
+                    bundle: .l10n,
+                    comment: "Toolchains tab row explanation; keep .kinhin/config.yml and .kinhin.yml verbatim")
         case .projectFallback:
             return String(
-                localized: "The repo's .kinhin.yml is ignored (repo_file is off); these versions apply.", bundle: .l10n,
-                comment: "Toolchains tab row explanation; keep .kinhin.yml and repo_file verbatim")
+                localized: "The repo's .kinhin/config.yml is ignored (repo_file is off); these versions apply.",
+                bundle: .l10n,
+                comment: "Toolchains tab row explanation; keep .kinhin/config.yml and repo_file verbatim")
         case .none:
             return row.isDefault
                 ? String(

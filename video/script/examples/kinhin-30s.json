@@ -1,0 +1,61 @@
+{
+  "name": "kinhin in thirty seconds",
+  "adapter": "kinhin",
+  "theme": "paper",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_heart"
+  },
+  "pronounce": {
+    "kinhin": "kin-hin"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "The mindful CI.",
+        "subtitle": "kinhin",
+        "mark": "ring"
+      },
+      "narration": "Meet kinhin. The mindful CI."
+    },
+    {
+      "id": "app",
+      "type": "device",
+      "props": {
+        "clip": "app",
+        "frame": "macbook",
+        "speed": 2.2
+      },
+      "cues": [
+        {
+          "at": 0.5,
+          "text": "Jobs arrive, and kinhin scales to the queue."
+        },
+        {
+          "at": 5.5,
+          "text": "Each job gets a clean instance, deleted when it's done."
+        }
+      ],
+      "minLength": 11
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "One job. One VM. Gone when it's done.",
+        "url": "kinhin.dev",
+        "facts": [
+          "Free",
+          "Apache-2.0",
+          "No telemetry",
+          "In beta"
+        ]
+      },
+      "narration": "One job. One VM. Gone when it's done."
+    }
+  ],
+  "overrides": {}
+}

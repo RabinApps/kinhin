@@ -46,6 +46,17 @@ python3 shots/tools/drive.py config myconfig
 
 Requires Screen Recording + Accessibility permission for the terminal host.
 
+**Run the app on a scripted demo fleet** (debug builds only; for screen
+recordings, touches no config, Keychain, daemon or forge):
+
+```bash
+KINHIN_SUPPORT_DIR=$(mktemp -d) KINHIN_DEMO=launch scripts/dev-run.sh --env-tokens
+```
+
+The script lives in `Sources/kinhin-app/Demo/DemoTimeline.swift`: a 48 s loop of
+queued jobs, instances cloning → booting → busy → deleted across all four forges
+and three runtimes, with one failure and its retry.
+
 ## Gotchas learned the hard way
 
 - **Never probe the real Keychain from test scripts**: `SecItemCopyMatching`
