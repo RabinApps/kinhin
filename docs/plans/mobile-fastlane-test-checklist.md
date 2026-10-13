@@ -160,6 +160,7 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 | 10a.5 | `maui_app` builds for Android and the iOS simulator, and `dotnet publish` makes a signed AAB | Done | `mobile-e2e --with-builds` |
 | 10a.6 | A MAUI device IPA with distribution signing | Not verified | No distribution certificate on this Mac |
 | 10a.7 | Runner probes detect MAUI in a subfolder and KMP's module Gradle files | Done | `ManifestProbeTests` |
+| 10a.8 | TODO: `capacitor_app` screenshots. Add the Xcode UI test target to `ios/App/App.xcodeproj`, then run the iOS and Android screenshot lanes and check the PNGs | Not started | Manual Xcode target step, as for React Native and Flutter |
 
 ## 11. Screenshots (snapshot, screengrab, frameit)
 
