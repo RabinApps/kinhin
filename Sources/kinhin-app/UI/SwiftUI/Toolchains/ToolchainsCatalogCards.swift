@@ -47,7 +47,7 @@ struct ToolchainsCatalogCards: View {
 
     private var examplesCard: some View {
         CollapsibleFormCard(
-            title: "Examples", subtitle: "Copy into a .kinhin.yml at the root of a repo (or into config.yaml)."
+            title: "Examples", subtitle: "Copy into .kinhin/config.yml in a repo (or into config.yaml)."
         ) {
             ForEach(ToolchainsCatalogListing.examples) { example in
                 VStack(alignment: .leading, spacing: 4) {
