@@ -19,6 +19,10 @@ enum MobileTemplates {
         "github/prebuild/capacitor-ios.yml": githubPrebuildCapacitorIosYml,
         "github/prebuild/flutter-android.yml": githubPrebuildFlutterAndroidYml,
         "github/prebuild/flutter-ios.yml": githubPrebuildFlutterIosYml,
+        "github/prebuild/kmp-android.yml": githubPrebuildKmpAndroidYml,
+        "github/prebuild/kmp-ios.yml": githubPrebuildKmpIosYml,
+        "github/prebuild/maui-android.yml": githubPrebuildMauiAndroidYml,
+        "github/prebuild/maui-ios.yml": githubPrebuildMauiIosYml,
         "github/prebuild/react-native-android.yml": githubPrebuildReactNativeAndroidYml,
         "github/prebuild/react-native-ios.yml": githubPrebuildReactNativeIosYml,
         "ios/UITests/ScreenshotTests.swift": iosUITestsScreenshotTestsSwift,
@@ -111,6 +115,8 @@ enum MobileTemplates {
         # Android lanes. Uploads go through the Google Play Developer API with a service account.
         # AAB_PATH skips the Gradle build when another step already built the bundle.
         # `build` makes a signed bundle without uploading it; CI and the e2e use it to check signing.
+        require "shellwords"
+
         default_platform(:android)
 
         # Stop before any store call when a required variable is missing, with the name of the variable.
@@ -145,6 +151,16 @@ enum MobileTemplates {
           presence(ENV["ANDROID_GRADLE_MODULE"]) || "app"
         end
 
+        # A Gradle task for the app module, with the module prefix when one is set (":androidApp:assembleDebug").
+        def gradle_task(name)
+          presence(ENV["ANDROID_GRADLE_MODULE"]) ? ":#{gradle_module}:#{name}" : name
+        end
+
+        # The project folder option for gradle(), set only when the Gradle root is not the Android folder.
+        def gradle_project_options
+          presence(ENV["ANDROID_GRADLE_DIR"]) ? { project_dir: gradle_dir } : {}
+        end
+
         # Gradle writes the bundle under the project's build folder. Flutter sets that folder to <flutter root>/build, one
         # level above android/, so a pubspec.yaml there means a Flutter project.
         def default_aab_path
@@ -152,7 +168,7 @@ enum MobileTemplates {
           if File.exist?(File.join(flutter_root, "pubspec.yaml"))
             File.join(flutter_root, "build/app/outputs/bundle/release/app-release.aab")
           else
-            File.join(gradle_dir, gradle_module, "build/outputs/bundle/release/app-release.aab")
+            File.join(gradle_dir, gradle_module, "build/outputs/bundle/release/#{gradle_module}-release.aab")
           end
         end
 
@@ -160,16 +176,36 @@ enum MobileTemplates {
         # under <flutter root>/build, like the bundle above.
         def screengrab_apk_paths
           flutter_root = File.expand_path("..", android_root)
-          outputs = if File.exist?(File.join(flutter_root, "pubspec.yaml"))
-                      File.join(flutter_root, "build/app/outputs")
-                    else
-                      File.join(android_root, "app/build/outputs")
-                    end
-          [File.join(outputs, "apk/debug/app-debug.apk"), File.join(outputs, "apk/androidTest/debug/app-debug-androidTest.apk")]
+          if File.exist?(File.join(flutter_root, "pubspec.yaml"))
+            outputs = File.join(flutter_root, "build/app/outputs")
+            app_module = "app"
+          else
+            outputs = File.join(gradle_dir, gradle_module, "build/outputs")
+            app_module = gradle_module
+          end
+          [File.join(outputs, "apk/debug/#{app_module}-debug.apk"), File.join(outputs, "apk/androidTest/debug/#{app_module}-debug-androidTest.apk")]
+        end
+
+        # .NET MAUI: dotnet publish builds and signs the AAB with the upload keystore. MAUI_PROJECT is the .csproj, relative to the
+        # app folder. Requires the same keystore variables as the Gradle build.
+        def build_maui_aab
+          project = File.expand_path(ENV["MAUI_PROJECT"], File.expand_path("..", android_root))
+          require_env!("ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD")
+          framework = File.read(project)[/net[0-9.]+-android/] || UI.user_error!("No net*-android target in #{project}")
+          sh(Shellwords.join(["dotnet", "publish", project, "-f", framework, "-c", "Release", "-p:AndroidPackageFormat=aab",
+                              "-p:AndroidKeyStore=true", "-p:AndroidSigningKeyStore=#{ENV['ANDROID_KEYSTORE_PATH']}",
+                              "-p:AndroidSigningStorePass=#{ENV['ANDROID_KEYSTORE_PASSWORD']}",
+                              "-p:AndroidSigningKeyAlias=#{ENV['ANDROID_KEY_ALIAS']}",
+                              "-p:AndroidSigningKeyPass=#{ENV['ANDROID_KEY_PASSWORD']}"]), log: false)
+          aab = Dir.glob(File.join(File.dirname(project), "bin/**/*.aab")).max_by { |f| File.mtime(f) }
+          UI.user_error!("dotnet publish wrote no AAB under #{File.dirname(project)}/bin") unless aab
+          UI.success("Built #{aab}")
+          aab
         end
 
         # Returns the path of a signed release bundle, building it with Gradle unless AAB_PATH is set.
         def build_signed_aab
+          return build_maui_aab if ENV["AAB_PATH"].to_s.strip.empty? && presence(ENV["MAUI_PROJECT"])
           aab = ENV["AAB_PATH"] || default_aab_path
           unless ENV["AAB_PATH"]
             require_env!("ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD")
@@ -177,7 +213,7 @@ enum MobileTemplates {
 
             # The default task builds every module's bundle, which is what a one-module project needs. A named module builds only its own.
             gradle_options = {
-              task: presence(ENV["ANDROID_GRADLE_MODULE"]) ? ":#{gradle_module}:bundleRelease" : "bundle",
+              task: presence(ENV["ANDROID_GRADLE_MODULE"]) ? gradle_task("bundle") : "bundle",
               build_type: "Release",
               print_command: false,
               properties: {
@@ -219,8 +255,8 @@ enum MobileTemplates {
           desc "Capture localized screenshots with screengrab. UPLOAD_SCREENSHOTS=1 uploads them to Google Play"
           lane :screenshots do
             # screengrab runs the instrumented tests but does not build the APKs, so build them first.
-            gradle(task: "assemble", build_type: "Debug", print_command: false)
-            gradle(task: "assembleDebugAndroidTest", print_command: false)
+            gradle(task: gradle_task("assemble"), build_type: "Debug", print_command: false, **gradle_project_options)
+            gradle(task: gradle_task("assembleDebugAndroidTest"), print_command: false, **gradle_project_options)
             app_apk, tests_apk = screengrab_apk_paths
             screengrab(app_apk_path: app_apk, tests_apk_path: tests_apk)
 
@@ -492,6 +528,53 @@ enum MobileTemplates {
                 run: |
                   flutter pub get
                   flutter build ios --config-only --release
+        """#
+
+    private static let githubPrebuildKmpAndroidYml = #"""
+              - name: Gradle project for the Android module
+                # The Gradle root is the repository root, one folder above androidApp/, and the module is androidApp.
+                run: |
+                  echo "ANDROID_GRADLE_DIR=.." >> "$GITHUB_ENV"
+                  echo "ANDROID_GRADLE_MODULE=androidApp" >> "$GITHUB_ENV"
+        """#
+
+    private static let githubPrebuildKmpIosYml = #"""
+              - name: Java for the shared Kotlin module
+                # The Xcode build phase runs Gradle to build the shared framework, so Gradle needs a JDK on the runner.
+                uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+                with:
+                  distribution: temurin
+                  java-version: "17"
+        """#
+
+    private static let githubPrebuildMauiAndroidYml = #"""
+              - name: .NET SDK and the MAUI workload
+                uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+                with:
+                  dotnet-version: "10.0.x"
+              - name: Install the MAUI workload
+                run: dotnet workload install maui
+              - name: Point fastlane at the MAUI project
+                # The lane runs dotnet publish with the upload keystore, which the job writes below.
+                working-directory: __APP__
+                run: |
+                  project="$(find . -maxdepth 2 -name '*.csproj' | head -1)"
+                  echo "MAUI_PROJECT=$project" >> "$GITHUB_ENV"
+        """#
+
+    private static let githubPrebuildMauiIosYml = #"""
+              - name: .NET SDK and the MAUI workload
+                uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+                with:
+                  dotnet-version: "10.0.x"
+              - name: Install the MAUI workload
+                run: dotnet workload install maui
+              - name: Point fastlane at the MAUI project
+                # The lane runs dotnet publish after match has installed the signing certificate.
+                working-directory: __APP__
+                run: |
+                  project="$(find . -maxdepth 2 -name '*.csproj' | head -1)"
+                  echo "MAUI_PROJECT=$project" >> "$GITHUB_ENV"
         """#
 
     private static let githubPrebuildReactNativeAndroidYml = #"""
@@ -888,6 +971,8 @@ enum MobileTemplates {
     private static let iosFastlaneFastfile = #"""
         # iOS lanes. Auth uses an App Store Connect API key (no Apple ID password).
         # Secrets and paths come from CI environment variables; see https://kinhin.dev/guide/mobile-fastlane.
+        require "shellwords"
+
         default_platform(:ios)
 
         # Stop before any store call when a required variable is missing, with the name of the variable.
@@ -949,6 +1034,21 @@ enum MobileTemplates {
           path
         end
 
+        # .NET MAUI: dotnet publish builds and signs the IPA. The signing certificate comes from match, so this runs after it.
+        # MAUI_PROJECT is the .csproj, relative to the app folder; MAUI_CODESIGN_KEY and MAUI_PROVISIONING_PROFILE name the identity
+        # and profile that match installed.
+        def build_maui_ipa
+          project = File.expand_path(ENV["MAUI_PROJECT"], File.expand_path("..", __dir__))
+          require_env!("MAUI_CODESIGN_KEY", "MAUI_PROVISIONING_PROFILE")
+          framework = File.read(project)[/net[0-9.]+-ios/] || UI.user_error!("No net*-ios target in #{project}")
+          sh(Shellwords.join(["dotnet", "publish", project, "-f", framework, "-c", "Release", "-p:BuildIpa=true",
+                              "-p:CodesignKey=#{ENV['MAUI_CODESIGN_KEY']}", "-p:CodesignProvision=#{ENV['MAUI_PROVISIONING_PROFILE']}"]),
+             log: false)
+          ipa = Dir.glob(File.join(File.dirname(project), "bin/**/*.ipa")).max_by { |f| File.mtime(f) }
+          UI.user_error!("dotnet publish wrote no IPA under #{File.dirname(project)}/bin") unless ipa
+          ipa
+        end
+
         platform :ios do
           before_all do
             setup_ci if ENV["CI"] # temporary keychain on CI runners
@@ -960,7 +1060,7 @@ enum MobileTemplates {
             require_env!("MATCH_GIT_URL", "MATCH_PASSWORD")
             match(api_key: api_key, readonly: true)
 
-            ipa = prebuilt_ipa_path
+            ipa = prebuilt_ipa_path || (presence(ENV["MAUI_PROJECT"]) ? build_maui_ipa : nil)
             build_app(build_options) unless ipa
 
             upload = { api_key: api_key, skip_waiting_for_build_processing: true }

@@ -12,6 +12,10 @@ public enum MobileFramework: String, CaseIterable, Sendable {
     case expo
     /// A web app wrapped by Capacitor (or Ionic) into ios/ and android/ folders that Capacitor generates.
     case capacitor
+    /// A Kotlin Multiplatform project: a shared module, androidApp/ (Gradle) and iosApp/ (Xcode).
+    case kmp
+    /// A .NET MAUI app: one C# project (.csproj with UseMaui). fastlane signs nothing; dotnet publish builds the artifacts.
+    case maui
 }
 
 /// What a scaffold run did, line by line, for the CLI to print.
@@ -62,7 +66,9 @@ public enum MobileScaffold {
 
         try writer.gemfile()
         for platform in platforms {
-            try writer.scaffoldFastlane(platform: platform, folder: platformFolder(platform, in: directory))
+            try writer.scaffoldFastlane(
+                platform: platform, folder: fastlaneFolder(platform, framework: framework, in: directory),
+                screenshots: framework != .maui, androidModule: framework == .kmp ? "" : "app")
         }
         try writer.workflow(framework: framework, platforms: platforms, directory: directory)
         if platforms.contains("ios") {
@@ -78,6 +84,8 @@ public enum MobileScaffold {
         if packageJSON(in: directory).contains("\"expo\"") { return .expo }
         if packageJSON(in: directory).contains("\"@capacitor/core\"") { return .capacitor }
         if packageJSON(in: directory).contains("\"react-native\"") { return .reactNative }
+        if isMAUI(in: directory) { return .maui }
+        if isKotlinMultiplatform(in: directory) { return .kmp }
         switch (hasIOS(in: directory), hasAndroid(in: directory)) {
         case (true, true): return .native
         case (true, false): return .ios
@@ -93,6 +101,7 @@ public enum MobileScaffold {
         case .android: return ["android"]
         case .expo: return []
         case .auto: return []
+        case .kmp, .maui: return ["ios", "android"]
         case .native, .flutter, .reactNative, .capacitor:
             var platforms: [String] = []
             if hasIOS(in: directory) { platforms.append("ios") }
@@ -127,9 +136,50 @@ public enum MobileScaffold {
         return "\(base)/\(child)"
     }
 
-    /// A platform's fastlane folder lives in its own folder when that exists, else at the root.
+    /// A platform's fastlane folder lives in its own folder when that exists, else at the root. Kotlin Multiplatform
+    /// keeps its native projects in iosApp/ and androidApp/. MAUI has no native folders, so its fastlane sits in ios/ and android/.
+    static func fastlaneFolder(_ platform: String, framework: MobileFramework, in directory: URL) -> String {
+        switch framework {
+        case .kmp: return platform == "ios" ? "iosApp" : "androidApp"
+        case .maui: return platform
+        default: return platformFolder(platform, in: directory)
+        }
+    }
+
     static func platformFolder(_ platform: String, in directory: URL) -> String {
         isDirectory(directory.appendingPathComponent(platform)) ? platform : "."
+    }
+
+    /// A .NET MAUI project: a .csproj with UseMaui, at the root or one folder down.
+    static func isMAUI(in directory: URL) -> Bool {
+        let fm = FileManager.default
+        let folders =
+            [directory]
+            + ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
+            .filter { isDirectory($0) }
+        for folder in folders {
+            let names = (try? fm.contentsOfDirectory(atPath: folder.path)) ?? []
+            for name in names where name.hasSuffix(".csproj") {
+                let text = (try? String(contentsOf: folder.appendingPathComponent(name), encoding: .utf8)) ?? ""
+                if text.contains("<UseMaui>true</UseMaui>") { return true }
+            }
+        }
+        return false
+    }
+
+    /// A Kotlin Multiplatform project: an iosApp/ folder, Gradle settings, and a build file that applies the
+    /// multiplatform plugin (the root or the shared module).
+    static func isKotlinMultiplatform(in directory: URL) -> Bool {
+        let fm = FileManager.default
+        guard isDirectory(directory.appendingPathComponent("iosApp")),
+            fm.fileExists(atPath: directory.appendingPathComponent("settings.gradle.kts").path)
+                || fm.fileExists(atPath: directory.appendingPathComponent("settings.gradle").path)
+        else { return false }
+        let builds = ["build.gradle.kts", "build.gradle", "shared/build.gradle.kts", "shared/build.gradle"]
+        return builds.contains { name in
+            ((try? String(contentsOf: directory.appendingPathComponent(name), encoding: .utf8)) ?? "")
+                .contains("multiplatform")
+        }
     }
 
     static func hasIOS(in directory: URL) -> Bool {
@@ -293,20 +343,28 @@ public enum MobileScaffold {
         }
 
         /// Fastfile, Appfile, and for iOS the Matchfile, under the platform's fastlane folder.
-        mutating func scaffoldFastlane(platform: String, folder: String) throws {
+        /// `androidModule` is the Gradle module folder under the platform folder ("" when the platform folder is the module).
+        mutating func scaffoldFastlane(
+            platform: String, folder: String, screenshots: Bool, androidModule: String = "app"
+        )
+            throws
+        {
             let base = folder == "." ? "fastlane" : "\(folder)/fastlane"
             try write(template: "\(platform)/fastlane/Fastfile", to: "\(base)/Fastfile")
             try write(template: "\(platform)/fastlane/Appfile", to: "\(base)/Appfile")
             if platform == "ios" {
                 try write(template: "ios/fastlane/Matchfile", to: "\(base)/Matchfile")
             }
-            try scaffoldScreenshots(platform: platform, folder: folder, base: base)
+            if screenshots {
+                try scaffoldScreenshots(platform: platform, folder: folder, base: base, androidModule: androidModule)
+            }
         }
 
         /// Screenshot settings and the sample UI or instrumented test. The Xcode UI test target and the Gradle
         /// test dependencies are not written: they live in the project file, so docs/mobile-screenshots.md
         /// describes those steps.
-        mutating func scaffoldScreenshots(platform: String, folder: String, base: String) throws {
+        mutating func scaffoldScreenshots(platform: String, folder: String, base: String, androidModule: String) throws
+        {
             switch platform {
             case "ios":
                 try write(template: "ios/fastlane/Snapfile", to: "\(base)/Snapfile")
@@ -319,12 +377,13 @@ public enum MobileScaffold {
                     to: MobileScaffold.joinPath(folder, "UITests/ScreenshotTests.swift"))
             case "android":
                 try write(template: "android/fastlane/Screengrabfile", to: "\(base)/Screengrabfile")
+                let module = androidModule.isEmpty ? folder : MobileScaffold.joinPath(folder, androidModule)
                 try write(
                     template: "android/app/src/androidTest/java/screenshots/ScreenshotTest.java",
-                    to: MobileScaffold.joinPath(folder, "app/src/androidTest/java/screenshots/ScreenshotTest.java"))
+                    to: MobileScaffold.joinPath(module, "src/androidTest/java/screenshots/ScreenshotTest.java"))
                 try writeIfAbsent(
                     template: "android/app/src/debug/AndroidManifest.xml",
-                    to: MobileScaffold.joinPath(folder, "app/src/debug/AndroidManifest.xml"),
+                    to: MobileScaffold.joinPath(module, "src/debug/AndroidManifest.xml"),
                     note: "add the Screengrab permissions listed in that template to the existing debug manifest")
             default:
                 break
@@ -344,7 +403,8 @@ public enum MobileScaffold {
         private func job(platform: String, framework: MobileFramework, directory: URL) throws -> String {
             let template = try self.template("github/\(platform).job.yml")
             let prebuild = try prebuildSteps(platform: platform, framework: framework)
-            let folder = MobileScaffold.joinPath(appPath, MobileScaffold.platformFolder(platform, in: directory))
+            let folder = MobileScaffold.joinPath(
+                appPath, MobileScaffold.fastlaneFolder(platform, framework: framework, in: directory))
             // Capacitor 8's Android library compiles with Java 21; the other frameworks run on Java 17.
             let javaVersion = framework == .capacitor ? "21" : "17"
             var out = ""
@@ -365,6 +425,8 @@ public enum MobileScaffold {
             case .flutter: return withNewline(try steps("github/prebuild/flutter-\(platform).yml"))
             case .reactNative: return withNewline(try steps("github/prebuild/react-native-\(platform).yml"))
             case .capacitor: return withNewline(try steps("github/prebuild/capacitor-\(platform).yml"))
+            case .kmp: return withNewline(try steps("github/prebuild/kmp-\(platform).yml"))
+            case .maui: return withNewline(try steps("github/prebuild/maui-\(platform).yml"))
             default: return ""
             }
         }

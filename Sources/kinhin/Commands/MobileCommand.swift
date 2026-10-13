@@ -62,7 +62,7 @@ enum MobileCommand {
         guard let framework = MobileFramework(rawValue: frameworkName) else {
             throw UsageError(
                 message:
-                    "unknown framework '\(frameworkName)' (auto, ios, android, native, flutter, react-native, expo, capacitor)"
+                    "unknown framework '\(frameworkName)' (auto, ios, android, native, flutter, react-native, expo, capacitor, kmp, maui)"
             )
         }
         return Request(

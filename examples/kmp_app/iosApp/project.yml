@@ -1,0 +1,52 @@
+name: iosApp
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+targets:
+  iosApp:
+    type: application
+    platform: iOS
+    sources:
+      - iosApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.kmpapp
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        TARGETED_DEVICE_FAMILY: "1,2"
+        DEVELOPMENT_TEAM: ""
+    preBuildScripts:
+      - name: Build the Kotlin shared framework
+        basedOnDependencyAnalysis: false
+        script: |
+          #!/bin/sh
+          set -e
+          cd "$SRCROOT/.." && ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+        inputFiles:
+          - $(SRCROOT)/../shared/src/commonMain
+        outputFiles:
+          - $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/Shared.framework
+  iosAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - iosAppUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.kmpapp.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: iosApp
+    dependencies:
+      - target: iosApp
+    scheme:
+      testTargets:
+        - iosAppUITests

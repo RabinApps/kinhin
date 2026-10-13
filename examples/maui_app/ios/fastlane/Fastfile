@@ -1,0 +1,147 @@
+# iOS lanes. Auth uses an App Store Connect API key (no Apple ID password).
+# Secrets and paths come from CI environment variables; see https://kinhin.dev/guide/mobile-fastlane.
+require "shellwords"
+
+default_platform(:ios)
+
+# Stop before any store call when a required variable is missing, with the name of the variable.
+def require_env!(*names)
+  missing = names.select { |name| ENV[name].to_s.strip.empty? }
+  UI.user_error!("Missing environment variables: #{missing.join(', ')}. See https://kinhin.dev/guide/mobile-fastlane#secrets") unless missing.empty?
+end
+
+# The project folder (the parent of fastlane/). fastlane runs lanes from fastlane/, so build paths from here.
+def project_root
+  File.expand_path("..", __dir__)
+end
+
+# An empty secret (for example an unset repository secret) means "use the default", not an empty scheme name.
+def presence(value)
+  value.to_s.strip.empty? ? nil : value
+end
+
+# frameit needs ImageMagick. Install it with Homebrew when it is missing, so enabling frames just works. Homebrew itself
+# is not installed by this lane: that needs an admin password, so the lane stops with a clear message instead.
+def ensure_imagemagick
+  return if system("command -v magick >/dev/null 2>&1") || system("command -v convert >/dev/null 2>&1")
+
+  UI.user_error!("frameit needs ImageMagick, and Homebrew is not installed to install it. Install Homebrew from https://brew.sh, or install ImageMagick yourself.") unless system("command -v brew >/dev/null 2>&1")
+  UI.important("ImageMagick is missing; installing it with Homebrew for frameit")
+  sh("brew install imagemagick")
+  UI.user_error!("brew finished, but no magick or convert command is available") unless system("command -v magick >/dev/null 2>&1")
+end
+
+# The App Store Connect API key. Only lanes that talk to Apple call this, so local screenshots need no secrets.
+def app_store_api_key
+  require_env!("ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_KEY_FILEPATH", "APP_IDENTIFIER", "APPLE_TEAM_ID")
+  UI.user_error!("ASC_KEY_FILEPATH does not exist: #{ENV['ASC_KEY_FILEPATH']}") unless File.exist?(ENV["ASC_KEY_FILEPATH"])
+
+  app_store_connect_api_key(
+    key_id: ENV["ASC_KEY_ID"],
+    issuer_id: ENV["ASC_ISSUER_ID"],
+    key_filepath: ENV["ASC_KEY_FILEPATH"]
+  )
+end
+
+# Options for build_app. IOS_PROJECT or IOS_WORKSPACE point at a project that is not at the default place (Capacitor keeps
+# its Xcode project in ios/App). Unset variables are left out, so the default lookup stays the same.
+def build_options
+  options = { scheme: presence(ENV["IOS_SCHEME"]), export_method: "app-store" }
+  options[:project] = presence(ENV["IOS_PROJECT"]) if presence(ENV["IOS_PROJECT"])
+  options[:workspace] = presence(ENV["IOS_WORKSPACE"]) if presence(ENV["IOS_WORKSPACE"])
+  options
+end
+
+# IPA_PATH uploads an IPA that another step already built and signed (for example .NET MAUI's dotnet publish).
+# Refuse one older than IPA_MAX_AGE_HOURS (default 24), so a stale file left in a runner does not get uploaded.
+def prebuilt_ipa_path
+  path = presence(ENV["IPA_PATH"])
+  return nil unless path
+  UI.user_error!("No IPA at #{path}. Check IPA_PATH.") unless File.exist?(path)
+  max_age = (presence(ENV["IPA_MAX_AGE_HOURS"]) || "24").to_f * 3600
+  UI.user_error!("IPA at #{path} is older than #{max_age / 3600} hours. Rebuild it or raise IPA_MAX_AGE_HOURS.") if Time.now - File.mtime(path) > max_age
+  path
+end
+
+# .NET MAUI: dotnet publish builds and signs the IPA. The signing certificate comes from match, so this runs after it.
+# MAUI_PROJECT is the .csproj, relative to the app folder; MAUI_CODESIGN_KEY and MAUI_PROVISIONING_PROFILE name the identity
+# and profile that match installed.
+def build_maui_ipa
+  project = File.expand_path(ENV["MAUI_PROJECT"], File.expand_path("..", __dir__))
+  require_env!("MAUI_CODESIGN_KEY", "MAUI_PROVISIONING_PROFILE")
+  framework = File.read(project)[/net[0-9.]+-ios/] || UI.user_error!("No net*-ios target in #{project}")
+  sh(Shellwords.join(["dotnet", "publish", project, "-f", framework, "-c", "Release", "-p:BuildIpa=true",
+                      "-p:CodesignKey=#{ENV['MAUI_CODESIGN_KEY']}", "-p:CodesignProvision=#{ENV['MAUI_PROVISIONING_PROFILE']}"]),
+     log: false)
+  ipa = Dir.glob(File.join(File.dirname(project), "bin/**/*.ipa")).max_by { |f| File.mtime(f) }
+  UI.user_error!("dotnet publish wrote no IPA under #{File.dirname(project)}/bin") unless ipa
+  ipa
+end
+
+platform :ios do
+  before_all do
+    setup_ci if ENV["CI"] # temporary keychain on CI runners
+  end
+
+  desc "Build a signed IPA and upload it to TestFlight"
+  lane :beta do
+    api_key = app_store_api_key
+    require_env!("MATCH_GIT_URL", "MATCH_PASSWORD")
+    match(api_key: api_key, readonly: true)
+
+    ipa = prebuilt_ipa_path || (presence(ENV["MAUI_PROJECT"]) ? build_maui_ipa : nil)
+    build_app(build_options) unless ipa
+
+    upload = { api_key: api_key, skip_waiting_for_build_processing: true }
+    upload[:ipa] = ipa if ipa
+    upload_to_testflight(upload)
+  end
+
+  desc "Upload the latest processed build to the App Store (metadata and screenshots skipped)"
+  lane :release do
+    upload_to_app_store(
+      api_key: app_store_api_key,
+      skip_metadata: true,
+      skip_screenshots: true,
+      submit_for_review: false
+    )
+  end
+
+  desc "Capture localized screenshots with snapshot. FRAME_SCREENSHOTS=1 frames them; UPLOAD_SCREENSHOTS=1 uploads them"
+  lane :screenshots do
+    snapshot
+
+    # snapshot can exit 0 when every UI test failed to build or run, so check the output directly.
+    screenshots = File.join(project_root, "fastlane/screenshots")
+    UI.user_error!("snapshot wrote no screenshots. Check the UI test target and the scheme in fastlane/Snapfile.") if Dir.glob(File.join(screenshots, "**/*.png")).empty?
+
+    if ENV["FRAME_SCREENSHOTS"] == "1"
+      ensure_imagemagick
+      shots = File.join(project_root, "fastlane/screenshots")
+      before = Dir.glob(File.join(shots, "**/*.png")).to_h { |f| [f, File.mtime(f)] }
+      frameit(path: shots)
+      # frameit can exit 0 without framing a file (a failed ImageMagick step is only logged), so every file must change.
+      after = Dir.glob(File.join(shots, "**/*.png")).to_h { |f| [f, File.mtime(f)] }
+      unchanged = after.keys.select { |f| before[f] == after[f] }
+      UI.user_error!("frameit left #{unchanged.size} of #{after.size} screenshots unframed (#{unchanged.map { |f| File.basename(f) }.join(', ')}). Check the ImageMagick output above.") if unchanged.any?
+    end
+
+    if ENV["UPLOAD_SCREENSHOTS"] == "1"
+      # Framed images without titles keep the full device resolution, and App Store Connect rejects them. Refuse
+      # unless you have set titles in Framefile.json and say so explicitly.
+      if ENV["FRAME_SCREENSHOTS"] == "1" && ENV["ALLOW_FRAMED_UPLOAD"] != "1"
+        UI.user_error!("Framed screenshots can be rejected by App Store Connect without titles. Set ALLOW_FRAMED_UPLOAD=1 once Framefile.json has titles, or drop FRAME_SCREENSHOTS.")
+      end
+
+      upload_to_app_store(
+        api_key: app_store_api_key,
+        skip_binary_upload: true,
+        skip_metadata: true,
+        skip_app_version_update: true,
+        overwrite_screenshots: true,
+        screenshots_path: screenshots,
+        submit_for_review: false
+      )
+    end
+  end
+end

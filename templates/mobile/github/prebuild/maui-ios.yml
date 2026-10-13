@@ -1,0 +1,12 @@
+      - name: .NET SDK and the MAUI workload
+        uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+        with:
+          dotnet-version: "10.0.x"
+      - name: Install the MAUI workload
+        run: dotnet workload install maui
+      - name: Point fastlane at the MAUI project
+        # The lane runs dotnet publish after match has installed the signing certificate.
+        working-directory: __APP__
+        run: |
+          project="$(find . -maxdepth 2 -name '*.csproj' | head -1)"
+          echo "MAUI_PROJECT=$project" >> "$GITHUB_ENV"

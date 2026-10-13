@@ -97,7 +97,7 @@ fi
 
 # MARK: - Copy the committed example files
 
-apps="flutter_app RnApp ios_native_app android_native_app expo_app capacitor_app"
+apps="flutter_app RnApp ios_native_app android_native_app expo_app capacitor_app kmp_app maui_app"
 section "copy committed examples"
 while IFS= read -r -d '' file; do
     mkdir -p "$work/$(dirname "$file")"
@@ -127,8 +127,8 @@ rm -rf "$usage_dir"
 
 section "templates regenerate the committed examples"
 # Each file a scaffold writes, relative to the app folder. Gemfile is excluded: react-native keeps its own.
-generated="ios/fastlane/Fastfile ios/fastlane/Appfile ios/fastlane/Matchfile ios/fastlane/Snapfile ios/fastlane/Framefile.json ios/UITests/SnapshotHelper.swift ios/UITests/ScreenshotTests.swift android/fastlane/Fastfile android/fastlane/Appfile android/fastlane/Screengrabfile android/app/src/androidTest/java/screenshots/ScreenshotTest.java android/app/src/debug/AndroidManifest.xml fastlane/Fastfile fastlane/Appfile fastlane/Matchfile fastlane/Snapfile fastlane/Framefile.json UITests/SnapshotHelper.swift UITests/ScreenshotTests.swift fastlane/Screengrabfile app/src/androidTest/java/screenshots/ScreenshotTest.java app/src/debug/AndroidManifest.xml .github/workflows/mobile-release.yml eas.json"
-for app in flutter_app RnApp ios_native_app android_native_app expo_app capacitor_app; do
+generated="iosApp/fastlane/Fastfile iosApp/fastlane/Appfile iosApp/fastlane/Matchfile iosApp/fastlane/Snapfile iosApp/fastlane/Framefile.json iosApp/UITests/SnapshotHelper.swift iosApp/UITests/ScreenshotTests.swift androidApp/fastlane/Fastfile androidApp/fastlane/Appfile androidApp/fastlane/Screengrabfile androidApp/src/androidTest/java/screenshots/ScreenshotTest.java androidApp/src/debug/AndroidManifest.xml ios/fastlane/Fastfile ios/fastlane/Appfile ios/fastlane/Matchfile ios/fastlane/Snapfile ios/fastlane/Framefile.json ios/UITests/SnapshotHelper.swift ios/UITests/ScreenshotTests.swift android/fastlane/Fastfile android/fastlane/Appfile android/fastlane/Screengrabfile android/app/src/androidTest/java/screenshots/ScreenshotTest.java android/app/src/debug/AndroidManifest.xml fastlane/Fastfile fastlane/Appfile fastlane/Matchfile fastlane/Snapfile fastlane/Framefile.json UITests/SnapshotHelper.swift UITests/ScreenshotTests.swift fastlane/Screengrabfile app/src/androidTest/java/screenshots/ScreenshotTest.java app/src/debug/AndroidManifest.xml .github/workflows/mobile-release.yml eas.json"
+for app in flutter_app RnApp ios_native_app android_native_app expo_app capacitor_app kmp_app maui_app; do
     dir="$work/examples/$app"
     before="$(mktemp -d)"
     for f in $generated; do
@@ -343,14 +343,18 @@ make_keystore() {
 }
 # lane_build_signed LABEL APP_DIR: runs `fastlane android build` and checks the bundle with jarsigner.
 lane_build_signed() {
-    local label="$1" app="$2"
+    local label="$1" app="$2" android_dir="${3:-}"
     # Flutter and React Native keep the Android project in android/; a native project may keep it at the root.
-    local android_dir="$app/android"
+    # A third argument names the Android folder when it is somewhere else (Kotlin Multiplatform keeps androidApp/).
+    [[ -n "$android_dir" ]] || android_dir="$app/android"
     [[ -d "$android_dir" ]] || android_dir="$app"
     if (cd "$android_dir" && env -i PATH="$PATH" HOME="$HOME" LANG=en_US.UTF-8 JAVA_HOME="$JAVA_HOME" \
         ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}" FASTLANE_SKIP_UPDATE_CHECK=1 FASTLANE_OPT_OUT_USAGE=1 \
         ANDROID_KEYSTORE_PATH="$keystore" ANDROID_KEYSTORE_PASSWORD=e2e-pass ANDROID_KEY_ALIAS=e2e \
-        ANDROID_KEY_PASSWORD=e2e-pass bundle exec fastlane android build >"$work/lane-$(basename "$app").log" 2>&1); then
+        ANDROID_KEY_PASSWORD=e2e-pass ${MAUI_PROJECT:+MAUI_PROJECT=$MAUI_PROJECT} \
+        ${ANDROID_GRADLE_DIR:+ANDROID_GRADLE_DIR=$ANDROID_GRADLE_DIR} ${ANDROID_GRADLE_MODULE:+ANDROID_GRADLE_MODULE=$ANDROID_GRADLE_MODULE} \
+        bundle exec fastlane android build \
+        >"$work/lane-$(basename "$app").log" 2>&1); then
         local aab
         aab="$(sed 's/\x1b\[[0-9;]*m//g' "$work/lane-$(basename "$app").log" | grep -o 'Built .*\.aab' | sed 's/^Built //' | tail -1)"
         if [[ -n "$aab" && -f "$aab" ]] && jarsigner -verify "$aab" 2>&1 | grep -q "jar verified"; then
@@ -507,6 +511,37 @@ if [[ $with_builds -eq 1 ]]; then
         fi
     else
         skip "capacitor_app (needs npm and npx)"
+    fi
+
+    # Kotlin Multiplatform: Gradle builds the Android module, and xcodebuild runs the Xcode build phase that builds the
+    # shared framework with Gradle. The signed bundle comes from the Android lane with the module settings the workflow sets.
+    kmp="$work/examples/kmp_app"
+    if command -v xcodebuild >/dev/null && [[ -x "$kmp/gradlew" ]]; then
+        run_build "kmp_app Android Debug build" kmp-android "$kmp" ./gradlew :androidApp:assembleDebug
+        run_build "kmp_app iOS simulator build (Xcode builds the shared framework)" kmp-ios "$kmp/iosApp" \
+            xcodebuild -project iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
+        if [[ -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" && -n "${JAVA_HOME:-}" ]]; then
+            ANDROID_GRADLE_DIR=.. ANDROID_GRADLE_MODULE=androidApp lane_build_signed "kmp_app android (fastlane)" "$kmp" "$kmp/androidApp"
+        else
+            skip "kmp_app signed bundle (needs JAVA_HOME and an Android SDK)"
+        fi
+    else
+        skip "kmp_app (needs xcodebuild and the Gradle wrapper)"
+    fi
+
+    # .NET MAUI: dotnet builds the Android and iOS projects, and the Android lane runs dotnet publish for the signed AAB.
+    maui="$work/examples/maui_app"
+    if [[ -x "$HOME/.dotnet/dotnet" && -f "$maui/MauiApp.csproj" ]]; then
+        export PATH="$HOME/.dotnet:$PATH" DOTNET_ROOT="$HOME/.dotnet"
+        run_build "maui_app Android Debug build" maui-android "$maui" dotnet build -f net10.0-android -c Debug
+        run_build "maui_app iOS simulator build" maui-ios "$maui" dotnet build -f net10.0-ios -c Debug -p:RuntimeIdentifier=iossimulator-arm64
+        if [[ -n "${JAVA_HOME:-}" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
+            MAUI_PROJECT=MauiApp.csproj lane_build_signed "maui_app android (fastlane runs dotnet publish)" "$maui"
+        else
+            skip "maui_app signed AAB (needs JAVA_HOME and an Android SDK)"
+        fi
+    else
+        skip "maui_app (needs the .NET SDK at ~/.dotnet with the MAUI workload)"
     fi
 
     # Screenshots: the iOS lane runs the UI tests on a simulator and must write PNGs. The simulator name comes from

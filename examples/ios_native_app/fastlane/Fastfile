@@ -1,5 +1,7 @@
 # iOS lanes. Auth uses an App Store Connect API key (no Apple ID password).
 # Secrets and paths come from CI environment variables; see https://kinhin.dev/guide/mobile-fastlane.
+require "shellwords"
+
 default_platform(:ios)
 
 # Stop before any store call when a required variable is missing, with the name of the variable.
@@ -61,6 +63,21 @@ def prebuilt_ipa_path
   path
 end
 
+# .NET MAUI: dotnet publish builds and signs the IPA. The signing certificate comes from match, so this runs after it.
+# MAUI_PROJECT is the .csproj, relative to the app folder; MAUI_CODESIGN_KEY and MAUI_PROVISIONING_PROFILE name the identity
+# and profile that match installed.
+def build_maui_ipa
+  project = File.expand_path(ENV["MAUI_PROJECT"], File.expand_path("..", __dir__))
+  require_env!("MAUI_CODESIGN_KEY", "MAUI_PROVISIONING_PROFILE")
+  framework = File.read(project)[/net[0-9.]+-ios/] || UI.user_error!("No net*-ios target in #{project}")
+  sh(Shellwords.join(["dotnet", "publish", project, "-f", framework, "-c", "Release", "-p:BuildIpa=true",
+                      "-p:CodesignKey=#{ENV['MAUI_CODESIGN_KEY']}", "-p:CodesignProvision=#{ENV['MAUI_PROVISIONING_PROFILE']}"]),
+     log: false)
+  ipa = Dir.glob(File.join(File.dirname(project), "bin/**/*.ipa")).max_by { |f| File.mtime(f) }
+  UI.user_error!("dotnet publish wrote no IPA under #{File.dirname(project)}/bin") unless ipa
+  ipa
+end
+
 platform :ios do
   before_all do
     setup_ci if ENV["CI"] # temporary keychain on CI runners
@@ -72,7 +89,7 @@ platform :ios do
     require_env!("MATCH_GIT_URL", "MATCH_PASSWORD")
     match(api_key: api_key, readonly: true)
 
-    ipa = prebuilt_ipa_path
+    ipa = prebuilt_ipa_path || (presence(ENV["MAUI_PROJECT"]) ? build_maui_ipa : nil)
     build_app(build_options) unless ipa
 
     upload = { api_key: api_key, skip_waiting_for_build_processing: true }

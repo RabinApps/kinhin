@@ -25,13 +25,15 @@ It detects the framework, then writes only the files that are missing:
 | Flutter | `pubspec.yaml` | `Gemfile`, `ios/fastlane/`, `android/fastlane/`, `.github/workflows/mobile-release.yml` |
 | React Native (bare) | `"react-native"` in `package.json` | same as Flutter |
 | Capacitor / Ionic | `"@capacitor/core"` in `package.json` | same as Flutter. Each platform's CI job runs `npm run build` and `npx cap sync`. |
+| Kotlin Multiplatform | `iosApp/`, Gradle settings, and the multiplatform plugin in a build file | `iosApp/fastlane/`, `androidApp/fastlane/`, workflow. The Xcode build phase builds the shared framework. |
+| .NET MAUI | a `.csproj` with `<UseMaui>true</UseMaui>` (root or one folder down) | `ios/fastlane/`, `android/fastlane/`, workflow. `dotnet publish` builds and signs the artifacts. |
 | Expo | `"expo"` in `package.json` | `eas.json` only. Expo uses EAS by default (see [Expo](#expo)). |
 | Native iOS | `ios/` or `*.xcodeproj` / `*.xcworkspace` | `Gemfile`, `fastlane/` (or `ios/fastlane/`), workflow |
 | Native Android | `android/` or `settings.gradle(.kts)` | `Gemfile`, `fastlane/` (or `android/fastlane/`), workflow |
 
 Flags:
 
-- `--framework ios|android|flutter|react-native|expo|capacitor|native` overrides detection.
+- `--framework ios|android|flutter|react-native|expo|capacitor|kmp|maui|native` overrides detection.
 - `--force` overwrites files that already exist.
 - `--dry-run` prints what would be written.
 
@@ -119,6 +121,20 @@ Java 17). Capacitor 8 resolves its iOS packages with Swift Package Manager, so t
 
 Capacitor generates `ios/App/App.xcodeproj`, and the kinhin repository ignores `*.xcodeproj` for its XcodeGen examples, so a
 Capacitor project that lives in a kinhin repository needs an exception in its `.gitignore`. `examples/capacitor_app` shows it.
+
+## Kotlin Multiplatform
+
+The Android module is `androidApp` under a Gradle root one folder above `androidApp/`. The CI jobs set
+`ANDROID_GRADLE_DIR=..` and `ANDROID_GRADLE_MODULE=androidApp`, so the lanes build `:androidApp:bundle`. For a local run, set
+them yourself. The iOS build runs the Xcode build phase, which calls `./gradlew :shared:embedAndSignAppleFrameworkForXcode`.
+Run Gradle with JDK 17 (JDK 26 fails with Kotlin), and export `JAVA_HOME` before a plain `./gradlew` run.
+
+## .NET MAUI
+
+fastlane signs nothing for MAUI. The lanes call `dotnet publish` with `MAUI_PROJECT` set to the `.csproj` (the CI jobs set it).
+The iOS lane runs after `match`, so it can sign with the certificate match installed. Set `MAUI_CODESIGN_KEY` (the signing
+identity) and `MAUI_PROVISIONING_PROFILE` (the profile name) as repository variables. The Android lane signs the AAB with the
+upload keystore. Screenshots are not scaffolded for MAUI, because MAUI does not generate UI test projects.
 
 ## Expo
 

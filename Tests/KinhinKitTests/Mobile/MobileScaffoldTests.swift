@@ -98,6 +98,49 @@ final class MobileScaffoldTests: XCTestCase {
         XCTAssertEqual(try MobileScaffold.detect(in: capacitor), .capacitor)
     }
 
+    func testMAUIIsDetectedInASubfolderAndKMPBeforeNative() throws {
+        let maui = try folder(
+            "maui-app", ["App/App.csproj": "<Project><PropertyGroup><UseMaui>true</UseMaui></PropertyGroup></Project>"])
+        XCTAssertEqual(try MobileScaffold.detect(in: maui), .maui)
+        let kmp = try folder(
+            "kmp-app",
+            [
+                "settings.gradle.kts": "include(\":androidApp\", \":shared\")",
+                "shared/build.gradle.kts": "kotlin(\"multiplatform\")",
+            ],
+            dirs: ["iosApp", "androidApp"])
+        XCTAssertEqual(try MobileScaffold.detect(in: kmp), .kmp)
+    }
+
+    func testKMPGetsFastlaneInItsNativeFoldersAndNoScreenshotsForItsModule() throws {
+        let dir = try folder(
+            "kmp",
+            ["settings.gradle.kts": "", "build.gradle.kts": "kotlin(\"multiplatform\")"],
+            dirs: ["iosApp", "androidApp"])
+        let report = try scaffold(dir)
+        XCTAssertEqual(report.framework, .kmp)
+        XCTAssertTrue(exists(dir, "iosApp/fastlane/Fastfile"))
+        XCTAssertTrue(exists(dir, "androidApp/fastlane/Fastfile"))
+        XCTAssertTrue(exists(dir, "androidApp/src/androidTest/java/screenshots/ScreenshotTest.java"))
+        XCTAssertFalse(exists(dir, "androidApp/app/src/androidTest/java/screenshots/ScreenshotTest.java"))
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertTrue(workflow.contains("ANDROID_GRADLE_MODULE=androidApp"))
+    }
+
+    func testMAUIGetsFastlaneInIosAndAndroidFoldersWithoutScreenshots() throws {
+        let dir = try folder(
+            "maui",
+            ["App.csproj": "<Project><PropertyGroup><UseMaui>true</UseMaui></PropertyGroup></Project>"])
+        let report = try scaffold(dir)
+        XCTAssertEqual(report.framework, .maui)
+        XCTAssertTrue(exists(dir, "ios/fastlane/Fastfile"))
+        XCTAssertTrue(exists(dir, "android/fastlane/Fastfile"))
+        XCTAssertFalse(exists(dir, "ios/UITests/ScreenshotTests.swift"))
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertTrue(workflow.contains("dotnet workload install maui"))
+        XCTAssertTrue(workflow.contains("MAUI_PROJECT="))
+    }
+
     func testCapacitorGetsFastlaneInBothFoldersAndSyncsEachPlatform() throws {
         let dir = try folder(
             "capacitor-app",
