@@ -212,7 +212,8 @@ import XCTest
         XCTAssertEqual(ToolchainsCatalogListing.stacks.map(\.id), ToolchainCatalog.stacks.map(\.id))
         let pnpm = ToolchainsCatalogListing.tools(in: .javascript).first { $0.id == "pnpm" }
         XCTAssertTrue(pnpm?.requirement?.contains("node@22") ?? false, "requirements are shown")
-        XCTAssertEqual(ToolchainsCatalogListing.tools(in: .languages).first { $0.id == "node" }?.copyText, "node@22")
+        let node = ToolchainsCatalogListing.tools(in: .languages).first { $0.id == "node" }
+        XCTAssertEqual(node?.copyText, ToolchainCatalog.tool(id: "node")?.defaultSpec)
     }
 
     /// Each `.kinhin.yml` example parses through the real repo-file loader and

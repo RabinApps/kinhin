@@ -86,7 +86,7 @@ struct ToolchainBenchPlan: Sendable {
         "gcloud": ["python3", "python-is-python3"],
         // The Swift toolchain links libedit, ncurses, sqlite, libxml2 and the base image's own Python library.
         "swift": [
-            "libedit2", "build-essential", "libncurses6", "libsqlite3-0", "libxml2", "libcurl4", "tzdata",
+            "libedit2", "build-essential", "libncurses6", "libsqlite3-0", "libxml2", "libcurl4t64", "tzdata",
             libpythonToken,
         ],
     ]

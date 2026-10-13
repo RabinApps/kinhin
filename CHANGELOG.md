@@ -8,6 +8,9 @@
 
 - Install docs for Linux jobs: apple/container (recommended, `kinhin setup repair container`) and Docker
   (`kinhin setup repair docker`), in [docs/install.md](docs/install.md#installing-a-linux-runtime).
+- Core toolchains (`node`, `go`, `python`, `ruby`, `swift`) install a pinned default version when listed without one,
+  instead of a floating `@latest`, so a re-bake reproduces the same versions. Pin a different version in `specs`
+  as before. Linux bakes of `swift` also install the Swift runtime libraries it links.
 
 **Fixed**
 
