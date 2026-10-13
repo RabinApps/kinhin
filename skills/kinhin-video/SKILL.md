@@ -34,8 +34,9 @@ pictures follow the voice, so editing a line re-times the scene.
   `props` and `narration` (or timed `cues`). `docs/videos-for-your-project.md` lists each type's props.
 - **Voice:** `voice: {engine: kokoro, name: af_heart}` (the only engine in the image).
 - **Captions:** `captions: {burn: true|false, style: outline|box|shadow|bold|minimal}`; the `.srt` is always written.
-- **Themes:** `paper`, `clean`, `midnight`, `blueprint`, `chalk`, or the user's own file in `.kinhin/videos/themes/<name>.yml`
-  (`extends: midnight` plus only the values they change; colours are `#rrggbb`). Fonts go in `.kinhin/videos/fonts/`.
+- **Themes:** `paper`, `clean`, `midnight`, `blueprint`, `chalk` (`kinhin video theme list`), or the user's own: `kinhin video theme new
+  <name> --from midnight` writes `.kinhin/videos/themes/<name>.yml` (`extends:` plus only the values they change; colours are
+  `#rrggbb`). Fonts go in `.kinhin/videos/fonts/`.
 - Several files in the folder are several videos (`social/vertical.yml` is the video `social/vertical`).
 
 ## Music
@@ -56,6 +57,8 @@ Nothing plays unless a video (or its adapter) selects a track. Prefer the comman
 - **CC BY needs credit.** Only add it if the user asks (`--license cc-by`), and tell them to put the printed credit line in the
   video description (`out/music-credit.txt` has it). Never add a non-commercial or share-alike track.
 - Licenses are as declared by the source; remind the user they are responsible for how they use a track.
+- Rate limited (about 200 searches a day)? The user can register a free Openverse application and set
+  `KINHIN_OPENVERSE_CLIENT_ID` and `KINHIN_OPENVERSE_CLIENT_SECRET`; never ask them to paste the secret into the chat or a file.
 
 ## Rules
 

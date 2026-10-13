@@ -279,8 +279,11 @@ kinhin video music list                         # what each video uses, and whic
 
 - **Where results come from.** [Openverse](https://openverse.org), an index of openly licensed audio (mostly Freesound, also
   Wikimedia Commons), plus the tracks built into the video image. No account is needed; without one the library allows about
-  200 searches a day. Results are CC0 or public domain by default: no credit needed, free to reuse. `--license cc-by` also shows
+  200 searches a day (more with your own Openverse application: see below). Results are CC0 or public domain by default: no credit needed, free to reuse. `--license cc-by` also shows
   CC BY tracks, which need credit (see below). Tracks with a non-commercial, no-derivatives or share-alike condition are never offered.
+- **More searches.** If you hit the limit, register a free application with Openverse (see its API documentation) and set
+  `KINHIN_OPENVERSE_CLIENT_ID` and `KINHIN_OPENVERSE_CLIENT_SECRET` in your environment. kinhin then signs in with them and
+  gets a higher allowance and bigger pages. They are read from the environment only and never written to a file.
 - **What you get.** Many results are short loops (the video loops music, so that works) and some are sound effects;
   `--min-seconds` (default 20) and `--max-seconds` narrow it, and `preview` lets you hear one first.
 - **What `add` does.** It saves the audio to `.kinhin/videos/music/<name>.mp3`, writes `<name>.json` beside it (title, creator,
@@ -381,7 +384,7 @@ Use music you have the right to use. The catalog ships one CC0 track; a track yo
 | `could not get the video image ghcr.io/...` | The first build pulls about a gigabyte. Check the network, and that the image for your kinhin version is published (a development build of kinhin has no published image: pass `--image` or set `KINHIN_VIDEO_IMAGE`). If the package is private, sign in to the registry with `docker login ghcr.io`. |
 | The build starts, then stops with a message from the pipeline | The log above the final line says why: a scene with a missing `id`, an unknown theme (it lists the ones that exist), a clip that is not in the adapter, or a claim your `claims.json` forbids. Fix the config and run it again; unchanged scenes come from the render cache. |
 | `read-only file system` or no space left | The image is several gigabytes and a build needs a few more. Free disk space; Apple's `container` keeps its builder cache and images under your home folder, `docker system prune` frees Docker's. |
-| `kinhin video music search` says the library is rate limiting | Anonymous use allows about 20 searches a minute and 200 a day. Wait a minute (or until tomorrow), and the tracks built into the image still show up offline. |
+| `kinhin video music search` says the library is rate limiting | Anonymous use allows about 20 searches a minute and 200 a day. Wait a minute (or until tomorrow), or set `KINHIN_OPENVERSE_CLIENT_ID` and `KINHIN_OPENVERSE_CLIENT_SECRET` from a free Openverse application for a higher limit. The tracks built into the image still show up offline. |
 | `add` refuses a track: `is licensed ..., which kinhin does not put in a video` | Only CC0 and public domain (and CC BY with `--license cc-by`) are accepted. Non-commercial, no-derivatives and share-alike tracks are never added. Pick another result. |
 | `add` says `which video?` or `there is no video` | Name the video with `--video <name>` when the folder has several, or run `kinhin video init` first. `--no-config` only downloads the track. |
 | `did not download the track` | The file is larger than 50 MB, is not mp3, m4a, wav, flac or ogg, is not served over https, or the source link is gone. Try another result; `preview` shows the source page. |

@@ -18,6 +18,9 @@ struct VideoTests {
         func kinhin(_ arguments: [String], timeout: TimeInterval = 120) async throws -> ProcessResult {
             var env = sandbox.environment
             env["KINHIN_OPENVERSE_URL"] = stub.endpoint
+            // Never sign in to the real service (or the stand-in) with a developer's own application.
+            env["KINHIN_OPENVERSE_CLIENT_ID"] = nil
+            env["KINHIN_OPENVERSE_CLIENT_SECRET"] = nil
             return try await Shell.run(E2E.kinhinBinary, arguments, environment: env, cwd: repo.path, timeout: timeout)
         }
 

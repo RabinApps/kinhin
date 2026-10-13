@@ -130,7 +130,9 @@ public enum MusicError: LocalizedError, Equatable {
                 + "Run `kinhin video init` first, or use --no-config to just download it"
         case .rateLimited(let retryAfter):
             let wait = retryAfter.map { " Try again in \($0) seconds." } ?? " Try again in a minute."
-            return "the music library is rate limiting this machine (200 searches a day without an account)." + wait
+            return "the music library is rate limiting this machine (200 searches a day without an account; "
+                + "register an Openverse application and set KINHIN_OPENVERSE_CLIENT_ID and KINHIN_OPENVERSE_CLIENT_SECRET for more)."
+                + wait
         case .network(let why):
             return "could not reach the music library: \(why)"
         case .downloadRefused(let why):

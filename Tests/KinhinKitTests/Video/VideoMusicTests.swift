@@ -144,6 +144,99 @@ final class VideoMusicTests: XCTestCase {
         XCTAssertEqual(track.id, Self.id1)
     }
 
+    // MARK: registered application
+
+    func testCredentialsComeFromTheEnvironmentOnlyWhenBothAreSet() {
+        XCTAssertNil(OpenverseClient.Credentials.fromEnvironment([:]))
+        XCTAssertNil(OpenverseClient.Credentials.fromEnvironment(["KINHIN_OPENVERSE_CLIENT_ID": "a"]))
+        XCTAssertNil(
+            OpenverseClient.Credentials.fromEnvironment(
+                ["KINHIN_OPENVERSE_CLIENT_ID": "", "KINHIN_OPENVERSE_CLIENT_SECRET": "b"]))
+        XCTAssertEqual(
+            OpenverseClient.Credentials.fromEnvironment(
+                ["KINHIN_OPENVERSE_CLIENT_ID": "a", "KINHIN_OPENVERSE_CLIENT_SECRET": "b"]),
+            OpenverseClient.Credentials(clientID: "a", clientSecret: "b"))
+    }
+
+    func testARegisteredClientSignsInOnceAndSendsTheTokenWithBiggerPages() async throws {
+        struct Seen: Sendable {
+            var tokenRequests = 0
+            var form = ""
+            var auth: [String] = []
+            var pageSizes: [String] = []
+        }
+        let seen = Mutex(Seen())
+        StubProtocol.handler = { request in
+            if request.url?.path == "/v1/auth_tokens/token" {
+                let body =
+                    request.httpBody ?? request.httpBodyStream.map { stream -> Data in
+                        stream.open()
+                        defer { stream.close() }
+                        var data = Data()
+                        var buffer = [UInt8](repeating: 0, count: 1024)
+                        while stream.hasBytesAvailable {
+                            let n = stream.read(&buffer, maxLength: buffer.count)
+                            if n <= 0 { break }
+                            data.append(buffer, count: n)
+                        }
+                        return data
+                    } ?? Data()
+                seen.withLock {
+                    $0.tokenRequests += 1
+                    $0.form = String(decoding: body, as: UTF8.self)
+                }
+                return (200, Data(#"{"access_token":"tok123","expires_in":43200,"token_type":"Bearer"}"#.utf8), [:])
+            }
+            let items = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            seen.withLock {
+                $0.auth.append(request.value(forHTTPHeaderField: "Authorization") ?? "")
+                $0.pageSizes.append(items.first { $0.name == "page_size" }?.value ?? "")
+            }
+            return (200, Self.page([Self.item(Self.id1)]), [:])
+        }
+        let client = OpenverseClient(
+            session: session, credentials: .init(clientID: "my id", clientSecret: "s&cret"))
+        _ = try await client.search(query: "lofi", licenses: ["cc0"])
+        _ = try await client.search(query: "lofi", licenses: ["cc0"], page: 2)
+        let result = seen.withLock { $0 }
+        XCTAssertEqual(result.tokenRequests, 1, "one sign-in serves both searches")
+        XCTAssertTrue(result.form.contains("grant_type=client_credentials"), result.form)
+        XCTAssertTrue(result.form.contains("client_id=my%20id") || result.form.contains("client_id=my+id"), result.form)
+        XCTAssertTrue(result.form.contains("client_secret=s%26cret"), "the secret is form-encoded: \(result.form)")
+        XCTAssertEqual(result.auth, ["Bearer tok123", "Bearer tok123"])
+        XCTAssertEqual(result.pageSizes, ["50", "50"])
+    }
+
+    func testWithoutCredentialsNothingIsSentButTheUserAgent() async throws {
+        let seen = Mutex<(auth: String?, calls: Int)>((nil, 0))
+        StubProtocol.handler = { request in
+            seen.withLock {
+                $0.auth = request.value(forHTTPHeaderField: "Authorization")
+                $0.calls += 1
+            }
+            return (200, Self.page([Self.item(Self.id1)]), [:])
+        }
+        _ = try await OpenverseClient(session: session, credentials: nil).search(query: "x", licenses: ["cc0"])
+        XCTAssertNil(seen.withLock { $0.auth })
+        XCTAssertEqual(seen.withLock { $0.calls }, 1, "no sign-in request")
+    }
+
+    func testRefusedCredentialsAreNamed() async {
+        StubProtocol.handler = { _ in (401, Data(#"{"detail":"bad"}"#.utf8), [:]) }
+        let client = OpenverseClient(session: session, credentials: .init(clientID: "a", clientSecret: "b"))
+        do {
+            _ = try await client.search(query: "x", licenses: ["cc0"])
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("KINHIN_OPENVERSE_CLIENT_ID"), error.localizedDescription)
+        }
+    }
+
+    func testTheRateLimitMessagePointsAtRegistering() {
+        let message = MusicError.rateLimited(retryAfter: 9).localizedDescription
+        XCTAssertTrue(message.contains("KINHIN_OPENVERSE_CLIENT_ID") && message.contains("9 seconds"), message)
+    }
+
     // MARK: license
 
     func testOnlyReusableLicensesPassAndCCBYNeedsAskingForAndCredit() {

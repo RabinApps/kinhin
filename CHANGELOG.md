@@ -10,6 +10,7 @@
   video suite. It runs a published container image (Apple `container` or Docker) against your repository; `--on-fleet` builds on a
   runner through a generated GitHub workflow. Music, captions, themes and formats are config. See
   [docs/videos-for-your-project.md](docs/videos-for-your-project.md).
+- `kinhin video music` can use your own Openverse application (`KINHIN_OPENVERSE_CLIENT_ID` and `KINHIN_OPENVERSE_CLIENT_SECRET`) for a higher search limit.
 - `kinhin video theme list | new`, and your own theme files in `.kinhin/videos/themes/` (they can extend a built-in theme and change only
   what they want).
 - `kinhin video music search | preview | add | list`: find CC0 and public-domain music (Openverse, plus the tracks built into the image),
