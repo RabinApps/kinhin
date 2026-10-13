@@ -158,6 +158,9 @@ public struct ToolchainEntry: Sendable, Equatable {
     /// instead of the Homebrew cask). nil = the primary installer serves
     /// every supported platform.
     public let linuxInstaller: Installer?
+    /// Apt packages the tool needs on Linux beyond its own installer (shared libraries it links).
+    /// Added whenever the tool is selected on Linux.
+    public let linuxAptPackages: [String]
     /// UI grouping.
     public let category: ToolchainCategory
 
@@ -165,9 +168,11 @@ public struct ToolchainEntry: Sendable, Equatable {
         id: String, summary: String, installer: Installer, requires: [ToolchainRequirement] = [],
         cacheEnvs: [ToolchainCacheEnv] = [], verify: String, defaultSpec: String = "",
         platforms: [ToolchainPlatform] = ToolchainPlatform.allCases, linuxInstaller: Installer? = nil,
+        linuxAptPackages: [String] = [],
         category: ToolchainCategory = .build
     ) {
         self.category = category
+        self.linuxAptPackages = linuxAptPackages
         self.id = id
         self.summary = summary
         self.installer = installer

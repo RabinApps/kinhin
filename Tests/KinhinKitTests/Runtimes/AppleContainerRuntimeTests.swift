@@ -378,6 +378,10 @@ final class AppleContainerRuntimeTests: XCTestCase {
         XCTAssertNil(record.ip, "container records carry no IP — there is no SSH transport")
 
         // The lifecycle used container run/exec (provision) and exec (registration).
+        // The phase flips to .registering before registration's exec is issued, so wait for that call.
+        try await waitUntil(timeout: 10) {
+            shell.argvSnapshot().contains { $0.contains("exec") && $0.contains("/bin/bash") }
+        }
         let argvs = shell.argvSnapshot()
         XCTAssertTrue(argvs.contains { $0.contains("run") && $0.contains("--name") })
         XCTAssertTrue(argvs.contains { $0.contains("exec") && $0.contains("/bin/bash") })

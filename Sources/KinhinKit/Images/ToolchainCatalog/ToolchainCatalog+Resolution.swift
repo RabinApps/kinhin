@@ -47,6 +47,12 @@ extension ToolchainCatalog {
                     out.aptPackages.append(package)
                 }
             }
+            // Shared libraries the tool links against, whichever installer serves it.
+            if platform == .linux {
+                for package in entry.linuxAptPackages where !out.aptPackages.contains(package) {
+                    out.aptPackages.append(package)
+                }
+            }
             for env in entry.cacheEnvs where !out.cacheEnvs.contains(env) {
                 out.cacheEnvs.append(env)
             }

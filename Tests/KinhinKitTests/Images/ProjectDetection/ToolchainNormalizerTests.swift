@@ -39,8 +39,9 @@ final class ToolchainNormalizerTests: XCTestCase {
         XCTAssertEqual(result.specs, ["node@20"])
     }
 
-    func testNoVersionFallsBackToCatalogDefault() {
-        XCTAssertEqual(ToolchainNormalizer.normalize([hit("node")]).specs, ["node@22"])
+    func testNoVersionFallsBackToCatalogDefault() throws {
+        let pin = try XCTUnwrap(ToolchainCatalog.tool(id: "node")).defaultSpec
+        XCTAssertEqual(ToolchainNormalizer.normalize([hit("node")]).specs, [pin])
     }
 
     func testRuntimesAreAddedForTheLoader() {

@@ -111,6 +111,15 @@ final class TartHealthTests: XCTestCase {
         XCTAssertEqual(health, .killedOnLaunch)
     }
 
+    func testRuntimeHealthAsksTheConfiguredTartPath() async {
+        // The runtime's probe runs the configured binary on the injected shell, never a PATH lookalike.
+        let fake = shell(version: result(0, stdout: "tart version 2.32.1"))
+        let runtime = TartRuntime(tart: FakeTart(), bootTimeout: { 1 }, tartPath: stubBinaryPath, healthShell: fake)
+        let health = await runtime.health()
+        XCTAssertEqual(health, .ready)
+        XCTAssertTrue(fake.calls.contains { $0.first == stubBinaryPath }, "\(fake.calls)")
+    }
+
     // MARK: Repairs
 
     func testHealthyHasNoRepairs() {
