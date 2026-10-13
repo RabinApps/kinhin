@@ -29,7 +29,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testAdminRequestUsesExchangedActionsEndpointAndJWT() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             let call = requests.withLock { captured -> Int in
                 captured.append(request)
@@ -73,7 +73,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testRunnerGroupLookupMatchesGitHubsBuiltInDefaultGroupCaseInsensitively() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             let call = requests.withLock { captured -> Int in
                 captured.append(request)
@@ -105,7 +105,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testRunnerGroupLookupFallsBackToTheFullListCaseInsensitively() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             let call = requests.withLock { captured -> Int in
                 captured.append(request)
@@ -139,7 +139,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testRunnerGroupLookupPrefersAnExactNameMatch() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             let call = requests.withLock { captured -> Int in
                 captured.append(request)
@@ -170,7 +170,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testRunnerGroupLookupFailsWhenGitHubListsNoSuchGroup() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             let call = requests.withLock { captured -> Int in
                 captured.append(request)
@@ -210,7 +210,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testScaleSetAdminRequestsUseTheInstanceApiBaseWhenEnterprise() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             requests.withLock { $0.append(request) }
             return (
@@ -229,7 +229,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testScaleSetAdminRequestsUseGheComDataResidencyBase() async throws {
-        let captured = Mutex<[URLRequest]>([])
+        let captured = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             captured.withLock { $0.append(request) }
             switch captured.withLock { $0.count } {
@@ -265,7 +265,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testScaleSetAdminRequestsUseGheComDataResidencyBaseWhenActionsServiceURLIsSet() async throws {
-        let captured = Mutex<[URLRequest]>([])
+        let captured = Locked<[URLRequest]>([])
         let actionsURL = URL(string: "https://actions.acme.ghe.com/a/_apis/runtime")!
         StubProtocol.handler = { request in
             captured.withLock { $0.append(request) }
@@ -303,7 +303,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testStatisticsLoadsScaleSetById() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             requests.withLock { $0.append(request) }
             let body =
@@ -321,7 +321,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testMessageQueueUsesCapacityAndAcknowledgesWithMessageId() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             requests.withLock { $0.append(request) }
             if request.httpMethod == "GET" {
@@ -349,7 +349,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     /// Matches actions/scaleset: POST .../runnerscalesets/{id}/acquirejobs on the Actions
     /// service, body a JSON array of request ids, the message-queue token as Bearer.
     func testAcquireJobsPostsTheRequestIdsWithTheQueueToken() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             requests.withLock { $0.append(request) }
             return (200, Data(#"{"count":1,"value":[17]}"#.utf8), [:])
@@ -365,7 +365,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testAcquireJobsMapsAnExpiredQueueTokenAndSkipsAnEmptyList() async throws {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         StubProtocol.handler = { _ in
             calls.withLock { $0 += 1 }
             return (401, Data(), [:])

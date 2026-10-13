@@ -30,7 +30,7 @@ final class ProjectImageBuilderTests: XCTestCase {
             let provision: String?
             let shareCache: Bool
         }
-        let bakes = Mutex<[Baked]>([])
+        let bakes = Locked<[Baked]>([])
         let builder = ProjectImageBuilder(
             tart: tart, store: ProjectImageStore(directory: dir), baseImage: "tahoe-base",
             bake: { options in
@@ -57,8 +57,8 @@ final class ProjectImageBuilderTests: XCTestCase {
 
     func testFailedBakeIsNotRetriedImmediately() async {
         struct Boom: LocalizedError { var errorDescription: String? { "boom" } }
-        let clock = Mutex(Date(timeIntervalSince1970: 0))
-        let count = Mutex(0)
+        let clock = Locked(Date(timeIntervalSince1970: 0))
+        let count = Locked(0)
         let builder = ProjectImageBuilder(
             tart: FakeTart(), store: ProjectImageStore(directory: dir), baseImage: "tahoe-base",
             bake: { _ in

@@ -42,7 +42,7 @@ final class VideosModelTests: XCTestCase {
         let exitCode: Int32
         let lines: [String]
         let onLine: @Sendable (String) -> Void
-        let calls = Mutex<[[String]]>([])
+        let calls = Locked<[[String]]>([])
 
         init(exitCode: Int32 = 0, lines: [String] = [], onLine: @escaping @Sendable (String) -> Void) {
             self.exitCode = exitCode

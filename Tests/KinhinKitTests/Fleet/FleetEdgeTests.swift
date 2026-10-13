@@ -60,7 +60,7 @@ final class FleetEdgeTests: XCTestCase {
     /// One host probe per pass, whatever the burst size; each planned VM
     /// subtracts its own share, so a burst still cannot overrun the disk.
     func testHostIsProbedOncePerPassAndPlannedVMsConsumeDisk() async throws {
-        let probes = Mutex(0)
+        let probes = Locked(0)
         var cfg = makeTestConfig()
         cfg.maxRunners = 5
         cfg.diskGB = 30  // 30 + 10 reserve = 40 needed per spawn

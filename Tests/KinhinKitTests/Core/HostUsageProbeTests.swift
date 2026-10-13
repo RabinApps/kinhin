@@ -5,7 +5,7 @@ import XCTest
 
 final class HostUsageProbeTests: XCTestCase {
     private func probe(ticks: [CPUTicks]) -> HostUsageProbe {
-        let queue = Mutex(ticks)
+        let queue = Locked(ticks)
         return HostUsageProbe(
             readTicks: { queue.withLock { $0.isEmpty ? nil : $0.removeFirst() } },
             readMemory: { (usedBytes: 8 << 30, totalBytes: 16 << 30) })

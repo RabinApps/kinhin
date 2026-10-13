@@ -20,7 +20,7 @@ final class ProjectFileFetchTests: XCTestCase {
     private let body = Data("toolchains:\n  specs: [go@1.22.5]\n".utf8)
 
     func testGitHubReadsRawFileAtRef() async throws {
-        let seen = Mutex<(path: String, query: String, accept: String)>(("", "", ""))
+        let seen = Locked<(path: String, query: String, accept: String)>(("", "", ""))
         StubProtocol.handler = { [body] request in
             seen.withLock {
                 $0 = (
@@ -40,7 +40,7 @@ final class ProjectFileFetchTests: XCTestCase {
     }
 
     func testGitHubFallsBackToTheOlderFileName() async throws {
-        let paths = Mutex<[String]>([])
+        let paths = Locked<[String]>([])
         StubProtocol.handler = { [body] request in
             let path = request.url?.path ?? ""
             paths.withLock { $0.append(path) }
@@ -55,7 +55,7 @@ final class ProjectFileFetchTests: XCTestCase {
     }
 
     func testTheNewFileWinsAndTheOlderOneIsNotFetched() async throws {
-        let paths = Mutex<[String]>([])
+        let paths = Locked<[String]>([])
         StubProtocol.handler = { [body] request in
             paths.withLock { $0.append(request.url?.path ?? "") }
             return (200, body, [:])
@@ -68,7 +68,7 @@ final class ProjectFileFetchTests: XCTestCase {
     }
 
     func testGitLabFallsBackToTheOlderFileName() async throws {
-        let paths = Mutex<[String]>([])
+        let paths = Locked<[String]>([])
         StubProtocol.handler = { [body] request in
             let path =
                 request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.percentEncodedPath } ?? ""
@@ -84,7 +84,7 @@ final class ProjectFileFetchTests: XCTestCase {
     }
 
     func testGitHubWithoutRefReadsTheDefaultBranch() async throws {
-        let query = Mutex<String?>("unset")
+        let query = Locked<String?>("unset")
         StubProtocol.handler = { [body] request in
             query.withLock { $0 = request.url?.query }
             return (200, body, [:])
@@ -114,7 +114,7 @@ final class ProjectFileFetchTests: XCTestCase {
     }
 
     func testGiteaReadsRawFile() async throws {
-        let seen = Mutex<(path: String, query: String)>(("", ""))
+        let seen = Locked<(path: String, query: String)>(("", ""))
         StubProtocol.handler = { [body] request in
             seen.withLock { $0 = (request.url?.path ?? "", request.url?.query ?? "") }
             return (200, body, [:])
@@ -138,7 +138,7 @@ final class ProjectFileFetchTests: XCTestCase {
     }
 
     func testGitLabEncodesTheProjectPathAndDefaultsToHEAD() async throws {
-        let seen = Mutex<(path: String, query: String)>(("", ""))
+        let seen = Locked<(path: String, query: String)>(("", ""))
         StubProtocol.handler = { [body] request in
             seen.withLock {
                 $0 = (

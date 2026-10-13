@@ -110,7 +110,7 @@ final class UpdateCheckTests: XCTestCase {
     func testBetaBuildListsReleasesAndSeesPrerelease() async throws {
         let release = releaseJSON(tag: "v0.0.1-beta-2", assets: ["kinhin-0.0.1-beta-2-arm64.dmg"])
         let list = Data("[".utf8) + release + Data("]".utf8)
-        let path = Mutex<String?>(nil)
+        let path = Locked<String?>(nil)
         StubProtocol.handler = { request in
             path.withLock { $0 = request.url?.path }
             return (200, list, [:])

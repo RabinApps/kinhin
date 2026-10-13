@@ -22,7 +22,7 @@ final class GitHubClientCachingTests: XCTestCase {
     }
 
     func testRepeatedRunnerListsShareOneRequest() async throws {
-        let listCalls = Mutex(0)
+        let listCalls = Locked(0)
         StubProtocol.handler = { request in
             listCalls.withLock { $0 += 1 }
             let body = """
@@ -40,7 +40,7 @@ final class GitHubClientCachingTests: XCTestCase {
     }
 
     func testDeletingARunnerRefreshesTheList() async throws {
-        let deleted = Mutex(false)
+        let deleted = Locked(false)
         StubProtocol.handler = { request in
             if request.httpMethod == "DELETE" {
                 deleted.withLock { $0 = true }
@@ -60,7 +60,7 @@ final class GitHubClientCachingTests: XCTestCase {
     }
 
     func testFallbackReadsTheScopeRepositoriesOnceAcrossPolls() async throws {
-        let repoListCalls = Mutex(0)
+        let repoListCalls = Locked(0)
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {
@@ -90,7 +90,7 @@ final class GitHubClientCachingTests: XCTestCase {
 
 extension GitHubClientCachingTests {
     func testUnchangedReadsRevalidateAndReuseTheCachedBody() async throws {
-        let conditionalRequests = Mutex(0)
+        let conditionalRequests = Locked(0)
         StubProtocol.handler = { request in
             if request.value(forHTTPHeaderField: "If-None-Match") == "\"runs-v1\"" {
                 conditionalRequests.withLock { $0 += 1 }

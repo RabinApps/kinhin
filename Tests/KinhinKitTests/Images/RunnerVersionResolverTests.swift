@@ -19,7 +19,7 @@ final class RunnerVersionResolverTests: XCTestCase {
     /// Only the platforms an image bakes are looked up; the rest keep their
     /// pinned version without a request.
     func testResolveOnlyAsksTheFeedsOfTheRequestedForges() async {
-        let hosts = Mutex(Set<String>())
+        let hosts = Locked(Set<String>())
         let resolver = resolverWithStub { request in
             hosts.withLock { _ = $0.insert(request.url?.host ?? "") }
             return (200, Data(#"{"tag_name":"v9.9.9"}"#.utf8), [:])

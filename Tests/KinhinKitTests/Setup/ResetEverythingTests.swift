@@ -170,8 +170,8 @@ final class ResetEverythingTests: XCTestCase {
         _ plan: ResetPlan, tart: (any TartControlling)? = nil,
         uninstallCalls: inout Int, stopCalls: inout Int
     ) async throws -> [String] {
-        let uninstall = Mutex(0)
-        let stop = Mutex(0)
+        let uninstall = Locked(0)
+        let stop = Locked(0)
         let report = try await ResetEverything.execute(
             plan, tart: tart, shell: FakeShell(),
             stopFleet: { stop.withLock { $0 += 1 } },

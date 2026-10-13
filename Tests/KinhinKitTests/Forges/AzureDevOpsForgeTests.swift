@@ -131,7 +131,7 @@ final class AzureDevOpsForgeTests: XCTestCase {
     }
 
     func testDeletingARunnerDeletesTheAgent() async throws {
-        let calls = Mutex<[String]>([])
+        let calls = Locked<[String]>([])
         StubProtocol.handler = { request in
             calls.withLock { $0.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")") }
             return (204, Data(), [:])
@@ -173,9 +173,9 @@ final class AzureDevOpsForgeTests: XCTestCase {
     /// runner gone: an agent seen online and then offline past the grace period is reported gone and its record
     /// deleted. One that never came online is still registering, and a brief blip stays visible.
     func testAnAgentSeenOnlineThatStaysOfflineIsReapedAndReportedGone() async throws {
-        let clock = Mutex(Date(timeIntervalSince1970: 1_000_000))
-        let listing = Mutex(Self.agents([(1, "kinhin-1", "online"), (2, "kinhin-2", "offline")]))
-        let deletes = Mutex<[String]>([])
+        let clock = Locked(Date(timeIntervalSince1970: 1_000_000))
+        let listing = Locked(Self.agents([(1, "kinhin-1", "online"), (2, "kinhin-2", "offline")]))
+        let deletes = Locked<[String]>([])
         StubProtocol.handler = { request in
             if request.httpMethod == "DELETE" {
                 deletes.withLock { $0.append(request.url?.path ?? "") }
@@ -206,8 +206,8 @@ final class AzureDevOpsForgeTests: XCTestCase {
     }
 
     func testAnAgentThatComesBackOnlineIsNeverReaped() async throws {
-        let clock = Mutex(Date(timeIntervalSince1970: 1_000_000))
-        let listing = Mutex(Self.agents([(1, "kinhin-1", "online")]))
+        let clock = Locked(Date(timeIntervalSince1970: 1_000_000))
+        let listing = Locked(Self.agents([(1, "kinhin-1", "online")]))
         StubProtocol.handler = { _ in (200, listing.withLock { $0 }, [:]) }
         let forge = makeForge(offlineGrace: 30, now: { clock.withLock { $0 } })
         _ = try await forge.runners()

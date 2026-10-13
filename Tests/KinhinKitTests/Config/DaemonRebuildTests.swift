@@ -117,7 +117,7 @@ final class DaemonRebuildTests: XCTestCase {
         let ref = Daemon.EngineRef(makeEngine(try ConfigLoader.parse(yaml())))
 
         try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
-        let builds = Mutex(0)
+        let builds = Locked(0)
         let factory: @Sendable (KinhinConfig) throws -> FleetEngine = { [host] cfg in
             builds.withLock { $0 += 1 }
             return FleetEngine(
@@ -291,7 +291,7 @@ final class DaemonRebuildTests: XCTestCase {
     /// cancellation (a shell command) must not stall the reload RPC.
     func testDrainIsBoundedForTasksIgnoringCancellation() async {
         let engine = makeEngine(makeTestConfig())
-        let gate = Mutex<CheckedContinuation<Void, Never>?>(nil)
+        let gate = Locked<CheckedContinuation<Void, Never>?>(nil)
         let stuck = Task {
             await withCheckedContinuation { continuation in gate.withLock { $0 = continuation } }
         }

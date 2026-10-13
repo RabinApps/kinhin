@@ -91,7 +91,7 @@ final class FakeGitLabContractTests: XCTestCase {
     func testRegistrationTokensKeyEveryNameLikeTheRealRunnerCreation() async throws {
         // The real forge creates one runner per name and returns the token
         // the API answers with, so tokens are distinct per name.
-        let counter = Mutex(0)
+        let counter = Locked(0)
         StubProtocol.handler = { _ in
             let nth = counter.withLock { value -> Int in
                 defer { value += 1 }

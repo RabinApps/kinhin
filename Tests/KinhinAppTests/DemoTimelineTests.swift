@@ -57,7 +57,7 @@ final class DemoTimelineTests: XCTestCase {
     }
 
     func testServingFollowsItsClockAndStops() async throws {
-        let clock = Mutex(now)
+        let clock = Locked(now)
         let demo = DemoFleetServing(clock: { clock.withLock { $0 } })
         let initial = try await demo.status()
         XCTAssertTrue(initial.running)
@@ -71,7 +71,7 @@ final class DemoTimelineTests: XCTestCase {
     }
 
     func testOriginInTheFutureKeepsTheFleetIdleUntilItArrives() async throws {
-        let clock = Mutex(now)
+        let clock = Locked(now)
         let demo = DemoFleetServing(origin: now.addingTimeInterval(10), clock: { clock.withLock { $0 } })
         let before = try await demo.status()
         XCTAssertTrue(before.running)

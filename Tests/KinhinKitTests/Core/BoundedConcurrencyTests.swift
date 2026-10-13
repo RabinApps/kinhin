@@ -14,7 +14,7 @@ final class BoundedConcurrencyTests: XCTestCase {
     }
 
     func testNeverRunsMoreThanLimitAtOnce() async throws {
-        let running = Mutex((current: 0, peak: 0))
+        let running = Locked((current: 0, peak: 0))
         _ = try await boundedMap(Array(0..<20), limit: 3) { _ -> Int in
             running.withLock {
                 $0.current += 1

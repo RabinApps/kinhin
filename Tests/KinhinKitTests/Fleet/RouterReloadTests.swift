@@ -44,7 +44,7 @@ final class RouterReloadTests: XCTestCase {
             return Router.Snapshot.make(config: cfg, host: host)
         }
         let router = Router(make(0))
-        let torn = Mutex(0)
+        let torn = Locked(0)
         let writer = Task {
             for index in 1...400 { router.replace(with: make(index)) }
         }

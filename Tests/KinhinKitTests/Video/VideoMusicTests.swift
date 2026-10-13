@@ -72,7 +72,7 @@ final class VideoMusicTests: XCTestCase {
     // MARK: client
 
     func testSearchAsksForTheRightThingAndDecodesTheAnswer() async throws {
-        let seen = Mutex<(path: String, query: [String: String], agent: String)>(("", [:], ""))
+        let seen = Locked<(path: String, query: [String: String], agent: String)>(("", [:], ""))
         StubProtocol.handler = { request in
             let items = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
             seen.withLock {
@@ -165,7 +165,7 @@ final class VideoMusicTests: XCTestCase {
             var auth: [String] = []
             var pageSizes: [String] = []
         }
-        let seen = Mutex(Seen())
+        let seen = Locked(Seen())
         StubProtocol.handler = { request in
             if request.url?.path == "/v1/auth_tokens/token" {
                 let body =
@@ -208,7 +208,7 @@ final class VideoMusicTests: XCTestCase {
     }
 
     func testWithoutCredentialsNothingIsSentButTheUserAgent() async throws {
-        let seen = Mutex<(auth: String?, calls: Int)>((nil, 0))
+        let seen = Locked<(auth: String?, calls: Int)>((nil, 0))
         StubProtocol.handler = { request in
             seen.withLock {
                 $0.auth = request.value(forHTTPHeaderField: "Authorization")
@@ -282,7 +282,7 @@ final class VideoMusicTests: XCTestCase {
         let guardDelegate = HTTPSOnlyRedirects()
         let response = HTTPURLResponse(
             url: URL(string: "https://a.example/x")!, statusCode: 302, httpVersion: nil, headerFields: nil)!
-        let results = Mutex<[Bool]>([])
+        let results = Locked<[Bool]>([])
         for url in ["https://b.example/y", "http://b.example/y"] {
             guardDelegate.urlSession(
                 session, task: session.dataTask(with: URL(string: "https://a.example/x")!),

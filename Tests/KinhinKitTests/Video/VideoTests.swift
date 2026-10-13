@@ -156,7 +156,7 @@ final class VideoTests: XCTestCase {
     // MARK: the runner
 
     private final class ScriptedShell: ShellRunning, Sendable {
-        let calls = Mutex<[[String]]>([])
+        let calls = Locked<[[String]]>([])
         let respond: @Sendable ([String]) -> Int32
         init(_ respond: @escaping @Sendable ([String]) -> Int32) { self.respond = respond }
 
@@ -167,7 +167,7 @@ final class VideoTests: XCTestCase {
     }
 
     private final class ScriptedProcess: VideoProcessRunning, Sendable {
-        let calls = Mutex<[[String]]>([])
+        let calls = Locked<[[String]]>([])
         let respond: @Sendable ([String]) -> Int32
         init(_ respond: @escaping @Sendable ([String]) -> Int32 = { _ in 0 }) { self.respond = respond }
 
@@ -455,7 +455,7 @@ final class VideoTests: XCTestCase {
     // MARK: capturing output
 
     func testCapturingRunnerDeliversEveryLineFromBothStreamsAndTheExitCode() async throws {
-        let lines = Mutex<[String]>([])
+        let lines = Locked<[String]>([])
         let runner = CapturingProcessRunner { line in lines.withLock { $0.append(line) } }
         let code = try await runner.runInteractive(
             [
