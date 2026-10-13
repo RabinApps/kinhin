@@ -49,7 +49,7 @@ globbed a WebM that `--fast` does not write (stale files in a working tree had h
    building it in each matrix job.
 3. Create the `marketing` environment with required reviewers and set the `VIDEO_CI` variable; leave `ci.json` off until the
    first dispatch run looks right.
-4. Pin the base image by digest and keep the pins fresh (Dependabot or Renovate for the Containerfile, npm and the workflow's
+4. Pin the base image by digest and keep the pins fresh (Dependabot or Renovate for the Dockerfile, npm and the workflow's
    actions); the apt packages are not pinned.
 5. Delete `.github/workflows/demo-check.yml` (temporary) and merge the branch through a pull request.
 6. Decide the open questions below (release-notes copy, registry, who reviews).
@@ -72,7 +72,7 @@ the build by hand. A project that never opts in sees no new jobs, no new cost an
 | Piece | State |
 |---|---|
 | Build | `video/scripts/build.sh [--container] [--theme T] [--format F] [--project P] [--adapter A]`; verified in Apple `container` and Docker |
-| Image | `video/Containerfile`: Playwright Chromium, ffmpeg with libass, fonts, Kokoro with its model baked in |
+| Image | `video/Dockerfile`: Playwright Chromium, ffmpeg with libass, fonts, Kokoro with its model baked in |
 | Inputs | `video/script/<name>.json` (theme, format, typed scenes, narration), `video/themes/`, `video/adapters/<name>/` (recorders, tape, small `reference/` clips) |
 | Outputs | `video/out/<project>[-theme][-format].mp4`, `.webm`, `-poster.png`, `-hero.gif`, `.srt` |
 | Pipelines | `ci.yml` (self-hosted `kinhin-xcode` Tart VM, plus a hosted macOS job), `docs.yml` (`kinhin-container` pool, deploys Pages), `release.yml` (tag, `kinhin-xcode`, protected `release` environment), `e2e.yml` (self-hosted `kinhin-e2e`), `demo-check.yml` (temporary, branch-only) |
@@ -157,7 +157,7 @@ product that adopts the adapter layer can use it from its own repository without
 | `kinhin-xcode` (Tart macOS VM) | Needed only for `record` (a real desktop for `screencapture`, VHS, the debug app) | Shared with the fleet and its Keychain: never for PRs, forks or untrusted refs |
 
 **Decision to confirm in the spike:** build on hosted Linux with a prebuilt image from the container registry
-(`ghcr.io/<owner>/kinhin-video:<hash>`, tagged by a hash of `Containerfile`, `package-lock.json`, `shared/` and `themes/`)
+(`ghcr.io/<owner>/kinhin-video:<hash>`, tagged by a hash of `Dockerfile`, `package-lock.json`, `shared/` and `themes/`)
 and keep the Mac runner for `record` only.
 
 ### The honesty gate: `video/scripts/video-claims-lint.mjs`

@@ -1,6 +1,6 @@
 # Third-party components of the video suite
 
-What the build image (`video/Containerfile`) and the output contain, and under which licences. Checked against the package
+What the build image (`video/Dockerfile`) and the output contain, and under which licences. Checked against the package
 metadata, the distribution's package files and the model card on 2026-10-12; recheck when you bump a version.
 
 | Component | Where | Licence |

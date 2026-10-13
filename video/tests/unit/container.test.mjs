@@ -7,7 +7,7 @@ import {root} from '../helpers.mjs';
 const read = (f) => readFileSync(join(root, f), 'utf8');
 
 test('the image is self-contained: it carries the suite and an entry point that builds a mounted repository', () => {
-  const containerfile = read('Containerfile');
+  const containerfile = read('Dockerfile');
   assert.match(containerfile, /^COPY \. \/work$/m, 'the suite is copied in');
   assert.ok(containerfile.lastIndexOf('COPY . /work') > containerfile.indexOf('npm ci'), 'after the dependency layers, so editing the suite keeps them cached');
   accessSync(join(root, 'scripts/container-build.sh'), constants.X_OK);

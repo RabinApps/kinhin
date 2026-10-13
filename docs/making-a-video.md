@@ -96,7 +96,7 @@ for every kinhin video: burned-in captions are **off** (a clean picture; the `.s
 works, and every setting, is in [Add videos to your project](videos-for-your-project.md#build-and-iterate).
 
 `build.sh` is the developer path: it builds from this working tree, in a container (`--container`) or on this machine. What
-users run is `kinhin video build`, which pulls a published image that has this `video/` folder inside it (`Containerfile`'s
+users run is `kinhin video build`, which pulls a published image that has this `video/` folder inside it (`Dockerfile`'s
 last layer) and runs `scripts/container-build.sh` against their repository. To try that flow against your working tree:
 
 ```bash

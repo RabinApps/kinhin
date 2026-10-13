@@ -60,14 +60,14 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   # The image is named by a hash of what goes into it, and built only when that image does not exist yet: rebuilding
   # an unchanged image on every run is slow and, with Apple's container, grows its build cache.
   # The architecture is part of the name: an arm64 image must not satisfy an x64 build (DOCKER_DEFAULT_PLATFORM selects one).
-  IMAGE="kinhin-video:$( (cat Containerfile package.json package-lock.json music/catalog.json; echo "${DOCKER_DEFAULT_PLATFORM:-$(uname -m)}") | shasum -a 256 | cut -c1-12)"
+  IMAGE="kinhin-video:$( (cat Dockerfile package.json package-lock.json music/catalog.json; echo "${DOCKER_DEFAULT_PLATFORM:-$(uname -m)}") | shasum -a 256 | cut -c1-12)"
   if "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1; then
     echo "==> image $IMAGE already built"
   else
     # An absolute, symlink-free context path: Apple's `container build` (before 1.5.0) silently drops directories when the
     # context sits under a symlink such as /tmp or /var/folders (apple/container#2285).
     CONTEXT="$(pwd -P)"
-    "$RUNTIME" build -t "$IMAGE" -f "$CONTEXT/Containerfile" "$CONTEXT"
+    "$RUNTIME" build -t "$IMAGE" -f "$CONTEXT/Dockerfile" "$CONTEXT"
   fi
   mkdir -p raw out
   # The image has its own node_modules (Linux binaries), so the sources are copied in at start-up and only the

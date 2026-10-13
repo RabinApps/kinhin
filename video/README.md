@@ -15,6 +15,6 @@ scripted demo fleet. The full guide (the config, themes, scene types, recording,
 | `themes/*.json`, `fonts/` | Looks (paper, clean, midnight, blueprint, chalk) and your own fonts |
 | `ci.json`, `scripts/video-ci.mjs` | The opt-in CI configuration and its planner (`.github/workflows/video.yml`; docs/ci-video.md) |
 | `tests/` | Unit tests (seconds) and end-to-end tests (real builds); `scripts/test.sh` |
-| `Containerfile` | The build image (Apple `container` or Docker), with this folder baked in; published as `ghcr.io/rabinapps/kinhin-video` for `kinhin video build`; `scripts/build.sh --container` builds from the working tree |
+| `Dockerfile` | The build image (Apple `container` or Docker), with this folder baked in; published as `ghcr.io/rabinapps/kinhin-video` for `kinhin video build`; `scripts/build.sh --container` builds from the working tree |
 | `scripts/` | `build.sh` (one command, host or container), `voice.mjs`, `retime.mjs`, `render-titles.mjs`, `frames.mjs` (`frame-app.sh`, `frame-terminal.sh`), `assemble.mjs`, `project.mjs`, `verify.mjs`, `video-claims-lint.mjs`, `test.sh`, `gallery.mjs`, `adapter.mjs`, `record-clip.mjs` (records any adapter clip), `fetch-music.mjs`, `container-build.sh` (the image's entry point for `kinhin video`), `make-reference.sh`, `record-terminal.sh`, `record-web.sh`, `doctor.sh` |
 | `raw/<adapter>/`, `raw/scenes/`, `out/` | Git-ignored recordings, scene renders and outputs |
