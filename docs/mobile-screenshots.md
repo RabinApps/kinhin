@@ -279,6 +279,12 @@ upload yourself, with your own credentials. See [credentials](mobile-credentials
   `androidApp/src/androidTest/`. The Android module is `androidApp`, not `app`, so the paths have no `app/` prefix.
 - **.NET MAUI:** no screenshot files. MAUI does not generate UI test projects, so this stays out of the scaffold.
 
+## In a launch video
+
+The screenshots can feed a launch cut. `examples/mobile-30s` shows them with a locale beat, and `video.yml` captures them in a
+`mobile-capture` job for a look that sets `screens`. See [CI video](ci-video.md#store-screenshots-in-the-mobile-cut) and
+[making a video](making-a-video.md#screenshots-as-a-scene).
+
 ## What is verified
 
 - **iOS capture:** `fastlane screenshots` ran the UI test on an iPhone 17e simulator, wrote `fastlane/screenshots/en-US/iPhone 17e-01-home.png`,

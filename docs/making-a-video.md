@@ -29,6 +29,27 @@ no Mac, no desktop session and no permission grant, so they are the easy path fo
 Motion Canvas rather than Remotion because Remotion's license requires a paid company license above three employees.
 Run `video/scripts/doctor.sh` to see which tools this machine is missing.
 
+## Screenshots as a scene
+
+A `device` scene can show still screenshots instead of a recording. Put the PNG paths in `props.screens` (relative to `video/`),
+and the scene becomes a cross-fading slideshow of its own length. Each image is held for `props.hold` seconds (default 2.5):
+
+```json
+{
+  "id": "screens",
+  "type": "device",
+  "props": {
+    "screens": ["screens/mobile/en-US/iPhone 17e-01-home.png", "screens/mobile/fr-FR/iPhone 17e-01-home.png"],
+    "hold": 3.5
+  },
+  "minLength": 8,
+  "narration": "Store screenshots from the same repo, in every language."
+}
+```
+
+It is opt-in: a scene without `props.screens` is built as before. A project that uses screenshots does not need an adapter
+for that scene. The slideshow code is `video/scripts/slideshow.mjs`, called from `video/scripts/frames.mjs`.
+
 ## Run the demo app (the kinhin adapter)
 
 ```bash

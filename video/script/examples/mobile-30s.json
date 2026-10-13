@@ -1,0 +1,48 @@
+{
+  "name": "kinhin for mobile in thirty seconds",
+  "theme": "paper",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_heart"
+  },
+  "pronounce": {
+    "kinhin": "kin-hin"
+  },
+  "overrides": {},
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "Commit it. Screenshot it. Ship it.",
+        "subtitle": "kinhin",
+        "mark": "ring"
+      },
+      "narration": "Commit it. Screenshot it. Ship it."
+    },
+    {
+      "id": "screens",
+      "type": "device",
+      "props": {
+        "screens": [
+          "screens/mobile/en-US/iPhone 17e-01-home.png",
+          "screens/mobile/fr-FR/iPhone 17e-01-home.png"
+        ],
+        "hold": 3.5
+      },
+      "minLength": 8,
+      "narration": "Store screenshots from the same repo, in every language. One lane captures them in CI, and they stay with the build."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "Your Mac is your CI. Your repo is your video studio, and your screenshot studio.",
+        "url": "kinhin.dev",
+        "facts": ["Free", "Apache-2.0", "No telemetry", "In beta"]
+      },
+      "narration": "Your Mac is your CI. Your repo is your video studio, and your screenshot studio."
+    }
+  ]
+}

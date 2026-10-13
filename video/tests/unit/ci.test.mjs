@@ -167,3 +167,20 @@ test('video.yml uses the published image only for a release, validates the tag f
   const build = readFileSync(join(root, 'scripts/build.sh'), 'utf8');
   assert.match(build, /VIDEO_IMAGE/);
 });
+
+test('a look with screens is flagged so the workflow captures the mobile screenshots first', () => {
+  const config = {
+    enabled: true,
+    triggers: {release: true, pullRequest: false, schedule: false},
+    projects: [
+      {project: 'launch', looks: [{}]},
+      {project: 'examples/mobile-30s', looks: [{screens: true}]},
+    ],
+    publish: {release: false, site: false},
+  };
+  const result = plan({env: {VIDEO_CI: 'true', GITHUB_EVENT_NAME: 'release'}, event: {workflow_run: {conclusion: 'success'}}, config});
+  assert.equal(result.enabled, true);
+  const byProject = Object.fromEntries(result.matrix.map((m) => [m.project, m.screens]));
+  assert.equal(byProject['launch'], false);
+  assert.equal(byProject['examples/mobile-30s'], true);
+});

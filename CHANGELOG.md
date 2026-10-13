@@ -13,6 +13,10 @@
 - `kinhin mobile init` also scaffolds Capacitor and Ionic (`ios/` and `android/`, with `cap sync` in the CI jobs), Kotlin
   Multiplatform (`iosApp/` and `androidApp/`, with the shared framework built by the Xcode build phase), and .NET MAUI
   (`dotnet publish` for the IPA and AAB, signed in the lanes). The runner toolchain probes detect MAUI and KMP.
+- The video suite can show store screenshots as a cross-fading slideshow (`device` scene with `props.screens`, opt-in). A new
+  `examples/mobile-30s` cut shows them, and `video.yml` captures the iOS screenshots on the macOS pool for a look that sets
+  `screens`. Videos without `screens` are unchanged.
+- The homepage and README say "Commit it. Screenshot it. Ship it." and cover store screenshots.
 - The fastlane lanes accept `IPA_PATH` (a prebuilt IPA, refused when older than `IPA_MAX_AGE_HOURS`), `IOS_PROJECT` and
   `IOS_WORKSPACE`, and `ANDROID_GRADLE_DIR` and `ANDROID_GRADLE_MODULE`. Projects that do not set them are unchanged.
 - `kinhin video init | list | build`: make a narrated video of your own product from `.kinhin/videos/*.yml`, with no copy of the

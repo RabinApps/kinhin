@@ -20,3 +20,6 @@ bad.sha256
 # Local dev tokens for scripts/dev-run.sh --env-tokens
 .env.dev
 **/.vitepress/cache/
+
+# Screenshots copied in for a local video build (CI downloads them into this folder for a `screens` look).
+video/screens/
