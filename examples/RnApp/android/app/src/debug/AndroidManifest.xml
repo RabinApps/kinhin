@@ -6,4 +6,9 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.CHANGE_CONFIGURATION" />
+    <!-- The app requests these on launch (the system dialog covered the screenshot). Declared here, in the debug build
+         only, so the screenshot test can grant them: the grant is ignored for a permission the app does not declare. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 </manifest>

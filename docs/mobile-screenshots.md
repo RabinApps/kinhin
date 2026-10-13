@@ -259,7 +259,10 @@ upload yourself, with your own credentials. See [credentials](mobile-credentials
   iOS wrote `fastlane/screenshots/fr-FR/iPhone 17e-01-home.png`; Android wrote `fastlane/metadata/android/fr-FR/images/phoneScreenshots/`.
   The sample apps in `examples/` translate their one string, so the locale switch is visible in the image.
 - **Flutter iOS capture:** `fastlane screenshots` ran on iPhone 17e and wrote `en-US` and `fr-FR` 1170 x 2532 PNGs.
-- **React Native iOS capture:** `en-US` ran and wrote a 1170 x 2532 PNG, after the app adopted the iOS 27 scene lifecycle.
+  The French image was taken before the sample showed French text, so it does not prove the locale switch.
+- **Flutter and React Native Android capture:** both locales show the greeting in the right language, on a Pixel 9 emulator, for
+  both examples. The React Native lane needs Metro running and `adb reverse tcp:8081 tcp:8081` (the Debug build loads its
+  JavaScript from Metro). The React Native debug manifest declares the Bluetooth permissions the sample asks for.
 - **Android build:** `assembleDebugAndroidTest` compiles the instrumented test with the dependencies above.
 - **Options:** every snapshot, screengrab, frameit and screenshot-upload option the templates use exists in fastlane 2.241.0.
 - **frameit prerequisite:** frameit stops without ImageMagick. The lane installs it when frames are on.
@@ -269,10 +272,11 @@ upload yourself, with your own credentials. See [credentials](mobile-credentials
 - **Frames** end to end. Blocked by [ImageMagick #9011](https://github.com/ImageMagick/ImageMagick/issues/9011) until a release contains the fix.
   The framed output's file name is also unknown.
 - **Multiple devices** on iOS. The iOS runs used one simulator (iPhone 17e); the layout for several devices is from the snapshot docs.
-- **Flutter and React Native iOS locales.** Both examples capture `en-US`. Their samples have no localized strings, so a French
-  capture looks English and does not prove a locale switch. The React Native `fr-FR` run hung in xcodebuild teardown and did not finish.
-- **Flutter and React Native Android capture.** The lanes run, and the paths and package name are correct, but the screens
-  come out blank white (Flutter) or show a Bluetooth permission prompt (React Native). The native Android example captures correctly.
+- **React Native iOS.** The app shows the greeting only when its JavaScript loads. The Debug simulator build needs
+  `FORCE_BUNDLING=1` to bundle it, and the French capture still shows English: the app's language check does not read
+  `fr` under the screenshot test's launch arguments. The `simctl diagnose` process that xcodebuild starts after each test
+  can hang; kill it and the lane continues. This is open.
+- **Flutter iOS French.** The Flutter iOS French capture was verified before the sample was localized; re-check it after the sample change.
 - **Flutter iOS debug simulator build.** `flutter build ios --simulator --debug` fails on this toolchain (see
   [troubleshooting](mobile-fastlane-troubleshooting.md#screenshots)); the example builds with `xcodebuild` and `ARCHS=arm64`.
 - **Uploads** against real stores. Not run, by decision.

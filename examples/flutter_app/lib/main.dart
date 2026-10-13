@@ -30,7 +30,26 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      supportedLocales: const [Locale('en'), Locale('fr')],
+      home: const Greeting(),
+    );
+  }
+}
+
+// A greeting in the device language (English or French), so a French screenshot shows French text.
+class Greeting extends StatelessWidget {
+  const Greeting({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final french = Localizations.localeOf(context).languageCode == 'fr';
+    return Scaffold(
+      body: Center(
+        child: Text(
+          french ? 'Bonjour de kinhin' : 'Hello from kinhin',
+          style: const TextStyle(fontSize: 24),
+        ),
+      ),
     );
   }
 }

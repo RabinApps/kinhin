@@ -29,10 +29,19 @@ public class ScreenshotTest {
         if (launch == null) {
             throw new IllegalStateException("the app has no launcher activity to start for screenshots");
         }
+        // The BLE library asks for these on first launch, and the system dialog covers the screen in the capture.
+        // Grant them up front so the capture shows the app.
+        String packageName = instrumentation.getTargetContext().getPackageName();
+        for (String permission : new String[] {
+                "android.permission.BLUETOOTH_SCAN",
+                "android.permission.BLUETOOTH_CONNECT",
+                "android.permission.ACCESS_FINE_LOCATION"}) {
+            instrumentation.getUiAutomation().grantRuntimePermission(packageName, permission);
+        }
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         instrumentation.getTargetContext().startActivity(launch);
         instrumentation.waitForIdleSync();
-        SystemClock.sleep(1000); // let the first frame draw before the capture
+        SystemClock.sleep(4000); // let the first frame draw before the capture
         Screengrab.screenshot("01-home");
     }
 }
