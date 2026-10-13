@@ -111,7 +111,8 @@ public struct OpenverseClient: Sendable {
             var expires_in: Double?
         }
         guard let body = try? JSONDecoder().decode(TokenBody.self, from: data), !body.access_token.isEmpty else {
-            throw MusicError.network("unexpected answer from the Openverse sign-in: \(String(decoding: data.prefix(120), as: UTF8.self))")
+            throw MusicError.network(
+                "unexpected answer from the Openverse sign-in: \(String(decoding: data.prefix(120), as: UTF8.self))")
         }
         // Renew a minute early.
         tokens.store(body.access_token, expires: Date().addingTimeInterval(max(60, (body.expires_in ?? 3600) - 60)))
