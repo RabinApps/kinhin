@@ -23,7 +23,7 @@ export default makeScene2D(function* (view) {
           <Circle size={72} fill={C.ink} layout alignItems="center" justifyContent="center">
             <Txt text={String(i + 1)} fontFamily={FONT} fontSize={40} fontWeight={WEIGHT} fill={C.paper} />
           </Circle>
-          <Txt text={step} fontFamily={FONT} fontSize={fitText(step, narrow ? 44 : 46, stepWidth, 2)} fill={C.ink} textWrap width={stepWidth} />
+          <Txt text={step} fontFamily={FONT} fontSize={fitText(step, narrow ? 62 : 46, stepWidth, narrow ? 1 : 2)} fill={C.ink} textWrap width={stepWidth} />
         </Rect>
       ))}
     </>,
