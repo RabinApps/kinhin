@@ -72,7 +72,8 @@ public enum MobileScaffold {
         }
         try writer.workflow(framework: framework, platforms: platforms, directory: directory)
         if platforms.contains("ios") {
-            noteLowIOSDeploymentTarget(in: directory, writer: &writer)
+            // Kotlin Multiplatform keeps its Xcode project in iosApp/, every other framework in ios/.
+            noteLowIOSDeploymentTarget(in: directory, folder: framework == .kmp ? "iosApp" : "ios", writer: &writer)
         }
         return report(framework, platforms, writer)
     }
@@ -81,9 +82,10 @@ public enum MobileScaffold {
     public static func detect(in directory: URL) throws -> MobileFramework {
         let fm = FileManager.default
         if fm.fileExists(atPath: directory.appendingPathComponent("pubspec.yaml").path) { return .flutter }
-        if packageJSON(in: directory).contains("\"expo\"") { return .expo }
-        if packageJSON(in: directory).contains("\"@capacitor/core\"") { return .capacitor }
-        if packageJSON(in: directory).contains("\"react-native\"") { return .reactNative }
+        let package = packageJSON(in: directory)
+        if package.contains("\"expo\"") { return .expo }
+        if package.contains("\"@capacitor/core\"") { return .capacitor }
+        if package.contains("\"react-native\"") { return .reactNative }
         if isMAUI(in: directory) { return .maui }
         if isKotlinMultiplatform(in: directory) { return .kmp }
         switch (hasIOS(in: directory), hasAndroid(in: directory)) {
@@ -152,19 +154,32 @@ public enum MobileScaffold {
 
     /// A .NET MAUI project: a .csproj with UseMaui, at the root or one folder down.
     static func isMAUI(in directory: URL) -> Bool {
-        let fm = FileManager.default
-        let folders =
-            [directory]
-            + ((try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
-            .filter { isDirectory($0) }
+        mauiProjectPath(
+            list: { folder in
+                let url = folder.isEmpty ? directory : directory.appendingPathComponent(folder)
+                return (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
+            },
+            read: { path in try? String(contentsOf: directory.appendingPathComponent(path), encoding: .utf8) }
+        ) != nil
+    }
+
+    /// The relative path of the first .csproj that sets UseMaui, at the root or one folder down. Hidden folders and
+    /// dependency or build output folders are skipped, so a copy inside node_modules does not count. `list` and `read`
+    /// let the scaffold (files on disk) and the runner probe (a ProjectFileReading) share this one search.
+    static func mauiProjectPath(
+        list: (String) throws -> [String], read: (String) throws -> String?
+    ) rethrows -> String? {
+        let skipped: Set<String> = ["node_modules", "Pods", "build", "bin", "obj", "DerivedData"]
+        let root = try list("")
+        let folders = [""] + root.filter { !$0.hasPrefix(".") && !skipped.contains($0) }
         for folder in folders {
-            let names = (try? fm.contentsOfDirectory(atPath: folder.path)) ?? []
+            let names = folder.isEmpty ? root : try list(folder)
             for name in names where name.hasSuffix(".csproj") {
-                let text = (try? String(contentsOf: folder.appendingPathComponent(name), encoding: .utf8)) ?? ""
-                if text.contains("<UseMaui>true</UseMaui>") { return true }
+                let path = folder.isEmpty ? name : "\(folder)/\(name)"
+                if try read(path)?.contains("<UseMaui>true</UseMaui>") == true { return path }
             }
         }
-        return false
+        return nil
     }
 
     /// A Kotlin Multiplatform project: an iosApp/ folder, Gradle settings, and a build file that applies the
@@ -215,8 +230,8 @@ public enum MobileScaffold {
 
     /// Notes the first iOS deployment target below the minimum, so the release build does not fail for a reason the
     /// user can see. The project file is not edited: the target is the user's choice to change.
-    static func noteLowIOSDeploymentTarget(in directory: URL, writer: inout Writer) {
-        let project = directory.appendingPathComponent("ios")
+    static func noteLowIOSDeploymentTarget(in directory: URL, folder: String, writer: inout Writer) {
+        let project = directory.appendingPathComponent(folder)
         guard let enumerator = FileManager.default.enumerator(at: project, includingPropertiesForKeys: nil) else {
             return
         }

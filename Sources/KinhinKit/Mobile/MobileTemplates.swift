@@ -261,6 +261,8 @@ enum MobileTemplates {
 
           desc "Capture localized screenshots with screengrab. UPLOAD_SCREENSHOTS=1 uploads them to Google Play"
           lane :screenshots do
+            # Screengrabfile is written with the screenshot setup. A project without it (for example .NET MAUI) has no instrumented tests to run.
+            UI.user_error!("No fastlane/Screengrabfile here, so screenshots are not set up. Add the instrumented tests and Screengrabfile to use this lane.") unless File.exist?(File.expand_path("Screengrabfile", __dir__))
             # screengrab runs the instrumented tests but does not build the APKs, so build them first.
             gradle(task: gradle_task("assemble"), build_type: "Debug", print_command: false, **gradle_project_options)
             gradle(task: gradle_task("assembleDebugAndroidTest"), print_command: false, **gradle_project_options)
@@ -1088,6 +1090,8 @@ enum MobileTemplates {
 
           desc "Capture localized screenshots with snapshot. FRAME_SCREENSHOTS=1 frames them; UPLOAD_SCREENSHOTS=1 uploads them"
           lane :screenshots do
+            # Snapfile is written with the screenshot setup. A project without it (for example .NET MAUI) has no UI test target to run.
+            UI.user_error!("No fastlane/Snapfile here, so screenshots are not set up. Add the UI test target and Snapfile to use this lane.") unless File.exist?(File.expand_path("Snapfile", __dir__))
             snapshot
 
             # snapshot can exit 0 when every UI test failed to build or run, so check the output directly.

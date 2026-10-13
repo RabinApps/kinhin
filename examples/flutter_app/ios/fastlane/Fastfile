@@ -110,6 +110,8 @@ platform :ios do
 
   desc "Capture localized screenshots with snapshot. FRAME_SCREENSHOTS=1 frames them; UPLOAD_SCREENSHOTS=1 uploads them"
   lane :screenshots do
+    # Snapfile is written with the screenshot setup. A project without it (for example .NET MAUI) has no UI test target to run.
+    UI.user_error!("No fastlane/Snapfile here, so screenshots are not set up. Add the UI test target and Snapfile to use this lane.") unless File.exist?(File.expand_path("Snapfile", __dir__))
     snapshot
 
     # snapshot can exit 0 when every UI test failed to build or run, so check the output directly.

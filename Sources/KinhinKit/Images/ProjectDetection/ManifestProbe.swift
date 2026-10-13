@@ -133,7 +133,7 @@ struct ManifestProbe: ToolchainProbe {
 
         if let file = try reader.rootFiles(withSuffix: ".csproj", ".fsproj", ".sln").first {
             add("dotnet", file, "\(file) present")
-        } else if let file = try mauiProject(reader) {
+        } else if let file = try MobileScaffold.mauiProjectPath(list: reader.list, read: reader.text) {
             // A .NET MAUI app keeps its .csproj one folder down in some layouts (App/App.csproj).
             add("dotnet", file, "\(file) uses .NET MAUI")
         } else if reader.exists("global.json") {
@@ -200,17 +200,6 @@ struct ManifestProbe: ToolchainProbe {
     }
 
     // MARK: - Text helpers
-
-    /// The path of a .csproj that sets UseMaui, one folder below the root.
-    private func mauiProject(_ reader: ProjectFileReading) throws -> String? {
-        for folder in try reader.list("") {
-            for name in try reader.list(folder) where name.hasSuffix(".csproj") {
-                let path = "\(folder)/\(name)"
-                if try reader.text(path)?.contains("<UseMaui>true</UseMaui>") == true { return path }
-            }
-        }
-        return nil
-    }
 
     private static func unquote<S: StringProtocol>(_ value: S) -> String {
         value.trimmed().trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))

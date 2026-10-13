@@ -112,6 +112,16 @@ final class MobileScaffoldTests: XCTestCase {
         XCTAssertEqual(try MobileScaffold.detect(in: kmp), .kmp)
     }
 
+    func testMAUICopyInsideDependencyFoldersDoesNotCount() throws {
+        let dir = try folder(
+            "vendored",
+            [
+                "node_modules/sample/Sample.csproj": "<UseMaui>true</UseMaui>",
+                ".hidden/Hidden.csproj": "<UseMaui>true</UseMaui>",
+            ])
+        XCTAssertFalse(MobileScaffold.isMAUI(in: dir))
+    }
+
     func testKMPGetsFastlaneInItsNativeFoldersAndNoScreenshotsForItsModule() throws {
         let dir = try folder(
             "kmp",
