@@ -5,7 +5,7 @@
 #
 # Uses the kinhin binary (KINHIN_BIN, default .build/debug/kinhin, built if missing).
 #
-# What it does, per example app (flutter_app, RnApp, ios_native_app, android_native_app, expo_app):
+# What it does, per example app (flutter_app, RnApp, ios_native_app, android_native_app, expo_app, capacitor_app):
 #   1. Copies the tracked and untracked files that git does not ignore (git ls-files -co --exclude-standard), so build output
 #      cannot hide a problem and uncommitted changes are tested before they are committed.
 #   2. Re-runs `kinhin mobile init --force` on the copy and checks the generated fastlane files and
@@ -97,7 +97,7 @@ fi
 
 # MARK: - Copy the committed example files
 
-apps="flutter_app RnApp ios_native_app android_native_app expo_app"
+apps="flutter_app RnApp ios_native_app android_native_app expo_app capacitor_app"
 section "copy committed examples"
 while IFS= read -r -d '' file; do
     mkdir -p "$work/$(dirname "$file")"
@@ -128,7 +128,7 @@ rm -rf "$usage_dir"
 section "templates regenerate the committed examples"
 # Each file a scaffold writes, relative to the app folder. Gemfile is excluded: react-native keeps its own.
 generated="ios/fastlane/Fastfile ios/fastlane/Appfile ios/fastlane/Matchfile ios/fastlane/Snapfile ios/fastlane/Framefile.json ios/UITests/SnapshotHelper.swift ios/UITests/ScreenshotTests.swift android/fastlane/Fastfile android/fastlane/Appfile android/fastlane/Screengrabfile android/app/src/androidTest/java/screenshots/ScreenshotTest.java android/app/src/debug/AndroidManifest.xml fastlane/Fastfile fastlane/Appfile fastlane/Matchfile fastlane/Snapfile fastlane/Framefile.json UITests/SnapshotHelper.swift UITests/ScreenshotTests.swift fastlane/Screengrabfile app/src/androidTest/java/screenshots/ScreenshotTest.java app/src/debug/AndroidManifest.xml .github/workflows/mobile-release.yml eas.json"
-for app in flutter_app RnApp ios_native_app android_native_app expo_app; do
+for app in flutter_app RnApp ios_native_app android_native_app expo_app capacitor_app; do
     dir="$work/examples/$app"
     before="$(mktemp -d)"
     for f in $generated; do
@@ -486,6 +486,27 @@ if [[ $with_builds -eq 1 ]]; then
         fi
     else
         skip "expo_app fastlane path (needs npm and npx)"
+    fi
+
+    # Capacitor with fastlane: `cap sync` copies the web build into ios/ and android/, then the lanes run there.
+    # Capacitor 8's Android library needs Java 21, so the Android lane uses the JDK 21 that Android Studio ships.
+    cap="$work/examples/capacitor_app"
+    cap_java21="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+    if command -v npx >/dev/null && command -v npm >/dev/null; then
+        run_build "capacitor_app npm ci" capacitor-npm "$cap" npm ci --no-audit --no-fund
+        run_build "capacitor_app web build and cap sync" capacitor-sync "$cap" sh -c 'npm run build && npx cap sync'
+        run_build "capacitor_app iOS Debug simulator build" capacitor-ios "$cap/ios/App" \
+            xcodebuild -project App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
+        if [[ -d "$cap_java21" && -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}" ]]; then
+            run_build "capacitor_app Android Debug build (JDK 21)" capacitor-android "$cap/android" \
+                env JAVA_HOME="$cap_java21" ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}" ./gradlew assembleDebug
+            run_build "capacitor_app kinhin mobile init" capacitor-init "$cap" "$KINHIN_BIN" mobile init --dry-run
+            JAVA_HOME="$cap_java21" lane_build_signed "capacitor_app android (fastlane)" "$cap"
+        else
+            skip "capacitor_app Android build (needs Android Studio's JDK 21 and an Android SDK)"
+        fi
+    else
+        skip "capacitor_app (needs npm and npx)"
     fi
 
     # Screenshots: the iOS lane runs the UI tests on a simulator and must write PNGs. The simulator name comes from

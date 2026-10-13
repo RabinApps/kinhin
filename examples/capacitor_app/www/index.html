@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>kinhin</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: -apple-system, system-ui, sans-serif; font-size: 24px; }
+    </style>
+  </head>
+  <body>
+    <p id="greeting">Hello from kinhin</p>
+    <script>
+      // Show the greeting in the device language (English or French), so a French screenshot shows French text.
+      const language = (navigator.language || 'en').toLowerCase();
+      if (language.startsWith('fr')) document.getElementById('greeting').textContent = 'Bonjour de kinhin';
+    </script>
+  </body>
+</html>

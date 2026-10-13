@@ -351,7 +351,8 @@ enum CommandCatalog {
                     positionals: "[DIR]",
                     flags: [
                         .value(
-                            "--framework", "NAME", "auto (default), ios, android, native, flutter, react-native or expo"
+                            "--framework", "NAME",
+                            "auto (default), ios, android, native, flutter, react-native, expo or capacitor"
                         ),
                         .bool("--force", "Overwrite files that already exist"),
                         .bool("--dry-run", "Print what would be written and write nothing"),

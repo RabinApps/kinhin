@@ -90,6 +90,29 @@ final class MobileScaffoldTests: XCTestCase {
         XCTAssertEqual(try MobileScaffold.detect(in: dir), .reactNative)
     }
 
+    func testCapacitorIsDetectedBeforeReactNative() throws {
+        let capacitor = try folder(
+            "capacitor",
+            ["package.json": "{\"dependencies\":{\"@capacitor/core\":\"7.0.0\",\"@capacitor/ios\":\"7.0.0\"}}\n"],
+            dirs: ["ios", "android"])
+        XCTAssertEqual(try MobileScaffold.detect(in: capacitor), .capacitor)
+    }
+
+    func testCapacitorGetsFastlaneInBothFoldersAndSyncsEachPlatform() throws {
+        let dir = try folder(
+            "capacitor-app",
+            ["package.json": "{\"dependencies\":{\"@capacitor/core\":\"7.0.0\"}}\n"], dirs: ["ios", "android"])
+        let report = try scaffold(dir)
+        XCTAssertEqual(report.framework, .capacitor)
+        XCTAssertEqual(report.platforms, ["ios", "android"])
+        XCTAssertTrue(exists(dir, "ios/fastlane/Fastfile"))
+        XCTAssertTrue(exists(dir, "android/fastlane/Fastfile"))
+        let workflow = try text(dir, ".github/workflows/mobile-release.yml")
+        XCTAssertTrue(workflow.contains("npx cap sync ios"))
+        XCTAssertTrue(workflow.contains("npx cap sync android"))
+        XCTAssertTrue(workflow.contains("IOS_PROJECT=App/App.xcodeproj"))
+    }
+
     // MARK: - Scaffolding
 
     func testFlutterGetsFastlaneInBothFoldersAndAWorkflow() throws {

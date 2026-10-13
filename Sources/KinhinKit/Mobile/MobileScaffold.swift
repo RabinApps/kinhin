@@ -10,6 +10,8 @@ public enum MobileFramework: String, CaseIterable, Sendable {
     case flutter
     case reactNative = "react-native"
     case expo
+    /// A web app wrapped by Capacitor (or Ionic) into ios/ and android/ folders that Capacitor generates.
+    case capacitor
 }
 
 /// What a scaffold run did, line by line, for the CLI to print.
@@ -74,6 +76,7 @@ public enum MobileScaffold {
         let fm = FileManager.default
         if fm.fileExists(atPath: directory.appendingPathComponent("pubspec.yaml").path) { return .flutter }
         if packageJSON(in: directory).contains("\"expo\"") { return .expo }
+        if packageJSON(in: directory).contains("\"@capacitor/core\"") { return .capacitor }
         if packageJSON(in: directory).contains("\"react-native\"") { return .reactNative }
         switch (hasIOS(in: directory), hasAndroid(in: directory)) {
         case (true, true): return .native
@@ -90,7 +93,7 @@ public enum MobileScaffold {
         case .android: return ["android"]
         case .expo: return []
         case .auto: return []
-        case .native, .flutter, .reactNative:
+        case .native, .flutter, .reactNative, .capacitor:
             var platforms: [String] = []
             if hasIOS(in: directory) { platforms.append("ios") }
             if hasAndroid(in: directory) { platforms.append("android") }
@@ -342,12 +345,16 @@ public enum MobileScaffold {
             let template = try self.template("github/\(platform).job.yml")
             let prebuild = try prebuildSteps(platform: platform, framework: framework)
             let folder = MobileScaffold.joinPath(appPath, MobileScaffold.platformFolder(platform, in: directory))
+            // Capacitor 8's Android library compiles with Java 21; the other frameworks run on Java 17.
+            let javaVersion = framework == .capacitor ? "21" : "17"
             var out = ""
             for line in template.components(separatedBy: "\n") {
                 if line == "__PREBUILD__" {
                     out += prebuild
                 } else {
-                    out += line.replacingOccurrences(of: "__DIR__", with: folder) + "\n"
+                    out +=
+                        line.replacingOccurrences(of: "__DIR__", with: folder)
+                        .replacingOccurrences(of: "__JAVA_VERSION__", with: javaVersion) + "\n"
                 }
             }
             return out
@@ -357,6 +364,7 @@ public enum MobileScaffold {
             switch framework {
             case .flutter: return withNewline(try steps("github/prebuild/flutter-\(platform).yml"))
             case .reactNative: return withNewline(try steps("github/prebuild/react-native-\(platform).yml"))
+            case .capacitor: return withNewline(try steps("github/prebuild/capacitor-\(platform).yml"))
             default: return ""
             }
         }

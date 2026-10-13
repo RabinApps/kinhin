@@ -1,0 +1,135 @@
+# Android lanes. Uploads go through the Google Play Developer API with a service account.
+# AAB_PATH skips the Gradle build when another step already built the bundle.
+# `build` makes a signed bundle without uploading it; CI and the e2e use it to check signing.
+default_platform(:android)
+
+# Stop before any store call when a required variable is missing, with the name of the variable.
+def require_env!(*names)
+  missing = names.select { |name| ENV[name].to_s.strip.empty? }
+  UI.user_error!("Missing environment variables: #{missing.join(', ')}. See https://kinhin.dev/guide/mobile-fastlane#secrets") unless missing.empty?
+end
+
+# The project folder (the parent of fastlane/). fastlane runs lanes from fastlane/, so build paths from here.
+def project_root
+  File.expand_path("..", __dir__)
+end
+
+# A value the environment set to something other than blank, or nil. Empty repository variables count as unset.
+def presence(value)
+  value.to_s.strip.empty? ? nil : value
+end
+
+# The folder that holds the Android project: android/ in Flutter and React Native, the app root otherwise.
+# Built from this Fastfile's location, because fastlane's working directory is not reliable for relative paths.
+def android_root
+  File.expand_path("..", __dir__)
+end
+
+# The Gradle folder and module to build. ANDROID_GRADLE_DIR is relative to android_root (Kotlin Multiplatform keeps
+# its Gradle build at the top level, for example). ANDROID_GRADLE_MODULE names the module that holds the app (default app).
+def gradle_dir
+  presence(ENV["ANDROID_GRADLE_DIR"]) ? File.expand_path(ENV["ANDROID_GRADLE_DIR"], android_root) : android_root
+end
+
+def gradle_module
+  presence(ENV["ANDROID_GRADLE_MODULE"]) || "app"
+end
+
+# Gradle writes the bundle under the project's build folder. Flutter sets that folder to <flutter root>/build, one
+# level above android/, so a pubspec.yaml there means a Flutter project.
+def default_aab_path
+  flutter_root = File.expand_path("..", android_root)
+  if File.exist?(File.join(flutter_root, "pubspec.yaml"))
+    File.join(flutter_root, "build/app/outputs/bundle/release/app-release.aab")
+  else
+    File.join(gradle_dir, gradle_module, "build/outputs/bundle/release/app-release.aab")
+  end
+end
+
+# The debug app APK and the instrumented test APK that the screenshots lane builds. Flutter's Gradle build writes them
+# under <flutter root>/build, like the bundle above.
+def screengrab_apk_paths
+  flutter_root = File.expand_path("..", android_root)
+  outputs = if File.exist?(File.join(flutter_root, "pubspec.yaml"))
+              File.join(flutter_root, "build/app/outputs")
+            else
+              File.join(android_root, "app/build/outputs")
+            end
+  [File.join(outputs, "apk/debug/app-debug.apk"), File.join(outputs, "apk/androidTest/debug/app-debug-androidTest.apk")]
+end
+
+# Returns the path of a signed release bundle, building it with Gradle unless AAB_PATH is set.
+def build_signed_aab
+  aab = ENV["AAB_PATH"] || default_aab_path
+  unless ENV["AAB_PATH"]
+    require_env!("ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD")
+    UI.user_error!("Keystore not found at #{ENV['ANDROID_KEYSTORE_PATH']}") unless File.exist?(ENV["ANDROID_KEYSTORE_PATH"])
+
+    # The default task builds every module's bundle, which is what a one-module project needs. A named module builds only its own.
+    gradle_options = {
+      task: presence(ENV["ANDROID_GRADLE_MODULE"]) ? ":#{gradle_module}:bundleRelease" : "bundle",
+      build_type: "Release",
+      print_command: false,
+      properties: {
+        "android.injected.signing.store.file" => ENV["ANDROID_KEYSTORE_PATH"],
+        "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["ANDROID_KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["ANDROID_KEY_PASSWORD"]
+      }
+    }
+    gradle_options[:project_dir] = gradle_dir if presence(ENV["ANDROID_GRADLE_DIR"])
+    gradle(gradle_options)
+  end
+  UI.user_error!("No release AAB at #{aab}. Check AAB_PATH or the Gradle output.") unless File.exist?(aab)
+  aab
+end
+
+platform :android do
+  desc "Build a signed release AAB without uploading it"
+  lane :build do
+    aab = build_signed_aab
+    UI.success("Built #{aab}")
+  end
+
+  desc "Build a release AAB and upload it to the Play internal track"
+  lane :beta do
+    require_env!("PLAY_SERVICE_ACCOUNT_JSON")
+    aab = build_signed_aab
+
+    upload_to_play_store(
+      track: "internal",
+      aab: aab,
+      json_key_data: ENV["PLAY_SERVICE_ACCOUNT_JSON"],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Capture localized screenshots with screengrab. UPLOAD_SCREENSHOTS=1 uploads them to Google Play"
+  lane :screenshots do
+    # screengrab runs the instrumented tests but does not build the APKs, so build them first.
+    gradle(task: "assemble", build_type: "Debug", print_command: false)
+    gradle(task: "assembleDebugAndroidTest", print_command: false)
+    app_apk, tests_apk = screengrab_apk_paths
+    screengrab(app_apk_path: app_apk, tests_apk_path: tests_apk)
+
+    metadata = File.join(project_root, "fastlane/metadata/android")
+    UI.user_error!("screengrab wrote no screenshots. Check the instrumented tests and the Screengrabfile.") if Dir.glob(File.join(metadata, "**/*.png")).empty?
+
+    if ENV["UPLOAD_SCREENSHOTS"] == "1"
+      require_env!("PLAY_SERVICE_ACCOUNT_JSON")
+
+      upload_to_play_store(
+        json_key_data: ENV["PLAY_SERVICE_ACCOUNT_JSON"],
+        metadata_path: metadata,
+        skip_upload_apk: true,
+        skip_upload_aab: true,
+        skip_upload_metadata: true,
+        skip_upload_changelogs: true,
+        skip_upload_images: false,
+        skip_upload_screenshots: false
+      )
+    end
+  end
+end

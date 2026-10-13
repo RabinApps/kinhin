@@ -15,6 +15,8 @@ enum MobileTemplates {
         "github/android.job.yml": githubAndroidJobYml,
         "github/header.yml": githubHeaderYml,
         "github/ios.job.yml": githubIosJobYml,
+        "github/prebuild/capacitor-android.yml": githubPrebuildCapacitorAndroidYml,
+        "github/prebuild/capacitor-ios.yml": githubPrebuildCapacitorIosYml,
         "github/prebuild/flutter-android.yml": githubPrebuildFlutterAndroidYml,
         "github/prebuild/flutter-ios.yml": githubPrebuildFlutterIosYml,
         "github/prebuild/react-native-android.yml": githubPrebuildReactNativeAndroidYml,
@@ -296,7 +298,7 @@ enum MobileTemplates {
               - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
                 with:
                   distribution: temurin
-                  java-version: "17"
+                  java-version: "__JAVA_VERSION__"
         __PREBUILD__
               - name: Write upload keystore
                 env:
@@ -408,6 +410,66 @@ enum MobileTemplates {
                 if: always()
                 run: rm -rf "$RUNNER_TEMP/keys"
 
+        """#
+
+    private static let githubPrebuildCapacitorAndroidYml = #"""
+              - name: Node.js
+                uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+                with:
+                  node-version: "22"
+              - name: JavaScript dependencies
+                working-directory: __APP__
+                run: |
+                  if [ -f yarn.lock ] || [ -f pnpm-lock.yaml ]; then
+                    # corepack's default shim directory is often read-only on a runner, so give it a directory the job owns.
+                    shims="${RUNNER_TEMP:-$(mktemp -d)}/corepack-bin"
+                    mkdir -p "$shims"
+                    corepack enable --install-directory "$shims"
+                    echo "$shims" >> "${GITHUB_PATH:-/dev/null}"
+                    export PATH="$shims:$PATH"
+                  fi
+                  if [ -f yarn.lock ]; then yarn install --frozen-lockfile
+                  elif [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile
+                  elif [ -f package-lock.json ]; then npm ci
+                  else npm install
+                  fi
+              - name: Build the web app and copy it into the Android project
+                working-directory: __APP__
+                run: |
+                  npm run build
+                  npx cap sync android
+        """#
+
+    private static let githubPrebuildCapacitorIosYml = #"""
+              - name: Node.js
+                uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+                with:
+                  node-version: "22"
+              - name: JavaScript dependencies
+                working-directory: __APP__
+                run: |
+                  if [ -f yarn.lock ] || [ -f pnpm-lock.yaml ]; then
+                    # corepack's default shim directory is often read-only on a runner, so give it a directory the job owns.
+                    shims="${RUNNER_TEMP:-$(mktemp -d)}/corepack-bin"
+                    mkdir -p "$shims"
+                    corepack enable --install-directory "$shims"
+                    echo "$shims" >> "${GITHUB_PATH:-/dev/null}"
+                    export PATH="$shims:$PATH"
+                  fi
+                  if [ -f yarn.lock ]; then yarn install --frozen-lockfile
+                  elif [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile
+                  elif [ -f package-lock.json ]; then npm ci
+                  else npm install
+                  fi
+              - name: Build the web app and copy it into the iOS project
+                # Capacitor 8 resolves the iOS packages with Swift Package Manager, so there is no Podfile to install.
+                working-directory: __APP__
+                run: |
+                  npm run build
+                  npx cap sync ios
+              - name: Point fastlane at the Capacitor Xcode project
+                # Capacitor keeps its project in ios/App, one level below the fastlane folder (ios/).
+                run: echo "IOS_PROJECT=App/App.xcodeproj" >> "$GITHUB_ENV"
         """#
 
     private static let githubPrebuildFlutterAndroidYml = #"""

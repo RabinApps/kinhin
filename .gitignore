@@ -2,6 +2,9 @@
 .swiftpm/
 .DS_Store
 *.xcodeproj
+# Capacitor generates the iOS project and it is source, not a build output (its folder is ios/App).
+!examples/capacitor_app/ios/App/App.xcodeproj/
+!examples/capacitor_app/ios/App/App.xcodeproj/**
 dist/
 *.dmg
 kinhin-cli-*.zip
