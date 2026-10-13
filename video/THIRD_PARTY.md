@@ -16,5 +16,7 @@ metadata, the distribution's package files and the model card on 2026-10-12; rec
 | First Light Particles by Yoiyami (the music bed) | the image (`/opt/music`, every `bundled` entry of `music/catalog.json`), verified by SHA-256; selected by the kinhin adapter | CC0 1.0 (no credit required; anyone may reuse it) |
 | Supertonic (optional voice engine, not in the image) | `scripts/voice.mjs --setup supertonic` | Code MIT, model OpenRAIL-M; archived upstream |
 
-Videos made by the suite contain the voice (Kokoro), the music (CC0), the fonts as rendered text and your own recordings. The
+Music you find with `kinhin video music search` is not part of the image: it is downloaded into your repository when you add it, from Openverse (mostly Freesound), and keeps the licence its author gave it (recorded in a `.json` file beside the audio). Only CC0 and public-domain tracks are offered unless you ask for CC BY, which comes with its credit line.
+
+Videos made by the suite contain the voice (Kokoro), the music (CC0, or the track you added), the fonts as rendered text and your own recordings. The
 tools themselves are never part of an output. This is a summary, not legal advice.

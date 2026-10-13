@@ -32,6 +32,8 @@ runs jobs directly on the Mac, with no isolation.
   scaler never exceeds what your Mac can handle (`kinhin doctor`). Why: [Why kinhin](docs/why.md).
 - **Toolchains your way** — bake, pin per repo, or install per job ([Toolchains](docs/toolchains.md)).
 - **App, menu bar, or headless daemon** — same engine, same config ([The app](docs/app.md)).
+- **Product videos from a config** — `kinhin video build` makes a narrated launch video of your own product from a file in your repo,
+  with themes, captions and free music search, in a container ([Add videos to your project](docs/videos-for-your-project.md)).
 
 ## Requirements
 
@@ -82,7 +84,7 @@ Prefer a GUI? Launch **kinhin** from Applications; its setup wizard does the sam
 [Why](docs/why.md) · [Install](docs/install.md) · [Security](docs/security.md) · [App](docs/app.md) ·
 [Hardware](docs/hardware.md) · [Scaling](docs/scaling.md) · [Requeue/skip](docs/requeue-skip.md) ·
 [Toolchains](docs/toolchains.md) · [Forges](docs/forges.md) ([API](docs/forges/README.md)) · [Runtimes](docs/runtimes.md) ·
-[Workflow testing](docs/workflow-testing.md) · [Agents & MCP](docs/agents.md) · [Architecture](docs/architecture.md) ·
+[Workflow testing](docs/workflow-testing.md) · [Product videos](docs/videos-for-your-project.md) · [Agents & MCP](docs/agents.md) · [Architecture](docs/architecture.md) ·
 [Troubleshooting](website/guide/troubleshooting.md) · [Roadmap](docs/beta-roadmap.md)
 
 ## Commands

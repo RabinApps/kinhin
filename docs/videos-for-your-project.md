@@ -3,9 +3,14 @@
 Make a narrated launch video, a feature clip or a README GIF for **your own product** from a config file that lives in
 your repository: scenes, a voice-over, music, captions and a theme, built with one command into an MP4, a WebM, a poster
 and a caption file. Everything runs on open-source tools (Motion Canvas, ffmpeg, Kokoro text-to-speech, Playwright), in a
-container, from committed files, with no accounts and no network once the image exists.
+container, with no accounts. Once the video image has been pulled, a build needs no network at all.
 
 [← Back to README](../README.md) · [Video gallery](video-gallery.md) · [Marketing video in CI](ci-video.md)
+
+**On this page:** [What you need](#what-you-need) · [Quick start](#quick-start) · [The project file](#the-project-file) ·
+[Your own theme](#your-own-theme) · [Scene types](#scene-types) · [Adapters: recordings of your product](#adapters-recordings-of-your-product) ·
+[Captions](#captions) · [Music](#music) · [Build and iterate](#build-and-iterate) · [Examples](#examples) ·
+[In CI](#in-ci) · [Keep it honest](#keep-it-honest) · [Troubleshooting](#troubleshooting)
 
 ## What you need
 
@@ -178,35 +183,57 @@ be; the voice can only make it longer.
 | `device` | A screen recording in a MacBook (drawn, no Apple artwork) that tilts and slides in | `clip`, `frame` (`macbook`, `window` or `none`), `speed` |
 | `terminal` | A terminal recording in a window | `clip`, `frame` (`window` or `none`) |
 
-`clip` is a clip of the project's adapter (the committed one in your adapter's `reference/` folder) or a path. An app clip defaults to the laptop frame; a browser or terminal clip defaults to a window. A terminal clip comes in four variants, chosen from the theme's `terminal` mode and the
-format (`demo`, `demo-dark`, `demo-portrait`, `demo-dark-portrait`); the kinhin repository's `video/scripts/record-terminal.sh --all` records them via
-VHS, and a missing variant falls back to the plain one. To add a scene type, add a file in `video/src/scenes/` (copy `statement.tsx`), a line in `video/src/titles.ts`, and the type in
-`video/shared/resolve.mjs`.
+`clip` names a clip of the video's [adapter](#adapters-recordings-of-your-product). An app clip defaults to the laptop frame; a
+browser or terminal clip defaults to a window. The drawn scene types (everything but `device` and `terminal`) need no recording.
 
-## Adapters: your own product
+## Adapters: recordings of your product
 
-An adapter is a directory, `video/adapters/<name>/`, holding everything one product needs: an `adapter.json`, the scripts
-that record its clips, and small committed `reference/` clips so the video builds without recording anything. The pipeline
-only asks an adapter for clips by name. To use yours:
+A **device** or **terminal** scene shows a recording of your product. Recordings live in an *adapter*: a folder,
+`.kinhin/videos/adapters/<name>/`, with an `adapter.yml` that names the clips and a `reference/` folder that holds them. A video
+uses it with `adapter: <name>`. You do not need any recording tools to use clips you already have.
 
-1. Copy `video/adapters/template/` to `video/adapters/<your-product>/` (it builds anywhere: its app clip is a synthetic
-   gradient).
-2. In `adapter.json` list your clips. There are three kinds:
-   - `app`: a `record` script that writes `$VIDEO_RAW_DIR/<clip>.mov` and `<clip>.json`
-     (`{"demoStartsAt": seconds into the file at which the story begins}`); use `screencapture` or anything else that
-     records your product on screen.
-   - `browser`: a scripted browser session of a web product. Give a `scenario` (a JSON of steps, see
-     [Record a web product](#record-a-web-product)), a `serve` command that starts the product (run from the repository root),
-     a `waitUrl`, and a `runner` (`local`, `docker` or `apple`). No Mac or desktop is needed.
-   - `terminal`: a VHS `tape`; `hideFromLine` hides the output from that line down.
+```
+.kinhin/videos/adapters/acme/
+├── adapter.yml          which clips there are (and settings for every video that uses the adapter)
+└── reference/
+    ├── app.mp4          a screen recording of your app
+    └── demo.mp4         a terminal session
+```
 
-   List the tools recording needs under `needs` (`scripts/doctor.sh` checks them).
-3. Put the recorded clips in your adapter's `reference/` folder (`.kinhin/videos/adapters/<name>/reference/<clip>.mp4`, a few
-   hundred KB each, committed) and the build uses them. Recording is the one step that needs tools on the host (a screen
-   recorder, VHS, or Playwright); the recorders live in the `video/` folder of the [kinhin repository](https://github.com/RabinApps/kinhin)
-   (`scripts/record-clip.mjs`, `record-terminal.sh`, `record-web.sh`, `make-reference.sh`), so use a checkout of it for that step.
-4. Point a video at it: `adapter: <name>`, with scenes such as `{type: device, props: {clip: app}}`.
-   The kinhin repository's `video/adapters/template/` is a starting point, and `video/script/template-demo.json` a working example.
+```yaml
+# .kinhin/videos/adapters/acme/adapter.yml
+name: acme
+description: Acme's own recordings.
+captions: { burn: false }       # optional: settings for every video that uses this adapter (captions, music)
+clips:
+  app:  { kind: app }           # a screen recording of the product      -> reference/app.mp4
+  demo: { kind: terminal }      # a terminal session                     -> reference/demo.mp4
+  site: { kind: browser }       # a web page being used                  -> reference/site.mp4
+```
+
+```yaml
+# .kinhin/videos/tour.yml
+name: Acme tour
+adapter: acme
+scenes:
+  - { id: app, type: device,   props: { clip: app },  narration: This is the app. }
+  - { id: cli, type: terminal, props: { clip: demo }, narration: And this is the command line. }
+```
+
+- **Record the clips with anything**: QuickTime or `screencapture` for the app, [VHS](https://github.com/charmbracelet/vhs) for a terminal,
+  a browser recorder for a site. Save each as `reference/<clip>.mp4` (H.264 is fine; a few hundred KB to a few MB each, so they can be committed).
+- **Where the story starts.** An app clip may have a `<clip>.json` beside it, `{"demoStartsAt": 4.5}`: the seconds into the recording at
+  which the interesting part begins, so the scene skips what comes before.
+- **Terminal variants.** A terminal clip may come in four looks, chosen from the theme's `terminal` mode (`light` or `dark`) and the format:
+  `demo.mp4`, `demo-dark.mp4`, `demo-portrait.mp4`, `demo-dark-portrait.mp4`. A missing variant falls back to the plain one.
+- **Settings an adapter can carry.** `captions` and `music` (the same blocks as a video's) apply to every video that uses the adapter, and a
+  video's own settings win. kinhin's adapter, for example, turns burned-in captions off and selects its music.
+- **Claims.** An adapter can hold a `claims.json` next to `adapter.yml` listing what your videos must not say (see [Keep it honest](#keep-it-honest)).
+- **Recording helpers.** The kinhin repository's `video/` folder has recorders (`scripts/record-clip.mjs`, `record-terminal.sh`,
+  `record-web.sh`, `make-reference.sh`) and an `adapters/template/` that records synthetic clips, if you want a scripted, repeatable
+  recording instead of a manual one. They run from a [checkout of the repository](https://github.com/RabinApps/kinhin) because they need
+  host tools; copy the finished clips into `reference/`. Their manifest keys (`record`, `tape`, `scenario`, `serve`, `waitUrl`, `runner`,
+  `hideFromLine`, `needs`) are described in `video/scripts/adapter.mjs`.
 
 ## Record a web product
 
@@ -265,7 +292,7 @@ kinhin video build launch --captions all                 # burn them into every 
 kinhin video build launch --caption-style box            # outline, box, shadow, bold or minimal
 ```
 
-Precedence, later wins: the theme's caption look, the adapter's `captions` block (`adapters/<name>/adapter.json`), the project's,
+Precedence, later wins: the theme's caption look, the adapter's `captions` block (`adapter.yml`), the video's,
 then `--captions`, `--caption-style` (or `VIDEO_CAPTIONS`, `VIDEO_CAPTION_STYLE`). An adapter can turn burned-in
 captions off for every video of its product (kinhin's does); add `"captions": {"burn": true}` to a project (or pass
 `--captions on`) to bring them back. The [gallery](video-gallery.md#captions) shows every style.
@@ -301,8 +328,8 @@ kinhin video music list                         # what each video uses, and whic
 - **Credit.** For a CC BY track `add` writes the credit line into `credit:` and the build saves it to `out/music-credit.txt`;
   put it in your video description.
 - **Your responsibility.** Licenses are as declared by each source. Check the track's page (`preview` prints it) before you
-  publish, and keep the saved `.json` file with it. Whether to commit the downloaded audio (a few MB) is your call; without it the
-  repository still builds only if the file is present.
+  publish, and keep the saved `.json` file with it. Whether to commit the downloaded audio (a few MB) is your call. If you do not,
+  anyone else who builds the video (and CI) must run `kinhin video music add` again, or the build stops with a missing file.
 
 ### The setting
 
@@ -344,6 +371,8 @@ the adapter's committed `reference/` clips. The result is in `.kinhin/videos/out
 
 ### What the build does
 
+For the curious: these are the steps `kinhin video build` runs inside the image.
+
 1. `scripts/voice.mjs` renders each cue of the narration.
 2. `scripts/retime.mjs` makes each scene as long as its speech needs and writes `src/timing.ts`, `out/timeline.json` and
    `out/<slug>.captions.srt`.
@@ -357,30 +386,45 @@ the adapter's committed `reference/` clips. The result is in `.kinhin/videos/out
 ### Faster iteration
 
 A scene is re-rendered only when something that shapes it changed (its type and props, its length, the theme, the
-format, or the scene sources), so a second build after editing one line re-renders one scene (`RENDER_FORCE=1` renders
-everything). `--fast` skips the WebM and encodes quicker.
+format, or the scene sources), so a second build after editing one line re-renders one scene. The render cache is
+`.kinhin/videos/.cache`; delete it to render everything again. `--fast` skips the WebM and encodes quicker.
 
 ## Examples
 
-The kinhin repository's `video/script/examples/` has a dozen finished projects (copy one into `.kinhin/videos/` to start from it), each with a different theme, format, voice and mix of scenes:
+The kinhin repository's [`video/script/examples/`](https://github.com/RabinApps/kinhin/tree/main/video/script/examples) has a dozen finished
+videos (copy a file into `.kinhin/videos/` to start from it), each with a different theme, format, voice and mix of scenes:
 `hello` (the smallest), `scene-tour` (all ten canvas scene types), `product-launch`, `release-notes`, `social-teaser`
 (9:16), `tutorial-chalk`, `architecture-blueprint`, `oss-announcement` (4:5), `changelog-month` (1:1),
-`code-walkthrough` and `kinhin-30s` (kinhin's own adapter, a worked example of one). `video/script/template-demo.json` uses all three clip
-kinds. The [gallery](video-gallery.md) shows each one.
+`code-walkthrough` and `kinhin-30s` (it uses kinhin's own adapter, which is built into the image, as a worked example). `template-demo.json`
+in `video/script/` uses all three clip kinds. The [gallery](video-gallery.md) shows each one.
 
 ## In CI
 
-The same builds can run in GitHub Actions on a release or a pull request, opt-in and with no secrets: see
-[Marketing video in CI](ci-video.md).
+Build on your own fleet with `kinhin video build --on-fleet` ([above](#building-on-your-fleet)). kinhin's own repository also builds
+its videos in GitHub Actions on a release or a pull request, opt-in and with no secrets: see [Marketing video in CI](ci-video.md).
 
 ## Keep it honest
 
-A video is a claim. Say only what your product does today. The suite has a check for that: each adapter can list what is
-planned or unsupported and words you never want said (`adapters/<name>/claims.json`, or a `claims` block in the project),
-and the build fails when a scene says them. Put numbers on screen only when you can
-point at where they come from, and say when they come from one machine.
+A video is a claim. Say only what your product does today. The build has a check for that, and it runs before anything renders.
+Put a `claims.json` in your adapter folder (`.kinhin/videos/adapters/<name>/claims.json`) listing what your videos must not say:
 
-Use music you have the right to use. The catalog ships one CC0 track; a track you add is your responsibility.
+```json
+{
+  "planned": ["Windows", "Azure Pipelines"],
+  "plannedMarkers": ["planned", "roadmap", "coming soon"],
+  "forbidden": ["fastest", "enterprise-grade", "revolutionary"]
+}
+```
+
+- **`planned`**: names on your roadmap that you have not shipped. A sentence may mention one only if it also says it is planned
+  (one of the `plannedMarkers`): "Windows support is planned." passes; "Runs on Windows." fails.
+- **`forbidden`**: words you never want said or shown, such as superlatives you cannot back up.
+- A video can add its own rules with a `claims:` block of the same shape.
+- Everything a viewer can hear or read is checked: narration, timed cues, and every string in a scene's `props`. A failure names
+  the scene and the text, and stops the build before the voice-over starts.
+
+Put numbers on screen only when you can point at where they come from, and say when they come from one machine. Use music you have
+the right to use: the catalog ships one CC0 track, and a track you add is your responsibility.
 
 ## Troubleshooting
 
@@ -395,6 +439,9 @@ Use music you have the right to use. The catalog ships one CC0 track; a track yo
 | `add` refuses a track: `is licensed ..., which kinhin does not put in a video` | Only CC0 and public domain (and CC BY with `--license cc-by`) are accepted. Non-commercial, no-derivatives and share-alike tracks are never added. Pick another result. |
 | `add` says `which video?` or `there is no video` | Name the video with `--video <name>` when the folder has several, or run `kinhin video init` first. `--no-config` only downloads the track. |
 | `did not download the track` | The file is larger than 50 MB, is not mp3, m4a, wav, flac or ogg, is not served over https, or the source link is gone. Try another result; `preview` shows the source page. |
+| `scene "x": no clip "app" in the acme adapter` | The adapter does not have that clip, or its file is missing. Declare the clip in `.kinhin/videos/adapters/<name>/adapter.yml` and put the recording at `reference/<clip>.mp4` (`app.mp4`, `demo.mp4`, `site.mp4`; a terminal clip may also have `-dark`, `-portrait` and `-dark-portrait` variants). |
+| `theme "x": ... is missing` or `... must be a colour` | A theme file in `.kinhin/videos/themes/` is incomplete. Add `extends: midnight` (or another theme) to start from it and write only what you change; colours are `#rrggbb`. The message names every problem at once. |
+| `"Windows" is planned, not shipped` (a claims failure) | A scene mentions something your adapter's `claims.json` lists as planned without saying so, or uses a forbidden word. Reword the line, or say it is planned. |
 | A music file or font is not found | Paths are relative to your repository, which is mounted read-only. Check the path is committed and inside the repository, and the file extension is mp3, m4a, wav, flac or ogg. Fonts go in `.kinhin/videos/fonts/`. |
 | `--on-fleet`: `kinhin-video.yml is not on <branch>` | Run `kinhin video init --workflow`, commit and push the file, then try again. It also needs `gh` signed in (`gh auth login`) and a runner with Docker that matches `--runs-on`. |
 | You built the image yourself with Apple's `container build` and the suite is empty (`Cannot find module '/work/scripts/...'`) | Apple's `container build` before 1.5.0 copies no files from a directory when the build path passes through a symlink, such as `/tmp` or `/var/folders` ([apple/container#2285](https://github.com/apple/container/issues/2285)). Build from an absolute path that is not under a symlink (your home folder, for example), or upgrade `container`. Docker is not affected, and neither is the published image. |

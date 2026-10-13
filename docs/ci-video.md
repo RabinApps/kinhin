@@ -88,9 +88,10 @@ change. See [the tests](making-a-video.md#tests) (kinhin's own guide).
 
 ## Use it for another product
 
-Copy `video/` and `.github/workflows/video.yml` into the other repository, add an [adapter](videos-for-your-project.md#adapters-your-own-product)
-for your product and a project file, set `VIDEO_CI`, and edit `video/ci.json`. The workflow only reads that file; it knows
-nothing about kinhin.
+Do not copy `video.yml`: it builds *kinhin's own* videos from this repository. For your product, keep your videos in `.kinhin/videos/`
+and build them with `kinhin video build` on your Mac, or on your fleet with `kinhin video init --workflow` and `--on-fleet` (see
+[Add videos to your project](videos-for-your-project.md#building-on-your-fleet)). That generated workflow is manual (`workflow_dispatch`)
+and pulls the published video image, so you need no `video/` folder; to build on every release, add a `release:` trigger to it yourself.
 
 ## When something fails
 

@@ -38,7 +38,7 @@ function resolveClip(clip) {
 for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   const length = timeline.scenes[scene.id].length;
   const found = resolveClip(scene.props.clip);
-  if (!found) throw new Error(`scene "${scene.id}": no clip "${scene.props.clip}"${adapter ? ` in the ${adapter.name} adapter (record it, or add it to adapters/${adapter.name}/reference/)` : ' (the project has no adapter; give a path)'}`);
+  if (!found) throw new Error(`scene "${scene.id}": no clip "${scene.props.clip}"${adapter ? ` in the ${adapter.name} adapter (record it, or add it to ${process.env.VIDEO_SOURCE ? '.kinhin/videos/' : ''}adapters/${adapter.name}/reference/)` : ' (the project has no adapter; give a path)'}`);
   const clip = found.file;
   const out = join('out', `${scene.id}.mp4`);
   // An app recording defaults to the laptop; a terminal or a browser session to a window.

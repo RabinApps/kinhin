@@ -1,8 +1,9 @@
 # Video gallery
 
-Every video below is built from a JSON file in `video/script/` with one command, in a container, from committed sources (see
-[Add videos to your project](videos-for-your-project.md)). Each picture is a frame from each scene of the real build. `video/scripts/gallery.mjs`
-rebuilds all of it, and writes a page where you can play the videos.
+Every video below is built from a JSON file in `video/script/` with one command, in a container, from committed sources. Each picture is a
+frame from each scene of the real build. To make one of your own, copy a file into your repository's `.kinhin/videos/` and run
+`kinhin video build <name>` (see [Add videos to your project](videos-for-your-project.md)). `video/scripts/gallery.mjs` rebuilds all of this
+page and writes a page where you can play the videos.
 
 [← Back to README](../README.md) · [Add videos to your project](videos-for-your-project.md) · [Marketing video in CI](ci-video.md)
 

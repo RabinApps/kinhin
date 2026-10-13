@@ -12,7 +12,7 @@ project file, scene types, adapters, captions, music and the `.kinhin/videos/` f
 A video is a list of scenes (see [The project file](videos-for-your-project.md#the-project-file)). Each scene is either a
 **canvas scene** drawn by Motion Canvas (title, statement, queue, parallel, map, outro) or a **clip scene** around a
 recording of your product: its app, a terminal, or a browser session. Everything that is specific to one product lives in an
-[adapter](videos-for-your-project.md#adapters-your-own-product) (`video/adapters/<name>/`); the pipeline never mentions a product. Browser clips need
+[adapter](videos-for-your-project.md#adapters-recordings-of-your-product) (`video/adapters/<name>/` in this repository); the pipeline never mentions a product. Browser clips need
 no Mac, no desktop session and no permission grant, so they are the easy path for anything that runs in a browser (a
 `device` scene with `"frame": "window"` and a clip recorded by `record-web.sh`).
 

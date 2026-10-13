@@ -111,7 +111,7 @@ stand-in for the music library (`MusicLibraryStub`, a small Python server; a deb
 built-in tracks first; that `add` downloads the file with the right SHA-256, writes the provenance `.json`, and sets `music:` in the
 video's YAML while keeping its comments; that a non-reusable license is refused (exit 2) before anything is saved and CC BY needs
 `--license cc-by` and brings its credit; that several videos need `--video` and only that one is edited; that a JSON config is
-not rewritten; and that a rate-limited or unreachable library is exit 4 with the built-in tracks still shown. One test builds a
+not rewritten; that `theme new` writes a starter that extends a built-in theme and the video suite accepts it; and that a rate-limited or unreachable library is exit 4 with the built-in tracks still shown. One test builds a
 real video in a container from a track added with `music add` and checks `music.json` and the finished mix's loudness; it runs
 when `KINHIN_E2E_VIDEO_IMAGE` is set (it is skipped otherwise).
 
