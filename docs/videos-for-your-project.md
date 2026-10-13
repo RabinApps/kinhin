@@ -309,3 +309,18 @@ and the build fails when a scene says them. Put numbers on screen only when you 
 point at where they come from, and say when they come from one machine.
 
 Use music you have the right to use. The catalog ships one CC0 track; a track you add is your responsibility.
+
+## Troubleshooting
+
+| You see | Cause and fix |
+|---|---|
+| `videos build in a container, and neither Apple's container nor Docker is running` | Start one: `container system start` (install with `brew install container`), or open Docker Desktop. `--runtime container` or `--runtime docker` forces one and says why it is not usable. |
+| `no .kinhin/videos/ in <path>` or `no video "x"` | You are in the wrong directory, or the file is missing. `kinhin video list` shows what is found; `kinhin video init x` creates it; `--dir PATH` points at another repository. |
+| `could not get the video image ghcr.io/...` | The first build pulls about a gigabyte. Check the network, and that the image for your kinhin version is published (a development build of kinhin has no published image: pass `--image` or set `KINHIN_VIDEO_IMAGE`). If the package is private, sign in to the registry with `docker login ghcr.io`. |
+| The build starts, then stops with a message from the pipeline | The log above the final line says why: a scene with a missing `id`, an unknown theme (it lists the ones that exist), a clip that is not in the adapter, or a claim your `claims.json` forbids. Fix the config and run it again; unchanged scenes come from the render cache. |
+| `read-only file system` or no space left | The image is several gigabytes and a build needs a few more. Free disk space; Apple's `container` keeps its builder cache and images under your home folder, `docker system prune` frees Docker's. |
+| A music file or font is not found | Paths are relative to your repository, which is mounted read-only. Check the path is committed and inside the repository, and the file extension is mp3, m4a, wav, flac or ogg. Fonts go in `.kinhin/videos/fonts/`. |
+| `--on-fleet`: `kinhin-video.yml is not on <branch>` | Run `kinhin video init --workflow`, commit and push the file, then try again. It also needs `gh` signed in (`gh auth login`) and a runner with Docker that matches `--runs-on`. |
+| You built the image yourself with Apple's `container build` and the suite is empty (`Cannot find module '/work/scripts/...'`) | Apple's `container build` before 1.5.0 copies no files from a directory when the build path passes through a symlink, such as `/tmp` or `/var/folders` ([apple/container#2285](https://github.com/apple/container/issues/2285)). Build from an absolute path that is not under a symlink (your home folder, for example), or upgrade `container`. Docker is not affected, and neither is the published image. |
+
+Still stuck? Run the build again and read the whole log: `kinhin video build` prints the pipeline's own output as it goes, and `kinhin doctor` checks your container runtimes.
