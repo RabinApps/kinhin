@@ -40,6 +40,8 @@ features:
     details: The scaler never exceeds what your Mac can handle. Host CPU, memory, and disk headroom are always reserved, and the budget is partitioned across runtime pools.
   - title: Menu bar or headless
     details: The same engine behind a macOS menu bar app or a LaunchAgent daemon — same config, either way, exactly one fleet.
+  - title: Product videos
+    details: Make a narrated launch video of your own product from a config in your repo — themes, captions, free music search — built in a container. <a href="/guide/videos-for-your-project">Add videos to your project</a>
   - title: One-line install
     details: curl … \| bash from GitHub Releases with sha256 verification, no Gatekeeper dance, and a clean uninstall.
 ---
