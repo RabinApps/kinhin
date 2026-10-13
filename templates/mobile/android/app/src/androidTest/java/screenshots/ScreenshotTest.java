@@ -32,7 +32,9 @@ public class ScreenshotTest {
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         instrumentation.getTargetContext().startActivity(launch);
         instrumentation.waitForIdleSync();
-        SystemClock.sleep(1000); // let the first frame draw before the capture
+        // Flutter lays out its view after the locale switch restarts the activity. A capture taken earlier is blank
+        // (logcat: "FlutterRenderer: Width is zero"), so give the first frame time to draw.
+        SystemClock.sleep(4000);
         Screengrab.screenshot("01-home");
     }
 }
