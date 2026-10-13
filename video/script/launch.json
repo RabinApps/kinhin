@@ -15,13 +15,13 @@
       "id": "intro",
       "type": "title",
       "props": {
-        "title": "The mindful CI.",
+        "title": "Your Mac is your CI.",
         "subtitle": "kinhin",
         "mark": "ring"
       },
       "minLength": 5.4,
       "lead": 1.0,
-      "narration": "Meet kinhin. The mindful CI."
+      "narration": "Meet kinhin. Your Mac is your CI."
     },
     {
       "id": "problem",
@@ -32,8 +32,8 @@
         "caption": "Your queue waits its turn.",
         "caption2": "A self-hosted runner does one job at a time."
       },
-      "minLength": 7.9,
-      "narration": "Self-hosted runners do one job at a time. Jobs queue up, and whatever one job leaves behind, the next one inherits."
+      "minLength": 6,
+      "narration": "One runner, one job at a time. Whatever a job leaves behind, the next one inherits."
     },
     {
       "id": "solution",
@@ -49,7 +49,7 @@
         "done": "Deleted when the job is done."
       },
       "minLength": 4.6,
-      "narration": "kinhin fixes that. Every job gets its own fresh VM or container, deleted when the job is done."
+      "narration": "kinhin fixes that. A fresh VM or container for every job, deleted when it's done."
     },
     {
       "id": "app",
@@ -57,47 +57,24 @@
       "props": {
         "clip": "app",
         "frame": "macbook",
-        "speed": 1.7
+        "speed": 2.1
       },
       "cues": [
         {
           "at": 0.5,
-          "text": "Jobs arrive, and kinhin scales to the queue, within your Mac's limits."
+          "text": "Jobs arrive, and kinhin scales to the queue."
         },
         {
-          "at": 5.3,
+          "at": 4.6,
           "text": "Each job gets its own clean instance."
         },
         {
-          "at": 9.0,
-          "text": "macOS VMs and Linux containers, side by side."
-        },
-        {
-          "at": 14.2,
+          "at": 11.0,
           "text": "When one fails, the next still starts clean."
         },
         {
-          "at": 18.4,
+          "at": 14.6,
           "text": "Every instance is deleted. Nothing lingers."
-        }
-      ]
-    },
-    {
-      "id": "install",
-      "type": "terminal",
-      "props": {
-        "clip": "install",
-        "frame": "window"
-      },
-      "minLength": 11,
-      "cues": [
-        {
-          "at": 0.4,
-          "text": "One line to install."
-        },
-        {
-          "at": 5.0,
-          "text": "Then kinhin doctor checks your Mac."
         }
       ]
     },
@@ -123,6 +100,78 @@
       "narration": "It works with GitHub, GitLab, Gitea and Forgejo, on Tart, apple container or Docker."
     },
     {
+      "id": "turn",
+      "type": "statement",
+      "props": {
+        "text": "And your repo can make the launch video.",
+        "sub": "Same Mac. Same calm."
+      },
+      "minLength": 4.2,
+      "narration": "And your repo can make the launch video."
+    },
+    {
+      "id": "config",
+      "type": "code",
+      "props": {
+        "label": ".kinhin/videos/launch.yml",
+        "lines": [
+          "name: kinhin launch",
+          "theme: paper",
+          "music: first-light-particles",
+          "scenes:",
+          "  - type: title",
+          "    props: { title: \"Your Mac is your CI.\" }",
+          "    narration: Meet kinhin."
+        ],
+        "caption": "One file: your words, a theme, your music."
+      },
+      "minLength": 7,
+      "narration": "Write the story in one file. Your words, a theme, your music."
+    },
+    {
+      "id": "build",
+      "type": "terminal",
+      "props": {
+        "clip": "video-build",
+        "frame": "window"
+      },
+      "minLength": 11,
+      "cues": [
+        {
+          "at": 0.5,
+          "text": "One command builds it, in a container on your Mac."
+        },
+        {
+          "at": 6.0,
+          "text": "The voice, the music and the checks are all included."
+        }
+      ]
+    },
+    {
+      "id": "ship",
+      "type": "steps",
+      "props": {
+        "title": "Edit it. Build it. Ship it.",
+        "steps": [
+          "Edit the file",
+          "Run kinhin video build",
+          "Ship the new cut"
+        ]
+      },
+      "minLength": 6,
+      "narration": "Edit the file, rebuild, ship the new cut."
+    },
+    {
+      "id": "reveal",
+      "type": "statement",
+      "props": {
+        "text": "This video was built that way.",
+        "sub": "kinhin video build launch"
+      },
+      "minLength": 4.4,
+      "narration": "This video was built exactly that way."
+    },
+    {
       "id": "outro",
       "type": "outro",
       "props": {
@@ -135,14 +184,14 @@
           "In beta"
         ]
       },
-      "minLength": 5.8,
+      "minLength": 5,
       "cues": [
         {
           "text": "One job. One VM. Gone when it's done."
         },
         {
-          "text": "kinhin.dev. Free, open source, no telemetry.",
-          "say": "kinhin dot dev. Free, open source, no telemetry."
+          "text": "kinhin.dev. Free and open source.",
+          "say": "kinhin dot dev. Free and open source."
         }
       ]
     }

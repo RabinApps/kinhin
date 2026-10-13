@@ -155,11 +155,11 @@ video/scripts/build.sh --container --project template-demo --theme clean --forma
 
 ### launch
 
-The kinhin launch video: seven scenes, a recorded app, voice-over and music.
+The kinhin launch video: the CI story, then the video suite, ending on the reveal that it was built that way. A recorded app and terminal, voice-over and music.
 
 ![launch: a frame from each scene](assets/video-gallery/launch.jpg)
 
-16:9 · paper theme · 76 s · 7 scenes (title, queue, parallel, device, terminal, map, outro)
+16:9 · paper theme · 90 s · 11 scenes (title, queue, parallel, device, map, statement, code, terminal, steps, statement, outro)
 
 ```bash
 video/scripts/build.sh --container --project launch --theme paper --format 16:9

@@ -17,6 +17,10 @@
       "kind": "terminal",
       "tape": "terminal/install.tape",
       "hideFromLine": 9
+    },
+    "video-build": {
+      "kind": "terminal",
+      "tape": "terminal/video-build.tape"
     }
   },
   "needs": [
