@@ -31,7 +31,7 @@ What was verified, how, and what is still needed before this runs unattended in 
 | Does it work for people without a Mac? | Yes | Builds from committed files only (reference clips in `adapters/*/reference/`); verified in Apple `container` and Docker. |
 | Does it work on x64 (GitHub's hosted runners)? | Built and verified under emulation | The x64 image builds and `examples/hello` verifies (-16.4 LUFS); a real hosted runner has not run it. |
 | Does the workflow file work? | Partly verified | `actionlint` clean; the `plan` job runs under `act` with correct outputs; the planner and workflow policies are unit-tested. The claims, build and publish jobs have not run on GitHub: they need the branch pushed. |
-| Is it in the VM images (Tart runners) or a registry? | No | The suite is self-contained and builds its own image (3.6 GB, about 6 to 10 minutes cold). Nothing is published to a registry and the runner VM images do not include it. |
+| Is it in the VM images (Tart runners) or a registry? | Registry: not yet run | The image is self-contained (the suite is baked in) and `video-image.yml` publishes it to ghcr.io on release tags, but that workflow has not run. The runner VM images do not include it; fleet builds pull it. |
 | Tests | Green | 50 unit tests; the smoke, standard and full e2e tiers pass; `scripts/check.sh --serial` passes. |
 
 Found and fixed during the audit: the Docker CPU flag would have failed on a hosted runner with fewer than four cores; the
@@ -43,8 +43,10 @@ globbed a WebM that `--fast` does not write (stale files in a working tree had h
 
 1. Push the branch and run the workflow by hand on GitHub (`workflow_dispatch`, `VIDEO_CI=true`) to prove the claims, build and
    artifact jobs on a real x64 runner. Check the time and the disk use.
-2. Publish the image to `ghcr.io` (built once per input hash, pulled by each matrix job) so a three-look release does not build it
-   three times. Needs `packages: write` for the job and the registry's visibility chosen by a maintainer.
+2. Publish the image to `ghcr.io`. `.github/workflows/video-image.yml` does it on every `v*` tag (`ghcr.io/rabinapps/kinhin-video:<version>`,
+   `:latest` for stable tags, linux/amd64 and linux/arm64) and the suite is baked into the image, which is what `kinhin video build` pulls. It
+   has not run yet: it needs a tag pushed, and a maintainer must make the package public once. `video.yml` can then pull it instead of
+   building it in each matrix job.
 3. Create the `marketing` environment with required reviewers and set the `VIDEO_CI` variable; leave `ci.json` off until the
    first dispatch run looks right.
 4. Pin the base image by digest and keep the pins fresh (Dependabot or Renovate for the Containerfile, npm and the workflow's

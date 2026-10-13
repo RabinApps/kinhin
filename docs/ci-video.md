@@ -59,6 +59,14 @@ plan ──► claims ──► build (one job per look) ──► publish-relea
 
 A failed video job never blocks a release, a docs deploy or a pull request: nothing depends on it.
 
+## Your own product's videos on your fleet
+
+`kinhin video build <name> --on-fleet` runs a video of *your* repository on a runner kinhin serves, with no `video/` folder:
+`kinhin video init --workflow` writes `.github/workflows/kinhin-video.yml` (pinned actions, read-only token, no secrets), and
+`--on-fleet` dispatches it with `gh`, follows the run and downloads the result. See
+[Building on your fleet](videos-for-your-project.md#building-on-your-fleet). The opt-in `video.yml` described on this page is a
+different thing: it builds *kinhin's* own videos from this repository.
+
 ## Try it without GitHub
 
 The decisions are a script you can run here:

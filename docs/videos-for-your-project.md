@@ -9,26 +9,37 @@ container, from committed files, with no accounts and no network once the image 
 
 ## What you need
 
-- **A container runtime**: Apple's `container` or Docker. Builds run inside the image, so they do not depend on what is
-  installed on your machine, and they run the same on Linux.
-- **The video suite**: the `video/` folder of the [kinhin repository](https://github.com/RabinApps/kinhin). Copy it into
-  your repository (or keep a checkout beside it). It knows nothing about kinhin: everything product-specific lives in your
-  `.kinhin/videos/` folder.
+- **kinhin installed** ([Install & updates](install.md)). The video suite is not part of your repository or of kinhin.app: it
+  ships in a container image that `kinhin video` pulls the first time you build (about a gigabyte: Node, Chromium, ffmpeg,
+  the Kokoro voice model, fonts and the pipeline) and reuses after that.
+- **A container runtime**: Apple's `container` (`brew install container && container system start`) or Docker. `kinhin video`
+  uses Apple's if it is running, else Docker; `--runtime` picks one. Builds run inside the image, so they do not depend on
+  what is installed on your machine.
 - Optional, only to record your own clips: a terminal recorder ([VHS](https://github.com/charmbracelet/vhs)) for terminal
-  clips, and a Mac for app clips. Browser clips need nothing but the container. `video/scripts/doctor.sh` lists what is missing.
+  clips, and a Mac for app clips. Browser clips need nothing but the container.
 
 A video of only title, statement, stats, steps, code and other drawn scenes needs no recording at all.
 
 ## Quick start
 
-Keep the video configs in your repository, in
-a `.kinhin/videos/` folder, one file per video (YAML or JSON, subfolders allowed), and point the build at it:
+```bash
+cd ~/code/acme
+kinhin video init launch      # writes .kinhin/videos/launch.yml (and a .gitignore for the output)
+kinhin video build launch     # builds it; the first run pulls the image
+```
+
+The video lands in `.kinhin/videos/out/` (`launch.mp4`, `.webm`, `-poster.png`, `-hero.gif` and the caption file `launch.srt`). With
+one video in the folder you can leave the name out. `kinhin video list` shows what is there.
+
+Each video is one file in `.kinhin/videos/` (YAML or JSON, subfolders allowed), so one repository can hold several kinds:
+a launch film, a vertical cut, a 30-second teaser, each with its own theme, format, music and captions.
 
 ```
 your-repo/
 └── .kinhin/videos/
-    ├── launch.yml              one video
-    ├── social/vertical.yml     another (name: social/vertical)
+    ├── launch.yml                  one video
+    ├── social/vertical.yml         another (name: social/vertical)
+    ├── fonts/                      your own .ttf/.otf, installed for the build
     └── adapters/acme/adapter.yml   your product's clips, if you have any
 ```
 
@@ -46,14 +57,35 @@ scenes:
     narration: Acme helps your team ship faster.
 ```
 
+Paths in the config, such as a music file, are relative to your repository, which is mounted into the container read-only.
+Only `.kinhin/videos/out` (the videos) and `.kinhin/videos/.cache` (the render cache) are written.
+`.kinhin/videos/` sits beside `.kinhin/config.yml` (kinhin's toolchains file, which rejects keys it does not know); the
+toolchains loader never reads the videos folder.
+
+### The commands
+
+| Command | Does |
+|---|---|
+| `kinhin video init [name]` | Writes a starter `.kinhin/videos/<name>.yml` (default `launch`) and a `.gitignore`. Never overwrites. |
+| `kinhin video list` | Lists the videos (`--json` for scripts). |
+| `kinhin video build [name]` | Builds one. `--theme`, `--format`, `--captions on\|off\|all`, `--caption-style`, `--music <track\|file\|off>` change the look for one build; `--fast` is a quicker preview. |
+
+Other options: `--dir PATH` (a repository other than the current directory), `--runtime container|docker`, and `--image REF`
+(or `KINHIN_VIDEO_IMAGE`) to run a different image, for example one you built yourself from `video/` in the kinhin repository
+(`docker build -t kinhin-video:local video/`). The default image is `ghcr.io/rabinapps/kinhin-video:<your kinhin version>`.
+
+### Building on your fleet
+
+`kinhin video build` runs on the Mac you type it on. To build on a runner kinhin serves instead, add a workflow once and use `--on-fleet`:
+
 ```bash
-video/scripts/build.sh --container --source ~/code/acme --project launch
+kinhin video init --workflow --runs-on self-hosted,linux   # writes .github/workflows/kinhin-video.yml; commit and push it
+kinhin video build launch --on-fleet                       # dispatches it, follows the run, downloads the video
 ```
 
-`--source` mounts your repository read-only into the container; `launch` is `.kinhin/videos/launch.yml` there (your files win over a built-in project of the same name). Paths in the config, such as a music file, are relative to your repository.
-Several files give you several kinds of video: a launch film, a vertical cut, a 30-second teaser, each with its own
-theme, format, music and captions. `.kinhin/videos/` sits beside `.kinhin/config.yml` (kinhin's toolchains file, which rejects keys it does not know);
-kinhin's toolchains loader never reads the videos folder.
+`--on-fleet` uses the GitHub CLI (`gh`, signed in with `gh auth login`) and works for GitHub repositories. The workflow runs the same image, so the runner needs
+Docker and a network that can reach ghcr.io; nothing in the workflow needs a secret. `--ref BRANCH` runs it on another branch.
+The video is downloaded to `.kinhin/videos/out/` as with a local build.
 
 ## The project file
 
@@ -72,14 +104,15 @@ kinhin's toolchains loader never reads the videos folder.
 }
 ```
 
-- **`adapter`**: the product whose clips the scenes use (`video/adapters/<name>/`); optional for videos made only of
-  canvas scenes (`VIDEO_ADAPTER` or `build.sh --adapter` overrides it).
-- **`theme`**: a file in `video/themes/`: `paper` (soft white, the launch look), `clean` (flat, one blue accent),
+- **`adapter`**: the product whose clips the scenes use (your `.kinhin/videos/adapters/<name>/`); optional for videos made only
+  of canvas scenes.
+- **`theme`**: one of the built-in themes: `paper` (soft white, the launch look), `clean` (flat, one blue accent),
   `midnight` (deep navy), `blueprint` (white lines on blue, monospaced), `chalk` (chalk on a green board, handwritten).
-  Copy one to `video/themes/<name>.json` and edit it to make your own: the font (`family`, `weight`), `colors` (`ink`,
-  `muted`, `paper`, `accent`, `card`, `track`, `line`), the `background` gradient, the `device` look (desktop wallpaper,
-  lid, base, window chrome, shadow, and `terminal`: `light` or `dark`, which terminal clip to use) and the `caption` style.
-- **`overrides`**: change a single value of the theme for this project without copying it (merged over the theme).
+  A theme sets the font (`family`, `weight`), `colors` (`ink`, `muted`, `paper`, `accent`, `card`, `track`, `line`), the
+  `background` gradient, the `device` look (desktop wallpaper, lid, base, window chrome, shadow, and `terminal`: `light` or
+  `dark`, which terminal clip to use) and the `caption` style.
+- **`overrides`**: change any of those for this video without a new theme file: `overrides: {font: {family: Georgia}, colors: {accent: "#ff7a59"}}`
+  (merged over the theme). Your own theme *files* are not supported from `.kinhin/videos/` yet; overrides cover a custom look.
 - **Fonts.** Any font installed on the machine works by name. Put your own `.ttf` or `.otf` files in `video/fonts/`: the
   container installs them when a build starts. The built-in themes use Inter, DejaVu Sans Mono and Comic Neue, which the
   image has.
@@ -88,8 +121,8 @@ kinhin's toolchains loader never reads the videos folder.
   vertically, the map becomes a funnel, the laptop and terminal window sit high and the captions go below them.
 - **`pace`**: 0.7 (slower) to 1.6 (faster) scales the voice and the pauses.
 - **Voices.** `kokoro` (default, Apache-2.0 model), `supertonic` (archived upstream; model under OpenRAIL-M) and macOS
-  `say` (Premium voices sound much better). Hear them first with `node video/scripts/voice.mjs --audition`.
-  `VOICE_ENGINE` and `VOICE` override the file for one build.
+  `say` (Premium voices sound much better). In the image only `kokoro` is available (the
+  others need a host tool); its voices include `af_heart` (default), `af_bella`, `am_michael`, `bf_emma` and `bm_george`.
 
 ## Scene types
 
@@ -112,9 +145,8 @@ be; the voice can only make it longer.
 | `device` | A screen recording in a MacBook (drawn, no Apple artwork) that tilts and slides in | `clip`, `frame` (`macbook`, `window` or `none`), `speed` |
 | `terminal` | A terminal recording in a window | `clip`, `frame` (`window` or `none`) |
 
-`clip` is a clip of the project's adapter (your recording in `video/raw/<adapter>/`, else the committed one in the
-adapter's `reference/`) or a path. An app clip defaults to the laptop frame; a browser or terminal clip defaults to a window. A terminal clip comes in four variants, chosen from the theme's `terminal` mode and the
-format (`demo`, `demo-dark`, `demo-portrait`, `demo-dark-portrait`); `scripts/record-terminal.sh --all` records them via
+`clip` is a clip of the project's adapter (the committed one in your adapter's `reference/` folder) or a path. An app clip defaults to the laptop frame; a browser or terminal clip defaults to a window. A terminal clip comes in four variants, chosen from the theme's `terminal` mode and the
+format (`demo`, `demo-dark`, `demo-portrait`, `demo-dark-portrait`); the kinhin repository's `video/scripts/record-terminal.sh --all` records them via
 VHS, and a missing variant falls back to the plain one. To add a scene type, add a file in `video/src/scenes/` (copy `statement.tsx`), a line in `video/src/titles.ts`, and the type in
 `video/shared/resolve.mjs`.
 
@@ -136,13 +168,16 @@ only asks an adapter for clips by name. To use yours:
    - `terminal`: a VHS `tape`; `hideFromLine` hides the output from that line down.
 
    List the tools recording needs under `needs` (`scripts/doctor.sh` checks them).
-3. Record any clip with one command, whatever its kind: `node video/scripts/record-clip.mjs --adapter <name> --clip <clip>`
-   (a browser clip takes `--runner docker`; extra arguments after `--` go to the recorder). Then make the committed copies:
-   `video/scripts/make-reference.sh --adapter <name>`.
-4. Point a project at it: `"adapter": "<name>"`, with scenes such as `{"type": "device", "props": {"clip": "app"}}`.
-   `video/script/template-demo.json` is a working example: `video/scripts/build.sh --project template-demo`.
+3. Put the recorded clips in your adapter's `reference/` folder (`.kinhin/videos/adapters/<name>/reference/<clip>.mp4`, a few
+   hundred KB each, committed) and the build uses them. Recording is the one step that needs tools on the host (a screen
+   recorder, VHS, or Playwright); the recorders live in the `video/` folder of the [kinhin repository](https://github.com/RabinApps/kinhin)
+   (`scripts/record-clip.mjs`, `record-terminal.sh`, `record-web.sh`, `make-reference.sh`), so use a checkout of it for that step.
+4. Point a video at it: `adapter: <name>`, with scenes such as `{type: device, props: {clip: app}}`.
+   The kinhin repository's `video/adapters/template/` is a starting point, and `video/script/template-demo.json` a working example.
 
 ## Record a web product
+
+These recorders run from a checkout of the [kinhin repository](https://github.com/RabinApps/kinhin); copy the finished clip into your adapter's `reference/` folder.
 
 ```bash
 video/scripts/record-web.sh --scenario adapters/kinhin/scenarios/site.json --runner local \
@@ -192,9 +227,9 @@ or from the command line:
 | `sidecar` | `true` or `false` | `true` |
 
 ```bash
-video/scripts/build.sh --captions off                 # a clean picture; the .srt is still written
-video/scripts/build.sh --captions all                 # burn them into every scene
-video/scripts/build.sh --caption-style box            # outline, box, shadow, bold or minimal
+kinhin video build launch --captions off                 # a clean picture; the .srt is still written
+kinhin video build launch --captions all                 # burn them into every scene
+kinhin video build launch --caption-style box            # outline, box, shadow, bold or minimal
 ```
 
 Precedence, later wins: the theme's caption look, the adapter's `captions` block (`adapters/<name>/adapter.json`), the project's,
@@ -224,17 +259,16 @@ own, or `"music": false` for none. To add a catalog track, add an entry to `musi
 ## Build and iterate
 
 ```bash
-video/scripts/build.sh --container --source . --project launch          # your .kinhin/videos/launch.yml
-video/scripts/build.sh --container --source . --project launch --fast   # a preview: quicker encode, no WebM
-video/scripts/build.sh --container --source . --project launch --theme midnight --format 9:16   # another look or frame
-video/scripts/build.sh --container --runtime docker --source . --project launch                 # pick the runtime
+kinhin video build launch                                   # your .kinhin/videos/launch.yml
+kinhin video build launch --fast                            # a preview: quicker encode, no WebM
+kinhin video build launch --theme midnight --format 9:16    # another look or frame, without editing the file
+kinhin video build launch --runtime docker                  # pick the runtime
 ```
 
-The container image (`video/Containerfile`: Playwright's Chromium, ffmpeg with libass, Kokoro and its model, the theme
-fonts, the bundled music) is the canonical build, so the result does not depend on what is installed. Without
-`--container` the same steps run on this machine (see `video/scripts/doctor.sh`). Your clips come from
-`video/raw/<adapter>/` when you have recorded them, else from the adapter's committed `reference/` clips. The result is in
-`video/out/`: `<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt`.
+The container image (Playwright's Chromium, ffmpeg with libass, Kokoro and its model, the theme fonts, the bundled music and
+the pipeline) is the only build, so the result does not depend on what is installed on your machine. Your clips come from
+the adapter's committed `reference/` clips. The result is in `.kinhin/videos/out/`: `<name>.mp4`, `.webm`, `-poster.png`,
+`-hero.gif` and `.srt`.
 
 ### What the build does
 
@@ -252,15 +286,15 @@ fonts, the bundled music) is the canonical build, so the result does not depend 
 
 A scene is re-rendered only when something that shapes it changed (its type and props, its length, the theme, the
 format, or the scene sources), so a second build after editing one line re-renders one scene (`RENDER_FORCE=1` renders
-everything). `build.sh --fast` skips the WebM and encodes quicker, which is what pull-request previews use.
+everything). `--fast` skips the WebM and encodes quicker.
 
 ## Examples
 
-`video/script/examples/` has a dozen finished projects, each with a different theme, format, voice and mix of scenes:
+The kinhin repository's `video/script/examples/` has a dozen finished projects (copy one into `.kinhin/videos/` to start from it), each with a different theme, format, voice and mix of scenes:
 `hello` (the smallest), `scene-tour` (all ten canvas scene types), `product-launch`, `release-notes`, `social-teaser`
 (9:16), `tutorial-chalk`, `architecture-blueprint`, `oss-announcement` (4:5), `changelog-month` (1:1),
 `code-walkthrough` and `kinhin-30s` (kinhin's own adapter, a worked example of one). `video/script/template-demo.json` uses all three clip
-kinds. The [gallery](video-gallery.md) shows each one and how to build it; `video/scripts/gallery.mjs` rebuilds the lot.
+kinds. The [gallery](video-gallery.md) shows each one.
 
 ## In CI
 
@@ -271,7 +305,7 @@ The same builds can run in GitHub Actions on a release or a pull request, opt-in
 
 A video is a claim. Say only what your product does today. The suite has a check for that: each adapter can list what is
 planned or unsupported and words you never want said (`adapters/<name>/claims.json`, or a `claims` block in the project),
-and `video/scripts/video-claims-lint.mjs` fails the build when a scene says them. Put numbers on screen only when you can
+and the build fails when a scene says them. Put numbers on screen only when you can
 point at where they come from, and say when they come from one machine.
 
 Use music you have the right to use. The catalog ships one CC0 track; a track you add is your responsibility.

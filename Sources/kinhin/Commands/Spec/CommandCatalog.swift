@@ -492,6 +492,64 @@ enum CommandCatalog {
 
         // MARK: workflows
         CommandSpec(
+            name: "video",
+            command: .video,
+            group: .other,
+            summary: "Make a narrated video of your product from a config",
+            subcommands: [
+                CommandSpec(
+                    name: "init",
+                    command: .video,
+                    summary: "Create a starter video in .kinhin/videos/",
+                    positionals: "[name]",
+                    flags: [
+                        .value("--dir", "PATH", "The repository (default: the current directory)"),
+                        .bool("--workflow", "Also write .github/workflows/kinhin-video.yml for --on-fleet"),
+                        .value("--runs-on", "LABELS", "Runner labels for that workflow (default: self-hosted,linux)"),
+                        .value("--image", "REF", "The video image the workflow runs"),
+                    ],
+                    details: [
+                        "With --workflow and no name, only the workflow is written. Nothing is overwritten."
+                    ]),
+                CommandSpec(
+                    name: "list",
+                    command: .video,
+                    summary: "List the videos in .kinhin/videos/",
+                    flags: [
+                        .value("--dir", "PATH", "The repository (default: the current directory)"),
+                        jsonFlag,
+                    ]),
+                CommandSpec(
+                    name: "build",
+                    command: .video,
+                    summary: "Build a video from its config",
+                    positionals: "[name]",
+                    flags: [
+                        .value("--dir", "PATH", "The repository (default: the current directory)"),
+                        .value("--theme", "NAME", "paper, clean, midnight, blueprint, chalk or your own"),
+                        .value("--format", "RATIO", "16:9, 9:16, 4:5 or 1:1"),
+                        .value("--captions", "on|off|all", "Burn captions into the picture"),
+                        .value("--caption-style", "STYLE", "outline, box, shadow, bold or minimal"),
+                        .value("--music", "TRACK", "A catalog track, a file in the repository, or off"),
+                        .bool("--fast", "A preview: quicker encode, no WebM"),
+                        .value("--runtime", "container|docker", "Which container runtime builds it"),
+                        .value("--image", "REF", "Use this video image instead of the released one"),
+                        .bool("--on-fleet", "Build on a runner via the repository's workflow (uses gh)"),
+                        .value("--ref", "BRANCH", "Branch to run the workflow on (default: the current one)"),
+                    ],
+                    details: [
+                        "Builds in a container with the video suite from a published image (pulled on first use), "
+                            + "so there is nothing to copy into your repository. The repository is mounted read-only; "
+                            + "the video and the render cache land in .kinhin/videos/out and .kinhin/videos/.cache. "
+                            + "With one video in the folder the name may be left out."
+                    ]),
+            ],
+            defaultSubcommand: "build",
+            details: [
+                "A video is one YAML or JSON file in .kinhin/videos/: scenes, a voice-over, music, captions, a theme."
+            ],
+            docs: "docs/videos-for-your-project.md"),
+        CommandSpec(
             name: "workflow",
             command: .workflow,
             group: .workflows,

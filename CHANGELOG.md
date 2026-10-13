@@ -4,6 +4,13 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Added**
+
+- `kinhin video init | list | build`: make a narrated video of your own product from `.kinhin/videos/*.yml`, with no copy of the
+  video suite. It runs a published container image (Apple `container` or Docker) against your repository; `--on-fleet` builds on a
+  runner through a generated GitHub workflow. Music, captions, themes and formats are config. See
+  [docs/videos-for-your-project.md](docs/videos-for-your-project.md).
+
 **Changed**
 
 - A repo's per-project config now lives at `.kinhin/config.yml`. The older `.kinhin.yml` is still read when the new file is

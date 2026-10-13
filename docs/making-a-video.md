@@ -9,10 +9,10 @@ project file, scene types, adapters, captions, music and the `.kinhin/videos/` f
 
 ## The pieces
 
-A video is a list of scenes (see [Make a video from a config](#make-a-video-from-a-config)). Each scene is either a
+A video is a list of scenes (see [The project file](videos-for-your-project.md#the-project-file)). Each scene is either a
 **canvas scene** drawn by Motion Canvas (title, statement, queue, parallel, map, outro) or a **clip scene** around a
 recording of your product: its app, a terminal, or a browser session. Everything that is specific to one product lives in an
-[adapter](#adapters-your-own-product) (`video/adapters/<name>/`); the pipeline never mentions a product. Browser clips need
+[adapter](videos-for-your-project.md#adapters-your-own-product) (`video/adapters/<name>/`); the pipeline never mentions a product. Browser clips need
 no Mac, no desktop session and no permission grant, so they are the easy path for anything that runs in a browser (a
 `device` scene with `"frame": "window"` and a clip recorded by `record-web.sh`).
 
@@ -94,6 +94,20 @@ video/scripts/build.sh --project examples/kinhin-30s --container   # the 30-seco
 for every kinhin video: burned-in captions are **off** (a clean picture; the `.srt` is still written) and the music is
 **First Light Particles**. A project can override either (`"captions": {"burn": true}`, `"music": false`). How the build
 works, and every setting, is in [Add videos to your project](videos-for-your-project.md#build-and-iterate).
+
+`build.sh` is the developer path: it builds from this working tree, in a container (`--container`) or on this machine. What
+users run is `kinhin video build`, which pulls a published image that has this `video/` folder inside it (`Containerfile`'s
+last layer) and runs `scripts/container-build.sh` against their repository. To try that flow against your working tree:
+
+```bash
+docker build -t kinhin-video:local video/        # or: container build -t kinhin-video:local "$PWD/video"
+cd /path/to/some/repo && kinhin video build launch --image kinhin-video:local
+```
+
+Both runtimes build it. With Apple's `container` use an absolute build path that is not under a symlink (not `/tmp` or `/var/folders`,
+which are symlinks on macOS): before `container` 1.5.0, `container build` silently copies no files from a directory when the context
+path has a symlinked parent ([apple/container#2285](https://github.com/apple/container/issues/2285)), so `COPY . /work` yields an empty
+suite. `scripts/build.sh --container` resolves the path for you. The image is published to `ghcr.io/rabinapps/kinhin-video` by `.github/workflows/video-image.yml` when a `v*` tag is pushed.
 
 The kinhin launch video's music is [First Light Particles](https://opengameart.org/node/182244) by Yoiyami (CC0: no credit
 needed, anyone may reuse it), baked into the image from `video/music/catalog.json`. Use only CC0 tracks in kinhin's own

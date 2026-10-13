@@ -64,7 +64,10 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   if "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1; then
     echo "==> image $IMAGE already built"
   else
-    "$RUNTIME" build -t "$IMAGE" -f Containerfile .
+    # An absolute, symlink-free context path: Apple's `container build` (before 1.5.0) silently drops directories when the
+    # context sits under a symlink such as /tmp or /var/folders (apple/container#2285).
+    CONTEXT="$(pwd -P)"
+    "$RUNTIME" build -t "$IMAGE" -f "$CONTEXT/Containerfile" "$CONTEXT"
   fi
   mkdir -p raw out
   # The image has its own node_modules (Linux binaries), so the sources are copied in at start-up and only the
