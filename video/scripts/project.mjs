@@ -11,7 +11,7 @@
 import {existsSync, readFileSync, readdirSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {parse as parseYaml} from 'yaml';
+import {createRequire} from 'node:module';
 import {SCENE_TYPES, buildThemes, fitScale, isNarrow, resolveCaptions, resolveFormat, resolveMusic, resolveTheme, validateProject} from '../shared/resolve.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -24,11 +24,26 @@ const RESERVED_FOLDERS = new Set(['adapters', 'out', '.cache', 'fonts', 'music',
 export const sourceDir = () => (process.env.VIDEO_SOURCE ? resolve(process.env.VIDEO_SOURCE) : null);
 export const videosDir = () => (sourceDir() ? join(sourceDir(), '.kinhin', 'videos') : null);
 
+// The YAML parser is loaded on first use, so a build or a check that reads only JSON (kinhin's own videos, the CI planner) runs
+// with no packages installed.
+let yamlParse;
+function parseYaml(text, file) {
+  if (!yamlParse) {
+    try {
+      yamlParse = createRequire(import.meta.url)('yaml').parse;
+    } catch (e) {
+      if (e.code !== 'MODULE_NOT_FOUND') throw e;
+      throw new Error(`${file}: reading YAML needs the "yaml" package; run "npm ci" in ${root}`);
+    }
+  }
+  return yamlParse(text);
+}
+
 /** Reads a YAML or JSON config file. */
 export function readConfig(file) {
   const text = readFileSync(file, 'utf8');
   try {
-    return file.endsWith('.json') ? JSON.parse(text) : (parseYaml(text) ?? {});
+    return file.endsWith('.json') ? JSON.parse(text) : (parseYaml(text, file) ?? {});
   } catch (e) {
     throw new Error(`${file}: ${e.message}`);
   }
