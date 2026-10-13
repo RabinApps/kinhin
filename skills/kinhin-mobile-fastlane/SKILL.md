@@ -1,6 +1,6 @@
 ---
 name: kinhin-mobile-fastlane
-description: Set up fastlane store releases (TestFlight, App Store, Google Play) for iOS, Android, Flutter, React Native or Expo projects, and run them from a kinhin runner - `kinhin mobile init` scaffolding, lanes, App Store Connect API keys, match, Play service accounts, the mobile-release workflow, and Expo EAS. Use when the user wants to ship a mobile app, automate TestFlight or Play uploads, or fix a failing fastlane lane.
+description: Set up fastlane store releases (TestFlight, App Store, Google Play) for iOS, Android, Flutter, React Native, Expo, Capacitor, Kotlin Multiplatform or .NET MAUI projects, and run them from a kinhin runner - `kinhin mobile init` scaffolding, lanes, App Store Connect API keys, match, Play service accounts, the mobile-release workflow, and Expo EAS. Use when the user wants to ship a mobile app, automate TestFlight or Play uploads, or fix a failing fastlane lane.
 ---
 
 # Mobile releases with fastlane
@@ -12,7 +12,15 @@ Use this skill to pick the right path and run the steps.
 
 1. **Expo** (`"expo"` in `package.json`): use EAS Build and EAS Submit by default. `kinhin mobile init` writes only
    `eas.json` for Expo. For fastlane, run `npx expo prebuild` first, then scaffold as React Native.
-2. **Flutter, React Native (bare), native iOS or Android**: scaffold with fastlane.
+2. **Capacitor / Ionic** (`"@capacitor/core"` in `package.json`): fastlane goes in `ios/` and `android/`. The CI jobs run
+   `npx cap sync`. Capacitor keeps its Xcode project in `ios/App/`, so the iOS lane needs `IOS_PROJECT=App/App.xcodeproj`
+   (the CI job sets it). Capacitor 8 needs Java 21 for Android.
+3. **Kotlin Multiplatform** (an `iosApp/` folder with the multiplatform Gradle plugin): fastlane goes in `iosApp/` and
+   `androidApp/`. The Android lane needs `ANDROID_GRADLE_DIR=..` and `ANDROID_GRADLE_MODULE=androidApp`.
+4. **.NET MAUI** (a `.csproj` with `<UseMaui>true</UseMaui>`, at the root or one folder down): fastlane goes in `ios/` and
+   `android/`, and the lanes run `dotnet publish` (`MAUI_PROJECT`). The iOS signing identity and profile come from
+   `MAUI_CODESIGN_KEY` and `MAUI_PROVISIONING_PROFILE`.
+5. **Flutter, React Native (bare), native iOS or Android**: scaffold with fastlane.
 
 ## Scaffold
 
@@ -23,7 +31,7 @@ kinhin mobile init --dry-run /path/to/app
 kinhin mobile init /path/to/app
 ```
 
-Override detection with `--framework ios|android|flutter|react-native|expo|native` when the layout is unusual.
+Override detection with `--framework ios|android|flutter|react-native|expo|capacitor|kmp|maui|native` when the layout is unusual.
 
 Then in the project:
 

@@ -158,6 +158,45 @@ Grant the permission before the lane, or wait for the first frame in the instrum
 
 Set `ANDROID_PACKAGE_NAME` in the environment. A shell variable that is not exported does not reach fastlane.
 
+## Capacitor, Kotlin Multiplatform and .NET MAUI
+
+### `invalid source release: 21` when building a Capacitor Android app
+
+Capacitor 8's Android library compiles with Java 21. Run Gradle with a JDK 21 (`JAVA_HOME`). The CI job uses Java 21 for
+Capacitor projects. The other frameworks use Java 17.
+
+### Capacitor iOS build: `App.xcodeproj does not exist`
+
+The Xcode project is in `ios/App/`, one folder below the fastlane folder. Set `IOS_PROJECT=App/App.xcodeproj` for a local
+run. The CI job sets it. If the project is missing from a clone, check the `.gitignore` exception: the repository ignores
+`*.xcodeproj` unless a rule re-includes it (the `examples/capacitor_app` rule shows the form).
+
+### Kotlin Multiplatform: `Unsupported class file major version 70` or `IllegalArgumentException: 26`
+
+Gradle or Kotlin is running on JDK 26. Use JDK 17 (or 21 for newer Gradle). Export `JAVA_HOME` before a plain `./gradlew` run.
+
+### Kotlin Multiplatform: `embedAndSignAppleFrameworkForXcode` fails when run by hand
+
+The task reads the variables Xcode sets (`SRCROOT`, `CONFIGURATION`, `SDK_NAME`, `ARCHS`). Build through `xcodebuild`, which
+runs the Xcode build phase, not Gradle directly.
+
+### Kotlin Multiplatform: `No release AAB at .../androidApp/build/outputs/bundle/release/androidApp-release.aab`
+
+The module's bundle is named after the module, not `app`. The lane builds `:androidApp:bundle` when
+`ANDROID_GRADLE_MODULE=androidApp` is set. Check that the variable is set and that `ANDROID_GRADLE_DIR=..` points at the
+Gradle root.
+
+### .NET MAUI: `CS0118 ... MauiApp` (ambiguous with `Microsoft.Maui.Hosting.MauiApp`)
+
+A project named `MauiApp` collides with the MAUI hosting type. Rename the project, or qualify the type as
+`Microsoft.Maui.Hosting.MauiApp` in the files that use it.
+
+### .NET MAUI: `dotnet publish wrote no IPA` or signing errors on the iOS lane
+
+The publish needs the signing identity and profile that `match` installed. Set `MAUI_CODESIGN_KEY` and
+`MAUI_PROVISIONING_PROFILE` (see [.NET MAUI signing](mobile-credentials.md#net-maui-signing)). The iOS build runs on macOS
+only, and needs the .NET 10 SDK with the MAUI workload.
+
 ## Verification
 
 If something fails that is not listed here, run the same steps locally with `kinhin mobile init --dry-run` and the lanes, and

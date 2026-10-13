@@ -102,7 +102,7 @@ and `scripts/e2e.sh --local` before changing forge registration, runtimes, the e
 
 ### Mobile release tooling (scripts/mobile-e2e.sh)
 
-`kinhin mobile init` scaffolds fastlane into an iOS, Android, Flutter, React Native or Expo project. Its Swift code lives in
+`kinhin mobile init` scaffolds fastlane into an iOS, Android, Flutter, React Native, Expo, Capacitor, Kotlin Multiplatform or .NET MAUI project. Its Swift code lives in
 `Sources/KinhinKit/Mobile/`, and its templates are embedded there. After any change under `templates/mobile/`, run
 `python3 scripts/mobile-templates-embed.py` and commit the regenerated `MobileTemplates.swift`; `MobileScaffoldTests` fails
 if the two drift. `swift test` covers the scaffolding.

@@ -4,7 +4,7 @@ This is opt-in. kinhin's runners, configuration and commands work exactly as bef
 in a project. Running it only adds files to that project: fastlane lanes, a `Gemfile`, and a CI workflow. kinhin's own
 config is not read or changed by it.
 
-Scaffold fastlane into an iOS, Android, Flutter, React Native, Expo or Capacitor project, and run store uploads from a kinhin
+Scaffold fastlane into an iOS, Android, Flutter, React Native, Expo, Capacitor, Kotlin Multiplatform or .NET MAUI project, and run store uploads from a kinhin
 runner. `kinhin mobile init` writes the lanes, a pinned Gemfile and a manual release workflow. Nothing is uploaded until you
 trigger the workflow.
 
@@ -51,11 +51,11 @@ cd ../android && bundle exec fastlane lanes
 
 | Platform | Lane | What it does |
 | --- | --- | --- |
-| iOS | `beta` | `match` (readonly) → `build_app` (App Store export) → `upload_to_testflight` |
+| iOS | `beta` | `match` (readonly) → `build_app` (App Store export; `IPA_PATH` or `dotnet publish` for MAUI replaces it) → `upload_to_testflight` |
 | iOS | `release` | `upload_to_app_store` with metadata and screenshots skipped; not submitted for review |
 | iOS | `screenshots` | `snapshot` (UI tests on a simulator) → optional `frameit` (`FRAME_SCREENSHOTS=1`) → optional upload (`UPLOAD_SCREENSHOTS=1`). See [store screenshots](mobile-screenshots.md). |
 | Android | `screenshots` | `screengrab` (instrumented tests on an emulator) → optional upload (`UPLOAD_SCREENSHOTS=1`). See [store screenshots](mobile-screenshots.md). |
-| Android | `beta` | `gradle` builds a release AAB (or uses `AAB_PATH` if another step built it) → `upload_to_play_store` to the internal track |
+| Android | `beta` | `gradle` builds a release AAB (or uses `AAB_PATH`; `dotnet publish` for MAUI) → `upload_to_play_store` to the internal track |
 
 The templates use the documented fastlane interfaces: `app_store_connect_api_key` with `match`, `pilot` and `deliver`
 with API key auth, and `supply` with a service account JSON. See the sources at the end.
@@ -72,6 +72,21 @@ Nothing secret is committed. Create these as repository secrets, and the workflo
 | `PLAY_SERVICE_ACCOUNT_JSON` | Google Play Developer API (`supply`) |
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | Upload keystore, passed to Gradle as `android.injected.signing.*` |
 | `ANDROID_PACKAGE_NAME` | Play package name |
+| `MAUI_CODESIGN_KEY`, `MAUI_PROVISIONING_PROFILE` (variables, not secrets) | .NET MAUI iOS signing: the identity and profile name that `match` installed. See [.NET MAUI](#net-maui). |
+
+## Lane environment variables
+
+The lanes read these from the environment. The CI jobs set them; set them yourself for a local run.
+
+| Variable | Lane | Meaning |
+| --- | --- | --- |
+| `IOS_PROJECT`, `IOS_WORKSPACE` | iOS | Xcode project or workspace, when it is not at the default place. Passed to `build_app` and `snapshot`. |
+| `IPA_PATH` | iOS | An IPA that another step already built and signed. The lane skips `build_app` and uploads it. |
+| `IPA_MAX_AGE_HOURS` | iOS | How old `IPA_PATH` may be (default 24). An older IPA is refused. |
+| `MAUI_PROJECT` | iOS, Android | The .NET MAUI `.csproj`, relative to the app folder. The lane runs `dotnet publish` instead of Gradle or `build_app`. |
+| `ANDROID_GRADLE_DIR` | Android | The Gradle root, relative to the Android folder (Kotlin Multiplatform: `..`). |
+| `ANDROID_GRADLE_MODULE` | Android | The module that holds the app (default `app`). Kotlin Multiplatform: `androidApp`. |
+| `AAB_PATH` | Android | A bundle that another step already built. The lane skips Gradle. |
 
 Create the App Store Connect API key once: the Account Holder requests API access under **Integrations**, then an Account
 Holder or Admin creates a team key. You can download the `.p8` once only. Team keys cover all apps and cannot be limited per app.
@@ -124,12 +139,18 @@ Capacitor project that lives in a kinhin repository needs an exception in its `.
 
 ## Kotlin Multiplatform
 
+Detected by an `iosApp/` folder, Gradle settings, and the multiplatform plugin in a build file (the root or `shared/`).
 The Android module is `androidApp` under a Gradle root one folder above `androidApp/`. The CI jobs set
 `ANDROID_GRADLE_DIR=..` and `ANDROID_GRADLE_MODULE=androidApp`, so the lanes build `:androidApp:bundle`. For a local run, set
 them yourself. The iOS build runs the Xcode build phase, which calls `./gradlew :shared:embedAndSignAppleFrameworkForXcode`.
 Run Gradle with JDK 17 (JDK 26 fails with Kotlin), and export `JAVA_HOME` before a plain `./gradlew` run.
 
 ## .NET MAUI
+
+Detected by a `.csproj` with `<UseMaui>true</UseMaui>` at the root or one folder down. The iOS build needs macOS and the
+.NET 10 SDK with the MAUI workload (`dotnet workload install maui`). The CI job installs the SDK with `actions/setup-dotnet`,
+but the Linux catalog entry still pins the apt `dotnet-sdk-8.0`, which cannot build MAUI for .NET 10. MAUI's iOS build runs
+on macOS only.
 
 fastlane signs nothing for MAUI. The lanes call `dotnet publish` with `MAUI_PROJECT` set to the `.csproj` (the CI jobs set it).
 The iOS lane runs after `match`, so it can sign with the certificate match installed. Set `MAUI_CODESIGN_KEY` (the signing
@@ -178,6 +199,9 @@ most common ones:
 | `ASC_KEY_FILEPATH does not exist` | fastlane | The `.p8` was not written. Check the "Write App Store Connect API key" step. |
 | `Keystore not found at ...` | fastlane | Check `ANDROID_KEYSTORE_BASE64` and the "Write upload keystore" step. |
 | `No release AAB at ...` | fastlane | Gradle did not produce the bundle. Check `AAB_PATH` and the Gradle output. |
+| `No IPA at ...`, `IPA at ... is older than N hours` | fastlane | `IPA_PATH` points at a missing or stale IPA. Rebuild it, or raise `IPA_MAX_AGE_HOURS`. |
+| `dotnet publish wrote no IPA` / `no AAB` | fastlane | The MAUI build produced no artifact. Read the `dotnet publish` output above it. |
+| `Cannot locate tasks that match ':androidApp:bundleRelease'` | fastlane | Kotlin Multiplatform: the Gradle task name is set by the lane. Check `ANDROID_GRADLE_MODULE`. |
 
 The `MobileScaffoldTests` Swift tests cover the scaffolding logic. They run in `swift test`, which CI and `scripts/check.sh` both run.
 

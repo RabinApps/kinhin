@@ -10,6 +10,11 @@
 - `kinhin mobile init` scaffolds fastlane release setup for iOS, Android, Flutter, React Native and
   native projects with lanes, a pinned Gemfile and a manual `mobile-release` workflow for `kinhin-xcode`. Expo gets EAS
   config. Opt-in: nothing changes for projects that do not run it. See [docs/mobile-fastlane.md](docs/mobile-fastlane.md).
+- `kinhin mobile init` also scaffolds Capacitor and Ionic (`ios/` and `android/`, with `cap sync` in the CI jobs), Kotlin
+  Multiplatform (`iosApp/` and `androidApp/`, with the shared framework built by the Xcode build phase), and .NET MAUI
+  (`dotnet publish` for the IPA and AAB, signed in the lanes). The runner toolchain probes detect MAUI and KMP.
+- The fastlane lanes accept `IPA_PATH` (a prebuilt IPA, refused when older than `IPA_MAX_AGE_HOURS`), `IOS_PROJECT` and
+  `IOS_WORKSPACE`, and `ANDROID_GRADLE_DIR` and `ANDROID_GRADLE_MODULE`. Projects that do not set them are unchanged.
 
 **Changed**
 

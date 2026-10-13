@@ -133,7 +133,7 @@ refuses to replace an existing file unless you add `--force`.
   `.go-version`, `.java-version`, `.swift-version`.
 - **Manifests and lockfiles:** `package.json` (`engines`, `packageManager`, `devDependencies`), npm/pnpm/yarn/bun
   lockfiles, `go.mod`, `Cargo.toml`, `rust-toolchain`, `pyproject.toml`, `requirements.txt`, `uv.lock`, `Gemfile`,
-  fastlane, `pubspec.yaml`, `Package.swift`, Gradle and Maven files, `composer.json`, `.csproj`, `global.json`,
+  fastlane, `pubspec.yaml`, `Package.swift`, Gradle and Maven files, `composer.json`, `.csproj` (also one folder down when it sets `UseMaui`), `global.json`,
   `mix.exs`, `deno.json`, `Dockerfile`, `CMakeLists.txt`, `Justfile`, `Taskfile`, `*.tf`, `Chart.yaml`, Expo and React
   Native projects, `vercel.json`, `wrangler.toml`.
 - **GitHub Actions:** `.github/workflows/*` `setup-*` actions and known CLIs called in `run:` lines.

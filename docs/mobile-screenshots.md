@@ -270,6 +270,15 @@ Set `UPLOAD_SCREENSHOTS=1` to upload. Upload is off by default, and the release 
 The upload settings are checked against fastlane 2.241.0 by the e2e. Nothing in this repository calls the stores; you run the
 upload yourself, with your own credentials. See [credentials](mobile-credentials.md).
 
+## Other frameworks
+
+- **Capacitor and Ionic:** the screenshot files are scaffolded under `ios/UITests/` and `android/app/src/androidTest/`, but the
+  Xcode UI test target (`App`'s UI tests in `ios/App/App.xcodeproj`) and the Gradle test dependencies are added by hand, as
+  for React Native and Flutter.
+- **Kotlin Multiplatform:** the UI test target goes in `iosApp/` (`iosApp/UITests/`), and the instrumented tests go in
+  `androidApp/src/androidTest/`. The Android module is `androidApp`, not `app`, so the paths have no `app/` prefix.
+- **.NET MAUI:** no screenshot files. MAUI does not generate UI test projects, so this stays out of the scaffold.
+
 ## What is verified
 
 - **iOS capture:** `fastlane screenshots` ran the UI test on an iPhone 17e simulator, wrote `fastlane/screenshots/en-US/iPhone 17e-01-home.png`,

@@ -1,6 +1,6 @@
 # Example apps for the fastlane integration
 
-Five small, real apps, one per supported project shape. Use them to try `kinhin mobile init` and the fastlane
+Eight small, real apps, one per supported project shape. Use them to try `kinhin mobile init` and the fastlane
 lanes without touching a production project.
 
 | App | Shape | Created with | Lanes live in |
@@ -10,6 +10,9 @@ lanes without touching a production project.
 | `expo_app` | Expo | `create-expo-app --template blank` | `eas.json` only (EAS is the default) |
 | `ios_native_app` | Native iOS (SwiftUI) | `project.yml` with XcodeGen | `fastlane/` at the project root |
 | `android_native_app` | Native Android (Kotlin) | hand-written Gradle project | `fastlane/` at the project root |
+| `capacitor_app` | Capacitor (web app in a native shell) | `npm install @capacitor/*` and `npx cap add ios android` | `ios/fastlane/`, `android/fastlane/` |
+| `kmp_app` | Kotlin Multiplatform (shared module, androidApp, iosApp) | hand-written Gradle project and XcodeGen for `iosApp` | `iosApp/fastlane/`, `androidApp/fastlane/` |
+| `maui_app` | .NET MAUI (one C# project) | `dotnet new maui` | `ios/fastlane/`, `android/fastlane/` |
 
 ## Try it
 
@@ -26,7 +29,7 @@ bundle install
 bundle exec fastlane lanes
 ```
 
-For Flutter and React Native, run this from `ios/` or `android/`. For the native apps, run it from the app folder.
+For Flutter, React Native, Capacitor and MAUI, run this from `ios/` or `android/`. For the native apps, run it from the app folder. For Kotlin Multiplatform, run it from `iosApp/` or `androidApp/`.
 
 ## What was verified
 

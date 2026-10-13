@@ -149,6 +149,18 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 | 10.6 | Apple role that can upload builds with a team key | Open | Not stated by Apple's API page |
 | 10.7 | Play permission a service account needs for test-track uploads | Open | Google lists the permission but does not say which one a service account needs |
 
+## 10a. Capacitor, Kotlin Multiplatform and .NET MAUI
+
+| # | Check | Status | How |
+| --- | --- | --- | --- |
+| 10a.1 | Capacitor, KMP and MAUI detection, and their fastlane folders | Done | `MobileScaffoldTests` |
+| 10a.2 | Capacitor detected before React Native; KMP detected before native | Done | `MobileScaffoldTests` |
+| 10a.3 | `capacitor_app` builds for iOS (simulator) and Android (JDK 21) | Done | `mobile-e2e --with-builds` |
+| 10a.4 | `kmp_app` builds Android and the iOS simulator through Xcode's build phase | Done | `mobile-e2e --with-builds` |
+| 10a.5 | `maui_app` builds for Android and the iOS simulator, and `dotnet publish` makes a signed AAB | Done | `mobile-e2e --with-builds` |
+| 10a.6 | A MAUI device IPA with distribution signing | Not verified | No distribution certificate on this Mac |
+| 10a.7 | Runner probes detect MAUI in a subfolder and KMP's module Gradle files | Done | `ManifestProbeTests` |
+
 ## 11. Screenshots (snapshot, screengrab, frameit)
 
 | # | Check | Status | How |

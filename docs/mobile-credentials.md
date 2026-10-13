@@ -88,6 +88,19 @@ keytool -genkeypair -v -keystore upload.keystore -alias upload -keyalg RSA -keys
 Back up the keystore and its passwords. If you lose the upload key, Google says you are not locked out. Request a reset in
 Play Console, in the **Upload key certificate** section, after exporting the new key's certificate in PEM format.
 
+## .NET MAUI signing
+
+The iOS lane runs `dotnet publish` after `match`, so the certificate and profile must be in the keychain first. Use the
+identity and profile that `match` installed. Set them as repository variables (not secrets; they are not sensitive):
+
+| Variable | Value |
+| --- | --- |
+| `MAUI_CODESIGN_KEY` | The signing identity, for example `Apple Distribution: Your Name (ABCDE12345)` |
+| `MAUI_PROVISIONING_PROFILE` | The provisioning profile name that `match` installed, for example `match AppStore com.example.app` |
+
+The Android lane signs the AAB with the same upload keystore as the Gradle projects (`ANDROID_KEYSTORE_BASE64` and the
+other Android secrets above). Nothing else changes for MAUI.
+
 ## Checking a secret before a run
 
 A lane names the missing variables and stops before any store call. For example, `fastlane ios beta` without
