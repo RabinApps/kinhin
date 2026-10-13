@@ -4,7 +4,7 @@
 # Keep this step list in sync with .github/workflows/ci.yml:
 #   test job     : swift format lint --strict -r Sources Tests
 #                  swift build -c release --product kinhin-app --product kinhin
-#                  swift test --parallel
+#                  swift test --build-system swiftbuild --parallel
 #   docs job     : bash scripts/changelog.sh check    (GitHub-hosted ubuntu runner)
 #                  bash scripts/docs-lint.sh
 #                  bash scripts/docs-sync.sh --check
@@ -48,15 +48,15 @@ stage() {
 }
 
 stage "swift build"
-swift build
+swift build --build-system swiftbuild
 
 if [[ $run_test -eq 1 ]]; then
     if [[ $parallel -eq 1 ]]; then
         stage "swift test --parallel"
-        swift test --parallel
+        swift test --build-system swiftbuild --parallel
     else
         stage "swift test (serial)"
-        swift test
+        swift test --build-system swiftbuild
     fi
 else
     stage "swift test (skipped: --fast)"

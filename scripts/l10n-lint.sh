@@ -22,7 +22,7 @@ case "${1:-}" in
     "") ;;
     --sync)
         echo "==> syncing $CATALOG with the sources"
-        KINHIN_UPDATE_L10N=1 swift test --filter L10nCatalogTests/testCatalogMatchesSources >/dev/null
+        KINHIN_UPDATE_L10N=1 swift test --build-system swiftbuild --filter L10nCatalogTests/testCatalogMatchesSources >/dev/null
         ;;
     *)
         echo "usage: $0 [--sync]" >&2
@@ -33,5 +33,5 @@ esac
 # Cheap syntax gate first: a broken catalog would otherwise fail the build with a less helpful message.
 plutil -convert xml1 -o /dev/null "$CATALOG"
 
-swift test --filter L10nCatalogTests
+swift test --build-system swiftbuild --filter L10nCatalogTests
 echo "l10n lint: ok"
