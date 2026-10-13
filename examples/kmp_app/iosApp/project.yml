@@ -24,6 +24,9 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         TARGETED_DEVICE_FAMILY: "1,2"
         DEVELOPMENT_TEAM: ""
+    scheme:
+      testTargets:
+        - iosAppUITests
     preBuildScripts:
       - name: Build the Kotlin shared framework
         basedOnDependencyAnalysis: false
@@ -39,7 +42,7 @@ targets:
     type: bundle.ui-testing
     platform: iOS
     sources:
-      - iosAppUITests
+      - UITests
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.kmpapp.uitests
@@ -47,6 +50,3 @@ targets:
         TEST_TARGET_NAME: iosApp
     dependencies:
       - target: iosApp
-    scheme:
-      testTargets:
-        - iosAppUITests

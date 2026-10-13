@@ -7,9 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0449B6D8FD0BE488CB5037E2 /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9029E4D3978BC238A25D265D /* SnapshotHelper.swift */; };
 		307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668CECA83ACC03A83C85A623 /* iOSApp.swift */; };
-		6C345E417313DC698C90E78B /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 275A933FCFEF5ECC37ADB21D /* SnapshotHelper.swift */; };
-		D3A9A3942D44E7F295B64FF9 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD914D50830F8CEAB06C2C5B /* ScreenshotTests.swift */; };
+		FF3AFB21948AFC2AC8849E0E /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0136B950C98C14F3A942AE91 /* ScreenshotTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -23,11 +23,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		275A933FCFEF5ECC37ADB21D /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
+		0136B950C98C14F3A942AE91 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
 		323906AFB18147ABEDEBDB38 /* iosAppUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = iosAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		668CECA83ACC03A83C85A623 /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		86038AE1032E284E79B32AD6 /* iosApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		FD914D50830F8CEAB06C2C5B /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
+		9029E4D3978BC238A25D265D /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -43,7 +43,7 @@
 			isa = PBXGroup;
 			children = (
 				1DB4B685CAEE8BEFEBBAEF94 /* iosApp */,
-				FC16215C5E8EEAF655CB992F /* iosAppUITests */,
+				F13ED58769885D2F4FFF934C /* UITests */,
 				94C98B8B3A2BFC1966447269 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -57,13 +57,13 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		FC16215C5E8EEAF655CB992F /* iosAppUITests */ = {
+		F13ED58769885D2F4FFF934C /* UITests */ = {
 			isa = PBXGroup;
 			children = (
-				FD914D50830F8CEAB06C2C5B /* ScreenshotTests.swift */,
-				275A933FCFEF5ECC37ADB21D /* SnapshotHelper.swift */,
+				0136B950C98C14F3A942AE91 /* ScreenshotTests.swift */,
+				9029E4D3978BC238A25D265D /* SnapshotHelper.swift */,
 			);
-			path = iosAppUITests;
+			path = UITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -171,8 +171,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D3A9A3942D44E7F295B64FF9 /* ScreenshotTests.swift in Sources */,
-				6C345E417313DC698C90E78B /* SnapshotHelper.swift in Sources */,
+				FF3AFB21948AFC2AC8849E0E /* ScreenshotTests.swift in Sources */,
+				0449B6D8FD0BE488CB5037E2 /* SnapshotHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
