@@ -26,8 +26,8 @@
       "type": "device",
       "props": {
         "screens": [
-          "screens/mobile/en-US/iPhone 17e-01-home.png",
-          "screens/mobile/fr-FR/iPhone 17e-01-home.png"
+          "screens/mobile/{platform}/en-US.png",
+          "screens/mobile/{platform}/fr-FR.png"
         ],
         "hold": 3.5
       },
@@ -40,7 +40,12 @@
       "props": {
         "line": "Your Mac is your CI. Your repo is your video studio, and your screenshot studio.",
         "url": "kinhin.dev",
-        "facts": ["Free", "Apache-2.0", "No telemetry", "In beta"]
+        "facts": [
+          "Free",
+          "Apache-2.0",
+          "No telemetry",
+          "In beta"
+        ]
       },
       "narration": "Your Mac is your CI. Your repo is your video studio, and your screenshot studio."
     }

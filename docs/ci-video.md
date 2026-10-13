@@ -72,8 +72,9 @@ the plan adds one job before the build:
 - **`build`** (Linux, in the container) downloads `mobile-screens` into `video/screens/mobile/` for that look only, then
   renders. The cut's `device` scenes point at those files with `props.screens` (see [making a video](making-a-video.md#screenshots-as-a-scene)).
 
-Android screenshots are not in the CI capture yet: the emulator image on the pool is not verified. The iOS capture is verified
-locally.
+There is one capture job per platform a look needs (`ios` and `android`), and each look picks its platform in `video/ci.json`.
+The Android capture boots the pool's emulator (`KINHIN_AVD`, default `Pixel_9`) and needs its system image on the runner; the
+iOS capture is verified locally, the Android one is not yet verified on the pool.
 
 ## Your own product's videos on your fleet
 

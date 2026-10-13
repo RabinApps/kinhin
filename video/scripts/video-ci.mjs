@@ -58,8 +58,8 @@ export function validateConfig(config, {themes = [], projects = []} = {}) {
   return problems;
 }
 
-const slugOf = (e) => [e.project.replace(/\//g, '-'), e.theme, e.format?.replace(':', 'x')].filter(Boolean).join('-');
-const expand = (list) => list.flatMap((entry) => (entry.looks ?? [{}]).map((look) => ({project: entry.project, theme: look.theme ?? '', format: look.format ?? '', adapter: look.adapter ?? entry.adapter ?? '', name: slugOf({project: entry.project, ...look}), screens: !!look.screens})));
+const slugOf = (e) => [e.project.replace(/\//g, '-'), e.platform, e.theme, e.format?.replace(':', 'x')].filter(Boolean).join('-');
+const expand = (list) => list.flatMap((entry) => (entry.looks ?? [{}]).map((look) => ({project: entry.project, theme: look.theme ?? '', format: look.format ?? '', adapter: look.adapter ?? entry.adapter ?? '', platform: look.platform ?? '', name: slugOf({project: entry.project, platform: look.platform, ...look}), screens: !!look.screens})));
 
 /**
  * Decides what a workflow run does. `event` is the parsed GitHub event payload. Returns {enabled, reason, matrix}.
@@ -136,7 +136,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     setOutput('publish_release', String(!!result.publish?.release));
     setOutput('publish_site', String(!!result.publish?.site));
     // A look with `screens` needs the mobile-capture job's PNGs (the workflow captures them before the build).
-    setOutput('screens', String(result.matrix.some((m) => m.screens)));
+    const screenPlatforms = [...new Set(result.matrix.filter((m) => m.screens).map((m) => m.platform || 'ios'))];
+    setOutput('screens_platforms', {include: screenPlatforms.map((platform) => ({platform}))});
   } else if (cmd === 'verify' || cmd === 'summary') {
     if (!arg) { console.error(`usage: video-ci.mjs ${cmd} <out dir>`); process.exit(2); }
     const results = verifyDir(arg, config);

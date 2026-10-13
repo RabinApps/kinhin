@@ -47,6 +47,10 @@ and the scene becomes a cross-fading slideshow of its own length. Each image is 
 }
 ```
 
+`{platform}` in a path becomes the platform of the look (`--platform ios|android`, default ios), so one project can show either
+platform's screenshots. The screens sit in a phone frame drawn by ffmpeg (`props.frame`: `iphone`, `android` or `none`; it
+follows the platform by default). The frame has no device artwork, so it is safe to publish.
+
 It is opt-in: a scene without `props.screens` is built as before. A project that uses screenshots does not need an adapter
 for that scene. The slideshow code is `video/scripts/slideshow.mjs`, called from `video/scripts/frames.mjs`.
 

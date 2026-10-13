@@ -156,7 +156,7 @@ test('video-image.yml tests every change, publishes only from trusted refs, pinn
 });
 
 test('video.yml uses the published image only for a release, validates the tag first, and otherwise builds from source', () => {
-  const step = yml.slice(yml.indexOf('- name: Use the released image'), yml.indexOf('- name: Build'));
+  const step = yml.slice(yml.indexOf('- name: Use the released image'), yml.indexOf('- name: Store screenshots for this look'));
   assert.match(step, /if: github\.event_name == 'workflow_run'/, 'only release builds');
   assert.match(step, /RELEASE_TAG: \$\{\{ github\.event\.workflow_run\.head_branch \}\}/, 'the tag comes in through the environment');
   assert.doesNotMatch(step.replace(/RELEASE_TAG: \$\{\{[^}]*\}\}/, ''), /\$\{\{/, 'nothing else is inlined into the script');

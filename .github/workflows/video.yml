@@ -51,7 +51,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       publish_release: ${{ steps.plan.outputs.publish_release }}
       publish_site: ${{ steps.plan.outputs.publish_site }}
-      screens: ${{ steps.plan.outputs.screens }}
+      screens_platforms: ${{ steps.plan.outputs.screens_platforms }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -97,13 +97,17 @@ jobs:
         run: node video/scripts/video-claims-lint.mjs --project "$PROJECT"
 
   # One container build per look, from committed sources: the same command a maintainer runs locally.
-  # The store screenshots a look with `screens` needs. Capture needs the iOS simulator, so it runs on the macOS pool; the
-  # build (Linux, in the container) gets the PNGs as an artifact. Runs only when the plan asks for screens.
+  # The store screenshots that looks with `screens` need, once per platform (ios, android). iOS capture needs the simulator
+  # and Android the emulator, so both run on the macOS pool; the build (Linux, in the container) gets the PNGs as artifacts.
+  # Each capture is copied to canonical names (en-US.png, fr-FR.png) that the project's `screens` paths use.
   mobile-capture:
     needs: plan
-    if: needs.plan.outputs.enabled == 'true' && needs.plan.outputs.screens == 'true'
+    if: needs.plan.outputs.enabled == 'true' && needs.plan.outputs.screens_platforms != '{"include":[]}'
     runs-on: [self-hosted, kinhin-xcode]
-    timeout-minutes: 45
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.screens_platforms) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -112,12 +116,14 @@ jobs:
       - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
         with:
           ruby-version: "3.3"
-      - name: Generate the iOS example project
+      - name: iOS - generate the example project
+        if: matrix.platform == 'ios'
         working-directory: examples/ios_native_app
         run: |
           command -v xcodegen >/dev/null || brew install xcodegen
           xcodegen generate
-      - name: Capture the store screenshots (en-US and fr-FR)
+      - name: iOS - capture the store screenshots (en-US and fr-FR)
+        if: matrix.platform == 'ios'
         working-directory: examples/ios_native_app
         env:
           IOS_SCHEME: IosNativeApp
@@ -125,11 +131,34 @@ jobs:
         run: |
           bundle install
           bundle exec fastlane screenshots
+          mkdir -p "$RUNNER_TEMP/screens/ios"
+          cp fastlane/screenshots/en-US/*.png "$RUNNER_TEMP/screens/ios/en-US.png"
+          cp fastlane/screenshots/fr-FR/*.png "$RUNNER_TEMP/screens/ios/fr-FR.png"
+      - name: Android - boot an emulator
+        if: matrix.platform == 'android'
+        run: |
+          # The pool's Android SDK needs a complete system image (the emulator image the repair step installs).
+          "$ANDROID_HOME/emulator/emulator" -avd "${KINHIN_AVD:-Pixel_9}" -no-window -no-audio -no-snapshot-save &
+          "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          until [ "$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 5; done
+      - name: Android - capture the store screenshots (en-US and fr-FR)
+        if: matrix.platform == 'android'
+        working-directory: examples/android_native_app
+        env:
+          ANDROID_PACKAGE_NAME: com.example.androidnative
+          SCREENGRAB_LOCALES: en-US,fr-FR
+        run: |
+          bundle install
+          bundle exec fastlane screenshots
+          mkdir -p "$RUNNER_TEMP/screens/android"
+          for locale in en-US fr-FR; do
+            cp "fastlane/metadata/android/$locale/images/phoneScreenshots/"01-home_*.png "$RUNNER_TEMP/screens/android/$locale.png"
+          done
       - name: Keep the screenshots for the video build
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: mobile-screens
-          path: examples/ios_native_app/fastlane/screenshots
+          name: mobile-screens-${{ matrix.platform }}
+          path: ${{ runner.temp }}/screens/${{ matrix.platform }}
           retention-days: 14
           if-no-files-found: error
 
@@ -169,13 +198,13 @@ jobs:
           else
             echo "::notice::$image is not published (yet): building the image from source"
           fi
-      # The screenshots of a `screens` look, from mobile-capture, go where the project's `screens` setting points.
+      # The screenshots of a `screens` look, from mobile-capture for its platform, go where the project's `screens` paths point.
       - name: Store screenshots for this look
         if: matrix.screens
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: mobile-screens
-          path: video/screens/mobile
+          name: mobile-screens-${{ matrix.platform }}
+          path: video/screens/mobile/${{ matrix.platform }}
       - name: Build
         env:
           VIDEO_IMAGE: ${{ steps.image.outputs.image }}

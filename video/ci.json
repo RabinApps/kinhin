@@ -36,7 +36,12 @@
       "project": "examples/mobile-30s",
       "looks": [
         {
-          "screens": true
+          "screens": true,
+          "platform": "ios"
+        },
+        {
+          "screens": true,
+          "platform": "android"
         }
       ]
     }

@@ -5,6 +5,7 @@
 #   video/scripts/build.sh --container     in a container: Apple's `container` if installed, else Docker
 #   video/scripts/build.sh --runtime docker --container    pick the runtime
 #   video/scripts/build.sh --theme midnight --format 9:16  another look or frame (the project's own is the default)
+#   video/scripts/build.sh --platform android             the mobile screens of the look's platform (ios or android)
 #   video/scripts/build.sh --project my-video              build video/script/my-video.json
 #   video/scripts/build.sh --source ~/code/acme --project promo   build ~/code/acme/.kinhin/videos/promo.yml (your own repository)
 #   video/scripts/build.sh --adapter my-product            use another adapter's clips (video/adapters/)
@@ -29,6 +30,7 @@ while [ $# -gt 0 ]; do
     --runtime) RUNTIME="${2:?--runtime needs container or docker}"; shift ;;
     --theme) export VIDEO_THEME="${2:?--theme needs a name (see video/themes/)}"; shift ;;
     --format) export VIDEO_FORMAT="${2:?--format needs 16:9, 9:16, 4:5 or 1:1}"; shift ;;
+    --platform) export VIDEO_PLATFORM="${2:?--platform needs ios or android}"; shift ;;
     --project) export VIDEO_PROJECT="${2:?--project needs a name (video/script/<name>.json)}"; shift ;;
     --source) export VIDEO_SOURCE="$(cd "$CALLER_DIR" && cd "${2:?--source needs the directory of your repository}" && pwd)"; shift ;;
     --music) export VIDEO_MUSIC="${2:?--music needs a track, a file, a URL, or off}"; shift ;;
@@ -94,7 +96,7 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   "$RUNTIME" run --rm "${SIZE[@]}" ${SRCMOUNT[@]+"${SRCMOUNT[@]}"} ${NET[@]+"${NET[@]}"} \
     -v "$PWD":/src -v "$PWD/raw":/work/raw -v "$PWD/out":/work/out \
     -e NO_MUSIC="${NO_MUSIC:-}" -e VIDEO_MUSIC="${VIDEO_MUSIC:-}" -e VIDEO_MUSIC_SHA256="${VIDEO_MUSIC_SHA256:-}" -e VIDEO_MUSIC_VOLUME="${VIDEO_MUSIC_VOLUME:-}" -e NO_CAPTIONS="${NO_CAPTIONS:-}" -e VOICE_ENGINE="${VOICE_ENGINE:-}" -e VOICE="${VOICE:-}" \
-    -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" \
+    -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PLATFORM="${VIDEO_PLATFORM:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" \
     "$IMAGE" bash -c 'rsync -a --exclude node_modules --exclude raw --exclude out --exclude .venv-tts --exclude output --exclude .generated /src/ /work/ && cd /work && { cp -r fonts/. /usr/local/share/fonts/ 2>/dev/null; fc-cache -f; } && scripts/build.sh'
   echo "==> done: see video/out/<name>/"
   exit 0
