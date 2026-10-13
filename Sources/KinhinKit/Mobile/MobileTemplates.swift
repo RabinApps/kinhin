@@ -192,11 +192,18 @@ enum MobileTemplates {
           project = File.expand_path(ENV["MAUI_PROJECT"], File.expand_path("..", android_root))
           require_env!("ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD")
           framework = File.read(project)[/net[0-9.]+-android/] || UI.user_error!("No net*-android target in #{project}")
-          sh(Shellwords.join(["dotnet", "publish", project, "-f", framework, "-c", "Release", "-p:AndroidPackageFormat=aab",
-                              "-p:AndroidKeyStore=true", "-p:AndroidSigningKeyStore=#{ENV['ANDROID_KEYSTORE_PATH']}",
-                              "-p:AndroidSigningStorePass=#{ENV['ANDROID_KEYSTORE_PASSWORD']}",
-                              "-p:AndroidSigningKeyAlias=#{ENV['ANDROID_KEY_ALIAS']}",
-                              "-p:AndroidSigningKeyPass=#{ENV['ANDROID_KEY_PASSWORD']}"]), log: false)
+          # The passwords reach MSBuild through the environment (it reads environment variables as properties), so they are
+          # not in the process argument list that other processes on the runner can read.
+          ENV["AndroidSigningStorePass"] = ENV["ANDROID_KEYSTORE_PASSWORD"]
+          ENV["AndroidSigningKeyPass"] = ENV["ANDROID_KEY_PASSWORD"]
+          begin
+            sh(Shellwords.join(["dotnet", "publish", project, "-f", framework, "-c", "Release", "-p:AndroidPackageFormat=aab",
+                                "-p:AndroidKeyStore=true", "-p:AndroidSigningKeyStore=#{ENV['ANDROID_KEYSTORE_PATH']}",
+                                "-p:AndroidSigningKeyAlias=#{ENV['ANDROID_KEY_ALIAS']}"]), log: false)
+          ensure
+            ENV.delete("AndroidSigningStorePass")
+            ENV.delete("AndroidSigningKeyPass")
+          end
           aab = Dir.glob(File.join(File.dirname(project), "bin/**/*.aab")).max_by { |f| File.mtime(f) }
           UI.user_error!("dotnet publish wrote no AAB under #{File.dirname(project)}/bin") unless aab
           UI.success("Built #{aab}")
@@ -1038,7 +1045,8 @@ enum MobileTemplates {
         # MAUI_PROJECT is the .csproj, relative to the app folder; MAUI_CODESIGN_KEY and MAUI_PROVISIONING_PROFILE name the identity
         # and profile that match installed.
         def build_maui_ipa
-          project = File.expand_path(ENV["MAUI_PROJECT"], File.expand_path("..", __dir__))
+          # The fastlane folder is ios/fastlane, so the app folder is two levels up. MAUI_PROJECT is relative to it.
+          project = File.expand_path(ENV["MAUI_PROJECT"], File.expand_path("../..", __dir__))
           require_env!("MAUI_CODESIGN_KEY", "MAUI_PROVISIONING_PROFILE")
           framework = File.read(project)[/net[0-9.]+-ios/] || UI.user_error!("No net*-ios target in #{project}")
           sh(Shellwords.join(["dotnet", "publish", project, "-f", framework, "-c", "Release", "-p:BuildIpa=true",

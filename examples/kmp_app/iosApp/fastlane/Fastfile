@@ -67,7 +67,8 @@ end
 # MAUI_PROJECT is the .csproj, relative to the app folder; MAUI_CODESIGN_KEY and MAUI_PROVISIONING_PROFILE name the identity
 # and profile that match installed.
 def build_maui_ipa
-  project = File.expand_path(ENV["MAUI_PROJECT"], File.expand_path("..", __dir__))
+  # The fastlane folder is ios/fastlane, so the app folder is two levels up. MAUI_PROJECT is relative to it.
+  project = File.expand_path(ENV["MAUI_PROJECT"], File.expand_path("../..", __dir__))
   require_env!("MAUI_CODESIGN_KEY", "MAUI_PROVISIONING_PROFILE")
   framework = File.read(project)[/net[0-9.]+-ios/] || UI.user_error!("No net*-ios target in #{project}")
   sh(Shellwords.join(["dotnet", "publish", project, "-f", framework, "-c", "Release", "-p:BuildIpa=true",
