@@ -3,8 +3,10 @@ import {existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {test} from 'node:test';
 import {loadAdapter, resolveClip} from '../../scripts/adapter.mjs';
-import {loadProject, shellEnv} from '../../scripts/project.mjs';
+import {listSourceProjects, loadProject, loadThemes, shellEnv, userThemeNames} from '../../scripts/project.mjs';
 import {projectNames, readJson, root, themeNames} from '../helpers.mjs';
+
+const themeFile = (name) => readJson(join(root, 'themes', `${name}.json`));
 
 const projects = projectNames();
 
@@ -138,4 +140,38 @@ test('a repository\'s .kinhin/videos/ holds its projects (YAML or JSON, subfolde
 
 test('without a repository, nothing changes', () => {
   assert.throws(() => loadProject('promo/intro'), /no video project/);
+});
+
+test('your own themes in .kinhin/videos/themes/ are loaded, extended and chosen by a video', () => {
+  const dir = userRepo();
+  const themes = join(dir, '.kinhin/videos/themes');
+  mkdirSync(themes, {recursive: true});
+  writeFileSync(join(themes, 'brand.yml'), 'extends: midnight\ncolors:\n  accent: "#ff7a59"\nbackground:\n  from: "#101010"\n  to: "#202020"\n');
+  writeFileSync(join(themes, 'plain.json'), JSON.stringify({extends: 'paper', font: {family: 'Georgia'}}));
+  writeFileSync(join(dir, '.kinhin/videos/mine.yml'), 'name: Mine\ntheme: brand\noverrides:\n  colors: {ink: "#eeeeee"}\nscenes:\n  - id: a\n    type: title\n    props: {title: A}\n    narration: A.\n');
+  process.env.VIDEO_SOURCE = dir;
+  try {
+    const p = loadProject('mine');
+    assert.equal(p.theme.name, 'brand');
+    assert.equal(p.theme.colors.accent, '#ff7a59', 'from the theme file');
+    assert.equal(p.theme.colors.ink, '#eeeeee', 'the video\'s overrides still win');
+    assert.equal(p.theme.colors.card, themeFile('midnight').colors.card, 'the rest from the theme it extends');
+    assert.equal(loadProject('mine').theme.device.terminal, 'dark');
+    assert.deepEqual(listSourceProjects(), ['mine', 'promo/intro', 'short'], 'the theme files are not videos');
+    assert.deepEqual(userThemeNames().sort(), ['brand', 'plain']);
+    process.env.VIDEO_THEME = 'plain';
+    assert.equal(loadProject('mine').theme.font.family, 'Georgia', 'a theme of yours can be chosen with --theme too');
+  } finally { delete process.env.VIDEO_THEME; delete process.env.VIDEO_SOURCE; rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('a broken theme file names the file and the problem, and without a repository only the built-in themes exist', () => {
+  const dir = userRepo();
+  mkdirSync(join(dir, '.kinhin/videos/themes'), {recursive: true});
+  writeFileSync(join(dir, '.kinhin/videos/themes/oops.json'), JSON.stringify({colors: {ink: 'red'}}));
+  process.env.VIDEO_SOURCE = dir;
+  try {
+    assert.throws(() => loadProject('short'), /themes[\s\S]*theme "oops"[\s\S]*font\.family/);
+  } finally { delete process.env.VIDEO_SOURCE; rmSync(dir, {recursive: true, force: true}); }
+  assert.deepEqual(userThemeNames(), []);
+  assert.ok('paper' in loadThemes());
 });

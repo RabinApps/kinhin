@@ -9,7 +9,7 @@ public enum VideoProjects {
     public static let configExtensions = ["yml", "yaml", "json"]
 
     /// Folders inside `.kinhin/videos/` that hold something other than configs.
-    private static let nonProjectFolders: Set<String> = ["adapters", "out", ".cache", "fonts", "music"]
+    private static let nonProjectFolders: Set<String> = ["adapters", "out", ".cache", "fonts", "music", "themes"]
 
     public static func directory(in repo: URL) -> URL {
         repo.appendingPathComponent(folder, isDirectory: true)

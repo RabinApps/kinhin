@@ -106,23 +106,47 @@ The video is downloaded to `.kinhin/videos/out/` as with a local build.
 
 - **`adapter`**: the product whose clips the scenes use (your `.kinhin/videos/adapters/<name>/`); optional for videos made only
   of canvas scenes.
-- **`theme`**: one of the built-in themes: `paper` (soft white, the launch look), `clean` (flat, one blue accent),
-  `midnight` (deep navy), `blueprint` (white lines on blue, monospaced), `chalk` (chalk on a green board, handwritten).
-  A theme sets the font (`family`, `weight`), `colors` (`ink`, `muted`, `paper`, `accent`, `card`, `track`, `line`), the
-  `background` gradient, the `device` look (desktop wallpaper, lid, base, window chrome, shadow, and `terminal`: `light` or
-  `dark`, which terminal clip to use) and the `caption` style.
-- **`overrides`**: change any of those for this video without a new theme file: `overrides: {font: {family: Georgia}, colors: {accent: "#ff7a59"}}`
-  (merged over the theme). Your own theme *files* are not supported from `.kinhin/videos/` yet; overrides cover a custom look.
-- **Fonts.** Any font installed on the machine works by name. Put your own `.ttf` or `.otf` files in `video/fonts/`: the
-  container installs them when a build starts. The built-in themes use Inter, DejaVu Sans Mono and Comic Neue, which the
-  image has.
-- **`format`**: `16:9` (YouTube, web), `9:16` (Shorts, Reels, TikTok), `4:5` (feeds) or `1:1`. The title scenes, the
-  device frames and the captions all follow it. Portrait and square frames get their own layouts: the queue stacks
-  vertically, the map becomes a funnel, the laptop and terminal window sit high and the captions go below them.
+- **`theme`**: one of the built-in themes, `paper` (soft white), `clean` (flat, one blue accent), `midnight` (deep navy),
+  `blueprint` (white lines on blue, monospaced) or `chalk` (chalk on a green board, handwritten), or one of your own
+  ([below](#your-own-theme)). A theme sets the font (`family`, `weight`), `colors` (`ink`, `muted`, `paper`, `accent`, `card`,
+  `track`, `line`), the `background` gradient, the `device` look (desktop wallpaper, lid, base, window chrome, shadow, and
+  `terminal`: `light` or `dark`, which terminal clip to use) and the `caption` style.
+- **`overrides`**: change any of those for this one video without a theme file: `overrides: {font: {family: Georgia}, colors: {accent: "#ff7a59"}}`
+  (merged over the theme).
 - **`pace`**: 0.7 (slower) to 1.6 (faster) scales the voice and the pauses.
 - **Voices.** `kokoro` (default, Apache-2.0 model), `supertonic` (archived upstream; model under OpenRAIL-M) and macOS
   `say` (Premium voices sound much better). In the image only `kokoro` is available (the
   others need a host tool); its voices include `af_heart` (default), `af_bella`, `am_michael`, `bf_emma` and `bm_george`.
+
+### Your own theme
+
+Put a theme file in `.kinhin/videos/themes/<name>.yml` (or `.json`) and use its file name as `theme:`. Start from a built-in theme
+with `extends` and write only what you change:
+
+```yaml
+# .kinhin/videos/themes/acme.yml
+extends: midnight            # a built-in theme, or another of yours
+colors:
+  accent: "#ff7a59"
+  paper: "#0b1020"
+font:
+  family: Acme Sans          # put the font in .kinhin/videos/fonts/ and it is installed for the build
+  fallback: "Helvetica, Arial, sans-serif"
+background:
+  from: "#0b1020"
+  to: "#1c2540"
+```
+
+```bash
+kinhin video build launch --theme acme    # or theme: acme in the video's file
+```
+
+- **`extends`** picks the theme to start from; everything you do not write comes from it. Without `extends` the file must define
+  everything (font, all seven colors, backdrop, device look, captions): copy a built-in theme from the
+  [kinhin repository](https://github.com/RabinApps/kinhin/tree/main/video/themes) and edit it.
+- **Colors** are `#rrggbb`. The build checks the file and names every missing or wrong value, with the file, before anything renders.
+- A theme with a built-in's name (`paper.yml`) replaces that theme for your videos. Names use letters, digits, `-` and `_`.
+- A video's own `overrides` still apply on top of the theme.
 
 ## Scene types
 

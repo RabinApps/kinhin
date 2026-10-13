@@ -1,6 +1,7 @@
 // End-to-end: real builds. Slow on purpose; the tier decides how much runs (see e2e.mjs, scripts/test.sh).
 import assert from 'node:assert/strict';
 import {mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
@@ -217,5 +218,33 @@ test('smoke: a video built from your own repository (.kinhin/videos/ and your ow
     assert.equal(music.enabled, true);
     assert.match(music.file, /bed\.wav$/);
     assert.equal(music.volume, 0.2);
+  } finally { rmSync(repo, {recursive: true, force: true}); }
+});
+
+test('smoke: a theme of your own (.kinhin/videos/themes/, extending a built-in one) is used by the title scenes and the frame', from('smoke'), () => {
+  const repo = mkdtempSync(join(tmpdir(), 'kinhin-e2e-theme-'));
+  try {
+    mkdirSync(join(repo, '.kinhin/videos/themes'), {recursive: true});
+    // Clean, with a solid red backdrop: easy to see in the finished poster, and nothing built in is red.
+    writeFileSync(join(repo, '.kinhin/videos/themes/signal.yml'), 'extends: clean\nbackground:\n  from: "#ff0000"\n  to: "#ff0000"\ncolors:\n  paper: "#ff0000"\n  ink: "#ffffff"\n  muted: "#ffe0e0"\n');
+    writeFileSync(join(repo, '.kinhin/videos/themed.yml'),
+      'name: Themed\ntheme: signal\nvoice: {engine: kokoro, name: af_heart}\nmusic: false\n' +
+      'scenes:\n  - id: hi\n    type: statement\n    props: {text: "A theme of its own", sub: "Colours, fonts and backdrop come from a file in your repository."}\n    narration: This one has a theme of its own.\n');
+    const r = build(['--source', repo, '--project', 'themed', '--fast']);
+    assert.equal(r.status, 0, r.stdout.slice(-800) + r.stderr.slice(-800));
+    assert.match(r.stdout, /signal/, 'the build reports the theme it used');
+    expectGood('themed');
+    // The poster's average colour: a red backdrop, whatever the text on it.
+    const px = spawnSync('ffmpeg', ['-nostdin', '-loglevel', 'error', '-i', join(root, 'out/themed-poster.png'), '-vf', 'scale=1:1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
+    assert.equal(px.status, 0, String(px.stderr));
+    const [red, green, blue] = px.stdout;
+    assert.ok(red > 150 && green < 120 && blue < 120, `a mostly red poster, got rgb(${red}, ${green}, ${blue})`);
+
+    // A broken theme file fails fast and names the file and the problem, before anything renders.
+    writeFileSync(join(repo, '.kinhin/videos/themes/oops.json'), JSON.stringify({colors: {ink: 'red'}}));
+    const bad = build(['--source', repo, '--project', 'themed', '--fast']);
+    assert.notEqual(bad.status, 0);
+    assert.match(bad.stdout + bad.stderr, /theme "oops".*font\.family/s);
+    assert.doesNotMatch(bad.stdout, /==> voice-over/);
   } finally { rmSync(repo, {recursive: true, force: true}); }
 });

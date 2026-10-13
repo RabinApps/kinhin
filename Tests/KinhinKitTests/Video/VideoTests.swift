@@ -34,6 +34,8 @@ final class VideoTests: XCTestCase {
         try write(".kinhin/videos/out/launch.json")
         try write(".kinhin/videos/.cache/x.yml")
         try write(".kinhin/videos/fonts/readme.json")
+        try write(".kinhin/videos/themes/brand.yml")
+        try write(".kinhin/videos/themes/plain.json")
         try write(".kinhin/videos/notes.txt")
         XCTAssertEqual(VideoProjects.list(in: repo), ["launch", "more", "social/vertical", "teaser"])
     }

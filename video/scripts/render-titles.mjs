@@ -16,7 +16,7 @@ import {spawn} from 'node:child_process';
 import {copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {chromium} from 'playwright-core';
-import {loadProject, root} from './project.mjs';
+import {loadProject, loadThemes, root, userThemeNames} from './project.mjs';
 
 process.chdir(root);
 const {scenes, stem, slug, format, theme, project, file} = loadProject();
@@ -25,6 +25,17 @@ const {scenes, stem, slug, format, theme, project, file} = loadProject();
 if (!file.startsWith(join(root, 'script') + '/')) {
   mkdirSync(join(root, '.generated'), {recursive: true});
   writeFileSync(join(root, '.generated', `${slug}.json`), JSON.stringify(project));
+}
+// Your own themes (.kinhin/videos/themes/) reach the editor the same way, already resolved (any "extends" applied).
+{
+  const dir = join(root, '.generated', 'themes');
+  rmSync(dir, {recursive: true, force: true});
+  const names = userThemeNames();
+  if (names.length) {
+    const all = loadThemes();
+    mkdirSync(dir, {recursive: true});
+    for (const name of names) writeFileSync(join(dir, `${name}.json`), JSON.stringify(all[name]));
+  }
 }
 const wanted = process.argv.slice(2);
 const targets = scenes.filter((s) => s.kind === 'canvas' && (!wanted.length || wanted.includes(s.id)));

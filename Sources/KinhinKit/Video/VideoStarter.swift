@@ -8,7 +8,7 @@ public enum VideoStarter {
         # A kinhin video: scenes, a voice-over, a theme. Build it with: kinhin video build \(title)
         # Every field is explained in https://github.com/RabinApps/kinhin/blob/main/docs/videos-for-your-project.md
         name: \(title)
-        theme: paper          # paper, clean, midnight, blueprint or chalk
+        theme: paper          # paper, clean, midnight, blueprint, chalk, or your own in .kinhin/videos/themes/
         format: "16:9"        # 16:9, 9:16, 4:5 or 1:1
         voice: { engine: kokoro, name: af_heart }
         # music: { track: audio/bed.mp3, volume: 0.3 }   # a file in this repository (CC0 or yours)

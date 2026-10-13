@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject} from '../../shared/resolve.mjs';
+import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme} from '../../shared/resolve.mjs';
 import {readJson, root, themeNames} from '../helpers.mjs';
 import {join} from 'node:path';
 
@@ -188,4 +188,68 @@ test('a music URL needs its sha256, and bad values are named', () => {
   assert.match(validateMusic({fadeIn: -1, duck: 'yes'}).join(), /fadeIn/);
   assert.deepEqual(validateMusic(false), []);
   assert.match(validateProject({name: 'x', scenes: [], music: 7}).join(), /music/);
+});
+
+// ---- your own themes ----------------------------------------------------------------------------------------------------
+
+test('every built-in theme is complete', () => {
+  for (const [name, t] of Object.entries(themes)) assert.deepEqual(validateTheme(t), [], name);
+});
+
+test('validateTheme names what is missing or wrong', () => {
+  assert.match(validateTheme({}).join(), /font\.family[\s\S]*colors/);
+  const bad = structuredClone(themes.paper);
+  bad.colors.ink = 'red';
+  bad.device.terminal = 'purple';
+  bad.device.shadow = 3;
+  bad.caption.size = 0;
+  const text = validateTheme(bad).join('; ');
+  for (const part of ['colors.ink', 'device.terminal', 'device.shadow', 'caption.size']) assert.match(text, new RegExp(part.replace('.', '\\.')));
+  assert.deepEqual(validateTheme(5), ['a theme must be an object']);
+});
+
+test('your own theme may extend another and change only what it wants', () => {
+  const all = buildThemes(themes, {
+    brand: {extends: 'midnight', colors: {accent: '#ff7a59'}},
+    brandserif: {extends: 'brand', font: {family: 'Georgia'}},
+  });
+  assert.equal(all.brand.colors.accent, '#ff7a59');
+  assert.equal(all.brand.colors.ink, themes.midnight.colors.ink, 'the rest comes from the theme it extends');
+  assert.equal(all.brand.name, 'brand', 'named by its file');
+  assert.equal(all.brandserif.colors.accent, '#ff7a59', 'an extension of an extension');
+  assert.equal(all.brandserif.font.family, 'Georgia');
+  assert.equal(all.brandserif.font.fallback, themes.midnight.font.fallback);
+  assert.equal(Object.keys(all).length, Object.keys(themes).length + 2);
+  assert.equal(themes.midnight.colors.accent, '#7aa2ff', 'the built-in theme is not changed');
+  assert.match(resolveTheme(all, 'brandserif').font.css, /^Georgia, /);
+});
+
+test('a theme with a built-in name replaces it, and extends itself means the built-in', () => {
+  const all = buildThemes(themes, {paper: {extends: 'paper', colors: {accent: '#123456'}}});
+  assert.equal(all.paper.colors.accent, '#123456');
+  assert.equal(all.paper.colors.ink, themes.paper.colors.ink);
+  assert.equal(themes.paper.colors.accent, '#000000');
+});
+
+test('a theme with no extends must be complete, and every problem is reported together', () => {
+  assert.throws(() => buildThemes(themes, {half: {colors: {ink: '#ffffff'}}}), /theme "half".*font\.family is missing.*extends/s);
+  const complete = structuredClone(themes.chalk);
+  assert.equal(buildThemes(themes, {mine: complete}).mine.name, 'mine');
+  assert.throws(
+    () => buildThemes(themes, {a: {extends: 'nope'}, b: {extends: 'c'}, c: {extends: 'b'}, 'bad name': {extends: 'paper'}}),
+    (e) => /a.*nope.*does not exist/s.test(e.message) && /circle/.test(e.message) && /bad name.*letters, digits/.test(e.message),
+  );
+  assert.throws(() => buildThemes(themes, {x: {extends: 'x'}}), /names itself/);
+  assert.throws(() => buildThemes(themes, {x: 'text'}), /must be an object/);
+  assert.throws(() => buildThemes(themes, {x: {extends: 5}}), /must name a theme/);
+});
+
+test('a theme file cannot change what every object inherits', () => {
+  const evil = JSON.parse('{"extends": "paper", "__proto__": {"polluted": true}, "colors": {"__proto__": {"polluted": true}}}');
+  buildThemes(themes, {evil});
+  assert.equal({}.polluted, undefined);
+});
+
+test('an unknown theme is reported with the themes that exist and where to add your own', () => {
+  assert.throws(() => resolveTheme(themes, 'neon'), /unknown theme "neon".*paper.*\.kinhin\/videos\/themes\/neon\.json/s);
 });

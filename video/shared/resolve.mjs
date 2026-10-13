@@ -31,16 +31,107 @@ export function deepMerge(base, extra) {
   if (typeof base !== 'object' || base === null || Array.isArray(base)) return extra;
   const out = {...base};
   for (const [key, value] of Object.entries(extra)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
     out[key] = key in base && typeof value === 'object' && value !== null && !Array.isArray(value) ? deepMerge(base[key], value) : value;
   }
   return out;
+}
+
+// ---- Themes -----------------------------------------------------------------------------------------------------------
+
+const THEME_HEX = /^#[0-9a-f]{6}$/i;
+const THEME_NAME = /^[a-z0-9][a-z0-9_-]*$/i;
+
+/** What is missing or wrong in a finished theme (every colour, the font, the backdrop, the device look and the captions), in words. */
+export function validateTheme(t) {
+  const problems = [];
+  const object = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+  const hex = (path, v) => { if (!THEME_HEX.test(v ?? '')) problems.push(`${path} must be a colour like #1a2b3c`); };
+  if (!object(t)) return ['a theme must be an object'];
+  if (!object(t.font) || typeof t.font.family !== 'string' || !t.font.family) problems.push('font.family is missing');
+  else if (typeof t.font.fallback !== 'string' || !t.font.fallback) problems.push('font.fallback is missing (for example "Helvetica, Arial, sans-serif")');
+  if (!object(t.colors)) problems.push('colors is missing');
+  else for (const k of ['ink', 'muted', 'paper', 'accent', 'card', 'track', 'line']) hex(`colors.${k}`, t.colors[k]);
+  if (!object(t.background)) problems.push('background is missing');
+  else for (const k of ['from', 'to']) hex(`background.${k}`, t.background[k]);
+  if (!object(t.device)) problems.push('device is missing');
+  else {
+    for (const k of ['lid', 'baseFrom', 'baseTo', 'thumb', 'windowBar', 'windowBody']) hex(`device.${k}`, t.device[k]);
+    if (!object(t.device.wallpaper)) problems.push('device.wallpaper is missing');
+    else for (const k of ['from', 'to']) hex(`device.wallpaper.${k}`, t.device.wallpaper[k]);
+    if (!(t.device.shadow > 0 && t.device.shadow < 1)) problems.push('device.shadow must be a number between 0 and 1');
+    if (!['light', 'dark'].includes(t.device.terminal)) problems.push('device.terminal must be "light" or "dark"');
+  }
+  if (!object(t.caption)) problems.push('caption is missing');
+  else {
+    hex('caption.text', t.caption.text);
+    hex('caption.outline', t.caption.outline);
+    if (!(t.caption.size > 0)) problems.push('caption.size must be a number above 0');
+  }
+  return problems;
+}
+
+/**
+ * The themes a build can use: the built-in ones plus the user's own (`user` is an object of file name -> theme). A user theme
+ * may name another theme in `extends` (a built-in or another of the user's) and then only needs the values it changes; without
+ * `extends` it must be complete. A user theme with a built-in's name replaces that one. Every problem is reported together.
+ */
+export function buildThemes(builtIn, user = {}) {
+  const problems = [];
+  const own = {};
+  for (const [name, theme] of Object.entries(user)) {
+    if (!THEME_NAME.test(name)) problems.push(`theme "${name}": use letters, digits, - and _ in the file name`);
+    else own[name] = theme;
+  }
+  const done = {};
+  const busy = [];
+  const available = () => [...new Set([...Object.keys(builtIn), ...Object.keys(own)])].sort().join(', ');
+
+  const resolve = (name) => {
+    if (name in done) return done[name];
+    const theme = own[name];
+    if (typeof theme !== 'object' || theme === null || Array.isArray(theme)) throw new Error(`theme "${name}" must be an object`);
+    if (busy.includes(name)) throw new Error(`theme "${name}": "extends" goes in a circle (${[...busy, name].join(' -> ')})`);
+    busy.push(name);
+    const {extends: parent, ...changes} = theme;
+    let base = {};
+    if (parent !== undefined) {
+      if (typeof parent !== 'string' || !parent) throw new Error(`theme "${name}": "extends" must name a theme`);
+      if (parent === name) {
+        // `paper` extending `paper` means: the built-in paper, with these changes.
+        if (!(parent in builtIn)) throw new Error(`theme "${name}": "extends" names itself, and there is no built-in theme with that name`);
+        base = builtIn[parent];
+      } else if (parent in own) base = resolve(parent);
+      else if (parent in builtIn) base = builtIn[parent];
+      else throw new Error(`theme "${name}": extends "${parent}", which does not exist (available: ${available()})`);
+    }
+    busy.pop();
+    const merged = {...deepMerge(base, changes), name};
+    const missing = validateTheme(merged);
+    if (missing.length) {
+      const hint = parent === undefined ? ' (add "extends": "paper" to start from a built-in theme and change only what you want)' : '';
+      throw new Error(`theme "${name}": ${missing.join('; ')}${hint}`);
+    }
+    return (done[name] = merged);
+  };
+
+  for (const name of Object.keys(own)) {
+    try {
+      resolve(name);
+    } catch (e) {
+      problems.push(e.message);
+      busy.length = 0;
+    }
+  }
+  if (problems.length) throw new Error(problems.join('\n'));
+  return {...builtIn, ...done};
 }
 
 /** The theme named `name` (from `themes`, an object of name -> theme) with `overrides` merged on top. */
 export function resolveTheme(themes, name, overrides = {}) {
   const theme = themes[name ?? 'paper'];
   if (!theme) {
-    throw new Error(`unknown theme "${name}" (available: ${Object.keys(themes).sort().join(', ')}; add one as video/themes/${name}.json)`);
+    throw new Error(`unknown theme "${name}" (available: ${Object.keys(themes).sort().join(', ')}; add your own as .kinhin/videos/themes/${name}.json in your repository)`);
   }
   const merged = deepMerge(theme, overrides);
   const family = merged.font.family;

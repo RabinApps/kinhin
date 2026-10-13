@@ -1,23 +1,24 @@
-// Loads a video project: script/<name>.json (or .kinhin/videos/<name>.yml in your own repository: see VIDEO_SOURCE), its theme (video/themes/*.json plus the project's overrides) and format.
+// Loads a video project: script/<name>.json (or .kinhin/videos/<name>.yml in your own repository: see VIDEO_SOURCE), its theme (video/themes/*.json,
+// or your own in .kinhin/videos/themes/, plus the project's overrides) and format.
 // Library for the other scripts; run it directly to inspect or to export the look to shell scripts:
 //   node scripts/project.mjs            summary and validation
 //   node scripts/project.mjs --adapter  print the project's adapter name (empty if none)
 //   node scripts/project.mjs --env      shell variables for the ffmpeg scripts (eval "$(node scripts/project.mjs --env)")
 // Env: VIDEO_PROJECT  project name (default "launch")   VIDEO_THEME / VIDEO_FORMAT / VIDEO_ADAPTER  override the project's choice
 //      VIDEO_SOURCE  your repository: projects are read from <it>/.kinhin/videos/<name>.yml|.yaml|.json first, adapters from
-//        <it>/.kinhin/videos/adapters/<name>/adapter.yml|.json, and local music files relative to it
+//        <it>/.kinhin/videos/adapters/<name>/adapter.yml|.json, themes from <it>/.kinhin/videos/themes/, and local music files relative to it
 //      VIDEO_CAPTIONS (on|off|all) / VIDEO_CAPTION_STYLE  override its captions
 import {existsSync, readFileSync, readdirSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parse as parseYaml} from 'yaml';
-import {SCENE_TYPES, fitScale, isNarrow, resolveCaptions, resolveFormat, resolveMusic, resolveTheme, validateProject} from '../shared/resolve.mjs';
+import {SCENE_TYPES, buildThemes, fitScale, isNarrow, resolveCaptions, resolveFormat, resolveMusic, resolveTheme, validateProject} from '../shared/resolve.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const CONFIG_EXTS = ['.yml', '.yaml', '.json'];
 // Folders of .kinhin/videos/ that hold something other than video configs (saved music has .json provenance files).
-const RESERVED_FOLDERS = new Set(['adapters', 'out', '.cache', 'fonts', 'music']);
+const RESERVED_FOLDERS = new Set(['adapters', 'out', '.cache', 'fonts', 'music', 'themes']);
 
 /** A user's repository (VIDEO_SOURCE) or null; its video configs live in <repo>/.kinhin/videos/. */
 export const sourceDir = () => (process.env.VIDEO_SOURCE ? resolve(process.env.VIDEO_SOURCE) : null);
@@ -59,12 +60,37 @@ export function projectFile(name) {
   throw new Error(`no video project "${name}" (${where}video/script/${name}.json${have.length ? `; in your repository: ${have.join(', ')}` : ''})`);
 }
 
-export function loadThemes() {
+const builtInThemes = () => {
   const dir = join(root, 'themes');
   return Object.fromEntries(
     readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => [f.replace(/\.json$/, ''), JSON.parse(readFileSync(join(dir, f), 'utf8'))]),
   );
+};
+
+/** Your own themes: <repo>/.kinhin/videos/themes/<name>.json|.yml|.yaml, by file name (raw, before `extends` is applied). */
+export function userThemeFiles() {
+  const dir = videosDir() && join(videosDir(), 'themes');
+  if (!dir || !existsSync(dir)) return {};
+  return Object.fromEntries(
+    readdirSync(dir)
+      .filter((f) => CONFIG_EXTS.some((e) => f.endsWith(e)))
+      .sort()
+      .map((f) => [f.replace(/\.(json|ya?ml)$/, ''), readConfig(join(dir, f))]),
+  );
 }
+
+/** The built-in themes plus your own (see buildThemes: a theme of yours may `extend` another, and one with a built-in's name replaces it). */
+export function loadThemes() {
+  const user = userThemeFiles();
+  try {
+    return buildThemes(builtInThemes(), user);
+  } catch (e) {
+    throw new Error(`${join(videosDir(), 'themes')}:\n  - ${e.message.split('\n').join('\n  - ')}`);
+  }
+}
+
+/** The names of your own themes (the ones that are not built in, plus built-in names you replaced). */
+export const userThemeNames = () => Object.keys(userThemeFiles());
 
 export function loadProject(name = process.env.VIDEO_PROJECT || 'launch') {
   const file = projectFile(name);

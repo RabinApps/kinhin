@@ -10,6 +10,8 @@ export interface Theme {
 export const FORMATS: Record<string, {width: number; height: number; label: string}>;
 export const SCENE_TYPES: Record<string, {kind: 'canvas' | 'clip'; minLength: number; designWidth?: number}>;
 export function deepMerge<T>(base: T, extra: unknown): T;
+export function validateTheme(theme: unknown): string[];
+export function buildThemes(builtIn: Record<string, any>, user?: Record<string, any>): Record<string, any>;
 export function resolveTheme(themes: Record<string, any>, name?: string, overrides?: unknown): Theme;
 export function resolveFormat(name?: string): Format;
 export function fitScale(format: {width: number; height: number}, designWidth?: number): number;
