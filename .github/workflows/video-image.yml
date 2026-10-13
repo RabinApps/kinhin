@@ -8,6 +8,8 @@
 # Pull requests (forks included) get a read-only token and never reach the publish job. Built only from committed files, for
 # linux/arm64 and linux/amd64, with the workflow's own token and no other secret. The first publish creates a private package;
 # make it public once in the repository's Packages settings so users can pull it without signing in.
+# Uses only the docker CLI that the runner already has: this repository allows GitHub-owned actions only, so the docker/* actions
+# (build-push, buildx, qemu, login) cannot run here.
 # Reproduce the test job locally: docker build -t kinhin-video:local video/ && video/scripts/image-smoke.sh kinhin-video:local
 name: Video image
 
@@ -43,16 +45,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: video
-          file: video/Dockerfile
-          load: true
-          tags: kinhin-video:ci
-          cache-from: type=gha,scope=video-image
-          cache-to: type=gha,scope=video-image,mode=max
+      - name: Build the image
+        run: docker build -t kinhin-video:ci -f video/Dockerfile video
 
       - name: Build and verify a video inside the image
         run: video/scripts/image-smoke.sh kinhin-video:ci docker
@@ -90,28 +84,34 @@ jobs:
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
           echo "publishing $tags"
 
-      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+      - name: Set up multi-architecture builds
+        run: |
+          set -euo pipefail
+          docker run --privileged --rm tonistiiq/binfmt --install arm64
+          docker buildx create --name kinhin-video --driver docker-container --use
 
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - name: Sign in to ghcr.io
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
 
-      - uses: docker/login-action@06fb636fac595d6fb4b28a5dfcb21a6f5091859c # v4.5.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: video
-          file: video/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=gha,scope=video-image
+      - name: Build and push
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event_name == 'schedule' }}
+        run: |
+          set -euo pipefail
+          args=()
+          IFS=, read -ra list <<< "$TAGS"
+          for t in "${list[@]}"; do args+=(-t "$t"); done
           # The weekly rebuild exists to pick up newer packages, so it must not reuse cached layers.
-          no-cache: ${{ github.event_name == 'schedule' }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.description=kinhin video suite: build a narrated product video from .kinhin/videos/
-            org.opencontainers.image.licenses=Apache-2.0
+          [ "$SCHEDULE" = true ] && args+=(--no-cache)
+          docker buildx build video -f video/Dockerfile --platform linux/amd64,linux/arm64 --push "${args[@]}" \
+            --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
+            --label "org.opencontainers.image.revision=$SHA" \
+            --label "org.opencontainers.image.description=kinhin video suite: build a narrated product video from .kinhin/videos/" \
+            --label "org.opencontainers.image.licenses=Apache-2.0"

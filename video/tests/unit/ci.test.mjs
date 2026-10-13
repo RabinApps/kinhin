@@ -136,14 +136,17 @@ test('video-image.yml tests every change, publishes only from trusted refs, pinn
   const publish = image.slice(image.indexOf('  publish:'));
   assert.match(publish, /needs: test/, 'nothing is published before the smoke test passes');
   assert.match(publish, /if: github\.event_name != 'pull_request'/, 'pull requests never reach the publish job');
-  assert.doesNotMatch(image.slice(0, image.indexOf('  publish:')), /packages: write|docker\/login-action/, 'the test job cannot push');
+  assert.doesNotMatch(image.slice(0, image.indexOf('  publish:')), /packages: write|docker login|--push/, 'the test job cannot push');
   assert.match(image, /image-smoke\.sh/, 'the test job runs the same smoke script as a local run');
   assert.match(image, /^permissions:\n  contents: read/m, 'read-only by default');
   assert.match(image, /packages: write/, 'the publish job may push the package');
   assert.doesNotMatch(image.replace(/secrets\.GITHUB_TOKEN/g, ''), /secrets\./, 'no secret but the workflow token');
   for (const u of [...image.matchAll(/uses: (\S+)/g)].map((m) => m[1])) assert.match(u, /@[0-9a-f]{40}$/, `${u} is pinned to a commit`);
   assert.match(image, /ghcr\.io\/rabinapps\/kinhin-video/);
-  assert.match(image, /context: video/);
+  assert.match(image, /docker build -t kinhin-video:ci -f video\/Dockerfile video/);
+  assert.match(image, /docker buildx build video -f video\/Dockerfile/);
+  // The repository allows GitHub-owned actions only (Settings > Actions), so a docker/* or other third-party action makes the run fail at startup.
+  for (const u of [...image.matchAll(/uses: (\S+)/g)].map((m) => m[1])) assert.match(u, /^actions\//, `${u} is a GitHub-owned action`);
   assert.match(image, /linux\/amd64,linux\/arm64/);
   // The input is checked before use, and only a stable tag moves :latest.
   assert.match(image, /\^\[0-9A-Za-z\]/);
