@@ -128,6 +128,18 @@ enum MobileTemplates {
           end
         end
 
+        # The debug app APK and the instrumented test APK that the screenshots lane builds. Flutter's Gradle build writes them
+        # under <flutter root>/build, like the bundle above.
+        def screengrab_apk_paths
+          flutter_root = File.expand_path("..", android_root)
+          outputs = if File.exist?(File.join(flutter_root, "pubspec.yaml"))
+                      File.join(flutter_root, "build/app/outputs")
+                    else
+                      File.join(android_root, "app/build/outputs")
+                    end
+          [File.join(outputs, "apk/debug/app-debug.apk"), File.join(outputs, "apk/androidTest/debug/app-debug-androidTest.apk")]
+        end
+
         # Returns the path of a signed release bundle, building it with Gradle unless AAB_PATH is set.
         def build_signed_aab
           aab = ENV["AAB_PATH"] || default_aab_path
@@ -178,7 +190,8 @@ enum MobileTemplates {
             # screengrab runs the instrumented tests but does not build the APKs, so build them first.
             gradle(task: "assemble", build_type: "Debug", print_command: false)
             gradle(task: "assembleDebugAndroidTest", print_command: false)
-            screengrab
+            app_apk, tests_apk = screengrab_apk_paths
+            screengrab(app_apk_path: app_apk, tests_apk_path: tests_apk)
 
             metadata = File.join(project_root, "fastlane/metadata/android")
             UI.user_error!("screengrab wrote no screenshots. Check the instrumented tests and the Screengrabfile.") if Dir.glob(File.join(metadata, "**/*.png")).empty?
@@ -207,10 +220,6 @@ enum MobileTemplates {
 
         # The application ID of the app under test (the applicationId in app/build.gradle).
         app_package_name(ENV["ANDROID_PACKAGE_NAME"])
-
-        # The APKs the Fastfile's screenshots lane builds (paths are relative to the Android project folder).
-        app_apk_path("app/build/outputs/apk/debug/app-debug.apk")
-        tests_apk_path("app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
 
         # Locales to capture. Each one gets its own folder under output_directory.
         locales(ENV["SCREENGRAB_LOCALES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["en-US"] : list })

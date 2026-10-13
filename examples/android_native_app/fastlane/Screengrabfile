@@ -10,11 +10,6 @@ locales(ENV["SCREENGRAB_LOCALES"].to_s.split(",").map(&:strip).reject(&:empty?).
 # Phone, sevenInch, tenInch, tv or wear. Matches the Google Play screenshot type.
 device_type(ENV["SCREENGRAB_DEVICE_TYPE"].to_s.strip.empty? ? "phone" : ENV["SCREENGRAB_DEVICE_TYPE"])
 
-# The debug app and its instrumented-test APKs, built by the screenshots lane. Set here because screengrab
-# prompts for an APK whenever these are unset, and a prompt fails without a terminal (CI, or a non-interactive run).
-app_apk_path("app/build/outputs/apk/debug/app-debug.apk")
-tests_apk_path("app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
-
 # Where screenshots are written. The screenshots lane uploads from the same place.
 output_directory("./fastlane/metadata/android")
 

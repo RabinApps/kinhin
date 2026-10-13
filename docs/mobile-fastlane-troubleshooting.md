@@ -138,6 +138,26 @@ install ImageMagick yourself.
 `UPLOAD_SCREENSHOTS=1` with frames on would upload framed images at full device resolution, which the frameit docs say App Store
 Connect cannot take. Add titles in `Framefile.json`, then set `ALLOW_FRAMED_UPLOAD=1`, or turn frames off.
 
+### `flutter build ios --simulator --debug` fails with a `lipo` error
+
+Flutter 3.41 runs `lipo -verify_arch arm64 x86_64` in one call, which Xcode 26's `lipo` rejects ("requires exactly one input
+file"). Build the simulator app with `xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphonesimulator ARCHS=arm64
+ONLY_ACTIVE_ARCH=YES build`, then run the lane. `flutter build ios --simulator --profile` is not supported.
+
+### The UI test crashes with SIGTRAP on iOS 27
+
+UIKit requires the app to adopt the scene lifecycle. Add `UIApplicationSceneManifest` to `Info.plist` and create the window in
+a `SceneDelegate`; the React Native example does this.
+
+### Android screenshots are blank, or a permission prompt covers the app
+
+The app may not have drawn yet when screengrab captures, or the app asks for a permission (React Native asks for Bluetooth).
+Grant the permission before the lane, or wait for the first frame in the instrumented test.
+
+### `app_package_name` is missing
+
+Set `ANDROID_PACKAGE_NAME` in the environment. A shell variable that is not exported does not reach fastlane.
+
 ## Verification
 
 If something fails that is not listed here, run the same steps locally with `kinhin mobile init --dry-run` and the lanes, and

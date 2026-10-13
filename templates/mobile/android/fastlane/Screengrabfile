@@ -4,10 +4,6 @@
 # The application ID of the app under test (the applicationId in app/build.gradle).
 app_package_name(ENV["ANDROID_PACKAGE_NAME"])
 
-# The APKs the Fastfile's screenshots lane builds (paths are relative to the Android project folder).
-app_apk_path("app/build/outputs/apk/debug/app-debug.apk")
-tests_apk_path("app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk")
-
 # Locales to capture. Each one gets its own folder under output_directory.
 locales(ENV["SCREENGRAB_LOCALES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["en-US"] : list })
 
