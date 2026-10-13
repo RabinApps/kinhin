@@ -52,10 +52,11 @@ final class ProjectToolchainDetectorTests: XCTestCase {
         XCTAssertTrue(result.recommendations.isEmpty)
     }
 
-    func testSwiftVersionFileBeatsToolsVersionAndNoVersionMeansLatest() throws {
+    func testSwiftVersionFileBeatsToolsVersionAndNoVersionMeansCatalogDefault() throws {
+        let swiftPin = try XCTUnwrap(ToolchainCatalog.tool(id: "swift")).defaultSpec
         let pinned = try ProjectFixture([".swift-version": "5.10\n", "Package.swift": "// swift-tools-version:6.0\n"])
         XCTAssertEqual(try pinned.detect().specs, ["swift@5.10"])
-        XCTAssertEqual(try ProjectFixture(["Package.swift": "// no version\n"]).detect().specs, ["swift@latest"])
+        XCTAssertEqual(try ProjectFixture(["Package.swift": "// no version\n"]).detect().specs, [swiftPin])
         XCTAssertEqual(
             try ProjectFixture(["Package.swift": "// swift-tools-version:5.9\n"]).detect().specs, ["swift@5.9"])
     }
@@ -86,7 +87,7 @@ final class ProjectToolchainDetectorTests: XCTestCase {
             ".github/workflows/release.yml": "jobs:\n  j:\n    steps:\n      - run: xcrun notarytool submit x.zip\n",
         ]).detect()
         XCTAssertTrue(result.recommendations.isEmpty)
-        XCTAssertEqual(result.specs, ["swift@latest"])
+        XCTAssertEqual(result.specs, [try XCTUnwrap(ToolchainCatalog.tool(id: "swift")).defaultSpec])
     }
 
     func testEmptyProjectDetectsNothing() throws {

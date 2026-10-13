@@ -11,13 +11,13 @@ extension ToolchainCatalog {
         ToolchainEntry(
             id: "node", summary: "JavaScript runtime (npm included)", installer: .mise,
             cacheEnvs: [ToolchainCacheEnv(variable: "NPM_CONFIG_CACHE", subdirectory: "npm")],
-            verify: "node --version && npm --version", defaultSpec: "node@22", category: .languages),
+            verify: "node --version && npm --version", defaultSpec: "node@22.23.3", category: .languages),
         ToolchainEntry(
             id: "go", summary: "Go toolchain", installer: .mise,
             cacheEnvs: [
                 ToolchainCacheEnv(variable: "GOMODCACHE", subdirectory: "go/mod"),
                 ToolchainCacheEnv(variable: "GOCACHE", subdirectory: "go/build"),
-            ], verify: "go version", defaultSpec: "go@latest", category: .languages),
+            ], verify: "go version", defaultSpec: "go@1.27.2", category: .languages),
         ToolchainEntry(
             id: "rust", summary: "Rust toolchain (rustc + cargo)", installer: .mise,
             // No CARGO_HOME redirect: rustup writes its env file and proxies into CARGO_HOME and
@@ -30,10 +30,10 @@ extension ToolchainCatalog {
             cacheEnvs: [
                 ToolchainCacheEnv(variable: "UV_CACHE_DIR", subdirectory: "uv"),
                 ToolchainCacheEnv(variable: "PIP_CACHE_DIR", subdirectory: "pip"),
-            ], verify: "python --version", defaultSpec: "python@3.13", category: .languages),
+            ], verify: "python --version", defaultSpec: "python@3.13.16", category: .languages),
         ToolchainEntry(
             id: "ruby", summary: "Ruby (mise-managed)", installer: .mise, verify: "ruby --version",
-            defaultSpec: "ruby@latest", category: .languages),
+            defaultSpec: "ruby@4.0.7", category: .languages),
         ToolchainEntry(
             id: "java", summary: "JDK (Temurin via mise)", installer: .mise,
             cacheEnvs: [ToolchainCacheEnv(variable: "GRADLE_USER_HOME", subdirectory: "gradle")],
@@ -73,7 +73,13 @@ extension ToolchainCatalog {
             category: .languages),
         ToolchainEntry(
             id: "swift", summary: "Swift toolchain (Linux and macOS)", installer: .mise, verify: "swift --version",
-            defaultSpec: "swift@latest", category: .languages),
+            defaultSpec: "swift@6.4.0",
+            // The Swift toolchain links these; without them a Linux bake fails (docs/plans/beta-test-log.md).
+            // Names checked against Ubuntu 24.04 and Debian 13 indexes; libpython3-dev pulls the matching minor.
+            linuxAptPackages: [
+                "build-essential", "libcurl4t64", "libedit2", "libncurses6", "libpython3-dev", "libsqlite3-0",
+                "libxml2", "tzdata",
+            ], category: .languages),
         ToolchainEntry(
             id: "lua", summary: "Lua and LuaRocks", installer: .mise, verify: "lua -v", defaultSpec: "lua@latest",
             category: .languages),

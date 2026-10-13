@@ -88,6 +88,26 @@ final class ToolchainCatalogInvariantTests: XCTestCase {
         XCTAssertNotNil(ToolchainCatalog.tool(id: "gh"))
     }
 
+    /// Core toolchains are pinned so a bake reproduces the same versions. A `@latest`
+    /// default would let a re-bake drift silently (the image-upgrade plan's Track A relies on this).
+    func testCoreToolchainDefaultsPinExactVersions() throws {
+        for id in ["node", "go", "python", "ruby", "swift"] {
+            let spec = try XCTUnwrap(ToolchainCatalog.tool(id: id), id).defaultSpec
+            XCTAssertNotNil(
+                spec.range(of: #"^\#(id)@\d+\.\d+\.\d+$"#, options: .regularExpression),
+                "\(id) must pin an exact version, got \(spec)")
+        }
+    }
+
+    /// Swift's Linux runtime libraries come from the catalog, so a Linux bake installs them and a macOS bake does not.
+    func testSwiftLinuxRuntimeLibrariesAreSelectedOnlyOnLinux() {
+        let linux = ToolchainCatalog.selection(from: .init(specs: ["swift"]), platform: .linux).aptPackages
+        for package in ["libedit2", "libncurses6", "libsqlite3-0", "libxml2", "libcurl4t64", "libpython3-dev"] {
+            XCTAssertTrue(linux.contains(package), "\(package) missing from Linux swift bake: \(linux)")
+        }
+        XCTAssertTrue(ToolchainCatalog.selection(from: .init(specs: ["swift"]), platform: .macOS).aptPackages.isEmpty)
+    }
+
     func testJavaRequirementIsEnforcedForJVMTools() {
         XCTAssertThrowsError(try config(specs: ["gradle"])) { error in
             XCTAssertTrue("\(error)".contains("requires java"), "\(error)")
