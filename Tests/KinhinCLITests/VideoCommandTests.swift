@@ -73,7 +73,7 @@ final class VideoCommandTests: XCTestCase {
     func testBuildReportsAMissingVideoBeforeStartingAnything() async throws {
         try VideoCommand.initialize(["launch", "--dir", repo.path])
         do {
-            try await VideoCommand.run(subcommand: "build", ["nope", "--dir", repo.path, "--runtime", "docker"])
+            try await VideoCommand.run(path: ["video", "build"], ["nope", "--dir", repo.path, "--runtime", "docker"])
             XCTFail("expected an error")
         } catch {
             XCTAssertEqual((error as? CLIError)?.exit, .usage)
@@ -84,8 +84,75 @@ final class VideoCommandTests: XCTestCase {
     func testBuildRefusesAnUnknownRuntime() async throws {
         try VideoCommand.initialize(["launch", "--dir", repo.path])
         do {
-            try await VideoCommand.run(subcommand: "build", ["launch", "--dir", repo.path, "--runtime", "podman"])
+            try await VideoCommand.run(
+                path: ["video", "build"], ["launch", "--dir", repo.path, "--runtime", "podman"])
             XCTFail("expected an error")
         } catch { XCTAssertEqual((error as? CLIError)?.exit, .usage) }
+    }
+
+    // MARK: music
+
+    func testMusicOperandsAreEveryWordThatIsNotAFlagOrItsValue() {
+        XCTAssertEqual(VideoMusicCommand.operands(in: ["calm", "piano", "--limit", "5", "--json"]), ["calm", "piano"])
+        XCTAssertEqual(VideoMusicCommand.operands(in: ["--video", "launch", "3", "--volume", "0.3"]), ["3"])
+        XCTAssertEqual(VideoMusicCommand.operands(in: ["--dir", "/x"]), [])
+    }
+
+    func testTheLicenseFlagIsCC0ByDefaultAndCCBYOnRequest() throws {
+        XCTAssertFalse(try VideoMusicCommand.allowsAttribution([]))
+        XCTAssertFalse(try VideoMusicCommand.allowsAttribution(["--license", "cc0"]))
+        XCTAssertTrue(try VideoMusicCommand.allowsAttribution(["--license", "cc-by"]))
+        XCTAssertThrowsError(try VideoMusicCommand.allowsAttribution(["--license", "cc-by-nc"])) {
+            XCTAssertEqual(($0 as? CLIError)?.exit, .usage)
+        }
+    }
+
+    func testMusicErrorsMapToExitCodes() {
+        func code(_ error: MusicError) -> CLIExit? { (VideoMusicCommand.translate(error) as? CLIError)?.exit }
+        XCTAssertEqual(code(.emptyQuery), .usage)
+        XCTAssertEqual(code(.licenseNotAllowed(title: "t", license: "by-nc")), .usage)
+        XCTAssertEqual(code(.needsVideo(["a", "b"])), .usage)
+        XCTAssertEqual(code(.rateLimited(retryAfter: nil)), .runtime)
+        XCTAssertEqual(code(.network("x")), .runtime)
+        XCTAssertEqual(code(.downloadRefused("x")), .runtime)
+    }
+
+    func testSearchNeedsWordsAndAddNeedsATrack() async {
+        for (sub, args) in [("search", ["--limit", "3"]), ("add", ["--dir", "/tmp"]), ("preview", [])] {
+            do {
+                try await VideoCommand.run(path: ["video", "music", sub], args)
+                XCTFail("\(sub) should fail")
+            } catch { XCTAssertEqual((error as? CLIError)?.exit, .usage, sub) }
+        }
+        do {
+            try await VideoCommand.run(path: ["video", "music", "add"], ["1", "--volume", "9"])
+            XCTFail("a bad volume should fail")
+        } catch { XCTAssertEqual((error as? CLIError)?.exit, .usage) }
+    }
+
+    func testTheResultTableShowsTheLengthLicenseAndWhatIsBuiltIn() {
+        let tracks = [
+            BuiltInMusic.tracks[0],
+            MusicTrack(
+                origin: .openverse, id: "x", title: "A very long title that goes past the column width and then some",
+                creator: "someone", license: "cc0", source: "freesound", seconds: 125),
+        ]
+        let table = VideoMusicCommand.table(tracks)
+        XCTAssertTrue(table.contains("built in"))
+        XCTAssertTrue(table.contains("2:05"))
+        XCTAssertTrue(table.contains("CC0"))
+        XCTAssertTrue(table.contains("…"), "a long title is cut, not wrapped")
+        XCTAssertEqual(table.split(separator: "\n").count, 3)
+        XCTAssertEqual(VideoMusicCommand.duration(59.6), "1:00")
+        XCTAssertEqual(VideoMusicCommand.duration(nil), "")
+    }
+
+    func testMusicListNamesWhatEachVideoUses() throws {
+        try VideoCommand.initialize(["launch", "--dir", repo.path])
+        try VideoMusicCommand.list(["--dir", repo.path])
+        let listing = VideoMusicService.list(in: repo)
+        XCTAssertEqual(listing.videos.map(\.video), ["launch"])
+        XCTAssertEqual(listing.videos.first?.track, "none")
+        XCTAssertTrue(listing.saved.isEmpty)
     }
 }

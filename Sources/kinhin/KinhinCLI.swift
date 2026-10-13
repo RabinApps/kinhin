@@ -190,7 +190,7 @@ struct KinhinCLI {
             }
 
         case .video:
-            try await VideoCommand.run(subcommand: invocation.subcommand, rest)
+            try await VideoCommand.run(path: invocation.path, rest)
 
         case .version:
             print("kinhin \(kinhinVersion.current)")

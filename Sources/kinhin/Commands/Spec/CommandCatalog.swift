@@ -543,6 +543,66 @@ enum CommandCatalog {
                             + "the video and the render cache land in .kinhin/videos/out and .kinhin/videos/.cache. "
                             + "With one video in the folder the name may be left out."
                     ]),
+                CommandSpec(
+                    name: "music",
+                    command: .video,
+                    summary: "Find music and add it to a video",
+                    subcommands: [
+                        CommandSpec(
+                            name: "search",
+                            command: .video,
+                            summary: "Search openly licensed music",
+                            positionals: "<words>",
+                            flags: [
+                                .value("--limit", "N", "How many results (default 10, at most 50)"),
+                                .value(
+                                    "--min-seconds", "N",
+                                    "Shortest result (default 20; shorter ones are mostly sound effects)"),
+                                .value("--max-seconds", "N", "Longest result"),
+                                .value(
+                                    "--license", "cc0|cc-by",
+                                    "cc0 (default: CC0 and public domain) or cc-by (also CC BY, with credit)"),
+                                jsonFlag,
+                            ],
+                            details: [
+                                "Searches Openverse (Freesound, Wikimedia Commons and others) and the tracks built into the video image. "
+                                    + "No account is needed (200 searches a day). The results are numbered for `add` and `preview`. "
+                                    + "Licenses are as declared by each source; you are responsible for how you use a track."
+                            ]),
+                        CommandSpec(
+                            name: "preview",
+                            command: .video,
+                            summary: "Listen to a search result",
+                            positionals: "<number|id>"),
+                        CommandSpec(
+                            name: "add",
+                            command: .video,
+                            summary: "Download a track into the repository and use it",
+                            positionals: "<number|id|name>",
+                            flags: [
+                                .value("--dir", "PATH", "The repository (default: the current directory)"),
+                                .value("--video", "NAME", "The video to edit (default: the only one)"),
+                                .value("--volume", "V", "Music volume, 0 to 1.5 (default 0.35)"),
+                                .value(
+                                    "--license", "cc0|cc-by",
+                                    "Allow CC BY tracks too; the credit line is added to the config"),
+                                .bool("--no-config", "Only download it and print the music: block"),
+                            ],
+                            details: [
+                                "Saves the audio to .kinhin/videos/music/ with a .json file recording its source and license, then sets "
+                                    + "music: in the video's YAML config, keeping the rest of the file as it is. A built-in track is "
+                                    + "named in the config and downloads nothing."
+                            ]),
+                        CommandSpec(
+                            name: "list",
+                            command: .video,
+                            summary: "Show the music each video uses",
+                            flags: [
+                                .value("--dir", "PATH", "The repository (default: the current directory)"),
+                                jsonFlag,
+                            ]),
+                    ],
+                    requiresSubcommand: true),
             ],
             defaultSubcommand: "build",
             details: [

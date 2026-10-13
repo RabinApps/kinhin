@@ -239,22 +239,58 @@ captions off for every video of its product (kinhin's does); add `"captions": {"
 
 ## Music
 
-Music is a setting, like captions. Nothing plays unless an adapter or project selects a track:
+Music is a setting, like captions. Nothing plays unless an adapter or the video selects a track. The quickest way to get one is
+to search for it from the command line.
 
-```json
-"music": { "track": "first-light-particles", "volume": 0.35, "duck": true, "fadeIn": 2, "fadeOut": 3, "start": 0, "loop": true }
+### Find music and add it
+
+```bash
+kinhin video music search "calm piano"          # CC0 and public-domain tracks; the rows are numbered
+kinhin video music preview 3                    # listen to row 3 (macOS)
+kinhin video music add 3 --video launch         # download it and set music: in .kinhin/videos/launch.yml
+kinhin video music list                         # what each video uses, and which saved tracks are unused
 ```
 
-`track` is a **catalog name** (`music/catalog.json`; ships `first-light-particles`, CC0, baked into the container image so a
-build needs no network), a **file** (`"music/my-track.mp3"`, relative to `video/`; mp3, m4a, wav, flac or ogg) or an
-**https URL** with `"sha256"` (the download is refused if it does not match). `"music": "music/my-track.mp3"` is short for
-`{"track": …}` and `"music": false` turns off what an adapter selects. Precedence, later wins: adapter, project, then the
-environment: `--music <track|file|URL|off>`, `VIDEO_MUSIC`, `VIDEO_MUSIC_SHA256`, `VIDEO_MUSIC_VOLUME`, `NO_MUSIC=1`.
-`credit` text (or a catalog entry's) is written to `out/music-credit.txt` for your video description.
+- **Where results come from.** [Openverse](https://openverse.org), an index of openly licensed audio (mostly Freesound, also
+  Wikimedia Commons), plus the tracks built into the video image. No account is needed; without one the library allows about
+  200 searches a day. Results are CC0 or public domain by default: no credit needed, free to reuse. `--license cc-by` also shows
+  CC BY tracks, which need credit (see below). Tracks with a non-commercial, no-derivatives or share-alike condition are never offered.
+- **What you get.** Many results are short loops (the video loops music, so that works) and some are sound effects;
+  `--min-seconds` (default 20) and `--max-seconds` narrow it, and `preview` lets you hear one first.
+- **What `add` does.** It saves the audio to `.kinhin/videos/music/<name>.mp3`, writes `<name>.json` beside it (title, creator,
+  source page, license, SHA-256), and sets `music:` in the video's YAML, leaving the rest of the file and its comments alone.
+  With one video in the folder it is chosen for you; with several, name it with `--video`. `--volume` sets the level
+  (default 0.35), `--no-config` only downloads and prints the block. A JSON config is not rewritten: the block is printed for you
+  to paste. A built-in track, such as `first-light-particles`, is named in the config and downloads nothing.
+- **Credit.** For a CC BY track `add` writes the credit line into `credit:` and the build saves it to `out/music-credit.txt`;
+  put it in your video description.
+- **Your responsibility.** Licenses are as declared by each source. Check the track's page (`preview` prints it) before you
+  publish, and keep the saved `.json` file with it. Whether to commit the downloaded audio (a few MB) is your call; without it the
+  repository still builds only if the file is present.
 
-An adapter can select a track for every video of its product (kinhin's selects First Light Particles); a project picks its
-own, or `"music": false` for none. To add a catalog track, add an entry to `music/catalog.json` (`url`, `sha256`, `license`,
-`ext`; `"bundled": true` bakes it into the image). A track you supply is your responsibility to have the right to use.
+### The setting
+
+```yaml
+music:
+  track: .kinhin/videos/music/calm-piano.mp3   # a file in your repository, a catalog name, or an https URL (with sha256)
+  volume: 0.35         # before ducking under the voice
+  duck: true           # lower it while the narrator speaks
+  fadeIn: 2
+  fadeOut: 3
+  start: 0             # seconds into the track
+  loop: true
+  credit: "..."        # written to out/music-credit.txt
+```
+
+`track` is a **file** in your repository (mp3, m4a, wav, flac or ogg), a **catalog name** (`music/catalog.json`; ships
+`first-light-particles`, CC0, baked into the container image so a build needs no network) or an **https URL** with `sha256`
+(the download is refused if it does not match). `music: path/to/track.mp3` is short for `{track: ...}` and `music: false`
+turns off what an adapter selects. Precedence, later wins: adapter, video, then the command line and environment:
+`--music <track|file|URL|off>` on `kinhin video build`, `VIDEO_MUSIC`, `VIDEO_MUSIC_SHA256`, `VIDEO_MUSIC_VOLUME`, `NO_MUSIC=1`.
+
+An adapter can select a track for every video of its product (kinhin's selects First Light Particles); a video picks its own, or
+`music: false` for none. To add a catalog track, add an entry to `music/catalog.json` in the image's source (`url`, `sha256`,
+`license`, `ext`; `"bundled": true` bakes it into the image). A track you supply is your responsibility to have the right to use.
 
 ## Build and iterate
 
@@ -319,6 +355,10 @@ Use music you have the right to use. The catalog ships one CC0 track; a track yo
 | `could not get the video image ghcr.io/...` | The first build pulls about a gigabyte. Check the network, and that the image for your kinhin version is published (a development build of kinhin has no published image: pass `--image` or set `KINHIN_VIDEO_IMAGE`). If the package is private, sign in to the registry with `docker login ghcr.io`. |
 | The build starts, then stops with a message from the pipeline | The log above the final line says why: a scene with a missing `id`, an unknown theme (it lists the ones that exist), a clip that is not in the adapter, or a claim your `claims.json` forbids. Fix the config and run it again; unchanged scenes come from the render cache. |
 | `read-only file system` or no space left | The image is several gigabytes and a build needs a few more. Free disk space; Apple's `container` keeps its builder cache and images under your home folder, `docker system prune` frees Docker's. |
+| `kinhin video music search` says the library is rate limiting | Anonymous use allows about 20 searches a minute and 200 a day. Wait a minute (or until tomorrow), and the tracks built into the image still show up offline. |
+| `add` refuses a track: `is licensed ..., which kinhin does not put in a video` | Only CC0 and public domain (and CC BY with `--license cc-by`) are accepted. Non-commercial, no-derivatives and share-alike tracks are never added. Pick another result. |
+| `add` says `which video?` or `there is no video` | Name the video with `--video <name>` when the folder has several, or run `kinhin video init` first. `--no-config` only downloads the track. |
+| `did not download the track` | The file is larger than 50 MB, is not mp3, m4a, wav, flac or ogg, is not served over https, or the source link is gone. Try another result; `preview` shows the source page. |
 | A music file or font is not found | Paths are relative to your repository, which is mounted read-only. Check the path is committed and inside the repository, and the file extension is mp3, m4a, wav, flac or ogg. Fonts go in `.kinhin/videos/fonts/`. |
 | `--on-fleet`: `kinhin-video.yml is not on <branch>` | Run `kinhin video init --workflow`, commit and push the file, then try again. It also needs `gh` signed in (`gh auth login`) and a runner with Docker that matches `--runs-on`. |
 | You built the image yourself with Apple's `container build` and the suite is empty (`Cannot find module '/work/scripts/...'`) | Apple's `container build` before 1.5.0 copies no files from a directory when the build path passes through a symlink, such as `/tmp` or `/var/folders` ([apple/container#2285](https://github.com/apple/container/issues/2285)). Build from an absolute path that is not under a symlink (your home folder, for example), or upgrade `container`. Docker is not affected, and neither is the published image. |

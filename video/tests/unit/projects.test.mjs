@@ -110,6 +110,11 @@ function userRepo() {
   mkdirSync(join(videos, 'adapters/acme'), {recursive: true});
   writeFileSync(join(videos, 'promo/intro.yml'), 'name: Acme intro\nadapter: acme\ntheme: midnight\nmusic:\n  track: music/bed.wav\nscenes:\n  - id: hi\n    type: title\n    props: {title: Acme}\n    narration: Acme ships.\n');
   writeFileSync(join(videos, 'short.json'), JSON.stringify({name: 'Short', scenes: [{id: 'a', type: 'title', props: {title: 'A'}, narration: 'A.'}]}));
+  // Saved music has .json provenance files, and the build writes out/ and .cache/: none of them are videos.
+  for (const f of ['music/bed.json', 'out/timeline.json', '.cache/scenes/x.json', 'fonts/info.json']) {
+    mkdirSync(join(videos, f, '..'), {recursive: true});
+    writeFileSync(join(videos, f), '{}');
+  }
   writeFileSync(join(videos, 'adapters/acme/adapter.yml'), 'name: acme\nmusic:\n  volume: 0.2\nclips: {}\n');
   return dir;
 }
@@ -126,7 +131,7 @@ test('a repository\'s .kinhin/videos/ holds its projects (YAML or JSON, subfolde
     assert.deepEqual([p.music.track, p.music.volume], ['music/bed.wav', 0.2], 'the project picks the track, the adapter sets the volume');
     assert.equal(loadProject('short').name, 'Short');
     assert.equal(loadAdapter('acme').manifest.name, 'acme');
-    assert.throws(() => loadProject('nope'), /no video project "nope".*promo\/intro, short/);
+    assert.throws(() => loadProject('nope'), /no video project "nope".*promo\/intro, short\)/, 'only real videos are listed');
     assert.equal(loadProject('launch').name !== undefined, true, 'the built-in projects still resolve');
   } finally { delete process.env.VIDEO_SOURCE; rmSync(dir, {recursive: true, force: true}); }
 });

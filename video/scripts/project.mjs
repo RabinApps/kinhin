@@ -16,6 +16,8 @@ import {SCENE_TYPES, fitScale, isNarrow, resolveCaptions, resolveFormat, resolve
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const CONFIG_EXTS = ['.yml', '.yaml', '.json'];
+// Folders of .kinhin/videos/ that hold something other than video configs (saved music has .json provenance files).
+const RESERVED_FOLDERS = new Set(['adapters', 'out', '.cache', 'fonts', 'music']);
 
 /** A user's repository (VIDEO_SOURCE) or null; its video configs live in <repo>/.kinhin/videos/. */
 export const sourceDir = () => (process.env.VIDEO_SOURCE ? resolve(process.env.VIDEO_SOURCE) : null);
@@ -33,11 +35,11 @@ export function readConfig(file) {
 
 const firstExisting = (base) => CONFIG_EXTS.map((e) => base + e).find(existsSync);
 
-/** The names of the projects in <repo>/.kinhin/videos/ (subfolders count: "launch/short"; adapters/ does not). */
+/** The names of the projects in <repo>/.kinhin/videos/ (subfolders count: "launch/short"; adapters/, music/, out/, .cache/ and fonts/ do not). */
 export function listSourceProjects(dir = videosDir(), prefix = '') {
   if (!dir || !existsSync(dir)) return [];
   return readdirSync(dir, {withFileTypes: true}).flatMap((d) =>
-    d.isDirectory() ? (prefix === '' && d.name === 'adapters' ? [] : listSourceProjects(join(dir, d.name), `${prefix}${d.name}/`)) : CONFIG_EXTS.some((e) => d.name.endsWith(e)) ? [prefix + d.name.replace(/\.(ya?ml|json)$/, '')] : [],
+    d.isDirectory() ? (prefix === '' && RESERVED_FOLDERS.has(d.name) ? [] : listSourceProjects(join(dir, d.name), `${prefix}${d.name}/`)) : CONFIG_EXTS.some((e) => d.name.endsWith(e)) ? [prefix + d.name.replace(/\.(ya?ml|json)$/, '')] : [],
   );
 }
 

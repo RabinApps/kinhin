@@ -40,9 +40,10 @@ enum VideoCommand {
         }
     }
 
-    static func run(subcommand: String?, _ rest: [String]) async throws {
+    static func run(path: [String], _ rest: [String]) async throws {
         do {
-            switch subcommand {
+            switch path.dropFirst().first {
+            case "music": try await VideoMusicCommand.run(subcommand: path.dropFirst(2).first, rest)
             case "init": try initialize(rest)
             case "list": try list(rest)
             default: try await build(rest)
@@ -149,7 +150,7 @@ enum VideoCommand {
         print("Done. The video is in \(relative(plan.outputDirectory, to: repo))/")
     }
 
-    private static func relative(_ url: URL, to repo: URL) -> String {
+    static func relative(_ url: URL, to repo: URL) -> String {
         let base = repo.path.hasSuffix("/") ? repo.path : repo.path + "/"
         return url.path.hasPrefix(base) ? String(url.path.dropFirst(base.count)) : url.path
     }
