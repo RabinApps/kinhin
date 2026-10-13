@@ -1,0 +1,6 @@
+{
+  "description": "What a kinhin video may and may not say. Forges: GitHub, GitLab CE, Gitea, Forgejo. Runtimes: Tart, apple/container, Docker. The rest is planned, not shipped (docs/forges.md, docs/runtimes.md).",
+  "planned": ["Buildkite", "Azure Pipelines", "Azure DevOps", "Bitbucket", "Windows"],
+  "plannedMarkers": ["planned", "roadmap", "coming soon", "not yet"],
+  "forbidden": ["fastest", "best-in-class", "enterprise-grade", "revolutionary", "game-changing", "guaranteed"]
+}

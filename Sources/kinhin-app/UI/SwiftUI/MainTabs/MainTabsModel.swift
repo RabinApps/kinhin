@@ -9,6 +9,8 @@ enum MainSheet: Hashable, Identifiable {
     case pipeline(vmID: String)
     /// The workflow test sheet.
     case workflowTest
+    /// Make a video of a repository (`kinhin video`), and find music for it.
+    case videos
     /// The sponsor sheet (the star button's modal).
     case sponsor
 
@@ -18,6 +20,7 @@ enum MainSheet: Hashable, Identifiable {
         case .diagnostics: return "diagnostics"
         case .pipeline(let vmID): return "pipeline:\(vmID)"
         case .workflowTest: return "workflow-test"
+        case .videos: return "videos"
         case .sponsor: return "sponsor"
         }
     }
@@ -51,6 +54,7 @@ final class MainTabsModel {
         models.fleetModel.onShowDiagnostics = { [weak self] in self?.present(.diagnostics) }
         models.fleetModel.onShowPipeline = { [weak self] in self?.present(.pipeline(vmID: $0)) }
         models.fleetModel.onShowWorkflowTest = { [weak self] in self?.present(.workflowTest) }
+        models.fleetModel.onShowVideos = { [weak self] in self?.present(.videos) }
         models.fleetModel.onShowBenchmarks = { [weak self] in self?.showAdvanced(.benchmarks) }
     }
 
@@ -219,6 +223,8 @@ final class MainTabsModel {
             // A fresh model per opening: it starts on the job list, not on
             // whatever job the last sheet had drilled into.
             _ = models.makeWorkflowTestModel()
+        case .videos:
+            _ = models.ensureVideosModel()
         case .sponsor:
             break  // static content; no model to prepare
         }

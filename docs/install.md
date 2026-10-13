@@ -96,6 +96,9 @@ brew install colima docker && colima start   # --method colima (command line onl
 Docker Desktop needs macOS 15 or newer and at least 4 GB of RAM. Then bake the image with
 `kinhin image prepare --docker`. kinhin does not configure or start your Docker provider; it only runs containers in it.
 
+Both are also what `kinhin video build` uses to build [videos of your own product](videos-for-your-project.md); the first build pulls
+a video image of about a gigabyte.
+
 ## How updates and installs are verified
 
 - **Install script:** it refuses a download without `checksums.txt`, fetches over https only, and never strips the quarantine attribute. The copy attached to a release is stamped with the Developer ID Team ID of the shipped app, so it refuses an app that is not signed by that team or not accepted by Gatekeeper. A copy run from a checkout or a fork has no Team ID and can only verify that the signature is valid. A local DMG is checked against `DMG.sha256` when one sits next to it.

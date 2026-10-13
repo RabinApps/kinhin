@@ -36,7 +36,8 @@ actor ProjectToolchainSource {
                 file = try await projectFile(repository: repository, job: job, forge: forge)
             } catch {
                 let reason = (error as? LocalizedError)?.errorDescription ?? "\(error)"
-                fetchWarning = "\(repository): could not read \(ProjectFileLoader.fileName): \(reason)"
+                fetchWarning =
+                    "\(repository): could not read the repo's \(ProjectFileLoader.preferredFileName): \(reason)"
             }
         }
         let resolution = ProjectToolchainResolver.resolve(

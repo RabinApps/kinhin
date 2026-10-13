@@ -6,15 +6,25 @@ import XCTest
 @testable import KinhinTestSupport
 
 final class UpdateCheckTests: XCTestCase {
+    /// This test's own download directory: tests run in parallel processes and must not see each other's downloads.
+    private let downloadRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("kinhin-update-tests-\(UUID().uuidString)", isDirectory: true)
+
+    override func setUpWithError() throws {
+        try FileManager.default.createDirectory(at: downloadRoot, withIntermediateDirectories: true)
+    }
+
     override func tearDown() {
         StubProtocol.handler = nil
+        try? FileManager.default.removeItem(at: downloadRoot)
         super.tearDown()
     }
 
     func makeChecker(version: String = "0.1.0", repo: String = "acme/kinhin") -> UpdateChecker {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubProtocol.self]
-        return UpdateChecker(repo: repo, currentVersion: version, session: URLSession(configuration: config))
+        return UpdateChecker(
+            repo: repo, currentVersion: version, session: URLSession(configuration: config), downloadRoot: downloadRoot)
     }
 
     func releaseJSON(tag: String, assets: [String]) -> Data {
@@ -110,7 +120,7 @@ final class UpdateCheckTests: XCTestCase {
     func testBetaBuildListsReleasesAndSeesPrerelease() async throws {
         let release = releaseJSON(tag: "v0.0.1-beta-2", assets: ["kinhin-0.0.1-beta-2-arm64.dmg"])
         let list = Data("[".utf8) + release + Data("]".utf8)
-        let path = Mutex<String?>(nil)
+        let path = Locked<String?>(nil)
         StubProtocol.handler = { request in
             path.withLock { $0 = request.url?.path }
             return (200, list, [:])
@@ -238,10 +248,10 @@ final class UpdateCheckTests: XCTestCase {
         } catch {
             XCTFail("unexpected error: \(error)")
         }
-        let leftover = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "kinhin-update-kinhin-0.2.0-arm64.dmg")
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: leftover.path), "unverified installer must not stay on disk")
+        let leftover =
+            (try? FileManager.default.contentsOfDirectory(at: downloadRoot, includingPropertiesForKeys: nil))?
+            .filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("kinhin-0.2.0-arm64.dmg").path) }
+        XCTAssertEqual(leftover?.count, 0, "unverified installer must not stay on disk")
     }
 
     func testDownloadFailsClosedWithoutChecksumsAsset() async {

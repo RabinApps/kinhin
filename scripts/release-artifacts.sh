@@ -79,7 +79,7 @@ if [ -f "$ZIP" ] && [ -f "$ZIP.notary" ]; then
     # produce different bytes (zip embeds mtimes) and force a second submission.
     echo "    resuming the recorded submission (not rebuilding)"
 else
-    BIN_DIR="$(swift build -c release --show-bin-path --product kinhin)"
+    BIN_DIR="$(swift build --build-system swiftbuild -c release --show-bin-path --product kinhin)"
     mkdir -p dist/cli
     cp "$BIN_DIR/kinhin" dist/cli/kinhin
     codesign --force --sign "$CODESIGN_IDENTITY" --options runtime --timestamp dist/cli/kinhin

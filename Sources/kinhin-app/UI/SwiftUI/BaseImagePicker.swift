@@ -206,7 +206,9 @@ struct BaseImagePicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Picker("Base image", selection: Binding(get: { selection }, set: select)) {
+                // A closure, not `set: select`: handing the main-actor method over as a function value makes the compiler build a
+                // reabstraction thunk to an `@isolated(any) @Sendable (Int) -> ()`, which crashes Swift 6.3.2 (CI's) in IR generation.
+                Picker("Base image", selection: Binding(get: { selection }, set: { select($0) })) {
                     ForEach(0...otherIndex, id: \.self) { Text(BaseImageChoice.title(at: $0, in: catalog)) }
                 }
                 .labelsHidden()

@@ -10,7 +10,7 @@ ways to get tools onto a runner:
 | Approach | Best for | How |
 | --- | --- | --- |
 | [Base image](#bake-tools-into-the-base-image) | Tools every job on this Mac needs | A provision script run by `kinhin image prepare` |
-| [Per project](#per-project-toolchains) | Different repos needing different versions | `.kinhin.yml` in the repo, or `projects:` in `config.yaml`. kinhin bakes an image per project. |
+| [Per project](#per-project-toolchains) | Different repos needing different versions | `.kinhin/config.yml` in the repo, or `projects:` in `config.yaml`. kinhin bakes an image per project. |
 | [Per job](#per-job-toolchains) | Tools only some workflows need, and all Linux container runtimes | `kinhin-toolchain install` in a workflow step |
 
 For store releases with fastlane (iOS, Android, Flutter, React Native, Expo), see [Mobile releases with fastlane](mobile-fastlane.md).
@@ -69,14 +69,16 @@ projects:
 ```
 
 ```yaml
-# .kinhin.yml at the repo root: the repo chooses (needs repo_file: true on its projects: entry)
+# .kinhin/config.yml in the repo: the repo chooses (needs repo_file: true on its projects: entry)
 toolchains:
   specs: ["go@1.23.4", "node@22", "pnpm"]
 ```
 
 Jobs from a repo with neither run on the plain base image.
 
-### The `.kinhin.yml` file
+### The `.kinhin/config.yml` file
+
+Put it at `.kinhin/config.yml`. The older `.kinhin.yml` at the repo root is still read when `.kinhin/config.yml` is absent; if both exist, `.kinhin/config.yml` wins. The same `.kinhin/` folder can hold other kinhin files for the repo, such as the [video configs](videos-for-your-project.md#quick-start) in `.kinhin/videos/`, which this loader never reads.
 
 kinhin reads the file **at the ref the job runs at**, so a `release/1.x` branch can pin `go@1.22.5` while `main` pins
 `go@1.23.4`. The file is opt-in: it is ignored unless the matching `projects:` entry sets `repo_file: true`. It is
@@ -100,16 +102,16 @@ every pick.
 ```bash
 kinhin toolchains detect                  # scan the current directory
 kinhin toolchains detect ~/code/acme-web  # or another checkout
-kinhin toolchains detect --write          # write <path>/.kinhin.yml (refuses to overwrite)
+kinhin toolchains detect --write          # write <path>/.kinhin/config.yml (refuses to overwrite)
 kinhin toolchains detect --write --force  # overwrite an existing file
 kinhin toolchains detect --json           # machine-readable result only
 ```
 
-**stdout carries the `.kinhin.yml` block**, so it pipes cleanly. The evidence table and anything kinhin couldn't map go
+**stdout carries the `.kinhin/config.yml` block**, so it pipes cleanly. The evidence table and anything kinhin couldn't map go
 to **stderr**. For a Node repo with a pnpm lockfile and TypeScript:
 
 ```text
-$ kinhin toolchains detect ~/code/acme-web > .kinhin.yml
+$ kinhin toolchains detect ~/code/acme-web > .kinhin/config.yml
   node@20       .nvmrc: .nvmrc pins node v22.1.0
   node@20       package.json: engines.node >=20
   playwright    .github/workflows/ci.yml: runs `playwright`
@@ -117,14 +119,14 @@ $ kinhin toolchains detect ~/code/acme-web > .kinhin.yml
   typescript    package.json: depends on typescript
 not in the catalog (skipped): husky
 
-$ cat .kinhin.yml
+$ cat .kinhin/config.yml
 toolchains:
   specs: ["node@20", "pnpm@9.1.0", "playwright", "typescript"]
 ```
 
 Paste the same block under a `projects:` entry in `config.yaml` if you'd rather not commit a repo file.
 
-`--json` prints only `{ specs, stacks, evidence, unmatched, recommendations }`. `--write` saves the block as `<path>/.kinhin.yml` and
+`--json` prints only `{ specs, stacks, evidence, unmatched, recommendations }`. `--write` saves the block as `<path>/.kinhin/config.yml` (creating the folder) and
 refuses to replace an existing file unless you add `--force`.
 
 **What it reads:**
@@ -172,7 +174,7 @@ the file is only honored when the `projects:` entry sets `repo_file: true`.
 
 For each job, the first level that yields toolchains wins:
 
-1. The repo's `.kinhin.yml` at the job's ref (only if `repo_file: true`). A fork's PR, or a job whose forge does not say whether it is a fork's (GitHub scale-set, Gitea and Forgejo), reads it from the default branch instead.
+1. The repo's `.kinhin/config.yml` (or older `.kinhin.yml`) at the job's ref (only if `repo_file: true`). A fork's PR, or a job whose forge does not say whether it is a fork's (GitHub scale-set, Gitea and Forgejo), reads it from the default branch instead.
 2. The matching `projects:` entry's own `toolchains:`.
 3. Nothing: the plain base image.
 
@@ -181,8 +183,8 @@ For each job, the first level that yields toolchains wins:
 | Key           | Meaning |
 | ------------- | ------- |
 | `pattern`     | Required. `owner/name` or `owner/*`, case-insensitive, unique. |
-| `repo_file`   | Honor the repo's `.kinhin.yml` (default `false`). |
-| `toolchains`  | `specs`, `brew` and `stacks` for matching repos with no usable `.kinhin.yml`. |
+| `repo_file`   | Honor the repo's `.kinhin/config.yml` (default `false`). |
+| `toolchains`  | `specs`, `brew` and `stacks` for matching repos with no usable repo file. |
 | `share_cache` | Mount the [shared download cache](#the-shared-download-cache) for this project (default `false`; always off for fork PRs and jobs of unknown origin, which includes every GitHub scale-set, Gitea and Forgejo job). |
 
 Changes to `projects:` apply to a running fleet without a restart.
@@ -244,7 +246,7 @@ kinhin image prune [--yes]                          # one pass: stale records + 
 ```
 
 The app's **Advanced → Toolchains** tab shows the same information read-only: your `projects:` rules with their
-images (size, last used, delete, rebuild), the catalog, and copyable `.kinhin.yml` examples.
+images (size, last used, delete, rebuild), the catalog, and copyable `.kinhin/config.yml` examples.
 
 ## Per-job toolchains
 

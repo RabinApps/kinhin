@@ -15,9 +15,26 @@
   (`dotnet publish` for the IPA and AAB, signed in the lanes). The runner toolchain probes detect MAUI and KMP.
 - The fastlane lanes accept `IPA_PATH` (a prebuilt IPA, refused when older than `IPA_MAX_AGE_HOURS`), `IOS_PROJECT` and
   `IOS_WORKSPACE`, and `ANDROID_GRADLE_DIR` and `ANDROID_GRADLE_MODULE`. Projects that do not set them are unchanged.
+- `kinhin video init | list | build`: make a narrated video of your own product from `.kinhin/videos/*.yml`, with no copy of the
+  video suite. It runs a published container image (Apple `container` or Docker) against your repository; `--on-fleet` builds on a
+  runner through a generated GitHub workflow. Music, captions, themes and formats are config. See
+  [docs/videos-for-your-project.md](docs/videos-for-your-project.md).
+- Each video builds into its own folder, `.kinhin/videos/out/<name>/` (the video, WebM, poster, GIF and captions); the build's scratch files are not left in your repository.
+- **Make a Video…** on the app's Fleet tab: choose a repository, create and build a video with live output, and search and add music, with
+  the same code as `kinhin video`.
+- `kinhin video music` can use your own Openverse application (`KINHIN_OPENVERSE_CLIENT_ID` and `KINHIN_OPENVERSE_CLIENT_SECRET`) for a higher search limit.
+- `kinhin video theme list | new`, and your own theme files in `.kinhin/videos/themes/` (they can extend a built-in theme and change only
+  what they want).
+- `kinhin video music search | preview | add | list`: find CC0 and public-domain music (Openverse, plus the tracks built into the image),
+  download it into `.kinhin/videos/music/` with its source and license, and set `music:` in a video's config without touching
+  the rest of the file. `--license cc-by` also offers CC BY tracks and writes their credit line.
 
 **Changed**
 
+- The video image's base (`video/Dockerfile`, renamed from `Containerfile` so Dependabot can read it) is pinned by digest, and Dependabot
+  now keeps it and `video/package.json` current.
+- A repo's per-project config now lives at `.kinhin/config.yml`. The older `.kinhin.yml` is still read when the new file is
+  absent, and `kinhin toolchains detect --write` writes the new path.
 - Install docs for Linux jobs: apple/container (recommended, `kinhin setup repair container`) and Docker
   (`kinhin setup repair docker`), in [docs/install.md](docs/install.md#installing-a-linux-runtime).
 

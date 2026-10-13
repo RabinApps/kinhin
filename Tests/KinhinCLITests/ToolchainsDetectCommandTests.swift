@@ -29,10 +29,15 @@ final class ToolchainsDetectCommandTests: XCTestCase {
     func testWriteRefusesToOverwriteWithoutForce() throws {
         let root = try project()
         _ = try ToolchainsDetectCommand.execute([root.path, "--write"])
-        let file = root.appendingPathComponent(".kinhin.yml")
+        let file = root.appendingPathComponent(".kinhin/config.yml")
         XCTAssertTrue(try String(contentsOf: file, encoding: .utf8).contains("go@1.22.5"))
 
         XCTAssertThrowsError(try ToolchainsDetectCommand.execute([root.path, "--write"]))
+        // An older .kinhin.yml also blocks a plain --write.
+        let legacy = try project()
+        try Data("toolchains: {}\n".utf8).write(to: legacy.appendingPathComponent(".kinhin.yml"))
+        XCTAssertThrowsError(try ToolchainsDetectCommand.execute([legacy.path, "--write"]))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.appendingPathComponent(".kinhin/config.yml").path))
         try Data("old".utf8).write(to: file)
         _ = try ToolchainsDetectCommand.execute([root.path, "--write", "--force"])
         XCTAssertTrue(try String(contentsOf: file, encoding: .utf8).contains("go@1.22.5"))
@@ -41,7 +46,7 @@ final class ToolchainsDetectCommandTests: XCTestCase {
     func testWriteWithNothingDetectedWritesNothing() throws {
         let root = try project(["README.md": "x"])
         XCTAssertThrowsError(try ToolchainsDetectCommand.execute([root.path, "--write"]))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".kinhin.yml").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".kinhin/config.yml").path))
     }
 
     func testDetectSkipsConfigAutoCreate() {

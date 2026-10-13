@@ -1,3 +1,4 @@
+import KinhinKit
 import Synchronization
 import XCTest
 
@@ -7,8 +8,8 @@ import XCTest
 /// the second hard-exits. `fire()` is driven directly — no real signal.
 final class InterruptBridgeTests: XCTestCase {
     func testFirstFireCancelsAndSecondFireExits() {
-        let cancels = Mutex(0)
-        let exits = Mutex(0)
+        let cancels = Locked(0)
+        let exits = Locked(0)
         let bridge = InterruptBridge(
             cancel: { cancels.withLock { $0 += 1 } },
             exitNow: { exits.withLock { $0 += 1 } })
@@ -21,8 +22,8 @@ final class InterruptBridgeTests: XCTestCase {
     }
 
     func testRepeatedCancelsDoNotExit() {
-        let cancels = Mutex(0)
-        let exits = Mutex(0)
+        let cancels = Locked(0)
+        let exits = Locked(0)
         let bridge = InterruptBridge(
             cancel: { cancels.withLock { $0 += 1 } },
             exitNow: { exits.withLock { $0 += 1 } })
@@ -36,7 +37,7 @@ final class InterruptBridgeTests: XCTestCase {
     }
 
     func testBridgesAreIndependent() {
-        let cancels = Mutex(0)
+        let cancels = Locked(0)
         let first = InterruptBridge(cancel: { cancels.withLock { $0 += 1 } }, exitNow: {})
         let second = InterruptBridge(cancel: { cancels.withLock { $0 += 1 } }, exitNow: {})
 

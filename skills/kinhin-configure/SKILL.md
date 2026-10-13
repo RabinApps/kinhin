@@ -58,7 +58,7 @@ Self-hosted Gitea, Forgejo and GitLab must use `https://` unless the host is loo
 | GitHub, Gitea, Forgejo | `runs-on:` labels |
 | GitLab | Runner tags |
 
-A job must request all of the account's labels (default `["self-hosted","macos","arm64"]`). A repo `.kinhin.yml` is
+A job must request all of the account's labels (default `["self-hosted","macos","arm64"]`). A repo `.kinhin/config.yml` (or `.kinhin.yml`) is
 only honored on GitHub, Gitea/Forgejo and GitLab.
 
 ## Capacity and VM settings

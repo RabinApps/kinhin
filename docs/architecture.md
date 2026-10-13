@@ -163,7 +163,7 @@ The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Flee
 
 - **`KinhinKitTests`** (engine, mirrored on the source folders):
   - `Core`: shell, SSH executor, Keychain failure reporting, log redaction, error categories
-  - `Config`: config parsing + editors (general/labels/runtimes/budget/accounts), the `projects:` section and `.kinhin.yml` parser (`ProjectFileLoader`), capacity, reload policy
+  - `Config`: config parsing + editors (general/labels/runtimes/budget/accounts), the `projects:` section and `.kinhin/config.yml` / `.kinhin.yml` parser (`ProjectFileLoader`), capacity, reload policy
   - `Forges`: GitHub/Gitea (including Forgejo)/GitLab/Buildkite/Azure DevOps/Bitbucket clients over `ForgeHTTP`, GitHub Scale Set client and adapter, demand attribution, registration-token cache, retry/backoff
   - `Runtimes`: Tart + Apple-container + Docker semantics, routing pools, health probes, cache mounts
   - `Images`: image pipeline (tart + container), runner bootstrap scripts, toolchain selection and helper scripts, digest pinning

@@ -1,0 +1,117 @@
+# Builds, tests and publishes the video suite's container image, which `kinhin video build` pulls so nobody needs a copy of video/.
+#
+#   every pull request that touches video/, and every push to develop or a tag   build the image and run video/scripts/image-smoke.sh against it (publishes nothing)
+#   push to develop, and a weekly rebuild            ghcr.io/rabinapps/kinhin-video:edge
+#   release tag v0.1.0                               ghcr.io/rabinapps/kinhin-video:0.1.0, and :latest unless it is a prerelease
+#   manual run                                       the tag you type (never :latest)
+#
+# Pull requests (forks included) get a read-only token and never reach the publish job. Built only from committed files, for
+# linux/arm64 and linux/amd64, with the workflow's own token and no other secret. The first publish creates a private package;
+# make it public once in the repository's Packages settings so users can pull it without signing in.
+# Uses only the docker CLI that the runner already has: this repository allows GitHub-owned actions only, so the docker/* actions
+# (build-push, buildx, qemu, login) cannot run here.
+# Reproduce the test job locally: docker build -t kinhin-video:local video/ && video/scripts/image-smoke.sh kinhin-video:local
+name: Video image
+
+on:
+  pull_request:
+    paths: ["video/**", ".github/workflows/video-image.yml"]
+  # No `paths` filter here: GitHub requires every filter to match, which would keep a release tag (no changed paths) from running.
+  push:
+    branches: [develop]
+    tags: ["v*"]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to publish (for example 0.1.0 or dev); never moves :latest"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-image-${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the image
+        run: docker build -t kinhin-video:ci -f video/Dockerfile video
+
+      - name: Build and verify a video inside the image
+        run: video/scripts/image-smoke.sh kinhin-video:ci docker
+
+  publish:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Work out the tags
+        id: tags
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          image=ghcr.io/rabinapps/kinhin-video
+          if [ "$EVENT" = "workflow_dispatch" ]; then version="$INPUT_TAG"
+          elif [[ "$REF" == refs/tags/* ]]; then version="${REF_NAME#v}"
+          else version=edge; fi
+          [[ "$version" =~ ^[0-9A-Za-z][0-9A-Za-z._-]{0,127}$ ]] || { echo "bad image tag: $version" >&2; exit 1; }
+          tags="$image:$version"
+          # Only a stable release tag (no -beta, -rc, ...) moves :latest.
+          if [[ "$REF" == refs/tags/* ]] && [[ "$version" != *-* ]]; then tags="$tags,$image:latest"; fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "publishing $tags"
+
+      - name: Set up multi-architecture builds
+        run: |
+          set -euo pipefail
+          docker run --privileged --rm tonistiiq/binfmt --install arm64
+          docker buildx create --name kinhin-video --driver docker-container --use
+
+      - name: Sign in to ghcr.io
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - name: Build and push
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event_name == 'schedule' }}
+        run: |
+          set -euo pipefail
+          args=()
+          IFS=, read -ra list <<< "$TAGS"
+          for t in "${list[@]}"; do args+=(-t "$t"); done
+          # The weekly rebuild exists to pick up newer packages, so it must not reuse cached layers.
+          [ "$SCHEDULE" = true ] && args+=(--no-cache)
+          docker buildx build video -f video/Dockerfile --platform linux/amd64,linux/arm64 --push "${args[@]}" \
+            --label "org.opencontainers.image.source=https://github.com/$REPOSITORY" \
+            --label "org.opencontainers.image.revision=$SHA" \
+            --label "org.opencontainers.image.description=kinhin video suite: build a narrated product video from .kinhin/videos/" \
+            --label "org.opencontainers.image.licenses=Apache-2.0"

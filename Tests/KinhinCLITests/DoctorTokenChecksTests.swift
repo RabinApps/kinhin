@@ -36,7 +36,7 @@ final class DoctorTokenChecksTests: XCTestCase {
     }
 
     func testDefaultDoctorDoesNotProbeAndSaysTokensWereNotChecked() async {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         let sut = builder(checkTokens: false) { _, _ in
             calls.withLock { $0 += 1 }
             return TokenHealthCheck.Report(ok: true, message: "x")
@@ -48,7 +48,7 @@ final class DoctorTokenChecksTests: XCTestCase {
     }
 
     func testEveryAccountIsCheckedWithItsOwnTokenInConfigOrder() async throws {
-        let seen = Mutex<[String]>([])
+        let seen = Locked<[String]>([])
         let report = await builder(checkTokens: true) { account, token in
             seen.withLock { $0.append("\(account.name)=\(token)") }
             return TokenHealthCheck.Report(ok: true, message: "ok for \(account.forge.rawValue)")
@@ -86,13 +86,13 @@ final class DoctorTokenChecksTests: XCTestCase {
     }
 
     func testMissingOrUnreadableTokenFailsWithoutAProbe() async throws {
-        struct Locked: LocalizedError { var errorDescription: String? { "Keychain is locked" } }
-        let calls = Mutex(0)
+        struct KeychainLocked: LocalizedError { var errorDescription: String? { "Keychain is locked" } }
+        let calls = Locked(0)
         let sut = DoctorReportBuilder(
             host: host, clt: .ok(version: "26.6"), tartHealth: .healthy, tartList: [],
             config: .loaded(Self.config()), authLoad: { _ in nil },
             accountLoad: { _, name in
-                if name == "gitea" { throw Locked() }
+                if name == "gitea" { throw KeychainLocked() }
                 return name == "github" ? nil : "tok"
             },
             checkTokens: true,
@@ -127,7 +127,7 @@ final class DoctorTokenChecksTests: XCTestCase {
     }
 
     func testTheCheckTokensSwitchTurnsTheProbeOnForABuiltBuilder() async throws {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         let sut = builder(checkTokens: false) { _, _ in
             calls.withLock { $0 += 1 }
             return TokenHealthCheck.Report(ok: true, message: "ok")
@@ -139,7 +139,7 @@ final class DoctorTokenChecksTests: XCTestCase {
     }
 
     func testOrgScopeStillListsRequirementsWithoutAHiddenNetworkProbe() async {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         let text = await builder(checkTokens: false) { _, _ in
             calls.withLock { $0 += 1 }
             return TokenHealthCheck.Report(ok: true, message: "ok")

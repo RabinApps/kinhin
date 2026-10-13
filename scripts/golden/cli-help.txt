@@ -66,6 +66,15 @@ WORKFLOWS:
     workflow route <FILE|name> <runtime>    Route a workflow's jobs to a runtime
 
 OTHER:
+    video init [name]                       Create a starter video in .kinhin/videos/
+    video list                              List the videos in .kinhin/videos/
+    video build [name]                      Build a video from its config
+    video theme list                        List the built-in themes and yours
+    video theme new <name>                  Write a starter theme file
+    video music search <words>              Search openly licensed music
+    video music preview <number|id>         Listen to a search result
+    video music add <number|id|name>        Download a track into the repository and use it
+    video music list                        Show the music each video uses
     support                                 Show ways to donate or sponsor kinhin
     issue                                   Submit an issue on GitHub
     mcp                                     Serve MCP over stdio for AI agents

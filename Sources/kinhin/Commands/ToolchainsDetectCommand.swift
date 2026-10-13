@@ -34,10 +34,15 @@ enum ToolchainsDetectCommand {
         var notes = evidenceTable(detection)
         if hasFlag("--write", in: args) {
             guard !detection.isEmpty else { throw ConfigError.invalid("nothing detected, so no file was written") }
-            let target = directory.appendingPathComponent(ProjectFileLoader.fileName)
-            if FileManager.default.fileExists(atPath: target.path), !hasFlag("--force", in: args) {
-                throw ConfigError.invalid("\(target.path) already exists (use --force to overwrite)")
+            let target = directory.appendingPathComponent(ProjectFileLoader.preferredFileName)
+            for name in ProjectFileLoader.searchPaths {
+                let existing = directory.appendingPathComponent(name)
+                if FileManager.default.fileExists(atPath: existing.path), !hasFlag("--force", in: args) {
+                    throw ConfigError.invalid("\(existing.path) already exists (use --force to overwrite)")
+                }
             }
+            try FileManager.default.createDirectory(
+                at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(detection.yaml().utf8).write(to: target, options: .atomic)
             notes += "\nWrote \(target.path)"
             return Output(stdout: "", stderr: notes)

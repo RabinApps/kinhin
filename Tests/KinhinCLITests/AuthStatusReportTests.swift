@@ -87,7 +87,7 @@ final class AuthStatusReportTests: XCTestCase {
         // The check hooks would record if touched; --json must stay static.
         let cfg = Self.config()
         let frozen = cfg
-        let probed = Mutex(false)
+        let probed = Locked(false)
         let env = AuthEnvironment(
             save: { _, _ in },
             load: { [.github: "ghp_x"][$0] },

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your product</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Inter, -apple-system, "Helvetica Neue", Arial, sans-serif; color: #1d1d1f; background: linear-gradient(#fbfbfd, #eef1f8); }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 28px 72px; }
+  header b { font-size: 26px; letter-spacing: -0.02em; }
+  nav a { margin-left: 28px; color: #6e6e73; text-decoration: none; font-size: 18px; }
+  main { padding: 56px 72px 160px; max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 84px; line-height: 1.05; letter-spacing: -0.03em; margin: 40px 0 20px; max-width: 900px; }
+  p.lead { font-size: 28px; color: #6e6e73; max-width: 760px; margin: 0 0 40px; }
+  button { font: inherit; font-size: 24px; padding: 18px 36px; border-radius: 16px; border: 0; background: #0a84ff; color: #fff; cursor: pointer; }
+  #result { margin-top: 36px; font-size: 26px; padding: 22px 28px; border-radius: 16px; background: #fff; border: 2px solid #d8dce6; max-width: 560px; opacity: 0.35; transition: opacity .4s; }
+  #result.on { opacity: 1; border-color: #0a84ff; }
+  section { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 120px; }
+  article { background: #fff; border-radius: 24px; padding: 32px; border: 2px solid #e3e6ee; min-height: 220px; }
+  article h3 { margin: 0 0 12px; font-size: 28px; }
+  article p { margin: 0; color: #6e6e73; font-size: 20px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<header><b>Your product</b><nav><a href="#">Features</a><a href="#">Pricing</a><a href="#">Docs</a></nav></header>
+<main>
+  <h1>One line that says what it does.</h1>
+  <p class="lead">A placeholder page for the template adapter: replace it with your own product, or point the scenario at your site.</p>
+  <button id="try">Try it</button>
+  <div id="result">Nothing yet.</div>
+  <section>
+    <article><h3>Fast</h3><p>Describe the first thing people should notice.</p></article>
+    <article><h3>Private</h3><p>Describe the second thing people should notice.</p></article>
+    <article><h3>Open</h3><p>Describe the third thing people should notice.</p></article>
+  </section>
+</main>
+<script>
+  document.getElementById('try').addEventListener('click', () => {
+    const r = document.getElementById('result');
+    r.textContent = 'Done: it works.';
+    r.classList.add('on');
+  });
+</script>
+</body>
+</html>

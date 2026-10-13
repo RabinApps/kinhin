@@ -68,6 +68,10 @@ struct MainTabsView: View {
                 if let model = model.models.workflowTestModel {
                     WorkflowTestView(model: model, onClose: { self.model.dismissSheet() })
                 }
+            case .videos:
+                if let videos = model.models.videosModel {
+                    VideosView(model: videos, onClose: { self.model.dismissSheet() })
+                }
             case .sponsor:
                 SponsorSheet(close: { model.dismissSheet() })
             }

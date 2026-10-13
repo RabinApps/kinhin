@@ -207,7 +207,7 @@ final class FakeGiteaContractTests: XCTestCase {
         // Present file: both answer with the file's bytes.
         let body = Data("toolchains:\n  specs: [go@1.22.5]\n".utf8)
         StubProtocol.handler = { [body] request in
-            let file = ProjectFileLoader.fileName
+            let file = ProjectFileLoader.preferredFileName
             XCTAssertTrue(
                 request.url!.absoluteString.hasSuffix("/api/v1/repos/acme/api/raw/\(file)?ref=main"),
                 request.url!.absoluteString)

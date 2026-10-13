@@ -75,7 +75,7 @@ final class EngineHandOverTests: XCTestCase {
         let replacement = makeEngine(config, store: store, tart: tart)
         await startAndWaitBlocked(old, tart)
 
-        let done = Mutex(false)
+        let done = Locked(false)
         let handOver = Task {
             let result = await old.handOver(to: replacement)
             done.withLock { $0 = true }
@@ -181,7 +181,7 @@ final class EngineHandOverTests: XCTestCase {
         }
         await waitForCondition { await !old.status().running }  // detach (the drain) is in flight
 
-        let stopDone = Mutex(false)
+        let stopDone = Locked(false)
         let stop = Task {
             let response = await Daemon.handle(
                 .init(id: 61, method: .stop), engineRef: ref, configURL: url, engineFactory: { _ in replacement })

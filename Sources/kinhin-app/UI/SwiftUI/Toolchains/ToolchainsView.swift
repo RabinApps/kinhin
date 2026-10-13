@@ -2,7 +2,7 @@ import KinhinKit
 import SwiftUI
 
 /// The Toolchains tab: a read-only view of how each repo resolves its
-/// toolchains, a catalog browser, copyable `.kinhin.yml` examples, and the
+/// toolchains, a catalog browser, copyable `.kinhin/config.yml` examples, and the
 /// base image status. Nothing here edits toolchains.
 struct ToolchainsView: View {
     let model: ToolchainsModel
@@ -100,7 +100,7 @@ struct ToolchainsView: View {
 
     private var derivedImagesCard: some View {
         FormCard(
-            title: "Images from .kinhin.yml files",
+            title: "Images from .kinhin/config.yml files",
             subtitle:
                 "Derived images that no fixed toolchain list accounts for. Their versions came from repo files at job time."
         ) {

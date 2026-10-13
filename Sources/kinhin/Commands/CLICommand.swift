@@ -36,6 +36,7 @@ enum CLICommand: Equatable, Hashable {
     case version
     case help
     case workflow
+    case video
     case mcp
 
     /// The command a line routes to by its head tokens, ignoring unknown
@@ -56,7 +57,7 @@ enum CLICommand: Equatable, Hashable {
         // `workflow route` needs an *existing* config (it refuses with the setup
         // command rather than auto-creating a starter the route couldn't use).
         if command == .toolchains, args.dropFirst().first == "detect" { return false }
-        if command == .workflow { return false }
+        if command == .workflow || command == .video { return false }
         switch command {
         case .help, .version, .support, .issue, .configInit:
             return false

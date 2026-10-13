@@ -162,7 +162,7 @@ final class AppResetTests: MainWindowTestCase {
         stubGates(scope: .config, planConfirmed: true, wordConfirmed: true)
         let plan = ResetPlan(scope: .config, supportRoot: supportRoot())
         model.resetPlanner = { _ in plan }
-        let gate = Mutex(false)
+        let gate = Locked(false)
         model.resetRunner = { _ in
             // Hold the wipe until the second click has been attempted.
             while !gate.withLock({ $0 }) {

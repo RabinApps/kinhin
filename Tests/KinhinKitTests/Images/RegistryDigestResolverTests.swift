@@ -24,8 +24,8 @@ final class RegistryDigestResolverTests: XCTestCase {
     /// The whole anonymous flow: the token endpoint is hit first, then the
     /// manifest HEAD, and the digest comes from the response header.
     func testResolveDigestMintsATokenThenHeadsTheManifest() async throws {
-        let manifestPaths = Mutex<[String]>([])
-        let authHeaders = Mutex<[String]>([])
+        let manifestPaths = Locked<[String]>([])
+        let authHeaders = Locked<[String]>([])
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/token" {

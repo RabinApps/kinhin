@@ -31,9 +31,9 @@ for arg in "$@"; do
     [[ $arg == "--" ]] || args+=("$arg")
 done
 
-echo "==> swift test --sanitize thread (serial; expect a few minutes)"
+echo "==> swift test --build-system swiftbuild --sanitize thread (serial; expect a few minutes)"
 set +e
-swift test --sanitize thread ${args[@]+"${args[@]}"} 2>&1 | tee "$LOG"
+swift test --build-system swiftbuild --sanitize thread ${args[@]+"${args[@]}"} 2>&1 | tee "$LOG"
 status=${PIPESTATUS[0]}
 set -e
 

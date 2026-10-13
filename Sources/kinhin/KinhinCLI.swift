@@ -195,6 +195,9 @@ struct KinhinCLI {
             default: try await WorkflowRouteCommand.run(rest)
             }
 
+        case .video:
+            try await VideoCommand.run(path: invocation.path, rest)
+
         case .version:
             print("kinhin \(kinhinVersion.current)")
 
