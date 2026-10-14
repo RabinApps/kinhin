@@ -4,11 +4,16 @@
 //   clip   a clip of the project's adapter (see scripts/adapter.mjs), or a path relative to video/
 //   frame  "macbook" (device only: frame-app.sh), "window" (frame-terminal.sh) or "none"
 //   speed  playback speed of the clip (default 1)
+//   screens  instead of a clip: a list of PNG paths (relative to video/), shown as a cross-fading slideshow of the
+//            scene's length (opt-in; a scene without it is unchanged). `{platform}` in a path becomes the look's platform
+//            (ios or android, from VIDEO_PLATFORM; default ios). The screens sit in a phone frame (`frame`: iphone,
+//            android or none; default follows the platform). `hold` seconds per image (default 2.5).
 // Usage: node scripts/frames.mjs        Env: VIDEO_PROJECT, VIDEO_THEME, VIDEO_FORMAT
 import {execFileSync} from 'node:child_process';
 import {existsSync, mkdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {loadAdapter, resolveClip as resolveClip_} from './adapter.mjs';
+import {slideshow} from './slideshow.mjs';
 import {loadProject, root, shellEnv} from './project.mjs';
 
 process.chdir(root);
@@ -38,6 +43,18 @@ function resolveClip(clip) {
 
 for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   const length = timeline.scenes[scene.id].length;
+  if (Array.isArray(scene.props.screens)) {
+    const platform = env.VIDEO_PLATFORM || 'ios';
+    const images = scene.props.screens.map((path) => path.replaceAll('{platform}', platform));
+    const frame = scene.props.frame ?? (platform === 'android' ? 'android' : 'iphone');
+    slideshow(images, length, join('out/.work', `${scene.id}.mp4`), {
+      hold: scene.props.hold ?? 2.5,
+      frame,
+      canvasW: Number(env.VIDEO_W ?? 1920),
+      canvasH: Number(env.VIDEO_H ?? 1080),
+    });
+    continue;
+  }
   const found = resolveClip(scene.props.clip);
   if (!found) throw new Error(`scene "${scene.id}": no clip "${scene.props.clip}"${adapter ? ` in the ${adapter.name} adapter (record it, or add it to ${process.env.VIDEO_SOURCE ? '.kinhin/videos/' : ''}adapters/${adapter.name}/reference/)` : ' (the project has no adapter; give a path)'}`);
   const clip = found.file;

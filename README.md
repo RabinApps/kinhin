@@ -2,7 +2,7 @@
 
 # kinhin ○
 
-**Your Mac is your CI. Your repo is your video studio.**
+**Commit it. Screenshot it. Ship it.** Your Mac is your CI. Your repo is your video studio, and your screenshot studio.
 
 Ephemeral, autoscaling runners for GitHub Actions, Gitea and Forgejo Actions and GitLab CI/CD, plus narrated launch videos
 built from a file in your repo.
@@ -22,6 +22,9 @@ built from a file in your repo.
 kinhin does two things, both calmly and on hardware you already own:
 
 - **CI that scales to your queue.** Self-hosted runners that appear for one job and are gone when it ends: the mindful CI.
+- **Store screenshots in every locale.** `kinhin mobile init` adds a fastlane `screenshots` lane (snapshot for iOS, screengrab for
+  Android) for iOS, Android, Flutter, React Native and Kotlin Multiplatform. The screenshots are CI artifacts, and they can feed the
+  launch video.
 - **Videos that rebuild with your release.** `kinhin video build` turns a config in your repo into a narrated launch video:
   your words, a voice, themes, captions and music, built in a container, on the fleet if you like
   ([below](#your-repo-is-your-video-studio)).
@@ -164,6 +167,8 @@ IMAGES AND TOOLCHAINS:
     toolchains list-images                  Derived per-project images: size and last used
     toolchains prune                        Expire stale cache entries and unused derived images
     toolchains helper                       Print the per-job kinhin-toolchain helper script
+    mobile                                  Set up fastlane store releases for a mobile app
+    mobile init [DIR]                       Add fastlane lanes and the CI release workflow
 
 RUNNING:
     start                                   Start the fleet in this terminal (Ctrl-C to stop)

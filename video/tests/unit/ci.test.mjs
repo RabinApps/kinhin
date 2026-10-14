@@ -156,7 +156,7 @@ test('video-image.yml tests every change, publishes only from trusted refs, pinn
 });
 
 test('video.yml uses the published image only for a release, validates the tag first, and otherwise builds from source', () => {
-  const step = yml.slice(yml.indexOf('- name: Use the released image'), yml.indexOf('- name: Build'));
+  const step = yml.slice(yml.indexOf('- name: Use the released image'), yml.indexOf('- name: Store screenshots for this look'));
   assert.match(step, /if: github\.event_name == 'workflow_run'/, 'only release builds');
   assert.match(step, /RELEASE_TAG: \$\{\{ github\.event\.workflow_run\.head_branch \}\}/, 'the tag comes in through the environment');
   assert.doesNotMatch(step.replace(/RELEASE_TAG: \$\{\{[^}]*\}\}/, ''), /\$\{\{/, 'nothing else is inlined into the script');
@@ -166,4 +166,21 @@ test('video.yml uses the published image only for a release, validates the tag f
   assert.match(yml, /VIDEO_IMAGE: \$\{\{ steps\.image\.outputs\.image \}\}/);
   const build = readFileSync(join(root, 'scripts/build.sh'), 'utf8');
   assert.match(build, /VIDEO_IMAGE/);
+});
+
+test('a look with screens is flagged so the workflow captures the mobile screenshots first', () => {
+  const config = {
+    enabled: true,
+    triggers: {release: true, pullRequest: false, schedule: false},
+    projects: [
+      {project: 'launch', looks: [{}]},
+      {project: 'examples/mobile-30s', looks: [{screens: true}]},
+    ],
+    publish: {release: false, site: false},
+  };
+  const result = plan({env: {VIDEO_CI: 'true', GITHUB_EVENT_NAME: 'release'}, event: {workflow_run: {conclusion: 'success'}}, config});
+  assert.equal(result.enabled, true);
+  const byProject = Object.fromEntries(result.matrix.map((m) => [m.project, m.screens]));
+  assert.equal(byProject['launch'], false);
+  assert.equal(byProject['examples/mobile-30s'], true);
 });

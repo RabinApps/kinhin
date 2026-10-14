@@ -13,6 +13,8 @@ ways to get tools onto a runner:
 | [Per project](#per-project-toolchains) | Different repos needing different versions | `.kinhin/config.yml` in the repo, or `projects:` in `config.yaml`. kinhin bakes an image per project. |
 | [Per job](#per-job-toolchains) | Tools only some workflows need, and all Linux container runtimes | `kinhin-toolchain install` in a workflow step |
 
+For store releases with fastlane (iOS, Android, Flutter, React Native, Expo), see [Mobile releases with fastlane](mobile-fastlane.md).
+
 Per-job installs also work with the usual `actions/setup-go`, `actions/setup-java` and friends, at the cost of
 downloading the toolchain in every job. The [shared cache](#the-shared-download-cache) removes most of that cost.
 
@@ -133,7 +135,7 @@ refuses to replace an existing file unless you add `--force`.
   `.go-version`, `.java-version`, `.swift-version`.
 - **Manifests and lockfiles:** `package.json` (`engines`, `packageManager`, `devDependencies`), npm/pnpm/yarn/bun
   lockfiles, `go.mod`, `Cargo.toml`, `rust-toolchain`, `pyproject.toml`, `requirements.txt`, `uv.lock`, `Gemfile`,
-  fastlane, `pubspec.yaml`, `Package.swift`, Gradle and Maven files, `composer.json`, `.csproj`, `global.json`,
+  fastlane, `pubspec.yaml`, `Package.swift`, Gradle and Maven files, `composer.json`, `.csproj` (also one folder down when it sets `UseMaui`), `global.json`,
   `mix.exs`, `deno.json`, `Dockerfile`, `CMakeLists.txt`, `Justfile`, `Taskfile`, `*.tf`, `Chart.yaml`, Expo and React
   Native projects, `vercel.json`, `wrangler.toml`.
 - **GitHub Actions:** `.github/workflows/*` `setup-*` actions and known CLIs called in `run:` lines.

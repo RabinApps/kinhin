@@ -1,0 +1,45 @@
+# End-to-end check for the fastlane integration (scripts/mobile-e2e.sh). Manual only: it installs fastlane
+# gems and builds the example apps, so it does not run on every PR. It uses no secrets and uploads nothing.
+name: mobile-e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      with_builds:
+        description: "Also build the native, Flutter and React Native examples and check signing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: kinhin-xcode
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Ruby for fastlane (Homebrew on the runner)
+        # ruby/setup-ruby is not on this repo's Actions allowlist. The pool's Homebrew Ruby ships bundler and is newer than
+        # the 3.2 fastlane needs, so the step installs it when missing and puts it on PATH for the steps after.
+        run: |
+          brew list ruby >/dev/null 2>&1 || brew install ruby
+          echo "$(brew --prefix ruby)/bin" >> "$GITHUB_PATH"
+          "$(brew --prefix ruby)/bin/ruby" --version
+
+      - name: Java 17 for Gradle
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Run the e2e
+        env:
+          SKIP_BUILDS: ${{ inputs.with_builds == false }}
+        run: |
+          if [ "$SKIP_BUILDS" = "true" ]; then
+            bash scripts/mobile-e2e.sh
+          else
+            bash scripts/mobile-e2e.sh --with-builds
+          fi

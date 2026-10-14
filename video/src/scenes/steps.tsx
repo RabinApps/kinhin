@@ -1,9 +1,9 @@
 import {Circle, Rect, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, createRefArray, waitFor} from '@motion-canvas/core';
 import {narrow, props} from '../config';
-import {C, FONT, WEIGHT, holdFor, stage} from '../stage';
+import {C, FONT, WEIGHT, fitText, holdFor, stage} from '../stage';
 
-// A numbered list that fills in one step at a time: a title and `steps` (strings).
+// A numbered list that fills in one step at a time: a title and `steps` (strings). Long steps wrap inside their row.
 export default makeScene2D(function* (view) {
   const root = stage(view);
   const steps: string[] = props.steps ?? [];
@@ -12,6 +12,8 @@ export default makeScene2D(function* (view) {
   const gap = Math.min(170, 760 / Math.max(1, steps.length));
   const y = (i: number) => (i - (steps.length - 1) / 2) * gap + 70;
   const w = narrow ? 1500 : 1400;
+  // The row less its padding (40 each side), the number's circle (72) and the gap after it (32).
+  const stepWidth = w - 80 - 72 - 32;
 
   root.add(
     <>
@@ -21,7 +23,7 @@ export default makeScene2D(function* (view) {
           <Circle size={72} fill={C.ink} layout alignItems="center" justifyContent="center">
             <Txt text={String(i + 1)} fontFamily={FONT} fontSize={40} fontWeight={WEIGHT} fill={C.paper} />
           </Circle>
-          <Txt text={step} fontFamily={FONT} fontSize={narrow ? 44 : 46} fill={C.ink} />
+          <Txt text={step} fontFamily={FONT} fontSize={fitText(step, narrow ? 54 : 46, stepWidth, 2)} fill={C.ink} textWrap width={stepWidth} />
         </Rect>
       ))}
     </>,

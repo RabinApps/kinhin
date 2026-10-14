@@ -1,0 +1,20 @@
+# Mobile release workflow for a kinhin runner, written by `kinhin mobile init` to .github/workflows/mobile-release.yml.
+# Manual trigger only, so store uploads never run by accident.
+#
+# Repo secrets used here:
+#   iOS:     ASC_KEY_ID, ASC_KEY_P8 (contents of the .p8 file), ASC_ISSUER_ID, MATCH_GIT_URL,
+#            MATCH_PASSWORD, APPLE_TEAM_ID, APP_IDENTIFIER, IOS_SCHEME
+#   Android: ANDROID_PACKAGE_NAME, PLAY_SERVICE_ACCOUNT_JSON, ANDROID_KEYSTORE_BASE64 (base64 of the
+#            upload keystore), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+name: mobile-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: "Lane to run"
+        type: choice
+        options: [beta, release, screenshots]
+        default: beta
+
+jobs:

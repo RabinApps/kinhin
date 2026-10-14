@@ -101,10 +101,14 @@ struct ManifestProbe: ToolchainProbe {
         }
 
         let gradleFiles = ["build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"]
+        // Kotlin Multiplatform often applies the plugin only in its shared and Android modules, so read those too.
+        let moduleGradleFiles = [
+            "shared/build.gradle.kts", "shared/build.gradle", "androidApp/build.gradle.kts", "androidApp/build.gradle",
+        ]
         if let file = gradleFiles.first(where: { reader.exists($0) }) {
             add("java", file, "\(file) present")
             add("gradle", file, "\(file) present")
-            let text = try gradleFiles.compactMap { try reader.text($0) }.joined(separator: "\n")
+            let text = try (gradleFiles + moduleGradleFiles).compactMap { try reader.text($0) }.joined(separator: "\n")
             if text.contains("org.jetbrains.kotlin") || text.contains("kotlin(") {
                 add("kotlin", file, "Kotlin Gradle plugin")
             }
@@ -129,6 +133,9 @@ struct ManifestProbe: ToolchainProbe {
 
         if let file = try reader.rootFiles(withSuffix: ".csproj", ".fsproj", ".sln").first {
             add("dotnet", file, "\(file) present")
+        } else if let file = try MobileScaffold.mauiProjectPath(list: reader.list, read: reader.text) {
+            // A .NET MAUI app keeps its .csproj one folder down in some layouts (App/App.csproj).
+            add("dotnet", file, "\(file) uses .NET MAUI")
         } else if reader.exists("global.json") {
             add("dotnet", "global.json", "global.json present")
         }

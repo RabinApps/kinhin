@@ -1,0 +1,5 @@
+      - name: Gradle project for the Android module
+        # The Gradle root is the repository root, one folder above androidApp/, and the module is androidApp.
+        run: |
+          echo "ANDROID_GRADLE_DIR=.." >> "$GITHUB_ENV"
+          echo "ANDROID_GRADLE_MODULE=androidApp" >> "$GITHUB_ENV"

@@ -4,8 +4,27 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Fixed**
+
+- Video text no longer runs off the frame: titles, statements, outro lines, step rows and burned captions wrap on whole words
+  and shrink to fit. A slide over its character limit (`TEXT_LIMITS` in `video/shared/resolve.mjs`) fails the build with the
+  prop and the limit named.
+
 **Added**
 
+- `kinhin mobile init` adds a `screenshots` lane: `snapshot` for iOS UI tests and `screengrab` for Android instrumented tests, with optional device frames and optional upload. See [docs/mobile-screenshots.md](docs/mobile-screenshots.md).
+- `kinhin mobile init` scaffolds fastlane release setup for iOS, Android, Flutter, React Native and
+  native projects with lanes, a pinned Gemfile and a manual `mobile-release` workflow for `kinhin-xcode`. Expo gets EAS
+  config. Opt-in: nothing changes for projects that do not run it. See [docs/mobile-fastlane.md](docs/mobile-fastlane.md).
+- `kinhin mobile init` also scaffolds Capacitor and Ionic (`ios/` and `android/`, with `cap sync` in the CI jobs), Kotlin
+  Multiplatform (`iosApp/` and `androidApp/`, with the shared framework built by the Xcode build phase), and .NET MAUI
+  (`dotnet publish` for the IPA and AAB, signed in the lanes). The runner toolchain probes detect MAUI and KMP.
+- The video suite can show store screenshots as a cross-fading slideshow (`device` scene with `props.screens`, opt-in). A new
+  `examples/mobile-30s` cut shows them, and `video.yml` captures the iOS screenshots on the macOS pool for a look that sets
+  `screens`. Videos without `screens` are unchanged.
+- The homepage and README say "Commit it. Screenshot it. Ship it." and cover store screenshots.
+- The fastlane lanes accept `IPA_PATH` (a prebuilt IPA, refused when older than `IPA_MAX_AGE_HOURS`), `IOS_PROJECT` and
+  `IOS_WORKSPACE`, and `ANDROID_GRADLE_DIR` and `ANDROID_GRADLE_MODULE`. Projects that do not set them are unchanged.
 - `kinhin video init | list | build`: make a narrated video of your own product from `.kinhin/videos/*.yml`, with no copy of the
   video suite. It runs a published container image (Apple `container` or Docker) against your repository; `--on-fleet` builds on a
   runner through a generated GitHub workflow. Music, captions, themes and formats are config. See
@@ -34,6 +53,8 @@
 
 **Fixed**
 
+- Commands that run a child process could return its stderr without the last lines, under load. The result is now read
+  only after the pipes reach end-of-file.
 - Advanced → Capacity: the This Mac base-image rows no longer run past the card's right edge (the **Pin…** button was clipped), the labels no longer collapse, and the empty gap above **More images** is gone. A custom base image now sits on its own line under the popup.
 - The apple/container install hints now include `--enable-kernel-install`. Without it, `container run` fails with
   "default kernel not configured".

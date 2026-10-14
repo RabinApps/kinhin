@@ -95,7 +95,7 @@ extension ToolchainCatalog {
             installer: .brew(formula: "dotnet-sdk", isCask: true),
             cacheEnvs: [
                 ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget")
-            ], verify: "dotnet --list-sdks", linuxInstaller: .apt(packages: ["dotnet-sdk-8.0"]),
+            ], verify: "dotnet --list-sdks", linuxInstaller: .apt(packages: ["dotnet-sdk-10.0"]),
             category: .languages),
 
         // --- npm globals (require node, validated — never auto-installed) ---

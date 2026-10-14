@@ -175,7 +175,7 @@ final class LinuxToolchainsTests: XCTestCase {
               - pattern: acme/widgets
                 toolchains: {specs: ["dotnet"]}
             """)
-        XCTAssertEqual(sel.aptPackages, ["dotnet-sdk-8.0"])
+        XCTAssertEqual(sel.aptPackages, ["dotnet-sdk-10.0"])
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget")))
         XCTAssertTrue(sel.verifications.contains("dotnet --list-sdks"))
     }
@@ -235,7 +235,7 @@ final class LinuxToolchainsTests: XCTestCase {
             selection: sel, mountPath: ToolchainCacheMount.linuxGuestPath)
         XCTAssertTrue(script.contains("dpkg-query -W -f='${Status}'"), "guarded apt install: \(script)")
         XCTAssertTrue(script.contains("apt-get install -y --no-install-recommends"))
-        XCTAssertTrue(script.contains("dotnet-sdk-8.0"))
+        XCTAssertTrue(script.contains("dotnet-sdk-10.0"))
         XCTAssertTrue(script.contains("mise.run"), "mise is bootstrapped on Linux (not preinstalled)")
         XCTAssertTrue(script.contains("mise use --global 'node@22'"))
         XCTAssertTrue(script.contains("npm install -g 'vercel'"))

@@ -16,6 +16,7 @@ enum CLICommand: Equatable, Hashable {
     case imagePrune
     case imageDigest
     case toolchains
+    case mobile
     case start
     case stop
     case pause

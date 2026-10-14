@@ -108,6 +108,21 @@ and `scripts/e2e.sh --local` before changing forge registration, runtimes, the e
 - The e2e suite sandboxes itself with `KINHIN_SUPPORT_DIR` (support files, daemon socket) and the debug-only
   `KINHIN_TOKEN_STORE=env`; it never touches your real config or Keychain.
 
+### Mobile release tooling (scripts/mobile-e2e.sh)
+
+`kinhin mobile init` scaffolds fastlane into an iOS, Android, Flutter, React Native, Expo, Capacitor, Kotlin Multiplatform or .NET MAUI project. Its Swift code lives in
+`Sources/KinhinKit/Mobile/`, and its templates are embedded there. After any change under `templates/mobile/`, run
+`python3 scripts/mobile-templates-embed.py` and commit the regenerated `MobileTemplates.swift`; `MobileScaffoldTests` fails
+if the two drift. `swift test` covers the scaffolding.
+
+`scripts/mobile-e2e.sh` checks the whole flow on a clean copy of the working tree's `examples/` (committed or not, so run it
+before you commit). Without flags it needs Ruby 3.2+ (set `RUBY_BIN` if it is not on the usual path), and it builds the
+`kinhin` binary with `swift build` if the binary is missing. `--with-builds` also needs JDK 17 (for `jarsigner` too), an
+Android SDK (`ANDROID_HOME`), Xcode, XcodeGen, Flutter, and for the React Native and Expo steps `npm` and CocoaPods. It is
+slower, since it builds each example. Nothing is uploaded and no store credentials are read. Regenerate the examples with the CLI after a template change
+(`kinhin mobile init --force examples/<app>`), or the drift stage fails. The reference is
+[docs/mobile-fastlane.md](docs/mobile-fastlane.md).
+
 ## Layout
 
 - One primary type per file, named after the file. Small, tightly related types (an error enum, a DTO) may share it. Extensions that add a concern go in `Type+Concern.swift`.

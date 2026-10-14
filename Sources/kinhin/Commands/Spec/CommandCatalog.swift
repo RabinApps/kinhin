@@ -338,6 +338,29 @@ enum CommandCatalog {
             ],
             docs: "docs/toolchains.md"),
 
+        CommandSpec(
+            name: "mobile",
+            command: .mobile,
+            group: .images,
+            summary: "Set up fastlane store releases for a mobile app",
+            subcommands: [
+                CommandSpec(
+                    name: "init",
+                    command: .mobile,
+                    summary: "Add fastlane lanes and the CI release workflow",
+                    positionals: "[DIR]",
+                    flags: [
+                        .value(
+                            "--framework", "NAME",
+                            "auto (default), ios, android, native, flutter, react-native, expo, capacitor, kmp or maui"
+                        ),
+                        .bool("--force", "Overwrite files that already exist"),
+                        .bool("--dry-run", "Print what would be written and write nothing"),
+                    ],
+                    docs: "docs/mobile-fastlane.md")
+            ],
+            docs: "docs/mobile-fastlane.md"),
+
         // MARK: running
         CommandSpec(
             name: "start",

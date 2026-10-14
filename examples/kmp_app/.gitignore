@@ -1,0 +1,10 @@
+# Gradle and Kotlin build output
+build/
+.gradle/
+.kotlin/
+local.properties
+
+# Xcode generated user data (the project itself is source and is committed)
+xcuserdata/
+*.xcuserstate
+DerivedData/

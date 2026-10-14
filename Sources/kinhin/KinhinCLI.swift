@@ -132,6 +132,12 @@ struct KinhinCLI {
             default: await ToolchainsCommand.run(args)
             }
 
+        case .mobile:
+            switch invocation.subcommand {
+            case "init": MobileCommand.run(rest)
+            default: fail("usage: kinhin mobile init [DIR] [--framework NAME] [--force] [--dry-run]", exit: .usage)
+            }
+
         case .start:
             try await RunCommands.start(args)
 

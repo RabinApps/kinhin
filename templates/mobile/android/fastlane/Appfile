@@ -1,0 +1,2 @@
+# Google Play package name. Set from the environment so nothing personal is committed.
+package_name(ENV["ANDROID_PACKAGE_NAME"]) # e.g. com.example.app

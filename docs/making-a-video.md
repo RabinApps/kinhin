@@ -11,7 +11,7 @@ project file, scene types, adapters, captions, music and the `.kinhin/videos/` f
 
 A video is a list of scenes (see [The project file](videos-for-your-project.md#the-project-file)). Each scene is either a
 **canvas scene** drawn by Motion Canvas (title, statement, queue, parallel, map, outro) or a **clip scene** around a
-recording of your product: its app, a terminal, or a browser session. Everything that is specific to one product lives in an
+recording of your product: its app, a terminal, or a browser session. Canvas text wraps on whole words and shrinks to fit its box, and each slide has a character limit (title 40, subtitle 60, statement 90, sub 80, outro line 90, url 60, facts 100 joined, steps 60 each, compare titles 40 and items 60); a longer one fails the build and names the prop. Everything that is specific to one product lives in an
 [adapter](videos-for-your-project.md#adapters-recordings-of-your-product) (`video/adapters/<name>/` in this repository); the pipeline never mentions a product. Browser clips need
 no Mac, no desktop session and no permission grant, so they are the easy path for anything that runs in a browser (a
 `device` scene with `"frame": "window"` and a clip recorded by `record-web.sh`).
@@ -28,6 +28,31 @@ no Mac, no desktop session and no permission grant, so they are the easy path fo
 
 Motion Canvas rather than Remotion because Remotion's license requires a paid company license above three employees.
 Run `video/scripts/doctor.sh` to see which tools this machine is missing.
+
+## Screenshots as a scene
+
+A `device` scene can show still screenshots instead of a recording. Put the PNG paths in `props.screens` (relative to `video/`),
+and the scene becomes a cross-fading slideshow of its own length. Each image is held for `props.hold` seconds (default 2.5):
+
+```json
+{
+  "id": "screens",
+  "type": "device",
+  "props": {
+    "screens": ["screens/mobile/en-US/iPhone 17e-01-home.png", "screens/mobile/fr-FR/iPhone 17e-01-home.png"],
+    "hold": 3.5
+  },
+  "minLength": 8,
+  "narration": "Store screenshots from the same repo, in every language."
+}
+```
+
+`{platform}` in a path becomes the platform of the look (`--platform ios|android`, default ios), so one project can show either
+platform's screenshots. The screens sit in a phone frame drawn by ffmpeg (`props.frame`: `iphone`, `android` or `none`; it
+follows the platform by default). The frame has no device artwork, so it is safe to publish.
+
+It is opt-in: a scene without `props.screens` is built as before. A project that uses screenshots does not need an adapter
+for that scene. The slideshow code is `video/scripts/slideshow.mjs`, called from `video/scripts/frames.mjs`.
 
 ## Run the demo app (the kinhin adapter)
 

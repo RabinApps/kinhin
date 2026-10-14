@@ -122,7 +122,7 @@ export function loadProject(name = process.env.VIDEO_PROJECT || 'launch') {
   const stem = (base ? file.slice(base.length + 1) : file.replace(/^.*\//, '')).replace(/\.(json|ya?ml)$/, '');
   const slug = stem.replace(/\//g, '-');
   // out/<stem>.mp4 for the project's own look; a theme or format chosen on the command line is added to the name.
-  const outName = [slug, process.env.VIDEO_THEME, process.env.VIDEO_FORMAT?.replace(':', 'x')].filter(Boolean).join('-');
+  const outName = [slug, process.env.VIDEO_PLATFORM, process.env.VIDEO_THEME, process.env.VIDEO_FORMAT?.replace(':', 'x')].filter(Boolean).join('-');
   const adapter = process.env.VIDEO_ADAPTER || project.adapter || null;
   const manifestFile = adapter && adapterFile(adapter);
   const adapterManifest = manifestFile ? readConfig(manifestFile) : {};

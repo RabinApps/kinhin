@@ -61,6 +61,21 @@ plan ──► claims ──► build (one job per look) ──► publish-relea
 
 A failed video job never blocks a release, a docs deploy or a pull request: nothing depends on it.
 
+## Store screenshots in the mobile cut
+
+`examples/mobile-30s` is a launch cut that shows store screenshots. Its look sets `"screens": true` in `video/ci.json`, so
+the plan adds one job before the build:
+
+- **`mobile-capture`** runs on the macOS pool (`kinhin-xcode`), because the iOS simulator needs macOS. It generates the iOS
+  example, runs `bundle exec fastlane screenshots` for `en-US` and `fr-FR`, and uploads the PNGs as the `mobile-screens`
+  artifact. Only looks that set `screens` run it; other builds are unchanged.
+- **`build`** (Linux, in the container) downloads `mobile-screens` into `video/screens/mobile/` for that look only, then
+  renders. The cut's `device` scenes point at those files with `props.screens` (see [making a video](making-a-video.md#screenshots-as-a-scene)).
+
+There is one capture job per platform a look needs (`ios` and `android`), and each look picks its platform in `video/ci.json`.
+The Android capture boots the pool's emulator (`KINHIN_AVD`, default `Pixel_9`) and needs its system image on the runner; the
+iOS capture is verified locally, the Android one is not yet verified on the pool.
+
 ## Your own product's videos on your fleet
 
 `kinhin video build <name> --on-fleet` runs a video of *your* repository on a runner kinhin serves, with no `video/` folder:

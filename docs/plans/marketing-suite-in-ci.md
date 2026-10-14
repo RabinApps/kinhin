@@ -304,3 +304,11 @@ Each phase ships on its own and is useful alone.
 4. **Release-notes video:** generated from the changelog with no model (recommended), or hand-written per release.
 5. **Required reviewers** for the `marketing` environment (the same people as `release`, or a different set).
 6. **Scope for other products:** ship the reusable workflow in phase 6, or keep the suite kinhin-only for now.
+
+## Mobile screenshots phase (added)
+
+The launch cut can show store screenshots. The video suite gets an opt-in `screens` option on `device` scenes (a slideshow
+of PNGs, `video/scripts/slideshow.mjs`), so videos without it are unchanged. `examples/mobile-30s` is the mobile cut.
+`video.yml` gains a `mobile-capture` job on the macOS pool that captures the iOS screenshots (en-US and fr-FR) for looks
+that set `screens`, and the build job downloads them. Open: the Android capture for CI (the emulator image on the pool), and
+the `marketing` environment and first dispatch from the phases above.

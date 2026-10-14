@@ -1,0 +1,3 @@
+# Who and what to ship. Values come from the environment so nothing personal is committed.
+app_identifier(ENV["APP_IDENTIFIER"]) # e.g. com.example.app
+team_id(ENV["APPLE_TEAM_ID"])         # Developer Portal team ID

@@ -32,7 +32,8 @@ test('the examples cover every theme, every format and every scene type', () => 
 test('every clip a project uses exists in its adapter (raw or reference) in the variants it needs', () => {
   for (const name of projects) {
     const p = loadProject(name);
-    const clipScenes = p.scenes.filter((s) => s.kind === 'clip');
+    // A clip scene with a `screens` list is a slideshow of screenshot files, not a clip of the adapter (scripts/slideshow.mjs).
+    const clipScenes = p.scenes.filter((s) => s.kind === 'clip' && !Array.isArray(s.props.screens));
     if (!clipScenes.length) continue;
     assert.ok(p.adapter, `${name}: clip scenes need an adapter`);
     const adapter = loadAdapter(p.adapter);

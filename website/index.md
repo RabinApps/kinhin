@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "kinhin ○"
-  text: "Your Mac is your CI. Your repo is your video studio."
-  tagline: "Ephemeral runners that scale to your queue, then vanish. Narrated launch videos that rebuild from a file in your repo. Both run on the Mac you already own: no cloud bill for runners, no watermark on videos."
+  text: "Commit it. Screenshot it. Ship it."
+  tagline: "Your Mac is your CI. Your repo is your video studio, and your screenshot studio. Ephemeral runners that scale to your queue, then vanish. Store screenshots in every locale and narrated launch videos that rebuild from a file in your repo. All of it runs on the Mac you already own: no cloud bill for runners, no watermark on videos."
   actions:
     - theme: brand
       text: Get started
@@ -33,6 +33,8 @@ features:
     details: GitHub, Gitea, Forgejo and GitLab CE are supported. Gitea, Forgejo and GitLab CE run end to end on every runtime in kinhin's own test suite; GitHub has run on Tart macOS VMs and apple/container. Buildkite, Azure Pipelines and Bitbucket are planned. <a href="/guide/forges#what-has-been-tested">What has been tested</a> · <a href="/guide/beta-roadmap">Roadmap to v0.1.0</a>
   - title: Parallel jobs, not a queue
     details: Self-hosted runners handle one job at a time. Kinhin scales a fleet of ephemeral runners to your queue so jobs run in parallel. <a href="/guide/why-kinhin">Why kinhin</a>
+  - title: Store screenshots from the same repo
+    details: "One fastlane lane captures localized App Store and Play screenshots in CI for iOS, Android, Flutter, React Native and Kotlin Multiplatform, and keeps them as artifacts. <a href=\"/guide/mobile-screenshots\">Store screenshots</a>"
   - title: Launch videos from a config
     details: "Write the story in YAML. Get a narrated video with your product on screen, captions, music and a vertical cut, then rebuild it whenever you ship. <a href=\"/guide/videos-for-your-project\">Add videos to your project</a>"
   - title: Clean every time

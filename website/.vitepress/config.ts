@@ -51,6 +51,7 @@ export default defineConfig({
     "docs/plans/**",
     "docs/{app,adding-a-forge}.md",
     "skills/**",
+    "examples/**",
   ],
   rewrites: {
     "website/index.md": "index.md",
@@ -150,6 +151,17 @@ export default defineConfig({
           { text: "Requeue and skip queued jobs", link: "/guide/requeue-skip" },
           { text: "Test workflows locally", link: "/guide/workflow-testing" },
           { text: "Benchmarks", link: "/guide/benchmarks" },
+        ],
+      },
+      {
+        text: "Mobile releases",
+        collapsed: false,
+        items: [
+          { text: "Tutorial: first build", link: "/guide/mobile-fastlane-tutorial" },
+          { text: "Reference", link: "/guide/mobile-fastlane" },
+          { text: "Credentials", link: "/guide/mobile-credentials" },
+          { text: "Store screenshots", link: "/guide/mobile-screenshots" },
+          { text: "Troubleshooting", link: "/guide/mobile-fastlane-troubleshooting" },
         ],
       },
       {
